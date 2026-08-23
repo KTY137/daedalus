@@ -1,0 +1,694 @@
+{
+  "acceptance": {
+    "acceptance_rate": 0.5714,
+    "commits_accepted": 20,
+    "commits_considered": 35,
+    "commits_rejected": 15,
+    "composition_bias": "Rejections are not a random sample. A commit is rejected when no file it changed existed in the pre-image tree -- i.e. file-CREATING commits. Multi-file creators are removed wholesale, and those are disproportionately the cross-plane ones (workflow + doc + fixture + test in a single commit). The corpus is therefore biased toward edits to existing code and against the introduction of new cross-plane structure.",
+    "rejected_commits": [
+      {
+        "accepted": false,
+        "changed": [
+          ".github/workflows/g0-undeclared-secret-fault.yml",
+          "docs/work-packets/G0-RTC-06N_UNDECLARED_SECRET_FAULT.md",
+          "tests/fixtures/undeclared_secret_fault_executor.py",
+          "tests/runtimes/test_undeclared_secret_fault_executor.py",
+          "tests/runtimes/test_undeclared_secret_fault_executor_review.py"
+        ],
+        "commit": "2ff6141aa5d03e977749cba7565e7e8215dd1fea",
+        "created_by_commit": [
+          ".github/workflows/g0-undeclared-secret-fault.yml",
+          "docs/work-packets/G0-RTC-06N_UNDECLARED_SECRET_FAULT.md",
+          "tests/fixtures/undeclared_secret_fault_executor.py",
+          "tests/runtimes/test_undeclared_secret_fault_executor.py",
+          "tests/runtimes/test_undeclared_secret_fault_executor_review.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "multi_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          ".github/workflows/g0-effect-ledger-contention-fault.yml",
+          "docs/work-packets/G0-RTC-06K_EFFECT_LEDGER_CONTENTION_FAULT.md",
+          "tests/fixtures/effect_ledger_contention_fault_executor.py",
+          "tests/runtimes/test_effect_ledger_contention_fault_executor.py",
+          "tests/runtimes/test_effect_ledger_contention_fault_executor_review.py"
+        ],
+        "commit": "a74d12440f088c9ce43c2cb25d72aa335a31bef1",
+        "created_by_commit": [
+          ".github/workflows/g0-effect-ledger-contention-fault.yml",
+          "docs/work-packets/G0-RTC-06K_EFFECT_LEDGER_CONTENTION_FAULT.md",
+          "tests/fixtures/effect_ledger_contention_fault_executor.py",
+          "tests/runtimes/test_effect_ledger_contention_fault_executor.py",
+          "tests/runtimes/test_effect_ledger_contention_fault_executor_review.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "multi_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/kernel/test_runtime_effect_admission.py"
+        ],
+        "commit": "65468e2e86e3823b22ab08e69197be875258301e",
+        "created_by_commit": [
+          "tests/kernel/test_runtime_effect_admission.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "scripts/run_spine_writer_factory_mutations.py"
+        ],
+        "commit": "fc1b25206b0c1e20201650bda9270f295b923128",
+        "created_by_commit": [
+          "scripts/run_spine_writer_factory_mutations.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/kernel/test_effect_authorization.py"
+        ],
+        "commit": "871bda422542061f8abcdfce56cc55c5cd74cdec",
+        "created_by_commit": [
+          "tests/kernel/test_effect_authorization.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tools/run_gate_checks.py"
+        ],
+        "commit": "03d45d5ac89529e3454c92611f2628ecd6aca694",
+        "created_by_commit": [
+          "tools/run_gate_checks.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/runtimes/test_runtime_provider_post_invoke_unknown.py"
+        ],
+        "commit": "b500ae26f840667fbefb39c93712bd622de11018",
+        "created_by_commit": [
+          "tests/runtimes/test_runtime_provider_post_invoke_unknown.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/gates/test_repository_write_inventory.py"
+        ],
+        "commit": "4e77ce8ea1bad5ed0bb5115b7b13e221c43b34b1",
+        "created_by_commit": [
+          "tests/gates/test_repository_write_inventory.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "scripts/run_gate_baseline_v2_mutations.py"
+        ],
+        "commit": "dcb4ea3b929c344dc8b970b6c52f9cd684e24688",
+        "created_by_commit": [
+          "scripts/run_gate_baseline_v2_mutations.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/gates/test_repository_tree_review.py"
+        ],
+        "commit": "e8eee18b65ea223681170b7b7112b3bfa932c4e5",
+        "created_by_commit": [
+          "tests/gates/test_repository_tree_review.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "scripts/run_repository_write_artifact_verifier_mutations.py"
+        ],
+        "commit": "b7e20cff235ac0368e3a4f9966987bc239b51b20",
+        "created_by_commit": [
+          "scripts/run_repository_write_artifact_verifier_mutations.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/gates/test_repository_write_stdlib_delta_review.py"
+        ],
+        "commit": "e35ce1b9a948b3e17af47040395d91c7697dc073",
+        "created_by_commit": [
+          "tests/gates/test_repository_write_stdlib_delta_review.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/twin/test_legacy_assurance.py"
+        ],
+        "commit": "148f6106a216f9ec5eb45ee65069b1033d45390b",
+        "created_by_commit": [
+          "tests/twin/test_legacy_assurance.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "scripts/run_provider_invocation_identity_mutations.py"
+        ],
+        "commit": "0f5a45a5f9845fad1177c4c6dc1dd050b512c61e",
+        "created_by_commit": [
+          "scripts/run_provider_invocation_identity_mutations.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "daedalus/gates/guard_implementation_manifest.py"
+        ],
+        "commit": "d4290e8e3aa9e4982fca93658e9291543ff6106e",
+        "created_by_commit": [
+          "daedalus/gates/guard_implementation_manifest.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      }
+    ],
+    "rejection_reasons": {
+      "all_changed_files_created_by_this_commit": 15
+    }
+  },
+  "anchor_commit": "d849c2a94d66ffb1bf892de924995645395bf2a6",
+  "cases": [
+    {
+      "case_id": "c00",
+      "commit": "0f03409538359499b18fd0341946609b415c46ab",
+      "committed_at": 1785898756,
+      "gold": [
+        "scripts/run_provider_target_receipt_retention_contract_mutations.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [],
+      "parent": "3627c99208c0c592e8a0ac9acbd70ccd86bceaef",
+      "query_raw": "test(g0): ensure lease-reuse mutant is observable",
+      "query_scrubbed": "test g0 ensure lease reuse mutant is observable",
+      "universe_size": 4376
+    },
+    {
+      "case_id": "c01",
+      "commit": "980a2496fa0ff0e4b2995f8c4962bea19cf5cf0f",
+      "committed_at": 1785719071,
+      "gold": [
+        "tests/runtimes/test_runtime_trust_store.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "runtime",
+        "test"
+      ],
+      "parent": "dd5d097557ddd099db0cf31e3102c38716926f0a",
+      "query_raw": "test(g0): make runtime observation assertion explicit",
+      "query_scrubbed": "g0 make observation assertion explicit",
+      "universe_size": 3927
+    },
+    {
+      "case_id": "c02",
+      "commit": "3b6d8958b03071ae33ff4589054cf66a67732965",
+      "committed_at": 1785851880,
+      "gold": [
+        "scripts/run_repository_write_classification_mutations.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [],
+      "parent": "3a3db5c40cec48744212b2614abbacd297688334",
+      "query_raw": "test(g0): mutate unreachable-retirement fence",
+      "query_scrubbed": "test g0 mutate unreachable retirement fence",
+      "universe_size": 4205
+    },
+    {
+      "case_id": "c03",
+      "commit": "207cfa1b4d6009d0d9871131c18b19c501e4f331",
+      "committed_at": 1785795808,
+      "gold": [
+        "scripts/run_isolated_attempt_mutations.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [],
+      "parent": "14852de43bc0fe442fc05524fe8228349f2f0a8f",
+      "query_raw": "test(g0): mutate trusted time and workspace preflight",
+      "query_scrubbed": "test g0 mutate trusted time and workspace preflight",
+      "universe_size": 4096
+    },
+    {
+      "case_id": "c04",
+      "commit": "f4bc822ac43baf5301651f1fb8222b8c6a9943e9",
+      "committed_at": 1785881349,
+      "gold": [
+        "daedalus/gates/repository_write_artifact_verifier.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "artifact"
+      ],
+      "parent": "66704b31a50ccb993b7121a6b3c9a4df8cfa27ec",
+      "query_raw": "fix(g0): require canonical artifact JSON bytes",
+      "query_scrubbed": "fix g0 require canonical json bytes",
+      "universe_size": 4339
+    },
+    {
+      "case_id": "c05",
+      "commit": "11293969cc294efa77f77e791b731dc7e8d219bc",
+      "committed_at": 1785730347,
+      "gold": [
+        "daedalus/providers/claude_cli.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "claude"
+      ],
+      "parent": "237d56fe1ec4b2161b19f3a6a2ffbfad475db57a",
+      "query_raw": "fix(g0): bind Claude workspace grant to request and execution",
+      "query_scrubbed": "fix g0 bind workspace grant to request and execution",
+      "universe_size": 3944
+    },
+    {
+      "case_id": "c06",
+      "commit": "48ed114baec2199fb887c3736343ad168d39f1dd",
+      "committed_at": 1785866241,
+      "gold": [
+        "tests/kernel/test_runtime_effect_replay_projection.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "replay",
+        "runtime",
+        "test"
+      ],
+      "parent": "a9a56cff3faea6b9eab27bea059e11b0380261a3",
+      "query_raw": "test(g0): cover detached runtime trust replay subjects",
+      "query_scrubbed": "g0 cover detached trust subjects",
+      "universe_size": 4277
+    },
+    {
+      "case_id": "c07",
+      "commit": "c8a79d6a87ab1e91ae047faf68de56bf861ffdca",
+      "committed_at": 1785870475,
+      "gold": [
+        "daedalus/runtimes/recovery.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "recovery"
+      ],
+      "parent": "d4ac9af0d025843412e458c2cfedeaa0735e64f7",
+      "query_raw": "fix(g0): authenticate recovery through replay projection",
+      "query_scrubbed": "fix g0 authenticate through replay projection",
+      "universe_size": 4298
+    },
+    {
+      "case_id": "c08",
+      "commit": "c029f2664d1f7e16dd9d83f705efff829873a9df",
+      "committed_at": 1785908708,
+      "gold": [
+        "scripts/run_provider_target_receipt_retention_preflight_mutations.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "preflight",
+        "retention"
+      ],
+      "parent": "9b52934c73b61a9a143467109cb7d3cbfc915dab",
+      "query_raw": "test(g0): mutate two-fence retention preflight",
+      "query_scrubbed": "test g0 mutate two fence",
+      "universe_size": 4403
+    },
+    {
+      "case_id": "c09",
+      "commit": "a3d15b61a46ceaa06ccdd23209c89a6dafcbbdfe",
+      "committed_at": 1785718950,
+      "gold": [
+        "daedalus/runtimes/trust_store.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "trust"
+      ],
+      "parent": "46d9b946d8f79166e819b50c2a28941ca06572b6",
+      "query_raw": "fix(g0): prevent stale runtime trust rollback and TTL extension",
+      "query_scrubbed": "fix g0 prevent stale runtime rollback and ttl extension",
+      "universe_size": 3927
+    },
+    {
+      "case_id": "c10",
+      "commit": "e689bd35554376e245237c24802ea03a398c7d3b",
+      "committed_at": 1785793035,
+      "gold": [
+        "tests/kernel/test_isolated_attempt_lifecycle_review.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "attempt",
+        "test"
+      ],
+      "parent": "dcf0cb10e8c5718fff39218f9a3f9dffd8c8a195",
+      "query_raw": "test(g0): enforce single event-spine attempt authority",
+      "query_scrubbed": "g0 enforce single event spine authority",
+      "universe_size": 4086
+    },
+    {
+      "case_id": "c11",
+      "commit": "13d4c1a868c8b185d3b2c02089451673ba781665",
+      "committed_at": 1785753346,
+      "gold": [
+        "daedalus/gates/__init__.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [],
+      "parent": "d50d49ebbc6a57cef54b994c2147af7826bf5065",
+      "query_raw": "refactor(g0): export release assessment boundary",
+      "query_scrubbed": "refactor g0 export release assessment boundary",
+      "universe_size": 4018
+    },
+    {
+      "case_id": "c12",
+      "commit": "84a82757064cedec93c01237ca36cb3948be5bbe",
+      "committed_at": 1786998328,
+      "gold": [
+        "scripts/run_fault_matrix_contract_exact_mutations.py",
+        "scripts/run_fault_matrix_contract_mutations.py",
+        "scripts/run_fault_matrix_exact_durable_mutations.py",
+        "scripts/run_fault_matrix_wire_type_mutations.py",
+        "tests/gates/test_fault_matrix_contract.py"
+      ],
+      "gold_created_dropped": [
+        "scripts/fault_mutation_sandbox.py"
+      ],
+      "leak_tokens": [
+        "exact",
+        "fault",
+        "run",
+        "test",
+        "type",
+        "wire"
+      ],
+      "parent": "3ae65074941c5539b5c007102320613094262036",
+      "query_raw": "fix(g0): port the mutation-harness lane -- the sandbox measures again and proves it each run\n\nPorts the exact reviewed blobs of grind/fault-harness (2 lane commits,\n5deda81 + 675643d). One shared sandbox runner replaces the four copies of\nthe cwd blindness: pytest now runs with cwd inside the sandbox, PYTHONPATH\nreplaced not prepended, no pycache copied, and every campaign self-probes\nfail-closed (clean baseline must pass, a marker canary must die with its\nmarker visible) before any number is reported. The first honest campaigns\nkilled 3+2+19+19 mutants and exposed two verifier checks no test could\nkill; the new forged-receipt check closes both at the evidence boundary.\nKnown and accepted: the wire-type campaign aborts fail-closed at this HEAD\n('seam is not unique: 0') until the seam markers land via a reviewed lane\n-- the unreviewed working-tree change that provides them stays parked.\n\nIron-Plan: aligned\nIron-Gate: 0\nEvidence: lane RAW four campaigns EXIT=0 with green self-probes; negative probe reproduces the old blindness (canary survives under cwd=ROOT); survey 17/19 -> 19/19; trunk-side scoped re-run follows\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "query_scrubbed": "fix g0 port the mutation harness lane the sandbox measures again and proves it each ports the reviewed blobs of grind harness lane commits 5deda81 675643d one shared sandbox runner replaces the four copies of the cwd blindness pytest now runs with cwd inside the sandbox pythonpath replaced not prepended no pycache copied and every campaign self probes fail closed clean baseline must pass marker canary must die with its marker visible before any number is reported the first honest campaigns killed 19 19 mutants and exposed two verifier checks no could kill the new forged receipt check closes both at the evidence boundary known and accepted the campaign aborts fail closed at this head seam is not unique until the seam markers land via reviewed lane the unreviewed working tree change that provides them stays parked iron plan aligned iron gate evidence lane raw four campaigns exit with green self probes negative probe reproduces the old blindness canary survives under cwd root survey 17 19 19 19 trunk side scoped re follows co authored by claude fable noreply anthropic com",
+      "universe_size": 4673
+    },
+    {
+      "case_id": "c13",
+      "commit": "2a25d953f8adc1f1e6fb1c21fe6555df2a3fd728",
+      "committed_at": 1786972012,
+      "gold": [
+        "configs/schemas/fault-matrix-contract.schema.json",
+        "daedalus/gates/fault_matrix.py",
+        "tests/gates/test_fault_matrix_contract.py",
+        "tests/gates/test_fault_matrix_contract_review.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "fault",
+        "matrix",
+        "review"
+      ],
+      "parent": "e98758da76a53ba6c8de46e195d7b96c1d37e09a",
+      "query_raw": "fix(wave3): a verified fault-matrix run can finally become gate evidence\n\nThe evidence projection supplies real values instead of a field the\ndataclass never had, and the run verifier now demands exact durable-state\nequality instead of subset-plus-disjoint -- an undeclared durable side\neffect no longer reads as pass. Landed as one commit because both lanes\nchange the same module; the review check that pinned the old defect by its\nliteral source text moves with them.\n\nMeasured: 20 of 22 fault-matrix checks green; the two remaining wire-type\nfailures predate this wave (present in the morning failure cache).\n\nIron-Plan: aligned\nIron-Gate: 0\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "query_scrubbed": "fix wave3 verified run can finally become gate evidence the evidence projection supplies real values instead of field the dataclass never had and the run verifier now demands exact durable state equality instead of subset plus disjoint an undeclared durable side effect no longer reads as pass landed as one commit because both lanes change the same module the check that pinned the old defect by its literal source text moves with them measured 20 of 22 checks green the two remaining wire type failures predate this wave present in the morning failure cache iron plan aligned iron gate co authored by claude opus noreply anthropic com",
+      "universe_size": 4587
+    },
+    {
+      "case_id": "c14",
+      "commit": "8d0d945848c1567d5125a7c11ea9c2b0a6862a8d",
+      "committed_at": 1787002021,
+      "gold": [
+        "daedalus/spine/effect_boundary.py",
+        "tests/test_effect_boundary.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "boundary"
+      ],
+      "parent": "7dce95c4f7c210957920f1cc03f9e55bec1fa19b",
+      "query_raw": "fix(g0): port the boundary lane -- the four new doors declare their invisible effects\n\nPorts the exact reviewed blobs of grind/boundary-green @a9301f1. The four\nclosure-tool mains register as inventory_only with their statically\ninvisible effects hand-declared (spawn/control behind the sandbox seam,\nsecrets behind the key envs), guard anchors pinned so neither spawn row\ncan rot into a raw spawn silently. Honest accounting from the lane: total\nreport blockers stay at 75 -- the doors moved class from invisible to\ndeclared, and the 70 inventory_only rows remain the named Gate-0 exit gap\n(the CENTRAL wiring decision, owner paper item 8 territory).\n\nIron-Plan: aligned\nIron-Gate: 0\nEvidence: lane RAW 26 passed (was 4 failed / 21 passed) on the boundary suite, 734 passed / 2 skipped gates sweep, mutation check red on dropped SECRETS declaration; trunk-side scoped re-run follows\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "query_scrubbed": "fix g0 port the lane the four new doors declare their invisible effects ports the exact reviewed blobs of grind green a9301f1 the four closure tool mains register as inventory only with their statically invisible effects hand declared spawn control behind the sandbox seam secrets behind the key envs guard anchors pinned so neither spawn row can rot into raw spawn silently honest accounting from the lane total report blockers stay at 75 the doors moved class from invisible to declared and the 70 inventory only rows remain the named gate exit gap the central wiring decision owner paper item territory iron plan aligned iron gate evidence lane raw 26 passed was failed 21 passed on the suite 734 passed skipped gates sweep mutation check red on dropped secrets declaration trunk side scoped re run follows co authored by claude fable noreply anthropic com",
+      "universe_size": 4731
+    },
+    {
+      "case_id": "c15",
+      "commit": "e0808054cd5ef8bc7b7cdb079d55f18d4521985f",
+      "committed_at": 1785626311,
+      "gold": [
+        ".github/workflows/apply-g0-final-patch.yml",
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/spine/effect_boundary.py",
+        "tests/test_effect_boundary.py"
+      ],
+      "gold_created_dropped": [
+        ".daedalus-bootstrap/g0-final.patch"
+      ],
+      "leak_tokens": [
+        "g0"
+      ],
+      "parent": "ce3d7358ee847c72e03a7efc6a04d53bb679c952",
+      "query_raw": "feat(g0): seal promotion and register owner guard",
+      "query_scrubbed": "feat seal promotion and register owner guard",
+      "universe_size": 3896
+    },
+    {
+      "case_id": "c16",
+      "commit": "900665e43c981faa1395c78d1e6ccb29d2513317",
+      "committed_at": 1786970937,
+      "gold": [
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+        "tools/iron_plan_guard.py"
+      ],
+      "gold_created_dropped": [
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "leak_tokens": [
+        "guard",
+        "iron",
+        "plan"
+      ],
+      "parent": "60b2bfeb83d3886e4c1e8547e2481a8972e729a3",
+      "query_raw": "amend(guard): sealed-promotion checks follow the strangler into the retained source\n\nIron-Plan: amendment\n\nIron-Gate: 0",
+      "query_scrubbed": "amend sealed promotion checks follow the strangler into the retained source amendment gate",
+      "universe_size": 4587
+    },
+    {
+      "case_id": "c17",
+      "commit": "5a44ccb8190b461be6e54c66446581a97590c13c",
+      "committed_at": 1785876353,
+      "gold": [
+        "tests/runtimes/test_runtime_provider_post_invoke_unknown.py",
+        "tests/runtimes/test_runtime_provider_recovery.py"
+      ],
+      "gold_created_dropped": [
+        "tests/runtimes/test_provider_observation_authority.py"
+      ],
+      "leak_tokens": [
+        "provider",
+        "test"
+      ],
+      "parent": "13f1106e8a4f6e01a447b5089867f161b8c75ab3",
+      "query_raw": "test(g0): adversarially bind provider observations",
+      "query_scrubbed": "g0 adversarially bind observations",
+      "universe_size": 4299
+    },
+    {
+      "case_id": "c18",
+      "commit": "aafd2a1f7b8327e3c2cbac220b4044b3740629d9",
+      "committed_at": 1786990480,
+      "gold": [
+        "daedalus/gates/repository_write_inventory.py",
+        "tests/gates/test_gate_report_v3_review.py"
+      ],
+      "gold_created_dropped": [],
+      "leak_tokens": [
+        "gate",
+        "inventory",
+        "review",
+        "v3"
+      ],
+      "parent": "592eef4ce6971710b582b66f55ff162860e25801",
+      "query_raw": "fix(g0): port the v3 scanner fixes -- replace-classification binds to the Path.replace arity\n\nPorts the exact reviewed blobs of grind/v3-scanner-owner-prep @ee45877\n(options B+D of the identity paper: arity-gated replace classification\nwith the os.replace filesystem exemption, and the review check split by\nAST node type so re.compile is no longer read as the builtin). Option A\n(inventory schema bump) remains with the owner per f5cb950.\n\nIron-Plan: aligned\nIron-Gate: 0\nEvidence: lane RAW '46 passed in 189.00s' across the 7-file family (previously 3 failed / 43 passed); trunk-side scoped re-run follows\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "query_scrubbed": "fix g0 port the scanner fixes replace classification binds to the path replace arity ports the exact reviewed blobs of grind scanner owner prep ee45877 options of the identity paper arity gated replace classification with the os replace filesystem exemption and the check split by ast node type so re compile is no longer read as the builtin option schema bump remains with the owner per f5cb950 iron plan aligned iron evidence lane raw 46 passed in 189 00s across the file family previously failed 43 passed trunk side scoped re run follows co authored by claude fable noreply anthropic com",
+      "universe_size": 4591
+    },
+    {
+      "case_id": "c19",
+      "commit": "13f1106e8a4f6e01a447b5089867f161b8c75ab3",
+      "committed_at": 1785876217,
+      "gold": [
+        "daedalus/runtimes/broker.py",
+        "daedalus/runtimes/recovery.py"
+      ],
+      "gold_created_dropped": [
+        "daedalus/runtimes/provider_observation.py"
+      ],
+      "leak_tokens": [],
+      "parent": "370e931baef8f254f22e55698feb5794ed22d685",
+      "query_raw": "fix(g0): persist provider observation authority",
+      "query_scrubbed": "fix g0 persist provider observation authority",
+      "universe_size": 4298
+    }
+  ],
+  "digest": "sha256:c3ef36f19ebaaf953ef8c26615295dfe7e845a89ec68b50ffb5c933df96d8c33",
+  "dropped_breakdown": {
+    "created_by_commit": 3,
+    "existed_but_ineligible": 2,
+    "field_is_misnamed": "gold_created_dropped collects every changed path outside the ELIGIBLE universe, not only paths the commit created. Files that existed in the parent tree but fail the suffix/size rule land in it too. The total is correct either way -- an ineligible file is unretrievable as well -- but the label over-attributes to creation. Kept as-is for digest stability.",
+    "per_case": {
+      "c12": {
+        "created_by_commit": [
+          "scripts/fault_mutation_sandbox.py"
+        ],
+        "ineligible_in_universe": []
+      },
+      "c15": {
+        "created_by_commit": [],
+        "ineligible_in_universe": [
+          ".daedalus-bootstrap/g0-final.patch"
+        ]
+      },
+      "c16": {
+        "created_by_commit": [],
+        "ineligible_in_universe": [
+          "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+        ]
+      },
+      "c17": {
+        "created_by_commit": [
+          "tests/runtimes/test_provider_observation_authority.py"
+        ],
+        "ineligible_in_universe": []
+      },
+      "c19": {
+        "created_by_commit": [
+          "daedalus/runtimes/provider_observation.py"
+        ],
+        "ineligible_in_universe": []
+      }
+    }
+  },
+  "plane_composition": {
+    "cases_matching_the_gate1_python_markdown_csv_shape": 0,
+    "cases_spanning_more_than_one_plane": 3,
+    "cases_touching_the_knowledge_plane": 1,
+    "gold_by_plane": {
+      "code": 32,
+      "data": 2,
+      "knowledge": 1
+    },
+    "gold_by_suffix": {
+      ".json": 1,
+      ".md": 1,
+      ".py": 32,
+      ".yml": 1
+    },
+    "gold_paths_total": 35,
+    "type_plane_representatives": 0,
+    "warning": "This corpus grades a hypothesis it cannot exercise. Gold is overwhelmingly Python; only a handful of cases span more than one plane; the Type plane has no file-level representative at all; and the Gate-1 flagship scenario (propagate across Python, Markdown and CSV) has no representative. A four-plane method can register a LOSS here, but a cross-plane WIN has almost no mass to appear on. Read a null result as 'this corpus cannot see it', never as a kill."
+  },
+  "schema": "forest_v2.s09.taskset/2",
+  "selection": {
+    "case_count": 20,
+    "history_limit": 1200,
+    "max_changed": 6,
+    "min_changed": 1,
+    "min_message_chars": 24,
+    "multi_file_target": 8,
+    "order": "sha256(commit_sha) ascending, multi-file stratum first",
+    "require_python_change": true
+  },
+  "selection_census": {
+    "admissible_multi_file": 18,
+    "admissible_single_file": 710,
+    "admissible_total": 728,
+    "history_scanned": 1200,
+    "multi_file_admissible_unused": 10,
+    "multi_file_quota": 8,
+    "multi_file_used": 8,
+    "note": "multi_file_quota is a choice, not a ceiling: admissible multi-file supply exceeds it, so the unused remainder was left on the table by the quota, not missing from history."
+  },
+  "strata_actual": {
+    "multi_file": 8,
+    "single_file": 12
+  },
+  "universe_rule": {
+    "content_budget_bytes": 65536,
+    "cutoffs": [
+      1,
+      5,
+      10,
+      20
+    ],
+    "max_file_bytes": 200000,
+    "text_suffixes": [
+      ".py",
+      ".md",
+      ".txt",
+      ".json",
+      ".yml",
+      ".yaml",
+      ".toml",
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".html",
+      ".css",
+      ".csv",
+      ".sh",
+      ".cfg",
+      ".ini",
+      ".sql",
+      ".rst"
+    ]
+  }
+}

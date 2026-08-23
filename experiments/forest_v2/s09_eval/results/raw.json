@@ -1,0 +1,3739 @@
+{
+  "aggregates": [
+    {
+      "cases": 20,
+      "cases_with_any_hit": 16,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 2,
+        "10": 16,
+        "20": 19,
+        "5": 7
+      },
+      "macro_recall_at": {
+        "1": 0.0625,
+        "10": 0.6625,
+        "20": 0.7625,
+        "5": 0.2875
+      },
+      "median_first_hit_rank": 6.0,
+      "micro_recall_at": {
+        "1": 0.0571,
+        "10": 0.4571,
+        "20": 0.5429,
+        "5": 0.2
+      },
+      "mrr": 0.2239,
+      "retriever": "recency_prior",
+      "variant": "raw"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 9,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 1,
+        "10": 7,
+        "20": 11,
+        "5": 6
+      },
+      "macro_recall_at": {
+        "1": 0.0125,
+        "10": 0.2375,
+        "20": 0.4125,
+        "5": 0.1875
+      },
+      "median_first_hit_rank": 3.0,
+      "micro_recall_at": {
+        "1": 0.0286,
+        "10": 0.2,
+        "20": 0.3143,
+        "5": 0.1714
+      },
+      "mrr": 0.1565,
+      "retriever": "bm25_content_only",
+      "variant": "raw"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 7,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 1,
+        "10": 7,
+        "20": 8,
+        "5": 6
+      },
+      "macro_recall_at": {
+        "1": 0.0125,
+        "10": 0.2375,
+        "20": 0.2875,
+        "5": 0.1875
+      },
+      "median_first_hit_rank": 3.0,
+      "micro_recall_at": {
+        "1": 0.0286,
+        "10": 0.2,
+        "20": 0.2286,
+        "5": 0.1714
+      },
+      "mrr": 0.141,
+      "retriever": "bm25",
+      "variant": "raw"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 12,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 1,
+        "10": 7,
+        "20": 13,
+        "5": 4
+      },
+      "macro_recall_at": {
+        "1": 0.025,
+        "10": 0.21,
+        "20": 0.435,
+        "5": 0.11
+      },
+      "median_first_hit_rank": 9.5,
+      "micro_recall_at": {
+        "1": 0.0286,
+        "10": 0.2,
+        "20": 0.3714,
+        "5": 0.1143
+      },
+      "mrr": 0.1245,
+      "retriever": "path_lexical",
+      "variant": "raw"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 1,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "macro_recall_at": {
+        "1": 0.0,
+        "10": 0.0,
+        "20": 0.025,
+        "5": 0.0
+      },
+      "median_first_hit_rank": 13.0,
+      "micro_recall_at": {
+        "1": 0.0,
+        "10": 0.0,
+        "20": 0.0286,
+        "5": 0.0
+      },
+      "mrr": 0.0038,
+      "retriever": "random_uniform",
+      "variant": "raw"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 16,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 2,
+        "10": 16,
+        "20": 19,
+        "5": 7
+      },
+      "macro_recall_at": {
+        "1": 0.0625,
+        "10": 0.6625,
+        "20": 0.7625,
+        "5": 0.2875
+      },
+      "median_first_hit_rank": 6.0,
+      "micro_recall_at": {
+        "1": 0.0571,
+        "10": 0.4571,
+        "20": 0.5429,
+        "5": 0.2
+      },
+      "mrr": 0.2239,
+      "retriever": "recency_prior",
+      "variant": "scrubbed"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 6,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 1,
+        "10": 6,
+        "20": 7,
+        "5": 6
+      },
+      "macro_recall_at": {
+        "1": 0.0125,
+        "10": 0.1875,
+        "20": 0.2375,
+        "5": 0.1875
+      },
+      "median_first_hit_rank": 3.0,
+      "micro_recall_at": {
+        "1": 0.0286,
+        "10": 0.1714,
+        "20": 0.2,
+        "5": 0.1714
+      },
+      "mrr": 0.1258,
+      "retriever": "bm25_content_only",
+      "variant": "scrubbed"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 6,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 1,
+        "10": 6,
+        "20": 7,
+        "5": 6
+      },
+      "macro_recall_at": {
+        "1": 0.0125,
+        "10": 0.1875,
+        "20": 0.2375,
+        "5": 0.1875
+      },
+      "median_first_hit_rank": 3.5,
+      "micro_recall_at": {
+        "1": 0.0286,
+        "10": 0.1714,
+        "20": 0.2,
+        "5": 0.1714
+      },
+      "mrr": 0.1168,
+      "retriever": "bm25",
+      "variant": "scrubbed"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 1,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "macro_recall_at": {
+        "1": 0.0,
+        "10": 0.0,
+        "20": 0.025,
+        "5": 0.0
+      },
+      "median_first_hit_rank": 13.0,
+      "micro_recall_at": {
+        "1": 0.0,
+        "10": 0.0,
+        "20": 0.0286,
+        "5": 0.0
+      },
+      "mrr": 0.0038,
+      "retriever": "random_uniform",
+      "variant": "scrubbed"
+    },
+    {
+      "cases": 20,
+      "cases_with_any_hit": 0,
+      "gold_total": 35,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "macro_recall_at": {
+        "1": 0.0,
+        "10": 0.0,
+        "20": 0.0,
+        "5": 0.0
+      },
+      "median_first_hit_rank": null,
+      "micro_recall_at": {
+        "1": 0.0,
+        "10": 0.0,
+        "20": 0.0,
+        "5": 0.0
+      },
+      "mrr": 0.0,
+      "retriever": "path_lexical",
+      "variant": "scrubbed"
+    }
+  ],
+  "budget": {
+    "content_budget_bytes": 65536,
+    "cutoffs": [
+      1,
+      5,
+      10,
+      20
+    ],
+    "max_file_bytes": 200000,
+    "text_suffixes": [
+      ".py",
+      ".md",
+      ".txt",
+      ".json",
+      ".yml",
+      ".yaml",
+      ".toml",
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".html",
+      ".css",
+      ".csv",
+      ".sh",
+      ".cfg",
+      ".ini",
+      ".sql",
+      ".rst"
+    ]
+  },
+  "cases": 20,
+  "cost": {
+    "blob_lookups_reused": 80613,
+    "blobs_fetched": 4945,
+    "preimage_isolation": false,
+    "rank_seconds": {
+      "bm25": 7.168,
+      "bm25_content_only": 2.749,
+      "path_lexical": 1.986,
+      "random_uniform": 0.09,
+      "recency_prior": 1.264
+    },
+    "shared_index_seconds": 5.44,
+    "timing_disclaimer": "rank_seconds and wall_seconds_total are unvalidated wall-clock on a shared box, not a property of the harness: a re-run of identical work measured bm25 at 6.525 s against a stored 26.806 s (4.1x). Recorded for shape only. Do not cite them and do not rank retrievers by them.",
+    "token_cache_hits": 422845,
+    "token_cache_misses": 4945,
+    "universe_size_max": 4731,
+    "universe_size_min": 3896,
+    "wall_seconds_total": 20.94
+  },
+  "environment": {
+    "platform": "Windows-10-10.0.26200-SP0",
+    "python": "3.10.11"
+  },
+  "mrr_intervals": {
+    "bm25_content_only|raw": {
+      "ci95_high": 0.286,
+      "ci95_low": 0.0558,
+      "point": 0.1565,
+      "resamples": 2000
+    },
+    "bm25_content_only|scrubbed": {
+      "ci95_high": 0.2533,
+      "ci95_low": 0.0317,
+      "point": 0.1258,
+      "resamples": 2000
+    },
+    "bm25|raw": {
+      "ci95_high": 0.2679,
+      "ci95_low": 0.0426,
+      "point": 0.141,
+      "resamples": 2000
+    },
+    "bm25|scrubbed": {
+      "ci95_high": 0.2387,
+      "ci95_low": 0.0276,
+      "point": 0.1168,
+      "resamples": 2000
+    },
+    "path_lexical|raw": {
+      "ci95_high": 0.2315,
+      "ci95_low": 0.0488,
+      "point": 0.1245,
+      "resamples": 2000
+    },
+    "path_lexical|scrubbed": {
+      "ci95_high": 0.0,
+      "ci95_low": 0.0,
+      "point": 0.0,
+      "resamples": 2000
+    },
+    "random_uniform|raw": {
+      "ci95_high": 0.0115,
+      "ci95_low": 0.0,
+      "point": 0.0038,
+      "resamples": 2000
+    },
+    "random_uniform|scrubbed": {
+      "ci95_high": 0.0115,
+      "ci95_low": 0.0,
+      "point": 0.0038,
+      "resamples": 2000
+    },
+    "recency_prior|raw": {
+      "ci95_high": 0.3612,
+      "ci95_low": 0.1206,
+      "point": 0.2239,
+      "resamples": 2000
+    },
+    "recency_prior|scrubbed": {
+      "ci95_high": 0.3612,
+      "ci95_low": 0.1206,
+      "point": 0.2239,
+      "resamples": 2000
+    }
+  },
+  "paired_comparisons": [
+    {
+      "cases_better": 4,
+      "cases_tied": 4,
+      "cases_worse": 12,
+      "delta_mean": {
+        "ci95_high": 0.0483,
+        "ci95_low": -0.2114,
+        "point": -0.0674,
+        "resamples": 2000
+      },
+      "interval_excludes_zero": false,
+      "reference": "recency_prior",
+      "share_of_resamples_favouring_subject": 0.1445,
+      "subject": "bm25_content_only",
+      "variant": "raw"
+    },
+    {
+      "cases_better": 4,
+      "cases_tied": 4,
+      "cases_worse": 12,
+      "delta_mean": {
+        "ci95_high": 0.0336,
+        "ci95_low": -0.2257,
+        "point": -0.0829,
+        "resamples": 2000
+      },
+      "interval_excludes_zero": false,
+      "reference": "recency_prior",
+      "share_of_resamples_favouring_subject": 0.093,
+      "subject": "bm25",
+      "variant": "raw"
+    },
+    {
+      "cases_better": 5,
+      "cases_tied": 0,
+      "cases_worse": 15,
+      "delta_mean": {
+        "ci95_high": 0.0622,
+        "ci95_low": -0.2565,
+        "point": -0.0994,
+        "resamples": 2000
+      },
+      "interval_excludes_zero": false,
+      "reference": "recency_prior",
+      "share_of_resamples_favouring_subject": 0.1065,
+      "subject": "path_lexical",
+      "variant": "raw"
+    },
+    {
+      "cases_better": 0,
+      "cases_tied": 4,
+      "cases_worse": 16,
+      "delta_mean": {
+        "ci95_high": -0.1165,
+        "ci95_low": -0.3579,
+        "point": -0.2201,
+        "resamples": 2000
+      },
+      "interval_excludes_zero": true,
+      "reference": "recency_prior",
+      "share_of_resamples_favouring_subject": 0.0,
+      "subject": "random_uniform",
+      "variant": "raw"
+    },
+    {
+      "cases_better": 3,
+      "cases_tied": 5,
+      "cases_worse": 12,
+      "delta_mean": {
+        "ci95_high": 0.0137,
+        "ci95_low": -0.2368,
+        "point": -0.0981,
+        "resamples": 2000
+      },
+      "interval_excludes_zero": false,
+      "reference": "recency_prior",
+      "share_of_resamples_favouring_subject": 0.051,
+      "subject": "bm25_content_only",
+      "variant": "scrubbed"
+    },
+    {
+      "cases_better": 3,
+      "cases_tied": 5,
+      "cases_worse": 12,
+      "delta_mean": {
+        "ci95_high": -0.0008,
+        "ci95_low": -0.2396,
+        "point": -0.1071,
+        "resamples": 2000
+      },
+      "interval_excludes_zero": true,
+      "reference": "recency_prior",
+      "share_of_resamples_favouring_subject": 0.0235,
+      "subject": "bm25",
+      "variant": "scrubbed"
+    },
+    {
+      "cases_better": 0,
+      "cases_tied": 4,
+      "cases_worse": 16,
+      "delta_mean": {
+        "ci95_high": -0.1165,
+        "ci95_low": -0.3579,
+        "point": -0.2201,
+        "resamples": 2000
+      },
+      "interval_excludes_zero": true,
+      "reference": "recency_prior",
+      "share_of_resamples_favouring_subject": 0.0,
+      "subject": "random_uniform",
+      "variant": "scrubbed"
+    },
+    {
+      "cases_better": 0,
+      "cases_tied": 4,
+      "cases_worse": 16,
+      "delta_mean": {
+        "ci95_high": -0.1206,
+        "ci95_low": -0.3612,
+        "point": -0.2239,
+        "resamples": 2000
+      },
+      "interval_excludes_zero": true,
+      "reference": "recency_prior",
+      "share_of_resamples_favouring_subject": 0.0,
+      "subject": "path_lexical",
+      "variant": "scrubbed"
+    }
+  ],
+  "paired_comparisons_key": [
+    "subject",
+    "reference",
+    "variant"
+  ],
+  "per_case": [
+    {
+      "case_id": "c00",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": 19,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0526,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": 15,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0667,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": 5,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.2,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": 19,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0526,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": 15,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0667,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c00",
+      "first_hit_rank": 5,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.2,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4376,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": 6,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1667,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": 1,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 10,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c01",
+      "first_hit_rank": 1,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": 8,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.125,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c02",
+      "first_hit_rank": 8,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.125,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4205,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": 11,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0909,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c03",
+      "first_hit_rank": 11,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0909,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4096,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": 13,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0769,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": 10,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c04",
+      "first_hit_rank": 10,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4339,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": 2,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": 2,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": 6,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1667,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": 3,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.3333,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": 2,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c05",
+      "first_hit_rank": 6,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1667,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 3944,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": 4,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.25,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": 19,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0526,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": 2,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c06",
+      "first_hit_rank": 2,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4277,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": 13,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0769,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": 8,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.125,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c07",
+      "first_hit_rank": 8,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.125,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": 17,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0588,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": 10,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": 10,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": 9,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1111,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c08",
+      "first_hit_rank": 9,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1111,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4403,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": 12,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0833,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": 3,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.3333,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": 2,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": 5,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.2,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": 5,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.2,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": 5,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.2,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c09",
+      "first_hit_rank": 5,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.2,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 3927,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": 14,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0714,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": 10,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c10",
+      "first_hit_rank": 10,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4086,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": 4,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.25,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": null,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c11",
+      "first_hit_rank": 4,
+      "gold_total": 1,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.25,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4018,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": 4,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.25,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c12",
+      "first_hit_rank": null,
+      "gold_total": 5,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4673,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": 11,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0909,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c13",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": 13,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0769,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": 2,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 2,
+        "20": 2,
+        "5": 2
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": 2,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 2,
+        "20": 2,
+        "5": 2
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": 7,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 2,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1429,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": 13,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0769,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": 2,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 2,
+        "20": 2,
+        "5": 2
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": 2,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 2,
+        "20": 2,
+        "5": 2
+      },
+      "reciprocal_rank": 0.5,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c14",
+      "first_hit_rank": 7,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 2,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1429,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4731,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": 15,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0667,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": 1,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": 1,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": 1,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": null,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": 1,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": 1,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c15",
+      "first_hit_rank": 1,
+      "gold_total": 4,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 3896,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": 1,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 1,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 1.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": 3,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.3333,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": 3,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 2,
+        "5": 1
+      },
+      "reciprocal_rank": 0.3333,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": 4,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.25,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": 4,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 1
+      },
+      "reciprocal_rank": 0.25,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c16",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4587,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": 4,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 2,
+        "20": 2,
+        "5": 1
+      },
+      "reciprocal_rank": 0.25,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": 6,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 2,
+        "20": 2,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1667,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c17",
+      "first_hit_rank": 6,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 2,
+        "20": 2,
+        "5": 0
+      },
+      "reciprocal_rank": 0.1667,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4299,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": 8,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 1,
+        "5": 0
+      },
+      "reciprocal_rank": 0.125,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c18",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4591,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": 5,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 2,
+        "5": 1
+      },
+      "reciprocal_rank": 0.2,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "raw"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "random_uniform",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "path_lexical",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": null,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 0,
+        "20": 0,
+        "5": 0
+      },
+      "reciprocal_rank": 0.0,
+      "retriever": "bm25_content_only",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    },
+    {
+      "case_id": "c19",
+      "first_hit_rank": 5,
+      "gold_total": 2,
+      "hits_at": {
+        "1": 0,
+        "10": 1,
+        "20": 2,
+        "5": 1
+      },
+      "reciprocal_rank": 0.2,
+      "retriever": "recency_prior",
+      "returned": 20,
+      "universe_size": 4298,
+      "variant": "scrubbed"
+    }
+  ],
+  "reference_retriever": "recency_prior",
+  "retrievers": [
+    "random_uniform",
+    "path_lexical",
+    "bm25",
+    "bm25_content_only",
+    "recency_prior"
+  ],
+  "schema": "forest_v2.s09.results/1",
+  "taskset_anchor": "d849c2a94d66ffb1bf892de924995645395bf2a6",
+  "taskset_digest": "sha256:c3ef36f19ebaaf953ef8c26615295dfe7e845a89ec68b50ffb5c933df96d8c33"
+}
