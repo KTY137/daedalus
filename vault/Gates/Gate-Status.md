@@ -11,7 +11,7 @@ ist eine Projektion; bei Widerspruch gewinnt der Plan.
 ## Leiter
 
 - [ ] **Gate 0 — Canonical Kernel** ← AKTIV (Plan-Revision 1)
-- [ ] Gate 1 — Ignition Slice (`Event.voltage -> bias_voltage` über Python/Markdown/CSV)
+- [~] Gate 1 — Ignition Slice (`Event.voltage -> bias_voltage` über Python/Markdown/CSV): Slice laeuft blockerfrei, beide WorkItems passed/deterministic, Replay demonstriert, nichts promoviert (main 72f37f71, Receipt runs/ignition/mission-gate1-voltage-ignition/receipt.json, MEASURED 2026-08-23). OFFEN vor 'geschlossen': owner-gepinntes Evaluator-Buendel (Kriteriumsbytes + Evaluator-Revision), sonst kann Evaluator-Drift als Stabilitaet durchgehen.
 - [ ] Gate 2 — Forest v2
 - [ ] Gate 3 — Baseline Lab
 - [ ] Gate 4 — Eine Forschungshypothese (Graph-conditioned Representation Search)
