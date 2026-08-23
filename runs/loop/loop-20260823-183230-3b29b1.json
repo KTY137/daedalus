@@ -1,0 +1,111 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260823-183230-3b29b1.json",
+      "digest": {
+        "sha256": "29b44c7957193c375e84f4b023658fef9a6b6b3e0dda6c12ed22111516caa895"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-archive-swarm-2026-07-30-census-syn-20e8c5": {
+        "n": 1,
+        "outcomes": [
+          "worktree_failed"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-e257e3980e"
+          ]
+        ],
+        "iterations": [
+          0
+        ],
+        "trace_ids": [
+          "tr-20260823T183230-c0c59cf7"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false,
+            "reason": "worktree creation failed: Git command failed: git worktree add -b daedalus-attempt-kairos-ollama-e257e3980e-5180ed73-deac96 C:\\Users\\nukei\\AppData\\Local\\daedalus\\worktrees\\e3d9b70ebd9c\\daedalus-attempt-kairos-ollama-e257e3980e-5180ed73-deac96 9ccc4cfc18df8aad0e28d77432e8f8ad5225fa39\nError: Preparing worktree (new branch 'daedalus-attempt-kairos-ollama-e257e3980e-5180ed73-deac96')\nUpdating files:  20% (579/2770)\nUpdating files:  21% (582/2770)\nUpdating files:  22% (610/2770)\nUpdating files:  23% (638/2770)\nUpdating files:  24% (665/2770)\nUpdating files:  25% (693/2770)\nUpdating files:  26% (721/2770)\nUpdating files:  27% (748/2770)\nUpdating files:  28% (776/2770)\nUpdating files:  29% (804/2770)\nUpdating files:  29% (809/2770)\nUpdating files:  30% (831/2770)\nUpdating files:  31% (859/2770)\nUpdating files:  32% (887/2770)\nUpdating files:  33% (915/2770)\nUpdating files:  34% (942/2770)\nUpdating files:  35% (970/2770)\nUpdating files:  36% (998/2770)\nUpdating files:  37% (1025/2770)\nUpdating files:  38% (1053/2770)\nUpdating files:  38% (1076/2770)\nUpdating files:  39% (1081/2770)\nUpdating files:  40% (1108/2770)\nUpdating files:  41% (1136/2770)\nUpdating files:  42% (1164/2770)\nUpdating files:  43% (1192/2770)\nUpdating files:  44% (1219/2770)\nUpdating files:  45% (1247/2770)\nUpdating files:  46% (1275/2770)\nUpdating files:  46% (1296/2770)\nUpdating files:  47% (1302/2770)\nUpdating files:  48% (1330/2770)\nUpdating files:  49% (1358/2770)\nUpdating files:  50% (1385/2770)\nUpdating files:  51% (1413/2770)\nUpdating files:  52% (1441/2770)\nUpdating files:  53% (1469/2770)\nUpdating files:  54% (1496/2770)\nUpdating files:  55% (1524/2770)\nUpdating files:  56% (1552/2770)\nUpdating files:  57% (1579/2770)\nUpdating files:  58% (1607/2770)\nUpdating files:  59% (1635/2770)\nUpdating files:  60% (1662/2770)\nUpdating files:  60% (1675/2770)\nUpdating files:  61% (1690/2770)\nUpdating files:  62% (1718/2770)\nUpdating files:  63% (1746/2770)\nUpdating files:  64% (1773/2770)\nUpdating files:  65% (1801/2770)\nUpdating files:  66% (1829/2770)\nUpdating files:  67% (1856/2770)\nUpdating files:  68% (1884/2770)\nUpdating files:  69% (1912/2770)\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/0281d46077c4bb629e0a180c11593ad010f5b125c5e26eb80e50cd70a1df9b35.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/05ade77b330eb5f7b6089afdc31833f891e9cc5ce2b963fe1833fdf5ee42efca.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/12785c71b37e29e77ec3e18e32176039fa42f5550cc4a6b456cd25b6448c7841.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/128172142490fd210385304eb3d1d88db28b906f4fe747ec2d4ffa9e99730177.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/1ad3dfa8f5fd27d7032c790dd6a5231819229522fa158437d941d33cf4f966b6.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/1afa24389c68a4cc5d03c0eb1e1b63c23a70472c5a6d02e579e6431bb26453d0.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/206925a7500f68954087fae4fa69892c458e1023089e254dcec0e67be1149eb1.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/3f54e042beb94c9fb1e9b676d503c51308d025bf9a93159dd2ba33575d330e51.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/44356d9c0ec4e30df5d980bbee3c454deeaaba9813c4bd17bed3e6fcc057daa9.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/480da52e309e548979375eb705c8172c28a0de7111b0c1e1ae9e8d1e8bbc905f.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/4b6bceade94be46f73ddeb9a37a19858260904efde08427a0bac411eca85a515.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/50286bf4cc3d6e1d47e8af077b94b14a4ad9958bf4d125f3c4415812329b9851.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/5113746337958c50f9cc16e5c997c8512baa8aa9dfa901d56a4588e195d407e1.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/547326d8d8b3a050d1e5ab7a238bb536cde995f80ece14751d21c0c9c8be7fa1.json: Filename too long\nUpdating files:  70% (1939/2770)\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/5df34f133573a82bb242a68a6d5942ffe89c2132bec0c2f556a8e02770dbb176.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/6449d943433a1095cdbf127828e70ef4d95a647967e8fa5350191df1b3bafa96.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/67e9a1f5e8af62f175577b9ed34fa8f619d0d72519cf72cce9b0accc24a6b711.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/910059e33a2b1877368fd49e8baef68a2838b21f77d3c95772fac8160d491b87.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/97693614e121eed5d8c5b3cb3ecb9fe339079d4ba5eca5f159633c773fc7655f.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/98001604fc43aec42c251eb434852dce32511066420f8eab33e34f47c312c23c.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/9da8691827dc6bf66b50304915b7e6f74a4bc5833e081e18556006e925779949.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/ae101c8d5fe24dff3a1b1780631df6cc1a8dbf60a75e7712d6248b6f9c8b4fcb.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/bee1f30da363a5114947696d80c12adf803e3d99cc6eeba6b04efd00481d0893.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/c55dea1e2e2e75e2902935518a6111d4a08562d9d696f62b11da7484f6f3fe4e.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/d59799b7513d231382d579e01caacd0e52689e8e61fc6ad81960da87fa3169c1.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/dc1da985cce73201f2924481decf4190799f519d43788d1b27bdc873fb85fc22.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/f9d5bda06f4e6ded69a4d1a45a3c46a964bafc61408082767fa7a60ea9d91ab9.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/f9f9c2adc7a551c9db4c88c30dd79eaed8e4ca1d04a25f4f5da6d5deb798f2e1.json: Filename too long\nerror: unable to create file runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/cas/fa20f5577e609a60729c3a4788b0ac1a004ecada538573509afd359c1b6b44c9.json: Filename too long\nUpdating files:  71% (1967/2770)\nUpdating files:  72% (1995/2770)\nUpdating files:  72% (1999/2770)\nUpdating files:  73% (2023/2770)\nUpdating files:  74% (2050/2770)\nUpdating files:  75% (2078/2770)\nUpdating files:  76% (2106/2770)\nUpdating files:  77% (2133/2770)\nUpdating files:  78% (2161/2770)\nUpdating files:  79% (2189/2770)\nUpdating files:  80% (2216/2770)\nUpdating files:  80% (2227/2770)\nUpdating files:  81% (2244/2770)\nUpdating files:  82% (2272/2770)\nUpdating files:  83% (2300/2770)\nUpdating files:  84% (2327/2770)\nUpdating files:  85% (2355/2770)\nUpdating files:  86% (2383/2770)\nUpdating files:  87% (2410/2770)\nUpdating files:  88% (2438/2770)\nUpdating files:  89% (2466/2770)\nUpdating files:  90% (2493/2770)\nUpdating files:  91% (2521/2770)\nUpdating files:  92% (2549/2770)\nUpdating files:  93% (2577/2770)\nUpdating files:  93% (2590/2770)\nUpdating files:  94% (2604/2770)\nUpdating files:  95% (2632/2770)\nUpdating files:  96% (2660/2770)\nUpdating files:  97% (2687/2770)\nUpdating files:  98% (2715/2770)\nUpdating files:  99% (2743/2770)\nUpdating files: 100% (2770/2770)\nUpdating files: 100% (2770/2770), done.\nfatal: Could not reset index file to revision 'HEAD'.\n",
+            "lane": "ollama",
+            "worker": "Lucia",
+            "model": "",
+            "provider_receipt": null,
+            "effect_lease": {
+              "verdict": "allow",
+              "entrypoint_id": "python.offload",
+              "lease_id": "loop-20260823-183230-3b29b1-wave-offload-w0-02dc7ba3-5e3d1a35",
+              "lease_sha256": "6f860f9af8a009fe4cb9e9d4278f368cba8fe325073904cd704a232f29e3d90c",
+              "requested_effects": [
+                "filesystem_write",
+                "network_egress",
+                "process_spawn",
+                "spend"
+              ],
+              "policy_decision_id": "loop-20260823-183230-3b29b1-wave-offload-w0-02dc7ba3-allow",
+              "policy_decision_sha256": "a6f203203431a29eea844088e6a58369e64a19190105f8bbe78fe05749925f36",
+              "policy_version": "daedalus.wave-offload-lease/1",
+              "issuer_key_id": "daedalus.local.effect-issuer",
+              "issued_at": "2026-08-23T16:34:31.211811+00:00",
+              "expires_at": "2026-08-23T16:49:31.211811+00:00",
+              "kill_switch_ref": "daedalus.spine.killswitch",
+              "kill_switch_generation": 100125755825124,
+              "max_cost_microusd": 250000,
+              "max_concurrency": 1,
+              "timeout_s": 900,
+              "writable_paths": [
+                "docs/archive/swarm-2026-07-30/census/SYNTH-claims.md"
+              ],
+              "egress_endpoints": [
+                "http://127.0.0.1:11434"
+              ],
+              "tools": [
+                "git",
+                "ollama",
+                "python",
+                "python.exe"
+              ],
+              "execution_ids": [
+                "loop-20260823-183230-3b29b1-wave-offload-w0-02dc7ba3-5e3d1a35-exec-0"
+              ],
+              "registry_sha256": "e87b1240a6316e1f29ea4445590a8b1338551b8fb745028313962931deb751db",
+              "write_policy": {
+                "origin": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\b5-evidence-authentication\\.agentenv\\agentenv.json",
+                "sha256": "64e4712016d18df6bb2c89a665d3a7f4a298d318408b35a80ae1eb34089aff1c",
+                "error": null
+              },
+              "ledger_path": "C:\\Users\\nukei\\.daedalus\\control\\e3d9b70ebd9c\\effect-leases.sqlite3",
+              "security_boundary_claimed": false,
+              "spend_envelope": {
+                "id": "e7d7d618d631457386ad637fab1f0030",
+                "label": "wave 0 (loop-20260823-183230-3b29b1)",
+                "lease_id": "loop-20260823-183230-3b29b1-wave-offload-w0-02dc7ba3-5e3d1a35",
+                "cap_usd": 0.25,
+                "spent_usd": 0.0,
+                "in_flight_usd": 0,
+                "released_hold_usd": 0.25,
+                "expired": false,
+                "closed": true,
+                "reason": "scope exited"
+              },
+              "execution_id": "loop-20260823-183230-3b29b1-wave-offload-w0-02dc7ba3-5e3d1a35-exec-0"
+            },
+            "budget_refusal": null,
+            "spend_usd": 0.0,
+            "artifact_path": null,
+            "artifact_sha256": ""
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260823T183230-c0c59cf7"
+  },
+  "trace_id": "tr-20260823T183230-c0c59cf7"
+}

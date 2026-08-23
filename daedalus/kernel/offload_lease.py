@@ -43,7 +43,9 @@ existing handler classifies it as ``killswitch`` rather than ``error``.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -54,7 +56,9 @@ from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
+    EffectLeaseError,
     EffectLeaseLedger,
+    EffectLeaseStateError,
     issue_effect_lease,
 )
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
@@ -63,7 +67,7 @@ from daedalus.spine.effect_boundary import (
     GuardDecision,
     registry_sha256,
 )
-from daedalus.spine.envelope import canonical_sha
+from daedalus.spine.envelope import canonical_json, canonical_sha
 from daedalus.spine.killswitch import KillSwitch, LoopHalted, profile_root_disagreement
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, never an import cycle
@@ -144,6 +148,610 @@ def lease_ledger_path(repo_root: str | Path | None) -> Path:
     return control_root(repo_root) / "effect-leases.sqlite3"
 
 
+# --------------------------------------------------------------------------- #
+# the write-evidence store: what a granted, terminalised lease leaves behind   #
+# --------------------------------------------------------------------------- #
+#
+# WHY THIS IS HERE AND NOT IN THE GATES LAYER. The Gate-0 repository-write
+# chain replays retained Effect-Lease evidence; until now nothing in production
+# retained any. The three facts it needs are known HERE and nowhere else: which
+# lease was granted (with the exact request and policy decision the ledger only
+# keeps digests of), which containment decision gated it, and -- once an
+# execution has terminalised -- which terminal receipt the ledger holds.
+#
+# WHAT THIS MODULE DELIBERATELY DOES NOT MINT. It does not mint the chain's
+# surface-bound evidence objects. Those carry a ``surface_sha256`` that only
+# exists after an inventory scan, and running a gate scanner inside the effect
+# path would put a gate on the critical path of every wave. The records below
+# are the RAW facts; the single producer of classification rows and evidence
+# objects (``scripts/declare_write_surfaces.py``) reads them and binds them to
+# surfaces. One fact, one producer.
+
+#: The fingerprint definition, pinned. See :func:`write_root_identity_sha256`.
+ROOT_IDENTITY_SCHEMA = "daedalus-write-root-identity/1"
+
+#: The retained containment decision, and the ``receipt_schema`` the chain's
+#: ``primary_checkout_disjointness_receipt`` payload carries.
+DISJOINTNESS_RECORD_SCHEMA = "daedalus-primary-checkout-disjointness-record/1"
+DISJOINTNESS_RECEIPT_SCHEMA = "daedalus-checkout-disjointness/1"
+
+#: The material a later reader needs to reconstitute the replay subject: the
+#: ledger keeps ``lease_json`` but only the DIGESTS of the request and the
+#: policy decision, and ``inspect_effect_execution`` needs the objects.
+LEASE_SUBJECT_RECORD_SCHEMA = "daedalus-effect-lease-subject-record/1"
+
+#: One derived execution identity, retained where it comes into being.
+LEASE_EXECUTION_RECORD_SCHEMA = "daedalus-effect-lease-execution-record/1"
+
+#: One terminalised execution, replayed out of the ledger.
+LEASE_TERMINAL_RECORD_SCHEMA = "daedalus-effect-lease-terminal-record/1"
+
+#: The chain's own payload id for an ``effect_lease_receipt``. Spelled here
+#: because this module produces the fact that payload is built from; the gates
+#: module owns the payload shape and refuses anything else.
+EFFECT_LEASE_RECEIPT_SCHEMA = "daedalus-effect-lease-receipt/1"
+
+#: The contract name the recorded decision must carry. ``containment.worktree``
+#: is the one contract whose subject is a pair of roots -- attempt.py:2470 and
+#: kairos/worktree.py:1197 take the same decision over the same predicate.
+WORKTREE_CONTAINMENT_CONTRACT = "containment.worktree"
+
+#: The function that takes every guard decision this module retains, and the
+#: repository-relative file it lives in. Named, not guessed: a retained record
+#: has to say which implementation decided, and a test resolves both.
+ISSUER_TARGET = "daedalus.kernel.offload_lease:acquire_wave_offload_lease"
+ISSUER_MODULE_PATH = "daedalus/kernel/offload_lease.py"
+
+_REVISION = re.compile(r"^[0-9a-f]{40}$")
+_TERMINAL_STATES = frozenset({"completed", "failed", "cancelled"})
+
+
+def write_root_identity_sha256(root: str | Path) -> str:
+    """The pinned identity of one write root. Never a path string.
+
+    THE DEFINITION, because the verifier only shape-checks 64-hex and two
+    producers that disagree here would disagree undetected (Momus F4):
+
+    * walk up from the resolved root to the nearest ancestor that EXISTS;
+    * take that ancestor's filesystem identity -- ``st_dev`` and ``st_ino``,
+      which on Windows are the volume serial and the file index -- so a root
+      reached through a symlink, a junction, an 8.3 short name or a different
+      drive mapping yields the same digest as the same root reached directly;
+    * append the names that had to be descended to reach the root, in order.
+
+    The descent is names because that is all a directory which does not exist
+    yet HAS -- and it must be supported: ``derive_wave_containment`` asks about
+    a PLANNED worktree root the manager creates afterwards (0f7f8187). Names
+    are case-folded exactly where the platform folds them, and the payload says
+    which, so the same bytes never mean two things.
+
+    This is a MACHINE-LOCAL identity: ``st_dev``/``st_ino`` do not travel. A
+    receipt therefore states a fact measured on the machine that took the
+    decision, and a reader on another machine can compare digests but cannot
+    re-derive them. That is stated, not claimed away.
+    """
+
+    path = Path(root)
+    try:
+        resolved = path.resolve()
+    except (OSError, ValueError):
+        resolved = Path(os.path.abspath(str(path)))
+    descent: list[str] = []
+    anchor = resolved
+    while True:
+        try:
+            status = os.stat(str(anchor))
+        except (OSError, ValueError):
+            parent = anchor.parent
+            if parent == anchor:
+                raise ValueError(
+                    f"no existing ancestor identifies {resolved}; the root has "
+                    "no filesystem identity to fingerprint"
+                )
+            descent.append(anchor.name)
+            anchor = parent
+            continue
+        break
+    case_folded = os.name == "nt"
+    payload = {
+        "schema": ROOT_IDENTITY_SCHEMA,
+        "device": int(status.st_dev),
+        "inode": int(status.st_ino),
+        "case_folded": case_folded,
+        "descent": [
+            name.casefold() if case_folded else name for name in reversed(descent)
+        ],
+    }
+    return hashlib.sha256(canonical_json(payload).encode("ascii")).hexdigest()
+
+
+def guard_decision_sha256(decision: GuardDecision) -> str:
+    """The fingerprint of one taken decision, over exactly what it decided."""
+
+    if type(decision) is not GuardDecision:
+        raise TypeError("a guard-decision fingerprint requires a typed GuardDecision")
+    payload = {
+        "schema": "daedalus-guard-decision/1",
+        "contract": str(decision.contract),
+        "allowed": bool(decision.allowed),
+        "evidence": str(decision.evidence),
+    }
+    return hashlib.sha256(canonical_json(payload).encode("ascii")).hexdigest()
+
+
+def write_evidence_root(repo_root: str | Path | None, source_revision: str) -> Path:
+    """The conventional store: beside the ledger, never inside the checkout.
+
+    A CONVENTION, not a constant: every producer below takes ``evidence_root``
+    as a parameter, so a caller with its own artifact root (main moved one to
+    ``<profile>/.daedalus/artifacts/<digest>`` in 21c6016e) passes that instead.
+    The default exists so the two callers in this repository land in one place.
+
+    Checkout-external for the same reason the ledger is: the candidate this
+    lease authorises may hold a writable checkout, and evidence about a lease
+    must not be reachable by the thing the lease bounds.
+    """
+
+    if not _REVISION.fullmatch(str(source_revision)):
+        raise ValueError("write evidence root requires a lowercase 40-hex revision")
+    return control_root(repo_root) / "write-evidence" / str(source_revision)
+
+
+def _record_sha256(body: Mapping[str, Any]) -> str:
+    subject = {key: value for key, value in body.items() if key != "record_sha256"}
+    return hashlib.sha256(canonical_json(subject).encode("ascii")).hexdigest()
+
+
+def _publish_evidence_record(
+    evidence_root: str | Path, kind: str, body: Mapping[str, Any]
+) -> Path:
+    """Publish one record content-addressed, exactly once.
+
+    Through ``daedalus.atomic.publish_bytes_once`` rather than an ``open`` here:
+    this module is inside the scanned package, so a raw write surface in the
+    kernel is a new Gate-0 blocker, and a content-addressed store must never
+    replace an object whose identity was already published.
+    """
+
+    from daedalus.atomic import publish_bytes_once
+
+    digest = str(body["record_sha256"])
+    path = Path(evidence_root) / str(kind) / f"{digest}.json"
+    publish_bytes_once(path, canonical_json(dict(body)).encode("ascii"))
+    return path
+
+
+def record_primary_checkout_disjointness(
+    decision: GuardDecision,
+    *,
+    primary_checkout: str | Path,
+    target_root: str | Path,
+    source_revision: str,
+    evidence_root: str | Path,
+    control_root_path: str | Path,
+    recorded_at: datetime | None = None,
+) -> dict[str, Any]:
+    """RECORD a containment decision somebody else already took. Never re-take it.
+
+    THE HOOK. This is the one recorder for the ``containment.worktree``
+    decision, and it is deliberately a pure function of a decision that has
+    already happened: it imports no predicate, calls no
+    ``planned_overlap_reason``, and cannot reach a different answer than the
+    call site did. ``daedalus/spine/attempt.py:2468`` takes the same decision
+    over the same predicate for the attempt worktree and can call THIS function
+    with THAT decision; two recorders would be two chances to disagree with the
+    guard they claim to record.
+
+    It refuses a refusal. ``disjoint`` in the chain's payload is
+    ``const true``, so recording a decision that did not allow would either
+    fabricate the field or emit a record no verifier can accept.
+    """
+
+    if type(decision) is not GuardDecision:
+        raise TypeError("the disjointness recorder records a typed GuardDecision")
+    if decision.contract != WORKTREE_CONTAINMENT_CONTRACT:
+        raise ValueError(
+            "the disjointness recorder records the "
+            f"{WORKTREE_CONTAINMENT_CONTRACT!r} contract, not "
+            f"{decision.contract!r}"
+        )
+    if decision.allowed is not True:
+        raise ValueError(
+            "a refused containment decision is not a disjointness receipt: "
+            f"{decision.evidence}"
+        )
+    if not _REVISION.fullmatch(str(source_revision)):
+        raise ValueError("a disjointness record requires a lowercase 40-hex revision")
+    primary_sha256 = write_root_identity_sha256(primary_checkout)
+    target_sha256 = write_root_identity_sha256(target_root)
+    if primary_sha256 == target_sha256:
+        # The decision said disjoint and the fingerprints say "one root".  One
+        # of the two is wrong and the record must not carry both.
+        raise ValueError(
+            "the two roots share one identity, so the recorded decision and "
+            "the measured fingerprints contradict each other"
+        )
+    body: dict[str, Any] = {
+        "schema": DISJOINTNESS_RECORD_SCHEMA,
+        "receipt_schema": DISJOINTNESS_RECEIPT_SCHEMA,
+        "source_revision": str(source_revision),
+        "contract": decision.contract,
+        "allowed": True,
+        "evidence": str(decision.evidence),
+        "decision_sha256": guard_decision_sha256(decision),
+        "disjoint": True,
+        "primary_checkout_sha256": primary_sha256,
+        "target_root_sha256": target_sha256,
+        "control_root_sha256": write_root_identity_sha256(control_root_path),
+        "recorded_at": _timestamp(recorded_at or _utc_now()),
+    }
+    body["record_sha256"] = _record_sha256(body)
+    _publish_evidence_record(evidence_root, "disjointness", body)
+    return body
+
+
+def record_effect_lease_subject(
+    lease: "WaveOffloadLease",
+    *,
+    evidence_root: str | Path,
+    control_root_path: str | Path,
+    positions: int,
+    recorded_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Retain what one granted wave lease's later replay needs.
+
+    A thin adapter over :func:`record_effect_lease_subject_parts`, which is the
+    form another issuer calls.
+    """
+
+    if type(lease) is not WaveOffloadLease:
+        raise TypeError("an effect-lease subject record requires a granted lease")
+    return record_effect_lease_subject_parts(
+        authorization=lease.authorization,
+        ledger_path=lease.ledger_path,
+        evidence_root=evidence_root,
+        control_root_path=control_root_path,
+        positions=positions,
+        recorded_at=recorded_at,
+    )
+
+
+def record_effect_lease_subject_parts(
+    *,
+    authorization: NonRuntimeEffectAuthorization,
+    ledger_path: str | Path,
+    evidence_root: str | Path,
+    control_root_path: str | Path,
+    positions: int,
+    issuer_target: str = ISSUER_TARGET,
+    issuer_module_path: str = ISSUER_MODULE_PATH,
+    recorded_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Retain the material a later replay needs, at the moment it exists.
+
+    NOT the receipt. The chain's ``effect_lease_receipt`` names a TERMINAL
+    receipt, which by definition does not exist when a lease is granted; that
+    one is produced by :func:`emit_effect_lease_terminal_record`, out of the
+    ledger, in terminal state.
+
+    What is retained here is what the ledger does not keep: ``effect_leases``
+    stores ``lease_json`` but only the ``request_sha256`` and
+    ``policy_decision_sha256``, while ``inspect_effect_execution`` needs the
+    request and the policy decision themselves. Without this record a granted
+    lease is unreplayable the moment the process that held it exits.
+
+    THIS IS THE FORM ANOTHER ISSUER CALLS. ``daedalus/spine/attempt.py`` holds
+    its own ``NonRuntimeEffectAuthorization`` for ``python.attempt`` and no
+    ``WaveOffloadLease``; it records through here rather than growing a second
+    producer of the same record shape, because two producers of one record are
+    two shapes waiting to drift. ``issuer_target``/``issuer_module_path`` name
+    the function that took the retained decisions -- the guard-contract
+    evidence a classification row carries has to name an implementation, and
+    the honest answer is whichever function actually decided, which for another
+    issuer is not this module's.
+    """
+
+    if type(authorization) is not NonRuntimeEffectAuthorization:
+        raise TypeError(
+            "an effect-lease subject record requires a NonRuntimeEffectAuthorization"
+        )
+    if isinstance(positions, bool) or not isinstance(positions, int) or positions < 1:
+        raise ValueError("positions must be a positive integer")
+    lease = authorization.lease
+    revision = lease.provenance.source_revision
+    if not _REVISION.fullmatch(str(revision)):
+        raise ValueError("the retained lease carries no 40-hex source revision")
+    body: dict[str, Any] = {
+        "schema": LEASE_SUBJECT_RECORD_SCHEMA,
+        "source_revision": str(revision),
+        "entrypoint_id": lease.entrypoint_id,
+        "lease_id": lease.lease_id,
+        "lease_sha256": lease.digest,
+        "issuer_key_id": lease.issuer_key_id,
+        "kill_switch_generation": int(lease.kill_switch_generation),
+        "ledger_path": str(ledger_path),
+        "positions": int(positions),
+        # WHO TOOK THE RETAINED DECISIONS. The guard-contract evidence a
+        # classification row carries has to name an implementation, and the one
+        # honest answer is the function that produced these exact decisions.
+        # Both strings are pinned by a test that imports the module and looks
+        # the function up, so a rename cannot leave a receipt pointing at a
+        # target that no longer exists.
+        "issuer_target": str(issuer_target),
+        "issuer_module_path": str(issuer_module_path),
+        "lease": lease.to_dict(),
+        "request": authorization.request.to_dict(),
+        "policy_decision": authorization.policy_decision.to_dict(),
+        "guard_decisions": [
+            {"contract": d.contract, "allowed": bool(d.allowed), "evidence": d.evidence}
+            for d in authorization.guard_decisions
+        ],
+        "control_root_sha256": write_root_identity_sha256(control_root_path),
+        "recorded_at": _timestamp(recorded_at or _utc_now()),
+    }
+    body["record_sha256"] = _record_sha256(body)
+    _publish_evidence_record(evidence_root, "lease-subject", body)
+    return body
+
+
+def rebuild_effect_lease_authorization(
+    subject_record: Mapping[str, Any],
+    *,
+    keyring: Mapping[str, bytes | str],
+    ledger_path: str | Path | None = None,
+) -> NonRuntimeEffectAuthorization:
+    """Reconstitute the replay subject one retained record describes.
+
+    ONE reconstitution, used by the terminal producer below and by the
+    classification producer that reads this store, because two would be two
+    chances to rebuild a subject the ledger never saw.
+
+    THE GENERATION IT REPORTS is the one the retained lease was bound to, not a
+    live read: ``_project_persisted_execution`` verifies the lease at the
+    RETAINED start instant against ``lease.kill_switch_generation``, so that is
+    the only generation a replay consults, and reading the live permit here
+    would make retained evidence unreadable after any arm or stop.
+
+    THIS IS NOT A READ-ONLY OBJECT and the type system cannot make it one:
+    ``inspect_effect_execution`` (and the gates layer's
+    ``EffectLeaseReplaySubject``) demand a ``NonRuntimeEffectAuthorization``,
+    which also carries ``grant``/``begin_effect``/``finish_effect``. Holding the
+    issuer key is what makes rebuilding possible at all, and the key lives in
+    the checkout-external control root -- so this adds no authority a reader of
+    that directory did not already have. Nothing in this module calls a
+    mutating method on the object it returns.
+    """
+
+    if not isinstance(subject_record, Mapping):
+        raise TypeError("a retained subject record must be a mapping")
+    if subject_record.get("schema") != LEASE_SUBJECT_RECORD_SCHEMA:
+        raise ValueError("retained record is not an effect-lease subject record")
+    lease = EffectLease.from_dict(subject_record["lease"])
+    request = EffectLeaseRequest.from_dict(subject_record["request"])
+    policy_decision = PolicyDecision.from_dict(subject_record["policy_decision"])
+    decisions = tuple(
+        GuardDecision(
+            str(item["contract"]), bool(item["allowed"]), str(item["evidence"])
+        )
+        for item in subject_record["guard_decisions"]
+    )
+    path = ledger_path if ledger_path is not None else subject_record["ledger_path"]
+    generation = int(lease.kill_switch_generation)
+    return NonRuntimeEffectAuthorization(
+        lease=lease,
+        request=request,
+        policy_decision=policy_decision,
+        effect_ledger=EffectLeaseLedger(Path(str(path))),
+        lease_keyring=dict(keyring),
+        guard_decisions=decisions,
+        kill_switch_generation_reader=lambda: generation,
+    )
+
+
+def record_effect_lease_execution(
+    lease: "WaveOffloadLease",
+    execution: EffectExecutionRequest,
+) -> dict[str, Any] | None:
+    """Retain one derived execution identity, at the moment it comes into being.
+
+    WHY NOT LIST THE LEDGER INSTEAD. A harvest that wanted to know which
+    executions a lease had needed its own read-only SQLite listing, and the
+    repository-write scanner counts ``sqlite3.connect`` on a non-literal
+    database as ``ambiguous_sqlite_mode`` -- a BLOCKING write surface. Adding an
+    unclassified blocker to the kernel, in the commit whose subject is
+    classifying them, is the wrong trade. MEASURED: with the listing, this
+    checkout scanned 410 -> 411 blocking surfaces, the single new one being that
+    connect; without it, 410 -> 410.
+
+    So the identity is retained where it is created rather than rediscovered:
+    ``execution_for`` is the one place an execution identity comes into being,
+    it memoizes, and the record it writes carries the exact request the ledger
+    will later be asked about. ``inspect_effect_execution`` remains the ONLY
+    reader of the effect ledger in this chain.
+
+    Returns ``None`` when the lease was not configured with a store. Never
+    raises into the caller: the execution identity is already real, and failing
+    to retain it must not change what the wave may do.
+    """
+
+    if type(lease) is not WaveOffloadLease:
+        raise TypeError("an execution record requires a granted lease")
+    if type(execution) is not EffectExecutionRequest:
+        raise TypeError("an execution record requires a typed execution request")
+    if not lease.evidence_root:
+        return None
+    try:
+        body: dict[str, Any] = {
+            "schema": LEASE_EXECUTION_RECORD_SCHEMA,
+            "source_revision": str(lease.lease.provenance.source_revision),
+            "entrypoint_id": lease.lease.entrypoint_id,
+            "lease_sha256": lease.lease.digest,
+            "subject_record_sha256": str(
+                lease.evidence_records.get("lease_subject", "")
+            ),
+            "execution_id": execution.execution_id,
+            "execution_request_sha256": execution.digest,
+            "execution": execution.to_dict(),
+            "control_root_sha256": write_root_identity_sha256(
+                lease.control_root_path
+            ),
+            "recorded_at": _timestamp(_utc_now()),
+        }
+        body["record_sha256"] = _record_sha256(body)
+        _publish_evidence_record(lease.evidence_root, "lease-execution", body)
+    except (OSError, TypeError, ValueError) as exc:
+        lease.evidence_errors.append(
+            f"execution {execution.execution_id}: {type(exc).__name__}: {exc}"
+        )
+        return None
+    return body
+
+
+def emit_effect_lease_terminal_record(
+    subject_record: Mapping[str, Any],
+    execution: EffectExecutionRequest,
+    *,
+    evidence_root: str | Path,
+    control_root_path: str | Path,
+    keyring: Mapping[str, bytes | str],
+    ledger_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Produce one terminal record, in terminal state, from the ledger.
+
+    The state comes back out of :func:`inspect_effect_execution` -- the same
+    read-only projection the Gate-0 chain replays through -- and a grant, a
+    start, or a still-``STARTED`` execution is refused rather than recorded.
+    ``grant() -> begin_effect() -> finish_effect()`` must all be durable before
+    there is anything here to name.
+
+    ``terminal_state`` is LOWERCASE. The kernel stores ``COMPLETED``; the chain
+    compares ``replay.state.lower()`` against the retained evidence payload, so
+    the record carries the case the consumer compares.
+
+    ``recorded_at`` IS THE TERMINAL RECEIPT'S OWN ``finished_at``, not the
+    harvest's clock. The record is a statement about a past fact and the store
+    is content-addressed, so re-harvesting the same execution republishes the
+    same bytes -- a no-op -- instead of leaving one near-identical record per
+    harvest for a reader to disambiguate.
+    """
+
+    if type(execution) is not EffectExecutionRequest:
+        raise TypeError("a terminal record requires a typed execution request")
+    authorization = rebuild_effect_lease_authorization(
+        subject_record, keyring=keyring, ledger_path=ledger_path
+    )
+    from daedalus.kernel.effect_replay import inspect_effect_execution
+
+    replay = inspect_effect_execution(authorization, execution)
+    if replay is None:
+        raise EffectLeaseStateError(
+            "the retained lease has no durable start for this execution; a "
+            "granted-only lease is not a terminal receipt"
+        )
+    terminal = replay.terminal_receipt
+    if replay.pending_reconciliation or terminal is None:
+        raise EffectLeaseStateError(
+            "the retained execution is STARTED and has no terminal receipt; a "
+            "started-only execution is not a terminal receipt"
+        )
+    state = str(replay.state).lower()
+    if state not in _TERMINAL_STATES:
+        raise EffectLeaseStateError(f"retained execution state {state!r} is not terminal")
+    # NO IDENTITY RE-CHECK HERE, deliberately. A guard for "the terminal
+    # receipt names another execution/lease" cannot fire: `_terminal_receipt`
+    # already compares both against the persisted start receipt, which is
+    # itself bound to the exact execution this call asked for, and refuses
+    # before a snapshot is returned. Restating it would add two guards no test
+    # can kill, which is exactly the defect 6be14dff was diagnosing.
+    body: dict[str, Any] = {
+        "schema": LEASE_TERMINAL_RECORD_SCHEMA,
+        "receipt_schema": EFFECT_LEASE_RECEIPT_SCHEMA,
+        "source_revision": str(authorization.lease.provenance.source_revision),
+        "entrypoint_id": authorization.lease.entrypoint_id,
+        "execution_id": execution.execution_id,
+        "execution_request_sha256": execution.digest,
+        "execution": execution.to_dict(),
+        "lease_sha256": authorization.lease.digest,
+        "subject_record_sha256": str(subject_record["record_sha256"]),
+        "start_receipt_sha256": replay.start_receipt.receipt_sha256,
+        "receipt_sha256": terminal.receipt_sha256,
+        "terminal_state": state,
+        "requested_effects": list(execution.requested_effects),
+        "control_root_sha256": write_root_identity_sha256(control_root_path),
+        "recorded_at": terminal.finished_at,
+    }
+    body["record_sha256"] = _record_sha256(body)
+    _publish_evidence_record(evidence_root, "lease-terminal", body)
+    return body
+
+
+def harvest_effect_lease_terminal_records(
+    evidence_root: str | Path,
+    *,
+    control_root_path: str | Path,
+    keyring: Mapping[str, bytes | str],
+) -> tuple[tuple[dict[str, Any], ...], tuple[str, ...]]:
+    """Emit a terminal record for every retained execution that terminalised.
+
+    Reads the retained execution identities, joins each to the subject record it
+    names, and replays it. Nothing here opens the ledger: the replay does, once,
+    through ``inspect_effect_execution``.
+
+    Returns ``(records, refusals)``. A refusal is kept and named -- a harvest
+    that silently skipped the executions it could not replay would report a
+    clean store while the interesting rows were the ones it dropped.
+    """
+
+    root = Path(evidence_root)
+    subjects: dict[str, dict[str, Any]] = {}
+    records: list[dict[str, Any]] = []
+    refusals: list[str] = []
+    for path in sorted((root / "lease-subject").glob("*.json")):
+        try:
+            subject = json.loads(path.read_text(encoding="utf-8"))
+            subjects[str(subject["record_sha256"])] = subject
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            refusals.append(f"{path.name}: unreadable subject record: {exc}")
+    seen: set[str] = set()
+    for path in sorted((root / "lease-execution").glob("*.json")):
+        try:
+            retained = json.loads(path.read_text(encoding="utf-8"))
+            execution = EffectExecutionRequest(**dict(retained["execution"]))
+            subject = subjects[str(retained["subject_record_sha256"])]
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            refusals.append(f"{path.name}: unreadable execution record: {exc}")
+            continue
+        seen.add(str(retained["subject_record_sha256"]))
+        try:
+            records.append(
+                emit_effect_lease_terminal_record(
+                    subject,
+                    execution,
+                    evidence_root=root,
+                    control_root_path=control_root_path,
+                    keyring=keyring,
+                )
+            )
+        except (OSError, TypeError, ValueError, EffectLeaseError) as exc:
+            # The cause travels with the refusal: the replay projection
+            # collapses several distinct failures into one message, and a
+            # harvest that reported only that message would name the
+            # symptom instead of the fact.
+            cause = exc.__cause__
+            detail = f" <- {type(cause).__name__}: {cause}" if cause else ""
+            refusals.append(
+                f"{path.name}:{execution.execution_id}: "
+                f"{type(exc).__name__}: {exc}{detail}"
+            )
+    for digest, subject in sorted(subjects.items()):
+        if digest not in seen:
+            refusals.append(
+                f"{digest[:12]}: lease {subject.get('lease_id')} was granted but "
+                "no execution identity was ever derived under it"
+            )
+    return tuple(records), tuple(refusals)
+
+
 def issuer_keyring(repo_root: str | Path | None) -> dict[str, bytes]:
     """Load, or create on first use, the local lease-signing key.
 
@@ -165,8 +773,22 @@ def issuer_keyring(repo_root: str | Path | None) -> dict[str, bytes]:
         # O_EXCL so two concurrent waves cannot both believe they created it;
         # the loser re-reads the winner's bytes. The 0o600 mode is honoured on
         # POSIX and largely cosmetic on win32 -- stated, not claimed away.
+        #
+        # O_BINARY, MEASURED. Without it `os.open` on Windows opens in TEXT
+        # mode and translates every 0x0A byte to 0x0D 0x0A on the way out. A
+        # random 32-byte key contains at least one 0x0A about 12% of the time,
+        # so roughly one fresh control root in eight got a key file whose bytes
+        # were NOT the bytes this process signed with -- and every lease that
+        # process issued became unverifiable the moment it exited, with the
+        # honest-looking message "effect lease signature mismatch". Reproduced
+        # 1-in-7 over 8 fresh roots before this flag; 0-in-40 after.
+        # The constant does not exist on POSIX, where the flag is a no-op.
         try:
-            fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            fd = os.open(
+                str(path),
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0),
+                0o600,
+            )
         except FileExistsError:
             material = path.read_bytes()
         else:
@@ -333,6 +955,21 @@ def resolve_write_policy(
     )
 
 
+def wave_containment_roots(repo_root: str | Path) -> tuple[str, str]:
+    """The two roots the containment predicate is about. It decides nothing.
+
+    Split out so the decision below and the record that retains it name the
+    same pair without either one resolving the pair for itself. Raises when the
+    isolation root cannot be resolved at all; the caller turns that into a
+    refusal, because unknown containment is no containment.
+    """
+
+    from daedalus.kairos.worktree import GitWorktreeManager
+
+    root = Path(repo_root).resolve()
+    return str(root), str(GitWorktreeManager(root).worktree_root)
+
+
 def derive_wave_containment(repo_root: str | Path) -> tuple[bool, str]:
     """Does THIS checkout's isolation machinery really land outside it?
 
@@ -366,12 +1003,11 @@ def derive_wave_containment(repo_root: str | Path) -> tuple[bool, str]:
     through them. The caller still has to name the mechanism it used, and
     :func:`acquire_wave_offload_lease` now refuses an empty name.
     """
-    from daedalus.kairos.worktree import GitWorktreeManager
     from daedalus.primary_tree import planned_overlap_reason
 
     root = Path(repo_root).resolve()
     try:
-        worktree_root = GitWorktreeManager(root).worktree_root
+        _, worktree_root = wave_containment_roots(root)
     except Exception as exc:  # noqa: BLE001 - unknown containment is no containment
         return False, (
             f"the isolation root for {root} could not be resolved "
@@ -465,6 +1101,17 @@ class WaveOffloadLease:
     _executions: dict[int, EffectExecutionRequest] = field(
         default_factory=dict, repr=False
     )
+    #: Where this grant's evidence is retained, and under which control root.
+    #: Both are strings the caller chose (see ``acquire_wave_offload_lease``'s
+    #: ``evidence_root``); empty means this lease retains nothing.
+    evidence_root: str = ""
+    control_root_path: str = ""
+    #: What the write-evidence store retained for this grant, and why it could
+    #: not, when it could not. A list rather than a raise: retaining evidence
+    #: must never be able to deny a capability the ledger already accepted, and
+    #: a silent skip would leave a store that looks complete.
+    evidence_records: dict[str, str] = field(default_factory=dict, repr=False)
+    evidence_errors: list[str] = field(default_factory=list, repr=False)
 
     @property
     def granted(self) -> bool:
@@ -510,6 +1157,11 @@ class WaveOffloadLease:
             kill_switch_generation=self.lease.kill_switch_generation,
         )
         self._executions[key] = execution
+        # Retained HERE because this is the one place an execution identity
+        # comes into being, and because rediscovering the set later would mean
+        # a second reader of the effect ledger. See
+        # `record_effect_lease_execution` -- it never raises into this call.
+        record_effect_lease_execution(self, execution)
         return execution
 
     def issued_execution(self, position: int) -> EffectExecutionRequest | None:
@@ -625,6 +1277,7 @@ def acquire_wave_offload_lease(
     trace_id: str | None = None,
     lease_id: str | None = None,
     now: datetime | None = None,
+    evidence_root: str | Path | None = None,
 ) -> WaveOffloadLease | WaveLeaseDenied:
     """Run the four ``python.offload`` guard contracts, then issue or deny.
 
@@ -941,7 +1594,13 @@ def acquire_wave_offload_lease(
     # a lease it has never seen ("effect lease was not persisted before start"),
     # so this is the line that makes the capability real.
     authorization.grant()
-    return WaveOffloadLease(
+    store = (
+        Path(evidence_root)
+        if evidence_root is not None
+        else write_evidence_root(root, source_revision)
+    )
+    control = Path(control_root(root))
+    granted = WaveOffloadLease(
         authorization=authorization,
         lease=lease,
         request=request,
@@ -949,15 +1608,61 @@ def acquire_wave_offload_lease(
         ledger=ledger,
         ledger_path=str(ledger_path),
         write_policy=policy_source,
+        evidence_root=str(store),
+        control_root_path=str(control),
     )
+    # AFTER the grant, because this is the first moment the capability is real:
+    # `grant()` has returned, so the ledger holds the lease and an execution may
+    # start. Retention never decides the grant -- a store that cannot be written
+    # (read-only control root, a racing wave) must not revoke a capability the
+    # ledger already accepted -- so every failure is recorded on the lease and
+    # the wave proceeds under the lease it legitimately holds.
+    try:
+        subject = record_effect_lease_subject(
+            granted,
+            evidence_root=store,
+            control_root_path=control,
+            positions=max(1, int(positions)),
+        )
+        granted.evidence_records["lease_subject"] = str(subject["record_sha256"])
+    except (OSError, TypeError, ValueError) as exc:
+        granted.evidence_errors.append(f"lease_subject: {type(exc).__name__}: {exc}")
+    # The containment decision this lease was issued under, RECORDED -- the
+    # verdict and evidence above, re-typed under the contract they are about,
+    # never re-derived. `record_primary_checkout_disjointness` runs no
+    # predicate; it cannot reach a different answer than this call site did.
+    try:
+        primary_root, target_root = wave_containment_roots(root)
+        record = record_primary_checkout_disjointness(
+            GuardDecision(
+                WORKTREE_CONTAINMENT_CONTRACT, derived_ok, derived_evidence
+            ),
+            primary_checkout=primary_root,
+            target_root=target_root,
+            source_revision=source_revision,
+            evidence_root=store,
+            control_root_path=control,
+        )
+        granted.evidence_records["disjointness"] = str(record["record_sha256"])
+    except (OSError, TypeError, ValueError) as exc:
+        granted.evidence_errors.append(f"disjointness: {type(exc).__name__}: {exc}")
+    return granted
 
 
 __all__ = [
     "CALLER_POLICY_ORIGIN",
+    "DISJOINTNESS_RECEIPT_SCHEMA",
+    "DISJOINTNESS_RECORD_SCHEMA",
+    "EFFECT_LEASE_RECEIPT_SCHEMA",
     "ENTRYPOINT_ID",
     "ISSUER_KEY_ID",
     "KILL_SWITCH_REF",
+    "LEASE_EXECUTION_RECORD_SCHEMA",
+    "LEASE_SUBJECT_RECORD_SCHEMA",
+    "LEASE_TERMINAL_RECORD_SCHEMA",
     "POLICY_VERSION",
+    "ROOT_IDENTITY_SCHEMA",
+    "WORKTREE_CONTAINMENT_CONTRACT",
     "WaveLeaseDenied",
     "WaveLeaseKillSwitchEngaged",
     "WaveOffloadLease",
@@ -965,9 +1670,20 @@ __all__ = [
     "acquire_wave_offload_lease",
     "control_root",
     "derive_wave_containment",
+    "emit_effect_lease_terminal_record",
+    "guard_decision_sha256",
+    "harvest_effect_lease_terminal_records",
     "issuer_keyring",
     "kill_switch_generation",
     "lane_endpoint",
     "lease_ledger_path",
+    "rebuild_effect_lease_authorization",
+    "record_effect_lease_execution",
+    "record_effect_lease_subject",
+    "record_effect_lease_subject_parts",
+    "record_primary_checkout_disjointness",
     "resolve_write_policy",
+    "wave_containment_roots",
+    "write_evidence_root",
+    "write_root_identity_sha256",
 ]
