@@ -2294,7 +2294,7 @@ Wired into `daedalus/eval/harness.py` via `_is_focus_withheld()` / `_focus_withh
 - `append_confirm`/`append_flag`: control records on chain; `MEM_CONFIRM_THRESHOLD = 3` (cited to `MINT_CONFIRM_THRESHOLD`, not import-coupled).
 - `load_ledger` (skip-corrupt), `verify_ledger` (chain walk, three per-line checks naming exact 1-indexed line on failure), `fold_state` (quarantine→primary at 3 confirms; flag→terminal; deterministic `state.local.json`).
 
-**Verification [M]:** `pytest tests/test_memstore.py -q` → **15 passed in 24.35s** (roundtrip/dedupe/trust-forced, determinism byte-identical, tamper tests: flipped-byte and deleted-line break chain, planted AKIA/PEM/`.env` paths all refused with secret absent from raw bytes, 3-confirm-promote / 2-stay / flag-terminal, 1000-entry scale verifies <1s + catches flip at line 501). Adjacent suites: `pytest tests/test_dctx.py tests/test_eval.py -q` → **20 passed in 5.46s** [M]; no breakage.
+**Verification [M]:** `pytest tests/test_memstore.py (removed 2026-08-22) -q` → **15 passed in 24.35s** (roundtrip/dedupe/trust-forced, determinism byte-identical, tamper tests: flipped-byte and deleted-line break chain, planted AKIA/PEM/`.env` paths all refused with secret absent from raw bytes, 3-confirm-promote / 2-stay / flag-terminal, 1000-entry scale verifies <1s + catches flip at line 501). Adjacent suites: `pytest tests/test_dctx.py tests/test_eval.py -q` → **20 passed in 5.46s** [M]; no breakage.
 
 **Measured result [M, re-verified by the session author against the raw eval printout — an
 agent-reported "16 minted / 17 focus_withheld" did NOT survive that check and is corrected

@@ -6,7 +6,7 @@ alle vier sind Policy- bzw. Identitätsfragen, die nur der Owner treffen darf.
 
 ## 1. Guard-Test-Fixture nach Amendment 005 (NEU diagnostiziert, MEASURED)
 
-**Failure:** `tests/test_iron_plan_guard.py::IronPlanContractTests::`
+**Failure:** `tests/test_iron_plan_guard.py (removed 2026-08-22)::IronPlanContractTests::`
 `test_ci_history_check_accepts_adoption_and_rejects_rewrite`
 
 **Diagnose (MEASURED 2026-08-17, Trunk `7c88f72`):** Der Test baut ein
@@ -22,7 +22,7 @@ AUTO_PROMOTE_LEVELS is declared in neither the promotion strangler nor its retai
 run_write_wave is defined in neither the promotion strangler nor its retained source
 ```
 
-**Warum ich das nicht selbst fixe:** `tests/test_iron_plan_guard.py` steht
+**Warum ich das nicht selbst fixe:** `tests/test_iron_plan_guard.py (removed 2026-08-22)` steht
 selbst in `PROTECTED_PATHS`. Jede Änderung ist Amendment-Territorium.
 
 **Option A (empfohlen, test-only, minimal):** Fixture kopiert die gepinnte

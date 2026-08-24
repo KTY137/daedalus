@@ -37,7 +37,7 @@ which the guard cannot be repaired at all.
 
 ### What is wrong
 
-`tests/test_iron_plan_guard.py:682`:
+`tests/test_iron_plan_guard.py (removed 2026-08-22):682`:
 
 ```python
 old_plan = run_git(ROOT, "show", f"HEAD:{guard.PLAN_REL}") + "\n"

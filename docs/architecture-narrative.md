@@ -96,7 +96,7 @@ what exists and what reaches it; these paragraphs say what it means.
 
 **Realität.** SIX durable stores, no join key, and the strongest one is dead. VERIFIED ON DISK: memory/events.local.jsonl PRESENT (199KB, unlocked, unchained, records carry no id); runs/canary/history.jsonl PRESENT (20 records); runs/council/*.jsonl PRESENT and chain-verify clean; memory/ledger.local.jsonl ABSENT; memory/state.local.json ABSENT; memory/vectors.db ABSENT; runs/spine/spine.sqlite3 ABSENT. So dmem/1 certified memory has NEVER been written outside tests, the vector index has no rows (both wired readers return empty and GET /api/latent/search materialises an empty DB as a side effect of being called), and the spine ledger has never run outside pytest tmpdirs. ADR-011 elected spine/ledger.py as the ordering authority and made attestation into the hash-chained ledger MANDATORY — grep finds no `actor` field, no namespace validator, no attestation helper, and no intent_id written into any other store. By the ADR's own consequences clause, no spine transition currently has proof. ADR-011 §5 forbids a fifth durable log; the council bus is the fifth and the canary history the sixth, and the ADR has not been updated to say so.
 
-**Komponenten:** `daedalus/memory/__init__.py:56`, `daedalus/memory/embeddings.py:380`, `daedalus/memstore.py:369`, `daedalus/spine/ledger.py:230`, `daedalus/council/bus.py`, `daedalus/council/canary.py:1056`, `docs/adrs/011-event-spine.md`
+**Komponenten:** `daedalus/memory/__init__.py:56`, `daedalus/memory/embeddings.py:380`, `daedalus/memstore.py (removed 2026-08-22):369`, `daedalus/spine/ledger.py:230`, `daedalus/council/bus.py`, `daedalus/council/canary.py:1056`, `docs/adrs/011-event-spine.md`
 
 ### Safety (the fail-closed core)
 

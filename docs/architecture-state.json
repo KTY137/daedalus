@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "17281fe1a0b983cb993175f4ad00f1daa4426d92"
+    "head": "a8a909ce0eff2160d09c0a3ae9f5c9528576d986"
   },
   "counts": {
     "dark_switches": 3,
     "doc_drift": 32,
     "index_extra_edges": 1,
-    "islands": 65,
-    "modules": 513,
+    "islands": 68,
+    "modules": 518,
     "shims": 7,
     "test_only": 36,
     "unknown": 26,
     "unparsable": 1,
-    "unreached": 98
+    "unreached": 101
   },
   "ignore": {
     "env": "",
@@ -122,6 +122,7 @@
     "daedalus/hooks/tools.py",
     "daedalus/ignition/__init__.py",
     "daedalus/ignition/__main__.py",
+    "daedalus/ignition/bundle.py",
     "daedalus/ignition/checks.py",
     "daedalus/ignition/gate1.py",
     "daedalus/ignition/runner.py",
@@ -413,6 +414,8 @@
     "runs/council/room_server.py",
     "runs/council/stream_hook.py",
     "runs/council/summarize.py",
+    "runs/deny-floor-corpus/build_corpus.py",
+    "runs/deny-floor-corpus/trace_evaluator.py",
     "runs/eval/deepseek_lab/wrecked/arch_memory.py",
     "runs/eval/deepseek_lab/wrecked/mutate.py",
     "runs/eval/deepseek_lab/wrecked/shift.py",
@@ -431,6 +434,7 @@
     "runs/higher_twin_nc/fixtures/textlab/checks.py",
     "runs/higher_twin_nc/loops.py",
     "runs/higher_twin_nc/operators.py",
+    "runs/lease-split-probe/identity_probe.py",
     "scripts/declare_write_surfaces.py",
     "scripts/fault_mutation_sandbox.py",
     "scripts/fourfold_repo_probe.py",
@@ -466,6 +470,7 @@
     "scripts/run_isolated_attempt_mutations.py",
     "scripts/run_live_promotion_seam_mutations.py",
     "scripts/run_non_runtime_authorization_mutations.py",
+    "scripts/run_offload_lease_dominance_mutations.py",
     "scripts/run_persisted_promotion_authorization_mutations.py",
     "scripts/run_promotion_execution_mutations.py",
     "scripts/run_promotion_execution_reader_mutations.py",
@@ -596,12 +601,15 @@
     "experiments/forest_v2/s08_graph_baselines/s08_api.py",
     "experiments/forest_v2/s08_graph_baselines/s08_corpus.py",
     "experiments/forest_v2/s08_graph_baselines/s08_queries.py",
+    "runs/deny-floor-corpus/build_corpus.py",
+    "runs/deny-floor-corpus/trace_evaluator.py",
     "runs/eval/deepseek_lab/wrecked/arch_memory.py",
     "runs/eval/deepseek_lab/wrecked/mutate.py",
     "runs/eval/deepseek_lab/wrecked/shift.py",
     "runs/higher_twin_nc/descent.py",
     "runs/higher_twin_nc/evaluate.py",
     "runs/higher_twin_nc/operators.py",
+    "runs/lease-split-probe/identity_probe.py",
     "scripts/fault_mutation_sandbox.py"
   ],
   "unknown": [
@@ -725,5 +733,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:0e4249859af5a368c36f728ea168aa912123c8deb419d5d926ba4e58501b9435"
+  "digest": "sha256:dbc90c42847f7b7eb74e4a286f73bf2ac661f46794e10f73421d556ad1a1d6fa"
 }

@@ -387,7 +387,7 @@ tree, uncommitted. MEASURED `git status` at handoff time:
 the picker's freshness checks pass while the receipt still matches HEAD.
 Understand that before touching anything near them.
 
-**`daedalus/compaction.py` is deliberately deleted**, with callers updated — see
+**`daedalus/compaction.py (removed 2026-08-22)` is deliberately deleted**, with callers updated — see
 the explanatory note at `daedalus/health.py:1075` and
 `tests/test_health_surface.py:426`. That deletion is intentional and evidenced.
 

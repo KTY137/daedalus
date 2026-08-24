@@ -916,7 +916,7 @@ Der Plan-PR muss atomar ändern:
 docs/IKARUS_ARIADNE_MASTER_PLAN.md
 docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl
 CLAUDE.md beziehungsweise abgeleitete Instruktionen, falls nötig
-tests/test_iron_plan_guard.py
+tests/test_iron_plan_guard.py (removed 2026-08-22)
 relevante Planprojektionen
 ```
 

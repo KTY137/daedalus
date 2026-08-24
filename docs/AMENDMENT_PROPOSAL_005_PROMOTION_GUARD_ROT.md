@@ -224,7 +224,7 @@ own work item and should not be smuggled in here.
    confirm the guard turns red. A check that cannot be made to fail is the defect
    this proposal exists to fix, so it must be demonstrated failing.
 3. Remove the `consumed_approval` parameter in a scratch copy; confirm red.
-4. `tests/test_iron_plan_guard.py` extended with both mutation cases, and the
+4. `tests/test_iron_plan_guard.py (removed 2026-08-22)` extended with both mutation cases, and the
    existing suite still green.
 
 ## Related, not included

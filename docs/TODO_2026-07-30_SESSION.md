@@ -314,7 +314,7 @@ re-discovered and re-scheduled.
 
 **The map engine agrees, independently.** `python -m daedalus.mapping.drift`
 (read-only check, exit 1) reports `council/publish.py`, `preservation.py` and
-`skills.py` under **NOW REACHED**, and reclassifies `memstore.py` as **TEST
+`skills.py` under **NOW REACHED**, and reclassifies `memstore.py (removed 2026-08-22)` as **TEST
 ONLY** — a reclassification, not a wiring; it still has zero production
 importers.
 
@@ -360,7 +360,7 @@ is real, but it is not why the numbers are old.
 so no receipt can be produced. That was five failing tests; four are fixed and
 committed. **One remains, and it cannot be fixed in ordinary work.**
 
-`tests/test_iron_plan_guard.py::IronPlanContractTests::test_ci_history_check_accepts_adoption_and_rejects_rewrite`
+`tests/test_iron_plan_guard.py (removed 2026-08-22)::IronPlanContractTests::test_ci_history_check_accepts_adoption_and_rejects_rewrite`
 
 fails with two errors that share one cause:
 
@@ -390,7 +390,7 @@ equals the ledger's `base_plan_sha256`, rather than from `HEAD`. Deriving it by
 searching history for that digest keeps it correct across future amendments;
 hardcoding `6cfd09b4` would rot at the next one.
 
-WHY IT IS NOT DONE HERE. `tests/test_iron_plan_guard.py` is itself a protected
+WHY IT IS NOT DONE HERE. `tests/test_iron_plan_guard.py (removed 2026-08-22)` is itself a protected
 path — the guard refuses to read it with grep, let alone edit it. AGENTS.md is
 explicit that an agent must not route around a guard and must stop and report
 the exact gap, so this stops here and needs owner approval under §15.
