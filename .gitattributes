@@ -168,9 +168,12 @@ daedalus/kairos/gated_writes.py -text
 daedalus/kairos/scheduler.py -text
 daedalus/kairos/worktree.py -text
 daedalus/kernel/approvals.py -text
+daedalus/kernel/authorization.py -text
 daedalus/kernel/contracts.py -text
+daedalus/kernel/effect_replay.py -text
 daedalus/kernel/effects.py -text
 daedalus/kernel/fourfold_evidence.py -text
+daedalus/kernel/offload_lease.py -text
 daedalus/kernel/promotion.py -text
 daedalus/kernel/promotion_trust_root.py -text
 daedalus/kernel/runtime_conformance.py -text
