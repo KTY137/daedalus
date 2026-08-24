@@ -27,7 +27,13 @@ root = ["uproot==5.7.5"]
 # daedalus/ imports hypothesis, only tests/. MPL-2.0 -- see ABSORPTION.md D1
 # bar 3 for why that licence attaches to nothing here (imported, never
 # modified/redistributed).
-test = ["hypothesis>=6.163"]
+test = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "hypothesis==6.163.0",
+    "jsonschema==4.23.0",
+    "pyyaml==6.0.2",
+]
 
 [project.scripts]
 daedalus = "daedalus.cli:main"
@@ -38,3 +44,6 @@ exclude = ["tests*", "tools*"]
 
 [tool.setuptools.package-data]
 "daedalus.kairos" = ["_gated_writes_legacy.py.src"]
+"daedalus.eval" = ["*.json"]
+"daedalus.gui" = ["probe.js"]
+"daedalus.providers" = ["personas.json"]

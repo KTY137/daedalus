@@ -2,34 +2,6 @@ name: Fourfold polyglot probe
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "17 3 * * 1"
-  pull_request:
-    branches:
-      - experimental
-    paths:
-      - "daedalus/twin/extractors/**"
-      - "scripts/fourfold_repo_probe.py"
-      - "scripts/fourfold_tree_sitter_probe.py"
-      - "scripts/fourfold_root_file_probe.py"
-      - "tests/twin/test_extractor_contracts.py"
-      - "tests/twin/test_tree_sitter_extractors.py"
-      - "tests/twin/test_root_file_extractor.py"
-      - ".github/workflows/fourfold-polyglot-probe.yml"
-      - "pyproject.toml"
-  push:
-    branches:
-      - core/fourfold-v2
-    paths:
-      - "daedalus/twin/extractors/**"
-      - "scripts/fourfold_repo_probe.py"
-      - "scripts/fourfold_tree_sitter_probe.py"
-      - "scripts/fourfold_root_file_probe.py"
-      - "tests/twin/test_extractor_contracts.py"
-      - "tests/twin/test_tree_sitter_extractors.py"
-      - "tests/twin/test_root_file_extractor.py"
-      - ".github/workflows/fourfold-polyglot-probe.yml"
-      - "pyproject.toml"
 
 concurrency:
   group: fourfold-polyglot-${{ github.workflow }}-${{ github.ref }}
@@ -38,16 +10,24 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+
 jobs:
   contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - run: python -m pip install ".[polyglot,root]" pytest
+      - run: python -m pip install pip==26.1.2
+      - run: python -m pip install ".[polyglot,root]" pytest==9.1.1
       - run: >-
           python -m pytest -q
           tests/twin/test_extractor_contracts.py
@@ -87,10 +67,13 @@ jobs:
             max_parse_files: 1500
             root_data: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
+      - run: python -m pip install pip==26.1.2
       - run: python -m pip install ".[polyglot,root]"
       - name: Fetch pinned repository slice
         shell: bash
@@ -145,8 +128,9 @@ jobs:
             "${args[@]}" \
             --output "reports/${{ matrix.name }}-root-data.json"
           cat "reports/${{ matrix.name }}-root-data.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: fourfold-probe-${{ matrix.name }}
           path: reports/${{ matrix.name }}-*.json
           if-no-files-found: error
+          retention-days: 14

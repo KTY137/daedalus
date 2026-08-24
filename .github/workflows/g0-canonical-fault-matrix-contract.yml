@@ -1,19 +1,6 @@
 name: G0 Canonical Fault Matrix Contract
 
 on:
-  pull_request:
-    branches:
-      - g0/provider-target-receipt-retention-admission-linear
-    paths:
-      - daedalus/gates/fault_matrix.py
-      - configs/gates/g0-provider-target-receipt-retention-fault-matrix.json
-      - configs/schemas/fault-matrix-contract.schema.json
-      - tests/gates/test_fault_matrix_contract.py
-      - tests/gates/test_fault_matrix_contract_schema.py
-      - tests/gates/test_fault_matrix_contract_review.py
-      - scripts/run_fault_matrix_contract_exact_mutations.py
-      - docs/work-packets/G0-FLT-07A_CANONICAL_FAULT_MATRIX_CONTRACT.*
-      - .github/workflows/g0-canonical-fault-matrix-contract.yml
   workflow_dispatch:
 
 permissions:
@@ -24,13 +11,17 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
   PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
 
 jobs:
   focused:
     name: focused-${{ matrix.os }}-py${{ matrix.python }}-seed${{ matrix.hashseed }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.12"]
@@ -39,15 +30,18 @@ jobs:
     env:
       PYTHONHASHSEED: ${{ matrix.hashseed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python }}
           cache: pip
       - name: Install focused dependencies
-        run: python -m pip install --upgrade pip pytest jsonschema
+        run: |
+          python -m pip install pip==26.1.2
+          python -m pip install pytest==9.1.1 jsonschema==4.23.0
       - name: Compile package and tests
         run: python -m compileall -q daedalus tests/gates scripts/run_fault_matrix_contract_exact_mutations.py
       - name: Validate machine contract and adversarial behavior
@@ -60,32 +54,40 @@ jobs:
   mutation:
     name: bounded-mutation-campaign
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
           cache: pip
       - name: Install mutation dependencies
-        run: python -m pip install --upgrade pip pytest jsonschema
+        run: |
+          python -m pip install pip==26.1.2
+          python -m pip install pytest==9.1.1 jsonschema==4.23.0
       - name: Kill exact contract bypasses
         run: python scripts/run_fault_matrix_contract_exact_mutations.py
 
   predecessor-regression:
     name: predecessor-regression
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
           cache: pip
       - name: Install regression dependencies
-        run: python -m pip install --upgrade pip pytest jsonschema
+        run: |
+          python -m pip install pip==26.1.2
+          python -m pip install pytest==9.1.1 jsonschema==4.23.0
       - name: Gate and receipt-retention regressions
         run: >-
           python -m pytest -q
@@ -93,42 +95,3 @@ jobs:
           tests/runtimes/test_provider_target_receipt_retention_preflight.py
           tests/runtimes/test_provider_target_receipt_retention_admission.py
           tests/runtimes/test_provider_target_receipt_retention_admission_review.py
-
-  full-suite:
-    name: full-suite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install test dependencies
-        run: python -m pip install --upgrade pip pytest jsonschema
-      - name: Run full suite
-        run: python -m pytest -q
-
-  packaging:
-    name: package-and-isolated-import
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install build frontend
-        run: python -m pip install --upgrade pip build
-      - name: Build distributions
-        run: python -m build
-      - name: Install wheel in isolated environment
-        shell: bash
-        run: |
-          python -m venv .wheel-venv
-          .wheel-venv/bin/python -m pip install --upgrade pip
-          .wheel-venv/bin/python -m pip install dist/*.whl
-          .wheel-venv/bin/python -c "from daedalus.gates.fault_matrix import FaultMatrixManifest, verify_fault_matrix_run; print(FaultMatrixManifest.__name__, verify_fault_matrix_run.__name__)"

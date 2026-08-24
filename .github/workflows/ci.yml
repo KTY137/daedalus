@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+
+jobs:
+  test:
+    name: test-${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ubuntu-py312-seed0
+            os: ubuntu-latest
+            python: "3.12"
+            hash-seed: "0"
+            build-products: true
+          - label: windows-py310-seed123456
+            os: windows-latest
+            python: "3.10"
+            hash-seed: "123456"
+            build-products: false
+
+    env:
+      PYTHONHASHSEED: ${{ matrix.hash-seed }}
+
+    steps:
+      - name: Check out the exact revision without reusable credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install the declared test environment
+        run: |
+          python -m pip install pip==26.1.2
+          python -m pip install -e ".[test,yaml]"
+
+      - name: Compile production, tests, scripts, and tools
+        run: python -m compileall -q daedalus tests scripts tools
+
+      - name: Run the complete repository suite
+        run: >-
+          python -m pytest -q -ra
+          -p pytest_asyncio.plugin
+          -p _hypothesis_pytestplugin
+          --junitxml=pytest-results.xml
+
+      - name: Record the resolved Python environment
+        if: always()
+        run: python -m pip freeze --all > pip-freeze.txt
+
+      - name: Build and validate Python distributions
+        if: matrix.build-products
+        run: |
+          python -m pip install build==1.5.0 twine==7.0.0
+          python -m build --sdist --wheel
+          python -m twine check dist/*
+
+      - name: Install and inspect the wheel outside the checkout
+        if: matrix.build-products
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel_root="$RUNNER_TEMP/daedalus-wheel"
+          python -m venv "$wheel_root"
+          "$wheel_root/bin/python" -m pip install --no-deps dist/*.whl
+          cd "$RUNNER_TEMP"
+          PYTHONPATH= "$wheel_root/bin/python" - <<'PY'
+          from importlib.resources import files
+
+          import daedalus
+          import daedalus.cli
+          import daedalus.eval
+          import daedalus.gates
+          import daedalus.gui
+          import daedalus.hooks
+          import daedalus.kernel
+          import daedalus.providers
+          import daedalus.runtimes
+          import daedalus.structcore
+          import daedalus.twin
+
+          required = (
+              files("daedalus.kairos").joinpath("_gated_writes_legacy.py.src"),
+              files("daedalus.eval").joinpath("baseline.json"),
+              files("daedalus.eval").joinpath("correctness_tasks.json"),
+              files("daedalus.eval").joinpath("minted_tasks.json"),
+              files("daedalus.gui").joinpath("probe.js"),
+              files("daedalus.providers").joinpath("personas.json"),
+          )
+          for resource in required:
+              assert resource.is_file(), resource
+              assert resource.read_bytes(), resource
+          print(daedalus.__name__, len(required))
+          PY
+          "$wheel_root/bin/daedalus" --help
+
+      - name: Set up Node for tracked frontend products
+        if: matrix.build-products
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            vscode-agent-env/package-lock.json
+
+      - name: Test and build the web application
+        if: matrix.build-products
+        run: |
+          npm ci --prefix apps/web
+          npm --prefix apps/web run test:motion
+          npm --prefix apps/web run build
+          git diff --exit-code --ignore-cr-at-eol -- apps/web/dist
+
+      - name: Check and package the VS Code extension
+        if: matrix.build-products
+        run: |
+          npm ci --prefix vscode-agent-env
+          npm --prefix vscode-agent-env run check
+          npm --prefix vscode-agent-env run package
+
+      - name: Refuse tracked checkout mutation
+        if: success()
+        run: git diff --exit-code
+
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-${{ matrix.label }}-${{ github.sha }}
+          path: |
+            pytest-results.xml
+            pip-freeze.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload built products
+        if: matrix.build-products && success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-products-${{ github.sha }}
+          path: |
+            dist/*
+            apps/web/dist/**
+            vscode-agent-env/*.vsix
+          if-no-files-found: error
+          retention-days: 14
