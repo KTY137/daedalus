@@ -88,14 +88,26 @@ seed, or evaluated ranking: score equality is now checked by path, while only
 the metric-visible top-20 order must be identical. The invalid report remains
 retained rather than overwritten.
 
-The corrected rerun at implementation revision
+The then-corrected `/1` rerun at implementation revision
 `8562997667931e847a26776a86e5ba74d10163cb` finished in 830.303 seconds with
 zero failures, the complete 15-comparison census, structural status `VALID`,
 and conclusion `INCONCLUSIVE`. Its full-report digest is
 `sha256:629663bc24452837aa853e94452bbf9225d58046c8a2d6e1b1c99f684fb99609`;
 the retained compact result is `results/s09_c00_smoke_v2.json`. This is one
 diagnostic case with a caller-asserted recency input, not a held-out campaign
-or a validated latency result.
+or a validated latency result. Subsequent review found that `/1` bootstrapped
+its raw and scrubbed query views as two independent cases. The `/2` diagnostic
+report contract therefore supersedes the old comparison and `VALID` label:
+`all` averages variants within `c00` before resampling, while raw and scrubbed
+intervals stay separate. The measured rows and runtime remain retained
+historical evidence; they do not become a scientific verdict.
+
+The retained `project_tct` diagnostic report does not add a latency claim. Its
+generation included local Git-object loading, candidate preparation, five
+seed runs, JSON validation, and caller-side transport in one process; no
+pre-registered warmup, repetition, machine receipt, or isolated timing window
+exists. The full metrics and failure census are retained, while wall-clock
+observations from the interactive run remain non-authoritative.
 
 ## Retained historical diagnostic output (superseded)
 

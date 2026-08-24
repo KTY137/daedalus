@@ -12,7 +12,19 @@ from experiments.forest_v2.tensor_embeddings import stats
 
 CORPUS_DIGEST = "sha256:" + "c" * 64
 ARMS = stats.REQUIRED_ARM_NAMES
-CASES = ("case-a", "case-b")
+BASE_CASES = ("case-a", "case-b")
+
+
+def _case_key(case_id: str, variant: str) -> str:
+    return json.dumps([case_id, variant], ensure_ascii=False, separators=(",", ":"))
+
+
+CASE_PAIRS = tuple(
+    (case_id, variant)
+    for case_id in BASE_CASES
+    for variant in stats.QUERY_VARIANTS
+)
+CASES = tuple(_case_key(*pair) for pair in CASE_PAIRS)
 
 
 def _metrics(hit: bool = False) -> dict[str, float]:
@@ -36,34 +48,61 @@ def _metrics(hit: bool = False) -> dict[str, float]:
 
 
 def _comparison_rows(arms: dict[str, object]) -> list[dict[str, object]]:
+    first_cases = next(iter(arms.values()))[str(stats.FROZEN_SEEDS[0])]["per_case"]
+    case_pairs = tuple(tuple(json.loads(case_key)) for case_key in first_cases)
+    base_cases = tuple(dict.fromkeys(case_id for case_id, _ in case_pairs))
+    present_variants = tuple(
+        variant
+        for variant in stats.QUERY_VARIANTS
+        if any(pair_variant == variant for _, pair_variant in case_pairs)
+    )
     rows = []
     for left, right, metric in stats.REQUIRED_COMPARISON_KEYS:
-        left_by_case = {
-            case_id: sum(
-                arms[left][str(seed)]["per_case"][case_id][metric]
-                for seed in stats.FROZEN_SEEDS
+        for variant in ("all", *present_variants):
+            def seed_mean(arm: str, pair: tuple[str, str]) -> float:
+                case_key = _case_key(*pair)
+                return math.fsum(
+                    arms[arm][str(seed)]["per_case"][case_key][metric]
+                    for seed in stats.FROZEN_SEEDS
+                ) / len(stats.FROZEN_SEEDS)
+
+            if variant == "all":
+                left_by_case = {
+                    case_id: math.fsum(
+                        seed_mean(left, (case_id, item))
+                        for item in present_variants
+                    )
+                    / len(present_variants)
+                    for case_id in base_cases
+                }
+                right_by_case = {
+                    case_id: math.fsum(
+                        seed_mean(right, (case_id, item))
+                        for item in present_variants
+                    )
+                    / len(present_variants)
+                    for case_id in base_cases
+                }
+            else:
+                left_by_case = {
+                    case_id: seed_mean(left, (case_id, variant))
+                    for case_id in base_cases
+                }
+                right_by_case = {
+                    case_id: seed_mean(right, (case_id, variant))
+                    for case_id in base_cases
+                }
+            interval = stats.paired_bootstrap_difference(left_by_case, right_by_case)
+            rows.append(
+                {
+                    "left_arm": left,
+                    "right_arm": right,
+                    "variant": variant,
+                    "metric": metric,
+                    **interval.as_dict(),
+                    "superiority_claim": False,
+                }
             )
-            / len(stats.FROZEN_SEEDS)
-            for case_id in CASES
-        }
-        right_by_case = {
-            case_id: sum(
-                arms[right][str(seed)]["per_case"][case_id][metric]
-                for seed in stats.FROZEN_SEEDS
-            )
-            / len(stats.FROZEN_SEEDS)
-            for case_id in CASES
-        }
-        interval = stats.paired_bootstrap_difference(left_by_case, right_by_case)
-        rows.append(
-            {
-                "left_arm": left,
-                "right_arm": right,
-                "metric": metric,
-                **interval.as_dict(),
-                "superiority_claim": False,
-            }
-        )
     return rows
 
 
@@ -72,12 +111,14 @@ def _refresh_comparisons(report: dict[str, object]) -> None:
 
 
 def _find_comparison(
-    report: dict[str, object], left: str, right: str
+    report: dict[str, object], left: str, right: str, variant: str = "all"
 ) -> dict[str, object]:
     return next(
         row
         for row in report["comparisons"]
-        if row["left_arm"] == left and row["right_arm"] == right
+        if row["left_arm"] == left
+        and row["right_arm"] == right
+        and row["variant"] == variant
     )
 
 
@@ -103,6 +144,7 @@ def _valid_report() -> dict[str, object]:
         "schema": stats.REPORT_SCHEMA,
         "packet_id": stats.PACKET_ID,
         "spec_digest": stats.SPEC_DIGEST,
+        "protocol_digest": stats.EVALUATION_PROTOCOL_DIGEST,
         "corpus_digest": CORPUS_DIGEST,
         "status": "VALID",
         "required_arms": list(ARMS),
@@ -300,7 +342,7 @@ class ReportValidationTests(unittest.TestCase):
 
     def test_valid_report_cannot_omit_required_baseline_or_control_comparisons(self) -> None:
         report = _valid_report()
-        self.assertEqual(len(report["comparisons"]), 15)
+        self.assertEqual(len(report["comparisons"]), 45)
         report["comparisons"].pop()
         with self.assertRaisesRegex(
             stats.ReportValidationError, "complete frozen comparison census"
@@ -346,9 +388,14 @@ class ReportValidationTests(unittest.TestCase):
 
     def test_schema_packet_spec_and_corpus_are_bound(self) -> None:
         mutations = (
-            ("schema", "forest-v2.tensor-embedding-report/2", "schema"),
+            ("schema", "forest-v2.tensor-embedding-report/1", "schema"),
             ("packet_id", "another-packet", "packet_id"),
             ("spec_digest", "sha256:" + "0" * 64, "spec_digest"),
+            (
+                "protocol_digest",
+                "sha256:" + "0" * 64,
+                "protocol_digest",
+            ),
             ("corpus_digest", "not-a-digest", "corpus_digest"),
         )
         for key, value, message in mutations:
@@ -432,9 +479,32 @@ class ReportValidationTests(unittest.TestCase):
 
     def test_comparison_numbers_are_recomputed_from_seed_averaged_cases(self) -> None:
         report = _valid_report()
-        report["comparisons"][0]["ci_low"] = 0.01
+        report["comparisons"][0]["delta"] += 0.01
         with self.assertRaisesRegex(stats.ReportValidationError, "paired per-case"):
             stats.validate_report(report)
+
+    def test_comparison_case_count_is_the_base_case_count_not_query_view_count(self) -> None:
+        report = _valid_report()
+        for comparison in report["comparisons"]:
+            self.assertEqual(comparison["case_count"], len(BASE_CASES))
+        report["comparisons"][0]["case_count"] = len(CASES)
+        with self.assertRaisesRegex(stats.ReportValidationError, "independent base cases"):
+            stats.validate_report(report)
+
+    def test_comparison_integer_contract_refuses_value_equal_floats_and_bools(self) -> None:
+        for field, value, message in (
+            ("case_count", float(len(BASE_CASES)), "independent base cases"),
+            ("case_count", True, "independent base cases"),
+            ("resamples", float(stats.BOOTSTRAP_RESAMPLES), "resamples"),
+            ("resamples", True, "resamples"),
+            ("seed", float(stats.BOOTSTRAP_SEED), "seed"),
+            ("seed", True, "seed"),
+        ):
+            with self.subTest(field=field, value=value):
+                report = _valid_report()
+                report["comparisons"][0][field] = value
+                with self.assertRaisesRegex(stats.ReportValidationError, message):
+                    stats.validate_report(report)
 
     def test_invalid_and_blocked_reports_retain_failures_but_never_kill(self) -> None:
         for status in ("INVALID", "BLOCKED"):
@@ -521,10 +591,18 @@ class CanonicalReportTests(unittest.TestCase):
 
     def test_canonical_bytes_ignore_object_insertion_order_and_preserve_utf8(self) -> None:
         report = _valid_report()
-        report["case_ids"] = ["case-a", "case-ß"]
+        replacements = {
+            _case_key("case-b", variant): _case_key("case-ß", variant)
+            for variant in stats.QUERY_VARIANTS
+        }
+        report["case_ids"] = [
+            replacements.get(case_key, case_key) for case_key in report["case_ids"]
+        ]
         for runs in report["arms"].values():
             for run in runs.values():
-                run["per_case"]["case-ß"] = run["per_case"].pop("case-b")
+                for old, new in replacements.items():
+                    run["per_case"][new] = run["per_case"].pop(old)
+        _refresh_comparisons(report)
         reordered = dict(reversed(tuple(report.items())))
         first = stats.canonical_report_bytes(report)
         second = stats.canonical_report_bytes(reordered)

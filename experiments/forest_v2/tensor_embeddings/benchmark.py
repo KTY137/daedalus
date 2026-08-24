@@ -54,8 +54,10 @@ from .retrievers import (
 from .stats import (
     BOOTSTRAP_RESAMPLES,
     BOOTSTRAP_SEED,
+    EVALUATION_PROTOCOL_DIGEST,
     NO_SCIENTIFIC_VERDICT,
     PACKET_ID,
+    QUERY_VARIANTS,
     REPORT_SCHEMA,
     SPEC_DIGEST,
     first_hit_coverage,
@@ -91,7 +93,7 @@ NEGATIVE_CONTROLS = (
     RolePermutationControl.name,
     UniformKernelControl.name,
 )
-FROZEN_QUERY_VARIANTS = frozenset({"raw", "scrubbed"})
+FROZEN_QUERY_VARIANTS = frozenset(QUERY_VARIANTS)
 MAX_CANDIDATES_PER_CASE = 65_536
 MAX_CONTENT_BYTES = 65_536
 MAX_FILE_BYTES = 200_000
@@ -102,8 +104,12 @@ EQUIVALENCE_TOLERANCE = 1e-10
 def benchmark_case_key(query: QueryView) -> str:
     """Collision-free report key for one case/query-variant pair."""
 
+    return _case_variant_key(query.case_id, query.variant)
+
+
+def _case_variant_key(case_id: str, variant: str) -> str:
     return json.dumps(
-        [query.case_id, query.variant],
+        [case_id, variant],
         ensure_ascii=False,
         separators=(",", ":"),
     )
@@ -379,6 +385,51 @@ def _mean_seed_metric(
     return math.fsum(values) / len(values)
 
 
+def _comparison(
+    mean_scores: dict[str, dict[tuple[str, str], float]],
+    left_arm: str,
+    right_arm: str,
+    variant: str,
+) -> dict[str, object]:
+    pairs = tuple(next(iter(mean_scores.values())))
+    if variant == "all":
+        # Raw and scrubbed are repeated views of one underlying task, not two
+        # independent samples. Average the available variants within each base
+        # case before the paired bootstrap resamples base cases.
+        case_ids = tuple(dict.fromkeys(case_id for case_id, _ in pairs))
+
+        def grouped(arm: str) -> dict[str, float]:
+            return {
+                case_id: math.fsum(
+                    mean_scores[arm][pair] for pair in pairs if pair[0] == case_id
+                )
+                / sum(pair[0] == case_id for pair in pairs)
+                for case_id in case_ids
+            }
+
+        left = grouped(left_arm)
+        right = grouped(right_arm)
+    else:
+        selected = [pair for pair in pairs if pair[1] == variant]
+        left = {
+            case_id: mean_scores[left_arm][(case_id, variant)]
+            for case_id, _ in selected
+        }
+        right = {
+            case_id: mean_scores[right_arm][(case_id, variant)]
+            for case_id, _ in selected
+        }
+    interval = paired_bootstrap_difference(left, right)
+    return {
+        "left_arm": left_arm,
+        "right_arm": right_arm,
+        "variant": variant,
+        "metric": "reciprocal_rank",
+        **interval.as_dict(),
+        "superiority_claim": False,
+    }
+
+
 def run_benchmark(
     cases: Sequence[BenchmarkCase],
     *,
@@ -398,6 +449,9 @@ def run_benchmark(
     case_tuple = tuple(cases)
     if not case_tuple:
         raise ValueError("benchmark needs at least one case")
+    case_pairs = tuple(
+        (case.query.case_id, case.query.variant) for case in case_tuple
+    )
     case_ids = tuple(benchmark_case_key(case.query) for case in case_tuple)
     if len(set(case_ids)) != len(case_ids):
         raise ValueError("benchmark (case_id, variant) pairs must be unique")
@@ -416,8 +470,23 @@ def run_benchmark(
             "benchmark needs a caller-asserted recency ranking for every case"
         )
 
+    base_inputs_by_case_id: dict[str, tuple[object, ...]] = {}
     recency_by_case_id: dict[str, tuple[str, ...] | None] = {}
     for case in case_tuple:
+        base_inputs = (
+            case.query.revision,
+            case.query.repo,
+            case.universe,
+            case.gold,
+        )
+        prior_inputs = base_inputs_by_case_id.setdefault(
+            case.query.case_id, base_inputs
+        )
+        if prior_inputs != base_inputs:
+            raise ValueError(
+                "all query variants of one case_id must share the same "
+                "revision, repository, candidate universe, and evaluator gold"
+            )
         prior = recency_by_case_id.setdefault(
             case.query.case_id, case.recency_ranking
         )
@@ -578,60 +647,45 @@ def run_benchmark(
     comparisons: list[dict[str, object]] = []
     conclusion = NO_SCIENTIFIC_VERDICT if failures else "INCONCLUSIVE"
     if not failures:
-        reference_values = {
-            case_id: _mean_seed_metric(arms, REFERENCE_ARM, case_id, "reciprocal_rank")
-            for case_id in case_ids
-        }
-        intervals: dict[str, object] = {}
-        mean_values: dict[str, dict[str, float]] = {REFERENCE_ARM: reference_values}
+        mean_values: dict[str, dict[tuple[str, str], float]] = {}
         for name in arm_names:
-            if name == REFERENCE_ARM:
-                continue
-            values = {
-                case_id: _mean_seed_metric(arms, name, case_id, "reciprocal_rank")
-                for case_id in case_ids
+            mean_values[name] = {
+                pair: _mean_seed_metric(
+                    arms,
+                    name,
+                    _case_variant_key(*pair),
+                    "reciprocal_rank",
+                )
+                for pair in case_pairs
             }
-            mean_values[name] = values
-            interval = paired_bootstrap_difference(values, reference_values)
-            intervals[name] = interval
-            comparisons.append(
-                {
-                    "left_arm": name,
-                    "right_arm": REFERENCE_ARM,
-                    "metric": "reciprocal_rank",
-                    **interval.as_dict(),
-                    "superiority_claim": bool(
-                        False
-                    ),
-                }
-            )
+        comparison_variants = (
+            "all",
+            *(
+                variant
+                for variant in QUERY_VARIANTS
+                if any(pair_variant == variant for _, pair_variant in case_pairs)
+            ),
+        )
+        comparisons.extend(
+            _comparison(mean_values, name, REFERENCE_ARM, variant)
+            for name in arm_names
+            if name != REFERENCE_ARM
+            for variant in comparison_variants
+        )
 
         # Negative controls test the named structure, so the causal contrast
         # is structured minus control (not control minus flat cosine).
-        control_intervals: dict[str, object] = {}
-        for control in NEGATIVE_CONTROLS:
-            if control not in mean_values:
-                continue
-            interval = paired_bootstrap_difference(
-                mean_values[PRIMARY_ARM], mean_values[control]
-            )
-            control_intervals[control] = interval
-            comparisons.append(
-                {
-                    "left_arm": PRIMARY_ARM,
-                    "right_arm": control,
-                    "metric": "reciprocal_rank",
-                    **interval.as_dict(),
-                    "superiority_claim": bool(
-                        False
-                    ),
-                }
-            )
+        comparisons.extend(
+            _comparison(mean_values, PRIMARY_ARM, control, variant)
+            for control in NEGATIVE_CONTROLS
+            for variant in comparison_variants
+        )
 
     report: dict[str, object] = {
         "schema": REPORT_SCHEMA,
         "packet_id": PACKET_ID,
         "spec_digest": SPEC_DIGEST,
+        "protocol_digest": EVALUATION_PROTOCOL_DIGEST,
         "corpus_digest": corpus_digest(case_tuple),
         "status": status,
         "required_arms": list(arm_names),

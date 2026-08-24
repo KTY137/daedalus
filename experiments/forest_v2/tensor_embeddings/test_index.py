@@ -177,6 +177,28 @@ def test_original_evidence_cannot_be_reused_for_coordinated_fields_and_tensor() 
         IndexDocument.from_dict(document, index.spec)
 
 
+@pytest.mark.parametrize("role", ("symbol", "neighbor"))
+def test_verified_index_refuses_recomputed_unbound_role_view(role: str) -> None:
+    artifacts, _, _ = _fixture()
+    index = TensorIndex.build(artifacts)
+    document = copy.deepcopy(index.to_dict()["documents"][0])
+    fields_values = dict(document["fields"])
+    fields_values[role] = "caller supplied unverified role bytes"
+    forged_fields = RoleFields(**fields_values)
+    forged_tensor = TensorProductEncoder(index.spec).encode(
+        forged_fields,
+        source_id=document["source_id"],
+        source_digest=document["source_digest"],
+        revision=document["revision"],
+        plane=document["plane"],
+    ).tensor
+    document["fields"] = forged_fields.as_mapping()
+    document["tensor"] = forged_tensor.to_dict()
+
+    with pytest.raises(IndexContractError, match="derived from checked content"):
+        IndexDocument.from_dict(document, index.spec)
+
+
 @pytest.mark.parametrize("bad_index_id", (None, "", False, 0, "index:tampered"))
 def test_loader_rejects_missing_empty_or_wrong_index_id(bad_index_id) -> None:
     artifacts, _, _ = _fixture()
