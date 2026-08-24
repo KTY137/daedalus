@@ -361,6 +361,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     suite = list(baselines.default_suite(cache))
     for spec in args.retriever:
         suite.append(load_retriever(spec))
+    # Performance only, never correctness -- see the identical comment in
+    # run_xplane_harness.py, added in the same beat (s11 fusion
+    # continuation, 2026-08-24): a loaded retriever cannot receive the
+    # harness's shared TokenCache through the zero-arg module:attribute
+    # seam, so one with a duck-typed `.cache` attribute gets it swapped in
+    # here instead of tokenizing everything a second time.
+    for retriever in suite:
+        if hasattr(retriever, "cache"):
+            retriever.cache = cache
 
     # Isolation is the default the moment a retriever this package did not
     # write is in the suite.  A baselines-only run leaves it off: the five
@@ -403,6 +412,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     names = [getattr(r, "name", type(r).__name__) for r in suite]
     reference = args.reference if args.reference in names else names[0]
+
+    # Optional, duck-typed: added for the s11 fusion continuation
+    # (2026-08-24). A retriever may expose returned_plane_counts (variant ->
+    # plane -> count) as a real measurement of what it returned; the
+    # baselines this package ships do not have the attribute and are
+    # silently absent from the dict below -- an omission, not a zero,
+    # matching s10_kill/schema.py's own "undeclared is not the same as
+    # zero" rule for Arm.returned_plane_counts.
+    retriever_plane_counts: Dict[str, Dict[str, Dict[str, int]]] = {}
+    for retriever, name in zip(suite, names):
+        counts = getattr(retriever, "returned_plane_counts", None)
+        if counts:
+            retriever_plane_counts[name] = counts
 
     intervals: Dict[str, Dict[str, object]] = {}
     comparisons: List[stats.PairedDelta] = []
@@ -457,6 +479,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "reference_retriever": reference,
         "paired_comparisons_key": ["subject", "reference", "variant"],
         "per_case": per_case,
+        "returned_plane_counts": retriever_plane_counts,
     }
     if not args.no_write:
         out = Path(args.out)

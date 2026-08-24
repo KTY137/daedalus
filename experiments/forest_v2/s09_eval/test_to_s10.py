@@ -235,3 +235,125 @@ def test_the_committed_real_adapter_outputs_still_validate(name):
     # silently absent with no explanation
     for retriever in to_s10.EXCLUDED_ARMS:
         assert retriever in doc["source"]
+
+
+# ------------------------------------------------- s11 fusion arms (build_fusion_arm)
+
+
+def _fusion_raw(cases=("c0", "c1", "c2")):
+    rows = []
+    plane_counts = {
+        "fusion_rrf": {"raw": {"code": 3, "data": 2, "knowledge": 1}},
+        "separate_indices_bm25": {"raw": {"code": 6, "data": 0, "knowledge": 0}},
+    }
+    for i, case in enumerate(cases):
+        for retriever in (
+            "random_uniform", "path_lexical", "bm25", "bm25_content_only", "recency_prior",
+            "fusion_rrf", "code_only_bm25", "separate_indices_bm25",
+        ):
+            rows.append(_row(case, retriever, "raw", 0.0 if i % 2 else 1.0))
+    raw = _raw(rows)
+    raw["returned_plane_counts"] = plane_counts
+    return raw
+
+
+def test_build_fusion_arm_reads_measured_plane_counts():
+    raw = _fusion_raw()
+    arm = to_s10.build_fusion_arm(raw, "fusion_rrf", "raw", "full")
+    assert arm["role"] == "full"
+    assert arm["arm_id"] == "fusion_rrf/raw#full"
+    assert arm["retriever"]["mechanism"] == to_s10.FUSION_MECHANISM
+    assert arm["retriever"]["combines_planes"] == ["code", "data", "knowledge"]
+    assert arm["returns_planes"] == ["code", "data", "knowledge"]
+    assert arm["returned_plane_counts"] == {"code": 3, "data": 2, "knowledge": 1}
+
+
+def test_build_fusion_arm_declares_absence_when_the_run_never_captured_it():
+    raw = _fusion_raw()
+    del raw["returned_plane_counts"]["fusion_rrf"]
+    arm = to_s10.build_fusion_arm(raw, "fusion_rrf", "raw", "fusion")
+    assert arm["returned_plane_counts"] is None
+
+
+def test_build_fusion_arm_rejects_an_unknown_retriever():
+    raw = _fusion_raw()
+    with pytest.raises(to_s10.AdapterError):
+        to_s10.build_fusion_arm(raw, "some_other_retriever", "raw", "full")
+
+
+def test_code_only_arm_scopes_to_the_code_plane_alone():
+    raw = _fusion_raw()
+    arm = to_s10.build_fusion_arm(raw, "code_only_bm25", "raw", "code_only")
+    assert arm["returns_planes"] == ["code"]
+    assert arm["retriever"]["combines_planes"] == []
+    assert arm["retriever"]["mechanism"] == "single_plane"
+
+
+def test_separate_indices_arm_never_claims_the_fusion_mechanism():
+    raw = _fusion_raw()
+    arm = to_s10.build_fusion_arm(raw, "separate_indices_bm25", "raw", "separate_indices")
+    assert arm["retriever"]["mechanism"] != to_s10.FUSION_MECHANISM
+    assert arm["retriever"]["mechanism"] == "per_plane_topk_concat"
+    assert arm["retriever"]["combines_planes"] == []
+
+
+def test_build_kill_input_emits_full_and_fusion_from_the_same_retriever():
+    """s10_kill/schema.py's own KNOWN_ROLES docstring: 'fusion (may be the
+    same system as full)'. One retriever, two roles, identical scores --
+    disclosed, not hidden."""
+    raw = _fusion_raw()
+    doc = to_s10.build_kill_input(raw, run_id="t", source="test")
+    roles = sorted(a["role"] for a in doc["arms"])
+    assert roles == [
+        "bm25", "code_only", "full", "fusion", "random_priority", "separate_indices",
+    ]
+    full_arm = next(a for a in doc["arms"] if a["role"] == "full")
+    fusion_arm = next(a for a in doc["arms"] if a["role"] == "fusion")
+    assert full_arm["scores"] == fusion_arm["scores"]
+    assert full_arm["arm_id"] != fusion_arm["arm_id"]
+
+
+def test_stale_no_fusion_claim_was_corrected_not_just_renamed():
+    """The pre-s11 constant said 'no cross-plane fusion retriever exists
+    anywhere in this program'. That sentence is no longer true and must not
+    appear verbatim in the corrected text -- see the constant's own comment
+    for why it was restated rather than silently edited in place."""
+    assert "anywhere in this program" not in to_s10.NO_FUSION_ARM_NATIVE_TO_S07_S08_S09
+    assert to_s10.NO_FUSION_ARM_ANYWHERE == to_s10.NO_FUSION_ARM_NATIVE_TO_S07_S08_S09
+    assert "s11_fusion" in to_s10.NO_FUSION_ARM_NATIVE_TO_S07_S08_S09
+
+
+# --------------------------------------------- the committed real fusion runs
+
+
+@pytest.mark.parametrize("name", [
+    "kill_input_taskset20_fusion_2026-08-24.json",
+    "kill_input_xplane88_fusion_2026-08-24.json",
+])
+def test_the_committed_real_fusion_adapter_outputs_still_validate(name):
+    """Same pin as test_the_committed_real_adapter_outputs_still_validate,
+    for the s11 continuation's two runs: full/fusion/code_only/
+    separate_indices now sit alongside bm25/random_priority in one document,
+    and the fusion arm's returned_plane_counts must show real multi-plane
+    coverage or fusion_arm() in plane_range.py would refuse it."""
+    path = RESULTS_DIR / name
+    if not path.exists():  # pragma: no cover - only true before the runs are committed
+        pytest.skip(f"{path} not present in this checkout")
+    import json
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    assert doc["schema"] == to_s10.SCHEMA_ID
+
+    from s10_kill.schema import ResultSet
+
+    rs = ResultSet.from_obj(doc)
+    assert sorted({a.role for a in rs.arms}) == [
+        "bm25", "code_only", "full", "fusion", "random_priority", "separate_indices",
+    ]
+    fusion_arm = rs.find("fusion", "raw")
+    assert fusion_arm is not None
+    assert fusion_arm.retriever.mechanism == to_s10.FUSION_MECHANISM
+    assert fusion_arm.returned_plane_counts is not None
+    reached = [p for p, n in fusion_arm.returned_plane_counts.items() if n > 0]
+    assert len(reached) >= 2, "a fusion arm that never returns a second plane is not fusion"
+    for retriever in to_s10.EXCLUDED_ARMS:
+        assert retriever in doc["source"]
