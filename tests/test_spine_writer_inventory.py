@@ -319,3 +319,31 @@ def test_current_repository_task_attempt_writer_is_factory_admitted() -> None:
     assert [site for site in attempt_sites if site.blocking] == []
     assert report.blockers == ()
     assert report.closed is True
+
+
+def test_conversation_store_opens_its_writer_through_the_factory() -> None:
+    """The chat seam is the SECOND production writer of the canonical spine.
+
+    ``ConversationStore`` opened its ledger with one ``SpineLedger(path, ...,
+    read_only=read_only)`` call covering both the reader and the writer case.
+    ``read_only`` being a NAME rather than a boolean constant is precisely what
+    the inventory cannot resolve, so the site was ``ambiguous_direct`` -- a
+    blocker -- from the conversation-to-spine consolidation (83e41fcc) until
+    2026-08-24.
+
+    The repo-wide ``report.blockers == ()`` above would go red if this
+    regressed, but it would not say WHICH seam, and the chat facade is the one
+    most likely to grow another open. Pin the seam itself: the writer half goes
+    through the factory, the reader half stays a plain read-only open, and
+    neither blocks.
+    """
+    report = scan_event_store_writers(ROOT, source_revision=REVISION)
+    sites = [s for s in report.callsites if s.path == "daedalus/conversation.py"]
+    assert sites, "the conversation writer seam is invisible to the scan"
+    kinds = {s.kind for s in sites}
+    assert "gate0_factory" in kinds, (
+        f"ConversationStore no longer opens its writer through "
+        f"open_gate0_spine_writer: {sorted(kinds)}")
+    assert not kinds & {"legacy_direct", "ambiguous_direct", "ambiguous_binding"}, (
+        f"the chat seam reintroduced a direct Event-Store construction: {sites}")
+    assert [s for s in sites if s.blocking] == []
