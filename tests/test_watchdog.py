@@ -240,6 +240,44 @@ def test_one_model_call_is_billed_once_at_the_measured_price(repo: Path, monkeyp
     assert labels == ["test.billing"], labels
 
 
+def test_the_toast_carries_no_measured_text_in_its_argv(monkeypatch) -> None:
+    """MEASURED 2026-08-24: an anomaly toast whose text named `%TEMP%/claude`
+    was classified by budget.classify_argv as an Anthropic CLI call and
+    reserved $3 of the SHARED ceiling -- for a popup. Every toast mentioning
+    that path would have booked $3.
+
+    The classifier is right to be broad; a background job putting measured text
+    into an argv is what was wrong. The message goes through the environment.
+    """
+
+    from daedalus.budget import classify_argv
+
+    seen = {}
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = list(argv)
+        seen["env"] = kwargs.get("env") or {}
+        class _P:
+            returncode = 0
+        return _P()
+
+    monkeypatch.setattr(wd.os, "name", "nt")
+    monkeypatch.setattr(wd.subprocess, "run", fake_run)
+    wd.toast("Daedalus work watchdog", "temp_bloat: %TEMP%/claude holds 856 top-level entries")
+
+    rendered = " ".join(seen["argv"]).lower()
+    assert "claude" not in rendered, seen["argv"]
+    assert "856" not in rendered, "no measured text in the argv"
+    assert classify_argv(seen["argv"]) is None, "a popup must not read as a paid vendor call"
+    # ... and the message still reaches PowerShell
+    assert seen["env"][wd._TOAST_TEXT_ENV].endswith("856 top-level entries")
+    assert seen["env"][wd._TOAST_TITLE_ENV] == "Daedalus work watchdog"
+    # the old inline form WOULD have been classified, which is what this pins
+    old_form = ["powershell", "-NoProfile", "-Command",
+                "(New-Object -ComObject Wscript.Shell).Popup('%TEMP%/claude holds 856', 8, 'x', 48)"]
+    assert classify_argv(old_form) == "anthropic_cli"
+
+
 def test_the_watchdog_never_raises_the_shared_ceiling(monkeypatch) -> None:
     """The first version set DAEDALUS_BUDGET_USD for its own process, which
     raises the ceiling on the ledger every lane shares."""

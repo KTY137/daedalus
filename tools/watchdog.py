@@ -666,14 +666,35 @@ def render_health(facts: dict, found: list[Anomaly]) -> str:
     return NL.join(lines) + NL
 
 
+#: The message reaches PowerShell through the ENVIRONMENT, never through argv.
+#:
+#: MEASURED 2026-08-24: an anomaly toast whose text named ``%TEMP%/claude``
+#: was classified by ``budget.classify_argv`` as an Anthropic CLI call and
+#: reserved $3 of the shared ceiling -- for a popup. The classifier is right to
+#: be broad (it has to catch ``cmd /c claude -p`` and ``ssh bench 'claude -p'``,
+#: and for a spend guard a false positive costs a refusal while a false
+#: negative costs unbilled money); what was wrong is a background job putting
+#: MEASURED TEXT into an argv at all. Through the environment there is nothing
+#: to classify, nothing to quote and nothing to inject.
+_TOAST_TITLE_ENV = "DAEDALUS_TOAST_TITLE"
+_TOAST_TEXT_ENV = "DAEDALUS_TOAST_TEXT"
+_TOAST_SCRIPT = (
+    "(New-Object -ComObject Wscript.Shell).Popup("
+    f"$env:{_TOAST_TEXT_ENV}, 8, $env:{_TOAST_TITLE_ENV}, 48)"
+)
+
+
 def toast(title: str, text: str) -> None:
     if os.name != "nt":
         return
-    safe = lambda s: s.replace("'", "''")[:200]  # noqa: E731
-    ps = f"(New-Object -ComObject Wscript.Shell).Popup('{safe(text)}', 8, '{safe(title)}', 48)"
+    env = dict(os.environ)
+    env[_TOAST_TITLE_ENV] = str(title)[:120]
+    env[_TOAST_TEXT_ENV] = str(text)[:400]
     try:
-        subprocess.run(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
-                       timeout=10, capture_output=True)
+        subprocess.run(
+            ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", _TOAST_SCRIPT],
+            timeout=10, capture_output=True, env=env,
+        )
     except (OSError, subprocess.SubprocessError):
         pass
 
