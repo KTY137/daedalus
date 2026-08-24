@@ -95,6 +95,8 @@ FROZEN_QUERY_VARIANTS = frozenset({"raw", "scrubbed"})
 MAX_CANDIDATES_PER_CASE = 65_536
 MAX_CONTENT_BYTES = 65_536
 MAX_FILE_BYTES = 200_000
+EVALUATED_RANK_LIMIT = 20
+EQUIVALENCE_TOLERANCE = 1e-10
 
 
 def benchmark_case_key(query: QueryView) -> str:
@@ -318,9 +320,52 @@ def _validate_score_receipt_shape(
         path
         for path, score in canonical_scores
         if tensor_arm or float(score) > 0.0
-    )[:20]
+    )[:EVALUATED_RANK_LIMIT]
     if tuple(measured_ranking) != expected_ranking:
         raise ValueError("measured ranking is not bound to receipt score order")
+
+
+def _equivalent_score_rows(
+    left_rows: Sequence[tuple[str, float]],
+    right_rows: Sequence[tuple[str, float]],
+) -> bool:
+    """Compare algebraic controls by candidate identity and evaluated order.
+
+    Equivalent floating-point implementations may reverse a near-tie below
+    the evaluated top-20 cutoff.  Receipt tuple position is therefore not an
+    algebraic identity: every candidate score must agree by path within the
+    frozen tolerance, while the ranking that actually enters metrics must be
+    exactly the same.
+    """
+
+    left_scores = {path: float(score) for path, score in left_rows}
+    right_scores = {path: float(score) for path, score in right_rows}
+    if (
+        len(left_scores) != len(left_rows)
+        or len(right_scores) != len(right_rows)
+        or left_scores.keys() != right_scores.keys()
+    ):
+        return False
+    if any(
+        not math.isclose(
+            left_scores[path],
+            right_scores[path],
+            rel_tol=EQUIVALENCE_TOLERANCE,
+            abs_tol=EQUIVALENCE_TOLERANCE,
+        )
+        for path in left_scores
+    ):
+        return False
+
+    def evaluated_order(scores: dict[str, float]) -> tuple[str, ...]:
+        return tuple(
+            path
+            for path, _score in sorted(
+                scores.items(), key=lambda row: (-row[1], row[0])
+            )[:EVALUATED_RANK_LIMIT]
+        )
+
+    return evaluated_order(left_scores) == evaluated_order(right_scores)
 
 
 def _mean_seed_metric(
@@ -414,7 +459,12 @@ def run_benchmark(
                 stage = "ranking"
                 try:
                     raw = retriever.rank(case.query, case.universe)
-                    ranking = validate_ranking(name, raw, case.universe, max_k=20)
+                    ranking = validate_ranking(
+                        name,
+                        raw,
+                        case.universe,
+                        max_k=EVALUATED_RANK_LIMIT,
+                    )
                     stage = "receipt"
                     receipt = retriever.score_receipt(case.query)
                     _validate_score_receipt_shape(
@@ -497,21 +547,10 @@ def run_benchmark(
                 ):
                     if left_name not in receipt_by_name or right_name not in receipt_by_name:
                         continue
-                    left_scores = receipt_by_name[left_name].scores
-                    right_scores = receipt_by_name[right_name].scores
-                    equivalent = len(left_scores) == len(right_scores) and all(
-                        left_path == right_path
-                        and math.isclose(
-                            left_score,
-                            right_score,
-                            rel_tol=1e-10,
-                            abs_tol=1e-10,
-                        )
-                        for (left_path, left_score), (right_path, right_score) in zip(
-                            left_scores, right_scores
-                        )
-                    )
-                    if not equivalent:
+                    if not _equivalent_score_rows(
+                        receipt_by_name[left_name].scores,
+                        receipt_by_name[right_name].scores,
+                    ):
                         failures.append(
                             _failure(
                                 left_name,

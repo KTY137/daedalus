@@ -1,0 +1,1230 @@
+{
+  "active_gate": 0,
+  "arm_metrics": {
+    "bm25": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        },
+        "131": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        },
+        "23": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        },
+        "47": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        },
+        "89": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        },
+        "131": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        },
+        "23": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        },
+        "47": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        },
+        "89": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.05263157894736842
+        }
+      }
+    },
+    "flattened_bilinear_same_kernel": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "flattened_cosine_same_scalars": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "fusion_rrf": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "identity_contraction": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "path_lexical": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "plane_label_permutation": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "random_uniform": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "recency_prior": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        },
+        "131": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        },
+        "23": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        },
+        "47": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        },
+        "89": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        },
+        "131": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        },
+        "23": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        },
+        "47": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        },
+        "89": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.2
+        }
+      }
+    },
+    "role_label_permutation": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "structured_contraction": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "tensor_late_interaction": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.25
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 1.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_5": 1.0,
+          "reciprocal_rank": 0.25
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    },
+    "uniform_kernel": {
+      "[\"c00\",\"raw\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      },
+      "[\"c00\",\"scrubbed\"]": {
+        "11": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "131": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "23": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "47": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        },
+        "89": {
+          "first_hit_coverage": 0.0,
+          "recall_at_1": 0.0,
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_5": 0.0,
+          "reciprocal_rank": 0.0
+        }
+      }
+    }
+  },
+  "automatic_promotions": 0,
+  "classification": "EXPERIMENT",
+  "comparisons": [],
+  "conclusion": "NO_SCIENTIFIC_VERDICT",
+  "corpus_digest": "sha256:b8296615608ff8b7190e9c348f432e02177636b30688a3f0a7a3960565ff6321",
+  "elapsed_seconds_unvalidated": 753.704,
+  "failures": [
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"raw\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 11
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"scrubbed\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 11
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"raw\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 23
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"scrubbed\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 23
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"raw\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 47
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"scrubbed\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 47
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"raw\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 89
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"scrubbed\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 89
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"raw\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 131
+    },
+    {
+      "arm": "structured_contraction",
+      "case_id": "[\"c00\",\"scrubbed\"]",
+      "category": "tensor_vector_bilinear_equivalence_failure",
+      "message": "structured_contraction differs from its exact flattened_bilinear_same_kernel control",
+      "seed": 131
+    }
+  ],
+  "full_report_digest": "sha256:c20d09f6c5a1b90817c1533b3ca32090c3fecd7fb3fdec1d93ffa12db8625eff",
+  "gold": [
+    "scripts/run_provider_target_receipt_retention_contract_mutations.py"
+  ],
+  "implementation_revision": "c735f415c863a269e0f28be79543f8e309bf230c",
+  "interpretation": "diagnostic smoke only; not independently isolated held-out evidence, not a tensor-over-vector claim, and not promotion authority",
+  "query_variants": [
+    "raw",
+    "scrubbed"
+  ],
+  "recency_control": {
+    "historical_provenance_authenticated": false,
+    "kind": "caller_asserted_from_parent_git_log",
+    "ranked_candidate_count": 302,
+    "window": 400
+  },
+  "schema": "forest-v2.tensor-s09-smoke-summary/1",
+  "seeds": [
+    11,
+    23,
+    47,
+    89,
+    131
+  ],
+  "source_case_id": "c00",
+  "source_revision": "3627c99208c0c592e8a0ac9acbd70ccd86bceaef",
+  "status": "INVALID",
+  "taskset_digest": "sha256:c3ef36f19ebaaf953ef8c26615295dfe7e845a89ec68b50ffb5c933df96d8c33",
+  "universe_size": 4376
+}

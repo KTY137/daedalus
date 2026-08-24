@@ -107,6 +107,12 @@ superseded role-salted v1 hashing backend. Both arms missed top-20. The current
 validator intentionally rejects that file because its spec digest predates the
 shared role-independent filler space. It has no eligibility manifest and is
 therefore diagnostic historical evidence, never a scientific verdict.
+`results/s09_c00_smoke_v2_invalid.json` retains the first complete current-spec
+13-arm `c00` attempt. Its ten failures exposed an over-strict validator that
+compared the entire score-sorted tuple positionally even when per-path scores
+agreed within `1e-10` and the evaluated top 20 was unchanged. The invalid run
+and its 753.704-second cost remain visible; repairing the validator did not
+change the frozen inputs or any measured score.
 `PERFORMANCE_NOTE.md` retains the aborted slow paths and unvalidated cost-shape
 measurements rather than hiding them.
 

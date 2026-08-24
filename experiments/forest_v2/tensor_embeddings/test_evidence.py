@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from experiments.forest_v2.tensor_embeddings.benchmark import EVALUATED_RANK_LIMIT
 from experiments.forest_v2.tensor_embeddings.encoding import HASH_FEATURE_FAMILY
 from experiments.forest_v2.tensor_embeddings.stats import (
     ReportValidationError,
@@ -39,6 +40,7 @@ def test_embedded_spec_digest_and_feature_family_match_frozen_json() -> None:
     assert spec["dense_scalar_budget"] == (
         len(spec["planes"]) * len(spec["roles"]) * spec["feature_dimension"]
     )
+    assert EVALUATED_RANK_LIMIT == max(spec["cutoffs"])
 
 
 def test_superseded_role_salted_smoke_is_retained_but_rejected_by_current_spec() -> None:
@@ -68,3 +70,23 @@ def test_cost_failures_are_retained_with_no_speedup_claim() -> None:
     assert "must not be cited as a tensor speedup" in collapsed
     assert "not scientifically evaluable" in note
     assert "superseded" in note
+
+
+def test_current_spec_false_full_order_failure_is_retained_as_invalid() -> None:
+    summary = json.loads(
+        (ROOT / "results" / "s09_c00_smoke_v2_invalid.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert summary["implementation_revision"] == (
+        "c735f415c863a269e0f28be79543f8e309bf230c"
+    )
+    assert summary["status"] == "INVALID"
+    assert summary["conclusion"] == "NO_SCIENTIFIC_VERDICT"
+    assert summary["automatic_promotions"] == 0
+    assert summary["universe_size"] == 4376
+    assert summary["elapsed_seconds_unvalidated"] == 753.704
+    assert len(summary["failures"]) == 10
+    assert {
+        failure["category"] for failure in summary["failures"]
+    } == {"tensor_vector_bilinear_equivalence_failure"}
