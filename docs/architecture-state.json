@@ -4,14 +4,14 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "eae9f72ee91c4bdd829c4397779360202decd48d"
+    "head": "94eb35151c15e0fdb86a5b37756c56a9de5ec97d"
   },
   "counts": {
     "dark_switches": 3,
     "doc_drift": 32,
     "index_extra_edges": 1,
     "islands": 68,
-    "modules": 518,
+    "modules": 520,
     "shims": 7,
     "test_only": 36,
     "unknown": 26,
@@ -391,9 +391,11 @@
     "experiments/forest_v2/s09_eval/harness.py",
     "experiments/forest_v2/s09_eval/metrics.py",
     "experiments/forest_v2/s09_eval/retrievers.py",
+    "experiments/forest_v2/s09_eval/run_xplane_harness.py",
     "experiments/forest_v2/s09_eval/stats.py",
     "experiments/forest_v2/s09_eval/taskset.py",
     "experiments/forest_v2/s09_eval/taskset_xplane.py",
+    "experiments/forest_v2/s09_eval/to_s10.py",
     "experiments/forest_v2/s09_eval/tokens.py",
     "experiments/forest_v2/s10_kill/__init__.py",
     "experiments/forest_v2/s10_kill/cli.py",
@@ -733,5 +735,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:c3f2ccee3a5915e7e88fcde7e6bcfeafbcc037b64350c7d6dbb51f95e69c5343"
+  "digest": "sha256:2b9c6b9658a1f3567e98e55fc92d390e9ad4e6373740d8e9c1f0169c94fd508e"
 }
