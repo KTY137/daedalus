@@ -64,3 +64,12 @@ tests/fixtures/unknown_outcome_reconciliation_fault_executor.py -text
 # different fixture tree". The module's own docstring promises "the same 40-hex
 # sha on any machine"; this is what makes that true.
 tests/fixtures/ignition/voltage/** -text
+
+# The head-revision integration review (tests/gates/
+# test_repository_head_revision_integration_review.py) pins these two by RAW
+# byte blob sha. Unpinned, core.autocrlf=true materialised them with CRLF in
+# every fresh clone, so the review passed in the long-lived worktree and
+# failed in the discrimination sandbox from the same commit (MEASURED
+# 2026-08-24, B6 run 5 baseline_red). Same daemon, same cure as above.
+scripts/run_repository_head_revision_mutations.py -text
+configs/schemas/repository-head-revision-receipt.schema.json -text
