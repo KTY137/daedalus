@@ -26,6 +26,7 @@ from .runtime_conformance_binding import bind_runtime_conformance_receipts
 _SCHEMA = "daedalus-gate-report/2"
 _LEGACY_SCHEMA = "daedalus-gate-report/1"
 _SUPPORTED_SCHEMAS = frozenset({_SCHEMA, _LEGACY_SCHEMA})
+_CANONICAL_CONFORMANCE_OPEN = "canonical-effect-boundary:gate0-open"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 _MAX_REPORT_BYTES = 4 * 1024 * 1024
@@ -468,6 +469,16 @@ def build_gate0_report(
         receipt_dir=runtime_conformance_receipt_dir,
     )
     runtime_failures = receipt_binding.failures
+    if not conformance.gate0_closed:
+        runtime_failures = tuple(
+            sorted(
+                set(runtime_failures)
+                | {
+                    f"{_CANONICAL_CONFORMANCE_OPEN}:"
+                    f"{conformance.registry_sha256}"
+                }
+            )
+        )
     diagnostics.extend(receipt_binding.diagnostics)
 
     # The whole-matrix binding always runs, so "no evidence" can never become

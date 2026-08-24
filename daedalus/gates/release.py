@@ -1,20 +1,19 @@
-"""Fail-closed Gate-0 release assembly over retained exact-head evidence.
+"""Historical Gate-0 release contracts and a fail-closed retirement boundary.
 
-This module does not close a gate, create OwnerApproval, promote a candidate or
-invent evidence. It verifies an already-derived :class:`GateReport` against an
-authenticated :class:`GateEvidenceIndex` trust bundle and emits a separately
-signed mechanical receipt for the exact inputs it observed.
+Legacy reports and receipts remain strictly parseable for audit. Current issue
+and live verification are deliberately unavailable until GateReportV3,
+repository-write admission, the evidence index and the trust bundle are bound
+atomically. This module does not close a gate, create OwnerApproval, promote a
+candidate or invent evidence.
 """
 from __future__ import annotations
 
-import dataclasses
 import hashlib
-import hmac
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, Mapping
+from typing import Any, ClassVar, Mapping, NoReturn
 
 from daedalus.schemas import (
     CanonicalContract,
@@ -31,7 +30,6 @@ from daedalus.spine.writer_inventory import (
 )
 
 from .evidence import ArtifactEvidence, GateEvidenceIndex
-from .evidence_verifier import evidence_requirements_sha256
 from .report import GateReport
 from .trust_bundle import (
     EvidenceTrustBundle,
@@ -78,6 +76,10 @@ _REPORT_ARRAY_FIELDS = (
 _REQUIRED_RELEASE_ARTIFACT_KINDS = frozenset(
     {"gate-report", "effect-inventory"}
 )
+_RELEASE_RETIREMENT_REASON = (
+    "legacy GateReport release is inspection-only; current Gate-0 release "
+    "requires authenticated GateReportV3 repository-write admission binding"
+)
 
 
 class Gate0ReleaseError(RuntimeError):
@@ -94,6 +96,12 @@ class Gate0ReleaseBindingError(Gate0ReleaseError):
 
 class Gate0ReleaseSignatureError(Gate0ReleaseError):
     """The release-verifier signature cannot be authenticated."""
+
+
+def assert_gate0_release_available() -> NoReturn:
+    """Refuse before any trust check, live scan, signing, or output write."""
+
+    raise Gate0ReleaseBlocked(_RELEASE_RETIREMENT_REASON)
 
 
 @dataclass(frozen=True)
@@ -221,37 +229,6 @@ def _canonical_json(value: Mapping[str, Any]) -> str:
         separators=(",", ":"),
         ensure_ascii=True,
     )
-
-
-def _as_utc(value: datetime, label: str) -> datetime:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError(f"{label} must be timezone-aware")
-    return value.astimezone(timezone.utc)
-
-
-def _parse_utc(value: str, label: str) -> datetime:
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise Gate0ReleaseBindingError(f"{label} is not ISO-8601") from exc
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise Gate0ReleaseBindingError(f"{label} must include a timezone")
-    return parsed.astimezone(timezone.utc)
-
-
-def _secret_bytes(secret: bytes | str) -> bytes:
-    value = secret.encode("utf-8") if isinstance(secret, str) else bytes(secret)
-    if len(value) < 32:
-        raise ValueError("release verifier secret must contain at least 32 bytes")
-    return value
-
-
-def _signature(digest: str, secret: bytes | str) -> str:
-    return hmac.new(
-        _secret_bytes(secret),
-        digest.encode("ascii"),
-        hashlib.sha256,
-    ).hexdigest()
 
 
 def validate_strict_gate_report_payload(
@@ -539,68 +516,10 @@ def issue_gate0_release_receipt(
     verifier_key_id: str,
     verifier_secret: bytes | str,
     verified_at: datetime,
-) -> Gate0ReleaseReceipt:
-    """Verify exact inputs and issue one signed mechanical release receipt."""
+) -> NoReturn:
+    """Refuse the retired release contract; retained inputs remain inspectable."""
 
-    instant = _as_utc(verified_at, "verified_at")
-    report_sha256, report_artifact_sha256 = _assert_gate0_release(
-        report,
-        index,
-        bundle,
-        repo_root=repo_root,
-        collector_keyring=collector_keyring,
-        expected_collector_id=expected_collector_id,
-        expected_workflow_paths=expected_workflow_paths,
-        current_revision=current_revision,
-        current_tree_revision=current_tree_revision,
-        now=instant,
-    )
-    if instant < _parse_utc(bundle.issued_at, "bundle.issued_at"):
-        raise Gate0ReleaseBindingError(
-            "release receipt predates authenticated trust bundle"
-        )
-    requirements = evidence_requirements_sha256(index)
-    placeholder = Gate0ReleaseReceipt(
-        receipt_id=receipt_id,
-        verifier_id=verifier_id,
-        verifier_key_id=verifier_key_id,
-        source_revision=current_revision,
-        source_tree_revision=current_tree_revision,
-        gate_report_sha256=report_sha256,
-        gate_report_artifact_sha256=report_artifact_sha256,
-        registry_sha256=index.registry_sha256,
-        evidence_index_sha256=index.digest,
-        trust_bundle_sha256=bundle.digest,
-        requirements_sha256=requirements,
-        status="passed",
-        verified_at=instant.isoformat(timespec="microseconds"),
-        signature_sha256="0" * 64,
-        provenance=ContractProvenance(
-            origin=_RELEASE_RECEIPT_ORIGIN,
-            source_revision=current_revision,
-            created_at=instant.isoformat(timespec="microseconds"),
-            input_digests=tuple(
-                sorted(
-                    {
-                        report_sha256,
-                        report_artifact_sha256,
-                        index.registry_sha256,
-                        index.digest,
-                        bundle.digest,
-                        requirements,
-                    }
-                )
-            ),
-            trace_id=receipt_id,
-        ),
-    )
-    return dataclasses.replace(
-        placeholder,
-        signature_sha256=_signature(
-            placeholder.signing_digest,
-            verifier_secret,
-        ),
-    )
+    assert_gate0_release_available()
 
 
 def verify_gate0_release_receipt(
@@ -618,75 +537,10 @@ def verify_gate0_release_receipt(
     current_revision: str,
     current_tree_revision: str,
     now: datetime,
-) -> None:
-    """Authenticate the receipt and re-run the complete exact-head assessment."""
+) -> NoReturn:
+    """Refuse live use of a historical receipt and Gate-report contract."""
 
-    secret = verifier_keyring.get((receipt.verifier_id, receipt.verifier_key_id))
-    if secret is None:
-        raise Gate0ReleaseSignatureError("release verifier key is unknown")
-    expected_signature = _signature(receipt.signing_digest, secret)
-    if not hmac.compare_digest(receipt.signature_sha256, expected_signature):
-        raise Gate0ReleaseSignatureError("release receipt signature mismatch")
-
-    instant = _as_utc(now, "now")
-    verified = _parse_utc(receipt.verified_at, "receipt.verified_at")
-    if verified > instant:
-        raise Gate0ReleaseBindingError("release receipt is from the future")
-    report_sha256, report_artifact_sha256 = _assert_gate0_release(
-        report,
-        index,
-        bundle,
-        repo_root=repo_root,
-        collector_keyring=collector_keyring,
-        expected_collector_id=expected_collector_id,
-        expected_workflow_paths=expected_workflow_paths,
-        current_revision=current_revision,
-        current_tree_revision=current_tree_revision,
-        now=instant,
-    )
-    expected = {
-        "verifier_id": (
-            receipt.verifier_id,
-            _identifier(expected_verifier_id, "expected_verifier_id"),
-        ),
-        "source_revision": (
-            receipt.source_revision,
-            _revision(current_revision, "current_revision"),
-        ),
-        "source_tree_revision": (
-            receipt.source_tree_revision,
-            _revision(current_tree_revision, "current_tree_revision"),
-        ),
-        "gate_report_sha256": (receipt.gate_report_sha256, report_sha256),
-        "gate_report_artifact_sha256": (
-            receipt.gate_report_artifact_sha256,
-            report_artifact_sha256,
-        ),
-        "registry_sha256": (receipt.registry_sha256, index.registry_sha256),
-        "evidence_index_sha256": (
-            receipt.evidence_index_sha256,
-            index.digest,
-        ),
-        "trust_bundle_sha256": (
-            receipt.trust_bundle_sha256,
-            bundle.digest,
-        ),
-        "requirements_sha256": (
-            receipt.requirements_sha256,
-            evidence_requirements_sha256(index),
-        ),
-    }
-    mismatches = sorted(
-        name for name, (actual, wanted) in expected.items() if actual != wanted
-    )
-    if mismatches:
-        raise Gate0ReleaseBindingError(
-            "release receipt binding mismatch: " + ", ".join(mismatches)
-        )
-    if verified < _parse_utc(bundle.issued_at, "bundle.issued_at"):
-        raise Gate0ReleaseBindingError(
-            "release receipt predates authenticated trust bundle"
-        )
+    assert_gate0_release_available()
 
 
 def parse_gate0_release_receipt(
@@ -710,6 +564,7 @@ def load_gate0_release_receipt(path: str | Path) -> Gate0ReleaseReceipt:
 
 
 __all__ = [
+    "assert_gate0_release_available",
     "Gate0ReleaseBindingError",
     "Gate0ReleaseBlocked",
     "Gate0ReleaseError",

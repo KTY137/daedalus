@@ -65,7 +65,7 @@ def test_release_refuses_forged_empty_writer_failure_projection(tmp_path: Path) 
         Gate0ReleaseBindingError,
         match="event_store_writer_failures",
     ):
-        base._issue(forged, index, bundle, root)
+        base._historical_assess(forged, index, bundle, root)
 
 
 def test_release_reports_live_writer_blockers_before_generic_open_report(
@@ -97,4 +97,4 @@ def test_release_reports_live_writer_blockers_before_generic_open_report(
         Gate0ReleaseBlocked,
         match="live Event-Store writer blockers remain",
     ):
-        base._issue(blocked, index, bundle, root)
+        base._historical_assess(blocked, index, bundle, root)

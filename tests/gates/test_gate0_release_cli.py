@@ -14,7 +14,6 @@ from daedalus.gates.release import load_gate0_release_receipt
 from daedalus.gates.trust_bundle import load_evidence_trust_bundle
 
 ROOT = Path(__file__).resolve().parents[2]
-CLI = ROOT / "scripts" / "gate0_release.py"
 FIXTURE = ROOT / "tests" / "gates" / "test_gate0_release_assessment.py"
 
 
@@ -57,11 +56,10 @@ def _write_json(path: Path, payload: dict) -> None:
 
 def _run(*args: str, env: dict[str, str] | None = None):
     merged = os.environ.copy()
-    merged["PYTHONPATH"] = str(ROOT)
     if env:
         merged.update(env)
     return subprocess.run(
-        [sys.executable, str(CLI), *args],
+        [sys.executable, "-m", "scripts.gate0_release", *args],
         cwd=ROOT,
         env=merged,
         capture_output=True,
@@ -124,7 +122,9 @@ def _common_issue_args(
     )
 
 
-def test_issue_and_verify_cli_round_trip_with_external_keys(tmp_path: Path) -> None:
+def test_issue_and_live_verify_cli_refuse_retired_release_contract(
+    tmp_path: Path,
+) -> None:
     root, report_path, index_path, bundle_path, workflow_path = _dump_inputs(
         tmp_path
     )
@@ -141,11 +141,18 @@ def test_issue_and_verify_cli_round_trip_with_external_keys(tmp_path: Path) -> N
         ),
         env=issue_env,
     )
-    assert issued.returncode == 0, issued.stderr
+    assert issued.returncode == 1
     assert issued.stdout == ""
     assert "secret" not in issued.stderr.lower()
-    receipt = load_gate0_release_receipt(output)
-    assert receipt.status == "passed"
+    assert "inspection-only" in issued.stderr
+    assert not output.exists()
+
+    report = fixture.load_strict_gate_report(report_path)
+    index = load_gate_evidence_index(index_path)
+    bundle = load_evidence_trust_bundle(bundle_path)
+    receipt = fixture._historical_receipt(report, index, bundle)
+    _write_json(output, receipt.to_dict())
+    assert load_gate0_release_receipt(output) == receipt
 
     verified = _run(
         "verify",
@@ -176,11 +183,12 @@ def test_issue_and_verify_cli_round_trip_with_external_keys(tmp_path: Path) -> N
         "--now",
         (fixture.fixture.NOW + fixture.timedelta(minutes=3)).isoformat(),
     )
-    assert verified.returncode == 0, verified.stderr
+    assert verified.returncode == 1
     assert verified.stdout == ""
+    assert "inspection-only" in verified.stderr
 
 
-def test_issue_cli_refuses_absent_secret_without_writing_receipt(
+def test_issue_cli_does_not_require_secret_for_retirement_refusal(
     tmp_path: Path,
 ) -> None:
     root, report_path, index_path, bundle_path, workflow_path = _dump_inputs(
@@ -201,7 +209,7 @@ def test_issue_cli_refuses_absent_secret_without_writing_receipt(
     assert result.returncode == 1
     assert result.stdout == ""
     assert not output.exists()
-    assert "secret is not configured" in result.stderr
+    assert "inspection-only" in result.stderr
 
 
 def test_issue_cli_refuses_open_report_and_preserves_output(
@@ -234,10 +242,10 @@ def test_issue_cli_refuses_open_report_and_preserves_output(
     )
     assert result.returncode == 1
     assert output.read_text(encoding="utf-8") == "sentinel\n"
-    assert "security_boundary_claimed:false" in result.stderr
+    assert "inspection-only" in result.stderr
 
 
-def test_issue_cli_refuses_malformed_collector_key_without_writing_receipt(
+def test_issue_cli_does_not_consume_collector_key_on_retired_path(
     tmp_path: Path,
 ) -> None:
     # Argument-shape refusals must fail closed on the same terms as evidence
@@ -266,7 +274,7 @@ def test_issue_cli_refuses_malformed_collector_key_without_writing_receipt(
     assert result.returncode == 1
     assert result.stdout == ""
     assert not output.exists()
-    assert "--collector-key must use OWNER_ID:KEY_ID:SECRET" in result.stderr
+    assert "inspection-only" in result.stderr
     assert VERIFIER_SECRET not in result.stderr
 
 

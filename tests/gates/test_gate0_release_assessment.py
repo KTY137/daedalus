@@ -7,6 +7,7 @@ import json
 import sys
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -15,22 +16,29 @@ from daedalus.gates.release import (
     Gate0ReleaseBindingError,
     Gate0ReleaseBlocked,
     Gate0ReleaseReceipt,
-    Gate0ReleaseSignatureError,
     issue_gate0_release_receipt,
     load_gate0_release_receipt,
     load_strict_gate_report,
     parse_gate0_release_receipt,
     strict_gate_report_artifact_sha256,
+    strict_gate_report_sha256,
     validate_strict_gate_report_payload,
     verify_gate0_release_receipt,
 )
+from daedalus.gates.evidence_verifier import evidence_requirements_sha256
 from daedalus.gates.report import GateReport
+from daedalus.gates.report_v3 import GateReportV3
+from daedalus.schemas import ContractProvenance
 from daedalus.spine.writer_inventory import scan_event_store_writers
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "gates" / "test_evidence_trust_bundle.py"
 RELEASE_SECRET = b"external-release-verifier-secret-material-32-bytes"
 VERIFIER_KEY = ("external-gate0-release-verifier", "release-key-1")
+
+
+class DerivedGateReport(GateReport):
+    """Unsupported concrete subtype used to probe the retirement boundary."""
 
 
 def _load_fixture():
@@ -185,6 +193,81 @@ def _verify(receipt, report, index, bundle, root, **changes):
     )
 
 
+def _historical_assess(report, index, bundle, root, **changes):
+    """Exercise the retained private v2 assessment without granting release."""
+
+    values = {
+        "repo_root": root,
+        "collector_keyring": {fixture.COLLECTOR_KEY: fixture.SECRET},
+        "expected_collector_id": "external-release-collector",
+        "expected_workflow_paths": {
+            "gate0-contracts": fixture.WORKFLOW_PATH
+        },
+        "current_revision": fixture.REVISION,
+        "current_tree_revision": fixture.TREE,
+        "now": fixture.NOW + timedelta(minutes=2),
+    }
+    values.update(changes)
+    return release_module._assert_gate0_release(report, index, bundle, **values)
+
+
+def _historical_receipt(
+    report: GateReport,
+    index,
+    bundle,
+    *,
+    verified_at=None,
+) -> Gate0ReleaseReceipt:
+    """Construct audit-only v1 receipt bytes without invoking release issue."""
+
+    instant = verified_at or fixture.NOW + timedelta(minutes=2)
+    report_sha256 = strict_gate_report_sha256(report)
+    report_artifact_sha256 = strict_gate_report_artifact_sha256(report)
+    requirements = evidence_requirements_sha256(index)
+    receipt_id = "historical-gate0-release-receipt-1"
+    input_digests = tuple(
+        sorted(
+            {
+                report_sha256,
+                report_artifact_sha256,
+                index.registry_sha256,
+                index.digest,
+                bundle.digest,
+                requirements,
+            }
+        )
+    )
+    placeholder = Gate0ReleaseReceipt(
+        receipt_id=receipt_id,
+        verifier_id=VERIFIER_KEY[0],
+        verifier_key_id=VERIFIER_KEY[1],
+        source_revision=fixture.REVISION,
+        source_tree_revision=fixture.TREE,
+        gate_report_sha256=report_sha256,
+        gate_report_artifact_sha256=report_artifact_sha256,
+        registry_sha256=index.registry_sha256,
+        evidence_index_sha256=index.digest,
+        trust_bundle_sha256=bundle.digest,
+        requirements_sha256=requirements,
+        status="passed",
+        verified_at=instant.isoformat(timespec="microseconds"),
+        signature_sha256="0" * 64,
+        provenance=ContractProvenance(
+            origin="gates.gate0-release-verifier",
+            source_revision=fixture.REVISION,
+            created_at=instant.isoformat(timespec="microseconds"),
+            input_digests=input_digests,
+            trace_id=receipt_id,
+        ),
+    )
+    return dataclasses.replace(
+        placeholder,
+        signature_sha256=hashlib.sha256(
+            ("historical-unverified:" + placeholder.signing_digest).encode()
+        ).hexdigest(),
+    )
+
+
 def _canonical_report_digest(payload: dict) -> str:
     body = dict(payload)
     body.pop("report_sha256", None)
@@ -220,30 +303,85 @@ def _resign(receipt: Gate0ReleaseReceipt, **changes) -> Gate0ReleaseReceipt:
     placeholder = Gate0ReleaseReceipt.from_dict(payload)
     return dataclasses.replace(
         placeholder,
-        signature_sha256=release_module._signature(
-            placeholder.signing_digest,
-            RELEASE_SECRET,
-        ),
+        signature_sha256=hashlib.sha256(
+            ("historical-unverified:" + placeholder.signing_digest).encode()
+        ).hexdigest(),
     )
 
 
-def test_release_receipt_round_trip_signature_and_exact_bindings(
+def test_legacy_issue_and_live_verify_are_retired_but_receipt_remains_parseable(
     tmp_path: Path,
 ) -> None:
     root, report, index, bundle = _inputs(tmp_path)
-    receipt = _issue(report, index, bundle, root)
-
     assert report.closed is True
+
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
+        _issue(report, index, bundle, root)
+
+    receipt = _historical_receipt(report, index, bundle)
     assert Gate0ReleaseReceipt.from_dict(receipt.to_dict()) == receipt
     assert receipt.signature_sha256 != "0" * 64
     assert receipt.gate_report_sha256 == report.to_dict()["report_sha256"]
     assert receipt.evidence_index_sha256 == index.digest
     assert receipt.trust_bundle_sha256 == bundle.digest
-    _verify(receipt, report, index, bundle, root)
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
+        _verify(receipt, report, index, bundle, root)
 
     path = tmp_path / "release-receipt.json"
     path.write_text(json.dumps(receipt.to_dict()), encoding="utf-8", newline="\n")
     assert load_gate0_release_receipt(path) == receipt
+
+
+def test_retirement_precedes_assessment_scans_signature_and_trust(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root, report, index, bundle = _inputs(tmp_path)
+    receipt = _historical_receipt(report, index, bundle)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("retired release reached historical machinery")
+
+    monkeypatch.setattr(release_module, "_assert_gate0_release", forbidden)
+    monkeypatch.setattr(
+        release_module,
+        "assert_strict_exact_head_with_bundle",
+        forbidden,
+    )
+    monkeypatch.setattr(release_module, "_live_writer_inventory", forbidden)
+
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
+        _issue(report, index, bundle, root)
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
+        _verify(receipt, report, index, bundle, root)
+
+
+def test_unbound_v3_and_unknown_report_types_share_the_retirement_barrier(
+    tmp_path: Path,
+) -> None:
+    root, report, index, bundle = _inputs(tmp_path)
+    v3 = GateReportV3(
+        **{
+            field.name: getattr(report, field.name)
+            for field in dataclasses.fields(GateReport)
+        }
+    )
+    derived = DerivedGateReport(
+        **{
+            field.name: getattr(report, field.name)
+            for field in dataclasses.fields(GateReport)
+        }
+    )
+    duck = SimpleNamespace(
+        **{
+            field.name: getattr(report, field.name)
+            for field in dataclasses.fields(GateReport)
+        }
+    )
+
+    for subject in (v3, derived, duck, object()):
+        with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
+            _issue(subject, index, bundle, root)
 
 
 def test_strict_gate_report_loader_rejects_coercion_and_derived_field_forgery(
@@ -307,7 +445,7 @@ def test_open_report_and_missing_owner_evidence_refuse_release(
         report_changes={"security_boundary_claimed": False},
     )
     with pytest.raises(Gate0ReleaseBlocked, match="security_boundary_claimed:false"):
-        _issue(open_report, index, bundle, root)
+        _historical_assess(open_report, index, bundle, root)
 
     no_owner_root, no_owner_report, no_owner_index, no_owner_bundle = _inputs(
         tmp_path / "no-owner",
@@ -318,7 +456,7 @@ def test_open_report_and_missing_owner_evidence_refuse_release(
     # security_boundary_claimed path above. The underlying reason is preserved
     # in the message and by exception chaining.
     with pytest.raises(Gate0ReleaseBlocked, match="owner-decision:missing"):
-        _issue(
+        _historical_assess(
             no_owner_report,
             no_owner_index,
             no_owner_bundle,
@@ -331,21 +469,21 @@ def test_report_revision_registry_and_current_tree_mismatches_refuse(
 ) -> None:
     root, report, index, bundle = _inputs(tmp_path)
     with pytest.raises(Gate0ReleaseBindingError, match="report_source_revision"):
-        _issue(
+        _historical_assess(
             _report(root, source_revision="e" * 40),
             index,
             bundle,
             root,
         )
     with pytest.raises(Gate0ReleaseBindingError, match="report_registry_sha256"):
-        _issue(
+        _historical_assess(
             _report(root, registry_sha256="e" * 64),
             index,
             bundle,
             root,
         )
     with pytest.raises(Gate0ReleaseBindingError, match="source_tree_revision"):
-        _issue(
+        _historical_assess(
             report,
             index,
             bundle,
@@ -356,8 +494,6 @@ def test_report_revision_registry_and_current_tree_mismatches_refuse(
 
 def test_live_writer_inventory_is_recomputed_before_release(tmp_path: Path) -> None:
     root, report, index, bundle = _inputs(tmp_path)
-    receipt = _issue(report, index, bundle, root)
-
     (root / "daedalus" / "legacy_writer.py").write_text(
         "from daedalus.spine import SpineLedger\n"
         "SpineLedger('state.sqlite3')\n",
@@ -367,7 +503,7 @@ def test_live_writer_inventory_is_recomputed_before_release(tmp_path: Path) -> N
         Gate0ReleaseBindingError,
         match="event_store_writer_inventory_sha256",
     ):
-        _verify(receipt, report, index, bundle, root)
+        _historical_assess(report, index, bundle, root)
 
 
 def test_forged_writer_inventory_digest_refuses_even_when_report_is_signed(
@@ -384,45 +520,33 @@ def test_forged_writer_inventory_digest_refuses_even_when_report_is_signed(
         Gate0ReleaseBindingError,
         match="event_store_writer_inventory_sha256",
     ):
-        _issue(forged, index, bundle, root)
+        _historical_assess(forged, index, bundle, root)
 
 
 def test_workflow_drift_is_rechecked_before_receipt_issue_and_replay(
     tmp_path: Path,
 ) -> None:
     root, report, index, bundle = _inputs(tmp_path)
-    receipt = _issue(report, index, bundle, root)
     (root / fixture.WORKFLOW_PATH).write_text(
         "name: replaced\non: [push]\njobs: {}\n",
         encoding="utf-8", newline="\n",
     )
     with pytest.raises(Exception, match="definition digest mismatch"):
-        _verify(receipt, report, index, bundle, root)
+        _historical_assess(report, index, bundle, root)
 
 
-def test_verifier_key_scope_signature_and_expected_identity_refuse(
+def test_live_verify_retires_before_key_signature_or_identity_assessment(
     tmp_path: Path,
 ) -> None:
     root, report, index, bundle = _inputs(tmp_path)
-    receipt = _issue(report, index, bundle, root)
+    receipt = _historical_receipt(report, index, bundle)
 
-    with pytest.raises(Gate0ReleaseSignatureError, match="unknown"):
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
         _verify(receipt, report, index, bundle, root, verifier_keyring={})
-    with pytest.raises(Gate0ReleaseSignatureError, match="unknown"):
-        _verify(
-            receipt,
-            report,
-            index,
-            bundle,
-            root,
-            verifier_keyring={
-                ("foreign-verifier", "release-key-1"): RELEASE_SECRET
-            },
-        )
     tampered = dataclasses.replace(receipt, signature_sha256="e" * 64)
-    with pytest.raises(Gate0ReleaseSignatureError, match="signature"):
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
         _verify(tampered, report, index, bundle, root)
-    with pytest.raises(Gate0ReleaseBindingError, match="verifier_id"):
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
         _verify(
             receipt,
             report,
@@ -433,37 +557,39 @@ def test_verifier_key_scope_signature_and_expected_identity_refuse(
         )
 
 
-def test_receipt_cannot_be_repacked_for_another_report_or_index(
+def test_historical_receipt_variants_cannot_regain_live_release_authority(
     tmp_path: Path,
 ) -> None:
     root, report, index, bundle = _inputs(tmp_path)
-    receipt = _issue(report, index, bundle, root)
+    receipt = _historical_receipt(report, index, bundle)
 
     other_report = _report(root, diagnostics=("different-release-observation",))
     with pytest.raises(
-        Gate0ReleaseBindingError,
-        match="gate_report_artifact_sha256",
+        Gate0ReleaseBlocked,
+        match="inspection-only",
     ):
         _verify(receipt, other_report, index, bundle, root)
 
     repacked = _resign(receipt, gate_report_sha256="f" * 64)
-    with pytest.raises(Gate0ReleaseBindingError, match="gate_report_sha256"):
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
         _verify(repacked, report, index, bundle, root)
 
     foreign_index = fixture._index(registry="e" * 64)
-    with pytest.raises(Gate0ReleaseBindingError):
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
         _verify(receipt, report, foreign_index, bundle, root)
 
 
-def test_future_and_pre_bundle_signed_receipts_refuse(tmp_path: Path) -> None:
+def test_historical_receipt_timestamps_remain_parseable_but_not_live(
+    tmp_path: Path,
+) -> None:
     root, report, index, bundle = _inputs(tmp_path)
-    receipt = _issue(report, index, bundle, root)
+    receipt = _historical_receipt(report, index, bundle)
 
     future = _resign(
         receipt,
         verified_at=(fixture.NOW + timedelta(minutes=5)).isoformat(),
     )
-    with pytest.raises(Gate0ReleaseBindingError, match="future"):
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
         _verify(
             future,
             report,
@@ -477,7 +603,7 @@ def test_future_and_pre_bundle_signed_receipts_refuse(tmp_path: Path) -> None:
         receipt,
         verified_at=fixture.NOW.isoformat(),
     )
-    with pytest.raises(Gate0ReleaseBindingError, match="predates"):
+    with pytest.raises(Gate0ReleaseBlocked, match="inspection-only"):
         _verify(predating, report, index, bundle, root)
 
 
@@ -485,7 +611,7 @@ def test_receipt_wire_rejects_extra_fields_duplicate_keys_and_non_objects(
     tmp_path: Path,
 ) -> None:
     root, report, index, bundle = _inputs(tmp_path)
-    receipt = _issue(report, index, bundle, root)
+    receipt = _historical_receipt(report, index, bundle)
     payload = receipt.to_dict()
     payload["closed"] = True
     with pytest.raises(ValueError, match="unknown field"):

@@ -104,49 +104,41 @@ def test_live_writer_inventory_is_revision_bound_and_fail_closed() -> None:
     assert "inventory.blockers" in inventory
 
 
-def test_receipt_is_constructed_only_after_complete_release_assessment() -> None:
+def test_public_issue_contains_no_retired_assessment_or_signing_capability() -> None:
     issue = _text(_function("issue_gate0_release_receipt"))
-    assessment = issue.index(
-        "report_sha256, report_artifact_sha256 = _assert_gate0_release("
-    )
-    placeholder = issue.index("placeholder = Gate0ReleaseReceipt(")
-    signature = issue.index("signature_sha256=_signature(")
-    assert assessment < placeholder < signature
-    assert "release receipt predates authenticated trust bundle" in issue
+    assert "assert_gate0_release_available()" in issue
+    for forbidden in (
+        "_assert_gate0_release(",
+        "Gate0ReleaseReceipt(",
+        "_signature(",
+        "assert_strict_exact_head_with_bundle(",
+        "_live_writer_inventory(",
+    ):
+        assert forbidden not in issue
 
 
-def test_release_and_collector_keys_have_distinct_scoped_keyrings() -> None:
+def test_retired_public_signatures_retain_compatibility_without_using_keys() -> None:
     issue = _text(_function("issue_gate0_release_receipt"))
     verify = _text(_function("verify_gate0_release_receipt"))
     assert "collector_keyring: Mapping[tuple[str, str], bytes | str]" in issue
     assert "verifier_secret: bytes | str" in issue
     assert "collector_keyring: Mapping[tuple[str, str], bytes | str]" in verify
     assert "verifier_keyring: Mapping[tuple[str, str], bytes | str]" in verify
-    assert "(receipt.verifier_id, receipt.verifier_key_id)" in verify
-    assert "verifier_keyring.get(receipt.verifier_key_id)" not in verify
+    assert "collector_keyring.get" not in issue
+    assert "verifier_keyring.get" not in verify
 
 
-def test_receipt_signature_precedes_live_reassessment_and_exact_binding_checks() -> None:
+def test_public_verify_contains_no_signature_or_live_reassessment_capability() -> None:
     verify = _text(_function("verify_gate0_release_receipt"))
-    signature = verify.index("hmac.compare_digest")
-    time_check = verify.index('instant = _as_utc(now, "now")')
-    reassess = verify.index(
-        "report_sha256, report_artifact_sha256 = _assert_gate0_release("
-    )
-    bindings = verify.index("expected = {")
-    assert signature < time_check < reassess < bindings
-    for expression in (
-        '"verifier_id"',
-        '"source_revision"',
-        '"source_tree_revision"',
-        '"gate_report_sha256"',
-        '"gate_report_artifact_sha256"',
-        '"evidence_index_sha256"',
-        '"trust_bundle_sha256"',
-        '"requirements_sha256"',
-        "release receipt predates authenticated trust bundle",
+    assert "assert_gate0_release_available()" in verify
+    for forbidden in (
+        "hmac.compare_digest",
+        "_assert_gate0_release(",
+        "assert_strict_exact_head_with_bundle(",
+        "_live_writer_inventory(",
+        "expected = {",
     ):
-        assert expression in verify
+        assert forbidden not in verify
 
 
 def test_release_receipt_provenance_is_exact_and_status_cannot_be_forged() -> None:

@@ -31,6 +31,16 @@ ROOT = Path(__file__).resolve().parents[2]
 REVISION = "1" * 40
 NOW = datetime(2026, 8, 18, 0, 0, tzinfo=timezone.utc)
 BOUND_INFO = "info:runtime_conformance.receipts:1"
+CANONICAL_OPEN_PREFIX = "canonical-effect-boundary:gate0-open:"
+
+
+def _assert_runtime_bound_but_canonical_gate_open(payload: dict) -> None:
+    failures = payload["runtime_conformance_failures"]
+    assert UNBOUND_ROW not in failures
+    assert failures == [
+        f"{CANONICAL_OPEN_PREFIX}{payload['registry_sha256']}"
+    ]
+    assert payload["closed"] is False
 
 
 def _manifest() -> RuntimeManifest:
@@ -110,7 +120,7 @@ def test_module_cli_flag_binds_bundle(tmp_path, monkeypatch, capsys) -> None:
     payload = _module_cli_payload(
         monkeypatch, capsys, ["--conformance-receipts", str(receipt_dir)]
     )
-    assert payload["runtime_conformance_failures"] == []
+    _assert_runtime_bound_but_canonical_gate_open(payload)
     assert BOUND_INFO in payload["diagnostics"]
     assert "blocker:runtime_conformance_receipts:unbound" not in payload["diagnostics"]
 
@@ -147,7 +157,7 @@ def test_v3_cli_flag_binds_bundle(tmp_path, capsys) -> None:
     )
     assert result == 1  # other Gate-0 blockers remain; conformance itself is bound
     payload = json.loads(capsys.readouterr().out)
-    assert payload["runtime_conformance_failures"] == []
+    _assert_runtime_bound_but_canonical_gate_open(payload)
     assert BOUND_INFO in payload["diagnostics"]
     assert "blocker:runtime_conformance_receipts:unbound" not in payload["diagnostics"]
 

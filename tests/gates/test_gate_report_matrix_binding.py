@@ -120,8 +120,13 @@ def test_an_empty_fault_results_map_cannot_launder_the_matrix_away() -> None:
 
 def test_the_conformance_blocker_names_the_missing_producer_link() -> None:
     report = build_gate0_report(ROOT, source_revision=REVISION)
-    assert report.runtime_conformance_failures == (
-        "runtime-conformance-receipts:unbound:no-persisted-receipt-bundle",
+    assert (
+        "runtime-conformance-receipts:unbound:no-persisted-receipt-bundle"
+        in report.runtime_conformance_failures
+    )
+    assert any(
+        row.startswith("canonical-effect-boundary:gate0-open:")
+        for row in report.runtime_conformance_failures
     )
     assert "runtime-conformance-receipts:not-yet-bound" not in (
         report.runtime_conformance_failures
@@ -138,8 +143,13 @@ def test_report_v3_carries_the_same_bound_rows() -> None:
     )
     assert set(MISSING_ROWS).issubset(report.fault_injection_failures)
     assert not set(BLOCKED_ROWS) & set(report.fault_injection_failures)
-    assert report.runtime_conformance_failures == (
-        "runtime-conformance-receipts:unbound:no-persisted-receipt-bundle",
+    assert (
+        "runtime-conformance-receipts:unbound:no-persisted-receipt-bundle"
+        in report.runtime_conformance_failures
+    )
+    assert any(
+        row.startswith("canonical-effect-boundary:gate0-open:")
+        for row in report.runtime_conformance_failures
     )
     restored = type(report).from_dict(report.to_dict())
     assert restored.to_dict() == report.to_dict()
