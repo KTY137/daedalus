@@ -460,8 +460,10 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
                test_timeout_s: int | None, artifact_dir: Path | None,
                ledger_path: Path, project: str | None = None,
                gate_command: tuple[str, ...] | None = None,
-               keep_worktree: bool = False) -> dict:
-    from daedalus.spine.attempt import TaskSpec, command_gate, run_attempt
+               keep_worktree: bool = False,
+               leased: bool = False) -> dict:
+    from daedalus.spine.attempt import (TaskAttempt, TaskSpec, command_gate,
+                                        run_attempt)
     from daedalus.spine.bootstrap import gate_discrimination
     from daedalus.spine.ledger import SpineLedger
 
@@ -502,7 +504,56 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
         }
         if gate_command is not None:
             attempt_kwargs["gate"] = command_gate(gate_command)
-        res = run_attempt(task, **attempt_kwargs)
+        if leased:
+            # THE CALLER ACQUIRES; the attempt only consumes (the scheduler
+            # rule, applied to the attempt door). The attempt object exists
+            # first because its branch IS the effect key the issuer's
+            # intent-ledger contract is run over, and the lease legitimately
+            # precedes the intent that run() records. A deny is fail-closed:
+            # no worktree, no runner, exit through the normal report path
+            # with the issuer's own reasons.
+            from daedalus.kernel.offload_lease import (
+                WaveLeaseDenied, acquire_attempt_lease)
+
+            attempt = TaskAttempt(task, **attempt_kwargs)
+            head = base_revision or subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=str(target), check=True,
+                capture_output=True, text=True).stdout.strip()
+            lease = acquire_attempt_lease(
+                target,
+                source_revision=str(head),
+                mission_id=f"bootstrap-{task_id}",
+                attempt_id=attempt.branch,
+                effect_key=attempt.branch,
+                writable_paths=tuple(paths or ()),
+                # The NAMED mechanism (containment.attempt requires one; the
+                # issuer still DERIVES the verdict itself and trusts nothing
+                # here): TaskAttempt runs candidate code only inside a
+                # GitWorktreeManager worktree outside the checkout.
+                contained=True,
+                containment_evidence=(
+                    "TaskAttempt isolated worktree via GitWorktreeManager; "
+                    "candidate code never sees the primary checkout"),
+            )
+            if isinstance(lease, WaveLeaseDenied):
+                res = None
+                lease_denied = tuple(lease.reasons)
+            else:
+                attempt._attempt_lease = lease
+                res = attempt.run()
+                lease_denied = ()
+            if res is None:
+                return {
+                    "schema": "bootstrap-receipt-lease-denied/1",
+                    "task_id": task_id,
+                    "leased": True,
+                    "lease_denied": list(lease_denied),
+                    "attempt": {"state": "lease_refused",
+                                "error": "; ".join(lease_denied)},
+                    "storage": {"receipt": False},
+                }
+        else:
+            res = run_attempt(task, **attempt_kwargs)
     finally:
         ledger.close()
 
@@ -712,6 +763,10 @@ def build_parser() -> argparse.ArgumentParser:
                         "Use it to match a discrimination receipt in a repo "
                         "whose HEAD moves under you.")
     p.add_argument("--live", action="store_true")
+    p.add_argument("--leased", action="store_true",
+                   help="acquire a python.attempt Effect Lease for this "
+                        "attempt (the caller acquires, the attempt consumes); "
+                        "an issuer deny refuses the run fail-closed")
     p.add_argument("--local-only", action="store_true")
     p.add_argument("--worktree-test-command", default=None,
                    help="TEMPORARY override of test_command in the WORKTREE's "
@@ -806,7 +861,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             test_command=args.worktree_test_command,
             test_timeout_s=args.worktree_test_timeout_s,
             artifact_dir=artifact_dir, ledger_path=ledger_path,
-            project=args.project, gate_command=args.gate_command)
+            project=args.project, gate_command=args.gate_command,
+            leased=args.leased)
         out = _target_path(
             target, args.out, DEFAULT_RUN_REL / f"{args.task_id}.json")
         report["storage"]["receipt_path"] = str(out)
@@ -831,6 +887,10 @@ def main(argv: Sequence[str] | None = None) -> int:
               f"head_unchanged={report['primary_leak']['head_unchanged']} "
               f"promotion_allowed_any={report['promotion_allowed_any']}")
         print(f"worktree_root_after={report['worktree_root_after']['entries']}")
+    elif report.get("schema") == "bootstrap-receipt-lease-denied/1":
+        print("state              : lease_refused (no worktree, no runner)")
+        for reason in report.get("lease_denied", ()):
+            print(f"  deny             : {reason}")
     else:
         a = report["attempt"]
         print(f"state              : {a['state']}")

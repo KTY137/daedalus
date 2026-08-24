@@ -161,6 +161,7 @@ __all__ = [
     "STATE_RUNNER_FAILED",
     "STATE_STORAGE_UNAVAILABLE",
     "STATE_WORKTREE_FAILED",
+    "STATE_LEASE_REFUSED",
     "TaskAttempt",
     "TaskSpec",
     "command_gate",
@@ -181,6 +182,12 @@ STATE_RUNNER_FAILED = "runner_failed"
 STATE_WORKTREE_FAILED = "worktree_failed"
 STATE_STORAGE_UNAVAILABLE = "storage_unavailable"
 STATE_CANCELLED = "cancelled"
+#: The handed python.attempt Effect Lease refused to begin this execution --
+#: a replayed execution identity, an expired or revoked lease, a stopped kill
+#: switch. Its own state rather than ``worktree_failed`` because the receipt
+#: must not name a cause that never happened (Momus, 2026-08-23 item 7): no
+#: worktree existed and none was attempted.
+STATE_LEASE_REFUSED = "lease_refused"
 
 ATTEMPT_STATES = (
     STATE_CLEAN,
@@ -190,6 +197,7 @@ ATTEMPT_STATES = (
     STATE_WORKTREE_FAILED,
     STATE_STORAGE_UNAVAILABLE,
     STATE_CANCELLED,
+    STATE_LEASE_REFUSED,
 )
 
 # The only git verbs this module may aim at the primary checkout. Every one of
@@ -777,6 +785,12 @@ class AttemptResult:
     runner_detail: Any = None
     reaped: tuple = ()
     reap_error: str | None = None
+    #: The handed attempt lease's identity, terminal outcome, and any error the
+    #: lease bookkeeping hit. Reported, never raised: losing a finished result
+    #: to lease bookkeeping would be worse than a missing receipt row.
+    lease_id: str | None = None
+    lease_outcome: str | None = None
+    lease_error: str | None = None
     #: The canonical Gate-0 projection of this attempt --
     #: ``AttemptContract`` / ``EvidencePacket`` / ``AttemptReceipt`` plus the
     #: ``PolicyDecision`` and ``RuntimeManifest`` they bind -- as the wire dict
@@ -822,6 +836,9 @@ class AttemptResult:
             "runner_detail": _jsonable(self.runner_detail),
             "reaped": _jsonable(list(self.reaped)),
             "reap_error": self.reap_error,
+            "lease_id": self.lease_id,
+            "lease_outcome": self.lease_outcome,
+            "lease_error": self.lease_error,
             "contracts": _jsonable(self.contracts),
             "contracts_error": self.contracts_error,
         }
@@ -1205,7 +1222,8 @@ class TaskAttempt:
                  campaign_id: str | None = None,
                  budget: "ResourceBudget | None" = None,
                  spend_grant_microusd: int = 0,
-                 mission_policy_sha256: str = "") -> None:
+                 mission_policy_sha256: str = "",
+                 attempt_lease: Any = None) -> None:
         if not isinstance(task, TaskSpec):
             raise TypeError("task must be a TaskSpec")
         if runner is None or not callable(runner):
@@ -1261,6 +1279,14 @@ class TaskAttempt:
         # behind for forensics -- the patch bytes are already persisted
         # separately, so this costs nothing but a ref.
         self._reap_enabled = bool(reap)
+        # The attempt CONSUMES a python.attempt Effect Lease it was handed --
+        # acquire_attempt_lease is the issuer and the CALLER calls it (the
+        # entrypoint never discovers a capability; the scheduler rule, applied
+        # here). Duck-typed on the two members used, so a test double works;
+        # None means the pre-lease behaviour, unchanged.
+        self._attempt_lease = attempt_lease
+        self._lease_start = None
+        self._worktree_decision = None
         self._artifact_dir = Path(artifact_dir) if artifact_dir else None
         self._ledger = ledger
         self._ledger_path = Path(ledger_path) if ledger_path is not None else None
@@ -1438,8 +1464,10 @@ class TaskAttempt:
             # `run` does not swallow -- `_run_with_ledger` returning is its
             # contract, and a raise here is a bug worth seeing -- but the writer
             # this attempt owns still closes before the exception travels.
+            self._finish_lease_terminal(state_hint=STATE_CANCELLED)
             self._close_ledger(ledger)
             raise
+        result = self._attach_lease_terminal(result)
         #
         # `git worktree add -b` writes a ref into the SHARED .git that nothing
         # removed, so an overnight loop left one ref per attempt forever. This
@@ -1506,6 +1534,60 @@ class TaskAttempt:
                             reap_error=f"{type(e).__name__}: {e}")
         return _replace(result, reaped=tuple(report))
 
+    def _finish_lease_terminal(self, *, state_hint: str) -> tuple[str, str] | None:
+        """Terminalise the handed lease's execution, once. Returns
+        ``(outcome, error)`` with ``error == ""`` on success, or ``None`` when
+        there is nothing to finish (no lease, or begin never happened).
+
+        Outcome maps the EXECUTION, not the verdict: an attempt whose gate
+        failed still ran its leased effect to a terminal state, so
+        ``gates_failed`` is COMPLETED with the state in the detail; only the
+        cancelled family is CANCELLED and everything that never produced a
+        worktree or runner result is FAILED. Never raises.
+        """
+        lease, start = self._attempt_lease, self._lease_start
+        if lease is None or start is None:
+            return None
+        self._lease_start = None            # exactly one terminal per start
+        if state_hint == STATE_CANCELLED:
+            outcome = "CANCELLED"
+        elif state_hint in (STATE_CLEAN, STATE_NO_CHANGE, STATE_GATES_FAILED):
+            outcome = "COMPLETED"
+        else:
+            outcome = "FAILED"
+        try:
+            detail = hashlib.sha256(
+                f"attempt-state:{state_hint}".encode("ascii")).hexdigest()
+            lease.authorization.finish_effect(
+                start.receipt, outcome=outcome, detail_sha256=detail)
+            return outcome, ""
+        except Exception as e:  # noqa: BLE001 - reported, never raised
+            return outcome, f"{type(e).__name__}: {e}"
+
+    def _attach_lease_terminal(self, result: AttemptResult) -> AttemptResult:
+        """Report the lease identity and terminal outcome on the result."""
+        from dataclasses import replace as _replace
+
+        lease = self._attempt_lease
+        if lease is None:
+            return result
+        finished = self._finish_lease_terminal(state_hint=result.state)
+        retention = getattr(self, "_lease_retention_error", None)
+        outcome: str | None
+        error: str | None
+        if finished is None:
+            outcome, error = None, None
+        else:
+            outcome, error = finished[0], (finished[1] or None)
+        if retention:
+            error = f"{error}; {retention}" if error else retention
+        return _replace(
+            result,
+            lease_id=str(getattr(lease, "lease_id", "") or "") or None,
+            lease_outcome=outcome,
+            lease_error=error,
+        )
+
     # -- the recorded part -------------------------------------------------- #
     def _run_with_ledger(self, ledger: SpineLedger, base_revision: str,
                          finish: Callable[..., AttemptResult]) -> AttemptResult:
@@ -1523,6 +1605,60 @@ class TaskAttempt:
         except Exception as e:
             return finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
                           error=f"could not record intent: {e}")
+
+        # 2b. THE LEASE BEGINS HERE, because the next statement is the
+        # repository mutation it must cover: `git worktree add -b` writes the
+        # branch ref into the shared .git (Momus item 6 -- granting after the
+        # worktree would put the very writes the terminal record binds outside
+        # the lease). The intent above is durable first, so a crash between
+        # begin and the worktree leaves a findable effect key AND a durable
+        # STARTED execution naming the same attempt.
+        if self._attempt_lease is not None:
+            try:
+                execution = self._attempt_lease.execution_for(
+                    1, writable_paths=tuple(self.task.target_paths or ()))
+                start = self._attempt_lease.authorization.begin_effect(execution)
+            except Exception as e:  # noqa: BLE001 - any refusal is terminal here
+                return self._resolve_and_finish(
+                    ledger, intent.id, finish, STATE_LEASE_REFUSED,
+                    artifact=None, base_revision=base_revision,
+                    error=f"the attempt lease refused to begin: {e}")
+            if not start.execute:
+                # A REPLAY, reported as a field, never as a raise: the ledger
+                # answers "this execution identity already ran" by refusing to
+                # run it again while returning the original receipt. Running
+                # the attempt anyway would put fresh writes under the first
+                # attempt's receipt (Momus item 5), so this is a refusal.
+                return self._resolve_and_finish(
+                    ledger, intent.id, finish, STATE_LEASE_REFUSED,
+                    artifact=None, base_revision=base_revision,
+                    error=(
+                        "the attempt lease refused to begin: execution "
+                        f"identity {start.receipt.execution_id} already ran "
+                        "under this lease; a retry is a NEW attempt with a "
+                        "NEW effect key, never a replay"))
+            self._lease_start = start
+            # The disjointness receipt RECORDS the containment.worktree
+            # decision the boundary already took over the planned root.
+            # Reported, never raised: retention must not revoke a capability
+            # the ledger accepted (the issuer's own retention rule).
+            try:
+                from daedalus.kernel.offload_lease import (
+                    record_primary_checkout_disjointness,
+                )
+
+                if self._worktree_decision is not None:
+                    record_primary_checkout_disjointness(
+                        self._worktree_decision,
+                        primary_checkout=self.repo_root,
+                        target_root=self._manager.worktree_root,
+                        source_revision=base_revision,
+                        evidence_root=self._attempt_lease.evidence_root,
+                        control_root_path=self._attempt_lease.control_root_path,
+                    )
+            except Exception as e:  # noqa: BLE001 - reported on the result
+                self._lease_retention_error = (
+                    f"disjointness retention failed: {type(e).__name__}: {e}")
 
         # 3. isolated worktree (already outside the repo by construction).
         try:
@@ -2601,6 +2737,11 @@ class TaskAttempt:
                 f"enforced by the containment gate on the captured diff"
             ),
         )
+
+        # Retained for the disjointness recorder: record_primary_checkout_
+        # disjointness records THIS decision, it never re-decides (its own
+        # contract), so the boundary's object is kept rather than rebuilt.
+        self._worktree_decision = worktree_decision
 
         return (
             ledger_decision,

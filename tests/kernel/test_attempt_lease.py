@@ -125,18 +125,27 @@ def test_an_attempt_with_a_durable_intent_is_leased(repo, armed_switch):
         led.close()
 
 
-def test_no_intent_no_lease(repo, armed_switch):
-    """The guard the issuer runs itself: an attempt nobody intends -- no ledger,
-    no row, a resolved row -- is refused with the reason named."""
+def test_no_ledger_no_lease_but_the_lease_may_precede_the_intent(repo,
+                                                                  armed_switch):
+    """Two halves of the issuance-time meaning of spine.intent_ledger. Without
+    a durable attempt ledger the intent has nowhere to land and the lease is
+    refused. With the ledger present and NO prior row for the effect_key, the
+    lease is GRANTED: TaskAttempt.run records the intent itself, so in the
+    consumes-never-discovers flow the capability legitimately precedes the
+    intent (measured circularity 2026-08-24: requiring the row at issuance
+    made the attempt door unleasable by construction)."""
     denied = _acquire(repo, switch=armed_switch)
     assert isinstance(denied, WaveLeaseDenied)
     assert any("no attempt ledger exists" in r for r in denied.reasons)
 
     led = _intend(repo, "some-other-branch")
     try:
-        denied = _acquire(repo, switch=armed_switch)
-        assert isinstance(denied, WaveLeaseDenied)
-        assert any("no intent" in r and "effect_key" in r for r in denied.reasons)
+        lease = _acquire(repo, switch=armed_switch)
+        assert isinstance(lease, WaveOffloadLease)
+        by_name = {d.contract: d
+                   for d in lease.authorization.guard_decisions}
+        assert by_name["spine.intent_ledger"].allowed is True
+        assert "precedes the intent" in by_name["spine.intent_ledger"].evidence
     finally:
         led.close()
 
@@ -149,5 +158,102 @@ def test_a_resolved_intent_is_an_effect_that_already_happened(repo, armed_switch
         denied = _acquire(repo, switch=armed_switch)
         assert isinstance(denied, WaveLeaseDenied)
         assert any("already resolved" in r for r in denied.reasons)
+    finally:
+        led.close()
+
+
+# --------------------------------------------------------------------------- #
+# the wiring: TaskAttempt consumes the lease it was handed                     #
+# --------------------------------------------------------------------------- #
+def _writing_runner(rel: str, payload: str = "leased\n"):
+    def runner(ctx):
+        target = Path(ctx.worktree) / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(payload, encoding="utf-8")
+        return {"wrote": [rel]}
+    return runner
+
+
+def _passing_gate():
+    from daedalus.spine.attempt import GateResult
+
+    def gate(ctx):
+        return GateResult(passed=True, name="unit-gate", command=())
+    return gate
+
+
+def test_a_leased_attempt_begins_before_the_worktree_and_terminalises(
+        repo, armed_switch, tmp_path, monkeypatch):
+    """Commit 4's wiring, end to end. The caller acquires (consumes, never
+    discovers), run() begins the execution BEFORE `git worktree add -b` writes
+    the branch ref, and the terminal outcome lands in the effect ledger and on
+    the result -- COMPLETED even though only the gate's verdict, not the
+    attempt's success, is the payload."""
+    from daedalus.spine.attempt import TaskAttempt, TaskSpec
+    from daedalus.kernel.effect_replay import inspect_effect_execution
+
+    monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
+    task = TaskSpec(task_id="leased-attempt", instruction="probe",
+                    target_paths=("docs/probe.md",))
+    ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
+    SpineLedger(ledger_path).close()      # the durable ground exists up front
+    attempt = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+                          gate=_passing_gate(), repo_root=repo,
+                          ledger_path=ledger_path)
+    lease = _acquire(repo, switch=armed_switch, effect_key=attempt.branch,
+                     attempt_id=attempt.branch,
+                     writable_paths=("docs/probe.md",))
+    assert isinstance(lease, WaveOffloadLease), getattr(lease, "reasons", None)
+    attempt._attempt_lease = lease
+
+    result = attempt.run()
+
+    assert result.state == "clean", result.error
+    assert result.lease_id == lease.lease_id
+    assert result.lease_outcome == "COMPLETED"
+    assert result.lease_error is None
+    execution = lease.issued_execution(1)
+    assert execution is not None
+    snapshot = inspect_effect_execution(lease.authorization, execution)
+    assert snapshot is not None, "the execution left no durable state"
+    assert str(getattr(snapshot, "state", "")).upper() in ("TERMINAL", "COMPLETED", "FINISHED") or getattr(snapshot, "terminal_receipt", None) is not None, (
+        f"the execution did not terminalise: {snapshot}")
+
+
+def test_the_same_lease_cannot_run_a_second_attempt(repo, armed_switch,
+                                                    tmp_path, monkeypatch):
+    """One lease, one execution identity, one begin. A second attempt handed
+    the same lease is refused as lease_refused BEFORE any worktree exists --
+    its own state, so the receipt does not claim a worktree failure that
+    never happened."""
+    from daedalus.spine.attempt import STATE_LEASE_REFUSED, TaskAttempt, TaskSpec
+
+    monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
+    ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
+    SpineLedger(ledger_path).close()      # the durable ground exists up front
+    task = TaskSpec(task_id="leased-attempt", instruction="probe",
+                    target_paths=("docs/probe.md",))
+    first = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+                        gate=_passing_gate(), repo_root=repo,
+                        ledger_path=ledger_path)
+    lease = _acquire(repo, switch=armed_switch, effect_key=first.branch,
+                     attempt_id=first.branch,
+                     writable_paths=("docs/probe.md",))
+    assert isinstance(lease, WaveOffloadLease)
+    first._attempt_lease = lease
+    assert first.run().state == "clean"
+
+    second = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+                         gate=_passing_gate(), repo_root=repo,
+                         ledger_path=ledger_path)
+    second._attempt_lease = lease
+    result = second.run()
+    assert result.state == STATE_LEASE_REFUSED
+    assert "refused to begin" in (result.error or "")
+    assert result.lease_outcome is None
+    # the second attempt's intent is resolved, not leaked open:
+    led = SpineLedger(ledger_path)
+    try:
+        assert led.open_intents() == []
     finally:
         led.close()

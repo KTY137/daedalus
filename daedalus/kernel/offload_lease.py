@@ -1469,10 +1469,21 @@ def _intent_ledger_decision(root: Path, effect_key: str | None) -> GuardDecision
             f"({type(exc).__name__}: {exc}); an unreadable intent record is "
             f"no intent record")
     if row is None:
+        # THE LEASE MAY PRECEDE THE INTENT -- it must, in the attempt flow:
+        # TaskAttempt.run records the intent itself, and the caller acquires
+        # the capability BEFORE run() (consumes, never discovers). The row's
+        # contract meaning is "the intent that precedes the worktree has
+        # somewhere durable to land" (attempt.py's own boundary text), which
+        # the existing-and-readable ledger above already established. What a
+        # fresh effect_key must NOT have is a history: a RESOLVED row below is
+        # an effect that already happened, and a second lease over it is a
+        # replay, refused.
         return GuardDecision(
-            contract, False,
-            f"no intent in {path} names effect_key {effect_key!r}; the intent "
-            f"must be recorded before the capability that acts on it")
+            contract, True,
+            f"the attempt ledger at {path} is durable and readable and holds "
+            f"no prior intent for effect_key {effect_key!r}: the lease "
+            f"precedes the intent, which TaskAttempt.run records before any "
+            f"effect")
     intent_id, state = int(row[0]), str(row[1] or "")
     if state != "INTENDED":
         return GuardDecision(

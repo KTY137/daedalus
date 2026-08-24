@@ -554,3 +554,59 @@ class TheExternalTargetReceipt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheLeasedSingleAttempt(unittest.TestCase):
+    """--leased: the CLI acquires the python.attempt lease, the attempt
+    consumes it, and the receipt carries the terminal outcome."""
+
+    def setUp(self):
+        import importlib
+        self.mod = importlib.import_module("tools.bootstrap_receipt")
+
+    def test_leased_single_run_terminalises_and_reports(self):
+        import tempfile
+        from unittest import mock
+
+        from daedalus.spine.killswitch import KillSwitch, control_root
+
+        with tempfile.TemporaryDirectory() as d:
+            target = _external_repo(Path(d) / "target")
+            switch = KillSwitch(repo_root=target)
+            switch.arm(force=True)
+            self.addCleanup(lambda: switch.stop("test teardown"))
+            self.addCleanup(lambda: __import__("shutil").rmtree(
+                control_root(target), ignore_errors=True))
+            (target / ".agentenv").mkdir(exist_ok=True)
+            (target / ".agentenv" / "agentenv.json").write_text(
+                json.dumps({"policy": {"write_allow": ["docs/"]}}),
+                encoding="utf-8")
+
+            def candidate_runner(ctx):
+                out = ctx.worktree / "docs" / "leased.md"
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text("leased\n", encoding="utf-8")
+                return {"test_runner": "wrote docs/leased.md"}
+
+            gate_argv = [sys.executable, "-c", "print('gate ok')"]
+            with mock.patch.object(
+                    self.mod, "stamped_offload_runner",
+                    return_value=candidate_runner):
+                code = self.mod.main([
+                    "--single",
+                    "--repo-root", str(target),
+                    "--task-id", "leased-single",
+                    "--instruction", "leased probe",
+                    "--paths", "docs/leased.md",
+                    "--leased",
+                    "--gate-command", json.dumps(gate_argv),
+                ])
+            self.assertEqual(code, self.mod.EXIT_OK)
+            receipt = json.loads(
+                (target / "runs" / "spine" / "bootstrap" /
+                 "leased-single.json").read_text(encoding="utf-8"))
+            attempt = receipt["attempt"]
+            self.assertEqual(attempt["state"], "clean")
+            self.assertEqual(attempt.get("lease_outcome"), "COMPLETED")
+            self.assertTrue(attempt.get("lease_id"))
+            self.assertIsNone(attempt.get("lease_error"))
