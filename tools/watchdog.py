@@ -25,9 +25,10 @@ timer burns money on quiet afternoons. Each pass first measures, in Python:
 Only a docs pass WITH findings spawns `claude -p` (haiku) with the findings
 listed in the prompt, so the model fixes rather than searches. A work pass
 spawns the model only for the periodic report, and only when HEAD moved since
-the last one. Every spawn is reserved on the shared budget ledger before the
-call (flat worst-case $3, refused above the ceiling) and settled with the
-MEASURED cost from the CLI's JSON afterwards; the cost lands in the log.
+the last one. Every spawn goes through ``budget.guard`` -- one reservation,
+one settlement at the MEASURED cost, and no second billing from the process
+guard -- and the watchdog stops when its OWN measured spend for the day
+reaches ``WATCHDOG_DAILY_USD``. It never raises the shared ceiling.
 
 SHARED TREE, SHARED INDEX. Other lanes commit in this tree. The docs sweep
 commits ONLY with a pathspec (``git commit -F msg -- <paths>``), never the
@@ -69,7 +70,14 @@ REPORTS_DIR_REL = "runs/watchdog/reports"
 LOG_REL = "runs/watchdog/watchdog.log"
 SWEEPS_LOG_REL = ".claude/watchdog/docs/sweeps.log"
 PAUSE_REL = ".claude/watchdog/PAUSE"
-LOCK_REL = "runs/watchdog/.pass.lock"
+#: ONE LOCK PER MODE. A single shared lock meant the docs pass -- which holds
+#: it for as long as a model call takes -- skipped every work pass that ticked
+#: while it ran, and on aligned 15/30-minute schedules that is every other one.
+#: MEASURED in runs/watchdog/watchdog.log: "work skipped: another pass holds
+#: ..." at :08 and :38, every half hour, all night. The lock exists so that two
+#: passes of the SAME kind cannot overlap; nothing about a docs sweep requires
+#: the health measurement to wait.
+LOCK_REL_TEMPLATE = "runs/watchdog/.{mode}.lock"
 
 DOCS_INTERVAL_MIN = 30
 WORK_INTERVAL_MIN = 15
@@ -77,12 +85,18 @@ REPORT_MIN_GAP_S = 2 * 3600
 MODEL = "claude-haiku-4-5"
 MODEL_TIMEOUT_S = 15 * 60
 DAILY_MODEL_CAP = 12
-#: The watchdog's own daily ceiling on the SHARED budget ledger. The ledger
-#: prices every `claude -p` at a flat worst-case $3 before the call and settles
-#: the measured cost after it (haiku reports: ~$0.12), so the ceiling must hold
-#: today's settled spend plus one $3 reservation. Set DAEDALUS_BUDGET_USD in
-#: the environment to override; an unconfigured process would get $5.
-WATCHDOG_CEILING_USD = "15"
+#: What the watchdog may spend per UTC day, counted from the MEASURED cost of
+#: its own calls and enforced here, before the shared ledger is asked.
+#:
+#: IT NO LONGER RAISES THE SHARED CEILING, and that was the real defect. The
+#: first version set DAEDALUS_BUDGET_USD=15 for its own process, which raises
+#: the ceiling on the ledger EVERY lane shares -- and then spent $9.74 of it in
+#: a night, because each sweep was billed twice (see run_claude). A background
+#: job that can refuse another lane's model call is not a background job.
+#: With one billing at the measured price a sweep costs ~$0.40, so this cap is
+#: roughly a dozen sweeps and still an order of magnitude under the default $5
+#: period ceiling.
+WATCHDOG_DAILY_USD = 2.50
 #: Findings handed to one model run; the rest wait for the next pass.
 MAX_DRIFTS_PER_PASS = 15
 HEAD_QUIET_S = 180
@@ -177,8 +191,8 @@ def head_quiet(root: Path, now: float | None = None) -> tuple[bool, str]:
 
 
 class PassLock:
-    def __init__(self, root: Path) -> None:
-        self.path = root / LOCK_REL
+    def __init__(self, root: Path, mode: str = "pass") -> None:
+        self.path = root / LOCK_REL_TEMPLATE.format(mode=mode)
         self.fd: int | None = None
 
     def __enter__(self) -> bool:
@@ -225,6 +239,31 @@ def model_runs_today(state: dict, now: float | None = None) -> int:
     return int(runs.get(day, 0))
 
 
+def spend_today(state: dict, now: float | None = None) -> float:
+    """The MEASURED dollars this watchdog spent today, from its own state.
+
+    Its own, not the ledger's: the shared ledger is every lane's, and a
+    watchdog that reads the shared total would throttle itself because someone
+    else was working.
+    """
+
+    day = time.strftime("%Y-%m-%d", time.gmtime(now or time.time()))
+    spend = state.get("model_spend_usd") or {}
+    try:
+        return float(spend.get(day, 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _record_spend(state: dict, usd: float | None, now: float | None = None) -> None:
+    day = time.strftime("%Y-%m-%d", time.gmtime(now or time.time()))
+    spend = state.setdefault("model_spend_usd", {})
+    spend[day] = round(float(spend.get(day, 0.0)) + float(usd or 0.0), 6)
+    for key in list(spend):
+        if key != day:
+            del spend[key]
+
+
 def _count_model_run(state: dict, now: float | None = None) -> None:
     day = time.strftime("%Y-%m-%d", time.gmtime(now or time.time()))
     runs = state.setdefault("model_runs", {})
@@ -245,45 +284,56 @@ def run_claude(root: Path, prompt: str, *, label: str, allowed_tools: str, max_t
         argv += ["--allowedTools", allowed_tools]
     if dry:
         return ModelRun(True, text="(dry run: not spawned)", reason="dry")
-    os.environ.setdefault("DAEDALUS_BUDGET_USD", WATCHDOG_CEILING_USD)
     from daedalus import budget
 
     started = time.perf_counter()
-    # reserve -> run -> settle with the MEASURED cost from the CLI's JSON.
-    # `budget.guard` would settle the ESTIMATE (a whole-session price, ~$3),
-    # which charged a $0.12 report as $3.00 on the first live run and would
-    # have exhausted the $5/day ceiling after two passes. An unknown actual
-    # still settles the estimate -- a timeout is not a free call.
+    # ONE BILLING, AT THE MEASURED PRICE. `budget.guard` reserves, enters the
+    # EXPLICIT mode that stops the process guard from pricing the same spawn a
+    # second time, and settles on the way out; settling inside the block with
+    # the CLI's own total_cost_usd wins, because Reservation.settle is
+    # idempotent and the context manager's closing settle() then no-ops.
+    #
+    # MEASURED 2026-08-24, and this is why the code looks like this: a bare
+    # reserve/settle pair (no explicit mode) had the process guard bill each
+    # `claude` spawn a SECOND time at the flat $3 worst case, so every sweep
+    # cost $3.42 instead of $0.42 and five of them exhausted the shared daily
+    # ceiling -- which would have refused any other lane's model call too. The
+    # ledger for 2026-08-24 shows the pairs: reserve/settle "watchdog.docs"
+    # $0.42 beside reserve/settle "subprocess.run: ...claude.EXE" $3.00.
+    text, cost, turns, failure = proc_out = "", None, None, ""
     try:
-        res = budget.reserve("anthropic_cli", model, label=label)
+        with budget.guard("anthropic_cli", model, label=label) as reservation:
+            try:
+                proc = subprocess.run(
+                    argv, input=prompt, capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", timeout=MODEL_TIMEOUT_S, cwd=str(root),
+                )
+            except subprocess.TimeoutExpired:
+                # settles the estimate: a timeout after the tokens were
+                # generated looks exactly like a connection refused
+                return ModelRun(False, seconds=time.perf_counter() - started, reason="timeout")
+            except OSError as exc:
+                reservation.release(f"spawn failed before any vendor bytes moved: {exc}")
+                return ModelRun(False, reason=f"spawn failed: {exc}")
+            text = proc.stdout
+            try:
+                data = json.loads(proc.stdout)
+                if isinstance(data, dict):
+                    text = str(data.get("result") or "")
+                    cost = data.get("total_cost_usd")
+                    turns = data.get("num_turns")
+            except ValueError:
+                pass
+            if isinstance(cost, (int, float)):
+                reservation.settle(float(cost))
+            if proc.returncode != 0:
+                failure = f"exit {proc.returncode}: {proc.stderr[-500:]}"
+                proc_out = proc.stdout[-2000:]
     except budget.BudgetError as exc:
         return ModelRun(False, reason=f"budget refused: {exc}")
-    proc = None
-    try:
-        proc = subprocess.run(
-            argv, input=prompt, capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=MODEL_TIMEOUT_S, cwd=str(root),
-        )
-    except subprocess.TimeoutExpired:
-        res.settle()
-        return ModelRun(False, seconds=time.perf_counter() - started, reason="timeout")
-    except OSError as exc:
-        res.release(f"spawn failed before any vendor bytes moved: {exc}")
-        return ModelRun(False, reason=f"spawn failed: {exc}")
     seconds = time.perf_counter() - started
-    text, cost, turns = proc.stdout, None, None
-    try:
-        data = json.loads(proc.stdout)
-        if isinstance(data, dict):
-            text = str(data.get("result") or "")
-            cost = data.get("total_cost_usd")
-            turns = data.get("num_turns")
-    except ValueError:
-        pass
-    res.settle(float(cost) if isinstance(cost, (int, float)) else None)
-    if proc.returncode != 0:
-        return ModelRun(False, text=proc.stdout[-2000:], cost_usd=cost, seconds=seconds,
-                        reason=f"exit {proc.returncode}: {proc.stderr[-500:]}")
+    if failure:
+        return ModelRun(False, text=proc_out, cost_usd=cost, seconds=seconds, reason=failure)
     return ModelRun(True, text=text, cost_usd=cost, turns=turns, seconds=seconds)
 
 
@@ -410,6 +460,11 @@ def docs_pass(root: Path, *, dry: bool = False, env: dict | None = None) -> dict
         result["outcome"] = "no drift"
     elif model_runs_today(state) >= DAILY_MODEL_CAP:
         result["outcome"] = f"drift found but daily model cap ({DAILY_MODEL_CAP}) reached"
+    elif spend_today(state) >= WATCHDOG_DAILY_USD:
+        result["outcome"] = (
+            f"drift found but the watchdog's daily spend cap is reached "
+            f"(${spend_today(state):.2f} of ${WATCHDOG_DAILY_USD:.2f})"
+        )
     else:
         head = git(root, "rev-parse", "--short=8", "HEAD")
         batch = drifts[:MAX_DRIFTS_PER_PASS]
@@ -421,6 +476,7 @@ def docs_pass(root: Path, *, dry: bool = False, env: dict | None = None) -> dict
                          max_turns=80, dry=dry)
         if not dry:
             _count_model_run(state)
+            _record_spend(state, run.cost_usd)
         result["model"] = asdict(run)
         result["outcome"] = ("dry run: sweep would run" if dry else
                              "sweep ran" if run.ok else f"sweep failed: {run.reason}")
@@ -697,12 +753,13 @@ def work_pass(root: Path, *, dry: bool = False, env: dict | None = None, now: fl
     # periodic model report, only when HEAD moved since the last one
     last_report = state.get("last_report") or {}
     due = (now - float(last_report.get("at", 0)) > REPORT_MIN_GAP_S) and last_report.get("head") != facts.get("head")
-    if due and model_runs_today(state) < DAILY_MODEL_CAP:
+    if due and model_runs_today(state) < DAILY_MODEL_CAP and spend_today(state, now) < WATCHDOG_DAILY_USD:
         run = run_claude(root, report_prompt(root, facts, found), label="watchdog.report", allowed_tools="",
                          max_turns=1, dry=dry)
         result["model"] = asdict(run)
         if run.ok and not dry:
             _count_model_run(state, now)
+            _record_spend(state, run.cost_usd, now)
             stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime(now))
             (root / REPORTS_DIR_REL).mkdir(parents=True, exist_ok=True)
             body = f"# Work watchdog report {result['ts']} (HEAD {facts.get('head')}, {MODEL}, cost {run.cost_usd}){NL}{NL}{run.text}{NL}"
@@ -774,6 +831,7 @@ def status(root: Path) -> str:
                 lines.append(f"{name}: not installed")
     state = load_json(root / STATE_REL)
     lines.append(f"model runs today: {model_runs_today(state)} / {DAILY_MODEL_CAP}")
+    lines.append(f"spend today: ${spend_today(state):.2f} / ${WATCHDOG_DAILY_USD:.2f} (measured, watchdog only)")
     lines.append(f"last docs: {json.dumps(state.get('last_docs', {}).get('outcome') or state.get('last_docs', {}).get('skipped'))}")
     lines.append(f"last work anomalies: {[a['id'] for a in (state.get('last_work') or {}).get('anomalies', [])]}")
     lines.append(f"paused: {paused(root) or 'no'}")
@@ -811,10 +869,10 @@ def main(argv: list[str] | None = None) -> int:
     if mode not in ("docs", "work"):
         print(__doc__)
         return 2
-    with PassLock(root) as acquired:
+    with PassLock(root, mode) as acquired:
         if not acquired:
-            log(root, f"{mode} skipped: another pass holds {LOCK_REL}")
-            print("skipped: another pass is running")
+            log(root, f"{mode} skipped: another {mode} pass is already running")
+            print(f"skipped: another {mode} pass is running")
             return 0
         result = docs_pass(root, dry=dry) if mode == "docs" else work_pass(root, dry=dry)
     print(json.dumps({k: v for k, v in result.items() if k != "facts"}, indent=1, default=str))
