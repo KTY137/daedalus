@@ -48,6 +48,10 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import importlib.metadata
+import json
+import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -69,7 +73,7 @@ EVALUATOR_MODULES: tuple[str, ...] = (
     "daedalus/spine/receipts.py",         # evaluator_assurance and the seal
 )
 
-SCHEMA = "daedalus-gate1-evaluator-bundle/1"
+SCHEMA = "daedalus-gate1-evaluator-bundle/2"
 
 
 def _sha256_bytes(blob: bytes) -> str:
@@ -224,6 +228,189 @@ def _toolchain() -> dict[str, str]:
     }
 
 
+def _pytest_plugins() -> tuple[list[dict[str, str]] | None, str | None]:
+    """Installed pytest plugins, by distribution name and version.
+
+    Read via the ``pytest11`` entry-point group -- the mechanism pytest itself
+    uses to discover plugins -- rather than by importing pytest and inspecting
+    a live PluginManager, so this is a fact about what is INSTALLED and does
+    not require a pytest run to already be underway.
+
+    Returns ``(plugins, error)``. ``plugins`` is ``None``, not ``[]``, when the
+    query itself failed, so an environment with zero plugins reads as
+    "measured: none installed" and a broken query reads as "could not
+    measure" -- conflating the two is the exact defect this project has hit
+    before (dominance analysis reading ``declared: 0`` as an answer instead of
+    a limit). An empty ``[]`` is therefore a real, trustworthy measurement.
+    """
+
+    try:
+        eps = importlib.metadata.entry_points(group="pytest11")
+    except Exception as exc:  # noqa: BLE001 - a metadata failure is a fact to report
+        return None, f"{type(exc).__name__}: {exc}"
+    plugins: dict[str, str] = {}
+    for ep in eps:
+        try:
+            dist = ep.dist
+            name = dist.name if dist is not None else ep.name
+            version = dist.version if dist is not None else "unknown"
+        except Exception:  # noqa: BLE001 - one bad entry point must not blank the rest
+            name, version = ep.name, "unknown"
+        plugins[name] = version
+    ordered = [{"name": name, "version": plugins[name]} for name in sorted(plugins)]
+    return ordered, None
+
+
+def _conftest_candidates(start: Path, rel_target: str) -> list[Path]:
+    """Directories pytest walks for ``conftest.py`` while collecting one file.
+
+    Every directory from ``start`` (the invocation root) down through each
+    path segment of ``rel_target``, inclusive -- the part of pytest's conftest
+    discovery that is stable across pytest versions and does not depend on
+    ini-file/rootdir inference. This project's criterion is one flat file one
+    directory below the invocation root, so this is the part of pytest's rule
+    that actually varies here; it does not reimplement pytest's full
+    rootdir/confcutdir search (ini-file discovery, cwd-vs-arg common
+    ancestor), and does not claim to.
+    """
+
+    parts = Path(rel_target).parts[:-1]
+    out = [start]
+    cur = start
+    for part in parts:
+        cur = cur / part
+        out.append(cur)
+    return out
+
+
+def _conftest_chain(root: Path, rel_target: str) -> dict[str, Any]:
+    """The conftest.py discovery path for one criterion, named and hashed.
+
+    A conftest.py is never reached by :func:`import_closure` -- pytest loads it
+    by directory position, not by any ``import`` statement an evaluator module
+    writes -- so it is invisible to the rest of this module by construction.
+    This is the part that makes it visible: which directories were checked,
+    which exist, and the digest of any ``conftest.py`` found there.
+
+    A directory that does not exist on ``root`` is recorded as such rather than
+    as "checked, no conftest.py found" -- for the real Gate-1 fixture, the
+    ``tests/`` directory in the source template does not exist until
+    :func:`daedalus.ignition.gate1.prepare_ignition_repo` creates it and writes
+    exactly one file into it, so "does not exist here" is not a gap in this
+    check; it is the same fact the check would report after that directory is
+    created, since nothing else ever writes into it.
+    """
+
+    entries: list[dict[str, Any]] = []
+    for directory in _conftest_candidates(root, rel_target):
+        try:
+            rel_dir = directory.relative_to(root).as_posix() or "."
+        except ValueError:
+            rel_dir = str(directory)
+        if not directory.is_dir():
+            entries.append({"dir": rel_dir, "exists": False, "conftest_sha256": None})
+            continue
+        conftest = directory / "conftest.py"
+        sha: str | None = None
+        if conftest.is_file():
+            try:
+                sha = _sha256_bytes(conftest.read_bytes())
+            except OSError:
+                sha = None
+        entries.append({"dir": rel_dir, "exists": True, "conftest_sha256": sha})
+    return {"target": rel_target, "candidates": entries}
+
+
+def _environment_fingerprint(fixture_root: Path, criterion_path: str) -> dict[str, Any]:
+    """Everything about the RUNNING environment a Gate-1 verdict depends on
+    besides python and pytest's own version (:func:`_toolchain` already names
+    those): installed pytest plugins, ``PYTHONPATH``, the conftest.py
+    discovery path for the criterion, and the OS/platform -- the exact axis
+    the CRLF bug (2026-08-23) moved along, measured here rather than assumed
+    stable.
+    """
+
+    plugins, plugins_error = _pytest_plugins()
+    conftest_chain = _conftest_chain(fixture_root, criterion_path)
+    body: dict[str, Any] = {
+        "schema": "daedalus-gate1-environment-fingerprint/1",
+        "platform": platform.platform(),
+        "python_version": sys.version,
+        "pythonpath": os.environ.get("PYTHONPATH", ""),
+        "pytest_plugins": plugins,
+        "pytest_plugins_measured": plugins is not None,
+        "pytest_plugins_error": plugins_error,
+        "conftest_chain": conftest_chain,
+    }
+    body["digest"] = canonical_sha({
+        "schema": body["schema"],
+        "platform": body["platform"],
+        "python_version": body["python_version"],
+        "pythonpath": body["pythonpath"],
+        "pytest_plugins": body["pytest_plugins"],
+        "conftest_chain": body["conftest_chain"],
+    })
+    return body
+
+
+def bundle_digest_from_body(body: Mapping[str, Any]) -> str:
+    """The bundle digest, as a function of a stored BODY alone.
+
+    :func:`evaluator_bundle` calls this exact function to MINT the digest, and
+    a reader who holds only a retrieved bundle artifact -- no live tree, no git
+    call, nothing beyond the artifact's own JSON -- calls it again to verify
+    one. One formula, used both times, rather than two formulas trusted to
+    keep agreeing.
+    """
+
+    identity_evaluators = {
+        rel: {"blob_sha1": row.get("blob_sha1")}
+        for rel, row in (body.get("evaluators") or {}).items()
+    }
+    return canonical_sha({
+        "schema": body.get("schema"),
+        "criterion": body.get("criterion"),
+        "nodes": body.get("nodes"),
+        "evaluators": identity_evaluators,
+        "closure_digest": (body.get("closure") or {}).get("digest"),
+        "toolchain": body.get("toolchain"),
+        "environment_fingerprint_digest": (
+            (body.get("environment_fingerprint") or {}).get("digest")
+        ),
+    })
+
+
+def write_bundle_artifact(bundle: Mapping[str, Any], out_dir: str | Path) -> Path:
+    """Write the bundle as ONE retrievable, content-addressed file.
+
+    Closes the third named gap: until this, a bundle's identity was computed
+    and asserted at run time, with no artifact a reader could fetch and hold
+    that IS the bundle, as opposed to re-deriving it against a live tree. The
+    filename carries the digest; :func:`bundle_digest_from_body` recomputes it
+    from the file's own parsed content, so a caller can verify the artifact
+    names itself without touching git or the working tree at all.
+    """
+
+    digest = bundle.get("digest")
+    if not digest:
+        raise ValueError("cannot write an artifact for a bundle with no digest")
+    directory = Path(out_dir).resolve()
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"evaluator-bundle-{digest}.json"
+    path.write_text(
+        json.dumps(dict(bundle), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return path
+
+
+def load_bundle_artifact(path: str | Path) -> dict[str, Any]:
+    """Read a bundle artifact back. The only I/O :func:`bundle_digest_from_body`
+    needs is this -- everything after is pure computation over the parsed
+    JSON."""
+
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
 def evaluator_bundle(
     repo_root: str | Path,
     *,
@@ -231,6 +418,7 @@ def evaluator_bundle(
     criterion_source: str,
     node_ids: Mapping[str, Sequence[str]],
     modules: Sequence[str] = EVALUATOR_MODULES,
+    fixture_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Everything that decides a Gate-1 verdict, with its digest.
 
@@ -238,9 +426,16 @@ def evaluator_bundle(
     Nothing here reads the candidate or the fixture: a bundle describes the
     JUDGE, and mixing the judged into it would make every candidate its own
     bundle and the comparison meaningless.
+
+    ``fixture_root`` names where the criterion's conftest.py discovery path is
+    rooted (see :func:`_conftest_chain`); it defaults to ``repo_root`` for
+    every caller that has no separate fixture tree -- every existing test
+    repo in this module's own suite included -- and Gate-1 passes the real
+    fixture source directory explicitly.
     """
 
     root = Path(repo_root).resolve()
+    fixture_dir = Path(fixture_root).resolve() if fixture_root is not None else root
     criterion_bytes = criterion_source.encode("utf-8")
     evaluators: dict[str, Any] = {}
     for rel in sorted(modules):
@@ -286,6 +481,7 @@ def evaluator_bundle(
     identity_evaluators = {
         rel: {"blob_sha1": row["blob_sha1"]} for rel, row in evaluators.items()
     }
+    environment_fingerprint = _environment_fingerprint(fixture_dir, criterion_path)
     body = {
         "schema": SCHEMA,
         "criterion": {
@@ -300,21 +496,24 @@ def evaluator_bundle(
         "evaluators": evaluators,
         "closure": closure,
         "toolchain": _toolchain(),
+        "environment_fingerprint": environment_fingerprint,
     }
     # THE DIGEST IS OVER CONTENT IDENTITY ONLY -- the criterion, the node
-    # selection, the evaluators' git blob shas and the toolchain. The raw-byte
-    # digests and the uncommitted flags are recorded but excluded: they move
-    # with the checkout and with the developer's working tree, and a bundle
-    # identity that changes when nobody changed a judge is an identity nobody
-    # can compare against.
-    body["digest"] = canonical_sha({
-        "schema": SCHEMA,
-        "criterion": body["criterion"],
-        "nodes": body["nodes"],
-        "evaluators": identity_evaluators,
-        "closure_digest": closure["digest"],
-        "toolchain": body["toolchain"],
-    })
+    # selection, the evaluators' git blob shas, the toolchain and the
+    # environment fingerprint. The raw-byte digests and the uncommitted flags
+    # are recorded but excluded: they move with the checkout and with the
+    # developer's working tree, and a bundle identity that changes when nobody
+    # changed a judge is an identity nobody can compare against. The
+    # environment fingerprint's own digest IS included -- a different plugin
+    # set or a different conftest.py chain changed what actually judged, the
+    # same way a different evaluator module would.
+    #
+    # Computed by :func:`bundle_digest_from_body`, the SAME function a reader
+    # of a stored artifact calls to verify one -- not a second formula kept in
+    # sync with this one by hand. It only reads ``identity_evaluators``, not
+    # the fuller ``evaluators`` block by that name, which is why it is
+    # substituted in below rather than looked up.
+    body["digest"] = bundle_digest_from_body({**body, "evaluators": identity_evaluators})
     body["fully_committed"] = (
         not any(row["uncommitted"] or row["unreadable"] for row in evaluators.values())
         and not closure["unreadable"]
@@ -330,6 +529,12 @@ def bundle_blockers(bundle: Mapping[str, Any]) -> list[str]:
     refused -- that is the normal state of a working tree, and blocking it would
     make the slice unrunnable during the very development it exists to serve --
     but it is named, so nothing downstream may read the receipt as pinned.
+
+    An unmeasurable environment fingerprint (the plugin query itself failed) is
+    refused the same way an unreadable evaluator is: a bundle that cannot name
+    the environment it ran in must say so rather than silently omit the field,
+    per the same rule an empty measurement and a failed one must stay
+    distinguishable everywhere in this project.
     """
 
     out: list[str] = []
@@ -341,6 +546,13 @@ def bundle_blockers(bundle: Mapping[str, Any]) -> list[str]:
             "the evaluator bundle could not read " + ", ".join(unreadable)
             + "; a verdict produced by code the bundle cannot name is not pinned"
         )
+    environment = bundle.get("environment_fingerprint") or {}
+    if environment and environment.get("pytest_plugins_measured") is False:
+        out.append(
+            "the evaluator bundle could not measure installed pytest plugins ("
+            + str(environment.get("pytest_plugins_error")) + "); an environment "
+            "the bundle cannot name is not pinned"
+        )
     if not bundle.get("digest"):
         out.append("the evaluator bundle has no digest; nothing identifies what judged")
     return out
@@ -351,5 +563,8 @@ __all__ = [
     "import_closure",
     "SCHEMA",
     "bundle_blockers",
+    "bundle_digest_from_body",
     "evaluator_bundle",
+    "load_bundle_artifact",
+    "write_bundle_artifact",
 ]

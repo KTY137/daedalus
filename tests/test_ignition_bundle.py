@@ -30,6 +30,12 @@ def _bundle(root: Path = ROOT, **kw):
             "code-type": ignition_checks.CODE_TYPE_NODE_IDS,
             "data-knowledge": ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
         },
+        # MUST match what daedalus.ignition.gate1.run_gate1_ignition actually
+        # passes, or this helper computes a DIFFERENT bundle than the one that
+        # ran -- the environment fingerprint's conftest.py discovery path is
+        # rooted here, not at ``root``. Overridable via **kw for the
+        # throwaway-repo tests below, which do not exercise this field.
+        fixture_root=gate1.DEFAULT_FIXTURE,
     )
     args.update(kw)
     return ignition_bundle.evaluator_bundle(root, **args)
@@ -178,7 +184,7 @@ def test_the_bundle_describes_the_judge_and_never_the_judged():
     body = _bundle()
     assert set(body) == {
         "schema", "criterion", "nodes", "evaluators", "closure", "toolchain",
-        "digest", "fully_committed",
+        "environment_fingerprint", "digest", "fully_committed",
     }
     run_shaped = {"mission_id", "attempt_id", "attempt_ids", "candidate_revision",
                   "base_revision", "fixture_tree_sha256", "work_item_ids", "collected_at"}
@@ -252,6 +258,173 @@ def test_an_untracked_evaluator_is_not_reported_as_committed(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# the environment fingerprint (the first named-open gap)                       #
+# --------------------------------------------------------------------------- #
+# What the bundle pinned before this: the criterion, the node selection, and
+# the evaluator code by git blob sha. What it could NOT yet say: whether the
+# ENVIRONMENT that code ran in -- installed pytest plugins, PYTHONPATH, which
+# conftest.py files pytest actually collected, the OS/platform -- was the same
+# between two runs. A conftest.py in particular is never reached by
+# import_closure: pytest loads it by directory position, not by an import
+# statement any evaluator module writes, so it was invisible by construction.
+def test_pytest_plugins_are_measured_on_this_host():
+    """Not mocked: the real query, on the real host, must come back as a
+    measurement (a list, however short) rather than an error -- the floor
+    this repo's own dependencies guarantee (anyio, hypothesis and
+    pytest-asyncio are all installed, MEASURED 2026-08-24)."""
+
+    plugins, error = ignition_bundle._pytest_plugins()
+    assert error is None
+    assert plugins is not None
+    assert len(plugins) >= 1
+    assert all({"name", "version"} <= set(row) for row in plugins)
+
+
+def test_an_unmeasurable_plugin_query_is_named_and_reported_not_measured(monkeypatch):
+    """The instrument-honesty rule this project has paid for four times over:
+    a failed measurement must not read as an empty, clean one."""
+
+    monkeypatch.setattr(
+        ignition_bundle, "_pytest_plugins", lambda: (None, "boom: metadata scan failed")
+    )
+    body = _bundle()
+    fingerprint = body["environment_fingerprint"]
+    assert fingerprint["pytest_plugins"] is None
+    assert fingerprint["pytest_plugins_measured"] is False
+    assert fingerprint["pytest_plugins_error"] == "boom: metadata scan failed"
+    blockers = ignition_bundle.bundle_blockers(body)
+    assert len(blockers) == 1
+    assert "could not measure installed pytest plugins" in blockers[0]
+
+
+def test_a_different_pytest_plugin_set_changes_the_digest(monkeypatch):
+    """Simulates a plugin VERSION changing between two runs (2026-08-23's ask,
+    named explicitly): the digest must move, the same way a changed evaluator
+    module does, or an upgraded plugin between two runs could silently change
+    what ran without the bundle saying so."""
+
+    responses = iter([
+        ([{"name": "pytest-cov", "version": "4.1.0"}], None),
+        ([{"name": "pytest-cov", "version": "5.0.0"}], None),
+    ])
+    monkeypatch.setattr(ignition_bundle, "_pytest_plugins", lambda: next(responses))
+    before = _bundle()["digest"]
+    after = _bundle()["digest"]
+    assert before != after
+
+
+def test_an_extra_conftest_py_changes_the_digest(tmp_path):
+    """A conftest.py is never reached by import_closure -- pytest loads it by
+    directory position, not by any import statement an evaluator writes -- so
+    this is the part of the environment fingerprint that makes one visible.
+    Mirrors the commit that landed the closure: 'appending one comment line to
+    a module no root names directly moves the bundle digest'; this is the same
+    claim for a file no root ever imports at all."""
+
+    fixture = tmp_path / "fixture"
+    (fixture / "tests").mkdir(parents=True)
+    before = _bundle(fixture_root=fixture)["digest"]
+    (fixture / "tests" / "conftest.py").write_text("collect_ignore = []\n", encoding="utf-8")
+    after = _bundle(fixture_root=fixture)["digest"]
+    assert before != after
+
+
+def test_the_conftest_chain_tells_a_missing_directory_from_a_checked_one(tmp_path):
+    """A directory that does not exist is not the same fact as a directory
+    that was checked and had no conftest.py -- collapsing the two is the exact
+    shape of defect this project has hit before (an absence read as a clean
+    measurement instead of a limit)."""
+
+    fixture = tmp_path / "fixture"
+    fixture.mkdir()
+    chain = ignition_bundle._conftest_chain(fixture, "tests/test_event_field.py")
+    candidates = {row["dir"]: row for row in chain["candidates"]}
+    assert candidates["."]["exists"] is True
+    assert candidates["."]["conftest_sha256"] is None
+    assert candidates["tests"]["exists"] is False
+    assert candidates["tests"]["conftest_sha256"] is None
+
+
+def test_a_different_platform_string_changes_the_digest(monkeypatch):
+    """OS/platform: the exact axis the CRLF bug (2026-08-23) moved along,
+    measured here rather than assumed stable."""
+
+    monkeypatch.setattr(ignition_bundle.platform, "platform", lambda: "Linux-6.1.0-x86_64")
+    before = _bundle()["digest"]
+    monkeypatch.setattr(ignition_bundle.platform, "platform", lambda: "Windows-10-10.0.26200")
+    after = _bundle()["digest"]
+    assert before != after
+
+
+def test_a_changed_pythonpath_changes_the_digest(monkeypatch):
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    before = _bundle()["digest"]
+    monkeypatch.setenv("PYTHONPATH", str(ROOT))
+    after = _bundle()["digest"]
+    assert before != after
+
+
+def test_environment_fingerprint_is_stable_across_two_calls_in_one_process():
+    """The negative control for every test above: with nothing simulated, the
+    fingerprint -- and therefore the digest -- must NOT move on its own. Two
+    runs with nothing changed are the baseline replay claim depends on."""
+
+    first = _bundle()
+    second = _bundle()
+    assert first["environment_fingerprint"]["digest"] == second["environment_fingerprint"]["digest"]
+    assert first["digest"] == second["digest"]
+
+
+# --------------------------------------------------------------------------- #
+# the retrievable artifact (the third named-open gap)                          #
+# --------------------------------------------------------------------------- #
+# Until this, the bundle's identity was computed and asserted at run time; no
+# artifact a reader could FETCH and HOLD was the bundle, as opposed to
+# re-deriving it against a live tree. These tests prove the artifact is
+# self-contained: given only the file (no git call, no live tree beyond it),
+# recomputing the digest from its own content reproduces the digest named in
+# both the filename and the receipt.
+def test_write_bundle_artifact_names_itself_by_digest(tmp_path):
+    body = _bundle()
+    path = ignition_bundle.write_bundle_artifact(body, tmp_path)
+    assert path.name == f"evaluator-bundle-{body['digest']}.json"
+    assert path.is_file()
+
+
+def test_write_bundle_artifact_refuses_a_digestless_bundle(tmp_path):
+    with pytest.raises(ValueError):
+        ignition_bundle.write_bundle_artifact({"schema": "x"}, tmp_path)
+
+
+def test_the_artifact_alone_reproduces_its_own_digest(tmp_path):
+    """The central claim: fetch this file, and ONLY this file, and recompute
+    the digest the receipt names -- no live tree, no git call."""
+
+    original = _bundle()
+    path = ignition_bundle.write_bundle_artifact(original, tmp_path)
+
+    retrieved = ignition_bundle.load_bundle_artifact(path)
+    assert retrieved == original, "the artifact must be the bundle, not a projection of it"
+    recomputed = ignition_bundle.bundle_digest_from_body(retrieved)
+    assert recomputed == original["digest"]
+    assert recomputed == retrieved["digest"]
+
+
+def test_a_bundle_that_differs_only_in_the_environment_still_round_trips(monkeypatch, tmp_path):
+    """Not just the happy path where nothing changed: an artifact minted under
+    a DIFFERENT environment must still verify against itself."""
+
+    monkeypatch.setattr(
+        ignition_bundle, "_pytest_plugins",
+        lambda: ([{"name": "pytest-xdist", "version": "3.6.1"}], None),
+    )
+    body = _bundle()
+    path = ignition_bundle.write_bundle_artifact(body, tmp_path)
+    retrieved = ignition_bundle.load_bundle_artifact(path)
+    assert ignition_bundle.bundle_digest_from_body(retrieved) == body["digest"]
+
+
+# --------------------------------------------------------------------------- #
 # the slice binds it                                                           #
 # --------------------------------------------------------------------------- #
 @pytest.fixture(scope="module")
@@ -268,6 +441,25 @@ def test_the_receipt_carries_the_bundle_that_judged(two_runs):
     assert body["schema"] == ignition_bundle.SCHEMA
     assert body["digest"] == _bundle()["digest"], "the receipt must name the bundle that ran"
     assert set(body["evaluators"]) == set(ignition_bundle.EVALUATOR_MODULES)
+
+
+def test_the_receipt_names_a_retrievable_bundle_artifact(two_runs):
+    """The third named-open gap, bound to the real slice: the receipt does not
+    just carry the bundle inline, it also names a FILE a reader can fetch on
+    its own and verify without the receipt, without git, and without a live
+    tree."""
+
+    _, second = two_runs
+    named = second.receipt["evaluator_bundle_artifact"]
+    assert named is not None
+    assert named["digest"] == second.receipt["evaluator_bundle"]["digest"]
+
+    artifact_path = second.receipt_path.parent / named["path"]
+    assert artifact_path.is_file()
+
+    retrieved = ignition_bundle.load_bundle_artifact(artifact_path)
+    assert retrieved == second.receipt["evaluator_bundle"]
+    assert ignition_bundle.bundle_digest_from_body(retrieved) == named["digest"]
 
 
 def test_two_runs_are_a_replay_only_under_one_bundle(two_runs):

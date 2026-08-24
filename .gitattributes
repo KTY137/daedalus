@@ -78,3 +78,183 @@ tests/gates/test_repository_head_revision.py -text
 tests/gates/test_repository_head_revision_review.py -text
 tests/gates/test_repository_head_revision_schema.py -text
 tests/gates/test_repository_head_revision_wire.py -text
+
+# ---------------------------------------------------------------------------
+# GATE-1 EVALUATOR-BUNDLE CLOSURE -- git's own identity machinery, pinned
+# ---------------------------------------------------------------------------
+#
+# daedalus/ignition/bundle.py identifies each evaluator module by GIT'S OWN
+# blob sha (`git hash-object`), not raw file bytes, and that mechanism is
+# ALREADY checkout-stable without a -text pin: `git hash-object` reproduces
+# the same normalisation `git add` would, so an LF commit and a CRLF working
+# copy of it hash to the same blob sha (MEASURED,
+# tests/test_ignition_bundle.py::test_the_digest_does_not_move_with_line_endings).
+# This block closes a narrower, real gap beside that one: `evaluator_bundle`
+# also records `running_bytes_sha256` -- the RAW bytes that actually
+# executed -- and marks it platform_dependent because on this host
+# (core.autocrlf=true) it differs from the committed LF bytes; the same
+# mismatch was exactly the Gate-1 fixture's CRLF defect above. `-text` makes
+# the working-tree bytes equal the committed bytes on every host, so the
+# bytes that ran and the bytes anyone can fetch stop merely CORRESPONDING
+# (matched via a git blob sha both sides recompute) and become the SAME
+# bytes -- and it removes the evaluator closure's one remaining dependency on
+# git's implicit text/binary detection for a package a Gate-1 verdict
+# entirely depends on.
+#
+# MEASURED 2026-08-24 (`git check-attr text --stdin` over
+# `daedalus.ignition.bundle.import_closure(ROOT, EVALUATOR_MODULES)`, 124
+# modules, every one under daedalus/): 123 of 124 resolved `text: unspecified`
+# -- no explicit, non-autocrlf-dependent declaration at all -- the one
+# exception (daedalus/runtimes/provider_observation.py) already pinned above
+# for an unrelated reason. And a SECOND measurement the first draft of this
+# section got wrong: checking raw file bytes (not `git ls-files --eol`'s
+# INDEX column, which is always `i/lf`) showed 121 of these 124 files are
+# CRLF ON DISK right now, working-tree side, in this worktree -- the "947
+# tracked files are CRLF" the D7 section above already measured, just not
+# cross-checked against this specific closure before now.
+#
+# AN EXPLICIT LIST, NOT A WILDCARD, ON PURPOSE -- the opposite call from the
+# first draft of this section. `daedalus/**/*.py -text` looked like the
+# self-maintaining choice (closure grows with every refactor, per bundle.py's
+# own docstring), but MEASURED against this worktree it would silently
+# -text-pin roughly 170 OTHER daedalus modules the Gate-1 bundle never reads,
+# most of them ALSO CRLF-on-disk over an LF-committed blob -- exactly the
+# "whole-repository EOL policy" the D7 section above declined to make for
+# `*.py`, just scoped to one directory instead of the repository. `git status`
+# does not surface this today only because those files' mtimes have not
+# changed since git's index last cached them clean; the first `git add` (or
+# `git add -A`) that touches one after this file starts asking `-text`'s
+# question would silently flip an unrelated module's committed line endings.
+# The list below is exactly the 124 the bundle's closure computes -- nothing
+# more -- and every one of them has ALSO been renormalised to LF in this
+# worktree (a working-tree-only change; no committed byte moves, matching
+# every -text pin above), so `-text` here changes nothing about to be
+# committed. tests/test_ignition_bundle_gitattributes.py re-derives the
+# closure from source on every run via `git check-attr` and fails on any gap,
+# so a closure that outgrows this list is a red test, not a silent hole --
+# the same self-healing property a wildcard would have given for free, without
+# the blast radius a wildcard measured to carry here.
+daedalus/__init__.py -text
+daedalus/adapters/events.py -text
+daedalus/agents_registry.py -text
+daedalus/atomic.py -text
+daedalus/benchmark.py -text
+daedalus/bookkeeper.py -text
+daedalus/budget.py -text
+daedalus/build.py -text
+daedalus/categories.py -text
+daedalus/claude_bridge.py -text
+daedalus/claude_detect.py -text
+daedalus/config.py -text
+daedalus/context_plan.py -text
+daedalus/core.py -text
+daedalus/doctor.py -text
+daedalus/enforce.py -text
+daedalus/eval/correctness.py -text
+daedalus/eval/harness.py -text
+daedalus/eval/mint.py -text
+daedalus/eval/tasks.py -text
+daedalus/fallback.py -text
+daedalus/file_bridge.py -text
+daedalus/health.py -text
+daedalus/ignition/__init__.py -text
+daedalus/ignition/bundle.py -text
+daedalus/ignition/checks.py -text
+daedalus/ignition/gate1.py -text
+daedalus/ignition/runner.py -text
+daedalus/kairos/decompose.py -text
+daedalus/kairos/drafts.py -text
+daedalus/kairos/gated_writes.py -text
+daedalus/kairos/scheduler.py -text
+daedalus/kairos/worktree.py -text
+daedalus/kernel/approvals.py -text
+daedalus/kernel/contracts.py -text
+daedalus/kernel/effects.py -text
+daedalus/kernel/fourfold_evidence.py -text
+daedalus/kernel/promotion.py -text
+daedalus/kernel/promotion_trust_root.py -text
+daedalus/kernel/runtime_conformance.py -text
+daedalus/kernel/runtime_effects.py -text
+daedalus/lanes/__init__.py -text
+daedalus/lanes/checks.py -text
+daedalus/lanes/graph_brief.py -text
+daedalus/lanes/grounding.py -text
+daedalus/mapping/__init__.py -text
+daedalus/mapping/drift.py -text
+daedalus/mapping/inventory.py -text
+daedalus/mapping/reach.py -text
+daedalus/mapping/render.py -text
+daedalus/mapping/spectral.py -text
+daedalus/mapping/switches.py -text
+daedalus/memory/__init__.py -text
+daedalus/memory/embeddings.py -text
+daedalus/metrics.py -text
+daedalus/offload.py -text
+daedalus/preservation.py -text
+daedalus/primary_tree.py -text
+daedalus/projects.py -text
+daedalus/provider_router.py -text
+daedalus/providers/__init__.py -text
+daedalus/providers/_ollama_native.py -text
+daedalus/providers/_openai_compat.py -text
+daedalus/providers/_report.py -text
+daedalus/providers/base.py -text
+daedalus/providers/claude_cli.py -text
+daedalus/providers/codex_cli.py -text
+daedalus/providers/deepseek.py -text
+daedalus/providers/ollama.py -text
+daedalus/providers/personas.py -text
+daedalus/router.py -text
+daedalus/runtimes/broker.py -text
+daedalus/runtimes/profiles.py -text
+daedalus/runtimes/provider_observation.py -text
+daedalus/runtimes/trust.py -text
+daedalus/runtimes/trust_store.py -text
+daedalus/schemas.py -text
+daedalus/semantic_route.py -text
+daedalus/sensitivity.py -text
+daedalus/spine/__init__.py -text
+daedalus/spine/attempt.py -text
+daedalus/spine/bootstrap.py -text
+daedalus/spine/cancel.py -text
+daedalus/spine/containment.py -text
+daedalus/spine/docrefs.py -text
+daedalus/spine/durability.py -text
+daedalus/spine/effect_boundary.py -text
+daedalus/spine/envelope.py -text
+daedalus/spine/killswitch.py -text
+daedalus/spine/ledger.py -text
+daedalus/spine/picker.py -text
+daedalus/spine/receipts.py -text
+daedalus/spine/writer_inventory.py -text
+daedalus/status.py -text
+daedalus/storage.py -text
+daedalus/structcore/__init__.py -text
+daedalus/structcore/cache.py -text
+daedalus/structcore/churn.py -text
+daedalus/structcore/clones.py -text
+daedalus/structcore/cycles.py -text
+daedalus/structcore/dss.py -text
+daedalus/structcore/forest.py -text
+daedalus/structcore/graph.py -text
+daedalus/structcore/ignore.py -text
+daedalus/structcore/imports.py -text
+daedalus/structcore/index.py -text
+daedalus/structcore/languages.py -text
+daedalus/structcore/markdown.py -text
+daedalus/structcore/metrics.py -text
+daedalus/structcore/parse.py -text
+daedalus/structcore/perfile.py -text
+daedalus/structcore/slice.py -text
+daedalus/structcore/tokens.py -text
+daedalus/structcore/typegraph.py -text
+daedalus/token_policy.py -text
+daedalus/twin/__init__.py -text
+daedalus/twin/_reference_claims.py -text
+daedalus/twin/_reference_common.py -text
+daedalus/twin/_reference_inventory.py -text
+daedalus/twin/contracts.py -text
+daedalus/twin/legacy_forest.py -text
+daedalus/twin/projection_verifier.py -text
+daedalus/twin/reference_compiler.py -text
+daedalus/verifier.py -text

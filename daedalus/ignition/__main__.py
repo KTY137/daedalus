@@ -29,6 +29,7 @@ RECEIPT_HEAD_KEYS = (
     "evidence_packet",
     "promotion",
     "replay",
+    "evaluator_bundle_artifact",
     "blockers",
     "blocker",
 )
