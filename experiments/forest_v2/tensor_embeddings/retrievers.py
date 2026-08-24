@@ -24,11 +24,17 @@ from experiments.forest_v2.s09_eval.contract import (
 )
 
 from .algebra import (
+    PreparedFiberMaxSimQuery,
+    PreparedFlattenedBilinearQuery,
     fiber_maxsim,
     flattened_cosine,
     identity_contraction,
     normalized_flattened_bilinear_score,
+    normalized_prepared_flattened_bilinear_score,
     normalized_structured_score,
+    prepare_fiber_maxsim_query,
+    prepare_flattened_bilinear_query,
+    prepared_fiber_maxsim,
 )
 from .contracts import CPTensor, Matrix, SeparableKernel, TensorSpec
 from .encoding import (
@@ -72,6 +78,7 @@ PLANE_PERMUTATION = (1, 2, 3, 0)
 ROLE_PERMUTATION = (1, 2, 3, 0)
 
 DEFAULT_CANDIDATE_CACHE_ENTRIES = 20_000
+DEFAULT_PREPARED_QUERY_CACHE_ENTRIES = 256
 
 
 @dataclass(frozen=True)
@@ -403,6 +410,16 @@ class _TensorRetriever:
     def _score(self, query: CPTensor, document: CPTensor) -> float:
         raise NotImplementedError
 
+    def _prepare_scoring_query(self, query: CPTensor) -> object:
+        """Prepare query-constant score state once before the document loop."""
+
+        return query
+
+    def _score_prepared(self, query: object, document: CPTensor) -> float:
+        if not isinstance(query, CPTensor):
+            raise TypeError("default tensor scorer requires a CPTensor query")
+        return self._score(query, document)
+
     def rank(self, query: QueryView, universe: Sequence[Candidate]) -> list[str]:
         query_key = _query_key(query)
         revision = query_key[2]
@@ -412,10 +429,11 @@ class _TensorRetriever:
             revision=revision,
         )
         prepared = self._prepare_candidates(universe, revision=revision)
+        scoring_query = self._prepare_scoring_query(encoded_query.tensor)
 
         scored: list[tuple[str, float]] = []
         for item in prepared:
-            score = float(self._score(encoded_query.tensor, item.encoded.tensor))
+            score = float(self._score_prepared(scoring_query, item.encoded.tensor))
             if not math.isfinite(score):
                 raise ContractViolation(
                     f"retriever {self.name!r} produced a non-finite score for "
@@ -543,7 +561,46 @@ class FlattenedBilinearRetriever(_TensorRetriever):
     name = "flattened_bilinear_same_kernel"
     score_kind = "normalized_flattened_kronecker_bilinear"
 
-    def _score(self, query: CPTensor, document: CPTensor) -> float:
+    def __init__(
+        self,
+        seed: int = DEFAULT_HASH_SEED,
+        *,
+        candidate_cache: CandidateTensorCache | None = None,
+    ) -> None:
+        super().__init__(seed=seed, candidate_cache=candidate_cache)
+        self._prepared_query_cache: "OrderedDict[tuple[str, str, str], PreparedFlattenedBilinearQuery]" = OrderedDict()
+
+    def _prepare_scoring_query(
+        self, query: CPTensor
+    ) -> PreparedFlattenedBilinearQuery:
+        # tensor_id binds the exact numeric query, spec_id binds its frozen
+        # seed/coordinate system, and kernel_id binds the transform itself.
+        key = (query.tensor_id, query.spec_id, self.kernel.kernel_id)
+        cached = self._prepared_query_cache.get(key)
+        if cached is not None:
+            self._prepared_query_cache.move_to_end(key)
+            return cached
+        prepared = prepare_flattened_bilinear_query(query, self.kernel)
+        self._prepared_query_cache[key] = prepared
+        if len(self._prepared_query_cache) > DEFAULT_PREPARED_QUERY_CACHE_ENTRIES:
+            self._prepared_query_cache.popitem(last=False)
+        return prepared
+
+    def _score_prepared(self, query: object, document: CPTensor) -> float:
+        if not isinstance(query, PreparedFlattenedBilinearQuery):
+            raise TypeError("flattened bilinear scorer requires a prepared query")
+        # Keep _score as the single load-bearing scoring seam.  Besides making
+        # the optimized and reference forms explicit in one place, benchmark
+        # fault injection against _score must still reach the production path.
+        return self._score(query, document)
+
+    def _score(
+        self,
+        query: CPTensor | PreparedFlattenedBilinearQuery,
+        document: CPTensor,
+    ) -> float:
+        if isinstance(query, PreparedFlattenedBilinearQuery):
+            return normalized_prepared_flattened_bilinear_score(query, document)
         return normalized_flattened_bilinear_score(query, document, self.kernel)
 
 
@@ -553,7 +610,43 @@ class TensorLateInteractionRetriever(_TensorRetriever):
     name = "tensor_late_interaction"
     score_kind = "fiber_maxsim"
 
-    def _score(self, query: CPTensor, document: CPTensor) -> float:
+    def __init__(
+        self,
+        seed: int = DEFAULT_HASH_SEED,
+        *,
+        candidate_cache: CandidateTensorCache | None = None,
+    ) -> None:
+        super().__init__(seed=seed, candidate_cache=candidate_cache)
+        self._prepared_query_cache: (
+            "OrderedDict[tuple[str, str, str], PreparedFiberMaxSimQuery]"
+        ) = OrderedDict()
+
+    def _prepare_scoring_query(self, query: CPTensor) -> PreparedFiberMaxSimQuery:
+        key = (query.tensor_id, query.spec_id, self.kernel.kernel_id)
+        cached = self._prepared_query_cache.get(key)
+        if cached is not None:
+            self._prepared_query_cache.move_to_end(key)
+            return cached
+        prepared = prepare_fiber_maxsim_query(query, self.kernel)
+        self._prepared_query_cache[key] = prepared
+        if len(self._prepared_query_cache) > DEFAULT_PREPARED_QUERY_CACHE_ENTRIES:
+            self._prepared_query_cache.popitem(last=False)
+        return prepared
+
+    def _score_prepared(self, query: object, document: CPTensor) -> float:
+        if not isinstance(query, PreparedFiberMaxSimQuery):
+            raise TypeError("late-interaction scorer requires a prepared query")
+        # Keep _score as the load-bearing seam used by benchmark fault
+        # injection; preparation must not bypass an overridden scorer.
+        return self._score(query, document)
+
+    def _score(
+        self,
+        query: CPTensor | PreparedFiberMaxSimQuery,
+        document: CPTensor,
+    ) -> float:
+        if isinstance(query, PreparedFiberMaxSimQuery):
+            return prepared_fiber_maxsim(query, document)
         return fiber_maxsim(query, document, self.kernel)
 
 

@@ -36,6 +36,18 @@ existed. The exact hash feature family was then finalized in the frozen spec
 as word + four-character prefix + four-character suffix, and CP norms/scores
 were evaluated directly from factors.
 
+The first complete-census attempt at implementation revision
+`601616c40bcddefaf300c65f7abe51d3d8d637e6` was also interrupted after more
+than eight minutes without a report. It used the same real `c00` universe,
+both frozen query variants, all 13 arms, and all five seeds. Inspection found
+that the independent flattened-bilinear control recomputed the identical
+query-side Kronecker transform once per candidate. That run is retained here
+as negative implementation-cost evidence; it produced no ranking result and
+caused no change to the frozen claim, kernel, corpus, labels, feature
+dimension, or seeds. The implemented response caches only query-constant
+bilinear and MaxSim state and skips products containing exact zero factors;
+differential tests require bit-identical scores and receipts.
+
 ## Post-fix shape measurements
 
 - The same cold 100-candidate encoding sample took 0.839 seconds (about 7.5x
@@ -45,6 +57,17 @@ were evaluated directly from factors.
   This ordering is not a fair latency comparison and must not be cited as a
   tensor speedup.
 - The five-seed, two-arm `c00` smoke took 158.446 seconds total.
+- After prepared-query caching and exact CP/TT zero pruning, one unprofiled
+  seed over a 100-candidate `c00` prefix took about 1.41 seconds for all eight
+  tensor/control arms combined on the same developer box. This is a cost-shape
+  observation only; the prefix substitutes a present path as gold and cannot
+  be cited as retrieval evidence.
+
+The explicit tensor and baseline LRUs retain at most 20,000 candidates while
+the frozen correctness cap permits 65,536. Above the cache capacity, repeated
+sorted full-corpus scans can thrash and lose warm-hit benefits. This does not
+change scores or budgets, but large-corpus latency remains unvalidated and no
+production cost claim is permitted.
 
 ## Retained historical diagnostic output (superseded)
 
