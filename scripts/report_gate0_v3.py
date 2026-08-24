@@ -38,6 +38,18 @@ def _parser() -> argparse.ArgumentParser:
             "omitting it keeps the fail-closed unbound blocker"
         ),
     )
+    parser.add_argument(
+        "--repository-write-classification-input",
+        type=Path,
+        default=None,
+        help=(
+            "classification-input.json of a reviewed declaration for EXACTLY "
+            "this revision; omitting it keeps every surface unclassified. "
+            "Measured 2026-08-24 (LEASED_RUN_CENSUS_DELTA.md): no flag ever "
+            "reached this parameter, so cleared was 0 by construction over "
+            "this entrypoint"
+        ),
+    )
     return parser
 
 
@@ -49,6 +61,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             source_revision=args.source_revision,
             security_boundary_claimed=False,
             runtime_conformance_receipt_dir=args.conformance_receipts,
+            repository_write_classification_input=(
+                args.repository_write_classification_input),
         )
     except (OSError, TypeError, ValueError) as exc:
         print(
