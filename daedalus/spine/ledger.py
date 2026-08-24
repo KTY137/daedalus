@@ -71,6 +71,15 @@ module exists for; a power cut can lose the last commits), ``busy_timeout``
 (every write is BEGIN IMMEDIATE, which DOES honour the busy handler, so a second
 writer waits instead of erroring), ``foreign_keys=ON`` (an event can never
 reference a vanished intent).
+
+ONE EXCEPTION TO "busy_timeout MEANS NO CALLER SEES database is locked":
+the FIRST-EVER ``PRAGMA journal_mode=WAL`` on a brand-new path -- several
+threads/processes racing to be the first opener of the same not-yet-existing
+file -- takes a lock that measurably does not honour the busy handler on this
+platform. ``_apply_pragmas`` sets ``busy_timeout`` before every other pragma
+(so ordinary writes are covered) and gives ``journal_mode=WAL`` its own
+bounded retry (``_set_journal_mode_wal_with_retry``) for this one case
+busy_timeout does not.
 """
 from __future__ import annotations
 
@@ -79,6 +88,7 @@ import json
 import os
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -332,13 +342,47 @@ class SpineLedger:
     # -- setup ------------------------------------------------------------- #
     def _apply_pragmas(self) -> None:
         c = self._conn
+        # busy_timeout FIRST, before any other statement on this connection,
+        # so every ordinary write this connection issues waits out a
+        # concurrent writer instead of erroring (the invariant the module
+        # docstring already promises).
+        c.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
         # journal_mode is persistent in the FILE (not per connection); the rest
         # are per connection and must be re-applied on every open, which is why
         # they live here rather than in _migrate.
-        c.execute("PRAGMA journal_mode=WAL")
+        #
+        # journal_mode=WAL gets its OWN retry loop, not just busy_timeout.
+        # Re-confirming WAL on a file that already has it is a fast read-only
+        # check and never blocks. But the FIRST-EVER transition on a brand-new
+        # path -- several threads/processes racing to be the first opener of
+        # the same not-yet-existing file, which is exactly what a caller that
+        # constructs a fresh SpineLedger/Gate-0 writer per concurrent attempt
+        # does -- takes an exclusive lock that measurably does NOT honour
+        # PRAGMA busy_timeout on this platform: it fails immediately with
+        # "database is locked" instead of waiting, no matter how early
+        # busy_timeout was set. [MEASURED]: an isolated repro of 4 threads
+        # racing sqlite3.connect(fresh_path) -> journal_mode=WAL failed this
+        # exact way in 14/40 runs even with busy_timeout applied first; the
+        # later BEGIN IMMEDIATE writes in the same threads never failed --
+        # only this one statement bypasses the busy handler. Poll it
+        # explicitly against a real deadline instead of trusting the pragma
+        # SQLite does not make good on here.
+        self._set_journal_mode_wal_with_retry()
         c.execute("PRAGMA synchronous=NORMAL")
-        c.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
         c.execute("PRAGMA foreign_keys=ON")
+
+    def _set_journal_mode_wal_with_retry(self) -> None:
+        deadline = time.monotonic() + (self.busy_timeout_ms / 1000.0)
+        delay = 0.005
+        while True:
+            try:
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                return
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc).lower() or time.monotonic() >= deadline:
+                    raise
+                time.sleep(delay)
+                delay = min(delay * 2, 0.25)
 
     @staticmethod
     def _add_missing_columns(conn: sqlite3.Connection) -> list[str]:

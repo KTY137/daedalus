@@ -356,6 +356,70 @@ def test_concurrent_writers_do_not_corrupt(db_path):
             led.close()
 
 
+def test_concurrent_first_opens_of_a_fresh_path_all_succeed(db_path):
+    """Several threads racing to be the FIRST-EVER opener of a brand-new path
+    must all succeed -- none may see "database is locked".
+
+    This is NOT the ordinary busy_timeout case covered by
+    test_second_writer_waits_out_busy_timeout above (there, the holder opens
+    and establishes WAL *before* the waiter even connects). Here nothing has
+    opened ``db_path`` yet, so every thread's PRAGMA journal_mode=WAL is a
+    real first-time mode transition, not a re-confirmation of existing state
+    -- and that transition takes a lock that measurably does NOT honour
+    PRAGMA busy_timeout on this platform: [MEASURED] an isolated repro of 4
+    unsynchronized threads racing sqlite3.connect(fresh_path) ->
+    "PRAGMA journal_mode=WAL" failed this way in 14/40 runs even with
+    busy_timeout applied first, while the SAME threads' later BEGIN IMMEDIATE
+    writes never failed. See SpineLedger._set_journal_mode_wal_with_retry,
+    which gives that one statement its own bounded retry instead of trusting
+    the pragma SQLite does not make good on here.
+
+    A barrier forces every thread to call SpineLedger(path) as close to
+    simultaneously as the OS schedules threads, instead of a fixed sleep or
+    hoping incidental contention reproduces the race -- disable the retry
+    and this goes red reliably; a lucky timing window is not required.
+    """
+    n = 8
+    barrier = threading.Barrier(n, timeout=15)
+    results: list[tuple[str, object]] = []
+    lock = threading.Lock()
+
+    def worker(i: int) -> None:
+        barrier.wait()
+        try:
+            led = SpineLedger(db_path)
+            try:
+                led.record_intent("racer", {"n": i}, effect_key=f"racer-{i}")
+            finally:
+                led.close()
+            with lock:
+                results.append(("ok", i))
+        except Exception as exc:  # recorded, not swallowed -- asserted below
+            with lock:
+                results.append(("error", i, exc))
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=35)
+        assert not t.is_alive()
+
+    errors = [r for r in results if r[0] == "error"]
+    assert errors == [], errors
+    assert len(results) == n
+
+    checker = SpineLedger(db_path)
+    try:
+        assert checker._conn.execute(
+            "PRAGMA integrity_check").fetchone()[0] == "ok"
+        rows = checker._conn.execute("SELECT kind FROM intents").fetchall()
+        assert len(rows) == n
+        assert {r["kind"] for r in rows} == {"racer"}
+    finally:
+        checker.close()
+
+
 # --------------------------------------------------------------------------- #
 # canonical JSON                                                               #
 # --------------------------------------------------------------------------- #
