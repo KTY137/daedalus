@@ -1,0 +1,36 @@
+diff --git a/tests/gates/test_repository_write_effect_lease.py b/tests/gates/test_repository_write_effect_lease.py
+index 6b91a1b..c882ebf 100644
+--- a/tests/gates/test_repository_write_effect_lease.py
++++ b/tests/gates/test_repository_write_effect_lease.py
+@@ -86,6 +86,7 @@ def _authorization(tmp_path):
+     scope = EffectScope(
+         read_only=False,
+         writable_paths=("candidate",),
++        max_cost_microusd=0,
+         timeout_s=60,
+         max_concurrency=1,
+         kill_switch_ref="fixture-kill",
+diff --git a/tests/kernel/test_effect_authorization.py b/tests/kernel/test_effect_authorization.py
+index 65f84ef..1945397 100644
+--- a/tests/kernel/test_effect_authorization.py
++++ b/tests/kernel/test_effect_authorization.py
+@@ -57,6 +57,7 @@ def scope() -> EffectScope:
+         read_only=False,
+         writable_paths=("workspace",),
+         tools=("python",),
++        max_cost_microusd=0,
+         timeout_s=60,
+         max_concurrency=1,
+         kill_switch_ref="mission-kill",
+diff --git a/tests/kernel/test_effect_replay_projection.py b/tests/kernel/test_effect_replay_projection.py
+index 44ea3a2..b2f6496 100644
+--- a/tests/kernel/test_effect_replay_projection.py
++++ b/tests/kernel/test_effect_replay_projection.py
+@@ -68,6 +68,7 @@ def build_authorization(tmp_path):
+         read_only=False,
+         writable_paths=("integration-worktrees", "state"),
+         tools=("git",),
++        max_cost_microusd=0,
+         timeout_s=300,
+         max_concurrency=1,
+         kill_switch_ref="promotion-kill",

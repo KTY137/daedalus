@@ -1,0 +1,667 @@
+diff --git a/daedalus/gates/repository_write_inventory_v2.py b/daedalus/gates/repository_write_inventory_v2.py
+index 6dec528..9947200 100644
+--- a/daedalus/gates/repository_write_inventory_v2.py
++++ b/daedalus/gates/repository_write_inventory_v2.py
+@@ -10,7 +10,7 @@ from __future__ import annotations
+ import hashlib
+ import re
+ from dataclasses import dataclass
+-from pathlib import Path
++from pathlib import Path, PurePosixPath
+ from typing import Any
+ 
+ from daedalus.gates.repository_write_inventory import (
+@@ -158,7 +158,10 @@ class RepositoryWriteInventoryV2:
+ def _safe_relative_posix(value: object) -> bool:
+     if not isinstance(value, str) or not value or "\\" in value:
+         return False
+-    path = Path(value)
++    # PurePosixPath, not Path: on Windows a rooted-but-driveless value such as
++    # "/daedalus/a.py" is not reported as absolute, so the platform-dependent
++    # Path would let an absolute POSIX path pass as repository-relative.
++    path = PurePosixPath(value)
+     return (
+         not path.is_absolute()
+         and all(part not in {"", ".", ".."} for part in path.parts)
+diff --git a/daedalus/gates/repository_write_stdlib_delta.py b/daedalus/gates/repository_write_stdlib_delta.py
+index c93c779..5fd42c7 100644
+--- a/daedalus/gates/repository_write_stdlib_delta.py
++++ b/daedalus/gates/repository_write_stdlib_delta.py
+@@ -11,7 +11,7 @@ import ast
+ import hashlib
+ import re
+ from dataclasses import dataclass
+-from pathlib import Path
++from pathlib import Path, PurePosixPath
+ from typing import Any, Iterable, Mapping
+ 
+ from daedalus.gates.repository_write_inventory import (
+@@ -213,7 +213,10 @@ class RepositoryWriteStdlibDelta:
+ def _safe_relative_posix(value: object) -> bool:
+     if not isinstance(value, str) or not value or "\\" in value:
+         return False
+-    path = Path(value)
++    # PurePosixPath, not Path: on Windows a rooted-but-driveless value such as
++    # "/daedalus/a.py" is not reported as absolute, so the platform-dependent
++    # Path would let an absolute POSIX path pass as repository-relative.
++    path = PurePosixPath(value)
+     return (
+         not path.is_absolute()
+         and all(part not in {"", ".", ".."} for part in path.parts)
+diff --git a/tests/gates/test_repository_write_artifact_admission.py b/tests/gates/test_repository_write_artifact_admission.py
+index 18b5cc7..8e1583e 100644
+--- a/tests/gates/test_repository_write_artifact_admission.py
++++ b/tests/gates/test_repository_write_artifact_admission.py
+@@ -33,8 +33,11 @@ from daedalus.spine.envelope import canonical_json, canonical_sha
+ 
+ REVISION = "1" * 40
+ TREE_REVISION = "2" * 40
+-BUILT_AT = "2026-08-05T00:00:00+00:00"
+-ADMITTED_AT = "2026-08-05T00:01:00+00:00"
++# Canonical form: _utc_timestamp normalises every contract timestamp to
++# microsecond precision, so these fixtures are written in that form to
++# round-trip identically through the emitted receipts.
++BUILT_AT = "2026-08-05T00:00:00.000000+00:00"
++ADMITTED_AT = "2026-08-05T00:01:00.000000+00:00"
+ 
+ 
+ def _inventory() -> RepositoryWriteInventoryV2:
+@@ -50,7 +53,7 @@ def _inventory() -> RepositoryWriteInventoryV2:
+                 path="daedalus/example.py",
+                 line=7,
+                 column=4,
+-                origin="project",
++                origin="base_v1",
+                 kind="path-write",
+                 callee="Path.write_text",
+                 operation="write_text",
+diff --git a/tests/gates/test_repository_write_artifact_admission_adversarial.py b/tests/gates/test_repository_write_artifact_admission_adversarial.py
+index 91de420..006b856 100644
+--- a/tests/gates/test_repository_write_artifact_admission_adversarial.py
++++ b/tests/gates/test_repository_write_artifact_admission_adversarial.py
+@@ -49,7 +49,7 @@ def _subject(tmp_path: Path):
+                 path="daedalus/example.py",
+                 line=7,
+                 column=4,
+-                origin="project",
++                origin="base_v1",
+                 kind="path-write",
+                 callee="Path.write_text",
+                 operation="write_text",
+diff --git a/tests/gates/test_repository_write_artifact_admission_schema.py b/tests/gates/test_repository_write_artifact_admission_schema.py
+index 8bf0345..a8c4c31 100644
+--- a/tests/gates/test_repository_write_artifact_admission_schema.py
++++ b/tests/gates/test_repository_write_artifact_admission_schema.py
+@@ -63,7 +63,10 @@ def test_schema_exactly_tracks_contract_fields_and_constants() -> None:
+     )
+     assert schema["properties"]["contract_version"]["const"] == "1.0.0"
+     checks = schema["properties"]["checks"]
+-    assert tuple(item["const"] for item in checks["prefixItems"]) == payload["checks"]
++    # to_dict() emits JSON types, so the check roster arrives as a list.
++    assert [item["const"] for item in checks["prefixItems"]] == list(
++        payload["checks"]
++    )
+     assert checks["items"] is False
+     assert checks["minItems"] == checks["maxItems"] == len(payload["checks"])
+ 
+diff --git a/tests/gates/test_repository_write_artifact_cas_review.py b/tests/gates/test_repository_write_artifact_cas_review.py
+index 4312c2c..4386620 100644
+--- a/tests/gates/test_repository_write_artifact_cas_review.py
++++ b/tests/gates/test_repository_write_artifact_cas_review.py
+@@ -82,12 +82,21 @@ def test_only_os_open_is_explicitly_read_only() -> None:
+     assert len(calls) == 1
+     call = calls[0]
+     assert len(call.args) >= 2
+-    flags = ast.unparse(call.args[1])
++
++    # The flag word is assembled in a local before the call, so when the
++    # argument is just that local's name, review the whole reader function.
++    argument = ast.unparse(call.args[1])
++    flags = (
++        ast.unparse(_function("_read_exact_file"))
++        if argument.isidentifier()
++        else argument
++    )
+     assert "os.O_RDONLY" in flags
+     assert "O_WRONLY" not in flags
+     assert "O_RDWR" not in flags
+     assert "O_CREAT" not in flags
+     assert "O_TRUNC" not in flags
++    assert "O_APPEND" not in flags
+ 
+ 
+ def test_locator_derivation_is_closed_and_digest_only() -> None:
+diff --git a/tests/gates/test_repository_write_artifact_verifier.py b/tests/gates/test_repository_write_artifact_verifier.py
+index 1da04f2..264945a 100644
+--- a/tests/gates/test_repository_write_artifact_verifier.py
++++ b/tests/gates/test_repository_write_artifact_verifier.py
+@@ -42,7 +42,7 @@ def _inventory(**changes) -> RepositoryWriteInventoryV2:
+                 path="daedalus/example.py",
+                 line=7,
+                 column=4,
+-                origin="project",
++                origin="base_v1",
+                 kind="path-write",
+                 callee="Path.write_text",
+                 operation="write_text",
+diff --git a/tests/gates/test_repository_write_artifact_verifier_malformed.py b/tests/gates/test_repository_write_artifact_verifier_malformed.py
+index 980cf64..cb8eefe 100644
+--- a/tests/gates/test_repository_write_artifact_verifier_malformed.py
++++ b/tests/gates/test_repository_write_artifact_verifier_malformed.py
+@@ -30,7 +30,7 @@ def _payload() -> dict:
+                 path="daedalus/example.py",
+                 line=3,
+                 column=1,
+-                origin="project",
++                origin="base_v1",
+                 kind="path-write",
+                 callee="Path.write_text",
+                 operation="write_text",
+diff --git a/tests/gates/test_repository_write_artifact_verifier_review.py b/tests/gates/test_repository_write_artifact_verifier_review.py
+index 2251bdb..464898c 100644
+--- a/tests/gates/test_repository_write_artifact_verifier_review.py
++++ b/tests/gates/test_repository_write_artifact_verifier_review.py
+@@ -7,8 +7,38 @@ import inspect
+ import daedalus.gates.repository_write_artifact_verifier as verifier
+ 
+ 
++def _source_without_docstrings(module) -> str:
++    """Module source with docstring prose stripped.
++
++    A docstring may legitimately *deny* an authority by name ("does not issue
++    OwnerApproval"); only executable code proves the module actually holds it.
++    """
++
++    source = inspect.getsource(module)
++    tree = ast.parse(source)
++    drop: set[int] = set()
++    for node in ast.walk(tree):
++        if not isinstance(
++            node,
++            (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
++        ):
++            continue
++        if ast.get_docstring(node, clean=False) is None:
++            continue
++        literal = node.body[0]
++        drop.update(
++            range(literal.lineno, (literal.end_lineno or literal.lineno) + 1)
++        )
++    return "".join(
++        line
++        for number, line in enumerate(source.splitlines(keepends=True), 1)
++        if number not in drop
++    )
++
++
+ def test_verifier_has_no_locator_resolution_release_or_effect_authority() -> None:
+     source = inspect.getsource(verifier)
++    code = _source_without_docstrings(verifier)
+     tree = ast.parse(source)
+     imported: set[str] = set()
+     called: set[str] = set()
+@@ -43,12 +73,12 @@ def test_verifier_has_no_locator_resolution_release_or_effect_authority() -> Non
+         "replace",
+     }.isdisjoint(called)
+     assert {"exec", "eval", "compile", "system", "popen"}.isdisjoint(called)
+-    assert "OwnerApproval" not in source
+-    assert "PromotionReceipt" not in source
+-    assert "Gate0ReleaseReceipt" not in source
+-    assert "begin_effect" not in source
+-    assert "resolve_locator" not in source
+-    assert "verify_signature" not in source
++    assert "OwnerApproval" not in code
++    assert "PromotionReceipt" not in code
++    assert "Gate0ReleaseReceipt" not in code
++    assert "begin_effect" not in code
++    assert "resolve_locator" not in code
++    assert "verify_signature" not in code
+ 
+ 
+ def test_verifier_rejects_non_exact_subjects_and_bytes_before_hashing() -> None:
+@@ -76,7 +106,13 @@ def test_strict_parser_reconstructs_and_compares_canonical_inventory() -> None:
+     assert "set(row) != _SURFACE_FIELDS" in source
+     assert "RepositoryWriteSurface(**row)" in source
+     assert "RepositoryWriteInventoryV2(" in source
+-    assert "payload != inventory.to_dict()" in source
++    # The canonical payload is bound to a local so the same value also fences
++    # the raw bytes; both comparisons must survive.
++    assert "canonical_payload = inventory.to_dict()" in source
++    assert "payload != canonical_payload" in source
++    assert (
++        'exact != canonical_json(canonical_payload).encode("ascii")' in source
++    )
+ 
+ 
+ def test_verifier_checks_every_artifact_inventory_binding() -> None:
+diff --git a/tests/gates/test_repository_write_artifact_verifier_types.py b/tests/gates/test_repository_write_artifact_verifier_types.py
+index e5f8c0b..60fd49d 100644
+--- a/tests/gates/test_repository_write_artifact_verifier_types.py
++++ b/tests/gates/test_repository_write_artifact_verifier_types.py
+@@ -163,9 +163,12 @@ def test_artifact_failure_count_must_match_verified_inventory() -> None:
+     artifact, report, raw = _subjects()
+     contradictory = dataclasses.replace(artifact, failure_count=1)
+     assert contradictory.failure_set_sha256 == artifact.failure_set_sha256
++    # The contradiction is refused by the artifact/GateReport-v3 cross-binding
++    # layer, which emits a stable machine-readable blocker code; the deeper
++    # inventory-level failure-count check stays as defence in depth.
+     with pytest.raises(
+         RepositoryWriteArtifactVerificationError,
+-        match="failure count contradicts evidence",
++        match="repository-write-artifact:failure-count-mismatch",
+     ):
+         _verify(contradictory, report, raw)
+ 
+diff --git a/tests/gates/test_repository_write_effect_lease.py b/tests/gates/test_repository_write_effect_lease.py
+index 6b91a1b..dafa803 100644
+--- a/tests/gates/test_repository_write_effect_lease.py
++++ b/tests/gates/test_repository_write_effect_lease.py
+@@ -79,7 +79,7 @@ def _authorization(tmp_path):
+             surface=Surface.PYTHON,
+             target="daedalus.fixture:write",
+             effects=(Effect.FILESYSTEM_WRITE,),
+-            guard_contracts=("fixture.guard",),
++            guard_contracts=("containment.attempt",),
+             wiring=Wiring.CENTRAL,
+         )
+     }
+@@ -88,6 +88,7 @@ def _authorization(tmp_path):
+         writable_paths=("candidate",),
+         timeout_s=60,
+         max_concurrency=1,
++        max_cost_microusd=0,
+         kill_switch_ref="fixture-kill",
+     )
+     request = EffectLeaseRequest(
+@@ -144,7 +145,7 @@ def _authorization(tmp_path):
+         lease_keyring={"repository-write-effect-key": SECRET},
+         guard_decisions=(
+             GuardDecision(
+-                "fixture.guard",
++                "containment.attempt",
+                 True,
+                 "artifact:sha256:" + "f" * 64,
+             ),
+@@ -226,11 +227,11 @@ def _classification(
+         (
+             EvidenceKind.GUARD_CONTRACT,
+             {
+-                "contract": "fixture.guard",
++                "contract": "containment.attempt",
+                 "implementation_target": "daedalus.fixture:guard",
+                 "implementation_sha256": "2" * 64,
+             },
+-            "fixture.guard",
++            "containment.attempt",
+         ),
+         (
+             EvidenceKind.EFFECT_LEASE_RECEIPT,
+@@ -276,7 +277,7 @@ def _classification(
+         target=TargetDisposition.CHECKOUT_EXTERNAL,
+         guard=GuardDisposition.CENTRAL,
+         production_reachable=True,
+-        guard_contracts=("fixture.guard",),
++        guard_contracts=("containment.attempt",),
+         evidence=tuple(sorted(bindings, key=EvidenceBinding.sort_key)),
+         notes="effect replay fixture",
+     )
+diff --git a/tests/gates/test_repository_write_evidence.py b/tests/gates/test_repository_write_evidence.py
+index 12ba76c..0bbb95e 100644
+--- a/tests/gates/test_repository_write_evidence.py
++++ b/tests/gates/test_repository_write_evidence.py
+@@ -187,6 +187,9 @@ def test_binding_requires_exact_v3_report() -> None:
+         gate=0,
+         source_revision=REVISION,
+         registry_sha256="a" * 64,
++        # GateReport requires an explicit security-boundary claim; there is no
++        # default, so a legacy report must still state it.
++        security_boundary_claimed=False,
+     )
+     with pytest.raises(RepositoryWriteArtifactEvidenceError, match="exact GateReportV3"):
+         artifact.report_binding_blockers(legacy)  # type: ignore[arg-type]
+diff --git a/tests/gates/test_repository_write_guard_structure_review.py b/tests/gates/test_repository_write_guard_structure_review.py
+index fba75e4..bd37d54 100644
+--- a/tests/gates/test_repository_write_guard_structure_review.py
++++ b/tests/gates/test_repository_write_guard_structure_review.py
+@@ -113,8 +113,22 @@ def test_public_verifier_reauthenticates_before_payload_projection() -> None:
+     assert chain[0] < payload[0] < structure[0]
+ 
+ 
+-def test_complete_cross_layer_digest_chain_is_rechecked() -> None:
++def _function_source(name: str) -> str:
+     source = TARGET.read_text(encoding="utf-8")
++    matches = [
++        node
++        for node in _tree().body
++        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
++        and node.name == name
++    ]
++    assert len(matches) == 1
++    return ast.get_source_segment(source, matches[0]) or ""
++
++
++def test_complete_cross_layer_digest_chain_is_rechecked() -> None:
++    # Scope the count to the chain verifier: several of these keys are also
++    # legitimate receipt fields and to_dict() keys elsewhere in the module.
++    source = _function_source("_verify_chain")
+     required = {
+         '"materialization_revision"',
+         '"materialization_classification"',
+diff --git a/tests/gates/test_repository_write_inventory_cli.py b/tests/gates/test_repository_write_inventory_cli.py
+index 0882d62..5868b8b 100644
+--- a/tests/gates/test_repository_write_inventory_cli.py
++++ b/tests/gates/test_repository_write_inventory_cli.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import json
++import os
+ import subprocess
+ import sys
+ from pathlib import Path
+@@ -11,6 +12,22 @@ ROOT = Path(__file__).resolve().parents[2]
+ SCRIPT = ROOT / "scripts" / "report_repository_write_inventory.py"
+ 
+ 
++def _env() -> dict[str, str]:
++    """Pin the subprocess to the checkout under test.
++
++    Running a script puts the script's own directory on sys.path, not the cwd,
++    so `daedalus` would otherwise resolve against whatever copy happens to be
++    installed in site-packages rather than this tree.
++    """
++
++    environment = dict(os.environ)
++    inherited = environment.get("PYTHONPATH")
++    environment["PYTHONPATH"] = (
++        f"{ROOT}{os.pathsep}{inherited}" if inherited else str(ROOT)
++    )
++    return environment
++
++
+ def _repository(tmp_path: Path, source: str) -> Path:
+     root = tmp_path / "repo"
+     package = root / "daedalus"
+@@ -24,6 +41,7 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
+     return subprocess.run(
+         [sys.executable, str(SCRIPT), *args],
+         cwd=ROOT,
++        env=_env(),
+         text=True,
+         capture_output=True,
+         check=False,
+diff --git a/tests/gates/test_repository_write_inventory_v2.py b/tests/gates/test_repository_write_inventory_v2.py
+index 876e51d..2de0f17 100644
+--- a/tests/gates/test_repository_write_inventory_v2.py
++++ b/tests/gates/test_repository_write_inventory_v2.py
+@@ -61,10 +61,20 @@ def test_generation_two_merges_base_and_stdlib_delta(tmp_path: Path) -> None:
+         "base_v1",
+         "stdlib_delta_v1",
+     }
+-    assert {surface["callee"] for surface in material["surfaces"]} >= {
+-        "pathlib.Path.write_text",
+-        "os.write",
+-    }
++    # The canonical scanner does not guess an unresolved receiver type: the
++    # `Path('state')` receiver is a call expression, so the surface is named
++    # `<expression>.write_text` rather than claiming `pathlib.Path.write_text`.
++    # It stays a blocking base surface either way.
++    write_text = next(
++        surface
++        for surface in material["surfaces"]
++        if surface["operation"] == "write_text"
++    )
++    assert write_text["origin"] == "base_v1"
++    assert write_text["kind"] == "path_mutation"
++    assert write_text["callee"] == "<expression>.write_text"
++    assert write_text["blocking"] is True
++    assert "os.write" in {surface["callee"] for surface in material["surfaces"]}
+     os_write = next(
+         surface
+         for surface in material["surfaces"]
+diff --git a/tests/gates/test_repository_write_runtime_conformance.py b/tests/gates/test_repository_write_runtime_conformance.py
+index 1130db1..891834d 100644
+--- a/tests/gates/test_repository_write_runtime_conformance.py
++++ b/tests/gates/test_repository_write_runtime_conformance.py
+@@ -411,6 +411,8 @@ def _write_tree(root: Path) -> None:
+ def _trust_ledger(
+     root: Path,
+     subject: RuntimeConformanceSubject,
++    *,
++    expires_at: datetime | None = None,
+ ) -> RuntimeTrustLedger:
+     ledger = RuntimeTrustLedger(
+         root / "runtime-trust.sqlite",
+@@ -423,7 +425,7 @@ def _trust_ledger(
+         subject.manifest,
+         trusted_envelope_sha256s=(subject.envelope.digest,),
+         admitted_at=ISSUED + timedelta(minutes=1),
+-        expires_at=ISSUED + timedelta(days=1),
++        expires_at=expires_at or (ISSUED + timedelta(days=1)),
+     )
+     return ledger
+ 
+@@ -748,7 +750,15 @@ def test_unadmitted_quarantined_and_expired_trust_fail(tmp_path: Path) -> None:
+             tmp_path,
+         )
+ 
+-    fresh = _trust_ledger(tmp_path / "fresh-ledger", subject)
++    # The origin attestations expire at ISSUED+1h and are checked earlier, so a
++    # trust record that outlives them can never reach the trust-expiry check.
++    # Expire the trust record first and evaluate while the attestation is still
++    # valid, so this case really exercises the trust binding.
++    fresh = _trust_ledger(
++        tmp_path / "fresh-ledger",
++        subject,
++        expires_at=ISSUED + timedelta(minutes=30),
++    )
+     with pytest.raises(
+         RepositoryWriteRuntimeConformanceBindingError,
+         match="trust record is expired",
+@@ -761,7 +771,7 @@ def test_unadmitted_quarantined_and_expired_trust_fail(tmp_path: Path) -> None:
+             {subject.receipt.digest: subject},
+             {RUNTIME_ID: fresh},
+             tmp_path,
+-            now=ISSUED + timedelta(days=1),
++            now=ISSUED + timedelta(minutes=45),
+         )
+ 
+ 
+diff --git a/tests/gates/test_repository_write_stdlib_delta.py b/tests/gates/test_repository_write_stdlib_delta.py
+index 9aa319a..02221d8 100644
+--- a/tests/gates/test_repository_write_stdlib_delta.py
++++ b/tests/gates/test_repository_write_stdlib_delta.py
+@@ -4,6 +4,9 @@ from pathlib import Path
+ 
+ import pytest
+ 
++from daedalus.gates.repository_write_inventory_v2 import (
++    scan_repository_write_surfaces_v2,
++)
+ from daedalus.gates.repository_write_stdlib_delta import (
+     RepositoryWriteStdlibDeltaError,
+     scan_repository_write_stdlib_delta,
+@@ -29,12 +32,7 @@ def _findings(tmp_path: Path, source: str):
+     ).findings
+ 
+ 
+-def test_compressed_and_archive_writers_are_not_laundered_as_path_open(
+-    tmp_path: Path,
+-) -> None:
+-    findings = _findings(
+-        tmp_path,
+-        """
++COMPRESSED_AND_ARCHIVE_SOURCE = """
+ import bz2
+ import gzip as compression
+ import lzma
+@@ -49,25 +47,45 @@ zipfile.ZipFile('a.zip', mode='x')
+ compression.open('read.gz', 'rb')
+ tarfile.open('read.tar')
+ zipfile.ZipFile('read.zip')
+-""",
+-    )
++"""
+ 
+-    assert [finding.callee for finding in findings] == [
+-        "gzip.open",
+-        "bz2.open",
+-        "lzma.open",
+-        "tarfile.open",
+-        "zipfile.ZipFile",
+-    ]
+-    assert [finding.kind for finding in findings] == [
+-        "archive_or_compressed_write",
+-        "archive_or_compressed_write",
+-        "ambiguous_archive_or_compressed_mode",
+-        "archive_or_compressed_write",
+-        "archive_or_compressed_write",
+-    ]
++
++def test_compressed_and_archive_writers_are_not_laundered_as_path_open(
++    tmp_path: Path,
++) -> None:
++    findings = _findings(tmp_path, COMPRESSED_AND_ARCHIVE_SOURCE)
++
++    # The canonical scanner has absorbed the compressed/archive opener family,
++    # so the additive delta must no longer double-report those positions.  Only
++    # the family the base scanner still misses stays in the delta.
++    assert [finding.callee for finding in findings] == ["zipfile.ZipFile"]
++    assert [finding.kind for finding in findings] == ["archive_or_compressed_write"]
+     assert all(finding.to_dict()["blocking"] is True for finding in findings)
+ 
++    # The anti-laundering property itself is now proven on the merged v2
++    # inventory: every writer keeps a precise callee and stays blocking, and
++    # none of them is downgraded to a generic path-open surface.
++    inventory = scan_repository_write_surfaces_v2(
++        _repository(tmp_path / "merged", COMPRESSED_AND_ARCHIVE_SOURCE),
++        source_revision=REVISION,
++    )
++    writers = {
++        (surface.callee, surface.kind)
++        for surface in inventory.surfaces
++        if surface.blocking
++    }
++    assert ("gzip.open", "write_mode_open") in writers
++    assert ("bz2.open", "write_mode_open") in writers
++    assert ("lzma.open", "write_mode_open") in writers
++    assert ("tarfile.open", "write_mode_open") in writers
++    assert ("zipfile.ZipFile", "archive_or_compressed_write") in writers
++    assert not any(
++        surface.kind == "path-open"
++        for surface in inventory.surfaces
++        if surface.callee
++        in {"gzip.open", "bz2.open", "lzma.open", "tarfile.open", "zipfile.ZipFile"}
++    )
++
+ 
+ def test_fd_temp_archive_and_stream_sinks_are_blocking(tmp_path: Path) -> None:
+     findings = _findings(
+@@ -141,10 +159,7 @@ futures.ProcessPoolExecutor()
+     )
+ 
+ 
+-def test_aliases_and_rebindings_fail_closed(tmp_path: Path) -> None:
+-    findings = _findings(
+-        tmp_path,
+-        """
++ALIAS_AND_REBINDING_SOURCE = """
+ from gzip import open as compressed_open
+ from os import write
+ 
+@@ -153,15 +168,35 @@ write(fd, b'x')
+ 
+ def use(write):
+     write(fd, b'x')
+-""",
+-    )
++"""
++
++
++def test_aliases_and_rebindings_fail_closed(tmp_path: Path) -> None:
++    findings = _findings(tmp_path, ALIAS_AND_REBINDING_SOURCE)
+ 
++    # The aliased `from gzip import open as compressed_open` callsite is now
++    # owned by the canonical scanner, so only the rebound `write` names are
++    # left for the additive delta to report.
+     assert [finding.kind for finding in findings] == [
+-        "archive_or_compressed_write",
+         "ambiguous_stdlib_binding",
+         "ambiguous_stdlib_binding",
+     ]
+ 
++    # Fail-closed is the property under test: no aliased or rebound name may
++    # escape the merged inventory, and every one of them stays blocking.
++    inventory = scan_repository_write_surfaces_v2(
++        _repository(tmp_path / "merged", ALIAS_AND_REBINDING_SOURCE),
++        source_revision=REVISION,
++    )
++    assert [
++        (surface.line, surface.callee, surface.kind) for surface in inventory.surfaces
++    ] == [
++        (5, "gzip.open", "ambiguous_binding"),
++        (6, "write", "ambiguous_stdlib_binding"),
++        (9, "write", "ambiguous_stdlib_binding"),
++    ]
++    assert len(inventory.blockers) == 3
++
+ 
+ def test_delta_is_bound_to_base_inventory_and_all_production_bytes(
+     tmp_path: Path,
+diff --git a/tests/gates/test_repository_write_stdlib_delta_cli_schema.py b/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
+index 12382ee..c9fc476 100644
+--- a/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
++++ b/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import json
++import os
+ import subprocess
+ import sys
+ from pathlib import Path
+@@ -28,6 +29,22 @@ def _repository(tmp_path: Path, source: str) -> Path:
+     return root
+ 
+ 
++def _env() -> dict[str, str]:
++    """Pin the subprocess to the checkout under test.
++
++    Running a script puts the script's own directory on sys.path, not the cwd,
++    so `daedalus` would otherwise resolve against whatever copy happens to be
++    installed in site-packages rather than this tree.
++    """
++
++    environment = dict(os.environ)
++    inherited = environment.get("PYTHONPATH")
++    environment["PYTHONPATH"] = (
++        f"{ROOT}{os.pathsep}{inherited}" if inherited else str(ROOT)
++    )
++    return environment
++
++
+ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+     return subprocess.run(
+         [
+@@ -40,6 +57,7 @@ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+             *extra,
+         ],
+         cwd=ROOT,
++        env=_env(),
+         text=True,
+         capture_output=True,
+         check=False,
+@@ -47,9 +65,12 @@ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+ 
+ 
+ def test_cli_emits_one_canonical_open_delta(tmp_path: Path) -> None:
++    # gzip/bz2/lzma/tarfile openers are owned by the canonical scanner now, so
++    # they no longer reach the additive delta.  zipfile is the archive family
++    # the base scanner still misses, which is exactly what the delta reports.
+     repository = _repository(
+         tmp_path,
+-        "import gzip\ngzip.open('state.gz', 'wb')\n",
++        "import zipfile\nzipfile.ZipFile('state.zip', 'w')\n",
+     )
+ 
+     result = _run(repository)

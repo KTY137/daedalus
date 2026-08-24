@@ -63,10 +63,13 @@ def _consumed(*, approval_id: str, promotion_id: str) -> ConsumedOwnerApproval:
 
 
 @pytest.mark.xfail(strict=True, reason=(
-    "OWNER ACTION PENDING (D5, 7d7a919e, predicted 2026-08-22 10:31Z): the "
-    "signed-tag trust root needs .agentenv/promotion_allowed_signers, which "
-    "only the owner may land. strict=True: the day the owner acts, these "
-    "PASS and the marks must be removed in the same commit."))
+    "FIXTURE SIGNING MISSING (measured 2026-08-24, unification merge): the "
+    "owner HAS landed .agentenv/promotion_allowed_signers (897405d0), and "
+    "these still fail -- their temp repos cannot mint a git-SIGNED tag for "
+    "the trust root to verify, which needs a signing key in the test "
+    "environment. The owed work is test infrastructure (a throwaway signing "
+    "identity per fixture), not an owner act. strict=True stands: the day "
+    "the fixtures can sign, these PASS and the marks come off."))
 def test_review_refuses_ledger_that_substitutes_another_capability(
     tmp_path,
     monkeypatch,

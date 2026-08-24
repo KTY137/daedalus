@@ -1,0 +1,117 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(ssh Administrator@100.119.126.9:*)"
+    ],
+    "defaultMode": "bypassPermissions",
+    "additionalDirectories": [
+      "C:\\Users\\nukei\\Desktop\\agent_env_g0",
+      "C:\\Users\\nukei\\Desktop"
+    ]
+  },
+  "model": "claude-fable-5[1m]",
+  "fallbackModel": [
+    "claude-sonnet-5",
+    "claude-haiku-4-5"
+  ],
+  "enableAllProjectMcpServers": true,
+  "teammateMode": "in-process",
+  "cleanupPeriodDays": 99,
+  "statusLine": {
+    "type": "command",
+    "command": "python c:/Users/nukei/Desktop/agent_env/.claude/proposals/statusline.py"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:/Users/nukei/Desktop/agent_env/runs/council/stream_hook.py user"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:/Users/nukei/Desktop/agent_env/daedalus/shift_hook.py"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:/Users/nukei/Desktop/agent_env/daedalus/arch_hook.py"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:/Users/nukei/Desktop/agent_env/daedalus/crew_hook.py"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:/Users/nukei/Desktop/agent_env/.claude/hooks/serena-first.py",
+            "timeout": 10,
+            "statusMessage": "Routing symbol work through Serena..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:/Users/nukei/Desktop/agent_env/.claude/proposals/hook_precompact_vault.py",
+            "timeout": 15,
+            "statusMessage": "Saving context audit to the vault..."
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|agent_needs_input",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:/Users/nukei/Desktop/agent_env/.claude/proposals/hook_notification_toast.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:/Users/nukei/Desktop/agent_env/runs/council/stream_hook.py assistant"
+          }
+        ]
+      }
+    ]
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "xhigh",
+  "askUserQuestionTimeout": "10m",
+  "autoUpdatesChannel": "latest",
+  "theme": "dark",
+  "switchModelsOnFlag": true,
+  "agentPushNotifEnabled": true
+}

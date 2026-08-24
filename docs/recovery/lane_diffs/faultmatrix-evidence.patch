@@ -1,0 +1,258 @@
+diff --git a/daedalus/gates/fault_matrix.py b/daedalus/gates/fault_matrix.py
+index b8d940a..d5aaa6d 100644
+--- a/daedalus/gates/fault_matrix.py
++++ b/daedalus/gates/fault_matrix.py
+@@ -12,10 +12,17 @@ from dataclasses import dataclass
+ from typing import Any, Mapping, Sequence
+ 
+ from daedalus.gates.evidence import FaultMatrixEvidence
+-from daedalus.schemas import _identifier, _revision, _sha256
++from daedalus.schemas import (
++    ContractProvenance,
++    _identifier,
++    _revision,
++    _sha256,
++    _utc_timestamp,
++)
+ from daedalus.spine.envelope import canonical_sha
+ 
+ FINGERPRINT_ALGORITHM = "daedalus-fault-injection-fingerprint/1"
++EVIDENCE_PROJECTION_ORIGIN = "daedalus.gates.fault_matrix.verify_fault_matrix_run"
+ _REVISION_40 = re.compile(r"^[0-9a-f]{40}$")
+ _OUTCOMES = frozenset(
+     {
+@@ -73,6 +80,15 @@ def _exact_digest(value: Any, label: str) -> str:
+         raise FaultMatrixShapeError(f"{label} is malformed") from exc
+ 
+ 
++def _exact_timestamp(value: Any, label: str) -> str:
++    if type(value) is not str:
++        raise FaultMatrixShapeError(f"{label} must be an exact string")
++    try:
++        return _utc_timestamp(value, label)
++    except (TypeError, ValueError) as exc:
++        raise FaultMatrixShapeError(f"{label} is malformed") from exc
++
++
+ def _identifier_tuple(
+     value: Any,
+     label: str,
+@@ -780,7 +796,9 @@ class FaultMatrixVerificationReceipt:
+         expected_harness_revision: str,
+         expected_harness_runtime_sha256: str,
+         expected_toolchain_manifest_sha256: str,
++        executed_at: str,
+     ) -> FaultMatrixEvidence:
++        executed = _exact_timestamp(executed_at, "executed_at")
+         exact = verify_fault_matrix_run(
+             manifest,
+             receipts,
+@@ -799,12 +817,24 @@ class FaultMatrixVerificationReceipt:
+             raise FaultMatrixBindingError(
+                 "failed fault matrix cannot become passing Gate evidence"
+             )
++        matrix_sha256 = self.digest
+         return FaultMatrixEvidence(
+             matrix_id=self.matrix_id,
+             status="passed",
+             scenario_ids=tuple(item.scenario_id for item in manifest.scenarios),
+-            failure_count=0,
++            matrix_sha256=matrix_sha256,
+             source_revision=self.source_revision,
++            executed_at=executed,
++            provenance=ContractProvenance(
++                origin=EVIDENCE_PROJECTION_ORIGIN,
++                source_revision=self.source_revision,
++                created_at=executed,
++                input_digests=(
++                    matrix_sha256,
++                    self.manifest_sha256,
++                    *self.scenario_receipt_sha256s,
++                ),
++            ),
+         )
+ 
+     @property
+@@ -920,6 +950,7 @@ def verify_fault_matrix_run(
+ 
+ 
+ __all__ = [
++    "EVIDENCE_PROJECTION_ORIGIN",
+     "FINGERPRINT_ALGORITHM",
+     "FaultMatrixBindingError",
+     "FaultMatrixContractError",
+diff --git a/tests/gates/test_fault_matrix_contract.py b/tests/gates/test_fault_matrix_contract.py
+index 5570c19..d7f35ca 100644
+--- a/tests/gates/test_fault_matrix_contract.py
++++ b/tests/gates/test_fault_matrix_contract.py
+@@ -9,6 +9,7 @@ import pytest
+ 
+ from daedalus.gates.evidence import FaultMatrixEvidence
+ from daedalus.gates.fault_matrix import (
++    EVIDENCE_PROJECTION_ORIGIN,
+     FINGERPRINT_ALGORITHM,
+     FaultMatrixBindingError,
+     FaultMatrixManifest,
+@@ -26,6 +27,7 @@ MANIFEST_PATH = Path(
+ HARNESS_REVISION = "2" * 40
+ RUNTIME_SHA256 = "3" * 64
+ TOOLCHAIN_SHA256 = "4" * 64
++EXECUTED_AT = "2026-08-17T09:30:00+00:00"
+ 
+ 
+ def _sha(value: str) -> str:
+@@ -177,16 +179,106 @@ def test_exact_complete_run_round_trips_and_projects_existing_gate_evidence() ->
+         expected_harness_revision=HARNESS_REVISION,
+         expected_harness_runtime_sha256=RUNTIME_SHA256,
+         expected_toolchain_manifest_sha256=TOOLCHAIN_SHA256,
++        executed_at=EXECUTED_AT,
+     )
+     assert type(evidence) is FaultMatrixEvidence
+     assert evidence.status == "passed"
+-    assert evidence.failure_count == 0
++    assert verification.failure_count == 0
+     assert evidence.scenario_ids == tuple(
+         item.scenario_id for item in manifest.scenarios
+     )
+     assert evidence.source_revision == manifest.source_revision
+ 
+ 
++def test_passing_projection_yields_a_complete_content_addressed_evidence_record() -> None:
++    manifest = _manifest()
++    receipts = _receipts(manifest)
++    verification = _verify(manifest, receipts)
++
++    evidence = verification.to_fault_matrix_evidence(
++        manifest,
++        receipts,
++        expected_source_revision=manifest.source_revision,
++        expected_harness_revision=HARNESS_REVISION,
++        expected_harness_runtime_sha256=RUNTIME_SHA256,
++        expected_toolchain_manifest_sha256=TOOLCHAIN_SHA256,
++        executed_at=EXECUTED_AT,
++    )
++
++    # The evidence is addressed to the exact verified run, not to the plan and
++    # not to a caller-supplied digest.
++    assert evidence.matrix_sha256 == verification.digest
++    assert evidence.matrix_sha256 != verification.manifest_sha256
++    assert evidence.matrix_id == verification.matrix_id
++    assert evidence.status == "passed"
++    assert evidence.executed_at == "2026-08-17T09:30:00.000000+00:00"
++
++    # Provenance agrees with the record and binds every verifier input.
++    assert evidence.provenance.origin == EVIDENCE_PROJECTION_ORIGIN
++    assert evidence.provenance.source_revision == manifest.source_revision
++    assert evidence.provenance.created_at == evidence.executed_at
++    assert set(evidence.provenance.input_digests) == {
++        verification.digest,
++        manifest.digest,
++        *(item.digest for item in receipts),
++    }
++
++    # It survives the canonical wire and is deterministic.
++    payload = evidence.to_dict()
++    assert FaultMatrixEvidence.from_dict(payload) == evidence
++    assert evidence.digest == FaultMatrixEvidence.from_dict(payload).digest
++    assert verification.to_fault_matrix_evidence(
++        manifest,
++        receipts,
++        expected_source_revision=manifest.source_revision,
++        expected_harness_revision=HARNESS_REVISION,
++        expected_harness_runtime_sha256=RUNTIME_SHA256,
++        expected_toolchain_manifest_sha256=TOOLCHAIN_SHA256,
++        executed_at=EXECUTED_AT,
++    ) == evidence
++
++    # A different run of the same manifest cannot reuse the same evidence
++    # identity.
++    other_receipts = tuple(
++        _receipt(manifest, spec, artifact_suffix="second-run")
++        for spec in manifest.scenarios
++    )
++    other = _verify(manifest, other_receipts).to_fault_matrix_evidence(
++        manifest,
++        other_receipts,
++        expected_source_revision=manifest.source_revision,
++        expected_harness_revision=HARNESS_REVISION,
++        expected_harness_runtime_sha256=RUNTIME_SHA256,
++        expected_toolchain_manifest_sha256=TOOLCHAIN_SHA256,
++        executed_at=EXECUTED_AT,
++    )
++    assert other.matrix_sha256 != evidence.matrix_sha256
++
++
++def test_projection_refuses_a_missing_or_malformed_execution_timestamp() -> None:
++    manifest = _manifest()
++    receipts = _receipts(manifest)
++    verification = _verify(manifest, receipts)
++    kwargs = {
++        "expected_source_revision": manifest.source_revision,
++        "expected_harness_revision": HARNESS_REVISION,
++        "expected_harness_runtime_sha256": RUNTIME_SHA256,
++        "expected_toolchain_manifest_sha256": TOOLCHAIN_SHA256,
++    }
++
++    with pytest.raises(TypeError):
++        verification.to_fault_matrix_evidence(manifest, receipts, **kwargs)
++
++    for value in ("", "not-a-time", "2026-08-17T09:30:00", 1755423000, None):
++        with pytest.raises(FaultMatrixShapeError):
++            verification.to_fault_matrix_evidence(
++                manifest,
++                receipts,
++                executed_at=value,
++                **kwargs,
++            )
++
++
+ def test_missing_extra_duplicate_and_duplicate_artifact_fail_closed() -> None:
+     manifest = _manifest()
+     receipts = _receipts(manifest)
+@@ -202,6 +294,7 @@ def test_missing_extra_duplicate_and_duplicate_artifact_fail_closed() -> None:
+             expected_harness_revision=HARNESS_REVISION,
+             expected_harness_runtime_sha256=RUNTIME_SHA256,
+             expected_toolchain_manifest_sha256=TOOLCHAIN_SHA256,
++            executed_at=EXECUTED_AT,
+         )
+ 
+     extra_spec = FaultScenarioSpec(
+@@ -332,6 +425,7 @@ def test_forged_passing_projection_receipt_is_reverified_not_trusted() -> None:
+             expected_harness_revision=HARNESS_REVISION,
+             expected_harness_runtime_sha256=RUNTIME_SHA256,
+             expected_toolchain_manifest_sha256=TOOLCHAIN_SHA256,
++            executed_at=EXECUTED_AT,
+         )
+ 
+ 
+diff --git a/tests/gates/test_fault_matrix_contract_review.py b/tests/gates/test_fault_matrix_contract_review.py
+index 617f1ae..03e3b93 100644
+--- a/tests/gates/test_fault_matrix_contract_review.py
++++ b/tests/gates/test_fault_matrix_contract_review.py
+@@ -177,8 +177,25 @@ def test_projection_reverifies_the_exact_run_before_gate_evidence() -> None:
+     assert "if exact != self" in source
+     assert "self.status != 'passed'" in source
+     assert "status='passed'" in source
+-    assert "failure_count=0" in source
+     assert "item.scenario_id for item in manifest.scenarios" in source
++    # The evidence is content addressed to the exact verified run, never to a
++    # caller-supplied digest and never to the manifest plan alone.
++    assert "matrix_sha256 = self.digest" in source
++    assert "matrix_sha256=matrix_sha256" in source
++    # The projection may not invent a clock; the timestamp is an argument that
++    # the provenance record must agree with.
++    assert "executed_at: str" in source
++    assert "executed = _exact_timestamp(executed_at, 'executed_at')" in source
++    assert "executed_at=executed" in source
++    assert "created_at=executed" in source
++    # Provenance binds the projected digest plus every verifier input.
++    assert "provenance=ContractProvenance(" in source
++    assert "origin=EVIDENCE_PROJECTION_ORIGIN" in source
++    assert "source_revision=self.source_revision" in source
++    assert (
++        "input_digests=(matrix_sha256, self.manifest_sha256, "
++        "*self.scenario_receipt_sha256s)"
++    ) in source
+ 
+ 
+ def test_verification_wire_never_authorizes_gate_or_closure() -> None:

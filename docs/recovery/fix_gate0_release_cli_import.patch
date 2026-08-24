@@ -1,0 +1,13 @@
+diff --git a/tests/gates/test_gate0_release_cli.py b/tests/gates/test_gate0_release_cli.py
+index 5897b61..74f0bf0 100644
+--- a/tests/gates/test_gate0_release_cli.py
++++ b/tests/gates/test_gate0_release_cli.py
+@@ -9,7 +9,7 @@ from pathlib import Path
+ 
+ import pytest
+ 
+-from daedalus.gates.evidence import load_gate_evidence_index
++from daedalus.gates import load_gate_evidence_index
+ from daedalus.gates.release import load_gate0_release_receipt
+ from daedalus.gates.trust_bundle import load_evidence_trust_bundle
+ 

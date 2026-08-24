@@ -1,0 +1,86 @@
+diff --git a/configs/schemas/fault-matrix-contract.schema.json b/configs/schemas/fault-matrix-contract.schema.json
+index 6a61321..e2674ef 100644
+--- a/configs/schemas/fault-matrix-contract.schema.json
++++ b/configs/schemas/fault-matrix-contract.schema.json
+@@ -197,6 +197,7 @@
+         "fingerprints_verified",
+         "restart_policies_verified",
+         "process_termination_verified",
++        "exact_durable_states_verified",
+         "runtime_toolchain_verified",
+         "primary_checkout_unchanged",
+         "automatic_reexecution_absent",
+@@ -226,6 +227,7 @@
+         "fingerprints_verified": { "type": "boolean" },
+         "restart_policies_verified": { "type": "boolean" },
+         "process_termination_verified": { "type": "boolean" },
++        "exact_durable_states_verified": { "type": "boolean" },
+         "runtime_toolchain_verified": { "type": "boolean" },
+         "primary_checkout_unchanged": { "type": "boolean" },
+         "automatic_reexecution_absent": { "type": "boolean" },
+@@ -245,6 +247,7 @@
+             "fingerprints_verified": { "const": true },
+             "restart_policies_verified": { "const": true },
+             "process_termination_verified": { "const": true },
++            "exact_durable_states_verified": { "const": true },
+             "runtime_toolchain_verified": { "const": true },
+             "primary_checkout_unchanged": { "const": true },
+             "automatic_reexecution_absent": { "const": true },
+@@ -258,6 +261,7 @@
+             "fingerprints_verified": { "const": false },
+             "restart_policies_verified": { "const": false },
+             "process_termination_verified": { "const": false },
++            "exact_durable_states_verified": { "const": false },
+             "runtime_toolchain_verified": { "const": false },
+             "primary_checkout_unchanged": { "const": false },
+             "automatic_reexecution_absent": { "const": false },
+diff --git a/daedalus/gates/fault_matrix.py b/daedalus/gates/fault_matrix.py
+index b8d940a..6e34534 100644
+--- a/daedalus/gates/fault_matrix.py
++++ b/daedalus/gates/fault_matrix.py
+@@ -689,6 +689,7 @@ class FaultMatrixVerificationReceipt:
+             "fingerprints_verified": passed,
+             "restart_policies_verified": passed,
+             "process_termination_verified": passed,
++            "exact_durable_states_verified": passed,
+             "runtime_toolchain_verified": passed,
+             "primary_checkout_unchanged": passed,
+             "automatic_reexecution_absent": passed,
+@@ -721,6 +722,7 @@ class FaultMatrixVerificationReceipt:
+             "fingerprints_verified",
+             "restart_policies_verified",
+             "process_termination_verified",
++            "exact_durable_states_verified",
+             "runtime_toolchain_verified",
+             "primary_checkout_unchanged",
+             "automatic_reexecution_absent",
+@@ -889,7 +891,7 @@ def verify_fault_matrix_run(
+             and receipt.observed_restart_policy == spec.restart_policy
+             and receipt.process_termination_observed
+             is spec.process_termination
+-            and set(spec.expected_durable_markers).issubset(observed_markers)
++            and receipt.durable_markers == spec.expected_durable_markers
+             and set(spec.forbidden_durable_markers).isdisjoint(
+                 observed_markers
+             )
+diff --git a/tests/gates/test_fault_matrix_contract_review.py b/tests/gates/test_fault_matrix_contract_review.py
+index 617f1ae..94d9237 100644
+--- a/tests/gates/test_fault_matrix_contract_review.py
++++ b/tests/gates/test_fault_matrix_contract_review.py
+@@ -161,7 +161,7 @@ def test_verifier_requires_exact_inventory_subjects_and_run_metadata() -> None:
+     assert "receipt.observed_outcome == spec.expected_outcome" in source
+     assert "receipt.observed_restart_policy == spec.restart_policy" in source
+     assert "receipt.process_termination_observed is spec.process_termination" in source
+-    assert "set(spec.expected_durable_markers).issubset(observed_markers)" in source
++    assert "receipt.durable_markers == spec.expected_durable_markers" in source
+     assert "set(spec.forbidden_durable_markers).isdisjoint(observed_markers)" in source
+     assert "receipt.primary_checkout_before_sha256 == receipt.primary_checkout_after_sha256" in source
+     assert "receipt.automatic_reexecution_performed is False" in source
+@@ -192,6 +192,7 @@ def test_verification_wire_never_authorizes_gate_or_closure() -> None:
+         "fingerprints_verified",
+         "restart_policies_verified",
+         "process_termination_verified",
++        "exact_durable_states_verified",
+         "runtime_toolchain_verified",
+         "primary_checkout_unchanged",
+         "automatic_reexecution_absent",
