@@ -28,19 +28,36 @@ docstring. This mirrors the disclosed, one-place coupling s06 already
 carries to s01 (README, slice s06, "Honest caveats").
 
 **What this adapter refuses to do.** It does not fabricate a ``full`` or
-``fusion`` arm. No cross-plane fusion retriever exists anywhere in this
-program (s07, s08, s09 all ship none -- ``s10_kill/measured_inputs.py``
-records the same fact about s08, independently). It does not force an
-honest baseline into a role that misdescribes its mechanism: of the five
-baselines ``s09_eval/retrievers.py`` ships, only two have an s10 role that
-actually names what they measure (``bm25``: a lexical baseline;
+``fusion`` arm out of an honest baseline that does not deserve one. It does
+not force a baseline into a role that misdescribes its mechanism: of the
+five baselines ``s09_eval/retrievers.py`` ships, only two have an s10 role
+that actually names what they measure (``bm25``: a lexical baseline;
 ``random_uniform``: a random selection control). The other three
 (``recency_prior``, ``path_lexical``, ``bm25_content_only``) are left out,
-by name, with the reason -- see ``EXCLUDED_ARMS`` below. Declaring them
-under a role that fits the schema but not the mechanism would repeat
+by name, with the reason -- see ``EXCLUDED_ARMS`` below. Declaring any of
+them under a role that fits the schema but not the mechanism would repeat
 exactly the substituted-comparator defect the README spends pages warning
 about (``test_no_arm_of_a_measured_run_is_labelled_fusion`` and the
 joint-BM25-index-labelled-fusion near-miss in slice s10).
+
+**Updated 2026-08-24 (s11 continuation): a real fusion arm now exists, and
+it is included honestly.** ``experiments/forest_v2/s11_fusion/
+fusion_retrievers.py`` builds separate per-plane BM25 indices (code, data,
+knowledge) and combines their rankings with Reciprocal Rank Fusion --
+genuinely holding per-plane scores before combining them, not a joint
+index and not a concatenation. ``FUSION_RETRIEVER_ROLES`` below emits it
+under BOTH ``full`` and ``fusion`` (``s10_kill/schema.py``'s own
+``KNOWN_ROLES`` docstring anticipates this: ``"fusion" # cross-plane
+fusion (may be the same system as full)``), plus a genuine ``code_only``
+arm (``CodeOnlyRetriever``, the code plane alone) and a genuine
+``separate_indices`` comparator (``SeparateIndicesRetriever``, the SAME
+three per-plane indices concatenated in a fixed order with no score ever
+compared across planes -- the honest 14.3 baseline). Unlike the five s09
+baselines, ``returned_plane_counts`` for these three is not declared
+absent: ``run_xplane_harness.py`` and ``harness.py`` were both extended in
+the same beat to capture it from any retriever exposing the attribute (see
+their module docstrings), so ``build_fusion_arm`` reads real measured
+per-plane return counts rather than omitting the field.
 
 **Where the scores come from.** Every value in the emitted document is read
 from ``raw['per_case']`` -- the harness's own ``metrics.score_case`` output,
@@ -140,17 +157,61 @@ EXCLUDED_ARMS: Dict[str, str] = {
 #: gap independently). Declaring "type" here would be an undischarged claim.
 RETURNS_PLANES: Tuple[str, ...] = ("code", "data", "knowledge")
 
-#: Restated, not imported, for the same reason as SCHEMA_ID above.
-NO_FUSION_ARM_ANYWHERE = (
-    "no cross-plane fusion retriever exists anywhere in this program: s07 "
-    "ships a lexical index only, s08 ships LexicalRetriever / "
+#: UPDATED 2026-08-24: this used to say "no cross-plane fusion retriever
+#: exists anywhere in this program" and that was true when it was written.
+#: It no longer is -- s11_fusion.fusion_retrievers.FusionRetriever exists
+#: and is included below. The claim that survives, restated rather than
+#: quietly deleted so the correction is auditable: none of s07's, s08's or
+#: s09's OWN native retrievers combine per-plane scores. s10_kill/
+#: measured_inputs.py's identical statement about s08 alone is unaffected --
+#: it was never about this module's arms.
+NO_FUSION_ARM_NATIVE_TO_S07_S08_S09 = (
+    "none of s07's, s08's or s09's OWN native retrievers combine per-plane "
+    "scores: s07 ships a lexical index only, s08 ships LexicalRetriever / "
     "CodeGraphRetriever / FourPlaneNoFusionRetriever / UnionNoFusionRetriever "
-    "/ SinglePlaneOracleRetriever (none of them combines per-plane scores), "
-    "s09 ships random_uniform / path_lexical / bm25 / bm25_content_only / "
-    "recency_prior. s10_kill/measured_inputs.py records the identical fact "
-    "about s08 independently; this is not a new finding, it is the same one "
-    "confirmed a third time."
+    "/ SinglePlaneOracleRetriever, s09 ships random_uniform / path_lexical / "
+    "bm25 / bm25_content_only / recency_prior. s10_kill/measured_inputs.py "
+    "records the identical fact about s08 independently. The fusion, "
+    "code_only and separate_indices arms in THIS run come from a separate "
+    "slice, s11_fusion, added 2026-08-24 specifically to supply one."
 )
+
+#: Backward-compatible alias: kept so a caller (or a re-read of an older
+#: emitted document's source string) that names the old constant still
+#: finds something, but its value is corrected rather than frozen wrong.
+NO_FUSION_ARM_ANYWHERE = NO_FUSION_ARM_NATIVE_TO_S07_S08_S09
+
+#: The mechanism string s10_kill/schema.py names FUSION_MECHANISM.
+#: Hand-tracked by value, not imported, for the identical reason SCHEMA_ID
+#: is above: this module keeps s10_kill's own "no import edge" rule even
+#: though it is the one place that could break it (test_to_s10.py's
+#: end-to-end test is where that boundary crossing is disclosed instead).
+FUSION_MECHANISM = "cross_plane_score_fusion"
+
+#: s11_fusion retriever name -> the s10 role(s) it is honestly entitled to.
+#: ``fusion_rrf`` gets BOTH ``full`` and ``fusion`` -- s10_kill/schema.py's
+#: own KNOWN_ROLES docstring says a fusion arm "may be the same system as
+#: full", and it is the only cross-plane-combining retriever in this
+#: program, so it is the only candidate for either role.  ``full`` is
+#: compared against code_only/bm25 (14.1); ``fusion`` is compared against
+#: separate_indices (14.3) -- two different comparisons, so labelling one
+#: retriever's identical scores under both roles is not double-counting
+#: evidence toward either verdict.
+FUSION_RETRIEVER_ROLES: Dict[str, Tuple[str, ...]] = {
+    "fusion_rrf": ("full", "fusion"),
+    "code_only_bm25": ("code_only",),
+    "separate_indices_bm25": ("separate_indices",),
+}
+
+#: retriever name -> (mechanism, combines_planes, returns_planes). All three
+#: read the SAME real per-plane BM25 sub-indices (see
+#: s11_fusion/fusion_retrievers.py); mechanism and combines_planes describe
+#: what each one does with them.
+FUSION_RETRIEVER_ATTESTATION: Dict[str, Tuple[str, Tuple[str, ...], Tuple[str, ...]]] = {
+    "fusion_rrf": (FUSION_MECHANISM, ("code", "data", "knowledge"), ("code", "data", "knowledge")),
+    "code_only_bm25": ("single_plane", (), ("code",)),
+    "separate_indices_bm25": ("per_plane_topk_concat", (), ("code", "data", "knowledge")),
+}
 
 
 class AdapterError(ValueError):
@@ -215,6 +276,65 @@ def build_arm(
     }
 
 
+#: implementation string prefix for the s11 arms, distinct from
+#: IMPLEMENTATION above (which names s09_eval/retrievers.py -- the fusion
+#: retrievers live in a different module and attributing their scores to
+#: retrievers.py would misname the code that actually produced them).
+FUSION_IMPLEMENTATION = "experiments/forest_v2/s11_fusion/fusion_retrievers.py"
+
+
+def build_fusion_arm(
+    raw: Mapping[str, object], retriever: str, variant: str, role: str
+) -> Dict[str, object]:
+    """Build one arm for an s11_fusion retriever, under one of its honest roles.
+
+    Unlike ``build_arm`` (the two plain s09 baselines), this reads
+    ``returned_plane_counts`` from ``raw['returned_plane_counts']`` when the
+    harness run captured it (``run_xplane_harness.py`` / ``harness.py``,
+    updated in the same beat as this function) -- a real measurement, not a
+    declared absence.  A retriever this adapter does not recognise here
+    (i.e. not in ``FUSION_RETRIEVER_ATTESTATION``) is a programming error in
+    the caller, not an input to guess about, so it raises rather than
+    defaulting to something plausible-looking.
+    """
+    if retriever not in FUSION_RETRIEVER_ATTESTATION:
+        raise AdapterError(
+            f"{retriever!r} is not a known s11_fusion retriever "
+            f"({sorted(FUSION_RETRIEVER_ATTESTATION)})"
+        )
+    scores = _arm_scores(raw, retriever, variant)
+    if not scores:
+        raise AdapterError(
+            f"{retriever!r} has no per_case rows for variant {variant!r} in this run"
+        )
+    mechanism, combines_planes, returns_planes = FUSION_RETRIEVER_ATTESTATION[retriever]
+    measured_counts = (raw.get("returned_plane_counts") or {}).get(retriever, {}).get(variant)
+    return {
+        "arm_id": f"{retriever}/{variant}#{role}",
+        "role": role,
+        "variant": variant,
+        "notes": (
+            f"s11_fusion retriever {retriever!r}, real harness output (not a rebuild "
+            f"from aggregates); {PRIMARY_METRIC} per case under the harness's "
+            f"budget-equality rules, identical candidate universe and content cap "
+            f"as every other arm in the same run. Emitted under role {role!r}; see "
+            f"FUSION_RETRIEVER_ROLES for why this retriever may appear under more "
+            f"than one role in the same run."
+        ),
+        "returns_planes": list(returns_planes),
+        "returned_plane_counts": (
+            {plane: int(n) for plane, n in measured_counts.items()}
+            if measured_counts else None
+        ),
+        "retriever": {
+            "implementation": f"{FUSION_IMPLEMENTATION}::{retriever}",
+            "mechanism": mechanism,
+            "combines_planes": list(combines_planes),
+        },
+        "scores": {PRIMARY_METRIC: scores},
+    }
+
+
 def gold_planes_for_cases(gold_by_case: Mapping[str, Sequence[str]]) -> Dict[str, str]:
     """One Project-Twin plane per case, only where the gold set names exactly one.
 
@@ -271,11 +391,18 @@ def build_kill_input(
         for variant in have_variants:
             arms.append(build_arm(raw, retriever, variant, role, mechanism))
 
+    for retriever, roles in sorted(FUSION_RETRIEVER_ROLES.items()):
+        if retriever not in have_retrievers:
+            continue
+        for variant in have_variants:
+            for role in roles:
+                arms.append(build_fusion_arm(raw, retriever, variant, role))
+
     if not arms:
         raise AdapterError(
             f"none of the arms this adapter knows how to label honestly "
-            f"({sorted(INCLUDED_ARMS)}) are present in this run's retrievers "
-            f"({sorted(have_retrievers)})"
+            f"({sorted(INCLUDED_ARMS)} plus {sorted(FUSION_RETRIEVER_ROLES)}) are "
+            f"present in this run's retrievers ({sorted(have_retrievers)})"
         )
 
     declared_gold_planes = dict(gold_planes or {})
@@ -339,10 +466,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         head = "unknown"
 
     excluded_note = "; ".join(f"{name}: {reason}" for name, reason in EXCLUDED_ARMS.items())
+    have_retrievers = set(raw.get("retrievers", []))
+    fusion_present = sorted(r for r in FUSION_RETRIEVER_ROLES if r in have_retrievers)
+    fusion_note = (
+        f"s11_fusion arms present: {', '.join(fusion_present)} "
+        f"(real cross_plane_score_fusion, not the 'no fusion retriever exists' "
+        f"state this note used to describe)"
+        if fusion_present
+        else NO_FUSION_ARM_NATIVE_TO_S07_S08_S09
+    )
     source = args.source or (
         f"real s09_eval harness run, input {args.raw}, adapted at repo HEAD {head} "
         f"by experiments/forest_v2/s09_eval/to_s10.py; excluded arms and why -- "
-        f"{excluded_note}; {NO_FUSION_ARM_ANYWHERE}"
+        f"{excluded_note}; {fusion_note}"
     )
 
     doc = build_kill_input(raw, run_id=args.run_id, source=source, gold_planes=gold_planes)

@@ -31,9 +31,25 @@ next to it. It writes only under ``experiments/forest_v2/s09_eval/results/``;
 it performs no network egress, no spend, and no model call -- it reads git
 plumbing (via ``gitio``, already read-only-gated) and file content only.
 
+**Added for the s11 fusion continuation (2026-08-24): ``--retriever`` and
+pre-image isolation.**  This module originally ran baselines only ("no
+``--retriever`` hook here" -- see the withdrawn comment this replaces). That
+was a real gap for a script whose whole point is to let a foreign retriever
+be measured against the one corpus that can exercise a cross-plane
+hypothesis. The flag, the isolation machinery (``harness.PreimageIsolation``,
+reused rather than duplicated) and the default-on-when-a-retriever-is-loaded
+policy mirror ``harness.py`` exactly, for the identical reason documented
+there. This module also now captures ``returned_plane_counts`` from any
+retriever instance that exposes one (an optional, duck-typed attribute --
+the five baselines do not have it and are silently skipped), so a
+downstream adapter can report real per-plane return measurements instead of
+declaring them absent.
+
 Usage::
 
     python -m experiments.forest_v2.s09_eval.run_xplane_harness
+    python -m experiments.forest_v2.s09_eval.run_xplane_harness \\
+        --retriever experiments.forest_v2.s11_fusion.fusion_retrievers:FusionRetriever
 """
 from __future__ import annotations
 
@@ -49,11 +65,11 @@ from typing import Dict, Sequence
 if __package__ in (None, ""):  # pragma: no cover - direct-script convenience
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from s09_eval import harness, retrievers as baselines, stats, taskset_xplane
-    from s09_eval.contract import Budget
+    from s09_eval.contract import Budget, load_retriever
     from s09_eval.tokens import TokenCache
 else:
     from . import harness, retrievers as baselines, stats, taskset_xplane
-    from .contract import Budget
+    from .contract import Budget, load_retriever
     from .tokens import TokenCache
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
@@ -98,6 +114,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--repo", default=str(Path(__file__).resolve().parents[3]))
     parser.add_argument("--taskset", default=str(taskset_xplane.DEFAULT_PATH))
     parser.add_argument("--variant", choices=(*VARIANTS, "both"), default="both")
+    parser.add_argument(
+        "--retriever",
+        action="append",
+        default=[],
+        metavar="module:attribute",
+        help="add a retriever; repeatable. Baselines always run.",
+    )
+    isolation = parser.add_mutually_exclusive_group()
+    isolation.add_argument(
+        "--isolate-preimage",
+        dest="isolate",
+        action="store_true",
+        default=None,
+        help="grade against per-case bare clones with the future absent "
+             "(default whenever --retriever is used, same policy as harness.py)",
+    )
+    isolation.add_argument(
+        "--no-isolate-preimage",
+        dest="isolate",
+        action="store_false",
+        help="hand retrievers the live repository; the oracle hole is open",
+    )
     parser.add_argument("--limit-cases", type=int, default=0)
     parser.add_argument(
         "--reference", default="recency_prior",
@@ -116,20 +154,65 @@ def main(argv: Sequence[str] | None = None) -> int:
     budget = Budget()
     cache = TokenCache()
     repo = Path(args.repo)
-    # Baselines only, deliberately: no --retriever hook here, because a
-    # foreign arm would need pre-image isolation (see harness.py) and this
-    # runner exists to exercise the corpus, not to add isolation machinery
-    # a second time. The five baselines are auditable in-tree, same as a
-    # baselines-only run of harness.py.
     suite = list(baselines.default_suite(cache))
+    for spec in args.retriever:
+        suite.append(load_retriever(spec))
+    # Performance only, never correctness: contract.load_retriever always
+    # zero-arg-constructs from a bare module:attribute spec, so a loaded
+    # retriever cannot receive the harness's already-warmed TokenCache
+    # through that seam. A retriever that exposes a duck-typed `.cache`
+    # attribute (s11_fusion's three retrievers do) gets it swapped for the
+    # shared one here instead, so tokenizing 5000+ candidates does not
+    # happen once per retriever. A retriever without that attribute is
+    # untouched.
+    for retriever in suite:
+        if hasattr(retriever, "cache"):
+            retriever.cache = cache
+
+    # Same policy as harness.py, reused rather than reinvented: isolation is
+    # on by default the moment a foreign retriever is in the suite.
+    isolate = bool(args.retriever) if args.isolate is None else args.isolate
+    isolator = harness.PreimageIsolation(repo) if isolate else None
+    repo_provider = (lambda case: isolator.repo_for(case.parent)) if isolator else None
+    if isolate:
+        print(
+            "\npre-image isolation ACTIVE: each retriever sees a bare clone "
+            "holding only its case's pre-image and ancestors."
+        )
+    elif args.retriever:
+        print(
+            "\nWARNING: pre-image isolation DISABLED with a foreign retriever "
+            "in the suite."
+        )
 
     started = time.perf_counter()
-    aggregates, per_case, cost, rr = harness.run(repo, cases, suite, budget, variants, cache)
+    try:
+        aggregates, per_case, cost, rr = harness.run(
+            repo, cases, suite, budget, variants, cache, repo_provider=repo_provider
+        )
+    finally:
+        if isolator is not None:
+            cost_clones = isolator.built
+            isolator.close()
     cost["wall_seconds_total"] = round(time.perf_counter() - started, 2)
-    cost["preimage_isolation"] = False
+    cost["preimage_isolation"] = isolate
+    if isolate:
+        cost["preimage_clones_built"] = cost_clones
 
     names = [getattr(r, "name", type(r).__name__) for r in suite]
     reference = args.reference if args.reference in names else names[0]
+
+    # Optional, duck-typed: a retriever may expose returned_plane_counts
+    # (variant -> plane -> count) as a real measurement of what it returned,
+    # accumulated across every case scored above. The five baselines do not
+    # have this attribute and are silently absent from the dict below --
+    # not a zero, an omission, matching the schema's own "undeclared is not
+    # the same as zero" rule (s10_kill/schema.py Arm.returned_plane_counts).
+    retriever_plane_counts: Dict[str, Dict[str, Dict[str, int]]] = {}
+    for retriever, name in zip(suite, names):
+        counts = getattr(retriever, "returned_plane_counts", None)
+        if counts:
+            retriever_plane_counts[name] = counts
 
     intervals: Dict[str, Dict[str, object]] = {}
     comparisons = []
@@ -168,6 +251,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "reference_retriever": reference,
         "paired_comparisons_key": ["subject", "reference", "variant"],
         "per_case": per_case,
+        "returned_plane_counts": retriever_plane_counts,
     }
     if not args.no_write:
         out = Path(args.out)

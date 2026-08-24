@@ -1,0 +1,316 @@
+{
+  "arms": [
+    {
+      "arm_id": "bm25/raw",
+      "notes": "s09_eval baseline 'bm25', real harness output (not a rebuild from aggregates); reciprocal_rank per case under the harness's budget-equality rules, identical candidate universe and content cap as every other arm in the same run",
+      "retriever": {
+        "combines_planes": [],
+        "implementation": "experiments/forest_v2/s09_eval/retrievers.py::bm25",
+        "mechanism": "lexical"
+      },
+      "returned_plane_counts": null,
+      "returns_planes": [
+        "code",
+        "data",
+        "knowledge"
+      ],
+      "role": "bm25",
+      "scores": {
+        "reciprocal_rank": {
+          "c00": 0.0526,
+          "c01": 0.0,
+          "c02": 0.0,
+          "c03": 0.0,
+          "c04": 0.0,
+          "c05": 0.5,
+          "c06": 0.0,
+          "c07": 0.0,
+          "c08": 0.1,
+          "c09": 0.3333,
+          "c10": 0.0,
+          "c11": 0.0,
+          "c12": 0.0,
+          "c13": 0.0,
+          "c14": 0.5,
+          "c15": 1.0,
+          "c16": 0.3333,
+          "c17": 0.0,
+          "c18": 0.0,
+          "c19": 0.0
+        }
+      },
+      "variant": "raw"
+    },
+    {
+      "arm_id": "random_uniform/raw",
+      "notes": "s09_eval baseline 'random_uniform', real harness output (not a rebuild from aggregates); reciprocal_rank per case under the harness's budget-equality rules, identical candidate universe and content cap as every other arm in the same run",
+      "retriever": {
+        "combines_planes": [],
+        "implementation": "experiments/forest_v2/s09_eval/retrievers.py::random_uniform",
+        "mechanism": "random"
+      },
+      "returned_plane_counts": null,
+      "returns_planes": [
+        "code",
+        "data",
+        "knowledge"
+      ],
+      "role": "random_priority",
+      "scores": {
+        "reciprocal_rank": {
+          "c00": 0.0,
+          "c01": 0.0,
+          "c02": 0.0,
+          "c03": 0.0,
+          "c04": 0.0,
+          "c05": 0.0,
+          "c06": 0.0,
+          "c07": 0.0,
+          "c08": 0.0,
+          "c09": 0.0,
+          "c10": 0.0,
+          "c11": 0.0,
+          "c12": 0.0,
+          "c13": 0.0,
+          "c14": 0.0769,
+          "c15": 0.0,
+          "c16": 0.0,
+          "c17": 0.0,
+          "c18": 0.0,
+          "c19": 0.0
+        }
+      },
+      "variant": "raw"
+    },
+    {
+      "arm_id": "code_only_bm25/raw#code_only",
+      "notes": "s11_fusion retriever 'code_only_bm25', real harness output (not a rebuild from aggregates); reciprocal_rank per case under the harness's budget-equality rules, identical candidate universe and content cap as every other arm in the same run. Emitted under role 'code_only'; see FUSION_RETRIEVER_ROLES for why this retriever may appear under more than one role in the same run.",
+      "retriever": {
+        "combines_planes": [],
+        "implementation": "experiments/forest_v2/s11_fusion/fusion_retrievers.py::code_only_bm25",
+        "mechanism": "single_plane"
+      },
+      "returned_plane_counts": null,
+      "returns_planes": [
+        "code"
+      ],
+      "role": "code_only",
+      "scores": {
+        "reciprocal_rank": {
+          "c00": 0.1429,
+          "c01": 0.0625,
+          "c02": 0.0,
+          "c03": 0.0,
+          "c04": 0.1667,
+          "c05": 1.0,
+          "c06": 0.125,
+          "c07": 0.0,
+          "c08": 0.2,
+          "c09": 1.0,
+          "c10": 0.0,
+          "c11": 0.0,
+          "c12": 0.0,
+          "c13": 0.0,
+          "c14": 1.0,
+          "c15": 0.0833,
+          "c16": 1.0,
+          "c17": 0.0,
+          "c18": 0.0,
+          "c19": 0.0
+        }
+      },
+      "variant": "raw"
+    },
+    {
+      "arm_id": "fusion_rrf/raw#full",
+      "notes": "s11_fusion retriever 'fusion_rrf', real harness output (not a rebuild from aggregates); reciprocal_rank per case under the harness's budget-equality rules, identical candidate universe and content cap as every other arm in the same run. Emitted under role 'full'; see FUSION_RETRIEVER_ROLES for why this retriever may appear under more than one role in the same run.",
+      "retriever": {
+        "combines_planes": [
+          "code",
+          "data",
+          "knowledge"
+        ],
+        "implementation": "experiments/forest_v2/s11_fusion/fusion_retrievers.py::fusion_rrf",
+        "mechanism": "cross_plane_score_fusion"
+      },
+      "returned_plane_counts": {
+        "code": 128,
+        "data": 135,
+        "knowledge": 137
+      },
+      "returns_planes": [
+        "code",
+        "data",
+        "knowledge"
+      ],
+      "role": "full",
+      "scores": {
+        "reciprocal_rank": {
+          "c00": 0.0,
+          "c01": 0.0,
+          "c02": 0.0,
+          "c03": 0.0,
+          "c04": 0.0625,
+          "c05": 0.5,
+          "c06": 0.0,
+          "c07": 0.0,
+          "c08": 0.0667,
+          "c09": 0.5,
+          "c10": 0.0,
+          "c11": 0.0,
+          "c12": 0.0,
+          "c13": 0.0,
+          "c14": 0.3333,
+          "c15": 1.0,
+          "c16": 0.3333,
+          "c17": 0.0,
+          "c18": 0.0,
+          "c19": 0.0
+        }
+      },
+      "variant": "raw"
+    },
+    {
+      "arm_id": "fusion_rrf/raw#fusion",
+      "notes": "s11_fusion retriever 'fusion_rrf', real harness output (not a rebuild from aggregates); reciprocal_rank per case under the harness's budget-equality rules, identical candidate universe and content cap as every other arm in the same run. Emitted under role 'fusion'; see FUSION_RETRIEVER_ROLES for why this retriever may appear under more than one role in the same run.",
+      "retriever": {
+        "combines_planes": [
+          "code",
+          "data",
+          "knowledge"
+        ],
+        "implementation": "experiments/forest_v2/s11_fusion/fusion_retrievers.py::fusion_rrf",
+        "mechanism": "cross_plane_score_fusion"
+      },
+      "returned_plane_counts": {
+        "code": 128,
+        "data": 135,
+        "knowledge": 137
+      },
+      "returns_planes": [
+        "code",
+        "data",
+        "knowledge"
+      ],
+      "role": "fusion",
+      "scores": {
+        "reciprocal_rank": {
+          "c00": 0.0,
+          "c01": 0.0,
+          "c02": 0.0,
+          "c03": 0.0,
+          "c04": 0.0625,
+          "c05": 0.5,
+          "c06": 0.0,
+          "c07": 0.0,
+          "c08": 0.0667,
+          "c09": 0.5,
+          "c10": 0.0,
+          "c11": 0.0,
+          "c12": 0.0,
+          "c13": 0.0,
+          "c14": 0.3333,
+          "c15": 1.0,
+          "c16": 0.3333,
+          "c17": 0.0,
+          "c18": 0.0,
+          "c19": 0.0
+        }
+      },
+      "variant": "raw"
+    },
+    {
+      "arm_id": "separate_indices_bm25/raw#separate_indices",
+      "notes": "s11_fusion retriever 'separate_indices_bm25', real harness output (not a rebuild from aggregates); reciprocal_rank per case under the harness's budget-equality rules, identical candidate universe and content cap as every other arm in the same run. Emitted under role 'separate_indices'; see FUSION_RETRIEVER_ROLES for why this retriever may appear under more than one role in the same run.",
+      "retriever": {
+        "combines_planes": [],
+        "implementation": "experiments/forest_v2/s11_fusion/fusion_retrievers.py::separate_indices_bm25",
+        "mechanism": "per_plane_topk_concat"
+      },
+      "returned_plane_counts": {
+        "code": 400,
+        "data": 0,
+        "knowledge": 0
+      },
+      "returns_planes": [
+        "code",
+        "data",
+        "knowledge"
+      ],
+      "role": "separate_indices",
+      "scores": {
+        "reciprocal_rank": {
+          "c00": 0.1429,
+          "c01": 0.0625,
+          "c02": 0.0,
+          "c03": 0.0,
+          "c04": 0.1667,
+          "c05": 1.0,
+          "c06": 0.125,
+          "c07": 0.0,
+          "c08": 0.2,
+          "c09": 1.0,
+          "c10": 0.0,
+          "c11": 0.0,
+          "c12": 0.0,
+          "c13": 0.0,
+          "c14": 1.0,
+          "c15": 0.0833,
+          "c16": 1.0,
+          "c17": 0.0,
+          "c18": 0.0,
+          "c19": 0.0
+        }
+      },
+      "variant": "raw"
+    }
+  ],
+  "case_groups": {},
+  "cases": [
+    "c00",
+    "c01",
+    "c02",
+    "c03",
+    "c04",
+    "c05",
+    "c06",
+    "c07",
+    "c08",
+    "c09",
+    "c10",
+    "c11",
+    "c12",
+    "c13",
+    "c14",
+    "c15",
+    "c16",
+    "c17",
+    "c18",
+    "c19"
+  ],
+  "corpus": null,
+  "gold_planes": {
+    "c00": "code",
+    "c01": "code",
+    "c02": "code",
+    "c03": "code",
+    "c04": "code",
+    "c05": "code",
+    "c06": "code",
+    "c07": "code",
+    "c08": "code",
+    "c09": "code",
+    "c10": "code",
+    "c11": "code",
+    "c12": "code",
+    "c14": "code",
+    "c17": "code",
+    "c18": "code",
+    "c19": "code"
+  },
+  "primary_metric": "reciprocal_rank",
+  "run_id": "s09-taskset20-fusion@d849c2a9-adapted-2026-08-24",
+  "schema": "forest_v2.s10.kill-input/1",
+  "seeds": 1,
+  "source": "real s09_eval harness run, input experiments/forest_v2/s09_eval/results/s10_adapter_runs/raw_taskset20_fusion_2026-08-24.json, adapted at repo HEAD 725e32a1575217457f4f1612cab7d04a6757093a by experiments/forest_v2/s09_eval/to_s10.py; excluded arms and why -- recency_prior: s09's own README calls this the strongest baseline measured in the program ('leads every column'), and it is query-blind by design -- but s10's role vocabulary (full/fusion/code_only/bm25/rewired/separate_indices/graph_priority/random_priority/evaluator_only/token_matched) has no slot for a query-blind churn prior. Forcing it into any of those roles would misdescribe the mechanism, so it is left out and named here instead of silently dropped.; path_lexical: scores path-token overlap with the query only; not restricted to one Project-Twin plane and not a fusion mechanism, so it has no honest s10 role either.; bm25_content_only: the same BM25 index as 'bm25' with path tokens stripped from the document -- a second real, measured arm, but s10 has no role for 'this role's own document-composition ablation', and giving it the same role as 'bm25' at the same variant would collide in ResultSet.find() (which treats >1 arm per (role, variant) as an error, not a coin flip).; s11_fusion arms present: code_only_bm25, fusion_rrf, separate_indices_bm25 (real cross_plane_score_fusion, not the 'no fusion retriever exists' state this note used to describe)"
+}

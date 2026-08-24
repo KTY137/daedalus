@@ -4049,6 +4049,425 @@ python -m experiments.forest_v2.s09_eval.to_s10 --raw <path> --run-id <id> \
 python -m experiments.forest_v2.s10_kill.cli <path>
 ```
 
+## Slice s11 (2026-08-24): the first real cross-plane fusion retriever
+
+Directory: `experiments/forest_v2/s11_fusion/`. Continues the s09→s10
+adapter work directly above (referred to below as "the previous
+continuation" — not renumbered as "continuation N" here to avoid colliding
+with the Boundary note's own, unrelated "continuation 2" reference a few
+sections down). Closes the gap the previous continuation stated in words:
+*"no cross-plane fusion retriever exists
+anywhere in this program"* — `s10_kill/measured_inputs.py` records it for
+s08, `to_s10.py` recorded it for s09, and neither 14.1 (`full_beats_
+code_only_and_bm25`) nor 14.3 (`four_indices_equal_fusion`) has ever seen a
+`full`, `fusion` or `code_only` arm, real or synthetic-from-real. This
+continuation builds one and runs it for real through the same s09 harness →
+s10 evaluator pipeline the previous continuation wired end to end.
+
+### Frozen specification, stated before any run
+
+- **Mechanism (`s11_fusion/fusion_retrievers.py`):** three SEPARATE BM25
+  indices — one per plane the corpus can support at file granularity (code,
+  data, knowledge; see below for why not type or presentation) — each with
+  its own document-frequency table and its own IDF, combined with
+  Reciprocal Rank Fusion: `RRF(d) = Σ over planes p containing d of
+  1/(k + rank_p(d))`, `k = 60` (Cormack, Clarke & Buettcher, SIGIR 2009's
+  reported default, used unmodified — not swept for a favourable number).
+  This is deliberately **not** a joint single index (one shared IDF space,
+  the thing this program almost mislabelled `fusion` once already — see
+  s08's "substituted comparator" retraction and
+  `s10_kill/test_s10_kill.py::test_no_arm_of_a_measured_run_is_labelled_
+  fusion`) and **not** a concatenation (s08's `FourPlaneNoFusionRetriever`
+  / `UnionNoFusionRetriever`, which never compare a score across planes at
+  all). RRF combines rank *positions*, each position the product of a real,
+  separately-computed per-plane score — chosen specifically because raw
+  BM25 scores from different planes are not commensurable (s08's own
+  retriever module says so explicitly), which is exactly the trap a naive
+  "sum the raw scores" fusion would fall into.
+- **Planes reached, declared before measurement:** `code`, `data`,
+  `knowledge`. **Not** `type` (no slice in this program has ever produced a
+  file-level Type-plane artifact — s02, s08, s09-continuation-2 and
+  `to_s10.py` all record the identical gap independently; there is nothing
+  to index). **Not** presentation (`.html`/`.css` — not one of
+  `s10_kill/schema.py`'s four `PLANES` at all, so it could not be declared
+  even if indexed; folding it into `code` or `knowledge` to buy recall
+  would misreport `combines_planes`/`returned_plane_counts`, the exact
+  fabrication this slice exists to avoid). Honest cost, paid rather than
+  hidden: 13 of the cross-plane corpus's 475 gold slots are `.html`/`.css`
+  and are structurally unreachable by every arm built in this continuation.
+- **Where an index has no existing per-plane infrastructure to reuse:** the
+  brief that opened this continuation asked to reuse `s08_graph_baselines`'
+  `CodeGraphRetriever` and s07/s09's BM25 where they exist. `CodeGraphRetriever`
+  operates over `s08_api.Document`/`s08_corpus.Corpus`, a static
+  whole-repository index built once; s09's own retrieval unit is a
+  **per-case pre-image tree** (`harness.build_universe`, a different
+  candidate set for every one of 88 cases), so a static s08 index cannot
+  supply it without rebuilding s08's whole corpus machinery per case — out
+  of proportion to this brief. What is reused instead is s09's own scoring
+  formula: `s11_fusion._score_plane` is line-for-line the same BM25 (same
+  k1=1.5/b=0.75, same tokenizer, same content+path-token document shape)
+  as `s09_eval/retrievers.py`'s `Bm25`, just exposed as `(path, score)`
+  pairs instead of a bare ranking and run once per plane bucket instead of
+  once over the whole universe. Stated plainly: every per-plane sub-index
+  here is a simple BM25 lexical index, the "honest minimal choice" the
+  brief allowed when no richer index exists — not `CodeGraphRetriever`'s
+  import/call graph walk, which the s08 slice itself measured losing to
+  its own code-only BM25 control at low cutoffs (README, s08, "(a) is
+  refuted as stated"). A graph-conditioned per-plane index is Gate 4
+  territory, not this continuation's.
+- **Comparators, all genuine, all built here:**
+  - `code_only_bm25` (`CodeOnlyRetriever`) — the code-plane sub-index
+    alone, nothing else. The honest `code_only` arm 14.1 needs alongside
+    `full` and `bm25` in the same run.
+  - `separate_indices_bm25` (`SeparateIndicesRetriever`) — the SAME three
+    per-plane indices `FusionRetriever` builds, concatenated per-plane
+    top-20 in a fixed order (code, data, knowledge — a declared prior,
+    stated as one; s08 measured its own union arm swing from 491/600 to
+    4/600 purely by reversing plane order). No score is ever compared
+    across planes here; this is 14.3's comparator, mirroring s08's
+    `UnionNoFusionRetriever` rather than the starved round-robin arm s08
+    itself retracted as a slot-allocation artefact rather than an honest
+    no-fusion baseline.
+  - `fusion_rrf` (`FusionRetriever`) is emitted under **two** s10 roles,
+    `full` and `fusion`, from identical per-case scores. `s10_kill/
+    schema.py`'s own `KNOWN_ROLES` docstring anticipates exactly this:
+    `"fusion" # cross-plane fusion (may be the same system as full)`. It is
+    the only cross-plane-combining retriever anywhere in this program, so
+    it is the only candidate for either role; 14.1 compares `full` against
+    `code_only`/`bm25`, 14.3 compares `fusion` against `separate_indices` —
+    two different comparisons, so this is not double-counting one result
+    toward two verdicts. Stated as the caveat it is: `fusion_rrf` stands in
+    for the plan's "full representation" only in the narrow sense of being
+    the sole cross-plane-combining system that exists; it is a minimal
+    lexical-fusion proxy, not the graph-conditioned four-plane Twin
+    §5–6 describes.
+- **Corpus:** the 88-case cross-plane task set (`s09_eval/
+  taskset_xplane.json`, unchanged, anchor `d849c2a94d66f...`), because the
+  primary 20-case corpus's gold is 91.4% Python and cannot structurally
+  show a cross-plane win (correction F4). The primary corpus is run too,
+  for a second, independent read — not because it can decide 14.1, but
+  because it can still decide 14.3 (which does not depend on gold-plane
+  distribution the way 14.1 does — see "What actually ran" below).
+- **`returns_planes` / `returned_plane_counts`:** declared per arm as
+  `("code", "data", "knowledge")` for `fusion_rrf` and `separate_indices_
+  bm25`, `("code",)` for `code_only_bm25` — matching exactly what each
+  retriever's own indices can reach, never aspirational. `returned_plane_
+  counts` is **measured**, not declared absent: `run_xplane_harness.py` and
+  `harness.py` were both extended (same beat) to read a
+  `returned_plane_counts` attribute off any retriever that exposes one and
+  serialise it into the results JSON; `to_s10.py`'s new `build_fusion_arm`
+  reads it from there. The five s09 baselines have no such attribute and
+  stay `None` (undeclared), exactly as before.
+- **Falsifier:** if `fusion_rrf`'s measured `returned_plane_counts` shows
+  fewer than two planes with nonzero returns, `plane_range.fusion_arm()`
+  refuses it and 14.3 stays `UNDECIDABLE` for the identical reason it
+  always has been — the mechanism has to be real, not just declared.
+- **Budget:** pure stdlib, no model calls, no spend, no network egress. Ran
+  with `--no-isolate-preimage`: `run_xplane_harness.py` gained the same
+  `--retriever` / pre-image-isolation machinery `harness.py` already had
+  (mirrored, not duplicated — both now call the identical
+  `harness.PreimageIsolation`), but none of the three retrievers in this
+  slice ever read `QueryView.repo` (verified: `grep -n "query.repo\|\.repo"
+  experiments/forest_v2/s11_fusion/fusion_retrievers.py` returns nothing),
+  so the oracle hole the isolation machinery defends against does not
+  apply to them, and disabling it was a deliberate, documented cost
+  decision rather than an oversight. A future foreign retriever loaded
+  through these same two entrypoints does not inherit this exemption.
+- **Boundary note update:** no new effectful entrypoint. The write targets
+  already listed for `run_xplane_harness.py:main`, `harness.py`'s CLI and
+  `to_s10.py:main` are unchanged (`experiments/forest_v2/s09_eval/results/`
+  only); `PreimageIsolation`'s bare-clone tempdir writes (pre-existing in
+  `harness.py`, now also reachable from `run_xplane_harness.py`) go through
+  `tempfile.TemporaryDirectory`, outside the repository entirely, and were
+  not exercised in either measured run below (isolation was off).
+
+### What actually ran [MEASURED, this worktree @ `725e32a1`]
+
+```text
+python -m experiments.forest_v2.s09_eval.run_xplane_harness \
+  --retriever experiments.forest_v2.s11_fusion.fusion_retrievers:FusionRetriever \
+  --retriever experiments.forest_v2.s11_fusion.fusion_retrievers:CodeOnlyRetriever \
+  --retriever experiments.forest_v2.s11_fusion.fusion_retrievers:SeparateIndicesRetriever \
+  --no-isolate-preimage --variant raw \
+  --out .../raw_xplane88_fusion_2026-08-24.json
+python -m experiments.forest_v2.s09_eval.harness \
+  --retriever experiments.forest_v2.s11_fusion.fusion_retrievers:FusionRetriever \
+  --retriever experiments.forest_v2.s11_fusion.fusion_retrievers:CodeOnlyRetriever \
+  --retriever experiments.forest_v2.s11_fusion.fusion_retrievers:SeparateIndicesRetriever \
+  --no-isolate-preimage --variant raw \
+  --out .../raw_taskset20_fusion_2026-08-24.json
+python -m experiments.forest_v2.s09_eval.to_s10 --raw .../raw_xplane88_fusion_2026-08-24.json \
+  --gold-planes-from taskset_xplane --run-id s09-xplane88-fusion@d849c2a9-adapted-2026-08-24 \
+  --out .../kill_input_xplane88_fusion_2026-08-24.json
+python -m experiments.forest_v2.s09_eval.to_s10 --raw .../raw_taskset20_fusion_2026-08-24.json \
+  --gold-planes-from taskset --run-id s09-taskset20-fusion@d849c2a9-adapted-2026-08-24 \
+  --out .../kill_input_taskset20_fusion_2026-08-24.json
+python -m experiments.forest_v2.s10_kill.cli .../kill_input_xplane88_fusion_2026-08-24.json
+python -m experiments.forest_v2.s10_kill.cli .../kill_input_taskset20_fusion_2026-08-24.json
+```
+
+Both raw harness outputs, both adapted kill-inputs, and both captured
+`s10_kill/cli.py` text reports are committed under
+`experiments/forest_v2/s09_eval/results/s10_adapter_runs/` alongside the
+previous continuation's files (`*_fusion_2026-08-24` suffix — the earlier
+two-baseline files are untouched, still pinned by `test_the_committed_
+real_adapter_outputs_still_validate`, and read `variant=raw` only: the
+scrubbed variant was not measured for the new arms, a deliberate cost
+decision — see caveats).
+
+Only `variant=raw` was measured (raw was estimated, then confirmed, to be
+sufficient: `_compare_arms` for both 14.1 and 14.3 reads `rs.default_
+variant`, which is `"raw"` whenever present; only 14.7, not a target here,
+needs `scrubbed` too). Wall time, shape only, box running other lanes this
+session — do not cite as a rate: 99.92 s / 88 cases (`run_xplane_harness.py`)
+and 35.51 s / 20 cases (`harness.py`), both after sharing one `TokenCache`
+across every retriever in the suite (`.cache` swapped onto each loaded
+retriever post-construction — a performance-only change, added because the
+first, unshared-cache measurement took 4–5x longer per retriever from
+redundant tokenization; `contract.load_retriever`'s zero-arg construction
+gives no other seam to inject a shared cache).
+
+### Per-plane and comparator arms [MEASURED, `reciprocal_rank`, variant=raw]
+
+Cross-plane corpus (88 cases, 475 gold slots):
+
+| retriever | role(s) | MRR | R@10 (hits/gold) | hit cases |
+| --- | --- | ---: | ---: | ---: |
+| `fusion_rrf` | full, fusion | **0.4820** | 139/475 | 76/88 |
+| `bm25` | bm25 | 0.4719 | 134/475 | 75/88 |
+| `separate_indices_bm25` | separate_indices | 0.4708 | 124/475 | 69/88 |
+| `code_only_bm25` | code_only | 0.4701 | 120/475 | 68/88 |
+| `bm25_content_only` | *(excluded, see prior continuation)* | 0.4557 | 130/475 | 75/88 |
+| `path_lexical` | *(excluded)* | 0.3369 | 124/475 | 67/88 |
+| `recency_prior` | *(excluded)* | 0.2388 | 83/475 | 51/88 |
+| `random_uniform` | random_priority | 0.0592 | 21/475 | 18/88 |
+
+Primary corpus (20 cases, 35 gold slots, 91.4% `.py`):
+
+| retriever | role(s) | MRR | R@10 (hits/gold) | hit cases |
+| --- | --- | ---: | ---: | ---: |
+| `code_only_bm25` | code_only | **0.239** | 9/35 | 10/20 |
+| `separate_indices_bm25` | separate_indices | **0.239** | 9/35 | 10/20 |
+| `recency_prior` | *(excluded)* | 0.224 | 16/35 | 16/20 |
+| `bm25` | bm25 | 0.141 | 7/35 | 7/20 |
+| `fusion_rrf` | full, fusion | 0.140 | 7/35 | 7/20 |
+
+`code_only_bm25` and `separate_indices_bm25` land on the identical MRR on
+the primary corpus — expected, not a bug: on a corpus whose gold is almost
+entirely code, a code-first concatenation of three per-plane indices
+degenerates to the code index alone at every cutoff this metric reads.
+
+**`returned_plane_counts`, measured, not declared** — the field
+`fusion_arm()` demands before it will believe the word "fusion":
+
+| retriever | corpus | code | data | knowledge |
+| --- | --- | ---: | ---: | ---: |
+| `fusion_rrf` | cross-plane (88) | 591 | 546 | 571 |
+| `separate_indices_bm25` | cross-plane (88) | 1690 | 12 | 6 |
+| `fusion_rrf` | primary (20) | 128 | 135 | 137 |
+| `separate_indices_bm25` | primary (20) | 400 | 0 | 0 |
+
+This is the mechanistic difference the module was built to have, now
+visible in real data rather than only in `test_fusion_retrievers.py`'s
+constructed fixtures: `fusion_rrf`'s returns are close to evenly split
+across all three planes on both corpora (RRF interleaves by per-plane
+confidence), while `separate_indices_bm25`'s are almost entirely code
+(concatenation exhausts the fixed-first plane's block before a second
+plane's candidates are ever reached) — the identical shape s08 measured
+for its own union arm (491/600 code-first vs 4/600 code-last), now
+reproduced by a structurally different retriever on a structurally
+different corpus.
+
+### 14.1 and 14.3, decidable for the first time [MEASURED, RAW `s10_kill/cli.py` output]
+
+| | cross-plane (88 cases) | primary (20 cases) |
+| --- | --- | --- |
+| coverage | 2 of 16 (12.5%) | 1 of 16 (6.2%) |
+| verdicts | INCONCLUSIVE 2, UNDECIDABLE 1, NOT_EVALUABLE 13 | INCONCLUSIVE 1, UNDECIDABLE 2, NOT_EVALUABLE 13 |
+| **14.1** `full_beats_code_only_and_bm25` | **INCONCLUSIVE** | **UNDECIDABLE** |
+| **14.3** `four_indices_equal_fusion` | **INCONCLUSIVE** | **INCONCLUSIVE** |
+| 14.2 (out of scope for this continuation) | UNDECIDABLE — no graph census | UNDECIDABLE — no graph census |
+
+Full 14.1/14.3 detail, cross-plane corpus:
+
+```text
+[????] 14.1  full_beats_code_only_and_bm25  INCONCLUSIVE
+       fusion_rrf/raw#full vs code_only_bm25/raw#code_only:
+         diff=+0.0118 CI95=[-0.0797,+0.1041] n=88 w/l/t=29/38/21
+       fusion_rrf/raw#full vs bm25/raw:
+         diff=+0.0101 CI95=[-0.0731,+0.0923] n=88 w/l/t=27/33/28
+       ! run declares 1 seed(s); the plan asks for 5-10
+
+[????] 14.3  four_indices_equal_fusion  INCONCLUSIVE
+       fusion_rrf/raw#fusion vs separate_indices_bm25/raw#separate_indices:
+         diff=+0.0111 CI95=[-0.0811,+0.1073] n=88 w/l/t=29/38/21
+       ! fusion arm attested as
+         experiments/forest_v2/s11_fusion/fusion_retrievers.py::fusion_rrf
+         (cross_plane_score_fusion over code, data, knowledge)
+```
+
+And on the primary corpus, 14.1 refuses for the reason correction F4
+predicted before any retriever existed to test it:
+
+```text
+[XXXX] 14.1  full_beats_code_only_and_bm25  UNDECIDABLE
+       the only planes that distinguish fusion_rrf/raw#full from
+       code_only_bm25/raw#code_only (data, knowledge) carry zero gold
+       labels across all 20 cases; the comparison cannot move in the
+       direction that would refute the hypothesis, at any sample size
+       ! data: 0 gold   ! knowledge: 0 gold
+
+[????] 14.3  four_indices_equal_fusion  INCONCLUSIVE
+       fusion_rrf/raw#fusion vs separate_indices_bm25/raw#separate_indices:
+         diff=-0.0992 CI95=[-0.2333,+0.0472] n=20 w/l/t=1/9/10
+```
+
+### What the numbers say, exactly as measured — including against the hypothesis
+
+1. **14.1 and 14.3 moved from `NOT_EVALUABLE`/`UNDECIDABLE` (missing arm) to
+   `INCONCLUSIVE` (arm present, evidence insufficient) on the corpus that
+   can ask the question.** This is real, measured progress on the
+   evaluator's own coverage metric (0/16 → 2/16 on the cross-plane corpus,
+   the first nonzero coverage any *real* run in this program has ever
+   produced — the earlier continuation's two-baseline run and every
+   `--measured s08_*` rebuild stayed at 0/16). It is **not** a win
+   for the four-plane prior: `INCONCLUSIVE` is explicitly not a pass (the
+   report's own closing paragraph, unchanged, says so), and 14.2 is
+   untouched by this continuation (still `UNDECIDABLE`, no graph census —
+   out of scope here, as declared before the run).
+2. **The point estimate favours fusion on the corpus built to test it, and
+   favours the opposite baseline on the corpus that cannot.** On the
+   cross-plane 88 cases `fusion_rrf` has the highest MRR of every arm
+   measured (0.4820, ahead of `bm25`'s 0.4719 and `code_only_bm25`'s
+   0.4701) and both 14.1 comparisons carry a positive point estimate
+   (+0.0118, +0.0101). On the code-heavy 20 cases the same retriever has
+   the *lowest* MRR of the five it is compared against (0.140, behind
+   `code_only_bm25`/`separate_indices_bm25`'s 0.239 and even behind
+   `bm25`'s 0.141) and the 14.3 point estimate flips negative (-0.0992).
+   Neither direction clears its confidence interval. Read plainly: fusing
+   in two planes that hold no gold on this corpus (`data`, `knowledge` at
+   0 gold labels, per correction F4) can only ever cost rank on the cases
+   that matter there, and the measured direction is consistent with that
+   cost — a corpus-composition effect this program has predicted in prose
+   since correction F4 and is now measuring, not merely predicting.
+3. **n=88 is not enough at the observed effect size, the same shape 14.2
+   hit at n=600.** The 14.1/14.3 intervals on the cross-plane corpus
+   (roughly ±0.09 to ±0.10 half-width) are far wider than the ±0.02
+   equivalence margin in either direction; neither a KEEP nor a KILL is
+   reachable at this n. This is not a new failure mode — it is the
+   identical "600 paired queries cannot resolve inside a ±0.02 band" limit
+   the earlier s08 power-projection table measured for 14.2, now hit by a
+   different criterion on a different, smaller corpus. No projection table
+   is offered here in its place: unlike 14.2's discordance rate (13/7 of
+   600), this run has no committed second measurement at a different case
+   count to interpolate between, and manufacturing one by re-running until
+   an interval narrows on its own is exactly the p-hacking-shaped practice
+   the plan's honesty rules (§14, "absence of a difference is not evidence
+   of equivalence") exist to prevent. Stated as a gap, not closed here.
+4. **The fusion mechanism is confirmed by real returned-plane data, not
+   only by the retriever's own source code.** `fusion_rrf` returns
+   documents from all three declared planes on both corpora, in
+   proportions close to even (591/546/571 on the cross-plane corpus);
+   `separate_indices_bm25`, built from the identical three per-plane
+   indices, returns almost entirely from the first plane in its
+   concatenation order (1690/12/6). Two structurally different combination
+   rules over the *same* underlying per-plane scores produce visibly
+   different returned-plane distributions — the clearest evidence this
+   continuation has that "fusion" here names a real mechanism and not a
+   role string, on top of `plane_range.fusion_arm()`'s own mechanical
+   check (mechanism == `cross_plane_score_fusion`, ≥2 planes reached) that
+   both kill-input documents pass.
+5. **This retriever is not the four-plane Twin.** It is three lexical BM25
+   indices and a rank-combination rule with no verified cross-plane edges,
+   no type-plane evidence, and no graph. That it is the *only* fusion
+   system that has ever existed in this program is itself evidence about
+   the program's maturity, not about the prior's truth — restated from the
+   frozen spec so it cannot be read as an implied stronger claim after
+   seeing a favourable point estimate on one of the two corpora.
+
+### Honest caveats
+
+- **File-granularity fusion cannot reinforce one document across planes.**
+  Every candidate belongs to exactly one plane (`taskset.plane_of` is a
+  pure function of a path's suffix), so RRF here never sums evidence for
+  *the same document* from two planes — the multi-plane entity-level
+  fusion §6's latent atlas envisions. What it buys instead is a
+  confidence-ordered interleaving of each plane's own best guesses, in
+  place of a fixed concatenation order or a starved shared budget. Stated
+  because it would otherwise read as a stronger claim than the mechanism
+  supports; `test_fusion_interleaves_by_confidence_while_concatenation_
+  uses_a_fixed_order` in `s11_fusion/test_fusion_retrievers.py` pins the
+  weaker, accurate claim.
+- **`k=60` was not tuned.** It is Cormack/Clarke/Buettcher's reported
+  default, used once, unmodified. A sweep might move the point estimates
+  in either 14.1/14.3 table; none was run, and reporting only the
+  untuned default is the choice that cannot smuggle in a favourable number
+  after the fact.
+- **One seed, one run, both corpora.** `seeds: 1` in both kill-input
+  documents; the evaluator's own low-seed warning (`run declares 1
+  seed(s); the plan asks for 5-10`) is attached to both INCONCLUSIVE
+  findings above and is not editorialised away.
+- **Each new retriever gets its own `TokenCache`, then has it swapped for
+  the shared one post-construction** — `contract.load_retriever`'s
+  zero-arg `module:attribute` seam has no path to inject a shared cache at
+  construction time. Correctness is unaffected (a `TokenCache` is a pure
+  memoisation layer over the tokenizer); only the first, unshared-cache
+  timing measurement was affected, and timings are shape-only in this
+  program regardless.
+- **`code_only_bm25` and `separate_indices_bm25` are not literally
+  `s08.CodeGraphRetriever`/`UnionNoFusionRetriever`.** They are BM25-only
+  reimplementations of the same *roles*, built against s09's per-case
+  candidate contract rather than s08's static whole-corpus one — see the
+  frozen spec's note on why s08's actual classes could not be reused
+  without rebuilding their whole corpus machinery per case. `s08_graph_
+  baselines/` itself is untouched by this continuation.
+- **Pre-image isolation was measured off.** Verified by grep, not merely
+  argued, that neither `FusionRetriever`, `CodeOnlyRetriever` nor
+  `SeparateIndicesRetriever` ever reads `QueryView.repo`; the oracle hole
+  isolation defends against therefore cannot be exploited by any of the
+  three, and running with `--no-isolate-preimage` bounded cost rather than
+  weakening the measurement. A future retriever loaded through the same
+  two entrypoints does not inherit this exemption and should isolate by
+  default, as both CLIs still do whenever `--retriever` is used unless
+  told otherwise.
+- **`scrubbed` variant not measured for the new arms.** Deliberate, to
+  bound runtime on a shared box; 14.1 and 14.3 only ever read the default
+  (`raw`) variant, so this does not affect either verdict above. It does
+  mean 14.7 (`gain_vanishes_after_leakage_scrub`) stays `NOT_EVALUABLE` for
+  these arms specifically, same as every prior real run in this program.
+- **The retracted results stay retracted.** Nothing here reuses s08's
+  withdrawn round-robin numbers (`test_the_retracted_s08_comparison_is_
+  not_reused` still passes, unmodified) or restates the withdrawn
+  substituted-comparator finding as anything other than the near-miss it
+  was.
+- **This is not a claim that the four-plane prior is vindicated or
+  refuted.** Two `INCONCLUSIVE` verdicts and one corpus-composition-driven
+  `UNDECIDABLE` are exactly what is reported. If a later, larger or
+  repeated-seed run moves either interval, that is the next measurement to
+  publish — not a reason to re-run this one until it looks better.
+
+### Reproduce
+
+```text
+python -m pytest experiments/forest_v2/s09_eval experiments/forest_v2/s10_kill experiments/forest_v2/s11_fusion -q
+python -m experiments.forest_v2.s09_eval.run_xplane_harness --retriever <module:attr> [...] --no-isolate-preimage --variant raw --out <path>
+python -m experiments.forest_v2.s09_eval.harness --retriever <module:attr> [...] --no-isolate-preimage --variant raw --out <path>
+python -m experiments.forest_v2.s09_eval.to_s10 --raw <path> --run-id <id> --gold-planes-from {taskset|taskset_xplane|none} --out <path>
+python -m experiments.forest_v2.s10_kill.cli <path>
+```
+
+169 passed for `s09_eval` (was 160 before this continuation; 9 new tests in
+`test_to_s10.py`), 97 passed for `s10_kill` (unchanged — this continuation
+touches no file under `s10_kill/`), 10 passed for the new `s11_fusion`
+[MEASURED]. Four of the ten `s11_fusion` tests were confirmed load-bearing
+by disabling the fusion mechanism (`_partition` mutated to pool every
+candidate into one bucket, simulating a joint index) and watching them go
+red before restoring it: `test_fusion_interleaves_by_confidence_while_
+concatenation_uses_a_fixed_order`, `test_separate_indices_output_is_
+grouped_strictly_by_declared_order`, `test_fusion_retriever_holds_real_
+per_plane_scores_before_combining`, `test_type_and_presentation_are_never_
+indexed`.
+
 ## Boundary note
 
 **Corrected 2026-08-18.** This note previously read "this directory currently
