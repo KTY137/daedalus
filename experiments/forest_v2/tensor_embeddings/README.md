@@ -113,6 +113,14 @@ compared the entire score-sorted tuple positionally even when per-path scores
 agreed within `1e-10` and the evaluated top 20 was unchanged. The invalid run
 and its 753.704-second cost remain visible; repairing the validator did not
 change the frozen inputs or any measured score.
+`results/s09_c00_smoke_v2.json` is the corrected rerun at implementation
+revision `8562997667931e847a26776a86e5ba74d10163cb`: all 13 arms, five seeds,
+and both query variants completed with zero failures and all 15 comparisons.
+Its structural status is `VALID`, but its only permitted conclusion is
+`INCONCLUSIVE`. On this one case, structured contraction, flat cosine, and the
+algebraically equivalent flat bilinear control all missed top-20; recency hit
+at rank 5, BM25 at rank 19, and Mean-MaxSim hit at rank 4 only for seed 47.
+The recency order is caller-asserted rather than externally authenticated.
 `PERFORMANCE_NOTE.md` retains the aborted slow paths and unvalidated cost-shape
 measurements rather than hiding them.
 

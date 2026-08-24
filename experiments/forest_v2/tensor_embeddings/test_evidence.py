@@ -90,3 +90,32 @@ def test_current_spec_false_full_order_failure_is_retained_as_invalid() -> None:
     assert {
         failure["category"] for failure in summary["failures"]
     } == {"tensor_vector_bilinear_equivalence_failure"}
+
+
+def test_corrected_current_spec_smoke_retains_no_superiority_claim() -> None:
+    summary = json.loads(
+        (ROOT / "results" / "s09_c00_smoke_v2.json").read_text(encoding="utf-8")
+    )
+    assert summary["implementation_revision"] == (
+        "8562997667931e847a26776a86e5ba74d10163cb"
+    )
+    assert summary["status"] == "VALID"
+    assert summary["conclusion"] == "INCONCLUSIVE"
+    assert summary["automatic_promotions"] == 0
+    assert summary["failures"] == []
+    assert len(summary["comparisons"]) == 15
+    assert all(
+        comparison["superiority_claim"] is False
+        for comparison in summary["comparisons"]
+    )
+    assert summary["full_report_digest"] == (
+        "sha256:629663bc24452837aa853e94452bbf9225d58046c8a2d6e1b1c99f684fb99609"
+    )
+    structured = summary["arm_metrics"]["structured_contraction"]
+    bilinear = summary["arm_metrics"]["flattened_bilinear_same_kernel"]
+    assert structured == bilinear
+    assert all(
+        metrics["reciprocal_rank"] == 0.0
+        for case in structured.values()
+        for metrics in case.values()
+    )

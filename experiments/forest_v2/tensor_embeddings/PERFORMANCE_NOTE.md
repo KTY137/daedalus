@@ -88,6 +88,15 @@ seed, or evaluated ranking: score equality is now checked by path, while only
 the metric-visible top-20 order must be identical. The invalid report remains
 retained rather than overwritten.
 
+The corrected rerun at implementation revision
+`8562997667931e847a26776a86e5ba74d10163cb` finished in 830.303 seconds with
+zero failures, the complete 15-comparison census, structural status `VALID`,
+and conclusion `INCONCLUSIVE`. Its full-report digest is
+`sha256:629663bc24452837aa853e94452bbf9225d58046c8a2d6e1b1c99f684fb99609`;
+the retained compact result is `results/s09_c00_smoke_v2.json`. This is one
+diagnostic case with a caller-asserted recency input, not a held-out campaign
+or a validated latency result.
+
 ## Retained historical diagnostic output (superseded)
 
 `results/s09_c00_smoke.json` is the raw report from the final five-seed run of
