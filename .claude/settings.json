@@ -36,42 +36,7 @@
   },
   "teammateMode": "in-process",
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Loading the Daedalus Iron Plan..."
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Checking plan alignment..."
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Guarding the Iron Plan..."
-          }
-        ]
-      },
       {
         "matcher": "Read|Grep",
         "hooks": [
@@ -80,30 +45,6 @@
             "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/serena-first.py\"",
             "timeout": 10,
             "statusMessage": "Routing symbol work through Serena..."
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Binding subagent to the Iron Plan..."
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Verifying Iron Plan handoff..."
           }
         ]
       }
