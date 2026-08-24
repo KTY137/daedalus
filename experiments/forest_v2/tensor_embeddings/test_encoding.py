@@ -89,6 +89,35 @@ def test_verified_binding_cannot_be_minted_or_relabelled_by_generic_callers() ->
         replace(checked, source_id="src/other.py")
 
 
+@pytest.mark.parametrize(
+    ("symbol", "neighbor"),
+    (
+        ("caller_supplied_symbol", ""),
+        ("parser", "caller supplied graph edge"),
+    ),
+)
+def test_visible_content_binding_refuses_unbound_role_views(
+    symbol: str, neighbor: str
+) -> None:
+    encoder = TensorProductEncoder(default_spec())
+    content = "def parser(): pass"
+    fields = RoleFields(
+        path="src/parser.py",
+        symbol=symbol,
+        content=content,
+        neighbor=neighbor,
+    )
+
+    with pytest.raises(ValueError, match="derived from checked content"):
+        encoder.encode_visible_fields(
+            fields,
+            source_id=fields.path,
+            source_digest=canonical_source_digest(content),
+            revision="r1",
+            plane="code",
+        )
+
+
 def test_hash_filler_coordinates_are_role_independent_for_every_frozen_seed() -> None:
     text = "ParserConfiguration parse_record storage schema"
     for seed in FROZEN_HASH_SEEDS:

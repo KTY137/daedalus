@@ -91,6 +91,9 @@ ranking unchanged.
 - `benchmark.py` is an in-process diagnostic convenience harness. It accepts
   only the exact audited experiment arms and can emit `INCONCLUSIVE` or
   `NO_SCIENTIFIC_VERDICT`, never `ADVANCE`/`KILL`.
+- Diagnostic report `/2` binds `EVALUATION_PROTOCOL_V2.json`; its aggregate
+  bootstrap first averages raw/scrubbed views within each base case and then
+  resamples base cases. Variant-specific intervals remain separate.
 - `sealed_eval.py` structurally validates content-addressed input, ranking,
   gold, and isolation manifests without executing a retriever. Content hashes
   prove integrity, not issuer identity or truth. Until an owner-controlled

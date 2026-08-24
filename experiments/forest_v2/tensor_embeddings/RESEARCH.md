@@ -312,6 +312,60 @@ single-vector inner products on worst-case datasets
 the nonlinear secondary arm, not the primary linear separable contraction,
 which has the exact flattened-vector reduction above.
 
+### Several frozen encoders do not require a new LLM
+
+The feature axis may be supplied by existing embedding encoders. A new
+autoregressive LLM is neither mathematically required nor justified by the
+current evidence. The important boundary is that independently trained
+embedding spaces do not share a coordinate system merely because their vectors
+have the same length.
+
+The zero-training baseline is to run every frozen encoder on both query and
+document and retain a weighted direct sum,
+
+\[
+f(x)=\bigoplus_e \alpha_e E_e(x),
+\qquad
+\langle f(q),f(d)\rangle
+=\sum_e \alpha_e^2\langle E_e(q),E_e(d)\rangle.
+\]
+
+This compares vectors only inside their originating encoder space. Encoder
+singletons and score-level late fusion are required controls; otherwise a
+larger concatenated budget is being mistaken for a representation gain.
+
+If different planes or roles must use different encoders, genuine cross-space
+comparison needs maps into a common hub,
+
+\[
+z_e=W_eE_e(x).
+\]
+
+The base encoders can remain frozen while small linear or low-rank projection
+heads are trained jointly on revision-pinned paired evidence. Pairwise chained
+maps are a poor default because their errors need not compose transitively.
+[LiT](https://openaccess.thecvf.com/content/CVPR2022/html/Zhai_LiT_Zero-Shot_Transfer_With_Locked-Image_Text_Tuning_CVPR_2022_paper.html)
+demonstrates the broader locked-tower pattern;
+[ImageBind](https://openaccess.thecvf.com/content/CVPR2023/html/Girdhar_ImageBind_One_Embedding_Space_To_Bind_Them_All_CVPR_2023_paper.html)
+uses a shared anchor to bind several pretrained modality encoders; and
+[DCCA](https://proceedings.mlr.press/v28/andrew13.html) is a canonical example
+of learning transformations that align two views. These results motivate an
+alignment experiment; they do not validate software-artifact retrieval or the
+present hand-written tensor kernel.
+
+The current `FillerBackend`/`PrecomputedFillerBackend` seam can consume vectors
+that are already dimension-matched and compatible. It does **not** yet bind
+the source model/checkpoint, tokenizer, pooling, original dimension,
+projection, alignment corpus, optimizer, or compute receipt; the persisted
+index and benchmark also deliberately accept only the frozen hash backend.
+Therefore a heterogeneous semantic encoder is a new versioned Gate-0
+experiment with `EncoderManifest`, `ProjectionManifest`,
+`CompositeSpaceSpec`, per-vector provenance receipts, equal encoder/token
+budgets, held-out revision splits, and second-repository transfer. Fine-tuning
+an embedding model is warranted only if frozen single encoders, direct-sum
+fusion, and projection heads fail for a measured reason. Training a new LLM
+from scratch is not the next step.
+
 ## 3. CP factors here are exact storage, not a learned KGE
 
 Canonical Polyadic decomposition represents a third-order tensor as
@@ -513,6 +567,17 @@ kernel is only a coordinate renaming and is mathematically invariant. The
 valid control keeps the frozen kernel coordinates fixed while permuting the
 artifact/query label assignments (or otherwise mismatching the bindings), with
 the permutation recorded before scores are inspected.
+
+The current s09 adapter exposes no query plane and therefore always uses a
+uniform plane vector. Under that adapter, the document-side plane permutation
+is identifiable only through the plane kernel's unequal column sums: it
+reweights whole document planes and leaves within-plane order invariant. It is
+therefore a **plane-prior sensitivity control**, not a semantic
+query-to-document plane-alignment control. The retained `project_tct` run made
+this visible: cross-plane ranks changed, but the primary first-hit MRR did not.
+A semantic plane-control claim needs a newly versioned, provenance-bound query
+plane prior, plane-stratified cases/metrics, and a simple scalar-prior baseline;
+the frozen result must not be silently re-encoded.
 
 ### Real retrieval and budget
 

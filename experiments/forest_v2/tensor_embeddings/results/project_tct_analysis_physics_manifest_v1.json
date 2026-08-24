@@ -1,0 +1,1622 @@
+{
+  "active_gate": 0,
+  "authority": "diagnostic-only-no-decision-api",
+  "automatic_promotions": 0,
+  "benchmark_binding": {
+    "case_ids": [
+      "[\"project_tct_analysis_physics_3c6c2fd6\",\"raw\"]",
+      "[\"project_tct_analysis_physics_3c6c2fd6\",\"scrubbed\"]"
+    ],
+    "comparison_count": 45,
+    "conclusion": "INCONCLUSIVE",
+    "corpus_digest": "sha256:235ffb1b0a53682baf8e8f2c4a696ba7422320597c2eaeb98fa159e0ea5e5856",
+    "failure_count": 0,
+    "protocol_digest": "sha256:3cdadf16791464d8c25e7f45ca3c4fb689b22555a380ea5ebf0a15111ea25c83",
+    "report_digest": "sha256:3b87c1027cf1075a2d819918453141de9f7c8c76581ec39c8a5ddc2288c003c9",
+    "report_path": "results/project_tct_analysis_physics_report_v2.json",
+    "report_schema": "forest-v2.tensor-embedding-report/2",
+    "required_arm_count": 13,
+    "seed_count": 5,
+    "status": "VALID"
+  },
+  "claims": {
+    "classification": "diagnostic_example",
+    "primary_effect_claim_membership": false,
+    "scientific_verdict": "NO_SCIENTIFIC_VERDICT",
+    "second_repository_transfer_evidence": false,
+    "tuning_authority": false
+  },
+  "classification": "EXPERIMENT",
+  "evaluator": {
+    "changed_paths_excluded_as_tests": [
+      "TCT_app/tests/test_bias_and_calibration.py",
+      "TCT_app/tests/test_efield_fit.py",
+      "TCT_app/tests/test_waveform_analysis.py"
+    ],
+    "gold": [
+      "TCT_app/SCAN_DATA_FORMAT.md",
+      "TCT_app/analysis/efield_analysis.py",
+      "TCT_app/analysis/waveform_analysis.py"
+    ],
+    "recency_digest": "sha256:e5a2998aa3462db310998b32ba8c6bc59b743192b1b70101cdb003c8ab5ef994",
+    "recency_digest_domain": "tensor-project-tct-recency-ranking/1",
+    "recency_history_limit": 400,
+    "recency_ranking": [
+      "TCT_app/gui/bias_viewmodel.py",
+      "TCT_app/gui/multi_bias_panel.py",
+      "TCT_app/gui/app_settings.py",
+      "TCT_app/gui/ground_law.py",
+      "TCT_app/gui/qml_theme.py",
+      "TCT_app/gui/theme_editor.py",
+      "TCT_app/gui/camera_viewmodel.py",
+      "TCT_app/composition_root.py",
+      "TCT_app/gui/guest_host.py",
+      "TCT_app/gui/liquid_shell.py",
+      "TCT_app/gui/scan_map_view.py",
+      "TCT_app/gui/scan_viewer_panel.py",
+      "TCT_app/gui/stage_view.py",
+      "TCT_app/gui/liquid_islands.py",
+      "TCT_app/gui/laser_viewmodel.py",
+      "TCT_app/gui/planner_panel.py",
+      "TCT_app/gui/planner_viewmodel.py",
+      "TCT_app/gui/motor_viewmodel.py",
+      "TCT_app/gui/calibration_viewmodel.py",
+      "TCT_app/gui/analysis_viewmodel.py",
+      "TCT_app/gui/sequencer_viewmodel.py",
+      "TCT_app/gui/monitor_viewmodel.py",
+      "TCT_app/gui/intensity_viewmodel.py",
+      "TCT_app/README.md",
+      "TCT_app/gui/scope_viewmodel.py",
+      "TCT_app/scripts/spikes/liquid_shell/bias_face_harness.py",
+      "TCT_app/gui/camera_frame_provider.py",
+      "TCT_app/scripts/spikes/liquid_shell/camera_face_harness.py",
+      "TCT_app/scripts/spikes/liquid_shell/laser_face_harness.py",
+      "TCT_app/gui/qml_shell.py",
+      "TCT_app/main.py",
+      "TCT_app/tct_gui.py",
+      "TCT_app/scripts/spikes/liquid_shell/motor_face_harness.py",
+      "TCT_app/scripts/spikes/liquid_shell/run_liquid_shell.py",
+      "TCT_app/gui/qml_island_host.py",
+      "TCT_app/scripts/spikes/breakout_scanviewer/run_breakout.py",
+      "TCT_app/gui/qml/kit/assets/manifest.json",
+      "TCT_app/scripts/gen_shadow_assets.py",
+      "TCT_app/scripts/spikes/scan_viewer_screenshot_probe.py",
+      "TCT_app/gui/scan_viewer_viewmodel.py",
+      "TCT_app/gui/motor_panel.py",
+      "TCT_app/gui/scan_viewer_qml_panel.py",
+      "TCT_app/scripts/kit_contrast_check.py",
+      "TCT_app/gui/panel_kit.py",
+      "TCT_app/gui/glass_env.py",
+      "TCT_app/scripts/spikes/lantern_frost_bake_spike.py",
+      "TCT_app/scripts/spikes/island_overlay_spike.py",
+      "TCT_app/gui/run_state_viewmodel.py",
+      "TCT_app/gui/sequencer_panel.py",
+      "TCT_app/gui/scan_map_viewmodel.py",
+      "TCT_app/scripts/spike_measurement_b.py",
+      "TCT_app/scripts/rhi_gl_probe.py",
+      "TCT_app/gui/calibration_panel.py",
+      "TCT_app/gui/laser_panel.py",
+      "TCT_app/controller/plan_estimate.py",
+      "TCT_app/controller/scan_plan.py",
+      "TCT_app/controller/scan_plan_validator.py",
+      "TCT_app/gui/analysis_panel.py",
+      "TCT_app/gui/scope_panel.py",
+      "TCT_app/gui/camera_panel.py",
+      "TCT_app/gui/device_panel.py",
+      "TCT_app/gui/intensity_panel.py",
+      "TCT_app/scripts/glass_probe.py",
+      "TCT_app/gui/bias_panel.py",
+      "TCT_app/gui/detachable_tabs.py",
+      "TCT_app/gui/status_widgets.py",
+      "TCT_app/gui/backdrop.py",
+      "TCT_app/gui/flow_layout.py",
+      "TCT_app/scripts/glass_shell_preview.py",
+      "TCT_app/scripts/qml_preview.py",
+      "TCT_app/gui/monitor_panel.py",
+      "TCT_app/gui/status_bus.py",
+      "TCT_app/pytest.ini",
+      "TCT_app/gui/settings_window.py",
+      "TCT_app/scripts/capture_onscreen.py",
+      "TCT_app/requirements.txt",
+      "TCT_app/capabilities/__init__.py",
+      "TCT_app/capabilities/adapters.py",
+      "TCT_app/capabilities/registry.py",
+      "TCT_app/controller/device_manager.py",
+      "TCT_app/controller/config_validator.py",
+      "TCT_app/capabilities/model.py",
+      "TCT_app/controller/arm_envelope.py",
+      "TCT_app/controller/scan_controller.py",
+      "TCT_app/controller/plan_compiler.py",
+      "TCT_app/routines/R1_cce_v_map.yaml",
+      "TCT_app/routines/R5_depletion_fast_scan.yaml",
+      "TCT_app/routines/R2_iv_vs_position.yaml",
+      "TCT_app/routines/R3_focus_stack.yaml",
+      "TCT_app/routines/R4_survey_measure.yaml",
+      "TCT_app/routines/R6_backlash_raster.yaml",
+      "TCT_app/data/hdf5_writer.py"
+    ],
+    "recency_source": "git log --no-merges --name-only -n400 at preimage revision; first-seen unique eligible paths"
+  },
+  "implementation": {
+    "evaluation_protocol_digest": "sha256:3cdadf16791464d8c25e7f45ca3c4fb689b22555a380ea5ebf0a15111ea25c83",
+    "git_base_revision": "d6eeb8c3205b18e95a27ff4328a2a0b58ea81246",
+    "runtime_source_digests": [
+      {
+        "path": "experiments/forest_v2/s09_eval/__init__.py",
+        "sha256": "sha256:b99c326e5f626c12028e3da12cbad633b6426e2cc9976bc5a0f9601d1dae8f42"
+      },
+      {
+        "path": "experiments/forest_v2/s09_eval/contract.py",
+        "sha256": "sha256:cdfeb9ac645016fcc6bd9b8f913c747a6b375255fdf240b188fc94e4a515ee40"
+      },
+      {
+        "path": "experiments/forest_v2/s09_eval/gitio.py",
+        "sha256": "sha256:56422cae78d6b82a7d337d8779cd9f6043289f4051711f3d2ebef7c2b7d24124"
+      },
+      {
+        "path": "experiments/forest_v2/s09_eval/taskset.py",
+        "sha256": "sha256:9725a432e8ea7badcc98cfac521292c5b4a3dd19cde7cc9eb069b8c357baf2e7"
+      },
+      {
+        "path": "experiments/forest_v2/s09_eval/tokens.py",
+        "sha256": "sha256:5f218481030acb7bc22e43f161ac7ed973e27687c7d716301d8f7ce3c0923109"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/__init__.py",
+        "sha256": "sha256:9b63bc8d1c10376e37659db42ea0b9c1ebebe01cad38c862d62e8fa1820ce2cf"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/algebra.py",
+        "sha256": "sha256:8506f425cec14756c922e98de6472617d48f6e178a02633acc11623411a7d834"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/arm_census.py",
+        "sha256": "sha256:d520e209b8bcde37349a9dd04abb43fc8a4bbabf7d87ca07ada9f926eaa46fc3"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/baseline_retrievers.py",
+        "sha256": "sha256:7a2a01d973ab1b74cbea6fdf9f88cb995f72f40727ebf5794e856c22a217d8f3"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/benchmark.py",
+        "sha256": "sha256:b2f4daf32eab538258b997f15d36dc75e064857470c3ec3432a8d615a7934e2a"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/contracts.py",
+        "sha256": "sha256:446b4ebf1a7ad3f0a663656f2cbc4eeb5643c10cbdb9e6fc9642fbdef1ff750f"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/encoding.py",
+        "sha256": "sha256:bd7a8c0d564a7065903901b676f6b8cf7be387dd1b884f09429f8065932b0955"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/retrievers.py",
+        "sha256": "sha256:316e10c076936484140a20f53b2d3671751b704b11825a52e8210b27d7703804"
+      },
+      {
+        "path": "experiments/forest_v2/tensor_embeddings/stats.py",
+        "sha256": "sha256:ece7467f3f7c3753e087fd7a18cd6cf5e2057ac593db1b4715a3358bf810d812"
+      }
+    ]
+  },
+  "lane": "local_only",
+  "limitations": [
+    "One hand-picked post-hoc base case is a diagnostic reality check, not an effect estimate.",
+    "The source repository contained future objects; audited tensor arms do not read QueryView.repo, but this was not an externally issued preimage-isolation run.",
+    "Gold and retrievers share one process in benchmark.py; no external issuer authenticates gold, isolation, or the caller-asserted recency order.",
+    "The query derives from the answer commit and retains symbol/patch leakage after path-token scrubbing.",
+    "No Type-plane candidate, Data/Type gold, second-repository transfer, semantic LLM encoder, promotion, or scientific Decision API is present.",
+    "VALID means the diagnostic report contract and receipts validated; it does not mean the research claim is validated.",
+    "The frozen primary corpus may not be changed or tuned from this measured diagnostic without a new pre-registered packet/case census."
+  ],
+  "manifest_id": "sha256:3151749a756eb5b8ffe8ebfbd066db519887bedc5d470b754e6d2b256e52f5e7",
+  "packet_id": "EXPERIMENT-TENSOR-EMBEDDINGS-001",
+  "project": {
+    "current_dirty_worktree_bytes_used": false,
+    "name": "project_tct",
+    "project_config_canonical_json_sha256": "sha256:38a54ab9ca3bb58189568c281df909f2ad9c6eadc1a0fe4e7868f74859f92441",
+    "project_config_git_blob": "057aa42b5020499f61843e36cb55d33fab36fa9f",
+    "project_config_path": "projects/project_tct.json",
+    "project_config_raw_sha256": "sha256:8cffe3bd5c99d476207e51420916eec9a986e31c2115eb88a047671fa750b60f",
+    "source_path_retained": false
+  },
+  "query": {
+    "case_id": "project_tct_analysis_physics_3c6c2fd6",
+    "leakage_note": "Raw commit text names post-change symbols and contains reviewer/coauthor metadata; path-token scrubbing does not remove every symbol or patch echo.",
+    "scrub_implementation": "experiments.forest_v2.s09_eval.taskset.scrub",
+    "scrub_removed_tokens": [
+      "analysis",
+      "efield",
+      "tct",
+      "waveform"
+    ],
+    "text_retained": false,
+    "variants": [
+      {
+        "query_digest": "sha256:34b2b357270de827781147dd8bbefbddafa3e29041fccbe1ad019acacbe096a2",
+        "utf8_bytes": 1097,
+        "variant": "raw"
+      },
+      {
+        "query_digest": "sha256:b8f18017525dcb57ab6a4183a449e8bbfa283b3b79fa7702e0eb27c3f8fa8c7e",
+        "utf8_bytes": 976,
+        "variant": "scrubbed"
+      }
+    ]
+  },
+  "schema": "forest-v2.tensor-project-case-manifest/1",
+  "security": {
+    "audit_note": "Counts come from an independent local read-only policy audit; matched secret values were never emitted.",
+    "candidate_secret_floor_hit_count": 11,
+    "candidate_untrusted_egress_breakdown": {
+      "content_policy_first": 5,
+      "default_deny": 55,
+      "secret_floor_first": 11
+    },
+    "candidate_untrusted_egress_withheld_count": 71,
+    "gold_and_query_policy_clean": true,
+    "high_risk_controller_path_count": 16,
+    "network_calls": 0,
+    "raw_candidate_content_retained": false,
+    "role_fields_retained": false,
+    "secret_values_retained": false,
+    "tensors_retained": false
+  },
+  "selection": {
+    "algorithm": "sorted preimage blobs in center; expand @tests; apply explicit stricter benchmark overlay; apply frozen s09 Budget.eligible",
+    "benchmark_deny_overlay": [
+      "TCT_app/devices/",
+      "TCT_app/configs/devices.yaml"
+    ],
+    "budget": {
+      "content_budget_bytes": 65536,
+      "cutoffs": [
+        1,
+        5,
+        10,
+        20
+      ],
+      "max_file_bytes": 200000,
+      "text_suffixes": [
+        ".py",
+        ".md",
+        ".txt",
+        ".json",
+        ".yml",
+        ".yaml",
+        ".toml",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".html",
+        ".css",
+        ".csv",
+        ".sh",
+        ".cfg",
+        ".ini",
+        ".sql",
+        ".rst"
+      ]
+    },
+    "candidate_census_digest": "sha256:fa2f1b009f5bc5e7f427cfcd97a5f4f54d23a208773048f93835f1ff375855e8",
+    "candidate_census_digest_domain": "tensor-project-tct-candidate-census/1",
+    "candidate_count": 127,
+    "candidate_inputs": [
+      {
+        "blob": "562b848e8d0fe4e464b6ea85a6729bddb35ceed1",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/README.md",
+        "size": 10739,
+        "text_digest": "sha256:523a4398371e08ee3d8516dcec4e3b8ce6d1cfc5f8891f48f360079f95beadeb",
+        "visible_bytes": 10739,
+        "visible_sha256": "sha256:523a4398371e08ee3d8516dcec4e3b8ce6d1cfc5f8891f48f360079f95beadeb"
+      },
+      {
+        "blob": "b21fb6ce51f70aa3b36a6322bf4cf34741d49d09",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/SCAN_DATA_FORMAT.md",
+        "size": 12137,
+        "text_digest": "sha256:17a79f1035f71cef8006a2fe66ae5ea6658b9bce62554a55aed7e4ebf29d44ad",
+        "visible_bytes": 12137,
+        "visible_sha256": "sha256:17a79f1035f71cef8006a2fe66ae5ea6658b9bce62554a55aed7e4ebf29d44ad"
+      },
+      {
+        "blob": "c74ee8a50644338fa560ad19a02f0d9cd4d88e04",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/camera_calibration.py",
+        "size": 11915,
+        "text_digest": "sha256:5221dbab152f2d0f11a7c570a9baf9ecc7d1802cbefcd1ea39e9ebe8f680edaf",
+        "visible_bytes": 11915,
+        "visible_sha256": "sha256:5221dbab152f2d0f11a7c570a9baf9ecc7d1802cbefcd1ea39e9ebe8f680edaf"
+      },
+      {
+        "blob": "cd971f58cc97f589197f881198305b065b50df06",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/cce.py",
+        "size": 3665,
+        "text_digest": "sha256:fa5c80019c36754072a3c686407c4ff9f70b526b3e5dc5f8d8b7d269fa71dfd4",
+        "visible_bytes": 3665,
+        "visible_sha256": "sha256:fa5c80019c36754072a3c686407c4ff9f70b526b3e5dc5f8d8b7d269fa71dfd4"
+      },
+      {
+        "blob": "35a6fff8161b51867ec8000d0aec124bf732ac0b",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/charge_calibration.py",
+        "size": 7197,
+        "text_digest": "sha256:fd9a267eb0c034566fd3e9c3a732d3987b2d4903eadd7791de5b9a07b46fa9b7",
+        "visible_bytes": 7197,
+        "visible_sha256": "sha256:fd9a267eb0c034566fd3e9c3a732d3987b2d4903eadd7791de5b9a07b46fa9b7"
+      },
+      {
+        "blob": "fb4cc9bc849196aa43571fb582640f05c528bc44",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/efield_analysis.py",
+        "size": 25101,
+        "text_digest": "sha256:0eb1a198f5c19bfb426d8f34d822e8292255441f29704544fd646b683da6e847",
+        "visible_bytes": 25101,
+        "visible_sha256": "sha256:0eb1a198f5c19bfb426d8f34d822e8292255441f29704544fd646b683da6e847"
+      },
+      {
+        "blob": "40cc5b6f2048ed91b339452a22e6863254ad1c22",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/image_prep.py",
+        "size": 23895,
+        "text_digest": "sha256:40d592d64ca71e18363f4cee4b39508a59c1c283ff6c0c0e93eaa5cd3bee3a69",
+        "visible_bytes": 23895,
+        "visible_sha256": "sha256:40d592d64ca71e18363f4cee4b39508a59c1c283ff6c0c0e93eaa5cd3bee3a69"
+      },
+      {
+        "blob": "a125b2b294cc10e269c2e270a093c4e2c33675ca",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/laser_normalization.py",
+        "size": 414,
+        "text_digest": "sha256:71cbac483d9534cf668b89c9ba7a779d09097dcd790ae8f398ab9990924f3bf6",
+        "visible_bytes": 414,
+        "visible_sha256": "sha256:71cbac483d9534cf668b89c9ba7a779d09097dcd790ae8f398ab9990924f3bf6"
+      },
+      {
+        "blob": "55fb1563512d5b6ba084968a7fe18159f27f5ea5",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/map_slice.py",
+        "size": 10339,
+        "text_digest": "sha256:bc2f6b4eb9d04d3c78ac60a1df465c89e13e1bd465ac1ce8378a054474cab7ee",
+        "visible_bytes": 10339,
+        "visible_sha256": "sha256:bc2f6b4eb9d04d3c78ac60a1df465c89e13e1bd465ac1ce8378a054474cab7ee"
+      },
+      {
+        "blob": "a92947b9f0b814aa0db1a647c176a97c41fa4239",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/mosaic_stitch.py",
+        "size": 38291,
+        "text_digest": "sha256:8a8ac7908383fe2a00fef6bc363713fed05537859c7e50db5833a763ab95007d",
+        "visible_bytes": 38291,
+        "visible_sha256": "sha256:8a8ac7908383fe2a00fef6bc363713fed05537859c7e50db5833a763ab95007d"
+      },
+      {
+        "blob": "66c1df8506980a476279a92f3969c0a81acaebf0",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/scan_grid.py",
+        "size": 9042,
+        "text_digest": "sha256:3e0bce56481456eb23a6b7de22af43a19d54f971c14ef870ed190df20db0df27",
+        "visible_bytes": 9042,
+        "visible_sha256": "sha256:3e0bce56481456eb23a6b7de22af43a19d54f971c14ef870ed190df20db0df27"
+      },
+      {
+        "blob": "083385b225a21e10ddff5455926cf78399a11414",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/analysis/waveform_analysis.py",
+        "size": 10415,
+        "text_digest": "sha256:d54a708a583ef6ee90ae476d06f7909a5ebcd2b01bbfe658954c88788d5c97db",
+        "visible_bytes": 10415,
+        "visible_sha256": "sha256:d54a708a583ef6ee90ae476d06f7909a5ebcd2b01bbfe658954c88788d5c97db"
+      },
+      {
+        "blob": "948b245a18006e15b807cd8aa0512e8df54d3e82",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/capabilities/__init__.py",
+        "size": 2280,
+        "text_digest": "sha256:16ca2b376352873e5d7db48dfef702fc0f7c4deb0d33006b86343023805f8275",
+        "visible_bytes": 2280,
+        "visible_sha256": "sha256:16ca2b376352873e5d7db48dfef702fc0f7c4deb0d33006b86343023805f8275"
+      },
+      {
+        "blob": "a3c84270a84b11d184672eac1a3015050ae80b60",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/capabilities/adapters.py",
+        "size": 31254,
+        "text_digest": "sha256:4e9bd300ea80dcfe62102d5e5e7b07f0d3b4cc84175ff1c583f0a513940708fd",
+        "visible_bytes": 31254,
+        "visible_sha256": "sha256:4e9bd300ea80dcfe62102d5e5e7b07f0d3b4cc84175ff1c583f0a513940708fd"
+      },
+      {
+        "blob": "3366eb885916cf6085223cfeb5a3168e040b95c8",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/capabilities/model.py",
+        "size": 32910,
+        "text_digest": "sha256:2c09284a325ab6156b2f627fcdc37e3e322f1997cf0796b160cd5224b148459a",
+        "visible_bytes": 32910,
+        "visible_sha256": "sha256:2c09284a325ab6156b2f627fcdc37e3e322f1997cf0796b160cd5224b148459a"
+      },
+      {
+        "blob": "2abd3a9f3d156a79d6e0588df49598edf7d731fe",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/capabilities/registry.py",
+        "size": 21124,
+        "text_digest": "sha256:4180b8b5a2cc2cd467dc53bd4563519c3d2674aeddb3cf64e1cbe1317732d104",
+        "visible_bytes": 21124,
+        "visible_sha256": "sha256:4180b8b5a2cc2cd467dc53bd4563519c3d2674aeddb3cf64e1cbe1317732d104"
+      },
+      {
+        "blob": "549adc27442cd9fa1567db81ccb7ab12aad00c9c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/composition_root.py",
+        "size": 111996,
+        "text_digest": "sha256:a9f5998e9b8afa745f9c9b77072b8f82ae8b3522b3e938201ac088f63b84df19",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:a9f5998e9b8afa745f9c9b77072b8f82ae8b3522b3e938201ac088f63b84df19"
+      },
+      {
+        "blob": "1b404d1544f69c9db005cb4a697b86c9626efef1",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/arm_envelope.py",
+        "size": 22360,
+        "text_digest": "sha256:ca7d34a3c83ad0f678f241e3be06e2dc9f69e1237d56500c4b22a9361fa427d8",
+        "visible_bytes": 22360,
+        "visible_sha256": "sha256:ca7d34a3c83ad0f678f241e3be06e2dc9f69e1237d56500c4b22a9361fa427d8"
+      },
+      {
+        "blob": "e45efe3f5d77e8fdee6718bd59df5e1526d8ac89",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/config_validator.py",
+        "size": 29285,
+        "text_digest": "sha256:801000b96b31e3d84e0bcd1628efe500d9e21c97258c370542c7cb7e83c46b82",
+        "visible_bytes": 29285,
+        "visible_sha256": "sha256:801000b96b31e3d84e0bcd1628efe500d9e21c97258c370542c7cb7e83c46b82"
+      },
+      {
+        "blob": "c61312921c35dbc8d8f1086a7410d1878740ddf8",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/danger_gate.py",
+        "size": 2440,
+        "text_digest": "sha256:7585fb7a86ad3cb51977d9579c33b98d7db8b84c075aa756a9979f9b38214ed7",
+        "visible_bytes": 2440,
+        "visible_sha256": "sha256:7585fb7a86ad3cb51977d9579c33b98d7db8b84c075aa756a9979f9b38214ed7"
+      },
+      {
+        "blob": "a84dbac4ed174f140f49f456a9f861b0e75297cf",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/device_manager.py",
+        "size": 33522,
+        "text_digest": "sha256:4241d56554a91d95ed8fd419d4a3128a05c444a50a124c39e99c52c06f36d665",
+        "visible_bytes": 33522,
+        "visible_sha256": "sha256:4241d56554a91d95ed8fd419d4a3128a05c444a50a124c39e99c52c06f36d665"
+      },
+      {
+        "blob": "93064899dc587dbbe414077f379ddc4cfb707a86",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/plan_compiler.py",
+        "size": 13031,
+        "text_digest": "sha256:a5162a9c0ee990896833a1c1135f45a840653786062f91ab07d4a9f88598a726",
+        "visible_bytes": 13031,
+        "visible_sha256": "sha256:a5162a9c0ee990896833a1c1135f45a840653786062f91ab07d4a9f88598a726"
+      },
+      {
+        "blob": "afe385920b7773f96c1e0a3aa6d42d547b866542",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/plan_estimate.py",
+        "size": 14629,
+        "text_digest": "sha256:769bfa9e89efe5f7f86aa19811194f639c58e6de241307611a9d909d59c73121",
+        "visible_bytes": 14629,
+        "visible_sha256": "sha256:769bfa9e89efe5f7f86aa19811194f639c58e6de241307611a9d909d59c73121"
+      },
+      {
+        "blob": "07cbc1c9dfbee8cb336559d4e32706ca24545978",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/plan_from_config.py",
+        "size": 10530,
+        "text_digest": "sha256:0ac7e3a93b78f7d21536654bd3e0a08836dbdab8592f20ac1dde69f9023a96e2",
+        "visible_bytes": 10530,
+        "visible_sha256": "sha256:0ac7e3a93b78f7d21536654bd3e0a08836dbdab8592f20ac1dde69f9023a96e2"
+      },
+      {
+        "blob": "3f826f9b0bbc828f71caaa2d09e342cc0d09b161",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/repeatability.py",
+        "size": 38050,
+        "text_digest": "sha256:ef45e2800133755e7fdd69f76a2ad8afff19e06d146ccbc3480ab081d8523672",
+        "visible_bytes": 38050,
+        "visible_sha256": "sha256:ef45e2800133755e7fdd69f76a2ad8afff19e06d146ccbc3480ab081d8523672"
+      },
+      {
+        "blob": "67c9157013f54d3468fe9e42b59f143ff9b08da1",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/scan_controller.py",
+        "size": 115352,
+        "text_digest": "sha256:370ebd4a3fce0b2ad1e636f7f9eab481a9a8e014ec3a91bb95d09f7884f5a622",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:370ebd4a3fce0b2ad1e636f7f9eab481a9a8e014ec3a91bb95d09f7884f5a622"
+      },
+      {
+        "blob": "1fddf93c5a98af216f8fc399d9ba33195a9a94b7",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/scan_plan.py",
+        "size": 22426,
+        "text_digest": "sha256:9775f1f7865c9ef039a219cd59e16eeec72fe18c60cf541af69b7199aecaf419",
+        "visible_bytes": 22426,
+        "visible_sha256": "sha256:9775f1f7865c9ef039a219cd59e16eeec72fe18c60cf541af69b7199aecaf419"
+      },
+      {
+        "blob": "8b8814a5f78ea34c33a04dc7f17650fd237b9c41",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/scan_plan_validator.py",
+        "size": 22980,
+        "text_digest": "sha256:559b9d2b40b89094750aa7dba8529c9cbc5b15ba235f040f4b9944779a2f8ffd",
+        "visible_bytes": 22980,
+        "visible_sha256": "sha256:559b9d2b40b89094750aa7dba8529c9cbc5b15ba235f040f4b9944779a2f8ffd"
+      },
+      {
+        "blob": "2e7c4d8214aa557cd0f60f1a68fde1782ca20820",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/sequencer.py",
+        "size": 21395,
+        "text_digest": "sha256:4763044fd4018e9b512319752076c1a4ec0e33d525aee213899ab2a2c30ac2b1",
+        "visible_bytes": 21395,
+        "visible_sha256": "sha256:4763044fd4018e9b512319752076c1a4ec0e33d525aee213899ab2a2c30ac2b1"
+      },
+      {
+        "blob": "0988864be2d1b1a2087fbde098d656128e70c730",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/slow_control_manager.py",
+        "size": 5834,
+        "text_digest": "sha256:b07de41d196eb77a484bbc002a36166b0088a05426c98ec331fb0a4744c5d520",
+        "visible_bytes": 5834,
+        "visible_sha256": "sha256:b07de41d196eb77a484bbc002a36166b0088a05426c98ec331fb0a4744c5d520"
+      },
+      {
+        "blob": "17e02d21ca007e3359aa4a0b1f3c093e251ead00",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/state_machine.py",
+        "size": 4004,
+        "text_digest": "sha256:b2508e091ab6b73f193392fae5ebd22035c8775b79e3455aef4ef57f6b743978",
+        "visible_bytes": 4004,
+        "visible_sha256": "sha256:b2508e091ab6b73f193392fae5ebd22035c8775b79e3455aef4ef57f6b743978"
+      },
+      {
+        "blob": "2ef09ce86476d28f85ea48a4bb8b87bc689b326d",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/survey_plan.py",
+        "size": 11994,
+        "text_digest": "sha256:ac58edf662b7f307004283347583d350211ea0442ec57b7543641a76d4632edf",
+        "visible_bytes": 11994,
+        "visible_sha256": "sha256:ac58edf662b7f307004283347583d350211ea0442ec57b7543641a76d4632edf"
+      },
+      {
+        "blob": "2b186c6fdb8bb26bfcca74ed779d40a7a218acba",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/controller/yaml_persist.py",
+        "size": 14010,
+        "text_digest": "sha256:c300ac02f9350623e1b0c27cb99fc703a068eea07f5d68ddda4ac3d4baf012a1",
+        "visible_bytes": 14010,
+        "visible_sha256": "sha256:c300ac02f9350623e1b0c27cb99fc703a068eea07f5d68ddda4ac3d4baf012a1"
+      },
+      {
+        "blob": "0bf6e57883f9b8a76f76308f1867738a3dfcd8c1",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/data/__init__.py",
+        "size": 72,
+        "text_digest": "sha256:8d2daba3a27db016a70644dd12a5a6ebd4d99b02ca89f1235a2b6bc3d891ead2",
+        "visible_bytes": 72,
+        "visible_sha256": "sha256:8d2daba3a27db016a70644dd12a5a6ebd4d99b02ca89f1235a2b6bc3d891ead2"
+      },
+      {
+        "blob": "c51fa31f3508227150edb8f6f50b6803abc9e691",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/data/hdf5_writer.py",
+        "size": 19299,
+        "text_digest": "sha256:b709db8747af22d38ebf42799bb4babd848cdb10ab8d34e11ce2bef368b53f66",
+        "visible_bytes": 19299,
+        "visible_sha256": "sha256:b709db8747af22d38ebf42799bb4babd848cdb10ab8d34e11ce2bef368b53f66"
+      },
+      {
+        "blob": "ca6bad4f30ceaa70755cd7a418fdc9dc307a0a7e",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/data/influx_writer.py",
+        "size": 2793,
+        "text_digest": "sha256:065ec95df4dfbca994969b11cd9195c3814d33b2befe233955c381e8cc0b40d7",
+        "visible_bytes": 2793,
+        "visible_sha256": "sha256:065ec95df4dfbca994969b11cd9195c3814d33b2befe233955c381e8cc0b40d7"
+      },
+      {
+        "blob": "b146520271f01e57f15d5a12afdc8efffd4eb90c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/data/save_options.py",
+        "size": 1584,
+        "text_digest": "sha256:70c0358ac70113d832c31d0bd9e76f50465023b4f7a8044e3ee9219dff50a2fe",
+        "visible_bytes": 1584,
+        "visible_sha256": "sha256:70c0358ac70113d832c31d0bd9e76f50465023b4f7a8044e3ee9219dff50a2fe"
+      },
+      {
+        "blob": "39b1ad061e45a353b5aa567154cbca02cc14d545",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/analysis_panel.py",
+        "size": 113006,
+        "text_digest": "sha256:ffbf34f5f2551255901ca4df8b580f8cf7c9932464b97986759c798f96724642",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:ffbf34f5f2551255901ca4df8b580f8cf7c9932464b97986759c798f96724642"
+      },
+      {
+        "blob": "9fe221ee1f79407f5b7d02a8e34e28a1622d861b",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/analysis_viewmodel.py",
+        "size": 78779,
+        "text_digest": "sha256:ff4cbdcfc371a75338346122baf9b58225d3719ea859cf12e8177f78f4698ff8",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:ff4cbdcfc371a75338346122baf9b58225d3719ea859cf12e8177f78f4698ff8"
+      },
+      {
+        "blob": "c3d72f053e32316ebb49af28f3f035d298434cc1",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/app_settings.py",
+        "size": 16186,
+        "text_digest": "sha256:702f7605da962571da4936cf5a173dad7e1f0e1e08f6864a588abdde9dcdcb12",
+        "visible_bytes": 16186,
+        "visible_sha256": "sha256:702f7605da962571da4936cf5a173dad7e1f0e1e08f6864a588abdde9dcdcb12"
+      },
+      {
+        "blob": "ceb83ef82484b32b2418c02b407a3f9a06965afc",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/arm_latch.py",
+        "size": 17972,
+        "text_digest": "sha256:4411f8d775caa648c05ecfae3ac72ed608afc3897c4ef090fc014175a376ecfe",
+        "visible_bytes": 17972,
+        "visible_sha256": "sha256:4411f8d775caa648c05ecfae3ac72ed608afc3897c4ef090fc014175a376ecfe"
+      },
+      {
+        "blob": "4187703e19c1531b9ccead11f80d708774f4fb60",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/backdrop.py",
+        "size": 59146,
+        "text_digest": "sha256:5b5e804a7aca1c52ca333047261be5b3a83c422198a9b0eeb241c7d37e14bf20",
+        "visible_bytes": 59146,
+        "visible_sha256": "sha256:5b5e804a7aca1c52ca333047261be5b3a83c422198a9b0eeb241c7d37e14bf20"
+      },
+      {
+        "blob": "af31965a0e666ce6a8089a8934e2205c1d04fc61",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/bias_panel.py",
+        "size": 61414,
+        "text_digest": "sha256:9f846bf85707c7226308680cfb774f16222d5f2210307f0349ba099d8b8b0d8d",
+        "visible_bytes": 61414,
+        "visible_sha256": "sha256:9f846bf85707c7226308680cfb774f16222d5f2210307f0349ba099d8b8b0d8d"
+      },
+      {
+        "blob": "ff054676d859ed53e3b03c16f7483c31f44ab31c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/bias_viewmodel.py",
+        "size": 53988,
+        "text_digest": "sha256:ec25febd4920368b2ddba6031be10c22c6c75031ac3de8e5ff50591fd53b8fab",
+        "visible_bytes": 53988,
+        "visible_sha256": "sha256:ec25febd4920368b2ddba6031be10c22c6c75031ac3de8e5ff50591fd53b8fab"
+      },
+      {
+        "blob": "228e7fadf078cc3e08c25d283edc0d03d6fedd77",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/calibration_panel.py",
+        "size": 30907,
+        "text_digest": "sha256:adb024036f9203d3a00144c2852efcbb5d21e386a36802556db3728d62187042",
+        "visible_bytes": 30907,
+        "visible_sha256": "sha256:adb024036f9203d3a00144c2852efcbb5d21e386a36802556db3728d62187042"
+      },
+      {
+        "blob": "d373109062771c4a88ebb57682ca834db763ead1",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/calibration_viewmodel.py",
+        "size": 35826,
+        "text_digest": "sha256:b8ef4605f02a541b536a5a5d4400becd49d64e555df944721c4ef49c39f0beb4",
+        "visible_bytes": 35826,
+        "visible_sha256": "sha256:b8ef4605f02a541b536a5a5d4400becd49d64e555df944721c4ef49c39f0beb4"
+      },
+      {
+        "blob": "731bc8fdd96bf81f9261a572b0a432f5d71db87c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/camera_frame_provider.py",
+        "size": 6932,
+        "text_digest": "sha256:fd8408a558d1ce667c55dd6b6ef8635890675be1c01f6ff7f34183dc98e8362e",
+        "visible_bytes": 6932,
+        "visible_sha256": "sha256:fd8408a558d1ce667c55dd6b6ef8635890675be1c01f6ff7f34183dc98e8362e"
+      },
+      {
+        "blob": "87db8c8f59bf03029855ae49d37c651595608236",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/camera_panel.py",
+        "size": 56581,
+        "text_digest": "sha256:5817ff2d4f05c50ef1bb146b64d1df1553d40be34bebdf2ec3cc545ad35c77ee",
+        "visible_bytes": 56581,
+        "visible_sha256": "sha256:5817ff2d4f05c50ef1bb146b64d1df1553d40be34bebdf2ec3cc545ad35c77ee"
+      },
+      {
+        "blob": "adf886cf16cc850ccfea3e5bff0c29478129ea14",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/camera_viewmodel.py",
+        "size": 34823,
+        "text_digest": "sha256:c9a963ea4e01872b839db49493c0fd36db7c2a68b34ddcb90d5e55a78944e799",
+        "visible_bytes": 34823,
+        "visible_sha256": "sha256:c9a963ea4e01872b839db49493c0fd36db7c2a68b34ddcb90d5e55a78944e799"
+      },
+      {
+        "blob": "3d219bcffc4c64afd33fe56ce2db9a3400b9d59a",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/detachable_tabs.py",
+        "size": 6208,
+        "text_digest": "sha256:13cea6992c437d69a8f6dd0c4d692c4873ee98b7cfabbda6cde3f898656960df",
+        "visible_bytes": 6208,
+        "visible_sha256": "sha256:13cea6992c437d69a8f6dd0c4d692c4873ee98b7cfabbda6cde3f898656960df"
+      },
+      {
+        "blob": "60257ea0f5abdbd4ce7692c5f68d45aae0d7cf69",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/device_panel.py",
+        "size": 22165,
+        "text_digest": "sha256:5072e6af31784166b4961bf55658f9552b1f71d1a59a04aa94b6cc3bea30c733",
+        "visible_bytes": 22165,
+        "visible_sha256": "sha256:5072e6af31784166b4961bf55658f9552b1f71d1a59a04aa94b6cc3bea30c733"
+      },
+      {
+        "blob": "8433e391e38b21f44a6b0382360744620f736aa9",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/flow_layout.py",
+        "size": 6469,
+        "text_digest": "sha256:aeb907ac2507e3649290f4a4fe066cc4f2cf7181f370e0202f4053ae7bc34a03",
+        "visible_bytes": 6469,
+        "visible_sha256": "sha256:aeb907ac2507e3649290f4a4fe066cc4f2cf7181f370e0202f4053ae7bc34a03"
+      },
+      {
+        "blob": "ed313a608cb9831baf5f2746008330cd973dacfb",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/glass_env.py",
+        "size": 53326,
+        "text_digest": "sha256:4a8d807005a70e0f913b593cbdcc510cdf04cbe355c0317bf29dfaa5ea876975",
+        "visible_bytes": 53326,
+        "visible_sha256": "sha256:4a8d807005a70e0f913b593cbdcc510cdf04cbe355c0317bf29dfaa5ea876975"
+      },
+      {
+        "blob": "419680ce5a9e239684b6328a6c0cc59cb405fab0",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/ground_law.py",
+        "size": 9939,
+        "text_digest": "sha256:52ff8f83f49f54e468236bfa91396365ce43e290e13dad93c8e2c742a12ef51e",
+        "visible_bytes": 9939,
+        "visible_sha256": "sha256:52ff8f83f49f54e468236bfa91396365ce43e290e13dad93c8e2c742a12ef51e"
+      },
+      {
+        "blob": "4f576d7335eb7b508526a5c2be9dca8671595f8f",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/guest_host.py",
+        "size": 10558,
+        "text_digest": "sha256:1da51475520f524ebb6ca68c0aa854e0b1c0a4e21eed2a829b3e20c6dbe6e584",
+        "visible_bytes": 10558,
+        "visible_sha256": "sha256:1da51475520f524ebb6ca68c0aa854e0b1c0a4e21eed2a829b3e20c6dbe6e584"
+      },
+      {
+        "blob": "b9e438b92c98eab890491d96f213b239337f6719",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/intensity_panel.py",
+        "size": 13348,
+        "text_digest": "sha256:e7517855e7d418347d012ed9c4c966efdcdfb3ae759a9ead1b702a59040064f2",
+        "visible_bytes": 13348,
+        "visible_sha256": "sha256:e7517855e7d418347d012ed9c4c966efdcdfb3ae759a9ead1b702a59040064f2"
+      },
+      {
+        "blob": "d3fe1c5239d6c2e6e9df25fad19500cd08b9d43c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/intensity_viewmodel.py",
+        "size": 24866,
+        "text_digest": "sha256:9ea5c0ba96c6913b59fe8c6d1a3ade67fe389df001d087938d1f7e8a1c80428b",
+        "visible_bytes": 24866,
+        "visible_sha256": "sha256:9ea5c0ba96c6913b59fe8c6d1a3ade67fe389df001d087938d1f7e8a1c80428b"
+      },
+      {
+        "blob": "ab05258d724c73af0f73bcfafc370db1fc6adc3f",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/laser_panel.py",
+        "size": 48890,
+        "text_digest": "sha256:b552fef4b7a04209ef5052f7aa86b8e2e726c36b049f5f45e3113cbd20d37463",
+        "visible_bytes": 48890,
+        "visible_sha256": "sha256:b552fef4b7a04209ef5052f7aa86b8e2e726c36b049f5f45e3113cbd20d37463"
+      },
+      {
+        "blob": "4bcf3bbb690a7780655a1fe8b9df2ecb759a245d",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/laser_viewmodel.py",
+        "size": 42826,
+        "text_digest": "sha256:2c829a684e188147629b2c5604c9f9df36352054f5e15e5fd95a10dfe9c3f65c",
+        "visible_bytes": 42826,
+        "visible_sha256": "sha256:2c829a684e188147629b2c5604c9f9df36352054f5e15e5fd95a10dfe9c3f65c"
+      },
+      {
+        "blob": "0c6ddb1880927cb7333c2efa986c16e1e802c2c7",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/liquid_islands.py",
+        "size": 34139,
+        "text_digest": "sha256:80727536bcbb34cfccb426bd081ad112f5bfc291d6723b4254e6713f7bfbd2f2",
+        "visible_bytes": 34139,
+        "visible_sha256": "sha256:80727536bcbb34cfccb426bd081ad112f5bfc291d6723b4254e6713f7bfbd2f2"
+      },
+      {
+        "blob": "6eab3cf3c453f63269f3756fced16bb784dcfd12",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/liquid_shell.py",
+        "size": 18892,
+        "text_digest": "sha256:2b204f466e8e78fca7197a28efa10a98b8d65e1404ce1204a296ce19ca6eb4cc",
+        "visible_bytes": 18892,
+        "visible_sha256": "sha256:2b204f466e8e78fca7197a28efa10a98b8d65e1404ce1204a296ce19ca6eb4cc"
+      },
+      {
+        "blob": "5d5d454dd33d80135ecba8bcaf82290c3efe776d",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/liveness.py",
+        "size": 2285,
+        "text_digest": "sha256:cafaaf42a266cd586f43368c5a71608d82059ba401b1173a979aebb0118651e4",
+        "visible_bytes": 2285,
+        "visible_sha256": "sha256:cafaaf42a266cd586f43368c5a71608d82059ba401b1173a979aebb0118651e4"
+      },
+      {
+        "blob": "d41d67489dc6e76fa83389814c27787b12f6f18f",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/monitor_panel.py",
+        "size": 32798,
+        "text_digest": "sha256:c900a4a5d03dda1c70922c09c18a051a690e08e550d541dcf128f0a4f4cb17dd",
+        "visible_bytes": 32798,
+        "visible_sha256": "sha256:c900a4a5d03dda1c70922c09c18a051a690e08e550d541dcf128f0a4f4cb17dd"
+      },
+      {
+        "blob": "78812f697c91aaf8e59a9779242eda5f3eae4ab9",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/monitor_viewmodel.py",
+        "size": 43459,
+        "text_digest": "sha256:075d1aa6df98335cbde04bd1ae876186dcecbe17f5ef8f14166c21b7a6b21ff4",
+        "visible_bytes": 43459,
+        "visible_sha256": "sha256:075d1aa6df98335cbde04bd1ae876186dcecbe17f5ef8f14166c21b7a6b21ff4"
+      },
+      {
+        "blob": "f8c50e1cdb338c26bc4bf6562ec9e2211bec274b",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/motion.py",
+        "size": 4944,
+        "text_digest": "sha256:6e755b14a17186b409a16735cb0a74286122426ac41e7c9c44e66444fc26dc5c",
+        "visible_bytes": 4944,
+        "visible_sha256": "sha256:6e755b14a17186b409a16735cb0a74286122426ac41e7c9c44e66444fc26dc5c"
+      },
+      {
+        "blob": "67a8afe70178da08fbe699e3f5096bb5b5b15fd4",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/motion_kit.py",
+        "size": 23357,
+        "text_digest": "sha256:7e26e86c07c6494a80b95d64f899242a3f03391b88df696498e7b7b1ab3efb62",
+        "visible_bytes": 23357,
+        "visible_sha256": "sha256:7e26e86c07c6494a80b95d64f899242a3f03391b88df696498e7b7b1ab3efb62"
+      },
+      {
+        "blob": "c9432a423269346ad4f982d6860f8b496007a9b6",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/motor_panel.py",
+        "size": 73619,
+        "text_digest": "sha256:1010f5aa148db85163469aabef90c3d6fba0bb40135d0e8270a6b1ed2aebd78e",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:1010f5aa148db85163469aabef90c3d6fba0bb40135d0e8270a6b1ed2aebd78e"
+      },
+      {
+        "blob": "cf3889632b42b2ce633922ecb480159972399464",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/motor_viewmodel.py",
+        "size": 30129,
+        "text_digest": "sha256:91eefc49c80f9a7e776d50a0a3201fd2a3f9cd713996be3ea1bc3c24ec82564d",
+        "visible_bytes": 30129,
+        "visible_sha256": "sha256:91eefc49c80f9a7e776d50a0a3201fd2a3f9cd713996be3ea1bc3c24ec82564d"
+      },
+      {
+        "blob": "dc977d5cb84feceedbecee54ae37904125dc95e0",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/multi_bias_panel.py",
+        "size": 18218,
+        "text_digest": "sha256:91c1fe55edeb84b88f7e64d7cd2344b8b8624a230163a22a2045e177a17ceb86",
+        "visible_bytes": 18218,
+        "visible_sha256": "sha256:91c1fe55edeb84b88f7e64d7cd2344b8b8624a230163a22a2045e177a17ceb86"
+      },
+      {
+        "blob": "2ed47eab53a8ba71fc3459004f3dda6c9a2afec9",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/panel_kit.py",
+        "size": 62995,
+        "text_digest": "sha256:d97e10f2e667dfe621bc13ac57df801856b8e8028cc3e5548619c26492c3a753",
+        "visible_bytes": 62995,
+        "visible_sha256": "sha256:d97e10f2e667dfe621bc13ac57df801856b8e8028cc3e5548619c26492c3a753"
+      },
+      {
+        "blob": "3a64f20e54e8c998d4fa64687ecf5bf6c547db22",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/planner_panel.py",
+        "size": 122668,
+        "text_digest": "sha256:956be6f24cf1e8027b4ebe51f8b6279d80e2f9af70dd115b0dab0319ee5a59f4",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:956be6f24cf1e8027b4ebe51f8b6279d80e2f9af70dd115b0dab0319ee5a59f4"
+      },
+      {
+        "blob": "1096a24ad8bfca877cfca5be944b80a8eadd98c2",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/planner_viewmodel.py",
+        "size": 72634,
+        "text_digest": "sha256:75f5426de2666d0c3f77cdaabd6a69123225e793bda5275a55912116fcc1f05e",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:75f5426de2666d0c3f77cdaabd6a69123225e793bda5275a55912116fcc1f05e"
+      },
+      {
+        "blob": "89f8b2f1d9fbd099798fad8993eaaf1a2e33c62f",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/qml/kit/assets/manifest.json",
+        "size": 2024,
+        "text_digest": "sha256:ae498ee5b345ae6d2de42b32e94fca80fb760d11df64cad6f174a78abb5a9301",
+        "visible_bytes": 2024,
+        "visible_sha256": "sha256:ae498ee5b345ae6d2de42b32e94fca80fb760d11df64cad6f174a78abb5a9301"
+      },
+      {
+        "blob": "6e33bb2a6570150631a4527a093cd89683204ccb",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/qml_island_host.py",
+        "size": 28740,
+        "text_digest": "sha256:0a5ecb5d45d3cc7efc0ec59084209377e9b8e43a7fba393d01ec8963e855df62",
+        "visible_bytes": 28740,
+        "visible_sha256": "sha256:0a5ecb5d45d3cc7efc0ec59084209377e9b8e43a7fba393d01ec8963e855df62"
+      },
+      {
+        "blob": "8542473b56c68a1908a75a989325496d6eb999b4",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/qml_shell.py",
+        "size": 2830,
+        "text_digest": "sha256:6adba6ec337b8fbecac3ab919dcae472eecd0380b3f89714077fa0b358901b29",
+        "visible_bytes": 2830,
+        "visible_sha256": "sha256:6adba6ec337b8fbecac3ab919dcae472eecd0380b3f89714077fa0b358901b29"
+      },
+      {
+        "blob": "daaf32de71902918ccafb83f4cf911193dc9a59e",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/qml_theme.py",
+        "size": 34626,
+        "text_digest": "sha256:33bd33f4f86ace9e224ee2199324e6fb4a835ffa54c4c77ca1caf47ea423eb88",
+        "visible_bytes": 34626,
+        "visible_sha256": "sha256:33bd33f4f86ace9e224ee2199324e6fb4a835ffa54c4c77ca1caf47ea423eb88"
+      },
+      {
+        "blob": "c182970a8da312e7a750a71df416f61001f9f654",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/qt_danger_gate.py",
+        "size": 8189,
+        "text_digest": "sha256:ee52936494eeb0a54959a5adac22fbcbae94052d5796ef7d88ae234af5574cb7",
+        "visible_bytes": 8189,
+        "visible_sha256": "sha256:ee52936494eeb0a54959a5adac22fbcbae94052d5796ef7d88ae234af5574cb7"
+      },
+      {
+        "blob": "152606ab94ee5bf6eca510962834e9e0f9c4f67c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/run_state_viewmodel.py",
+        "size": 9992,
+        "text_digest": "sha256:ec9a48400203b7f5d6128ecc176c00e3d1b19669a458281f0c2b04cc4b326eaa",
+        "visible_bytes": 9992,
+        "visible_sha256": "sha256:ec9a48400203b7f5d6128ecc176c00e3d1b19669a458281f0c2b04cc4b326eaa"
+      },
+      {
+        "blob": "a0661afe68d95d53b45e446c8ff31139dec0466c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scan_coordinator.py",
+        "size": 19938,
+        "text_digest": "sha256:e89e783967b473edb2fe4b61ac7824139a162c2f4c2991a27c25301ada423214",
+        "visible_bytes": 19938,
+        "visible_sha256": "sha256:e89e783967b473edb2fe4b61ac7824139a162c2f4c2991a27c25301ada423214"
+      },
+      {
+        "blob": "79f2f8a3d3693789c34aeddf88b34cc936f7115b",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scan_map_view.py",
+        "size": 34323,
+        "text_digest": "sha256:faf24c3979ab2d8f9fb0dfd0a72c69a990218c90d000dec4ff73859c8869c979",
+        "visible_bytes": 34323,
+        "visible_sha256": "sha256:faf24c3979ab2d8f9fb0dfd0a72c69a990218c90d000dec4ff73859c8869c979"
+      },
+      {
+        "blob": "388625d28bd228e801242f1671e1a4166256dfb4",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scan_map_viewmodel.py",
+        "size": 13376,
+        "text_digest": "sha256:db9c5ffdd44b1b3b6f60be1f80d154474dd1fdb37869b53e0a5b6233c814b801",
+        "visible_bytes": 13376,
+        "visible_sha256": "sha256:db9c5ffdd44b1b3b6f60be1f80d154474dd1fdb37869b53e0a5b6233c814b801"
+      },
+      {
+        "blob": "067e6821dc91524837731a085b3db97ac087f4bf",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scan_viewer_panel.py",
+        "size": 29943,
+        "text_digest": "sha256:a8b46bde64aa1468668e7435d037bb09d9a5da12a13920bc8e942b679ba6ae67",
+        "visible_bytes": 29943,
+        "visible_sha256": "sha256:a8b46bde64aa1468668e7435d037bb09d9a5da12a13920bc8e942b679ba6ae67"
+      },
+      {
+        "blob": "ca317e17c32738848202775cf8d0f6ca841b397e",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scan_viewer_qml_panel.py",
+        "size": 596,
+        "text_digest": "sha256:5e1eaa7dcbe6e16db0ce11903d4ee608f561f8872fc04c87964a0f5da1756b21",
+        "visible_bytes": 596,
+        "visible_sha256": "sha256:5e1eaa7dcbe6e16db0ce11903d4ee608f561f8872fc04c87964a0f5da1756b21"
+      },
+      {
+        "blob": "bea90d04994421352951a5f8aedae8937bf5051b",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scan_viewer_viewmodel.py",
+        "size": 25282,
+        "text_digest": "sha256:83beba32b3eb1245338dd9f96e45feb744559067189d465f50fe565bcf940d7a",
+        "visible_bytes": 25282,
+        "visible_sha256": "sha256:83beba32b3eb1245338dd9f96e45feb744559067189d465f50fe565bcf940d7a"
+      },
+      {
+        "blob": "cc0354f04eb7cf735092923d2c79175a050d724a",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scope_measurements.py",
+        "size": 5850,
+        "text_digest": "sha256:463592ec2fa5ed758108d1947da82d465514104fdf62fe48d6568c146c1576c4",
+        "visible_bytes": 5850,
+        "visible_sha256": "sha256:463592ec2fa5ed758108d1947da82d465514104fdf62fe48d6568c146c1576c4"
+      },
+      {
+        "blob": "2ce3b9556abd40ffa943d7a2325543f4e31ee4fe",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scope_panel.py",
+        "size": 78492,
+        "text_digest": "sha256:a20b5645d7756483961713b7366af2996ea4450246e5bf652183bf0d7b2809fd",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:a20b5645d7756483961713b7366af2996ea4450246e5bf652183bf0d7b2809fd"
+      },
+      {
+        "blob": "b86ba30fea971b637d661559521ad6b7a2d5866a",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/scope_viewmodel.py",
+        "size": 60249,
+        "text_digest": "sha256:6825d0486fc5877b573f9bc1313fe87dd56282e6364f1ebf1f55e9394bda768b",
+        "visible_bytes": 60249,
+        "visible_sha256": "sha256:6825d0486fc5877b573f9bc1313fe87dd56282e6364f1ebf1f55e9394bda768b"
+      },
+      {
+        "blob": "dbb5d33c76b5b34d6ee3193f5b1c091787c21cff",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/sequence_coordinator.py",
+        "size": 24374,
+        "text_digest": "sha256:d160cd7cbf5d5317c77fd033f7cbb7d2a6968089bc2544fe40913f3826b35584",
+        "visible_bytes": 24374,
+        "visible_sha256": "sha256:d160cd7cbf5d5317c77fd033f7cbb7d2a6968089bc2544fe40913f3826b35584"
+      },
+      {
+        "blob": "4a1e8ff8c3fd87cd3bf46d58b2ab9e8c00186d5c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/sequencer_panel.py",
+        "size": 27806,
+        "text_digest": "sha256:b4cc91877ac492ef666b2d17a1cda9b97242a5378f71b576d3f138096260ac4e",
+        "visible_bytes": 27806,
+        "visible_sha256": "sha256:b4cc91877ac492ef666b2d17a1cda9b97242a5378f71b576d3f138096260ac4e"
+      },
+      {
+        "blob": "76ae9eb942d244b09f74c287581bde854a03560b",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/sequencer_viewmodel.py",
+        "size": 33105,
+        "text_digest": "sha256:f6983e3d5efef20008bc465826e389e6767c6cd4e93affbdc626f8508f4a913f",
+        "visible_bytes": 33105,
+        "visible_sha256": "sha256:f6983e3d5efef20008bc465826e389e6767c6cd4e93affbdc626f8508f4a913f"
+      },
+      {
+        "blob": "1fc26ffaf72c247326a8028bb79256ea2d54879c",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/settings_window.py",
+        "size": 88652,
+        "text_digest": "sha256:8438420170a4e57e2cadccc218a03af2204d8a88e78a6317ed884b34f75cbc29",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:8438420170a4e57e2cadccc218a03af2204d8a88e78a6317ed884b34f75cbc29"
+      },
+      {
+        "blob": "016a62cd0b24e5ea6972032da52c047fd7e7f0f4",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/stage_view.py",
+        "size": 13125,
+        "text_digest": "sha256:dd438cb4d3bf3b6641151c62e2fb8b308c88e3a37a187c9e4080856cccb8dab4",
+        "visible_bytes": 13125,
+        "visible_sha256": "sha256:dd438cb4d3bf3b6641151c62e2fb8b308c88e3a37a187c9e4080856cccb8dab4"
+      },
+      {
+        "blob": "dd240e5153a811fa10303a2e64fd832ba27d61f5",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/status_bus.py",
+        "size": 2579,
+        "text_digest": "sha256:cb4bf82dad1ae9669923799337581b1a0c62f2061156b5ab4ca1afe7a455c836",
+        "visible_bytes": 2579,
+        "visible_sha256": "sha256:cb4bf82dad1ae9669923799337581b1a0c62f2061156b5ab4ca1afe7a455c836"
+      },
+      {
+        "blob": "c1da692d36124ba6af7d46391dee0a8cefa858a5",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/status_widgets.py",
+        "size": 25847,
+        "text_digest": "sha256:2f19b2f83e61ce06a791840010cff00131e1f34b8fbe9b9b3e5f3b1123d9fb03",
+        "visible_bytes": 25847,
+        "visible_sha256": "sha256:2f19b2f83e61ce06a791840010cff00131e1f34b8fbe9b9b3e5f3b1123d9fb03"
+      },
+      {
+        "blob": "7ce11ffcacb52f3089a6c881aac4009817835210",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/theme_editor.py",
+        "size": 82372,
+        "text_digest": "sha256:c086e0908c35ece542e45c82b53001dce0343e77dc21363842afa474724d3b5a",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:c086e0908c35ece542e45c82b53001dce0343e77dc21363842afa474724d3b5a"
+      },
+      {
+        "blob": "caff5507080a14fc6a1663c0976c598613dc63b9",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/gui/worker.py",
+        "size": 12464,
+        "text_digest": "sha256:78dd31e7806a68d698f076e33ab1ea388f0edbd80cf5d071edb4c25e3e281f59",
+        "visible_bytes": 12464,
+        "visible_sha256": "sha256:78dd31e7806a68d698f076e33ab1ea388f0edbd80cf5d071edb4c25e3e281f59"
+      },
+      {
+        "blob": "81fe1a6080255e5535e238abd18dd1c5d962d3a4",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/main.py",
+        "size": 5334,
+        "text_digest": "sha256:85d0e667ec63237b9a17f7355dc32171de515b653663d70333a3da233c08008e",
+        "visible_bytes": 5334,
+        "visible_sha256": "sha256:85d0e667ec63237b9a17f7355dc32171de515b653663d70333a3da233c08008e"
+      },
+      {
+        "blob": "9b44d77a3040309e3b33853cdfbdb035cf9314b8",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/pytest.ini",
+        "size": 1981,
+        "text_digest": "sha256:49225ee91dc744f049f62a40e62944eca548ec892f11515d79d805ab97a9f542",
+        "visible_bytes": 1981,
+        "visible_sha256": "sha256:49225ee91dc744f049f62a40e62944eca548ec892f11515d79d805ab97a9f542"
+      },
+      {
+        "blob": "fb0b83fc20f6b4ff53ef318c870f3b9e9ca2eeac",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/requirements.txt",
+        "size": 4706,
+        "text_digest": "sha256:be633a5db9ec10610245cae9e26bcae59733932e7caff6af7601868ecd09d962",
+        "visible_bytes": 4706,
+        "visible_sha256": "sha256:be633a5db9ec10610245cae9e26bcae59733932e7caff6af7601868ecd09d962"
+      },
+      {
+        "blob": "b503626069e4b1d16a3eb857a6ac39b93952b0aa",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/routines/R1_cce_v_map.yaml",
+        "size": 1113,
+        "text_digest": "sha256:dd7e9ccf45e86cbcfb392335321e43b1d8dec113b24e384268ec8675c84a9908",
+        "visible_bytes": 1113,
+        "visible_sha256": "sha256:dd7e9ccf45e86cbcfb392335321e43b1d8dec113b24e384268ec8675c84a9908"
+      },
+      {
+        "blob": "df6fb0a62345627576e7fe79eb6ec5a9f64c3481",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/routines/R2_iv_vs_position.yaml",
+        "size": 940,
+        "text_digest": "sha256:0260ff8f730c5e48c538cc0017562033c0052f38d99648d3c550431108717c02",
+        "visible_bytes": 940,
+        "visible_sha256": "sha256:0260ff8f730c5e48c538cc0017562033c0052f38d99648d3c550431108717c02"
+      },
+      {
+        "blob": "1c0150f50a8f513c478b14c5f7741d64f0c29304",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/routines/R3_focus_stack.yaml",
+        "size": 354,
+        "text_digest": "sha256:d17802df6cd3db37b6b08225bbb8dcb9b55106de6dc61127d79eab28ee769fa4",
+        "visible_bytes": 354,
+        "visible_sha256": "sha256:d17802df6cd3db37b6b08225bbb8dcb9b55106de6dc61127d79eab28ee769fa4"
+      },
+      {
+        "blob": "62c9f85d9099fc7c6e0cab2e032d7e56ef2d681e",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/routines/R4_survey_measure.yaml",
+        "size": 718,
+        "text_digest": "sha256:36054a16b16c6e76c8a5a7ea45af2742c210df751e3e6e4454b96474c09d28a2",
+        "visible_bytes": 718,
+        "visible_sha256": "sha256:36054a16b16c6e76c8a5a7ea45af2742c210df751e3e6e4454b96474c09d28a2"
+      },
+      {
+        "blob": "09548f1b1654b7b84ca2c0e2fdc9bf6abbc3c0fa",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/routines/R5_depletion_fast_scan.yaml",
+        "size": 787,
+        "text_digest": "sha256:7fcd54758d9b81dfabc3ed51cd865f8d0206023910959b708e45eae25d8df657",
+        "visible_bytes": 787,
+        "visible_sha256": "sha256:7fcd54758d9b81dfabc3ed51cd865f8d0206023910959b708e45eae25d8df657"
+      },
+      {
+        "blob": "be7c2d9a0b5a9afd354e0f1e4f7067e43faabbef",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/routines/R6_backlash_raster.yaml",
+        "size": 468,
+        "text_digest": "sha256:f183ce468cacb4b3cb046c1b44f924d08cc8d3fed264e5307cd96822976a4955",
+        "visible_bytes": 468,
+        "visible_sha256": "sha256:f183ce468cacb4b3cb046c1b44f924d08cc8d3fed264e5307cd96822976a4955"
+      },
+      {
+        "blob": "67c755391f211ef0afeef3dc6d3cbcdd532a48bf",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/capture_onscreen.py",
+        "size": 36733,
+        "text_digest": "sha256:356ca77f85d55e83cf245b08b7aa68dc809c9e87da2d197adf3f25cd618b5f65",
+        "visible_bytes": 36733,
+        "visible_sha256": "sha256:356ca77f85d55e83cf245b08b7aa68dc809c9e87da2d197adf3f25cd618b5f65"
+      },
+      {
+        "blob": "47005fc71a97f997f5b19f6aacbac878a305a9de",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/capture_panels.py",
+        "size": 17319,
+        "text_digest": "sha256:32a25a16d29f0f59fbc076a1242295fcef88129e0c5de5bcb84692286b4d4c83",
+        "visible_bytes": 17319,
+        "visible_sha256": "sha256:32a25a16d29f0f59fbc076a1242295fcef88129e0c5de5bcb84692286b4d4c83"
+      },
+      {
+        "blob": "12dbd3ea7063b6a6c8cc39f7bd7edac4dafa8ce0",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/gen_shadow_assets.py",
+        "size": 20615,
+        "text_digest": "sha256:d332d8183f8e8a37eae5a152549ba9cff6adafbd97ece083f579fa5bd32469ef",
+        "visible_bytes": 20615,
+        "visible_sha256": "sha256:d332d8183f8e8a37eae5a152549ba9cff6adafbd97ece083f579fa5bd32469ef"
+      },
+      {
+        "blob": "3d331d6cf6d6b817435d6bfc7c0a46b7e32cd5ac",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/glass_probe.py",
+        "size": 71700,
+        "text_digest": "sha256:a5c64a972f91da3805db90b631af0abe48631261492410c0cea00ce81a87b09b",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:a5c64a972f91da3805db90b631af0abe48631261492410c0cea00ce81a87b09b"
+      },
+      {
+        "blob": "7ebd6eb8e6a26e07a33091dc4e654feb488ec9c2",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/glass_shell_preview.py",
+        "size": 40341,
+        "text_digest": "sha256:ceaeeda57ea78413673e8c7c4cad7930731664466e52e5cc20c3ddc21363eb2c",
+        "visible_bytes": 40341,
+        "visible_sha256": "sha256:ceaeeda57ea78413673e8c7c4cad7930731664466e52e5cc20c3ddc21363eb2c"
+      },
+      {
+        "blob": "3b761f16a385b13b4ee48f1298d1c484d1b1309f",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/kit_contrast_check.py",
+        "size": 35728,
+        "text_digest": "sha256:704a7c94b902aa3e7cc9569e12e8eaad410f1346ec8b00618f771dc8e1937e51",
+        "visible_bytes": 35728,
+        "visible_sha256": "sha256:704a7c94b902aa3e7cc9569e12e8eaad410f1346ec8b00618f771dc8e1937e51"
+      },
+      {
+        "blob": "361d1f575df4a33d8ae3aaba1de226d059ae72e3",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/metrology_report.py",
+        "size": 18434,
+        "text_digest": "sha256:0c211ee7e9dac8f711c6664f54e4f0301e8e20c12c6eabc5e44db9120a016a7d",
+        "visible_bytes": 18434,
+        "visible_sha256": "sha256:0c211ee7e9dac8f711c6664f54e4f0301e8e20c12c6eabc5e44db9120a016a7d"
+      },
+      {
+        "blob": "921b7f14977434c558a2270b57cf916b7ff3a390",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/qml_preview.py",
+        "size": 27594,
+        "text_digest": "sha256:69c66d297eb001e26c4f3503f9a602a362e941da992c82776226b9ff88f9d779",
+        "visible_bytes": 27594,
+        "visible_sha256": "sha256:69c66d297eb001e26c4f3503f9a602a362e941da992c82776226b9ff88f9d779"
+      },
+      {
+        "blob": "ac8b349391deb7fd77baa12335c65a8c92237b57",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/rhi_gl_probe.py",
+        "size": 21865,
+        "text_digest": "sha256:2c7e485c4c6b9edf0c388aa347a8912c878c6e55a2d3c3cad53b1c6a9114ed00",
+        "visible_bytes": 21865,
+        "visible_sha256": "sha256:2c7e485c4c6b9edf0c388aa347a8912c878c6e55a2d3c3cad53b1c6a9114ed00"
+      },
+      {
+        "blob": "c42f397229034513aa3449436e4bdc33301e4dbc",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spike_measurement_b.py",
+        "size": 46671,
+        "text_digest": "sha256:22765427d419d9d350e8df1fecf63709488f2f3e6627a39f6925b6f59a963105",
+        "visible_bytes": 46671,
+        "visible_sha256": "sha256:22765427d419d9d350e8df1fecf63709488f2f3e6627a39f6925b6f59a963105"
+      },
+      {
+        "blob": "c814b5258e7148d0100a79439f7667b8a6ff609a",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/breakout_scanviewer/run_breakout.py",
+        "size": 2214,
+        "text_digest": "sha256:f39ca5b47cf16b429d91e5491762815efae11c8c59c93614bae2effba3469038",
+        "visible_bytes": 2214,
+        "visible_sha256": "sha256:f39ca5b47cf16b429d91e5491762815efae11c8c59c93614bae2effba3469038"
+      },
+      {
+        "blob": "6177385a66ced2a7ce305fd18f45ad668c2dae09",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/island_overlay_spike.py",
+        "size": 110026,
+        "text_digest": "sha256:21d722b59d56bbe9ed6eb37728277b5b26fdee83bb25b7539152718bbe44d233",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:21d722b59d56bbe9ed6eb37728277b5b26fdee83bb25b7539152718bbe44d233"
+      },
+      {
+        "blob": "b9817e7afcc3f76c5f9fc4a6d61d4bef9390d68d",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/lantern_frost_bake_spike.py",
+        "size": 65954,
+        "text_digest": "sha256:df7fcfc1af6f82371fc023a8d4c17694ba7ded0be891d8d2a03aec4326a080af",
+        "visible_bytes": 65536,
+        "visible_sha256": "sha256:df7fcfc1af6f82371fc023a8d4c17694ba7ded0be891d8d2a03aec4326a080af"
+      },
+      {
+        "blob": "f930752bf9ae900ac5077b87e2bc59635556d54d",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/liquid_shell/bias_face_harness.py",
+        "size": 18015,
+        "text_digest": "sha256:9348b3b4bae937ccffc2741c2f8f9d67a6508a03ac9fb610c298b5e70ec34dd0",
+        "visible_bytes": 18015,
+        "visible_sha256": "sha256:9348b3b4bae937ccffc2741c2f8f9d67a6508a03ac9fb610c298b5e70ec34dd0"
+      },
+      {
+        "blob": "1c49624cd9610fbf9796d527ff62b1dc6954c2f4",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/liquid_shell/camera_face_harness.py",
+        "size": 11940,
+        "text_digest": "sha256:19a5c71648abf06a7a29a39b77b7011566cfe44248eee022008c3423792c7da2",
+        "visible_bytes": 11940,
+        "visible_sha256": "sha256:19a5c71648abf06a7a29a39b77b7011566cfe44248eee022008c3423792c7da2"
+      },
+      {
+        "blob": "a26461d3e8c39a1a1d94d1d4f82ba53b7624d247",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/liquid_shell/laser_face_harness.py",
+        "size": 12901,
+        "text_digest": "sha256:309cb3c9205ac49f88a386c7102a17bd44387119ce9287bc5352bd7ff7729914",
+        "visible_bytes": 12901,
+        "visible_sha256": "sha256:309cb3c9205ac49f88a386c7102a17bd44387119ce9287bc5352bd7ff7729914"
+      },
+      {
+        "blob": "9a98cd89cadecf57421fef4487009328c2b55423",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/liquid_shell/motor_face_harness.py",
+        "size": 10951,
+        "text_digest": "sha256:6b1727c417145ad9ba6bd72fcc67e8670f01d65db9c35acc47baad043fdc884f",
+        "visible_bytes": 10951,
+        "visible_sha256": "sha256:6b1727c417145ad9ba6bd72fcc67e8670f01d65db9c35acc47baad043fdc884f"
+      },
+      {
+        "blob": "ab59d338e2547b50e7bd8fb10c4ad9e988ecf279",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/liquid_shell/run_liquid_shell.py",
+        "size": 10572,
+        "text_digest": "sha256:b7ad1aaf9d18fb390f17f7141b378b27dcd8b6b12eeaac8ea3a172e1235c4ad5",
+        "visible_bytes": 10572,
+        "visible_sha256": "sha256:b7ad1aaf9d18fb390f17f7141b378b27dcd8b6b12eeaac8ea3a172e1235c4ad5"
+      },
+      {
+        "blob": "14f59596a40a68a136c9bb1c6bb74b96f882a9a7",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/scripts/spikes/scan_viewer_screenshot_probe.py",
+        "size": 6432,
+        "text_digest": "sha256:84cd2ad3ee4a969123d9b1f521f20b09f060e6587b5b5ac5d0d47a1c4ad21d26",
+        "visible_bytes": 6432,
+        "visible_sha256": "sha256:84cd2ad3ee4a969123d9b1f521f20b09f060e6587b5b5ac5d0d47a1c4ad21d26"
+      },
+      {
+        "blob": "5391596cb6315a2685c8ab4a6734c824124d522b",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/tct_gui.py",
+        "size": 36583,
+        "text_digest": "sha256:62e27c75d5f4f6fbe19462c800667719dfe62008a1c436d06723b532f10c1a85",
+        "visible_bytes": 36583,
+        "visible_sha256": "sha256:62e27c75d5f4f6fbe19462c800667719dfe62008a1c436d06723b532f10c1a85"
+      },
+      {
+        "blob": "80464ed60bf2d24cd0a51322028a665b261e1171",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/vision/__init__.py",
+        "size": 966,
+        "text_digest": "sha256:97ea322139beda5ca732ffa86700d6f6d51b2cf963d75c051a11ab38c7bedb9f",
+        "visible_bytes": 966,
+        "visible_sha256": "sha256:97ea322139beda5ca732ffa86700d6f6d51b2cf963d75c051a11ab38c7bedb9f"
+      },
+      {
+        "blob": "e7496cac361a19dc49fb1b9fafee3cfba7ee8700",
+        "content_budget": 65536,
+        "mode": "100644",
+        "path": "TCT_app/vision/sensor_align.py",
+        "size": 18453,
+        "text_digest": "sha256:4647dc4c2cc6a2d631223dade4bbc673a0c728b5417c44ff7981a53d900d9e50",
+        "visible_bytes": 18453,
+        "visible_sha256": "sha256:4647dc4c2cc6a2d631223dade4bbc673a0c728b5417c44ff7981a53d900d9e50"
+      }
+    ],
+    "center": [
+      "TCT_app/"
+    ],
+    "expanded_test_exclusions": [
+      "tests/",
+      "test/",
+      "test_*.py",
+      "*_test.py",
+      "*_test.go",
+      "conftest.py",
+      "__tests__/",
+      "*.test.ts",
+      "*.test.tsx",
+      "*.test.js",
+      "*.spec.ts",
+      "*.spec.js"
+    ],
+    "ignore_presets": [
+      "@tests"
+    ],
+    "overlay_policy_note": "This blanket benchmark overlay is deliberately stricter than project egress allow_exceptions; it excludes all device files, including nine _base.py/_simulated.py exceptions.",
+    "plane_counts": {
+      "code": 116,
+      "data": 8,
+      "knowledge": 3
+    },
+    "source_bytes": 3435778,
+    "truncated_candidate_count": 13,
+    "visible_bytes": 3102496
+  },
+  "source": {
+    "case_center_tree": "674fb4eaa8876cb2ecbe54f27d838382970f49ee",
+    "case_commit": "3c6c2fd65f88cb5cc85d13bb6990a6c105086c32",
+    "case_committed_at_unix": 1784489778,
+    "case_tree": "30408290a24be7463adbce5bc6cbcba5df0ad7fe",
+    "future_objects_present_in_source_repository": true,
+    "git_object_reads_only": true,
+    "license_blob": "a0488e18c44f0cf664638094a4aba7dd6576314d",
+    "license_spdx": "MIT",
+    "preimage_center_tree": "2baf27d15036a6b9b6f2cef3d45e9d5be2965f74",
+    "preimage_committed_at_unix": 1784280544,
+    "preimage_revision": "382a27136f77985b6b7481ba8ef5420628c4a465",
+    "preimage_tree": "e438fb7db8f2039a808160d9f556b1522f411d34",
+    "query_source": "git Commit.message: subject plus blank line plus stripped body"
+  }
+}

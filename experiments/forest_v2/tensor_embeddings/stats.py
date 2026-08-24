@@ -21,7 +21,7 @@ from typing import Any, Mapping, Sequence
 from .arm_census import REQUIRED_ARM_NAMES, REQUIRED_COMPARISON_KEYS
 
 
-REPORT_SCHEMA = "forest-v2.tensor-embedding-report/1"
+REPORT_SCHEMA = "forest-v2.tensor-embedding-report/2"
 PACKET_ID = "EXPERIMENT-TENSOR-EMBEDDINGS-001"
 
 # SHA-256 of EXPERIMENT_SPEC.json after canonical JSON serialization (sorted
@@ -29,9 +29,14 @@ PACKET_ID = "EXPERIMENT-TENSOR-EMBEDDINGS-001"
 # embedded so validation remains pure and cannot silently follow a changed
 # file on disk.
 SPEC_DIGEST = "sha256:fda353879ff59c6dbc64b1fb426711cac8bac6d1a17923db6b4cbefe4490b684"
+# SHA-256 of EVALUATION_PROTOCOL_V2.json under the same canonical JSON
+# serialization.  The representation spec remains frozen; this separate
+# identity binds the /2 base-case resampling and comparison semantics.
+EVALUATION_PROTOCOL_DIGEST = "sha256:3cdadf16791464d8c25e7f45ca3c4fb689b22555a380ea5ebf0a15111ea25c83"
 FROZEN_SEEDS = (11, 23, 47, 89, 131)
 BOOTSTRAP_RESAMPLES = 10_000
 BOOTSTRAP_SEED = 20260824
+QUERY_VARIANTS = ("raw", "scrubbed")
 
 METRIC_NAMES = (
     "reciprocal_rank",
@@ -50,6 +55,7 @@ _REPORT_KEYS = frozenset(
         "schema",
         "packet_id",
         "spec_digest",
+        "protocol_digest",
         "corpus_digest",
         "status",
         "required_arms",
@@ -66,6 +72,7 @@ _COMPARISON_KEYS = frozenset(
     {
         "left_arm",
         "right_arm",
+        "variant",
         "metric",
         "case_count",
         "resamples",
@@ -358,6 +365,46 @@ def _unique_strings(value: Any, path: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _case_pairs(cases: Sequence[str]) -> tuple[tuple[str, str, str], ...]:
+    """Decode canonical ``[case_id, variant]`` report keys.
+
+    The diagnostic harness retains one measurement cell per query view, but
+    bootstrap sampling operates on the underlying base case.  Keeping both
+    identities here lets validation recompute aggregate and variant-specific
+    intervals without trusting a report's declared ``case_count``.
+    """
+
+    pairs: list[tuple[str, str, str]] = []
+    for index, case_key in enumerate(cases):
+        path = f"report.case_ids[{index}]"
+        try:
+            decoded = json.loads(case_key)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise ReportValidationError(
+                f"{path} must be a canonical [case_id, variant] key"
+            ) from exc
+        if (
+            type(decoded) is not list
+            or len(decoded) != 2
+            or any(type(item) is not str or not item for item in decoded)
+        ):
+            raise ReportValidationError(
+                f"{path} must be a canonical [case_id, variant] key"
+            )
+        case_id, variant = decoded
+        if variant not in QUERY_VARIANTS:
+            raise ReportValidationError(f"{path} has an unfrozen query variant")
+        canonical = json.dumps(
+            [case_id, variant], ensure_ascii=False, separators=(",", ":")
+        )
+        if case_key != canonical:
+            raise ReportValidationError(
+                f"{path} must use canonical [case_id, variant] encoding"
+            )
+        pairs.append((case_key, case_id, variant))
+    return tuple(pairs)
+
+
 def _validate_metric_map(value: Any, path: str) -> None:
     metrics = _exact_dict(value, frozenset(METRIC_NAMES), path)
     numbers = {
@@ -484,42 +531,70 @@ def _validate_comparisons(
     arms: Mapping[str, Any],
     required_arms: tuple[str, ...],
     seeds: tuple[int, ...],
-    cases: tuple[str, ...],
-    case_count: int,
+    case_pairs: tuple[tuple[str, str, str], ...],
     status: str,
 ) -> bool:
     if type(value) is not list:
         raise ReportValidationError("report.comparisons must be a list")
     if status == "VALID" and not value:
         raise ReportValidationError("a VALID report must retain at least one comparison")
-    seen: set[tuple[str, str, str]] = set()
-    observed_keys: list[tuple[str, str, str]] = []
+    present_variants = tuple(
+        variant
+        for variant in QUERY_VARIANTS
+        if any(pair_variant == variant for _, _, pair_variant in case_pairs)
+    )
+    comparison_variants = ("all", *present_variants)
+    seen: set[tuple[str, str, str, str]] = set()
+    observed_keys: list[tuple[str, str, str, str]] = []
     any_superiority = False
     for index, item in enumerate(value):
         path = f"report.comparisons[{index}]"
         comparison = _exact_dict(item, _COMPARISON_KEYS, path)
         left = comparison["left_arm"]
         right = comparison["right_arm"]
+        variant = comparison["variant"]
         metric = comparison["metric"]
         if type(left) is not str or left not in required_arms:
             raise ReportValidationError(f"{path}.left_arm is not declared")
         if type(right) is not str or right not in required_arms or right == left:
             raise ReportValidationError(f"{path}.right_arm is invalid")
+        if type(variant) is not str or variant not in comparison_variants:
+            raise ReportValidationError(f"{path}.variant is not present in case_ids")
         if type(metric) is not str or metric not in METRIC_NAMES:
             raise ReportValidationError(f"{path}.metric is not a frozen metric")
-        key = (left, right, metric)
+        key = (left, right, variant, metric)
         if key in seen:
             raise ReportValidationError(f"{path} duplicates a comparison")
         seen.add(key)
         observed_keys.append(key)
+
+        if variant == "all":
+            base_case_ids = tuple(dict.fromkeys(case_id for _, case_id, _ in case_pairs))
+            selected = list(case_pairs)
+            case_count = len(base_case_ids)
+        else:
+            selected = [
+                (case_key, case_id, pair_variant)
+                for case_key, case_id, pair_variant in case_pairs
+                if pair_variant == variant
+            ]
+            base_case_ids = tuple(case_id for _, case_id, _ in selected)
+            case_count = len(selected)
+        if type(comparison["case_count"]) is not int or comparison[
+            "case_count"
+        ] != case_count:
+            raise ReportValidationError(
+                f"{path}.case_count does not match independent base cases"
+            )
         if (
-            isinstance(comparison["case_count"], bool)
-            or comparison["case_count"] != case_count
+            type(comparison["resamples"]) is not int
+            or comparison["resamples"] != BOOTSTRAP_RESAMPLES
         ):
-            raise ReportValidationError(f"{path}.case_count does not match case_ids")
-        if comparison["resamples"] != BOOTSTRAP_RESAMPLES:
             raise ReportValidationError(f"{path}.resamples is not frozen")
-        if comparison["seed"] != BOOTSTRAP_SEED:
+        if (
+            type(comparison["seed"]) is not int
+            or comparison["seed"] != BOOTSTRAP_SEED
+        ):
             raise ReportValidationError(f"{path}.seed is not frozen")
         delta = _report_number(comparison["delta"], f"{path}.delta")
         low = _report_number(comparison["ci_low"], f"{path}.ci_low")
@@ -540,22 +615,28 @@ def _validate_comparisons(
                 f"{path} cannot claim superiority from an {status} report"
             )
         if status == "VALID":
-            left_by_case = {
-                case_id: sum(
-                    arms[left][str(frozen_seed)]["per_case"][case_id][metric]
+            def seed_mean(arm: str, case_key: str) -> float:
+                return math.fsum(
+                    arms[arm][str(frozen_seed)]["per_case"][case_key][metric]
                     for frozen_seed in seeds
-                )
-                / len(seeds)
-                for case_id in cases
-            }
-            right_by_case = {
-                case_id: sum(
-                    arms[right][str(frozen_seed)]["per_case"][case_id][metric]
-                    for frozen_seed in seeds
-                )
-                / len(seeds)
-                for case_id in cases
-            }
+                ) / len(seeds)
+
+            def grouped_scores(arm: str) -> dict[str, float]:
+                return {
+                    case_id: math.fsum(
+                        seed_mean(arm, case_key)
+                        for case_key, pair_case_id, _ in selected
+                        if pair_case_id == case_id
+                    )
+                    / sum(
+                        pair_case_id == case_id
+                        for _, pair_case_id, _ in selected
+                    )
+                    for case_id in base_case_ids
+                }
+
+            left_by_case = grouped_scores(left)
+            right_by_case = grouped_scores(right)
             calculated = paired_bootstrap_difference(
                 left_by_case,
                 right_by_case,
@@ -572,7 +653,12 @@ def _validate_comparisons(
                     f"{path} does not match the paired per-case bootstrap"
                 )
         any_superiority = any_superiority or claim
-    if status == "VALID" and tuple(observed_keys) != REQUIRED_COMPARISON_KEYS:
+    required_comparisons = tuple(
+        (left, right, variant, metric)
+        for left, right, metric in REQUIRED_COMPARISON_KEYS
+        for variant in comparison_variants
+    )
+    if status == "VALID" and tuple(observed_keys) != required_comparisons:
         raise ReportValidationError(
             "a VALID report must retain the complete frozen comparison census"
         )
@@ -609,6 +695,10 @@ def validate_report(
         raise ReportValidationError("report.packet_id does not match the Work Packet")
     if body["spec_digest"] != SPEC_DIGEST:
         raise ReportValidationError("report.spec_digest does not match the frozen spec")
+    if body["protocol_digest"] != EVALUATION_PROTOCOL_DIGEST:
+        raise ReportValidationError(
+            "report.protocol_digest does not match the frozen evaluation protocol"
+        )
     corpus_digest = _digest(body["corpus_digest"], "report.corpus_digest")
     if expected_corpus_digest is not None:
         expected = _digest(expected_corpus_digest, "expected_corpus_digest")
@@ -636,6 +726,7 @@ def validate_report(
         raise ReportValidationError("report.seeds do not match the frozen seed policy")
 
     cases = _unique_strings(body["case_ids"], "report.case_ids")
+    case_pairs = _case_pairs(cases)
     if expected_case_ids is not None:
         expected_cases = tuple(expected_case_ids)
         if cases != expected_cases:
@@ -659,7 +750,12 @@ def validate_report(
 
     _validate_arms(body["arms"], required_arms, seeds, cases, status, failures)
     any_superiority = _validate_comparisons(
-        body["comparisons"], body["arms"], required_arms, seeds, cases, len(cases), status
+        body["comparisons"],
+        body["arms"],
+        required_arms,
+        seeds,
+        case_pairs,
+        status,
     )
 
     conclusion = body["conclusion"]
@@ -785,10 +881,12 @@ __all__ = [
     "BOOTSTRAP_SEED",
     "BootstrapDifference",
     "DIAGNOSTIC_CONCLUSION",
+    "EVALUATION_PROTOCOL_DIGEST",
     "FROZEN_SEEDS",
     "METRIC_NAMES",
     "NO_SCIENTIFIC_VERDICT",
     "PACKET_ID",
+    "QUERY_VARIANTS",
     "REPORT_SCHEMA",
     "REQUIRED_ARM_NAMES",
     "REQUIRED_COMPARISON_KEYS",

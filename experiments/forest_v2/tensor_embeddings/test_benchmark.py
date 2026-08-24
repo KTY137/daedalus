@@ -12,6 +12,7 @@ from experiments.forest_v2.tensor_embeddings.benchmark import (
     DEFAULT_RETRIEVERS,
     EQUIVALENCE_TOLERANCE,
     REQUIRED_ARM_NAMES,
+    _comparison,
     _equivalent_score_rows,
     benchmark_case_key,
     corpus_digest,
@@ -69,6 +70,18 @@ def _case(case_id: str, query: str, gold: str) -> BenchmarkCase:
     )
 
 
+def _variant_pair(
+    case_id: str, raw_query: str, scrubbed_query: str, gold: str
+) -> tuple[BenchmarkCase, BenchmarkCase]:
+    raw = _case(case_id, raw_query, gold)
+    raw = replace(raw, query=replace(raw.query, variant="raw"))
+    scrubbed = replace(
+        raw,
+        query=replace(raw.query, variant="scrubbed", text=scrubbed_query),
+    )
+    return raw, scrubbed
+
+
 def test_benchmark_emits_complete_five_seed_validated_report() -> None:
     cases = (
         _case("c1", "parse record value", "src/parser.py"),
@@ -87,7 +100,11 @@ def test_benchmark_emits_complete_five_seed_validated_report() -> None:
     assert tuple(report["required_arms"]) == REQUIRED_ARM_NAMES
     assert tuple(report["required_arms"]) == SEALED_REQUIRED_ARMS
     assert len(report["arms"]) == 13
-    assert len(report["comparisons"]) == 15
+    assert len(report["comparisons"]) == 30
+    assert {comparison["variant"] for comparison in report["comparisons"]} == {
+        "all",
+        "scrubbed",
+    }
     for arm_runs in report["arms"].values():
         assert set(arm_runs) == {"11", "23", "47", "89", "131"}
         assert all(
@@ -95,6 +112,62 @@ def test_benchmark_emits_complete_five_seed_validated_report() -> None:
             == {benchmark_case_key(case.query) for case in cases}
             for run in arm_runs.values()
         )
+
+
+def test_bootstrap_clusters_query_variants_by_base_case_and_separates_views() -> None:
+    cases = (
+        *_variant_pair("c1", "raw parser issue", "parser issue", "src/parser.py"),
+        *_variant_pair(
+            "c2",
+            "raw storage migration issue",
+            "storage migration issue",
+            "docs/storage.md",
+        ),
+    )
+
+    report = run_benchmark(cases)
+    primary = [
+        comparison
+        for comparison in report["comparisons"]
+        if comparison["left_arm"] == TensorContractionRetriever.name
+        and comparison["right_arm"] == FlatCosineRetriever.name
+    ]
+
+    assert [comparison["variant"] for comparison in primary] == [
+        "all",
+        "raw",
+        "scrubbed",
+    ]
+    assert [comparison["case_count"] for comparison in primary] == [2, 2, 2]
+    assert len(report["comparisons"]) == 45
+
+
+def test_comparison_averages_variants_before_resampling_base_cases() -> None:
+    mean_scores = {
+        "left": {
+            ("c1", "raw"): 1.0,
+            ("c1", "scrubbed"): 0.0,
+            ("c2", "raw"): 0.0,
+            ("c2", "scrubbed"): 0.0,
+        },
+        "right": {
+            ("c1", "raw"): 0.0,
+            ("c1", "scrubbed"): 0.0,
+            ("c2", "raw"): 0.0,
+            ("c2", "scrubbed"): 0.0,
+        },
+    }
+
+    aggregate = _comparison(mean_scores, "left", "right", "all")
+    raw = _comparison(mean_scores, "left", "right", "raw")
+    scrubbed = _comparison(mean_scores, "left", "right", "scrubbed")
+
+    assert aggregate["delta"] == 0.25
+    assert raw["delta"] == 0.5
+    assert scrubbed["delta"] == 0.0
+    assert {aggregate["case_count"], raw["case_count"], scrubbed["case_count"]} == {
+        2
+    }
 
 
 def test_corpus_digest_binds_query_candidates_budgets_and_gold() -> None:
@@ -326,6 +399,16 @@ def test_query_variants_cannot_smuggle_query_dependent_recency_orders() -> None:
     )
     with pytest.raises(ValueError, match="same caller-asserted recency ranking"):
         run_benchmark((raw, scrubbed))
+
+
+def test_grouped_query_variants_must_share_evaluator_base_inputs() -> None:
+    raw, scrubbed = _variant_pair(
+        "c1", "raw issue text", "issue text", "src/parser.py"
+    )
+    relabeled = replace(scrubbed, gold=("docs/storage.md",))
+
+    with pytest.raises(ValueError, match="candidate universe, and evaluator gold"):
+        run_benchmark((raw, relabeled))
 
 
 def test_diagnostic_harness_rejects_any_unreviewed_retriever_class() -> None:

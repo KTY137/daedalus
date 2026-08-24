@@ -319,6 +319,12 @@ class EncodedArtifact:
                 raise ValueError("visible-content digest does not address fields.content")
             if self.plane is None or self.plane != infer_plane(self.fields.path):
                 raise ValueError("visible-content document plane must match its path")
+            if self.fields != fields_from_candidate(
+                self.source_id, self.source_evidence
+            ):
+                raise ValueError(
+                    "visible-content role fields must be derived from checked content"
+                )
         elif self.source_binding == "query_content_sha256_verified":
             if self.source_evidence != self.fields.content:
                 raise ValueError("query evidence differs from fields.content")
@@ -558,6 +564,10 @@ def validate_source_binding_evidence(
                 raise ValueError("visible-content source_id must equal fields.path")
             if plane != infer_plane(fields.path):
                 raise ValueError("visible-content plane differs from fields.path")
+            if fields != fields_from_candidate(source_id, source_evidence):
+                raise ValueError(
+                    "visible-content role fields must be derived from checked content"
+                )
         return
     if source_binding == "query_content_sha256_verified":
         if source_digest != canonical_source_digest(source_evidence):

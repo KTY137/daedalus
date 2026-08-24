@@ -57,7 +57,7 @@ grammar/category, monoidal functor, or DisCoCat pipeline.
 | `retrievers.py` | eight tensor/control arms with score and input receipts |
 | `baseline_retrievers.py` | BM25, deterministic random, path, recency, and plane-wise RRF baselines |
 | `arm_census.py` | frozen 13-arm executable/report census |
-| `stats.py` | retrieval metrics and strict diagnostic-report validation |
+| `stats.py` | retrieval metrics and strict diagnostic-report validation; `/2` binds `EVALUATION_PROTOCOL_V2.json` |
 | `benchmark.py` | in-process, equal-input five-seed diagnostic harness |
 | `sealed_eval.py` | self-addressed, gold-separated reports plus full manifest-bundle recomputation; no trust claim |
 | `cli.py` | stdin-only input and canonical JSON stdout; no filesystem writer |
@@ -113,16 +113,52 @@ compared the entire score-sorted tuple positionally even when per-path scores
 agreed within `1e-10` and the evaluated top 20 was unchanged. The invalid run
 and its 753.704-second cost remain visible; repairing the validator did not
 change the frozen inputs or any measured score.
-`results/s09_c00_smoke_v2.json` is the corrected rerun at implementation
-revision `8562997667931e847a26776a86e5ba74d10163cb`: all 13 arms, five seeds,
-and both query variants completed with zero failures and all 15 comparisons.
-Its structural status is `VALID`, but its only permitted conclusion is
-`INCONCLUSIVE`. On this one case, structured contraction, flat cosine, and the
-algebraically equivalent flat bilinear control all missed top-20; recency hit
-at rank 5, BM25 at rank 19, and Mean-MaxSim hit at rank 4 only for seed 47.
-The recency order is caller-asserted rather than externally authenticated.
+`results/s09_c00_smoke_v2.json` retains the then-corrected `/1` rerun at
+implementation revision `8562997667931e847a26776a86e5ba74d10163cb`: all 13
+arms, five seeds, and both query variants completed with zero runtime failures.
+Its old comparison code nevertheless resampled raw and scrubbed views of the
+same `c00` base case as two independent cases. The `/2` report contract rejects
+that pseudoreplicated comparison census and first averages variants within a
+base case before resampling. The measured arm rows remain negative historical
+evidence, but the old interval and `VALID` label are superseded. Structured
+contraction, flat cosine, and the algebraically equivalent flat bilinear
+control all missed top-20; recency hit at rank 5, BM25 at rank 19, and
+Mean-MaxSim hit at rank 4 only for seed 47. The recency order is caller-asserted
+rather than externally authenticated.
 `PERFORMANCE_NOTE.md` retains the aborted slow paths and unvalidated cost-shape
 measurements rather than hiding them.
+
+`results/project_tct_analysis_physics_manifest_v1.json` and
+`results/project_tct_analysis_physics_report_v2.json` retain a strictly local
+real-repository diagnostic. The source is the exact `project_tct` preimage
+`382a27136f77985b6b7481ba8ef5420628c4a465` for commit
+`3c6c2fd65f88cb5cc85d13bb6990a6c105086c32`. A benchmark-specific blanket
+overlay excludes tests, every device file, and `configs/devices.yaml`; this is
+deliberately stricter than the project's egress-policy exceptions. The sorted
+universe contains 127 candidates (3,102,496 visible bytes) and three gold
+files. All 13 arms, five seeds, and both query views completed with zero
+runtime or receipt failures under report `/2`. Manifest ID is
+`sha256:3151749a756eb5b8ffe8ebfbd066db519887bedc5d470b754e6d2b256e52f5e7`;
+canonical report digest is
+`sha256:3b87c1027cf1075a2d819918453141de9f7c8c76581ec39c8a5ddc2288c003c9`.
+
+That run is deliberately unflattering evidence, not a win claim. With only one
+base case every bootstrap interval is degenerate. Mean raw/scrubbed MRR was
+`1.0` for BM25 and fusion, `0.7208` for late interaction, `0.6579` for
+structured contraction, and `0.6450` for flat cosine. Plane permutation also
+scored `0.6579`, so this case provides no evidence that named plane labels did
+the work. It did change cross-plane ordering, but the s09 query has a uniform
+plane vector, so this control only permutes a static per-plane scalar prior;
+it cannot identify semantic query-to-plane alignment. Path lexical fell from
+`1.0` raw to `0.0` after scrubbing. The query
+comes from the answer commit and retains symbol/patch leakage; gold and
+isolation were not independently issued. An independent local policy audit
+also found that 71 of 127 candidates would be withheld from untrusted egress,
+so the manifest retains only paths/digests/metrics and is fixed to
+`local_only`. It is a post-hoc `diagnostic_example`, not part of the frozen
+primary effect corpus, not tuning authority, and not second-repository
+transfer evidence. Its scientific status is `NO_SCIENTIFIC_VERDICT`, despite
+the report's purely structural `VALID` status and `INCONCLUSIVE` conclusion.
 
 The complete 13-arm comparison matrix is executable, including BM25, lexical,
 recency, plane-wise RRF, permutation controls, and both query variants. There

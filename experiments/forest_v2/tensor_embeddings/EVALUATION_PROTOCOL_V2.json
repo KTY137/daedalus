@@ -1,0 +1,30 @@
+{
+  "allowed_conclusions": [
+    "INCONCLUSIVE",
+    "NO_SCIENTIFIC_VERDICT"
+  ],
+  "comparison_census": {
+    "base_keys_source": "arm_census.REQUIRED_COMPARISON_KEYS",
+    "metric": "reciprocal_rank",
+    "variant_order": [
+      "all",
+      "raw",
+      "scrubbed"
+    ]
+  },
+  "decision_authority": "none",
+  "packet_id": "EXPERIMENT-TENSOR-EMBEDDINGS-001",
+  "resampling": {
+    "case_unit": "base_case",
+    "paired": true,
+    "query_variants": [
+      "raw",
+      "scrubbed"
+    ],
+    "resamples": 10000,
+    "seed": 20260824,
+    "seed_aggregation": "arithmetic_mean_before_case_resampling",
+    "within_case_variant_aggregation": "arithmetic_mean_over_present_variants"
+  },
+  "schema": "forest-v2.tensor-evaluation-protocol/2"
+}
