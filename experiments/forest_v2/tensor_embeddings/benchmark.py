@@ -347,10 +347,12 @@ def _equivalent_score_rows(
     ):
         return False
     if any(
-        not math.isclose(
+        not math.isfinite(left_scores[path])
+        or not math.isfinite(right_scores[path])
+        or not math.isclose(
             left_scores[path],
             right_scores[path],
-            rel_tol=EQUIVALENCE_TOLERANCE,
+            rel_tol=0.0,
             abs_tol=EQUIVALENCE_TOLERANCE,
         )
         for path in left_scores

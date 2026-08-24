@@ -1,6 +1,7 @@
 """Evaluator isolation, budget equality and report tests."""
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 
 import pytest
@@ -9,6 +10,7 @@ from experiments.forest_v2.s09_eval.contract import Candidate, QueryView
 from experiments.forest_v2.tensor_embeddings.benchmark import (
     BenchmarkCase,
     DEFAULT_RETRIEVERS,
+    EQUIVALENCE_TOLERANCE,
     REQUIRED_ARM_NAMES,
     _equivalent_score_rows,
     benchmark_case_key,
@@ -213,6 +215,25 @@ def test_equivalence_rejects_substantive_score_delta_with_same_order() -> None:
     right = (("a", 0.75 + 2e-10), ("b", 0.5))
 
     assert not _equivalent_score_rows(left, right)
+
+
+def test_equivalence_uses_an_absolute_finite_tolerance_boundary() -> None:
+    exactly = EQUIVALENCE_TOLERANCE
+    outside = math.nextafter(EQUIVALENCE_TOLERANCE, math.inf)
+
+    assert _equivalent_score_rows((("a", 100.0),), (("a", 100.0),))
+    assert _equivalent_score_rows((("a", 0.0),), (("a", exactly),))
+    assert not _equivalent_score_rows((("a", 0.0),), (("a", outside),))
+    assert not _equivalent_score_rows((("a", 100.0),), (("a", 100.000000005),))
+    assert not _equivalent_score_rows((("a", math.inf),), (("a", math.inf),))
+    assert not _equivalent_score_rows((("a", math.nan),), (("a", math.nan),))
+
+
+def test_equivalence_ignores_receipt_tuple_order_when_score_mapping_is_same() -> None:
+    left = (("a", 0.5), ("b", 0.25))
+    right = tuple(reversed(left))
+
+    assert _equivalent_score_rows(left, right)
 
 
 def test_identity_cosine_equivalence_uses_the_same_hard_invariant(monkeypatch) -> None:
