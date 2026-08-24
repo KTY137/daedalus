@@ -185,6 +185,108 @@ def test_report_prompt_is_self_contained(repo: Path) -> None:
 # --------------------------------------------------------------------------
 
 
+def test_one_model_call_is_billed_once_at_the_measured_price(repo: Path, monkeypatch, tmp_path) -> None:
+    """MEASURED 2026-08-24: a bare reserve/settle pair had the process guard
+    bill each `claude` spawn a SECOND time at the flat $3 worst case, so every
+    sweep cost $3.42 instead of $0.42 and five of them exhausted the shared
+    daily ceiling -- which would have refused any other lane's model call too.
+
+    The billing runs against a PRIVATE ledger here; a test that spends on the
+    shared one would be the same defect in a smaller hat.
+    """
+
+    import json as _json
+
+    ledger_path = tmp_path / "ledger.json"
+    monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(ledger_path))
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "20")
+    from daedalus import budget
+
+    budget.reset_default_ledger()
+
+    class _Proc:
+        returncode = 0
+        stdout = _json.dumps({"result": "ok", "total_cost_usd": 0.07, "num_turns": 1})
+        stderr = ""
+
+    real_run = subprocess.run
+
+    def fake_run(argv, **kwargs):
+        if isinstance(argv, (list, tuple)) and str(argv[0]).lower().endswith(("claude", "claude.exe")):
+            return _Proc()
+        return real_run(argv, **kwargs)
+
+    # ORDER MATTERS AND IS THE POINT OF THE TEST. The stub goes in FIRST and the
+    # process guard is installed on top, so the guard's wrapper is the thing
+    # run_claude calls -- exactly as in production. Patching subprocess.run
+    # after installing the guard would REPLACE the wrapper, and the test could
+    # never see the double billing it exists to catch.
+    budget.uninstall_process_guard()
+    monkeypatch.setattr(wd.shutil, "which", lambda name: "C:/fake/claude.exe")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    budget.install_process_guard()
+    assert subprocess.run is not fake_run, "the guard must be wrapping the stub"
+    try:
+        run = wd.run_claude(repo, "prompt", label="test.billing", allowed_tools="", max_turns=1)
+    finally:
+        budget.uninstall_process_guard()
+
+    assert run.ok and run.cost_usd == 0.07
+    data = _json.loads(ledger_path.read_text(encoding="utf-8"))
+    assert round(data["spent_usd"], 6) == 0.07, data["entries"]
+    assert data["calls"] == 1
+    assert not data.get("open"), "a leaked reservation holds the ceiling until the period rolls over"
+    labels = [e.get("label") for e in data["entries"] if e.get("kind") == "settle"]
+    assert labels == ["test.billing"], labels
+
+
+def test_the_watchdog_never_raises_the_shared_ceiling(monkeypatch) -> None:
+    """The first version set DAEDALUS_BUDGET_USD for its own process, which
+    raises the ceiling on the ledger every lane shares."""
+
+    import inspect
+
+    source = inspect.getsource(wd)
+    assert 'setdefault("DAEDALUS_BUDGET_USD"' not in source
+    assert 'environ["DAEDALUS_BUDGET_USD"]' not in source
+    assert "os.environ[" not in source, "the watchdog must not write the environment at all"
+
+
+def test_the_daily_spend_cap_is_measured_and_stops_the_sweep(repo: Path, monkeypatch) -> None:
+    monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
+    calls = []
+    monkeypatch.setattr(wd, "run_claude",
+                        lambda root, prompt, **k: calls.append(prompt) or wd.ModelRun(True, "done", 0.9, 3, 1.0))
+    _git(repo, "rm", "-q", "docs/spec.md")
+    _git(repo, "commit", "-q", "-m", "remove")
+
+    assert wd.docs_pass(repo, env={})["outcome"] == "sweep ran"
+    state = wd.load_json(repo / wd.STATE_REL)
+    assert wd.spend_today(state) == 0.9          # the MEASURED cost, not the estimate
+    wd.docs_pass(repo, env={})
+    wd.docs_pass(repo, env={})
+    state = wd.load_json(repo / wd.STATE_REL)
+    assert wd.spend_today(state) >= wd.WATCHDOG_DAILY_USD
+    spent_before = len(calls)
+    result = wd.docs_pass(repo, env={})
+    assert "daily spend cap" in result["outcome"]
+    assert len(calls) == spent_before, "the cap must stop the spawn, not just report it"
+
+
+def test_docs_and_work_passes_do_not_block_each_other(repo: Path) -> None:
+    """MEASURED in runs/watchdog/watchdog.log: with one shared lock the docs
+    sweep -- which holds it for as long as a model call takes -- skipped every
+    work pass that ticked while it ran, which on aligned 15/30-minute schedules
+    is every other one, all night."""
+
+    with wd.PassLock(repo, "docs") as docs_held:
+        assert docs_held
+        with wd.PassLock(repo, "work") as work_held:
+            assert work_held, "a running docs sweep must not skip the health measurement"
+        with wd.PassLock(repo, "docs") as second_docs:
+            assert not second_docs, "two docs sweeps must still not overlap"
+
+
 def test_task_commands_are_per_user_minute_triggers_with_the_repo_script(repo: Path) -> None:
     cmds = wd.task_commands(repo, "install")
     assert [c[0] for c in cmds] == ["schtasks", "schtasks"]
