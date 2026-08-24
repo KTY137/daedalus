@@ -692,6 +692,10 @@ def run_gate1_ignition(
             "code-type": ignition_checks.CODE_TYPE_NODE_IDS,
             "data-knowledge": ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
         },
+        # The fixture SOURCE, not ROOT: the criterion's conftest.py discovery
+        # path is rooted where prepare_ignition_repo copies from, and that
+        # directory exists (and is -text pinned) before the scratch tree does.
+        fixture_root=fixture,
     )
     blockers.extend(ignition_bundle.bundle_blockers(evaluator_bundle))
 
@@ -924,6 +928,7 @@ def run_gate1_ignition(
                 "code-type": ignition_checks.CODE_TYPE_NODE_IDS,
                 "data-knowledge": ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
             },
+            fixture_root=fixture,
         )
         if bundle_after["digest"] != evaluator_bundle["digest"]:
             blockers.append(
@@ -2090,6 +2095,28 @@ def write_receipt(
     )
     body["replay"] = replay
     body["blockers"] = list(body.get("blockers") or []) + _replay_blockers(replay)
+    # THE RETRIEVABLE BUNDLE ARTIFACT. Until this, the evaluator bundle's
+    # identity was computed and asserted at run time; nothing a reader could
+    # fetch and hold WAS the bundle, short of re-deriving it against a live
+    # tree. Written beside the receipt, named by the same digest the receipt
+    # carries under ``evaluator_bundle.digest`` -- a reader who has only this
+    # file can call ``bundle_digest_from_body`` on its own parsed content and
+    # get that same digest back, with no git call and no live tree.
+    evaluator_bundle_body = body.get("evaluator_bundle")
+    if evaluator_bundle_body and evaluator_bundle_body.get("digest"):
+        artifact_path = ignition_bundle.write_bundle_artifact(
+            evaluator_bundle_body, directory / "bundle"
+        )
+        body["evaluator_bundle_artifact"] = {
+            "path": artifact_path.relative_to(directory).as_posix(),
+            "digest": evaluator_bundle_body["digest"],
+        }
+    else:
+        # NAMED, NOT SILENT. A receipt with no evaluator bundle already gets a
+        # blocker of its own (_replay_blockers); an artifact field silently
+        # absent beside it would read as "not applicable" rather than "the
+        # bundle this run would have named could not be written."
+        body["evaluator_bundle_artifact"] = None
     path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path, body
 
