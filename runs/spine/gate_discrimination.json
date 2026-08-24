@@ -1,0 +1,156 @@
+{
+  "state": "measured",
+  "head": "fe634b58d3f7158ddcc2925f215ba2079989521f",
+  "measured_at": "2026-07-30T11:58:20.243955+00:00",
+  "planted": 12,
+  "killed": 12,
+  "surviving_classes": [],
+  "kill_rate_floor": 0.8,
+  "critical_defect_classes": [
+    "deletes-outside-the-worktree",
+    "spends-money-without-a-gate",
+    "sends-bytes-off-the-machine",
+    "reports-failure-as-success"
+  ],
+  "frozen_gate": {
+    "argv": [
+      "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "gate_paths": [],
+    "gate_scope": "whole-suite",
+    "head": "fe634b58d3f7158ddcc2925f215ba2079989521f",
+    "frozen_at": "2026-07-30T09:13:11.604253+00:00",
+    "note": "gate_paths=[] is the whole suite, the production default recorded in docs/adrs/016-autonomy-preconditions.md (P3): every live candidate carries gate_paths=[]. A non-empty list here means this receipt measured A gate TaskSpec.gate_paths supports -- the picker fills gate_paths from a candidate's own test list, so a scoped gate is a real, product-supported configuration -- but it is NOT the whole-suite default, and must not be read as though it were."
+  },
+  "results": [
+    {
+      "id": "worktree_moved_checkout_unguarded",
+      "defect_class": "deletes-outside-the-worktree",
+      "status": "CAUGHT",
+      "incident": "docs/HANDOFF.md 'Round 1': the primary checkout renamed into the worktree and a junction hung on its name -- _refuse_if_the_primary_checkout_moved is the guard that closed it, measured 40/40 tracked files destroyed before the fix, 'nothing refused'.",
+      "file": "daedalus/kairos/worktree.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "of-nukei/pytest-282/test_cleanup_refuses_a_junctio2/repo': No such file or directory\n\ndaedalus\\kairos\\worktree.py:672: RuntimeError\n=========================== short test summary info ===========================\nFAILED tests/test_worktree.py::test_cleanup_refuses_when_the_primary_checkout_was_moved_into_the_worktree\nFAILED tests/test_worktree.py::test_cleanup_refuses_a_decoy_wearing_the_primary_checkouts_name\nFAILED tests/test_worktree.py::test_cleanup_refuses_a_junction_wearing_the_primary_checkouts_name\nFAILED tests/test_worktree.py::test_cleanup_refuses_a_junction_wearing_the_name_of_an_ANCESTOR_of_the_checkout\nFAILED tests/test_worktree.py::test_cleanup_refuses_a_junction_decoy_with_no_inode_numbers_to_compare\n5 failed, 4082 passed, 1 xfailed, 1914 subtests passed in 795.46s (0:13:15)\n"
+    },
+    {
+      "id": "worktree_drain_skips_reachability",
+      "defect_class": "deletes-outside-the-worktree",
+      "status": "CAUGHT",
+      "incident": "docs/HANDOFF.md 'Round 2': a junction renamed over an already-drained subdirectory redirects every remaining rmdir out of the tree -- measured 3/3, 3000 directories removed inside a stand-in primary checkout, reported as success.",
+      "file": "daedalus/kairos/worktree.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "ed out of the tree\nE           assert False\nE            +  where False = is_dir()\nE            +    where is_dir = (WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-283/test_the_rmdir_drain_refuses_a0/primary_checkout') / 'c000').is_dir\n\ntests\\test_worktree.py:771: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\nFAILED tests/test_web_api_loop.py::NonLoopbackBindIsRefusedTest::test_the_loop_endpoints_are_401_on_an_authenticated_bind\nFAILED tests/test_worktree.py::test_the_rmdir_drain_refuses_a_junction_swapped_over_a_drained_subtree\n3 failed, 4084 passed, 1 xfailed, 1914 subtests passed in 796.96s (0:13:16)\n"
+    },
+    {
+      "id": "offload_escalation_gate_disabled",
+      "defect_class": "spends-money-without-a-gate",
+      "status": "CAUGHT",
+      "incident": "the real, currently-enforced gate that stops offload() from calling claude_cli when availability/local-only pins the free lanes: 'local_only never calls a paid lane' as a standing invariant, made concrete.",
+      "file": "daedalus/offload.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "E       \nE       + []\nE       - [{'detail': 'LookupError: mutation anchor not present',\nE       -   'file': 'daedalus/offload.py',\nE       -   'id': 'offload_escalation_gate_disabled',\nE       -   'ok': False}] : drifted mutation anchors: [{'id': 'offload_escalation_gate_disabled', 'file': 'daedalus/offload.py', 'ok': False, 'detail': 'LookupError: mutation anchor not present'}]\n\ntests\\test_gate_discrimination.py:135: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_cascade.py::OffloadRoutingTests::test_eligible_but_bench_down_escalates\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\n2 failed, 4085 passed, 1 xfailed, 1914 subtests passed in 684.92s (0:11:24)\n"
+    },
+    {
+      "id": "free_lanes_includes_claude",
+      "defect_class": "spends-money-without-a-gate",
+      "status": "CAUGHT",
+      "incident": "the same invariant from the data-definition side: if the senior Claude lane is ever classified free, offload.py's escalation check (decision.provider not in FREE_LANES) goes vacuous without a single line of its own logic changing.",
+      "file": "daedalus/kairos/scheduler.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "duler.py', 'ok': False, 'detail': 'LookupError: mutation anchor not present'}]\n\ntests\\test_gate_discrimination.py:135: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_cascade.py::OffloadRoutingTests::test_eligible_but_bench_down_escalates\nFAILED tests/test_cascade.py::OffloadRoutingTests::test_hardware_task_is_senior_not_eligible\nFAILED tests/test_dynamic.py::BridgeLaneRoutingTests::test_local_lane_ineligible_falls_through_to_claude\nFAILED tests/test_dynamic.py::BridgeLaneRoutingTests::test_local_only_lane_never_falls_through_to_claude\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\n5 failed, 4082 passed, 1 xfailed, 1914 subtests passed in 716.37s (0:11:56)\n"
+    },
+    {
+      "id": "room_ssh_rce_reintroduced",
+      "defect_class": "sends-bytes-off-the-machine",
+      "status": "CAUGHT",
+      "incident": "commit df5a7c2: ask_agy used to build `cmd = f'agy -p \"$(type {remote})\"'` and hand it to `ssh BENCH_SSH cmd`, letting a room prompt containing `$(...)` or a backtick execute on the bench as Administrator. Fixed by moving the prompt to stdin.",
+      "file": "runs/council/room.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "in\nE       assert '\"agy\", \"-p\", \"-\"' in 'def ask_agy(model: str = \"\", extra: str = \"\", timeout: int = 900,\\n            attach: list[str] | None = None, full:...      raise VendorError(\\n            f\"agy unavailable: {(proc.stderr or \\'no output\\')[-300:]}\")\\n    return out\\n\\n'\n\ntests\\test_room_wiring.py:559: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\nFAILED tests/test_room_wiring.py::test_the_agy_ssh_path_never_builds_a_remote_command_from_the_prompt\nFAILED tests/test_room_wiring.py::test_the_agy_ssh_argv_is_fixed_and_reads_the_prompt_from_stdin\n3 failed, 4084 passed, 1 xfailed, 1914 subtests passed in 693.16s (0:11:33)\n"
+    },
+    {
+      "id": "lane_for_host_accepts_localhost",
+      "defect_class": "sends-bytes-off-the-machine",
+      "status": "CAUGHT",
+      "incident": "commit df5a7c2's own motivating bug: lane=\"trusted\" was chosen from the provider NAME while the endpoint came from OLLAMA_HOST; a tailnet host kept the name and the trusted lane and became a network exfil path. lane_for_host was hardened to reject 'localhost' specifically because a name is a DNS indirection this predicate cannot see through -- this mutation re-admits it.",
+      "file": "daedalus/sensitivity.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "host]\nFAILED tests/test_host_predicate.py::test_NARROWED_names_the_council_used_to_call_local[http://localhost:11434]\nFAILED tests/test_host_predicate.py::test_NARROWED_names_the_council_used_to_call_local[localhost]\nFAILED tests/test_host_predicate.py::test_a_declared_hostname_is_dropped_never_resolved\nFAILED tests/test_host_predicate.py::test_is_loopback_host_false_for_everything_else[localhost]\nFAILED tests/test_host_predicate.py::test_is_loopback_host_false_for_everything_else[http://localhost:11434]\nFAILED tests/test_host_predicate.py::test_the_known_divergences_are_still_divergences\nFAILED tests/test_web_api_loop.py::NonLoopbackBindIsRefusedTest::test_localhost_the_name_is_refused_although_it_resolves_local\n14 failed, 4073 passed, 1 xfailed, 1914 subtests passed in 784.28s (0:13:04)\n"
+    },
+    {
+      "id": "room_verify_always_passes",
+      "defect_class": "reports-failure-as-success",
+      "status": "CAUGHT",
+      "incident": "the general shape named in bootstrap.py's own docstring ('an out-of-tree delete reported as success') and independently seeded by tools/self_test.py's m_bus_always_verifies -- reused here verbatim (same shape, different oracle: pytest instead of system_check.py) rather than re-derived, per the brief's instruction to generalise from precedent.",
+      "file": "runs/council/room.py",
+      "returncode": null,
+      "predicted_survive": false,
+      "output_tail": "................................................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n................................................. [ 86%]\n................................................................................ [ 88%]\n...................... [ 89%]\n................. [ 89%]\n............................................................................................................ [ 92%]\n..................................................... [ 93%]\n................................................... [ 94%]\n........................................................... [ 96%]\n................................."
+    },
+    {
+      "id": "attempt_capture_patch_drops_no_textconv",
+      "defect_class": "reports-failure-as-success",
+      "status": "CAUGHT",
+      "incident": "commit 3f4d462, 'fix(spine): capturing the candidate's patch executed the candidate's code' -- the specimen this mutation was added FOR, not merely modelled on. <worktree>/.gitattributes selects a diff.<driver>.textconv program; --no-ext-diff alone does not suppress it. An adversarial sweep measured three git commands (add -A, diff, diff --name-only) all returning 0 over the attack, ~1.6 kB of plausible diff produced, and the attempt continuing to STATE_CLEAN with no error field anywhere -- the canonical specimen of reports-failure-as-success this repo has produced: an attack that succeeded, reported as success, with nothing to grep for afterwards. This mutation reverts ONE of the three defenses the fix commit added (--no-textconv on the diff options); the other two (pinning --git-dir/--work-tree from a pointer read before the runner, and -c overrides for _GIT_EXEC_CONFIG) are left intact, so a survival here would mean this one flag's own regression test is not load-bearing, not that the whole fix is undone.",
+      "file": "daedalus/spine/attempt.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "split('\"\"\"')[-1]          # past the docstring\n>       assert '\"--no-textconv\"' in body\nE       assert '\"--no-textconv\"' in '\\n        gd, wt = self._admin_dir, worktree\\n        _git([\"add\", \"-A\"], cwd=worktree, repo_root=self.repo_root,\\n  ...bytes=diff,\\n            diff_sha256=_sha256_bytes(diff), changed_paths=changed,\\n            created_ts=_now_iso())\\n'\n\ntests\\test_git_is_a_process_launcher.py:266: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\nFAILED tests/test_git_is_a_process_launcher.py::test_the_product_pins_no_textconv_in_the_option_list\n2 failed, 4085 passed, 1 xfailed, 1914 subtests passed in 829.40s (0:13:49)\n"
+    },
+    {
+      "id": "bridge_enqueue_collision",
+      "defect_class": "logic",
+      "status": "CAUGHT",
+      "incident": "file_bridge.py's own comment records the shipped defect this reverts to: '{stamp}-{slug}.json with SECOND resolution -- two enqueues of one objective inside a second produced the same path and the later one silently overwrote the earlier. A queue that drops a task under load.'",
+      "file": "daedalus/file_bridge.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "_two_enqueues_in_the_same_second_do_not_overwrite\nFAILED tests/test_bridge_signals.py::test_a_third_collision_also_gets_its_own_name\nFAILED tests/test_bridge_signals.py::test_PARALLEL_producers_do_not_collide\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\nFAILED tests/test_hardening.py::FileBridgeRequestTests::test_enqueue_empty_objective_slug\nFAILED tests/test_hardening.py::FileBridgeRequestTests::test_enqueue_normal_slug_and_truncation\nFAILED tests/test_hardening.py::FileBridgeRequestTests::test_enqueue_symbol_only_objective_slug\nFAILED tests/test_hardening.py::FileBridgeRequestTests::test_two_identical_requests_in_the_same_second_both_survive\n8 failed, 4079 passed, 1 xfailed, 1914 subtests passed in 728.19s (0:12:08)\n"
+    },
+    {
+      "id": "read_inlined_context_inverted_skip",
+      "defect_class": "logic",
+      "status": "CAUGHT",
+      "incident": "docs/FITNESS_SIGNAL.md 4.1: mutation_score.py already found this exact line undetectable by independent measurement -- 'read_inlined_context is called by ollama.py and deepseek.py, and no test file anywhere in this repository mentions it.' PREDICTED IN ADVANCE, before this corpus ran: this mutant SURVIVES. If it is caught instead, either the suite gained coverage since that measurement or this note is wrong -- either way the discrepancy is worth chasing, not the number alone.",
+      "file": "daedalus/sensitivity.py",
+      "returncode": 1,
+      "predicted_survive": true,
+      "output_tail": "assert '\\n===== FILE...eturn a + b\\n' == ''\nE         \nE         + \nE         + ===== FILE: ordinary.py =====\nE         + def add(a, b):\nE         +     return a + b\n\ntests\\test_inlined_context_enforcement.py:272: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\nFAILED tests/test_inlined_context_enforcement.py::test_ordinary_SOURCE_is_the_thing_the_lanes_disagree_about\nFAILED tests/test_inlined_context_enforcement.py::test_the_two_lanes_do_not_agree\nFAILED tests/test_inlined_context_enforcement.py::test_SOURCE_is_withheld_from_the_untrusted_lane_entirely\n4 failed, 4083 passed, 1 xfailed, 1914 subtests passed in 786.35s (0:13:06)\n"
+    },
+    {
+      "id": "picker_abbrev_sha_guard_disabled",
+      "defect_class": "boundary",
+      "status": "CAUGHT",
+      "incident": "picker.py's own comment names the bug this reproduces: 'a recorded \"a\" matches roughly one HEAD in sixteen and the gate silently reports fresh -- a check that passes by accident is worse than no check, because it is believed.' No test in this repo was found driving _repo_state_freshness with a too-short recorded head, so this is a genuinely open question, not a confident prediction either way.",
+      "file": "daedalus/spine/picker.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": " softwaregesteuert\n\nE               durch den Hostcomputer abgebrochen\n\nC:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\\lib\\socket.py:705: ConnectionAbortedError\n---------------------------- Captured stdout call -----------------------------\nuuuu\n=========================== short test summary info ===========================\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\nFAILED tests/test_spine_return_arc.py::test_a_recorded_head_that_is_not_a_real_abbreviated_sha_is_refused[a]\nFAILED tests/test_web_api_loop.py::NonLoopbackBindIsRefusedTest::test_the_loop_endpoints_are_401_on_an_authenticated_bind\n3 failed, 4084 passed, 1 xfailed, 1914 subtests passed in 677.96s (0:11:17)\n"
+    },
+    {
+      "id": "attempt_reap_unwired",
+      "defect_class": "resource",
+      "status": "CAUGHT",
+      "incident": "attempt.py's own comment: 'git worktree add -b writes a ref into the SHARED .git that nothing removed, so an overnight loop left one ref per attempt forever.' Reused verbatim from tools/self_test.py's m_leak_a_branch (same shape, pytest instead of system_check.py as the oracle).",
+      "file": "daedalus/spine/attempt.py",
+      "returncode": 1,
+      "predicted_survive": false,
+      "output_tail": "sert result.branch not in _git_out(repo, \"branch\", \"--list\", result.branch)\nE       AssertionError: assert 'daedalus-at...f92d5-1cad20' not in '  daedalus-...2d5-1cad20\\n'\nE         \nE         'daedalus-attempt-d...ask-48cf92d5-1cad20' is contained here:\nE         Strings contain only whitespace, escaping them using repr()\nE           '  daedalus-attempt-demo-task-48cf92d5-1cad20\\n'\n\ntests\\test_spine_attempt.py:252: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_gate_discrimination.py::CorpusDesignTests::test_anchors_are_present_and_unique_in_the_current_tree\nFAILED tests/test_spine_attempt.py::test_a_resolved_attempt_reaps_its_branch_and_reports_it\n2 failed, 4085 passed, 1 xfailed, 1914 subtests passed in 669.41s (0:11:09)\n"
+    }
+  ],
+  "excluded": [],
+  "coverage_guided": false,
+  "coverage_state": "not_requested",
+  "hold_back": "one agent authored both the frozen gate config and the corpus in one sitting; see the module docstring of tools/gate_discrimination.py for exactly what is and is not claimed about separation."
+}

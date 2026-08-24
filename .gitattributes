@@ -65,6 +65,11 @@ tests/fixtures/unknown_outcome_reconciliation_fault_executor.py -text
 # sha on any machine"; this is what makes that true.
 tests/fixtures/ignition/voltage/** -text
 
+# Retained Gate-1 CAS objects name their raw bytes by SHA-256. Checkout EOL
+# translation would make the path lie about the materialized content.
+runs/ignition/**/store/** -text
+runs/ignition/**/store/blobs/** -diff
+
 # The head-revision integration review (tests/gates/
 # test_repository_head_revision_integration_review.py) pins these two by RAW
 # byte blob sha. Unpinned, core.autocrlf=true materialised them with CRLF in

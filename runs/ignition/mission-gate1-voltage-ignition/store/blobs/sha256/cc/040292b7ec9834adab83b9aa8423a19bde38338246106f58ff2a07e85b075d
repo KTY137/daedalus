@@ -1,0 +1,20 @@
+diff --git a/src/ignition_app/models.py b/src/ignition_app/models.py
+index 01cd46b..abbdf4a 100644
+--- a/src/ignition_app/models.py
++++ b/src/ignition_app/models.py
+@@ -6,4 +6,4 @@ from dataclasses import dataclass
+ @dataclass(frozen=True)
+ class Event:
+     id: str
+-    voltage: float
++    bias_voltage: float
+diff --git a/src/ignition_app/repository.py b/src/ignition_app/repository.py
+index 3be5d34..2f75a85 100644
+--- a/src/ignition_app/repository.py
++++ b/src/ignition_app/repository.py
+@@ -4,4 +4,4 @@ from .models import Event
+ 
+ 
+ def parse_event(row: dict[str, str]) -> Event:
+-    return Event(id=row["id"], voltage=float(row["voltage"]))
++    return Event(id=row["id"], bias_voltage=float(row["bias_voltage"]))
