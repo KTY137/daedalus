@@ -123,7 +123,34 @@ _VENDOR = re.compile(
     r"""|/api/(chat|generate|embed)"""
     r"""|/v1/(chat/completions|messages|responses|completions)""")
 _MAIN = re.compile(r"__name__\s*==\s*['\"]__main__['\"]")
-_INSTALLS = re.compile(r"install_process_guard")
+# WHAT COUNTS AS "the ceiling is on in this process".
+#
+# HERACLES 2026-08-24. This was `re.compile(r"install_process_guard")` -- a bare
+# substring, and only that one name. Both halves were wrong by one migration:
+#
+# * The 2026-08-18 central-wiring migration made `process_guard_boundary_decision()`
+#   the canonical way an entrypoint installs the ceiling; it calls
+#   `install_process_guard()` itself before returning the GuardDecision that
+#   `begin_effect` requires, which is why the sibling installer pin below
+#   records "roughly forty wired entrypoints install the ceiling through that
+#   one function". This detector never learned that, so every canonically wired
+#   door read as UNGUARDED. All five files it flags use the identical shape --
+#   tools/watchdog.py, daedalus/doctor.py, daedalus/health.py,
+#   tools/gate_discrimination.py, tools/system_check.py -- and a live probe of
+#   `tools/watchdog.py`'s process found subprocess.run, subprocess.Popen and
+#   urllib.request.urlopen all interposed after main() ran. [MEASURED 2026-08-24]
+#   The red was a FALSE POSITIVE in a safety detector, which is the way a safety
+#   detector gets deleted.
+#
+# * A bare substring counted a MENTION as coverage: a docstring naming the
+#   function made a file read as guarded. Requiring the call parentheses is
+#   strictly tighter, and MEASURED to reclassify nothing on its own.
+#
+# The premise -- that the canonical helper really installs the net -- is not
+# assumed here; `test_the_canonical_wiring_really_installs_the_ceiling` pins it,
+# so this detector cannot go on trusting a helper that stopped installing.
+_INSTALLS = re.compile(
+    r"\b(?:install_process_guard|process_guard_boundary_decision)\s*\(\s*\)")
 
 _SKIP_PARTS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "build",
                "daedalus.egg-info", ".pytest_cache", "dist", "structcore-rs"}
@@ -187,22 +214,36 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
 #
 # This ledger still exists so a NEW unguarded entry point cannot be added
 # silently. The decision record is docs/SPEND_AND_EGRESS_COVERAGE.md.
+#
+# LEFT THE LEDGER 2026-08-24, because they are GUARDED and always were, by the
+# central wiring the detector above could not see. Their reasoning is kept here
+# rather than in the dict, because a ledger entry asserts "no ceiling" and that
+# is the one thing none of them is. All five now register as guarded; four of
+# them were ALSO not billable, which is depth, not the reason:
+#
+#     daedalus/doctor.py            NOT BILLABLE: `--version` / `login status`
+#                                   probes generate no tokens
+#     daedalus/health.py            NOT BILLABLE: git, shutil.which, local
+#                                   /api/tags
+#     tools/gate_discrimination.py  NOT BILLABLE (INSPECTED 2026-07-29): the
+#                                   `agy` token is inside a STRING LITERAL
+#                                   holding a seeded-defect fixture; its real
+#                                   spawns are git and pytest
+#     tools/system_check.py         NOT BILLABLE (INSPECTED 2026-07-29): spawns
+#                                   `python -m daedalus.cli web` and
+#                                   `daedalus.file_bridge watch`; the `claude`
+#                                   token is a room SPEAKER NAME passed to
+#                                   `room.py say`, which only appends
+#     tools/watchdog.py             BILLABLE and SCHEDULED -- two Windows tasks
+#                                   (30 min / 15 min), MEASURED present and
+#                                   Ready 2026-08-24. Its `claude -p` (haiku)
+#                                   spawns are reserved and settled on the
+#                                   shared ledger by run_claude, UNDER the
+#                                   process ceiling its main() installs through
+#                                   begin_effect. This is the one that was never
+#                                   in the ledger at all: it appeared as a
+#                                   surprise, and the surprise was the detector.
 KNOWN_UNGUARDED_ENTRYPOINTS = {
-    # Present but NOT billable -- they exist in this dict so the detector's
-    # output is fully accounted for. Version/health probes generate no tokens.
-    "daedalus/doctor.py": "NOT BILLABLE: `--version` / `login status` probes",
-    "daedalus/health.py": "NOT BILLABLE: git, shutil.which, local /api/tags",
-    # Flagged by the scan, INSPECTED 2026-07-29, verified not to spend. These
-    # two live under tools/ -- outside the daedalus/+runs/ scope that
-    # test_budget.py walks -- so nothing had ever looked at them before.
-    "tools/gate_discrimination.py":
-        "NOT BILLABLE: the `agy` token is inside a STRING LITERAL holding a "
-        "seeded-defect fixture (lines 263-286); its real spawns are git and "
-        "pytest",
-    "tools/system_check.py":
-        "NOT BILLABLE: spawns `python -m daedalus.cli web` and "
-        "`daedalus.file_bridge watch`; the `claude` token is a room SPEAKER "
-        "NAME passed to `room.py say`, which only appends to the transcript",
     # Added 2026-07-30 (commit 15fbcd2), which is why the 2026-07-29 sweep above
     # had never seen it. INSPECTED 2026-07-31: all four of its `subprocess.run`
     # sites hardcode argv[0] == "git" (`_git_index_mode`, the core.hooksPath
@@ -281,6 +322,49 @@ def test_no_new_unguarded_spend_entrypoint_has_appeared():
         f"{surprises}. Either call daedalus.budget.install_process_guard() at "
         "the top of its __main__, or add it to KNOWN_UNGUARDED_ENTRYPOINTS "
         "WITH THE REASON and record it in docs/SPEND_AND_EGRESS_COVERAGE.md.")
+
+
+def test_the_canonical_wiring_really_installs_the_ceiling():
+    """``_INSTALLS`` accepts ``process_guard_boundary_decision()`` as proof that
+    a process is capped. That is only true while that function still calls
+    ``install_process_guard()``, and nothing else in this tree makes it stay
+    true -- so pin it here, in the detector that depends on it.
+
+    If this goes red, the detector above is calling ~forty wired entrypoints
+    guarded on the strength of a helper that no longer guards them, and it must
+    be narrowed in the SAME commit that changes the helper."""
+    B.uninstall_process_guard()
+    assert not B._INSTALLED, "fixture is wrong: the net was already up"
+    try:
+        decision = B.process_guard_boundary_decision()
+        assert set(B._INSTALLED) == {"subprocess.run", "subprocess.Popen",
+                                     "urllib.request.urlopen"}, sorted(B._INSTALLED)
+        assert decision.contract == "budget.process_guard" and decision.allowed
+    finally:
+        B.uninstall_process_guard()
+
+
+def test_the_watchdog_process_really_carries_the_ceiling():
+    """EVIDENCE, not a grep. ``tools/watchdog.py`` is the scheduled spend door
+    (two Windows tasks, 30 min and 15 min), and the triage reported it as having
+    no spend ceiling at all. Start the real door and ask the live interpreter.
+
+    A bogus mode is used deliberately: ``main`` runs the effect boundary and
+    THEN falls through to the usage text, so this measures the ceiling without
+    any pass, any commit, or any model call."""
+    probe = (
+        "import importlib.util, sys;"
+        "spec = importlib.util.spec_from_file_location('wd', r'tools/watchdog.py');"
+        "wd = importlib.util.module_from_spec(spec); sys.modules['wd'] = wd;"
+        "spec.loader.exec_module(wd);"
+        "wd.main(['__not_a_mode__']);"
+        "from daedalus import budget;"
+        "print('GUARDED=' + ','.join(sorted(budget._INSTALLED)))")
+    proc = subprocess.run([sys.executable, "-c", probe], capture_output=True,
+                          text=True, encoding="utf-8", errors="replace", cwd=str(ROOT))
+    assert "GUARDED=subprocess.Popen,subprocess.run,urllib.request.urlopen" in proc.stdout, (
+        "the scheduled watchdog door ran without the process ceiling: "
+        f"stdout={proc.stdout[-400:]!r} stderr={proc.stderr[-400:]!r}")
 
 
 def test_the_entrypoint_ledger_has_not_rotted():
