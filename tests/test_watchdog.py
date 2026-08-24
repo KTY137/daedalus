@@ -86,7 +86,7 @@ def test_docs_pass_skips_while_another_lane_commits(repo: Path, monkeypatch) -> 
     assert res["skipped"] == ".git/index.lock exists"
 
 
-def test_docs_pass_spawns_only_on_drift_and_respects_the_daily_cap(repo: Path, monkeypatch) -> None:
+def test_docs_pass_spawns_only_on_drift(repo: Path, monkeypatch) -> None:
     monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
     calls = []
     monkeypatch.setattr(wd, "run_claude", lambda root, prompt, **k: calls.append(prompt) or wd.ModelRun(True, "done", 0.01, 3, 1.0))
@@ -100,10 +100,22 @@ def test_docs_pass_spawns_only_on_drift_and_respects_the_daily_cap(repo: Path, m
     assert (repo / wd.SWEEPS_LOG_REL).read_text().strip().endswith("turns=3")
     state = wd.load_json(repo / wd.STATE_REL)
     assert wd.model_runs_today(state) == 1
-    state["model_runs"] = {time.strftime("%Y-%m-%d", time.gmtime()): wd.DAILY_MODEL_CAP}
-    wd.save_json(repo / wd.STATE_REL, state)
+
+
+def test_a_hundred_recorded_model_runs_do_not_stop_the_next_sweep(repo: Path, monkeypatch) -> None:
+    """Owner decision 2026-08-24: no self-imposed spending limit. A state that
+    would have tripped both the old DAILY_MODEL_CAP and WATCHDOG_DAILY_USD
+    must not stop a sweep with findings."""
+
+    monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
+    calls = []
+    monkeypatch.setattr(wd, "run_claude", lambda root, prompt, **k: calls.append(prompt) or wd.ModelRun(True, "done", 0.9, 3, 1.0))
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    wd.save_json(repo / wd.STATE_REL, {"model_runs": {day: 100}, "model_spend_usd": {day: 500.0}})
+    _git(repo, "rm", "-q", "docs/spec.md")
+    _git(repo, "commit", "-q", "-m", "remove")
     res = wd.docs_pass(repo, env={})
-    assert "daily model cap" in res["outcome"] and len(calls) == 1
+    assert res["outcome"] == "sweep ran" and len(calls) == 1
 
 
 def test_pause_switches(repo: Path) -> None:
@@ -197,9 +209,22 @@ def test_one_model_call_is_billed_once_at_the_measured_price(repo: Path, monkeyp
 
     import json as _json
 
-    ledger_path = tmp_path / "ledger.json"
-    monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(ledger_path))
-    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "20")
+    # TWO ledgers matter here, and the test has to watch both. The explicit
+    # reservation always writes to the dedicated one (own_ledger); but the
+    # process guard's AUTOMATIC billing on an unguarded subprocess.run call
+    # never learns about that override -- it calls plain reserve(vendor,
+    # label=label) with no `led=`, which resolves to whatever DAEDALUS_
+    # BUDGET_LEDGER/DEFAULT_LEDGER_PATH names. A regression that drops the
+    # explicit mode would therefore bill the DEDICATED ledger correctly AND
+    # bill a phantom $3 to the DEFAULT one -- invisible to a test that only
+    # reads the dedicated file, which is exactly the coverage gap measured
+    # while wiring `led=own_ledger(root)` into run_claude (2026-08-24): the
+    # first version of this test kept passing with the double-billing defect
+    # reinstated, because it never looked at the ledger the phantom charge
+    # actually lands on.
+    ledger_path = repo / wd.WATCHDOG_LEDGER_REL
+    default_ledger_path = tmp_path / "default-ledger.json"
+    monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(default_ledger_path))
     from daedalus import budget
 
     budget.reset_default_ledger()
@@ -238,6 +263,13 @@ def test_one_model_call_is_billed_once_at_the_measured_price(repo: Path, monkeyp
     assert not data.get("open"), "a leaked reservation holds the ceiling until the period rolls over"
     labels = [e.get("label") for e in data["entries"] if e.get("kind") == "settle"]
     assert labels == ["test.billing"], labels
+    # THE ONE THAT CATCHES THE REGRESSION THIS TEST EXISTS FOR: nothing may
+    # ever reach the default ledger, because it is the one a dropped explicit
+    # mode falls back to.
+    if default_ledger_path.exists():
+        default_data = _json.loads(default_ledger_path.read_text(encoding="utf-8"))
+        assert default_data.get("entries", []) == [], default_data
+        assert default_data.get("spent_usd", 0) == 0
 
 
 def test_the_toast_carries_no_measured_text_in_its_argv(monkeypatch) -> None:
@@ -290,7 +322,7 @@ def test_the_watchdog_never_raises_the_shared_ceiling(monkeypatch) -> None:
     assert "os.environ[" not in source, "the watchdog must not write the environment at all"
 
 
-def test_the_daily_spend_cap_is_measured_and_stops_the_sweep(repo: Path, monkeypatch) -> None:
+def test_spend_is_recorded_for_observability_and_never_gates(repo: Path, monkeypatch) -> None:
     monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
     calls = []
     monkeypatch.setattr(wd, "run_claude",
@@ -301,14 +333,55 @@ def test_the_daily_spend_cap_is_measured_and_stops_the_sweep(repo: Path, monkeyp
     assert wd.docs_pass(repo, env={})["outcome"] == "sweep ran"
     state = wd.load_json(repo / wd.STATE_REL)
     assert wd.spend_today(state) == 0.9          # the MEASURED cost, not the estimate
-    wd.docs_pass(repo, env={})
-    wd.docs_pass(repo, env={})
-    state = wd.load_json(repo / wd.STATE_REL)
-    assert wd.spend_today(state) >= wd.WATCHDOG_DAILY_USD
-    spent_before = len(calls)
-    result = wd.docs_pass(repo, env={})
-    assert "daily spend cap" in result["outcome"]
-    assert len(calls) == spent_before, "the cap must stop the spawn, not just report it"
+    # the stub never actually edits the repo, so the drift persists; the point
+    # is that recorded spend does not stop the NEXT sweep from trying again
+    assert wd.docs_pass(repo, env={})["outcome"] == "sweep ran"
+
+
+def test_a_call_succeeds_against_an_exhausted_shared_ledger(repo: Path, monkeypatch, tmp_path) -> None:
+    """The point of the dedicated ledger: the shared budget every interactive
+    lane uses can read as fully spent, and the watchdog must still run.
+    MEASURED 2026-08-24: the opposite used to be true in both directions --
+    raising the shared ceiling let the watchdog starve other lanes, and a
+    self-imposed cap on shared state let other lanes starve the watchdog."""
+
+    import json as _json
+
+    from daedalus import budget
+
+    shared = tmp_path / "shared-ledger.json"
+    shared.write_text(_json.dumps({
+        "schema": 1, "period_key": time.strftime("%Y-%m-%d", time.gmtime()),
+        "spent_usd": 999.0, "calls": 40, "open": {}, "entries": [], "envelopes": {},
+    }), encoding="utf-8")
+    monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(shared))
+    budget.reset_default_ledger()
+
+    exe = repo / "fake-claude.exe"
+    exe.write_text("", encoding="utf-8")
+    monkeypatch.setattr(wd.shutil, "which", lambda name: str(exe))
+
+    class _Proc:
+        returncode = 0
+        stdout = _json.dumps({"result": "ok", "total_cost_usd": 0.31, "num_turns": 2})
+        stderr = ""
+
+    def fake_run(argv, **kw):
+        return _Proc()
+
+    budget.uninstall_process_guard()
+    monkeypatch.setattr(wd.subprocess, "run", fake_run)
+    budget.install_process_guard()
+    try:
+        run = wd.run_claude(repo, "prompt", label="test.unlimited", allowed_tools="", max_turns=1)
+    finally:
+        budget.uninstall_process_guard()
+
+    assert run.ok and run.cost_usd == 0.31, run.reason
+    own = _json.loads((repo / wd.WATCHDOG_LEDGER_REL).read_text(encoding="utf-8"))
+    assert own["spent_usd"] == 0.31
+    shared_after = _json.loads(shared.read_text(encoding="utf-8"))
+    assert shared_after["spent_usd"] == 999.0, "the shared ledger must be untouched"
 
 
 def test_docs_and_work_passes_do_not_block_each_other(repo: Path) -> None:

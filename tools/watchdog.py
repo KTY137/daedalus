@@ -27,8 +27,18 @@ listed in the prompt, so the model fixes rather than searches. A work pass
 spawns the model only for the periodic report, and only when HEAD moved since
 the last one. Every spawn goes through ``budget.guard`` -- one reservation,
 one settlement at the MEASURED cost, and no second billing from the process
-guard -- and the watchdog stops when its OWN measured spend for the day
-reaches ``WATCHDOG_DAILY_USD``. It never raises the shared ceiling.
+guard.
+
+NO SELF-IMPOSED SPENDING LIMIT (owner decision 2026-08-24), and it still never
+touches the ceiling every other lane shares. The watchdog reserves against its
+OWN ledger (``runs/watchdog/ledger.json``), not ``runs/budget/ledger.json``,
+with a ceiling high enough to never bind. Two prior designs were both wrong in
+opposite directions: raising ``DAEDALUS_BUDGET_USD`` for the watchdog process
+raised the ceiling every lane shares and let it starve the others (MEASURED
+2026-08-24: $9.74 spent overnight, other lanes refused); a self-imposed daily
+cap on the SHARED ledger meant the watchdog could itself be starved by other
+lanes' spend. A dedicated ledger has neither failure mode: nothing here can be
+blocked by, or block, anyone else's spend.
 
 SHARED TREE, SHARED INDEX. Other lanes commit in this tree. The docs sweep
 commits ONLY with a pathspec (``git commit -F msg -- <paths>``), never the
@@ -84,19 +94,20 @@ WORK_INTERVAL_MIN = 15
 REPORT_MIN_GAP_S = 2 * 3600
 MODEL = "claude-haiku-4-5"
 MODEL_TIMEOUT_S = 15 * 60
-DAILY_MODEL_CAP = 12
-#: What the watchdog may spend per UTC day, counted from the MEASURED cost of
-#: its own calls and enforced here, before the shared ledger is asked.
-#:
-#: IT NO LONGER RAISES THE SHARED CEILING, and that was the real defect. The
-#: first version set DAEDALUS_BUDGET_USD=15 for its own process, which raises
-#: the ceiling on the ledger EVERY lane shares -- and then spent $9.74 of it in
-#: a night, because each sweep was billed twice (see run_claude). A background
-#: job that can refuse another lane's model call is not a background job.
-#: With one billing at the measured price a sweep costs ~$0.40, so this cap is
-#: roughly a dozen sweeps and still an order of magnitude under the default $5
-#: period ceiling.
-WATCHDOG_DAILY_USD = 2.50
+#: The watchdog's OWN ledger file -- never ``runs/budget/ledger.json``, the one
+#: every interactive lane shares. Isolating the file is what makes "no
+#: spending limit" safe to grant: a ceiling high enough to never bind on a
+#: SHARED ledger would let the watchdog starve every other lane (measured
+#: 2026-08-24, see the module docstring); on its own ledger the same ceiling
+#: starves nobody.
+WATCHDOG_LEDGER_REL = "runs/watchdog/ledger.json"
+#: Not a real limit -- ``budget.Ledger`` requires a finite, positive ceiling
+#: and call count (daedalus/budget.py's ``_num``: "must be finite", "never
+#: zero"), so "no limit" is expressed as a number no realistic run reaches
+#: rather than as an omitted check. At the measured ~$0.30-0.45 per sweep this
+#: is effectively forever; nothing here refuses on cost or call count.
+WATCHDOG_CEILING_USD = 1_000_000.0
+WATCHDOG_MAX_CALLS = 1_000_000
 #: Findings handed to one model run; the rest wait for the next pass.
 MAX_DRIFTS_PER_PASS = 15
 HEAD_QUIET_S = 180
@@ -234,17 +245,20 @@ class ModelRun:
 
 
 def model_runs_today(state: dict, now: float | None = None) -> int:
+    """How many model calls the watchdog made today -- reporting only, not a
+    gate; see WATCHDOG_LEDGER_REL for why nothing here refuses on this."""
     day = time.strftime("%Y-%m-%d", time.gmtime(now or time.time()))
     runs = state.get("model_runs") or {}
     return int(runs.get(day, 0))
 
 
 def spend_today(state: dict, now: float | None = None) -> float:
-    """The MEASURED dollars this watchdog spent today, from its own state.
+    """The MEASURED dollars this watchdog spent today -- reporting only.
 
-    Its own, not the ledger's: the shared ledger is every lane's, and a
-    watchdog that reads the shared total would throttle itself because someone
-    else was working.
+    Read from the watchdog's own state, not from its dedicated ledger: this
+    function backs the ``status`` line, and asking it to gate anything again
+    would reintroduce the two failure modes WATCHDOG_LEDGER_REL exists to
+    avoid (see the module docstring).
     """
 
     day = time.strftime("%Y-%m-%d", time.gmtime(now or time.time()))
@@ -271,6 +285,25 @@ def _count_model_run(state: dict, now: float | None = None) -> None:
     for key in list(runs):
         if key != day:
             del runs[key]
+
+
+def own_ledger(root: Path):
+    """The watchdog's dedicated, effectively-unlimited budget ledger.
+
+    A fresh :class:`daedalus.budget.Ledger` object, not the module-global
+    default: passing it explicitly to ``budget.guard(led=...)`` is what keeps
+    this off ``runs/budget/ledger.json`` without touching any environment
+    variable (an env var would apply to every subprocess this process spawns,
+    including a plain ``git`` call, for no reason).
+    """
+    from daedalus import budget
+
+    return budget.Ledger(
+        root / WATCHDOG_LEDGER_REL,
+        ceiling_usd=WATCHDOG_CEILING_USD,
+        max_calls=WATCHDOG_MAX_CALLS,
+        period="day",
+    )
 
 
 def run_claude(root: Path, prompt: str, *, label: str, allowed_tools: str, max_turns: int,
@@ -302,7 +335,7 @@ def run_claude(root: Path, prompt: str, *, label: str, allowed_tools: str, max_t
     # $0.42 beside reserve/settle "subprocess.run: ...claude.EXE" $3.00.
     text, cost, turns, failure = proc_out = "", None, None, ""
     try:
-        with budget.guard("anthropic_cli", model, label=label) as reservation:
+        with budget.guard("anthropic_cli", model, label=label, led=own_ledger(root)) as reservation:
             try:
                 proc = subprocess.run(
                     argv, input=prompt, capture_output=True, text=True, encoding="utf-8",
@@ -458,13 +491,6 @@ def docs_pass(root: Path, *, dry: bool = False, env: dict | None = None) -> dict
     result["drifts"] = [asdict(d) for d in drifts]
     if not drifts:
         result["outcome"] = "no drift"
-    elif model_runs_today(state) >= DAILY_MODEL_CAP:
-        result["outcome"] = f"drift found but daily model cap ({DAILY_MODEL_CAP}) reached"
-    elif spend_today(state) >= WATCHDOG_DAILY_USD:
-        result["outcome"] = (
-            f"drift found but the watchdog's daily spend cap is reached "
-            f"(${spend_today(state):.2f} of ${WATCHDOG_DAILY_USD:.2f})"
-        )
     else:
         head = git(root, "rev-parse", "--short=8", "HEAD")
         batch = drifts[:MAX_DRIFTS_PER_PASS]
@@ -774,7 +800,7 @@ def work_pass(root: Path, *, dry: bool = False, env: dict | None = None, now: fl
     # periodic model report, only when HEAD moved since the last one
     last_report = state.get("last_report") or {}
     due = (now - float(last_report.get("at", 0)) > REPORT_MIN_GAP_S) and last_report.get("head") != facts.get("head")
-    if due and model_runs_today(state) < DAILY_MODEL_CAP and spend_today(state, now) < WATCHDOG_DAILY_USD:
+    if due:
         run = run_claude(root, report_prompt(root, facts, found), label="watchdog.report", allowed_tools="",
                          max_turns=1, dry=dry)
         result["model"] = asdict(run)
@@ -851,8 +877,8 @@ def status(root: Path) -> str:
             else:
                 lines.append(f"{name}: not installed")
     state = load_json(root / STATE_REL)
-    lines.append(f"model runs today: {model_runs_today(state)} / {DAILY_MODEL_CAP}")
-    lines.append(f"spend today: ${spend_today(state):.2f} / ${WATCHDOG_DAILY_USD:.2f} (measured, watchdog only)")
+    lines.append(f"model runs today: {model_runs_today(state)} (no cap)")
+    lines.append(f"spend today: ${spend_today(state):.2f} (measured, own ledger, no cap)")
     lines.append(f"last docs: {json.dumps(state.get('last_docs', {}).get('outcome') or state.get('last_docs', {}).get('skipped'))}")
     lines.append(f"last work anomalies: {[a['id'] for a in (state.get('last_work') or {}).get('anomalies', [])]}")
     lines.append(f"paused: {paused(root) or 'no'}")

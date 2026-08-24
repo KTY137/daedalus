@@ -119,4 +119,10 @@ runs/watchdog/REPORT.md
 runs/watchdog/reports/
 runs/watchdog/watchdog.log*
 runs/watchdog/.pass.lock
+runs/watchdog/.docs.lock
+runs/watchdog/.work.lock
+# the watchdog's own budget ledger (2026-08-24: dedicated, unlimited,
+# never runs/budget/ledger.json)
+runs/watchdog/ledger.json
+runs/watchdog/ledger.json.lock
 runs/watchdog/docs-commitmsg.txt
