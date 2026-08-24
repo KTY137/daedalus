@@ -485,3 +485,38 @@ All 51 anchors in this tree are the plain-statement shape, so the
 unexercised branch in a soundness rule is the one place a fixture earns its
 keep. `[MEASURED]`: the with-body write is dominated, the write above the
 `with` is not.
+
+## 10. The reporter can be handed a declaration, and the counters answer (2026-08-24)
+
+Section 9 measured that no receipt kind was the blocker; today measured the
+two structural reasons the census could not move even after a leased attempt
+left real terminal evidence (eae9f72e door; full mechanics with line numbers
+in `docs/inventory/2026-08-24/LEASED_RUN_CENSUS_DELTA.md`): the reporter
+called the composition without `inputs=` behind an over-broad AST pin, and
+`scripts/report_gate0_v3.py` had no flag reaching
+`repository_write_classification_input` at all.
+
+Cut D (Momus, endorsed over variants A/B/C; Codex holds variant C -- a
+separate authenticator with its own content-addressed receipt -- as the later
+shape, PRECONDITION: a verification-only key, since the HMAC's verifier must
+currently hold the signing secret) landed as d651fbb7 (pin narrowed to the
+actual 6be14dff rule), aa05c7ea (the CLI flag), 725e32a1 (an authentication
+refusal is retained beside the declaration as `authentication-owed.json`).
+
+**Measured at 725e32a1, numbers named before the build:**
+
+| measurement | predicted | observed |
+| --- | --- | --- |
+| `repository_write_surfaces_total` | unchanged | 437 (this head's count) |
+| verdicts with the fresh declaration (32 rows, 12-hex address `725e32a15752`) | `unclassified:total-N`, `blocked:...:N` | `unclassified:405`, `blocked:write-target-unknown+production-write-inventory_only:32` |
+| `cleared` / `evidence-unauthenticated` / `binding-missing` rows | 0 / absent / absent | 0 / absent / absent |
+| `report_sha256` | changes | changed (`6f589406...`) |
+| control: stale `4fd2daa7` declaration at this head | `classification:input-refused` | `input-refused`, verdicts stay `unclassified:437` |
+
+The remaining wall is unchanged and now isolated: `cleared` stays 0 because
+every honest row carries `candidate_blockers` -- the classification
+vocabulary has NO RUNG for "centrally started, but no contract covers this
+effect" (section 9.2). That is an AMENDMENT question for the owner, drafted
+in `docs/decisions-pending/AMENDMENT_DRAFT_classification_rung.md`, not a
+wiring commit. Authentication work (variant C) waits behind the asymmetric
+attestation precondition and behind that amendment.
