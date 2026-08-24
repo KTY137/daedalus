@@ -1,9 +1,14 @@
 # Amendment proposal 003 — symbol work goes through Serena
 
-Status: **APPROVED — not yet applied.** The repository owner approved this
-proposal in session on 2026-08-05, satisfying §15 step 2. Nothing in this
-document has been applied: steps 3–7 (`DAEDALUS_IRON_PLAN_AMENDMENT`, revision
-bump, ledger record, atomic update, verification) remain outstanding.
+Status: **SUPERSEDED HISTORICAL RECORD — do not apply.** The repository owner
+approved this proposal on 2026-08-05, and commit `3e758392` applied its
+then-current form. The 2026-08-22 unification retired the Iron Plan guard, and
+the Serena-first registration was subsequently replaced by hooks v2. The
+sections below preserve the proposal and evidence as they were written; they
+are not current operating instructions and must not be replayed.
+
+Any renewed change to `AGENTS.md`, the master plan, or owner-managed settings is
+a new owner decision recorded under the current manual amendment process.
 
 They cannot be performed in the approving session. The guard's PreToolUse hook
 runs as a child of the harness process and reads its environment; exporting the
@@ -25,8 +30,8 @@ plan sentence changes.**
 > produces — its current base (`a47d84ee…`, the revision-1 plan) will be stale
 > the moment this lands.
 >
-> The two do not conflict in content: 002 touches `tools/iron_plan_guard.py` and
-> `tests/test_iron_plan_guard.py`, 003 touches `.claude/settings.json` and
+> The two do not conflict in content: 002 touches `tools/iron_plan_guard.py` (removed 2026-08-22) and
+> `tests/test_iron_plan_guard.py` (removed 2026-08-22), 003 touches `.claude/settings.json` and
 > `AGENTS.md`.
 
 ---
