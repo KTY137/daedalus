@@ -3832,21 +3832,241 @@ matched, so a probe that mutates nothing fails instead of passing quietly.
   "the full representation" onto whatever arm a run labels `full` is the
   loosest joint in the whole slice.
 
+## Slice s09/s10, continuation (2026-08-24): the first real s09 -> s10 run
+
+Closes the gap s10's own "Honest caveats" named in words: *"The input
+contract is s10's, not s09's... the adapter that emits this schema from an
+s09 run does not exist yet."* It now exists, it has been run against two real
+s09 harness executions, and the result is fed through the real
+`s10_kill/cli.py` — not a rebuild from aggregates like the `--measured
+s08_graph_structure` runs above.
+
+### Frozen specification
+
+- **Hypothesis (falsifiable):** the s09 harness's real per-case output can be
+  adapted into a valid `forest_v2.s10.kill-input/1` document without
+  fabricating an arm, a plane label or a corpus census, and doing so will
+  surface, from real retrieval data, the same class of "refused, not
+  answered" verdicts s10's own dynamic-range precondition already produces
+  from the s08 rebuild — not a healthier-looking result bought by choosing
+  which baseline to label.
+- **Falsifier:** the adapter cannot emit a document `s10_kill/schema.py`
+  accepts without a `SchemaError`; or producing a document requires labelling
+  a baseline with a role its mechanism does not have (`full`, `fusion`,
+  `code_only` for a plane-unrestricted retriever, or two arms sharing one
+  role at one variant); or the two real runs (primary 20-case corpus,
+  cross-plane 88-case corpus) reach materially different verdicts for reasons
+  that trace back to an arbitrary adapter choice rather than to a real
+  difference in the corpora.
+- **Scope:** two new modules under `experiments/forest_v2/s09_eval/`
+  (`run_xplane_harness.py`, `to_s10.py`) plus their test file. Both new
+  modules reuse `harness.run()` and `harness.comparison_payload()` verbatim
+  rather than re-implementing scoring or statistics; `harness.py` and
+  `taskset.py` are not edited. No import of `experiments.forest_v2.s10_kill`
+  from either new production module — only from the disclosed, one-place test
+  in `test_to_s10.py` (see that file's docstring, and `to_s10.py`'s own,
+  for why: `s10_kill/__init__.py` and `s10_kill/test_s10_boundary.py`
+  establish, and mechanically enforce, that no file *inside* `s10_kill/` may
+  import anything outside the standard library — so the adapter cannot live
+  there without breaking that check, and it does not).
+- **Budget:** two harness executions (20 cases, 88 cases; five baselines
+  each, both query variants), two adapter runs, two real `s10_kill/cli.py`
+  evaluations. No model calls, no spend, no network egress beyond the
+  read-only git plumbing `gitio.py` already gates.
+- **Expiry:** 2026-09-15, same as the s09/s10 sections this continues. The
+  primary 20-case corpus is anchor-pinned (`d849c2a94d66f...`) and its numbers
+  reproduced exactly on re-run (below); the repository tree itself keeps
+  moving regardless (consolidation note, 2026-08-23: kernel function count
+  already drifted 4203 -> 4416 since these slices were first measured).
+- **Kill-criterion linkage:** unchanged from s10's own frozen spec — this
+  continuation supplies real inputs to an already-frozen evaluator, it does
+  not add or reinterpret a criterion.
+
+### What actually ran [MEASURED, this worktree @ `7d4689db`]
+
+```text
+python -m experiments.forest_v2.s09_eval.harness \
+  --out experiments/forest_v2/s09_eval/results/s10_adapter_runs/raw_taskset20_2026-08-24.json
+python -m experiments.forest_v2.s09_eval.run_xplane_harness \
+  --out experiments/forest_v2/s09_eval/results/s10_adapter_runs/raw_xplane88_2026-08-24.json
+python -m experiments.forest_v2.s09_eval.to_s10 \
+  --raw .../raw_taskset20_2026-08-24.json --gold-planes-from taskset \
+  --run-id s09-taskset20@d849c2a9-adapted-2026-08-24 \
+  --out .../kill_input_taskset20_2026-08-24.json
+python -m experiments.forest_v2.s09_eval.to_s10 \
+  --raw .../raw_xplane88_2026-08-24.json --gold-planes-from taskset_xplane \
+  --run-id s09-xplane88@d849c2a9-adapted-2026-08-24 \
+  --out .../kill_input_xplane88_2026-08-24.json
+python -m experiments.forest_v2.s10_kill.cli .../kill_input_taskset20_2026-08-24.json
+python -m experiments.forest_v2.s10_kill.cli .../kill_input_xplane88_2026-08-24.json
+```
+
+Both the raw harness outputs, both adapted kill-inputs, and both captured
+`s10_kill/cli.py` text reports are committed under
+`experiments/forest_v2/s09_eval/results/s10_adapter_runs/`.
+
+**The primary corpus reproduced its 2026-08-18 published numbers exactly**
+[MEASURED]: every R@1/R@5/R@10/R@20 count and every MRR value, all five
+baselines, both variants, identical to the RAW results table in slice s09
+above (`metrics.raw_table`'s own column layout has since grown macro-recall
+and median-rank columns, so the printed table is not byte-identical, but
+every number that was published then is reproduced now). The anchor commit
+(`d849c2a94d66f...`) is pinned and the 20-case digest is verified on load, so
+this is the expected result, not a coincidence — it is the check that
+re-running the harness six days later, on a tree that has otherwise moved
+(consolidation note), still measures the same frozen corpus.
+
+Only two of the five baselines `retrievers.py` ships have an honest s10 role
+— **this is the adapter's own headline finding, not a limitation discovered
+after the fact:**
+
+| s09 baseline | s10 role | why / why not |
+| --- | --- | --- |
+| `bm25` | `bm25` | a lexical baseline over the whole eligible-suffix universe — the role names exactly this |
+| `random_uniform` | `random_priority` | a random selection control — the role names exactly this |
+| `recency_prior` | *(none)* | s09's own README calls this **the strongest baseline in the program** ("leads every column") — and s10's ten roles have no slot for a query-blind churn prior |
+| `path_lexical` | *(none)* | path-token overlap only; not a plane-restricted index, not a fusion mechanism |
+| `bm25_content_only` | *(none)* | a real second arm, but s10 has no role for "this role's own document-composition ablation", and two arms sharing role `bm25` at one variant is a `ResultSet.find()` collision, not a modelling choice |
+
+No `code_only`, `full`, `graph_priority`, `token_matched` or `fusion` arm was
+constructed to fill a gap: every one of s09's five baselines ranks the same
+unrestricted, multi-suffix candidate universe (`contract.Budget.text_suffixes`),
+so **none of them is honestly plane-restricted**, and no cross-plane fusion
+retriever exists anywhere in this program — s07, s08 and s09 combined. That
+is not a new finding; `s10_kill/measured_inputs.py` already recorded the
+identical fact about s08 independently. This continuation confirms it a
+third time, from a different slice's baselines.
+
+### The report, both corpora [MEASURED, RAW `s10_kill/cli.py` output]
+
+| | taskset20 (primary) | xplane88 (cross-plane) |
+| --- | ---: | ---: |
+| cases | 20 | 88 |
+| roles present | bm25, random_priority | bm25, random_priority |
+| gold-plane cases declared | 17 (all `code`) | 30 (28 `code`, 1 `data`, 1 `knowledge`) |
+| cases left undeclared (span >1 Twin plane) | 3 | 58 |
+| planes never a retrieval target | type, data, knowledge | type |
+| coverage | 0 of 16 (0.0%) | 0 of 16 (0.0%) |
+| verdicts | KEEP 0 KILL 0 INCONCLUSIVE 0 **UNDECIDABLE 2** NOT_EVALUABLE 14 | identical |
+| 14.2 | `UNDECIDABLE` — `corpus.graph: absent` | same |
+| 14.3 | `UNDECIDABLE` — `role 'fusion': absent` | same |
+
+The `gold-plane` row is the adapter working as designed, not a defect: 17 of
+20 primary-corpus cases have a single-plane gold set (all `code`, matching
+correction F4's "32/35 gold paths are `.py`" almost exactly once collapsed to
+cases), and the cross-plane corpus's 30 single-plane control cases come back
+**exactly** 28/1/1 — the same code/data/knowledge split its own composition
+table already published. The 58 cross-plane cases are, correctly, left
+without a gold-plane label: s10's schema carries one plane per case
+(`gold_planes: Mapping[str, str]`), and a case whose gold set spans two or
+three planes cannot be compressed into that field without inventing a
+primary plane the corpus never asserted. `plane_range.py`'s own crosstab
+renderer reports this state as "N cases carry no declared gold plane" — the
+report above quotes it, not a summary this document invented.
+
+### Does the real run agree with the s08-rebuilt one?
+
+**At the headline: yes, exactly.** `--measured s08_graph_structure`
+(rebuilt from s08's published aggregate counts, cited above) reports the
+identical shape: coverage 0/16, `KEEP 0 KILL 0 INCONCLUSIVE 0 UNDECIDABLE 2
+NOT_EVALUABLE 14`.
+
+**In the reason for the agreement: no, and that difference matters.** This
+continuation's 14.2 refusal reads `corpus.graph: absent` — but that is *not*
+the reason the s08 run refuses. s08 *does* declare a graph census (992 edges,
+0 crossing a plane); its refusal comes from `cross_plane_edge_refusal` reading
+that census and finding zero cross-plane edges to rewire. This continuation's
+runs declare **no graph census at all** (`corpus: None`, by design — see the
+caveats below), so the same verdict code fires for a structurally different
+reason: not "we counted cross-plane edges and found none" but "we never
+attempted to count them". Two instruments reaching the same refusal for
+different reasons is not a stronger confirmation than either alone; it is two separate,
+independently-arrived-at "cannot decide" results, and conflating them would
+overstate how well-instrumented this program actually is. 14.3 agrees for the
+same underlying reason in both runs (`role 'fusion': absent`) because neither
+program has ever built a fusion retriever — that agreement *is* the stronger
+one, since it rests on the same fact (an absent role) rather than on two
+different absences.
+
+### Honest caveats
+
+- **This is still not evidence about the four-plane Twin.** Two lexical/random
+  baselines against no `full`, `code_only` or `fusion` arm cannot move any of
+  the nine decidable criteria; every verdict above is `UNDECIDABLE` or
+  `NOT_EVALUABLE`, exactly as the frozen falsifier predicted for a run with no
+  treatment arm. That is the honest result of running a real instrument on
+  the real, current state of this program's retrievers — not a shortfall of
+  this adapter.
+- **No corpus census, on purpose.** `s10_kill.schema.Corpus` models one static
+  index; s08 built exactly one. s09's harness scores every case against its
+  *own* pre-image tree (`build_universe`), so there is no single fixed
+  "documents per plane" count to report without inventing an aggregate the
+  harness never computed. `corpus` is `None` in both documents for this
+  reason. A future adapter that wants `corpus.graph.total_edges` etc. would
+  have to compute it explicitly — this one does not, and says so rather than
+  quietly filling zeros.
+- **`returned_plane_counts` is undeclared for every arm.** The harness records
+  hit counts and reciprocal rank per case (`metrics.score_case`), not the
+  returned path list itself, so which plane each *returned* document belonged
+  to was never captured by this run. Only `returns_planes` (a structural,
+  index-scope claim: both included arms rank the whole eligible-suffix
+  universe, so both can return `code`/`data`/`knowledge`, never `type`) is
+  declared.
+- **The Type plane is, again, unrepresentable.** Neither corpus has ever
+  produced a single Type-plane gold label, and no retriever anywhere in this
+  program (s07, s08, s09) has ever returned a Type-plane document. This is
+  the same gap s02, s08 and s09-continuation-2 already recorded, from a
+  fourth angle.
+- **Timing is not reported as a comparison.** The xplane88 run's `bm25`
+  `rank_seconds` (111.956s) looks dramatically worse than the taskset20 run's
+  (14.054s) — that is 4.4x the case count on a box running other lanes in
+  parallel this session, not a per-query cost measurement; s09's own
+  `TIMING_DISCLAIMER` (a measured 4.1x swing on identical work) travels with
+  both raw outputs and is not re-derived or improved on here.
+- **One run, one seed, both corpora.** `seeds: 1` in both documents; the
+  evaluator's own low-seed warning applies to any decidable criterion this
+  run might one day carry, same as every other `--measured` run in this
+  slice.
+- **Guards verified by disabling, not only by writing an assertion.** Two of
+  `to_s10.py`'s checks were mutated by hand and watched turn red before being
+  restored: dropping the empty-arms guard (`if not arms: raise
+  AdapterError`) let `test_no_included_retrievers_present_raises` pass
+  silently past a run with zero honest arms; adding a fabricated
+  `"recency_prior": ("full", "single_index")` entry to `INCLUDED_ARMS` turned
+  five tests red, including `test_no_arm_is_labelled_full_or_fusion` and the
+  end-to-end schema-validation test. Both were restored; the suite is green
+  at `14 passed` for `test_to_s10.py` alone and `257 passed` for
+  `experiments/forest_v2/{s09_eval,s10_kill}` together [MEASURED].
+
+### Reproduce
+
+```text
+python -m pytest experiments/forest_v2/s09_eval experiments/forest_v2/s10_kill -q
+python -m experiments.forest_v2.s09_eval.harness --out <path>
+python -m experiments.forest_v2.s09_eval.run_xplane_harness --out <path>
+python -m experiments.forest_v2.s09_eval.to_s10 --raw <path> --run-id <id> \
+  --gold-planes-from {taskset|taskset_xplane|none} --out <path>
+python -m experiments.forest_v2.s10_kill.cli <path>
+```
+
 ## Boundary note
 
 **Corrected 2026-08-18.** This note previously read "this directory currently
 contains no effectful entrypoint". That stopped being true in the same commit
 that stated it. **Updated again in continuation 2: the count is now three, not
-two.** Adding an entrypoint without updating this table is precisely how the
-note went stale the first time.
+two.** **Updated again in the s09->s10 adapter continuation (2026-08-24): the
+count is now five.** Adding an entrypoint without updating this table is
+precisely how the note went stale the first time.
 
 | entrypoint | effect |
 | --- | --- |
-| `s09_eval/harness.py:main` | `mkdir` + `write_text` of `results/raw.json`, on the default path, suppressed only by `--no-write` |
+| `s09_eval/harness.py:main` | `mkdir` + `write_text` of `results/raw.json`, on the default path (redirectable under `experiments/forest_v2/s09_eval/` via `--out`), suppressed only by `--no-write` |
 | `s09_eval/taskset.py:main` | `write_text` of `taskset.json` |
 | `s09_eval/taskset_xplane.py:main` | `write_text` of `taskset_xplane.json` |
+| `s09_eval/run_xplane_harness.py:main` | `mkdir` + `write_text` of a results JSON (default `results/raw_xplane.json`), suppressed only by `--no-write`; runs the same `harness.run()` slice s09 already ships, against the second (cross-plane) task set instead of the first |
+| `s09_eval/to_s10.py:main` | `mkdir` + `write_text` of the emitted `forest_v2.s10.kill-input/1` JSON, suppressed only by `--no-write` |
 
-Both are unscanned. `daedalus/spine/effect_boundary.py` pins
+All five are unscanned. `daedalus/spine/effect_boundary.py` pins
 `HARNESS_PACKAGES = ("scripts", "tests")`, so nothing under `experiments/` is
 seen by the effect scanner at all.
 
@@ -3860,9 +4080,12 @@ slice does not touch `daedalus/`. The exact gap:
 - unscanned effectful entrypoints:
   `experiments/forest_v2/s09_eval/harness.py:main`,
   `experiments/forest_v2/s09_eval/taskset.py:main`,
-  `experiments/forest_v2/s09_eval/taskset_xplane.py:main`
-- both write only inside `experiments/forest_v2/s09_eval/`; neither performs
-  network egress, spend, or model calls.
+  `experiments/forest_v2/s09_eval/taskset_xplane.py:main`,
+  `experiments/forest_v2/s09_eval/run_xplane_harness.py:main`,
+  `experiments/forest_v2/s09_eval/to_s10.py:main`
+- all five write only inside `experiments/forest_v2/s09_eval/` (the last two,
+  added 2026-08-24, write under `experiments/forest_v2/s09_eval/results/`
+  specifically); none performs network egress, spend, or model calls.
 
 An unscanned effectful directory is the exact blind spot the boundary work
 just closed, and it is now open again under `experiments/`. Anyone adding a
