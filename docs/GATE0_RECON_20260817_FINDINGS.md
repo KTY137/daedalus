@@ -94,7 +94,7 @@ before the first real receipts, or they will read stronger than they are.
 
 ## The guard, corrected
 
-`iron_plan_guard.py verify` exits **1** on this trunk, blocking every commit and
+`iron_plan_guard.py (removed 2026-08-22) verify` exits **1** on this trunk, blocking every commit and
 `AGENTS.md` step 1. It is a **false positive**: `AUTO_PROMOTE_LEVELS` and
 `run_write_wave` both live in the exec'd blob `_gated_writes_legacy.py.src`
 (lines 1048 and 1081), which an AST parse cannot see. At runtime the value reads

@@ -296,7 +296,7 @@ effects, because nothing currently stands in front of it.
 | rank | item |
 | ---: | --- |
 | 15 | `worktree.reap` (`inventory_only`, **zero guards**, fs+spawn+repo) |
-| 16 | **A3** `tools/iron_plan_guard.py:1999` — mutates the repo *and* is a guard |
+| 16 | **A3** `tools/iron_plan_guard.py (removed 2026-08-22):1999` — mutates the repo *and* is a guard |
 | 17 | `python.promote_candidates`, `python.attempt`, `worktree.create/commit/cleanup` (`local_guards`, guarded, documented migration to lease) |
 | 18 | **A5–A8** `gate_discrimination`, `bootstrap_receipt`, `operability_drill`, `gate_host_preflight` |
 | 19 | **C6** `runs/ab/score.py:145` |

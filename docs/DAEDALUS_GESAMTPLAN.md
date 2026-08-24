@@ -882,7 +882,7 @@ git pull --ff-only origin experimental
 
 git status --short
 git rev-parse HEAD
-python tools/iron_plan_guard.py verify
+python tools/iron_plan_guard.py (removed 2026-08-22) verify
 python -m pytest -q
 
 git tag -a daedalus-plan-r1-baseline-2026-07-31 \

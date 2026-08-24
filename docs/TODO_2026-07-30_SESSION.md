@@ -343,7 +343,7 @@ whoever picks it up):
 | shims | 3 | 5 | `observe/__init__.py`, `wiki/__init__.py` — re-exports nothing reaches |
 | unreached | 12 | 20 | |
 | doc_drift | 2 | 20 | 18 env vars the code reads and no document mentions |
-| dark_switches | 0 | 1 | `CI`, an off-by-default env gate at `tools/iron_plan_guard.py:799` |
+| dark_switches | 0 | 1 | `CI`, an off-by-default env gate at `tools/iron_plan_guard.py (removed 2026-08-22):799` |
 | index_extra_edges | 0 | 1 | `eval/graph_delta.py -> structcore/artifacts.py`: the structural index has the edge, the reachability walk refuses it |
 
 **27 blocking.** One is `daedalus/compaction.py (removed 2026-08-22)`, VANISHED — in the snapshot, not

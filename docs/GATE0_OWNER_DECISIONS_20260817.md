@@ -26,7 +26,7 @@ run_write_wave is defined in neither the promotion strangler nor its retained so
 selbst in `PROTECTED_PATHS`. Jede Änderung ist Amendment-Territorium.
 
 **Option A (empfohlen, test-only, minimal):** Fixture kopiert die gepinnte
-Retained Source mit. Exakter Diff gegen `tests/test_iron_plan_guard.py`,
+Retained Source mit. Exakter Diff gegen `tests/test_iron_plan_guard.py (removed 2026-08-22)`,
 einzufügen nach der `for rel in guard.PROTECTED_PATHS:`-Schleife (vor
 `run_git(repo, "add", "-A")`, Zeile 712):
 

@@ -17,7 +17,7 @@ projects the plan, not in the plan.
 
 ## Summary
 
-Three measured defects in `tools/iron_plan_guard.py` and
+Three measured defects in `tools/iron_plan_guard.py (removed 2026-08-22)` and
 `tests/test_iron_plan_guard.py (removed 2026-08-22)`. All three are protected artifacts, so no
 ordinary task can repair them; §15 makes this an amendment.
 
@@ -54,7 +54,7 @@ Before 15fbcd2, `HEAD` held revision 0 and the test was meaningful. Since
 ### Measured
 
 ```
-$ python -m pytest tests/test_iron_plan_guard.py -k ci_history_check -q
+$ python -m pytest tests/test_iron_plan_guard.py (removed 2026-08-22) -k ci_history_check -q
 AssertionError: Lists differ:
   ['initial adoption does not change the complete policy bundle: docs/IKARUS_ARIADNE_MASTER_PLAN.md',
    'initial adoption base digest does not match base revision'] != []

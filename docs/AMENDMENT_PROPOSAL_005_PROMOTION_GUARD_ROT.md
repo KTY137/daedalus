@@ -2,7 +2,7 @@
 
 Status: **proposed, not applied**
 Author: Athena (coordinator), 2026-08-17
-Protected artifact touched: `tools/iron_plan_guard.py`
+Protected artifact touched: `tools/iron_plan_guard.py (removed 2026-08-22)`
 Affected invariant: 4.5 (sealed promotion), 4.10 (no silent constitution change)
 Active gate: Gate 0 — Canonical Kernel
 
