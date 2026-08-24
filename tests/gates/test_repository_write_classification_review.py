@@ -90,6 +90,15 @@ def test_stale_inventory_and_surface_substitution_checks_are_explicit() -> None:
     assert "surface is duplicated" in projection_source
 
 
+def test_input_verifier_keeps_an_independent_v1_literal_pin() -> None:
+    source = inspect.getsource(contract.project_classification_input)
+    assert (
+        'value["schema"] != '
+        '"daedalus-gate0-repository-write-classification-input/1"'
+    ) in source
+    assert 'value["schema"] != CLASSIFICATION_INPUT_SCHEMA' not in source
+
+
 def test_evidence_is_bound_to_exact_surface_and_guard_contract_set() -> None:
     source = inspect.getsource(contract.SurfaceClassification.__post_init__)
     assert "surface_binding_sha256" in source
