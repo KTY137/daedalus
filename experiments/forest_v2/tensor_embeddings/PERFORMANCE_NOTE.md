@@ -69,6 +69,25 @@ sorted full-corpus scans can thrash and lose warm-hit benefits. This does not
 change scores or budgets, but large-corpus latency remains unvalidated and no
 production cost claim is permitted.
 
+## Retained current-spec invalid run
+
+At implementation revision
+`c735f415c863a269e0f28be79543f8e309bf230c`, the complete 13-arm, five-seed,
+raw-plus-scrubbed `c00` diagnostic finished in 753.704 seconds. It correctly
+emitted `INVALID` with ten retained tensor/vector-equivalence failures and
+`NO_SCIENTIFIC_VERDICT`; the compact evidence is
+`results/s09_c00_smoke_v2_invalid.json`.
+
+Forensic replay of seed 11/raw found that the structured and flattened
+bilinear score maps agreed for every one of 4,376 paths within `1e-10`; the
+maximum absolute difference was `5.551115123125783e-17`, and their evaluated
+top 20 was identical. The old validator nevertheless zipped the two complete
+score-sorted tuples and rejected the first roundoff near-tie reorder at rank
+2,311. Fixing that validator defect changes no score, corpus, label, kernel,
+seed, or evaluated ranking: score equality is now checked by path, while only
+the metric-visible top-20 order must be identical. The invalid report remains
+retained rather than overwritten.
+
 ## Retained historical diagnostic output (superseded)
 
 `results/s09_c00_smoke.json` is the raw report from the final five-seed run of

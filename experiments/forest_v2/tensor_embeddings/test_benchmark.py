@@ -10,6 +10,7 @@ from experiments.forest_v2.tensor_embeddings.benchmark import (
     BenchmarkCase,
     DEFAULT_RETRIEVERS,
     REQUIRED_ARM_NAMES,
+    _equivalent_score_rows,
     benchmark_case_key,
     corpus_digest,
     run_benchmark,
@@ -19,6 +20,7 @@ from experiments.forest_v2.tensor_embeddings.retrievers import (
     CandidateTensorCache,
     FlatCosineRetriever,
     FlattenedBilinearRetriever,
+    IdentityContractionRetriever,
     TensorContractionRetriever,
 )
 from experiments.forest_v2.tensor_embeddings.sealed_eval import (
@@ -186,6 +188,44 @@ def test_tensor_vector_bilinear_equivalence_is_a_hard_invariant(monkeypatch) -> 
     assert report["conclusion"] == "NO_SCIENTIFIC_VERDICT"
     assert any(
         item["category"] == "tensor_vector_bilinear_equivalence_failure"
+        for item in report["failures"]
+    )
+
+
+def test_equivalence_allows_near_tie_reordering_below_evaluated_cutoff() -> None:
+    prefix = tuple((f"p{index:02d}", 1.0 - index / 100.0) for index in range(20))
+    left = (*prefix, ("tail-a", -1.0 + 4e-11), ("tail-b", -1.0))
+    right = (*prefix, ("tail-b", -1.0 + 4e-11), ("tail-a", -1.0))
+
+    assert _equivalent_score_rows(left, right)
+
+
+def test_equivalence_rejects_near_tie_that_changes_evaluated_top20() -> None:
+    prefix = tuple((f"p{index:02d}", 1.0 - index / 100.0) for index in range(19))
+    left = (*prefix, ("boundary-a", -1.0 + 4e-11), ("boundary-b", -1.0))
+    right = (*prefix, ("boundary-b", -1.0 + 4e-11), ("boundary-a", -1.0))
+
+    assert not _equivalent_score_rows(left, right)
+
+
+def test_equivalence_rejects_substantive_score_delta_with_same_order() -> None:
+    left = (("a", 0.75), ("b", 0.5))
+    right = (("a", 0.75 + 2e-10), ("b", 0.5))
+
+    assert not _equivalent_score_rows(left, right)
+
+
+def test_identity_cosine_equivalence_uses_the_same_hard_invariant(monkeypatch) -> None:
+    monkeypatch.setattr(
+        IdentityContractionRetriever,
+        "_score",
+        lambda _self, _query, _document: -0.987654321,
+    )
+    report = run_benchmark((_case("c1", "parse record", "src/parser.py"),))
+    assert report["status"] == "INVALID"
+    assert report["conclusion"] == "NO_SCIENTIFIC_VERDICT"
+    assert any(
+        item["category"] == "identity_cosine_equivalence_failure"
         for item in report["failures"]
     )
 
