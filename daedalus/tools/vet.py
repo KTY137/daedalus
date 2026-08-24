@@ -709,25 +709,107 @@ def _defang(text: str) -> tuple[str, int]:
     return stripped, len(text) - len(stripped)
 
 
+#: ``U+E0020..U+E007E`` is the printable half of the Unicode tag block, and it
+#: is a one-to-one deniable copy of ``U+0020..U+007E``: subtract ``0xE0000``
+#: and TAG LATIN SMALL LETTER V becomes ``v``. That is why REMOVING a tag
+#: character is not enough on its own -- removing the ``v`` from
+#: ``pre<TAG-v>ious`` yields ``preious``, which matches nothing, while a
+#: consumer that decodes the tag block reads ``previous``. See ``_views``.
+_TAG_ASCII_LO, _TAG_ASCII_HI = 0xE0020, 0xE007E
+
+
+def _project(text: str, *, fold_tags: bool) -> tuple[str, list[int]]:
+    """One scanning view of ``text``, plus the map back to original offsets.
+
+    ``index[i]`` is the offset in ``text`` that view character ``i`` came from,
+    with a final sentinel entry for ``len(text)`` so a match END maps too. Every
+    transformation here is a deletion or a one-to-one substitution, so the map
+    is exact and a match found in any view can be reported at its true position
+    in the original.
+    """
+    table = _invisible_table()
+    chars: list[str] = []
+    index: list[int] = []
+    for i, ch in enumerate(text):
+        o = ord(ch)
+        if fold_tags and _TAG_ASCII_LO <= o <= _TAG_ASCII_HI:
+            chars.append(chr(o - 0xE0000))
+            index.append(i)
+            continue
+        if o in table:
+            continue
+        chars.append(ch)
+        index.append(i)
+    index.append(len(text))
+    return "".join(chars), index
+
+
+def _views(text: str, n_invisible: int) -> list[tuple[str, list[int] | None]]:
+    """The texts every content rule must be matched against, in report order.
+
+    HERACLES 2026-08-24. Matching the defanged text ALONE was the whole scan,
+    and it leaked in both directions. Both gaps are [MEASURED] in
+    ``tests/test_tools_vet.py::EveryRuleIsMatchedAgainstEveryView``:
+
+    * **What the hider spells.** ``ignore all pre\\U000E0076ious instructions``
+      defangs to ``preious``. The scanner reported ``obfuscation.invisible_chars``
+      and nothing else -- it said something was hidden but never what. Folding
+      the tag block back to ASCII restores ``previous`` and ``inject.override``
+      fires. This is the vetting gate's own job on untrusted text.
+
+    * **What the hider ERASES.** Deleting a character can destroy a word
+      boundary a rule needs: ``x<ZWSP>shutil.rmtree(p)`` matches
+      ``\\bshutil\\.rmtree`` in the raw buffer and does NOT match once defanged
+      to ``xshutil.rmtree(p)``, because the ``\\b`` is gone with the hider --
+      so the defanged-only scan missed it entirely. 25 of the 30 rules depend
+      on ``\\b`` or a lookbehind and are structurally exposed the same way;
+      8 were demonstrated live, including BLOCK-severity ``exec.subprocess``,
+      ``exec.eval``, ``net.socket`` and ``fs.rmtree``.
+
+    So a rule is matched against the defanged text, the tag-folded text, and
+    the raw buffer, and the union is reported. Findings are deduplicated by
+    original offset, so a hit seen in two views is one finding, and two
+    genuinely distinct hits stay two.
+
+    Order is the report preference for the excerpt: defanged first (it shows
+    the keyword the way a reader and a parser see it), then tag-folded (it
+    shows what the tag block spells), then raw. When the text carries no
+    invisible characters at all -- the overwhelmingly common case -- the three
+    views coincide and exactly one pass is made, so the cost is unchanged.
+    """
+    if not n_invisible:
+        return [(text, None)]
+    defanged, dmap = _project(text, fold_tags=False)
+    views: list[tuple[str, list[int] | None]] = [(defanged, dmap)]
+    if any(_TAG_ASCII_LO <= ord(ch) <= _TAG_ASCII_HI for ch in text):
+        folded, fmap = _project(text, fold_tags=True)
+        if folded != defanged:
+            views.append((folded, fmap))
+    views.append((text, None))
+    return views
+
+
 def scan_text(text: str, where: str) -> list[Finding]:
     """Every rule hit in one blob. Deterministic: rules in table order, matches in
     file order, so two runs over the same bytes produce identical findings.
 
-    Scanning happens on the DEFANGED text so invisible characters cannot split a
-    keyword. Line numbers are computed from the defanged text too, which can
-    differ from the original by at most the number of stripped characters on
-    preceding lines -- an acceptable drift, and the finding names the rule and
-    the excerpt, so a human can still find it.
+    Every rule is matched against every view of the text -- defanged, tag-folded
+    and raw -- because an invisible character can both SPLIT a keyword and
+    ERASE the word boundary a rule needs. See :func:`_views` for the measured
+    failures that shape this. Line numbers are computed from the ORIGINAL text
+    via each view's offset map, so a finding points at the real line whichever
+    view found it.
     """
     out: list[Finding] = []
-    text, n_invisible = _defang(text)
+    original = text
+    n_invisible = len(original) - len(original.translate(_invisible_table()))
     if n_invisible:
         out.append(Finding("obfuscation.invisible_chars", REVIEW, where, 0,
                            f"{n_invisible} zero-width/bidi character(s) removed before scanning",
                            "invisible characters can split a keyword past a scanner "
                            "while a parser and a reader both still see it"))
     starts = [0]
-    for i, ch in enumerate(text):
+    for i, ch in enumerate(original):
         if ch == "\n":
             starts.append(i + 1)
 
@@ -741,10 +823,16 @@ def scan_text(text: str, where: str) -> list[Finding]:
                 hi = mid - 1
         return lo + 1
 
+    views = _views(original, n_invisible)
     for rid, sev, rx, why in RULES:
-        for m in rx.finditer(text):
-            out.append(Finding(rid, sev, where, line_of(m.start()),
-                               _clip(m.group(0)), why))
+        hits: dict[int, str] = {}
+        for view_text, index in views:
+            for m in rx.finditer(view_text):
+                at = m.start() if index is None else index[m.start()]
+                if at not in hits:
+                    hits[at] = m.group(0)
+        for at in sorted(hits):
+            out.append(Finding(rid, sev, where, line_of(at), _clip(hits[at]), why))
     return out
 
 

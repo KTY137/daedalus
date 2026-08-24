@@ -667,6 +667,63 @@ def test_cli_help_states_that_nothing_is_applied():
     assert "There is no --apply flag" in text
 
 
+def _mission_probe(monkeypatch, tmp_path, *, head):
+    """Run ``_default_attempt`` with every process spawn poisoned, and return
+    the ``mission_id`` it handed to ``run_attempt``.
+
+    Nothing here is allowed to spawn: `subprocess.run` and `subprocess.Popen`
+    both raise, so a picker that resolved HEAD with a child process fails loudly
+    instead of quietly passing a textual guard.
+    """
+    import subprocess as _sp
+    import types
+
+    from daedalus.spine import attempt as attempt_mod
+
+    def _no_spawn(*a, **k):
+        raise AssertionError(f"the picker spawned a process: {a[:1]}")
+
+    monkeypatch.setattr(_sp, "run", _no_spawn)
+    monkeypatch.setattr(_sp, "Popen", _no_spawn)
+    monkeypatch.setattr(picker, "_head_sha", lambda root: head)
+    monkeypatch.setattr(picker, "resolve_spine_db_path",
+                        lambda root: (tmp_path / "spine.sqlite3", None))
+    monkeypatch.setattr(attempt_mod, "offload_runner", lambda **k: object())
+    seen: dict = {}
+
+    def _fake_run_attempt(spec, **kwargs):
+        seen.update(kwargs)
+        return types.SimpleNamespace(state="no_change")
+
+    monkeypatch.setattr(attempt_mod, "run_attempt", _fake_run_attempt)
+    candidate = Candidate(
+        task_id="probe-task", source="inventory",
+        instruction="do the measured thing", reason="because it was measured",
+        score=1.0, gate_timeout_s=60.0)
+    args = types.SimpleNamespace(
+        repo_root=str(tmp_path), live=False, artifact_dir=None,
+        keep_worktree=False)
+    picker._default_attempt(candidate, args)
+    return seen.get("mission_id")
+
+
+def test_the_mission_revision_is_read_off_disk_and_never_spawned(monkeypatch, tmp_path):
+    """464f666e minted the per-candidate MissionContract from a spawned
+    ``git rev-parse HEAD``, breaking the structural guard below to avoid an
+    import. The revision now comes from ``_head_sha``, which reads git's own
+    files. Poison every spawn and check the mission is still minted."""
+    head = "a" * 40
+    assert _mission_probe(monkeypatch, tmp_path, head=head) == "mission-probe-task"
+
+
+def test_an_unknown_revision_means_no_mission_rather_than_a_spawn(monkeypatch, tmp_path):
+    """``_head_sha`` returns None when it cannot tell -- an unrecognised
+    ``.git``, a directory that is not a checkout. The mission is optional here
+    by design, so that must fall back to no mission (``run_attempt``'s
+    task-derived default), never to reaching for a child process."""
+    assert _mission_probe(monkeypatch, tmp_path, head=None) is None
+
+
 def test_there_is_no_apply_path_in_this_module():
     # Structural, not a promise in a docstring: the picker spawns no process
     # at all, so it cannot run a git verb that writes the primary checkout --

@@ -108,6 +108,7 @@ from pathlib import Path
 from typing import Any
 
 from .health import ABSENT, DEGRADED, PRESENT, STATES as OUTCOME_STATES, UNKNOWN, WORKING
+from .spine.durability import open_gate0_spine_writer
 from .spine.ledger import (
     DEFAULT_BUSY_TIMEOUT_MS,
     Intent,
@@ -288,9 +289,32 @@ class ConversationStore:
         self._owns_spine = not isinstance(path, SpineLedger)
         if isinstance(path, SpineLedger):
             self.spine: SpineLedger = path
-        else:
+        elif read_only:
+            # A reader opens no writer and migrates nothing, so it is not a
+            # Gate-0 writer seam; the inventory classifies this site `read_only`
+            # and does not block on it.
             self.spine = SpineLedger(path, busy_timeout_ms=busy_timeout_ms,
-                                     read_only=read_only)
+                                     read_only=True)
+        else:
+            # THE GATE-0 WRITER SEAM. The durability factory is the only
+            # sanctioned way to OPEN a writable Event Store (WAL +
+            # synchronous=FULL with a machine readback, fail-closed), exactly as
+            # `spine.attempt.TaskAttempt._get_ledger` does it.
+            #
+            # HERACLES 2026-08-24. This branch was one `SpineLedger(path, ...,
+            # read_only=read_only)` call covering both cases, and it came in with
+            # the conversation-to-spine consolidation (83e41fcc). Because
+            # `read_only` was a NAME and not a boolean constant, the writer
+            # inventory could not tell a reader from a writer and classified the
+            # site `ambiguous_direct` -- a blocker on
+            # `scan_event_store_writers`, which the gate report's
+            # `event_store_writer_failures` field binds. Splitting the branch is
+            # what makes the two cases separately legible; routing the writer
+            # half through the factory is what makes it admitted.
+            #
+            # `None` resolves to the same default path a bare `SpineLedger()`
+            # used, so nothing about where the file lives changes.
+            self.spine = open_gate0_spine_writer(path, busy_timeout_ms=busy_timeout_ms)
         self.path = self.spine.path
         self.busy_timeout_ms = self.spine.busy_timeout_ms
         self.read_only = bool(getattr(self.spine, "read_only", read_only))

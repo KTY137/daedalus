@@ -2796,26 +2796,44 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
     # stop the attempt -- the ranked work is still real work -- so the mission
     # is optional and its absence falls back to TaskAttempt's task-derived
     # default, which is a deterministic id, not a fresh uuid per attempt.
-    import subprocess as _subprocess
+    # THE REVISION IS READ OFF DISK, NOT SPAWNED. The hunk that landed this
+    # mission call in 464f666e ran `git rev-parse HEAD` as a child process --
+    # naming, to do it, the one stdlib module this file may not name -- and said
+    # in its own note that it did so "to avoid importing the loop from the
+    # picker". That was the wrong trade twice over: it broke
+    # `test_there_is_no_apply_path_in_this_module`, the structural guard that
+    # makes "the picker cannot apply a patch" a property of the file rather than
+    # a promise in a docstring -- and it was not needed, because this module
+    # already answers the question without a child process. `_head_sha` exists
+    # for precisely this, twenty lines of its docstring explain why, and it
+    # handles the linked-worktree and detached-HEAD shapes that `git -C` would
+    # have handled. Importing the loop's `_head_revision` would have been the
+    # same defeat one frame down: the picker would still spawn, and the guard
+    # would merely stop being able to see it. -- HERACLES 2026-08-24, on the
+    # owner's ruling that the picker must not spawn.
+    #
+    # `_head_sha` returns None when it cannot tell. A missing revision then
+    # means NO MISSION, not a spawn -- the same disposition this code already
+    # gives a failed compile, and honest, because the mission is optional here
+    # by design.
     from datetime import datetime as _datetime, timezone as _timezone
 
     from daedalus.schemas import ResourceBudget
     from daedalus.spine.receipts import mission_contract_for_candidate
 
     mission_id = None
-    try:
-        head = _subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=args.repo_root,
-            check=True, capture_output=True).stdout.decode().strip()
-        mission = mission_contract_for_candidate(
-            candidate,
-            source_revision=head,
-            created_at=_datetime.now(_timezone.utc).isoformat(),
-            budget=ResourceBudget(max_wall_time_s=int(candidate.gate_timeout_s)),
-        )
-        mission_id = mission.mission_id
-    except Exception:                       # noqa: BLE001 - reported by absence
-        mission_id = None
+    head = _head_sha(args.repo_root)
+    if head:
+        try:
+            mission = mission_contract_for_candidate(
+                candidate,
+                source_revision=head,
+                created_at=_datetime.now(_timezone.utc).isoformat(),
+                budget=ResourceBudget(max_wall_time_s=int(candidate.gate_timeout_s)),
+            )
+            mission_id = mission.mission_id
+        except Exception:                   # noqa: BLE001 - reported by absence
+            mission_id = None
     return run_attempt(
         spec,
         runner=offload_runner(live=bool(args.live)),
