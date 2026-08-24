@@ -1,0 +1,37 @@
+diff --git a/tests/runtimes/test_provider_target_receipt_retention_preflight.py b/tests/runtimes/test_provider_target_receipt_retention_preflight.py
+index d9c4450..d25bb7d 100644
+--- a/tests/runtimes/test_provider_target_receipt_retention_preflight.py
++++ b/tests/runtimes/test_provider_target_receipt_retention_preflight.py
+@@ -44,7 +44,9 @@ CAS_PATH = "attempt/cas/receipts"
+ def _repository(tmp_path: Path) -> Path:
+     root = tmp_path / "repository"
+     (root / ".git").mkdir(parents=True)
+-    (root / ".git" / "HEAD").write_text(REVISION + "\n", encoding="ascii")
++    (root / ".git" / "HEAD").write_text(
++        REVISION + "\n", encoding="ascii", newline="\n"
++    )
+     source = (
+         Path(__file__).resolve().parents[2]
+         / "daedalus"
+@@ -293,7 +295,9 @@ def test_stale_repository_head_refuses_after_authority_authentication(
+ ) -> None:
+     root = _repository(tmp_path)
+     receipt, execution, lease, inventory, _, authority, head_receipt = _subjects(root)
+-    (root / ".git" / "HEAD").write_text("0" * 40 + "\n", encoding="ascii")
++    (root / ".git" / "HEAD").write_text(
++        "0" * 40 + "\n", encoding="ascii", newline="\n"
++    )
+ 
+     with pytest.raises(
+         ProviderTargetReceiptRetentionPreflightBindingError,
+@@ -320,7 +324,9 @@ def test_head_change_during_inventory_rebuild_refuses(
+ 
+     def scan_then_move_head(*args, **kwargs):
+         rebuilt = real_scan(*args, **kwargs)
+-        (root / ".git" / "HEAD").write_text("0" * 40 + "\n", encoding="ascii")
++        (root / ".git" / "HEAD").write_text(
++            "0" * 40 + "\n", encoding="ascii", newline="\n"
++        )
+         return rebuilt
+ 
+     monkeypatch.setattr(

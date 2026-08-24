@@ -1,0 +1,20 @@
+amend(hooks): the serena-first hook finally gets wired (proposal 003, enforcement part)
+
+Owner-approved 2026-08-05, owner-directed again today: semantic retrieval
+must be enforced mechanically, not by instruction. One PreToolUse entry now
+routes Read and Grep through the fail-open serena-first hook -- it denies
+only when Serena is demonstrably alive, targeted reads and small files
+always pass, and an environment switch disables it entirely.
+
+Deliberately partial relative to the approved proposal, with reasons on the
+record: the amendment ledger record and the AGENTS.md rule text are deferred
+to the trunk lineage. The consolidated trunk's constitution is already at
+revision 4 with its own revision 2; minting a second, different revision 2
+on this superseded branch would fork the constitutional lineage for the sake
+of bookkeeping. The enforcement lands now because it protects sessions now;
+the record follows where the lineage lives.
+
+Iron-Plan: amendment
+Iron-Gate: 0
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>

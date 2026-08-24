@@ -20,7 +20,7 @@
   },
   "ignore": {
     "env": "",
-    "file": ""
+    "file": "de1f022b7b6667a6"
   },
   "modules": [
     "daedalus/__init__.py",
@@ -54,6 +54,7 @@
     "daedalus/council/publish.py",
     "daedalus/council/session.py",
     "daedalus/council/vendors.py",
+    "daedalus/crew_hook.py",
     "daedalus/dctx.py",
     "daedalus/decompose.py",
     "daedalus/doctor.py",

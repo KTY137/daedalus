@@ -75,6 +75,7 @@
             "daedalus/council/publish.py",
             "daedalus/council/session.py",
             "daedalus/council/vendors.py",
+            "daedalus/crew_hook.py",
             "daedalus/dctx.py",
             "daedalus/decompose.py",
             "daedalus/doctor.py",
@@ -1025,6 +1026,25 @@
           "name": "Core envelope / status collection",
           "kind": "module",
           "notes": "Shared payload envelope for API; forced --lane codex is now advisory-only (HANDOFF 1.5 safety correction)."
+        },
+        {
+          "module": "daedalus/crew_hook.py",
+          "status": "wired",
+          "classification": "entry",
+          "reason": "declared entry point",
+          "entry_kinds": [
+            "main_guard"
+          ],
+          "entrypoints": [
+            "main_guard:daedalus.crew_hook"
+          ],
+          "reached_from": "main_guard:daedalus.crew_hook",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "daedalus/crew_hook.py",
+          "kind": "",
+          "notes": ""
         },
         {
           "module": "daedalus/dctx.py",
@@ -8052,6 +8072,7 @@
           "reached_from": "cli:improve",
           "tests": [
             "tests/test_containment.py",
+            "tests/test_containment_register_failclose.py",
             "tests/test_gate_containment.py",
             "tests/test_gate_containment_job_caps.py",
             "tests/test_killswitch.py",
@@ -8060,6 +8081,7 @@
           "importers": [
             "daedalus/spine/attempt.py",
             "tests/test_containment.py",
+            "tests/test_containment_register_failclose.py",
             "tests/test_gate_containment.py",
             "tests/test_gate_containment_job_caps.py",
             "tests/test_killswitch.py",
@@ -9268,8 +9290,10 @@
             "tests/test_slice_secret_value_shape.py",
             "tests/test_structcore_center_naming.py",
             "tests/test_structcore_coverage.py",
+            "tests/test_structcore_fanin_views.py",
             "tests/test_structcore_graph.py",
             "tests/test_structcore_ignore.py",
+            "tests/test_structcore_junction_dedup.py",
             "tests/test_structcore_parallel.py",
             "tests/test_tokenizer_cache_identity.py",
             "tests/test_typegraph_fixture.py",
@@ -9305,8 +9329,10 @@
             "tests/test_slice_secret_value_shape.py",
             "tests/test_structcore_center_naming.py",
             "tests/test_structcore_coverage.py",
+            "tests/test_structcore_fanin_views.py",
             "tests/test_structcore_graph.py",
             "tests/test_structcore_ignore.py",
+            "tests/test_structcore_junction_dedup.py",
             "tests/test_structcore_parallel.py",
             "tests/test_tokenizer_cache_identity.py",
             "tests/test_typegraph_fixture.py",
@@ -14367,6 +14393,63 @@
           "notes": ""
         },
         {
+          "module": "tools/effect_boundary_check.py",
+          "status": "wired",
+          "classification": "entry",
+          "reason": "declared entry point",
+          "entry_kinds": [
+            "main_guard"
+          ],
+          "entrypoints": [
+            "main_guard:tools.effect_boundary_check"
+          ],
+          "reached_from": "main_guard:tools.effect_boundary_check",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "tools/effect_boundary_check.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
+          "module": "tools/funnel.py",
+          "status": "wired",
+          "classification": "entry",
+          "reason": "declared entry point",
+          "entry_kinds": [
+            "main_guard"
+          ],
+          "entrypoints": [
+            "main_guard:tools.funnel"
+          ],
+          "reached_from": "main_guard:tools.funnel",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "tools/funnel.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
+          "module": "tools/funnel_report.py",
+          "status": "wired",
+          "classification": "entry",
+          "reason": "declared entry point",
+          "entry_kinds": [
+            "main_guard"
+          ],
+          "entrypoints": [
+            "main_guard:tools.funnel_report"
+          ],
+          "reached_from": "main_guard:tools.funnel_report",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "tools/funnel_report.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
           "module": "tools/gate_discrimination.py",
           "status": "wired",
           "classification": "entry",
@@ -14602,6 +14685,130 @@
           "notes": ""
         }
       ]
+    },
+    {
+      "area": "vault/docs/recovery",
+      "path": "vault/docs/recovery",
+      "title": "",
+      "features": [
+        {
+          "module": "vault/docs/recovery/amendment_003_serena_first_kit.py",
+          "status": "island",
+          "classification": "orphan",
+          "reason": "on disk; imports nothing and nothing imports it",
+          "entry_kinds": [],
+          "entrypoints": [],
+          "reached_from": "",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "vault/docs/recovery/amendment_003_serena_first_kit.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
+          "module": "vault/docs/recovery/amendment_004_descope_harness_kit.py",
+          "status": "island",
+          "classification": "orphan",
+          "reason": "on disk; imports nothing and nothing imports it",
+          "entry_kinds": [],
+          "entrypoints": [],
+          "reached_from": "",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "vault/docs/recovery/amendment_004_descope_harness_kit.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
+          "module": "vault/docs/recovery/amendment_005_kit.py",
+          "status": "wired",
+          "classification": "entry",
+          "reason": "declared entry point",
+          "entry_kinds": [
+            "main_guard"
+          ],
+          "entrypoints": [
+            "main_guard:vault.docs.recovery.amendment_005_kit"
+          ],
+          "reached_from": "main_guard:vault.docs.recovery.amendment_005_kit",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "vault/docs/recovery/amendment_005_kit.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
+          "module": "vault/docs/recovery/amendment_006_kit.py",
+          "status": "wired",
+          "classification": "entry",
+          "reason": "declared entry point",
+          "entry_kinds": [
+            "main_guard"
+          ],
+          "entrypoints": [
+            "main_guard:vault.docs.recovery.amendment_006_kit"
+          ],
+          "reached_from": "main_guard:vault.docs.recovery.amendment_006_kit",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "vault/docs/recovery/amendment_006_kit.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
+          "module": "vault/docs/recovery/amendment_gesamtplan_kit.py",
+          "status": "wired",
+          "classification": "entry",
+          "reason": "declared entry point",
+          "entry_kinds": [
+            "main_guard"
+          ],
+          "entrypoints": [
+            "main_guard:vault.docs.recovery.amendment_gesamtplan_kit"
+          ],
+          "reached_from": "main_guard:vault.docs.recovery.amendment_gesamtplan_kit",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "vault/docs/recovery/amendment_gesamtplan_kit.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
+          "module": "vault/docs/recovery/serena_mcp_timeout_kit.py",
+          "status": "island",
+          "classification": "orphan",
+          "reason": "on disk; imports nothing and nothing imports it",
+          "entry_kinds": [],
+          "entrypoints": [],
+          "reached_from": "",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "vault/docs/recovery/serena_mcp_timeout_kit.py",
+          "kind": "",
+          "notes": ""
+        },
+        {
+          "module": "vault/docs/recovery/wire_serena_hook.py",
+          "status": "island",
+          "classification": "orphan",
+          "reason": "on disk; imports nothing and nothing imports it",
+          "entry_kinds": [],
+          "entrypoints": [],
+          "reached_from": "",
+          "tests": [],
+          "importers": [],
+          "dark_switches": [],
+          "name": "vault/docs/recovery/wire_serena_hook.py",
+          "kind": "",
+          "notes": ""
+        }
+      ]
     }
   ],
   "invocations": [
@@ -14612,6 +14819,7 @@
     "python -m daedalus.build_exec",
     "python -m daedalus.claude_bridge",
     "python -m daedalus.cli",
+    "python -m daedalus.crew_hook",
     "python -m daedalus.dctx",
     "python -m daedalus.doctor",
     "python -m daedalus.enforce",
@@ -14813,6 +15021,22 @@
     "python -m tools.watchdog"
   ],
   "cli_commands": [
+    {
+      "ident": "cli:..",
+      "literal": "..",
+      "module": "tools/iron_plan_guard.py",
+      "function": "is_governed_path",
+      "console_script": false,
+      "targets": []
+    },
+    {
+      "ident": "cli:../",
+      "literal": "../",
+      "module": "tools/iron_plan_guard.py",
+      "function": "is_governed_path",
+      "console_script": false,
+      "targets": []
+    },
     {
       "ident": "cli:accelerators",
       "literal": "accelerators",
@@ -15384,6 +15608,14 @@
       "targets": []
     },
     {
+      "ident": "cli:path",
+      "literal": "path",
+      "module": "tools/iron_plan_guard.py",
+      "function": "_walk_path_values",
+      "console_script": false,
+      "targets": []
+    },
+    {
       "ident": "cli:project-memory",
       "literal": "project-memory",
       "module": "daedalus/cli.py",
@@ -15623,6 +15855,34 @@
     }
   ],
   "api_endpoints": [
+    {
+      "route": "/",
+      "method": "",
+      "module": "tools/iron_plan_guard.py",
+      "function": "is_governed_path",
+      "targets": []
+    },
+    {
+      "route": "//./",
+      "method": "",
+      "module": "tools/iron_plan_guard.py",
+      "function": "_windows_local_alias",
+      "targets": []
+    },
+    {
+      "route": "//?/",
+      "method": "",
+      "module": "tools/iron_plan_guard.py",
+      "function": "_windows_local_alias",
+      "targets": []
+    },
+    {
+      "route": "//?/unc/",
+      "method": "",
+      "module": "tools/iron_plan_guard.py",
+      "function": "_windows_local_alias",
+      "targets": []
+    },
     {
       "route": "/api/",
       "method": "GET",
@@ -16002,6 +16262,18 @@
       "purpose": "Claude API credential presence for env status."
     },
     {
+      "name": "CI",
+      "read_in": [
+        "tools/iron_plan_guard.py"
+      ],
+      "kind": "flag",
+      "state": "OFF",
+      "default": "None",
+      "dark": true,
+      "documented": false,
+      "purpose": ""
+    },
+    {
       "name": "CODEX_MODEL",
       "read_in": [
         "daedalus/ikarus_os.py",
@@ -16013,6 +16285,18 @@
       "dark": true,
       "documented": true,
       "purpose": "Model passed to the Codex CLI lane."
+    },
+    {
+      "name": "COMPUTERNAME",
+      "read_in": [
+        "tools/iron_plan_guard.py"
+      ],
+      "kind": "string",
+      "state": "OFF",
+      "default": "None",
+      "dark": false,
+      "documented": false,
+      "purpose": ""
     },
     {
       "name": "DAEDALUS_AUTO_MINT",
@@ -16535,6 +16819,7 @@
       "read_in": [
         "daedalus/kernel/promotion_trust_root.py",
         "daedalus/spine/killswitch.py",
+        "daedalus/spine/promotion_approval.py",
         "daedalus/structcore/cache.py"
       ],
       "kind": "platform",
@@ -16902,6 +17187,7 @@
     "experiments/forest_v2/s08_graph_baselines/s08_retrievers.py"
   ],
   "unreached": [
+    "daedalus/arch_hook.py",
     "daedalus/decompose.py",
     "daedalus/drafts.py",
     "daedalus/eval/provenance.py",

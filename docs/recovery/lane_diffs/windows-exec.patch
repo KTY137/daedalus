@@ -1,0 +1,222 @@
+diff --git a/tests/gates/test_repository_write_inventory_cli.py b/tests/gates/test_repository_write_inventory_cli.py
+index 0882d62..915a49b 100644
+--- a/tests/gates/test_repository_write_inventory_cli.py
++++ b/tests/gates/test_repository_write_inventory_cli.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import json
++import os
+ import subprocess
+ import sys
+ from pathlib import Path
+@@ -21,9 +22,15 @@ def _repository(tmp_path: Path, source: str) -> Path:
+ 
+ 
+ def _run(*args: str) -> subprocess.CompletedProcess[str]:
++    # PYTHONPATH, not cwd: `python scripts/x.py` puts scripts/ on sys.path[0]
++    # and never cwd, so without this the script imports whatever `daedalus`
++    # the ambient environment installed -- another checkout, not this tree.
++    env = dict(os.environ)
++    env["PYTHONPATH"] = str(ROOT)
+     return subprocess.run(
+         [sys.executable, str(SCRIPT), *args],
+         cwd=ROOT,
++        env=env,
+         text=True,
+         capture_output=True,
+         check=False,
+diff --git a/tests/gates/test_repository_write_stdlib_delta_cli_schema.py b/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
+index 12382ee..2e068c4 100644
+--- a/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
++++ b/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import json
++import os
+ import subprocess
+ import sys
+ from pathlib import Path
+@@ -29,6 +30,11 @@ def _repository(tmp_path: Path, source: str) -> Path:
+ 
+ 
+ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
++    # PYTHONPATH, not cwd: `python scripts/x.py` puts scripts/ on sys.path[0]
++    # and never cwd, so without this the script imports whatever `daedalus`
++    # the ambient environment installed -- another checkout, not this tree.
++    env = dict(os.environ)
++    env["PYTHONPATH"] = str(ROOT)
+     return subprocess.run(
+         [
+             sys.executable,
+@@ -40,6 +46,7 @@ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+             *extra,
+         ],
+         cwd=ROOT,
++        env=env,
+         text=True,
+         capture_output=True,
+         check=False,
+diff --git a/tests/runtimes/test_runtime_conformance_profiles.py b/tests/runtimes/test_runtime_conformance_profiles.py
+index fc3d38d..25632b4 100644
+--- a/tests/runtimes/test_runtime_conformance_profiles.py
++++ b/tests/runtimes/test_runtime_conformance_profiles.py
+@@ -1,5 +1,6 @@
+ from __future__ import annotations
+ 
++import ctypes
+ import dataclasses
+ import hashlib
+ import importlib.util
+@@ -31,6 +32,7 @@ from daedalus.runtimes import (
+     verify_runtime_envelope,
+ )
+ from daedalus.schemas import RUNTIME_CONFORMANCE_CHECKS
++from daedalus.spine.cancel import CancellationUnavailable, ManagedProcess
+ from daedalus.spine.envelope import canonical_sha
+ 
+ ROOT = Path(__file__).resolve().parents[2]
+@@ -48,6 +50,32 @@ def _file_sha256(path: Path) -> str:
+     return digest.hexdigest()
+ 
+ 
++def _interpreter_image() -> Path:
++    """The interpreter image that can actually be read off disk.
++
++    ``sys.executable`` is not always a readable file. On a Microsoft-Store
++    Python it is an App Execution Alias: a zero-length reparse point that
++    ``open()`` refuses with ``OSError: [Errno 22] Invalid argument``. The real
++    image lives under ``sys.base_prefix``. Spawning the alias works, so only
++    the *hashing* path needs this; the digest still identifies the exact
++    interpreter binary in use, which is what the manifest binds.
++    """
++    candidates = [Path(sys.executable)]
++    base_executable = getattr(sys, "_base_executable", None)
++    if base_executable:
++        candidates.append(Path(base_executable))
++    name = Path(sys.executable).name
++    candidates.append(Path(sys.base_prefix) / name)
++    candidates.append(Path(sys.base_prefix) / "bin" / name)
++    for candidate in candidates:
++        try:
++            with candidate.open("rb"):
++                return candidate
++        except OSError:
++            continue
++    raise RuntimeError(f"no readable interpreter image for {sys.executable!r}")
++
++
+ def _adapter_sha256(module_name: str) -> str:
+     spec = importlib.util.find_spec(module_name)
+     assert spec is not None and spec.origin is not None
+@@ -97,7 +125,31 @@ def _pid_alive(pid: int) -> bool:
+         except PermissionError:
+             return True
+         return True
+-    return False
++    # A bare `return False` here would make every win32 liveness question
++    # answer "already dead", which turns the cancellation check into a rubber
++    # stamp. Ask the kernel instead.
++    from ctypes import wintypes
++
++    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
++    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
++    kernel32.OpenProcess.restype = wintypes.HANDLE
++    kernel32.GetExitCodeProcess.argtypes = [
++        wintypes.HANDLE,
++        ctypes.POINTER(wintypes.DWORD),
++    ]
++    kernel32.GetExitCodeProcess.restype = wintypes.BOOL
++    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
++
++    handle = kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
++    if not handle:
++        return False
++    try:
++        code = wintypes.DWORD()
++        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
++            return False
++        return code.value == 259  # STILL_ACTIVE
++    finally:
++        kernel32.CloseHandle(handle)
+ 
+ 
+ def _protocol_observations(
+@@ -134,32 +186,42 @@ def _protocol_observations(
+         _terminate_group(timeout_process)
+         timeout_process.wait(timeout=5)
+ 
+-    cancellation_supported = os.name == "posix"
++    # The canonical container primitive rather than a hand-rolled POSIX
++    # process group: `daedalus.spine.cancel` reaps the whole tree through a
++    # win32 job object or a POSIX session, so this check is a real measurement
++    # on both platforms instead of an automatic Windows failure.
++    cancellation_supported = False
+     tree_terminated = False
+-    if cancellation_supported:
+-        cancellation = subprocess.Popen(
++    try:
++        cancellation = ManagedProcess(
+             [sys.executable, str(FIXTURE), "spawn-child"],
+             stdin=subprocess.DEVNULL,
+             stdout=subprocess.PIPE,
+             stderr=subprocess.PIPE,
+-            text=True,
+-            encoding="utf-8",
+-            start_new_session=True,
+-            bufsize=1,
+         )
+-        assert cancellation.stdout is not None
+-        child_event = json.loads(cancellation.stdout.readline())
+-        child_pid = int(child_event["pid"])
+-        os.killpg(cancellation.pid, signal.SIGTERM)
++    except CancellationUnavailable:
++        cancellation = None
++    if cancellation is not None:
++        cancellation_supported = True
+         try:
+-            cancellation.wait(timeout=5)
+-        except subprocess.TimeoutExpired:
+-            _terminate_group(cancellation)
+-            cancellation.wait(timeout=5)
++            stdout = cancellation.process.stdout
++            assert stdout is not None
++            child_event = json.loads(stdout.readline().decode("utf-8"))
++            child_pid = int(child_event["pid"])
++            cancellation.cancel(grace_s=0.5)
++        finally:
++            # The container, not the graceful signal, is what guarantees no
++            # survivor: `cancel` returns as soon as the *direct* child exits,
++            # and `close` tears the container down (win32 KILL_ON_JOB_CLOSE,
++            # POSIX session kill). Both halves are the cancellation contract,
++            # so the measurement below runs after the container is gone.
++            cancellation.close(grace_s=0.0)
+         deadline = time.monotonic() + 5
+         while time.monotonic() < deadline and _pid_alive(child_pid):
+             time.sleep(0.02)
+-        tree_terminated = not _pid_alive(child_pid)
++        tree_terminated = (
++            cancellation.returncode is not None and not _pid_alive(child_pid)
++        )
+ 
+     workspace = tmp_path / "workspace"
+     outside = tmp_path / "outside"
+@@ -277,7 +339,7 @@ def _protocol_observations(
+         "cancellation": observation(
+             "cancellation",
+             cancellation_supported and tree_terminated,
+-            "fixture cancellation terminates the complete POSIX process group",
++            "fixture cancellation terminates the complete child process tree",
+             {
+                 "platform_supported": cancellation_supported,
+                 "process_tree_terminated": tree_terminated,
+@@ -316,7 +378,7 @@ def _offline_bundle(tmp_path: Path, runtime_id: str):
+     profiles = load_runtime_profiles(CATALOG)
+     profile = profiles[runtime_id]
+     adapter_sha = _adapter_sha256(profile.adapter_module)
+-    executable_sha = _file_sha256(Path(sys.executable))
++    executable_sha = _file_sha256(_interpreter_image())
+     environment_sha = _environment_sha256()
+     fixture_sha = _file_sha256(FIXTURE)
+     manifest = materialize_runtime_manifest(

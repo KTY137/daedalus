@@ -1,0 +1,60 @@
+diff --git a/tests/fixtures/unknown_outcome_reconciliation_fault_executor.py b/tests/fixtures/unknown_outcome_reconciliation_fault_executor.py
+index 922c6b3..960666b 100644
+--- a/tests/fixtures/unknown_outcome_reconciliation_fault_executor.py
++++ b/tests/fixtures/unknown_outcome_reconciliation_fault_executor.py
+@@ -126,7 +126,11 @@ def _authority(*, root: Path, source_revision: str, now: datetime):
+     )
+     registry = {spec.id: spec}
+     scope = EffectScope(
+-        read_only=False,
++        # The entrypoint declares PROCESS_SPAWN + SPEND only: no FILESYSTEM_WRITE
++        # and no REPOSITORY_MUTATION. A write-capable scope here would grant
++        # authority the execution can never exercise, so the scope stays
++        # read-only and names no writable roots.
++        read_only=True,
+         tools=("python",),
+         max_cost_microusd=100,
+         max_concurrency=1,
+@@ -142,6 +146,10 @@ def _authority(*, root: Path, source_revision: str, now: datetime):
+         effect_scope=scope,
+         idempotency_namespace="unknown-outcome-attempt",
+         kill_switch_generation=7,
++        # The spec declares no runtime_id, so issue_effect_lease refuses any
++        # attached runtime conformance; both digests must stay absent together.
++        runtime_manifest_sha256=None,
++        runtime_conformance_sha256=None,
+         provenance=ContractProvenance(
+             origin="tests.unknown-outcome",
+             source_revision=source_revision,
+diff --git a/tests/kernel/test_effect_recovery.py b/tests/kernel/test_effect_recovery.py
+index 577ee1e..a9f611a 100644
+--- a/tests/kernel/test_effect_recovery.py
++++ b/tests/kernel/test_effect_recovery.py
+@@ -154,7 +154,26 @@ def test_signed_predating_observation_is_refused_at_verification(tmp_path: Path)
+ def test_signature_unknown_key_future_and_stale_refuse(tmp_path: Path) -> None:
+     _, _, execution, start = _started(tmp_path)
+     observation = _observation(execution, start)
+-    tampered = dataclasses.replace(observation, acknowledgement_sha256="3" * 64)
++    # The contract now binds provenance.input_digests to exactly the retained
++    # evidence, so a tamper must re-bind them to be constructible at all.  The
++    # signature still covers the original digests, which is what this asserts.
++    tampered_ack = "3" * 64
++    tampered = dataclasses.replace(
++        observation,
++        acknowledgement_sha256=tampered_ack,
++        provenance=dataclasses.replace(
++            observation.provenance,
++            input_digests=tuple(
++                sorted(
++                    {
++                        observation.start_receipt_sha256,
++                        tampered_ack,
++                        *observation.output_digests,
++                    }
++                )
++            ),
++        ),
++    )
+     with pytest.raises(EffectRecoverySignatureError, match="signature"):
+         _verify(tampered, execution, start)
+     with pytest.raises(EffectRecoverySignatureError, match="unknown"):

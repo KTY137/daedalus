@@ -1,0 +1,235 @@
+diff --git a/tests/test_dotenv.py b/tests/test_dotenv.py
+index e51ab23..9c13971 100644
+--- a/tests/test_dotenv.py
++++ b/tests/test_dotenv.py
+@@ -221,7 +221,7 @@ def test_missing_file_describe_is_present_false_and_safe_true(tmp_path):
+ # every key .env can inject is pinned in the suite's conftest
+ # ===========================================================================
+ 
+-def test_every_example_key_is_cleared_by_the_suite_conftest():
++def test_every_example_key_is_cleared_by_the_suite_conftest(pytestconfig):
+     """``cli.main`` loads ``.env`` into ``os.environ`` for real, in-process --
+     deliberately, because the spend guard's own config lives there. The suite
+     survives that only because ``tests/conftest.py`` re-clears every key the
+@@ -236,7 +236,28 @@ def test_every_example_key_is_cleared_by_the_suite_conftest():
+     import re
+     from pathlib import Path
+ 
+-    import conftest
++    # NOT `import conftest`. Both conftests in this tree are module-named
++    # `conftest`, so the second one imported EVICTS the first from
++    # `sys.modules`. That worked while tests/conftest.py was the only one;
++    # tests/kernel/conftest.py now exists, and MEASURED 2026-08-17 the bare
++    # import bound to the kernel one and raised AttributeError on
++    # `_OPERATOR_DECLARATIONS` the moment tests/kernel was collected in the
++    # same run -- green alone, red in the suite, which is precisely the
++    # order-dependent failure mode this test exists to abolish.
++    #
++    # pytest's own plugin manager keeps EVERY conftest it loaded, keyed by full
++    # path, so ask it. That also makes this check the honest one: it inspects
++    # the conftest actually in effect for this run, not a re-import of the file.
++    suite_conftest_path = Path(__file__).resolve().parent / "conftest.py"
++    conftest = next(
++        (plugin for _name, plugin in pytestconfig.pluginmanager.list_name_plugin()
++         if getattr(plugin, "__file__", None)
++         and Path(plugin.__file__).resolve() == suite_conftest_path),
++        None)
++    assert conftest is not None, (
++        f"pytest did not load {suite_conftest_path} as a conftest plugin; the "
++        "suite conftest is what clears the operator declarations, and a run "
++        "without it leaks the developer's .env into every test")
+ 
+     example = Path(__file__).resolve().parents[1] / ".env.example"
+     keys = re.findall(r"^([A-Z][A-Z0-9_]*)=", example.read_text(encoding="utf-8"),
+diff --git a/tests/test_spend_coverage.py b/tests/test_spend_coverage.py
+index a295cc1..5f57c7a 100644
+--- a/tests/test_spend_coverage.py
++++ b/tests/test_spend_coverage.py
+@@ -176,7 +176,10 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
+ #     runs/council/summarize.py    CLI + ollama summarisers over the transcript
+ #     runs/ab/run_arm.py           MEASURED $1.43-$1.85 per arm, the most
+ #                                  expensive single call this repo ever made
+-#     daedalus/claude_bridge.py    ask_claude() has a __main__
++#     daedalus/claude_bridge.py    ask_claude() has a __main__ -- and has since
++#                                  RE-ENTERED the ledger below, not as a hole
++#                                  but as a NOT BILLABLE entry: 448969d sealed
++#                                  the __main__ instead of capping it
+ #
+ # `run_arm.py` needed a `sys.path.insert` before the import would resolve at
+ # all: its only existing one lives inside `distilled_context()`, so importing
+@@ -220,6 +223,35 @@ KNOWN_UNGUARDED_ENTRYPOINTS = {
+         "NOT BILLABLE: spawns only `git` (ls-files, config, rev-parse, show, "
+         "diff) with a hardcoded argv[0]; the `claude`/`codex` tokens are hook "
+         "PLATFORM names and the `.claude/` path prefix, never an executable",
++    # Was an INSTALLER until commit 448969d, "refactor(g0): seal direct Claude
++    # bridge bypass", which deleted the `install_process_guard()` from its
++    # `__main__` -- correctly, because the same commit deleted the SPEND from
++    # that `__main__`. MEASURED 2026-08-17 on this trunk, both invocation forms:
++    #
++    #     python daedalus/claude_bridge.py obj --repo-root .
++    #         -> ImportError (relative import, no parent package), exit 1
++    #     python -m daedalus.claude_bridge obj --repo-root .
++    #         -> argparse error "direct CLI execution cannot carry the
++    #            in-memory runtime capability", exit 2
++    #
++    # Neither reaches a vendor. `main()` parses argv and then calls
++    # `parser.error(...)`, which exits before any effect; `ask_claude` raises
++    # ClaudeProviderAuthorizationRequired unless handed a persisted runtime
++    # authorization, effect execution and workspace grant; and the one
++    # `subprocess.run(["claude", ...])` site is the private `_invoke_claude_cli`,
++    # reachable only through ClaudeCLIProvider after the broker has persisted a
++    # grant. The scan still flags the file because a private spawn, a vendor
++    # token and a `__main__` all live in it.
++    #
++    # A ledger entry rather than a re-added guard, on purpose: installing a
++    # spend ceiling in a process that provably cannot spend is dead code that
++    # READS as coverage. The ceiling that matters for this vendor is the one in
++    # whichever guarded process drives the broker.
++    "daedalus/claude_bridge.py":
++        "NOT BILLABLE since 448969d: the `__main__` fail-closes via "
++        "parser.error before any effect, and the subprocess site is private "
++        "and reachable only through the brokered provider under persisted "
++        "runtime authority",
+ }
+ 
+ # Test modules are excluded from the entry-point scan, and this is the reason,
+@@ -322,10 +354,20 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
+         # this test found the ceiling installed in exactly ONE function and
+         # named five directly-runnable spend entry points that bypassed it;
+         # those five now install it themselves. The pin is updated rather than
+-        # relaxed to a `>=` so that the SIXTH addition still has to be a
++        # relaxed to a `>=` so that the next addition still has to be a
+         # deliberate edit here -- an assertion that only ever grows stops
+         # being able to notice anything.
+-        "daedalus/claude_bridge.py",
++        #
++        # NARROWED 2026-08-17, from seven sites to six: commit 448969d
++        # ("refactor(g0): seal direct Claude bridge bypass") removed
++        # `daedalus/claude_bridge.py` from this set. That is the one direction
++        # this pin must never be edited in casually, so state the check that
++        # was actually run: the guard was not deleted from a process that still
++        # spends, the SPEND was deleted. Its `__main__` now calls
++        # `parser.error(...)` and exits 2 before any effect (measured, both
++        # invocation forms -- see KNOWN_UNGUARDED_ENTRYPOINTS above), and its
++        # only vendor spawn moved behind the broker. A guard removal whose
++        # entry point can still reach a vendor belongs in review, not here.
+         "runs/ab/run_arm.py",
+         "runs/council/room.py",
+         "runs/council/room_server.py",
+diff --git a/tests/test_spine_gate0_durability.py b/tests/test_spine_gate0_durability.py
+index 4a76528..92da29a 100644
+--- a/tests/test_spine_gate0_durability.py
++++ b/tests/test_spine_gate0_durability.py
+@@ -180,12 +180,32 @@ def test_profile_raises_when_atomic_readback_does_not_confirm_full(
+ 
+ 
+ def test_closed_connection_errors_are_normalized(tmp_path) -> None:
++    """Both entry points must turn a dead connection into the module's own
++    error type, never let a raw ``sqlite3.ProgrammingError`` escape.
++
++    The enforce half used to expect "could not be applied" -- the generic
++    wrapper at the bottom of ``enforce_gate0_durability``. That wrapper never
++    fires for this input and cannot: the first statement inside the lock is
++    ``_read_connection_status``, which catches ``sqlite3.Error`` itself and
++    raises the READBACK message, and the wrapper re-raises an existing
++    ``Gate0DurabilityError`` untouched. Both functions are unchanged since
++    332ede9 introduced them, so the old regex was never green rather than
++    describing behaviour that has since drifted. The readback message is also
++    the more accurate one -- the failure genuinely is a readback failure -- so
++    the expectation moves to it, and the chained cause is asserted so
++    "normalized" keeps meaning WRAPPED rather than swallowed.
++    """
+     ledger = SpineLedger(tmp_path / "spine.sqlite3")
+     ledger.close()
+-    with pytest.raises(Gate0DurabilityError, match="complete durability readback"):
+-        inspect_gate0_durability(ledger)
+-    with pytest.raises(Gate0DurabilityError, match="could not be applied"):
+-        enforce_gate0_durability(ledger)
++    for entry_point in (inspect_gate0_durability, enforce_gate0_durability):
++        with pytest.raises(
++            Gate0DurabilityError, match="complete durability readback"
++        ) as caught:
++            entry_point(ledger)
++        assert isinstance(caught.value.__cause__, sqlite3.Error), (
++            f"{entry_point.__name__} reported a durability failure without "
++            "chaining the underlying sqlite3 error; a normalized error that "
++            "drops its cause is not diagnosable")
+ 
+ 
+ _KILL_AFTER_COMMIT = r"""
+diff --git a/tests/test_spine_gate0_durability_review.py b/tests/test_spine_gate0_durability_review.py
+index 063c561..e379fbf 100644
+--- a/tests/test_spine_gate0_durability_review.py
++++ b/tests/test_spine_gate0_durability_review.py
+@@ -2,9 +2,11 @@ from __future__ import annotations
+ 
+ import inspect
+ import json
++import re
+ from pathlib import Path
+ 
+ import daedalus.spine.durability as durability
++from daedalus.spine.ledger import SpineLedger
+ 
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+@@ -12,15 +14,58 @@ MATRIX = ROOT / "docs/work-packets/G0-ES-14_EVENT_STORE_DURABILITY.json"
+ 
+ 
+ def test_profile_does_not_create_a_second_event_store_authority() -> None:
++    """Invariant 1, one kernel: this module hardens the canonical Event Store,
++    it does not become a second one.
++
++    The literal ``"SpineLedger(" not in source`` that used to stand for that
++    was a proxy, and c962517 ("open canonical Event Store at FULL before
++    migration") made the proxy wrong without making the invariant wrong: the
++    module now owns the Gate-0 writer factory, whose whole point is that a
++    production writer reaches ``synchronous=FULL`` BEFORE the canonical
++    ledger's first migration write -- which is only reachable from inside the
++    opening path. That factory constructs ``_Gate0OpeningSpineLedger``, and the
++    forbidden substring is inside that name.
++
++    The check is therefore structural instead of lexical, and it is strictly
++    the stronger one: it still forbids a second connection, a second schema and
++    any write path, and it now also pins that the module instantiates exactly
++    ONE ledger type, that the type is a PRIVATE subclass of the one canonical
++    ledger, that it is not exported, and that it overrides nothing but the
++    connection-local opening pragma. A real second authority -- an independent
++    class, a second exported ledger name, an override of a schema or
++    transaction method -- fails here; the substring could not have caught any
++    of those.
++    """
+     source = inspect.getsource(durability)
+     assert "sqlite3.connect" not in source
+     assert "CREATE TABLE" not in source
+     assert "CREATE INDEX" not in source
+-    assert "SpineLedger(" not in source
+     assert "record_intent(" not in source
+     assert "mark_completed(" not in source
+     assert "mark_failed(" not in source
+ 
++    # Exactly one ledger type is INSTANTIATED here, and it is the private
++    # opening profile. `(?<!class )` drops the class statement itself; the base
++    # class in `(SpineLedger)` and the `isinstance(..., SpineLedger)` guards
++    # are followed by `)`, never `(`, so they never match.
++    constructed = set(re.findall(r"(?<!class )\b(\w*SpineLedger)\(", source))
++    assert constructed == {"_Gate0OpeningSpineLedger"}, (
++        f"durability.py instantiates ledger type(s) {sorted(constructed)}; "
++        "only the private Gate-0 opening profile may be built here")
++
++    opening = durability._Gate0OpeningSpineLedger
++    assert issubclass(opening, SpineLedger), (
++        "the opening profile must inherit the canonical ledger, not "
++        "reimplement one")
++    assert opening.__name__.startswith("_"), "the opening profile stays private"
++    assert opening.__name__ not in durability.__all__, (
++        "exporting the opening profile would publish a second ledger name")
++    overrides = {name for name in vars(opening) if not name.startswith("__")}
++    assert overrides == {"_apply_pragmas"}, (
++        f"the opening profile overrides {sorted(overrides)}; it may specialize "
++        "only the connection-local opening posture and must inherit every "
++        "schema, transaction, read and write path unchanged")
++
+ 
+ def test_profile_refuses_persistent_journal_rewrite_and_reads_back_atomically() -> None:
+     source = inspect.getsource(durability.enforce_gate0_durability)

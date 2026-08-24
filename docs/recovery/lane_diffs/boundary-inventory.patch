@@ -1,0 +1,12 @@
+`git diff` in the worktree outputs 0 lines. The deliverable is one NEW UNTRACKED file and I was instructed not to stage, so there is no tracked modification for `git diff` to show.
+
+Deliverable: C:/Users/nukei/Desktop/wt_boundary-inventory/docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md
+  374 lines, 21064 bytes, sha256 cd21c3cdbfcab3f001bc253833bf04c5194f9a51400731a241d75c2520ce37e9
+
+`git status --short` output:
+  ?? docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md
+
+To render it as a unified diff without staging:
+  git -C C:/Users/nukei/Desktop/wt_boundary-inventory diff --no-index -- /dev/null docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md
+
+No other file in the worktree was created, modified, or deleted.

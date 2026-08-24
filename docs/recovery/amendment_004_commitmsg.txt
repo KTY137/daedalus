@@ -1,0 +1,15 @@
+amendment(004): harness config leaves the ceremony, the invariant stays
+
+De-scope day-to-day harness configuration from iron-guard path protection:
+.claude/settings.json and .codex/hooks.json leave PROTECTED_PATHS,
+.claude/settings.local.json leaves LOCAL_PROTECTED_PATHS. verify() still
+content-checks on every commit that the Iron Plan guard hooks exist for all
+required events and that hooks are not disabled, and hook-control mutations
+(core.hooksPath, --no-verify) stay blocked. Owner decision 2026-08-21 after
+a measured delay cost; alternatives (full removal, status quo) documented in
+docs/recovery/amendment_004_descope_harness_kit.py.
+
+Iron-Plan: amendment
+Iron-Gate: 0
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
