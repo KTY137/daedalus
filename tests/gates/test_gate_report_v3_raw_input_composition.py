@@ -238,7 +238,18 @@ def _guard_report(projection, materialization):
 
 
 def test_the_reporter_calls_the_composition_with_the_projection_alone() -> None:
-    """Pin one: no caller-supplied stage object can reach the report path."""
+    """Pin one: no caller-supplied stage object can reach the report path.
+
+    NARROWED 2026-08-24 (Momus): the original spelling asserted
+    ``keywords == []``, which overshot 6be14dff -- the rule bans STAGE
+    OBJECTS on the report path, not keywords as such -- and thereby pinned
+    the measured broken state in which the reporter could never pass
+    ``inputs=`` and ``authenticated_cleared`` was zero by construction
+    (LEASED_RUN_CENSUS_DELTA.md). What must stay banned, and stays banned
+    below: any keyword that could carry a finished stage report or verdict.
+    ``inputs=`` (raw material the verifiers RUN on) is the one permitted
+    spelling; Pin Two still refuses stage-report classes on every parameter.
+    """
 
     classifier = inspect.getsource(report_v3._classify_repository_write_surfaces)
     composition = [
@@ -249,7 +260,11 @@ def test_the_reporter_calls_the_composition_with_the_projection_alone() -> None:
         and node.func.id == "authenticate_repository_write_surfaces"
     ]
     assert len(composition) == 1
-    assert composition[0].keywords == []
+    banned = {"stage_reports", "stages", "reports", "verdicts", "authentications"}
+    passed_keywords = {kw.arg for kw in composition[0].keywords}
+    assert not (passed_keywords & banned), passed_keywords
+    assert passed_keywords <= {"inputs"}, (
+        f"only raw inputs may ride the report path, got {passed_keywords}")
     assert len(composition[0].args) == 1
     # And the public entry has no such keyword to be called with, under any
     # spelling: the parameter was removed, not merely left unused.
