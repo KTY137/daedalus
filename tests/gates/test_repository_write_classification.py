@@ -5,6 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from daedalus.gates.repository_write_classification import (
     EvidenceBinding,
@@ -343,6 +344,8 @@ def test_schema_required_fields_match_report() -> None:
     )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(material)
     assert set(schema["required"]) == set(material)
     assert schema["properties"]["schema"]["const"] == material["schema"]
     assert schema["properties"]["closed"]["const"] is False
@@ -350,6 +353,23 @@ def test_schema_required_fields_match_report() -> None:
     assert "evidence_authenticated" not in schema["required"]
     assert schema["properties"]["primary_checkout_target_proven"]["const"] is False
     assert schema["properties"]["gate_report_bound"]["const"] is False
+
+
+def test_approved_guard_vocabulary_and_input_schema_are_pinned() -> None:
+    assert tuple(item.value for item in GuardDisposition) == (
+        "central",
+        "local_guards",
+        "inventory_only",
+        "unguarded",
+        "retired",
+    )
+    inventory = _inventory(_surface())
+    unsupported = _input(inventory, [])
+    unsupported["schema"] = (
+        "daedalus-gate0-repository-write-classification-input/2"
+    )
+    with pytest.raises(RepositoryWriteClassificationError, match="unsupported"):
+        project_classification_input(inventory, unsupported)
 
 
 def test_cli_emits_report_and_scoped_ready_exit(
