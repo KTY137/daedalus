@@ -5,6 +5,7 @@ import copy
 import json
 import math
 import random
+from dataclasses import FrozenInstanceError
 from fractions import Fraction
 
 import pytest
@@ -23,6 +24,8 @@ from experiments.forest_v2.tensor_embeddings.algebra import (
     identity_contraction_equivalent,
     normalized_flattened_bilinear_score,
     normalized_structured_score,
+    prepare_fiber_maxsim_query,
+    prepared_fiber_maxsim,
     separable_contraction,
     tt_separable_contraction,
 )
@@ -192,6 +195,57 @@ def test_role_and_plane_structure_separates_flat_cosine_ties() -> None:
     assert fiber_maxsim(query, structured_match, kernel) > fiber_maxsim(
         query, bag_equivalent_decoy, kernel
     )
+
+
+def test_prepared_fiber_maxsim_is_bit_identical_to_public_reference() -> None:
+    rng = random.Random(20260824)
+    for case in range(40):
+        spec = _spec(seed=case, feature_dimension=rng.randint(1, 8))
+        query = _random_cp(rng, spec, rank=rng.randint(0, 4))
+        document = _random_cp(rng, spec, rank=rng.randint(0, 4))
+        for kernel in (None, _random_kernel(rng, spec)):
+            prepared = prepare_fiber_maxsim_query(query, kernel)
+            assert prepared_fiber_maxsim(prepared, document) == fiber_maxsim(
+                query, document, kernel
+            )
+
+
+def test_prepared_fiber_maxsim_query_is_deeply_immutable() -> None:
+    spec = _spec(feature_dimension=3)
+    query = DenseTensor.from_flat(
+        spec,
+        tuple(float((index % 7) - 3) for index in range(spec.dense_scalar_count)),
+    )
+    prepared = prepare_fiber_maxsim_query(query, SeparableKernel.identity(spec))
+
+    assert prepared.fibers
+    assert isinstance(prepared.fibers, tuple)
+    assert isinstance(prepared.fibers[0].scaled_values, tuple)
+    with pytest.raises(FrozenInstanceError):
+        prepared.fibers[0].norm = 0.0  # type: ignore[misc]
+
+
+def test_prepared_fiber_maxsim_preserves_zero_kernel_and_zero_tensor_cases() -> None:
+    spec = _spec(feature_dimension=2)
+    zero = DenseTensor.from_flat(spec, (0.0,) * spec.dense_scalar_count)
+    nonzero = DenseTensor.from_flat(
+        spec,
+        tuple(float((index % 5) - 2) for index in range(spec.dense_scalar_count)),
+    )
+    zero_kernel = SeparableKernel(
+        spec=spec,
+        plane_matrix=tuple((0.0,) * len(spec.planes) for _ in spec.planes),
+        role_matrix=tuple((0.0,) * len(spec.roles) for _ in spec.roles),
+    )
+
+    for query, document, kernel in (
+        (zero, nonzero, None),
+        (nonzero, zero, None),
+        (nonzero, nonzero, zero_kernel),
+    ):
+        assert prepared_fiber_maxsim(
+            prepare_fiber_maxsim_query(query, kernel), document
+        ) == fiber_maxsim(query, document, kernel)
 
 
 def test_explanation_terms_sum_exactly_to_the_numerator() -> None:
@@ -679,3 +733,132 @@ def test_scaled_cp_fallback_handles_nonzero_subnormal_norms() -> None:
 
     assert flattened_cosine(tiny, tiny) == pytest.approx(1.0)
     assert identity_contraction(tiny, tiny) == pytest.approx(1.0)
+
+
+def test_exact_scaled_cp_zero_pruning_matches_unfiltered_rational_reference() -> None:
+    spec = _spec(feature_dimension=3)
+    tensor = CPTensor(
+        spec,
+        (
+            CPTerm(
+                2.0,
+                (1.0, 0.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0, 0.0),
+                (0.0, 3.0, 0.0),
+            ),
+            CPTerm(
+                -1.0,
+                (1.0, 0.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0, 0.0),
+                (0.0, 2.0, 0.0),
+            ),
+            CPTerm(
+                0.0,
+                (1e300, 1e300, 1e300, 1e300),
+                (1e300, 1e300, 1e300, 1e300),
+                (1e300, 1e300, 1e300),
+            ),
+        ),
+    )
+
+    exact_values = []
+    for plane in range(len(spec.planes)):
+        for role in range(len(spec.roles)):
+            for feature in range(spec.feature_dimension):
+                exact_values.append(
+                    sum(
+                        (
+                            Fraction.from_float(term.weight)
+                            * Fraction.from_float(term.plane[plane])
+                            * Fraction.from_float(term.role[role])
+                            * Fraction.from_float(term.feature[feature])
+                            for term in tensor.terms
+                        ),
+                        Fraction(0),
+                    )
+                )
+    expected_scale = max(abs(value) for value in exact_values)
+    expected = tuple(float(value / expected_scale) for value in exact_values)
+
+    actual, actual_scale = algebra._exact_scaled_cp_for_normalized(tensor)
+
+    assert actual_scale == expected_scale
+    assert actual.flat_values == expected
+
+
+def test_exact_scaled_cp_skips_fraction_products_with_exact_zero_factors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = _spec(feature_dimension=3)
+    tensor = CPTensor(
+        spec,
+        (
+            CPTerm(
+                2.0,
+                (1.0, 0.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0, 0.0),
+                (0.0, 3.0, 0.0),
+            ),
+            CPTerm(
+                0.0,
+                (1.0, 1.0, 1.0, 1.0),
+                (1.0, 1.0, 1.0, 1.0),
+                (1.0, 1.0, 1.0),
+            ),
+        ),
+    )
+
+    class CountingFraction:
+        from_float_calls = 0
+
+        def __new__(cls, *args: object) -> Fraction:
+            return Fraction(*args)
+
+        @classmethod
+        def from_float(cls, value: float) -> Fraction:
+            cls.from_float_calls += 1
+            return Fraction.from_float(value)
+
+    monkeypatch.setattr(algebra, "Fraction", CountingFraction)
+
+    dense, scale = algebra._exact_scaled_cp_for_normalized(tensor)
+
+    assert scale == Fraction(6)
+    assert dense.flat_values.count(1.0) == 1
+    assert dense.flat_values.count(0.0) == spec.dense_scalar_count - 1
+    # Exactly one coordinate has a non-zero weight/plane/role/feature product.
+    assert CountingFraction.from_float_calls == 4
+
+
+def test_exact_scaled_tt_skips_fraction_products_with_exact_zero_factors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = _spec(feature_dimension=3)
+    tensor = TensorTrain(
+        spec,
+        (
+            (((1.0,), (0.0,), (0.0,), (0.0,)),),
+            (((0.0,), (2.0,), (0.0,), (0.0,)),),
+            (((0.0,), (3.0,), (0.0,)),),
+        ),
+    )
+
+    class CountingFraction:
+        from_float_calls = 0
+
+        def __new__(cls, *args: object) -> Fraction:
+            return Fraction(*args)
+
+        @classmethod
+        def from_float(cls, value: float) -> Fraction:
+            cls.from_float_calls += 1
+            return Fraction.from_float(value)
+
+    monkeypatch.setattr(algebra, "Fraction", CountingFraction)
+
+    dense, scale = algebra._exact_scaled_tt_for_normalized(tensor)
+
+    assert scale == Fraction(6)
+    assert dense.flat_values.count(1.0) == 1
+    assert dense.flat_values.count(0.0) == spec.dense_scalar_count - 1
+    assert CountingFraction.from_float_calls == 3

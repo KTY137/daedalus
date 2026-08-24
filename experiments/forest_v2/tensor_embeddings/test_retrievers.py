@@ -14,6 +14,12 @@ from experiments.forest_v2.s09_eval.contract import (
     Retriever,
     load_retriever,
 )
+from experiments.forest_v2.tensor_embeddings import algebra as algebra_module
+from experiments.forest_v2.tensor_embeddings import retrievers as retriever_module
+from experiments.forest_v2.tensor_embeddings.algebra import (
+    fiber_maxsim,
+    normalized_flattened_bilinear_score,
+)
 from experiments.forest_v2.tensor_embeddings.encoding import (
     HashingFillerBackend,
     PrecomputedFillerBackend,
@@ -190,6 +196,182 @@ def test_structured_tensor_scores_equal_flattened_bilinear_vector_control():
     assert [score for _path, score in tensor_scores] == pytest.approx(
         [score for _path, score in vector_scores], abs=1e-10, rel=1e-10
     )
+
+
+def test_flattened_bilinear_prepares_once_per_query_seed_and_kernel(monkeypatch):
+    calls = 0
+    original = retriever_module.prepare_flattened_bilinear_query
+
+    def observed(query, kernel):
+        nonlocal calls
+        calls += 1
+        return original(query, kernel)
+
+    monkeypatch.setattr(
+        retriever_module, "prepare_flattened_bilinear_query", observed
+    )
+    retriever = FlattenedBilinearRetriever(seed=11)
+    query = _query()
+    universe = _universe()
+
+    retriever.rank(query, universe)
+    assert calls == 1
+    assert len(universe) > 1
+    # Replaying the same exact query/seed/kernel is warm as well.
+    retriever.rank(query, tuple(reversed(universe)))
+    assert calls == 1
+
+    retriever.rank(_query("different visible query"), universe)
+    assert calls == 2
+    assert all(
+        key[1:] == (retriever.encoder.spec.spec_id, retriever.kernel.kernel_id)
+        for key in retriever._prepared_query_cache
+    )
+
+
+def test_flattened_bilinear_preparation_preserves_exact_receipt_scores():
+    query = _query()
+    universe = _universe()
+    retriever = FlattenedBilinearRetriever()
+
+    ranking = retriever.rank(query, universe)
+    receipt = retriever.score_receipt(query)
+    encoded_query = retriever.encoder.encode_query(
+        query.text,
+        query_id=f"{query.case_id}:{query.variant}",
+        revision=query.revision,
+    )
+    expected_scores = []
+    for candidate in universe:
+        encoded_document = retriever.encoder.encode_candidate(
+            candidate.path,
+            candidate.text(),
+            blob=candidate.blob,
+            revision=query.revision,
+        )
+        expected_scores.append(
+            (
+                candidate.path,
+                normalized_flattened_bilinear_score(
+                    encoded_query.tensor, encoded_document.tensor, retriever.kernel
+                ),
+            )
+        )
+    expected_scores.sort(key=lambda item: (-item[1], item[0]))
+
+    assert receipt.scores == tuple(expected_scores)
+    assert ranking == [path for path, _score in expected_scores]
+
+
+def test_late_interaction_prepares_once_per_query_seed_and_kernel(monkeypatch):
+    calls = 0
+    original = retriever_module.prepare_fiber_maxsim_query
+
+    def observed(query, kernel):
+        nonlocal calls
+        calls += 1
+        return original(query, kernel)
+
+    monkeypatch.setattr(retriever_module, "prepare_fiber_maxsim_query", observed)
+    monkeypatch.setattr(retriever_module, "DEFAULT_PREPARED_QUERY_CACHE_ENTRIES", 1)
+    retriever = TensorLateInteractionRetriever(seed=23)
+    query = _query()
+    universe = _universe()
+
+    retriever.rank(query, universe)
+    assert calls == 1
+    retriever.rank(query, tuple(reversed(universe)))
+    assert calls == 1
+
+    retriever.rank(_query("different visible query"), universe)
+    assert calls == 2
+    assert len(retriever._prepared_query_cache) == 1
+    assert all(
+        key[1:] == (retriever.encoder.spec.spec_id, retriever.kernel.kernel_id)
+        for key in retriever._prepared_query_cache
+    )
+    retriever.rank(query, universe)
+    assert calls == 3
+
+
+def test_late_interaction_materializes_query_once_and_each_document_once(
+    monkeypatch,
+):
+    retriever = TensorLateInteractionRetriever()
+    query = _query()
+    universe = _universe()
+    encoded_query = retriever.encoder.encode_query(
+        query.text,
+        query_id=f"{query.case_id}:{query.variant}",
+        revision=query.revision,
+    )
+    expected_document_ids = {
+        retriever.encoder.encode_candidate(
+            candidate.path,
+            candidate.text(),
+            blob=candidate.blob,
+            revision=query.revision,
+        ).tensor.tensor_id
+        for candidate in universe
+    }
+    counts: dict[str, int] = {}
+    original = algebra_module.to_dense
+
+    def observed(tensor):
+        counts[tensor.tensor_id] = counts.get(tensor.tensor_id, 0) + 1
+        return original(tensor)
+
+    monkeypatch.setattr(algebra_module, "to_dense", observed)
+    retriever.rank(query, universe)
+
+    assert counts[encoded_query.tensor.tensor_id] == 1
+    assert expected_document_ids
+    assert all(counts[tensor_id] == 1 for tensor_id in expected_document_ids)
+
+
+def test_late_interaction_preparation_preserves_exact_receipt_scores():
+    query = _query()
+    universe = _universe()
+    retriever = TensorLateInteractionRetriever()
+
+    ranking = retriever.rank(query, universe)
+    receipt = retriever.score_receipt(query)
+    encoded_query = retriever.encoder.encode_query(
+        query.text,
+        query_id=f"{query.case_id}:{query.variant}",
+        revision=query.revision,
+    )
+    expected_scores = []
+    for candidate in universe:
+        encoded_document = retriever.encoder.encode_candidate(
+            candidate.path,
+            candidate.text(),
+            blob=candidate.blob,
+            revision=query.revision,
+        )
+        expected_scores.append(
+            (
+                candidate.path,
+                fiber_maxsim(
+                    encoded_query.tensor, encoded_document.tensor, retriever.kernel
+                ),
+            )
+        )
+    expected_scores.sort(key=lambda item: (-item[1], item[0]))
+
+    assert receipt.scores == tuple(expected_scores)
+    assert ranking == [path for path, _score in expected_scores]
+
+
+def test_late_interaction_preparation_keeps_score_as_fault_injection_seam(
+    monkeypatch,
+):
+    def injected(_self, _query, _document):
+        raise RuntimeError("late-interaction score fault reached")
+
+    monkeypatch.setattr(TensorLateInteractionRetriever, "_score", injected)
+    with pytest.raises(RuntimeError, match="score fault reached"):
+        TensorLateInteractionRetriever().rank(_query(), _universe())
 
 
 def test_ranking_and_receipt_are_deterministic_across_calls_and_instances():

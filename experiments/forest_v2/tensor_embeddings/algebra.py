@@ -222,6 +222,10 @@ def _exact_scaled_cp_for_normalized(
                         * Fraction.from_float(term.role[role])
                         * Fraction.from_float(term.feature[feature])
                         for term in tensor.terms
+                        if term.weight != 0.0
+                        and term.plane[plane] != 0.0
+                        and term.role[role] != 0.0
+                        and term.feature[feature] != 0.0
                     ),
                     Fraction(0),
                 )
@@ -248,6 +252,9 @@ def _exact_scaled_tt_for_normalized(
                         * Fraction.from_float(final[right][feature][0])
                         for left in range(rank_one)
                         for right in range(rank_two)
+                        if first[0][plane][left] != 0.0
+                        and middle[left][role][right] != 0.0
+                        and final[right][feature][0] != 0.0
                     ),
                     Fraction(0),
                 )
@@ -655,35 +662,77 @@ def normalized_structured_score(
 structured_score = normalized_structured_score
 
 
-def normalized_flattened_bilinear_score(
-    query: TensorLike, document: TensorLike, kernel: SeparableKernel
-) -> float:
-    """Independent flattened-vector form of the separable contraction.
+@dataclass(frozen=True)
+class PreparedFlattenedBilinearQuery:
+    """Query-constant state for the independent flattened bilinear control.
 
-    With plane-major/role-major/feature-major vectorization this evaluates
-    ``vec(Q)^T (K_plane ⊗ K_role ⊗ I) vec(D)``.  It deliberately uses a
-    transformed flat query followed by one ordinary dot product rather than
-    any tensor-contraction helper.  Equality with
-    :func:`normalized_structured_score` is therefore the representation-null
-    control: the frozen separable tensor score is a structured implementation
-    of a bilinear vector score, not extra mathematical expressivity.
+    The transformed vector and its three normalization factors depend only on
+    the query, TensorSpec (and therefore seed), and kernel.  Keeping them in an
+    immutable value lets a retriever reuse the exact same arithmetic across
+    every document without turning this control into a tensor contraction.
     """
 
-    spec = _require_compatible(query, document, kernel)
+    spec: TensorSpec
+    kernel_id: str
+    transformed_query: tuple[float, ...]
+    query_norm: float
+    plane_operator_norm: float
+    role_operator_norm: float
+    is_zero: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.spec, TensorSpec):
+            raise AlgebraError("prepared bilinear query spec must be a TensorSpec")
+        if type(self.kernel_id) is not str or not self.kernel_id:
+            raise AlgebraError("prepared bilinear query kernel_id must be non-empty")
+        transformed = tuple(self.transformed_query)
+        expected_size = 0 if self.is_zero else self.spec.dense_scalar_count
+        if len(transformed) != expected_size:
+            raise AlgebraError("prepared bilinear query has the wrong vector size")
+        if any(not math.isfinite(value) for value in transformed):
+            raise AlgebraError("prepared bilinear query contains non-finite values")
+        for label, value in (
+            ("query norm", self.query_norm),
+            ("plane operator norm", self.plane_operator_norm),
+            ("role operator norm", self.role_operator_norm),
+        ):
+            if not math.isfinite(value) or value < 0.0:
+                raise AlgebraError(f"prepared bilinear {label} must be finite and non-negative")
+        if type(self.is_zero) is not bool:
+            raise AlgebraError("prepared bilinear is_zero must be a boolean")
+        object.__setattr__(self, "transformed_query", transformed)
+
+
+def prepare_flattened_bilinear_query(
+    query: TensorLike, kernel: SeparableKernel
+) -> PreparedFlattenedBilinearQuery:
+    """Precompute only the query-constant side of the flat bilinear score."""
+
+    query = _require_tensor(query, label="query")
+    if not isinstance(kernel, SeparableKernel):
+        raise AlgebraError("kernel must be a SeparableKernel")
+    if kernel.spec != query.spec or kernel.spec_id != query.spec_id:
+        raise AlgebraError("kernel TensorSpec does not match the query")
+
     query_dense = _scaled_dense_for_normalized(query)
-    document_dense = _scaled_dense_for_normalized(document)
     query_scale = max(abs(value) for value in query_dense.flat_values)
-    document_scale = max(abs(value) for value in document_dense.flat_values)
     plane_scale = max(abs(value) for row in kernel.plane_matrix for value in row)
     role_scale = max(abs(value) for row in kernel.role_matrix for value in row)
-    if query_scale == 0.0 or document_scale == 0.0 or plane_scale == 0.0 or role_scale == 0.0:
-        return 0.0
+    if query_scale == 0.0 or plane_scale == 0.0 or role_scale == 0.0:
+        return PreparedFlattenedBilinearQuery(
+            spec=query.spec,
+            kernel_id=kernel.kernel_id,
+            transformed_query=(),
+            query_norm=0.0,
+            plane_operator_norm=0.0,
+            role_operator_norm=0.0,
+            is_zero=True,
+        )
 
     scaled_query = _scale_dense(query_dense, query_scale)
-    scaled_document = _scale_dense(document_dense, document_scale)
     scaled_plane = _scale_matrix(kernel.plane_matrix, plane_scale)
     scaled_role = _scale_matrix(kernel.role_matrix, role_scale)
-    plane_count, role_count, feature_count = spec.shape
+    plane_count, role_count, feature_count = query.spec.shape
     transformed_query: list[float] = []
     for document_plane in range(plane_count):
         for document_role in range(role_count):
@@ -700,16 +749,51 @@ def normalized_flattened_bilinear_score(
                         label="flattened bilinear transform",
                     )
                 )
+    return PreparedFlattenedBilinearQuery(
+        spec=query.spec,
+        kernel_id=kernel.kernel_id,
+        transformed_query=tuple(transformed_query),
+        query_norm=math.hypot(*scaled_query.flat_values),
+        plane_operator_norm=operator_norm_upper_bound(scaled_plane),
+        role_operator_norm=operator_norm_upper_bound(scaled_role),
+    )
+
+
+def normalized_prepared_flattened_bilinear_score(
+    prepared_query: PreparedFlattenedBilinearQuery, document: TensorLike
+) -> float:
+    """Score one document against an independently prepared flat query."""
+
+    if not isinstance(prepared_query, PreparedFlattenedBilinearQuery):
+        raise AlgebraError(
+            "prepared_query must be a PreparedFlattenedBilinearQuery"
+        )
+    document = _require_tensor(document, label="document")
+    if (
+        document.spec != prepared_query.spec
+        or document.spec_id != prepared_query.spec.spec_id
+    ):
+        raise AlgebraError("prepared query and document TensorSpecs do not match")
+
+    document_dense = _scaled_dense_for_normalized(document)
+    document_scale = max(abs(value) for value in document_dense.flat_values)
+    if prepared_query.is_zero or document_scale == 0.0:
+        return 0.0
+
+    scaled_document = _scale_dense(document_dense, document_scale)
     numerator = _dot(
-        transformed_query,
+        prepared_query.transformed_query,
         scaled_document.flat_values,
         label="flattened bilinear numerator",
     )
+    # Keep the original left-to-right multiplication order bit-for-bit.  The
+    # factors are stored separately instead of folding a rounded prefix into
+    # the prepared query.
     denominator = (
-        math.hypot(*scaled_query.flat_values)
+        prepared_query.query_norm
         * math.hypot(*scaled_document.flat_values)
-        * operator_norm_upper_bound(scaled_plane)
-        * operator_norm_upper_bound(scaled_role)
+        * prepared_query.plane_operator_norm
+        * prepared_query.role_operator_norm
     )
     if denominator == 0.0:
         return 0.0
@@ -723,6 +807,26 @@ def normalized_flattened_bilinear_score(
             raise AlgebraError("flattened bilinear score exceeded its operator-norm bound")
         return -1.0
     return score
+
+
+def normalized_flattened_bilinear_score(
+    query: TensorLike, document: TensorLike, kernel: SeparableKernel
+) -> float:
+    """Independent flattened-vector form of the separable contraction.
+
+    With plane-major/role-major/feature-major vectorization this evaluates
+    ``vec(Q)^T (K_plane ⊗ K_role ⊗ I) vec(D)``.  It deliberately uses a
+    transformed flat query followed by one ordinary dot product rather than
+    any tensor-contraction helper.  Equality with
+    :func:`normalized_structured_score` is therefore the representation-null
+    control: the frozen separable tensor score is a structured implementation
+    of a bilinear vector score, not extra mathematical expressivity.
+    """
+
+    _require_compatible(query, document, kernel)
+    return normalized_prepared_flattened_bilinear_score(
+        prepare_flattened_bilinear_query(query, kernel), document
+    )
 
 
 def identity_contraction(query: TensorLike, document: TensorLike) -> float:
@@ -794,6 +898,200 @@ def fiber_maxsim(
                     kernel.plane_matrix[query_plane][document_plane]
                     * kernel.role_matrix[query_role][document_role]
                     / (plane_bound * role_bound)
+                )
+            candidates.append(_finite(similarity, label="fiber MaxSim candidate"))
+        maxima.append(max(candidates))
+    score = _finite(math.fsum(maxima) / len(maxima), label="fiber MaxSim")
+    return max(-1.0, min(1.0, score))
+
+
+@dataclass(frozen=True)
+class PreparedFeatureFiber:
+    """One immutable, max-scaled non-zero feature fiber.
+
+    ``scaled_values`` and ``norm`` are exactly the two query-side values that
+    :func:`_scaled_cosine` otherwise reconstructs for every query/document
+    fiber pair.  Plane and role retain the named-axis coordinates needed by
+    the frozen compatibility kernel.
+    """
+
+    plane: int
+    role: int
+    scaled_values: tuple[float, ...]
+    norm: float
+
+    def __post_init__(self) -> None:
+        if type(self.plane) is not int or self.plane < 0:
+            raise AlgebraError("prepared fiber plane must be a non-negative integer")
+        if type(self.role) is not int or self.role < 0:
+            raise AlgebraError("prepared fiber role must be a non-negative integer")
+        values = tuple(self.scaled_values)
+        if not values:
+            raise AlgebraError("prepared fiber values must not be empty")
+        if any(not math.isfinite(value) for value in values):
+            raise AlgebraError("prepared fiber contains non-finite values")
+        if max(abs(value) for value in values) != 1.0:
+            raise AlgebraError("prepared fiber must be max-scaled")
+        if not math.isfinite(self.norm) or self.norm <= 0.0:
+            raise AlgebraError("prepared fiber norm must be finite and positive")
+        if self.norm != math.hypot(*values):
+            raise AlgebraError("prepared fiber norm does not match its values")
+        object.__setattr__(self, "scaled_values", values)
+
+
+@dataclass(frozen=True)
+class PreparedFiberMaxSimQuery:
+    """Query-constant state for exact fiber MaxSim scoring."""
+
+    spec: TensorSpec
+    fibers: tuple[PreparedFeatureFiber, ...]
+    kernel: SeparableKernel | None
+    plane_bound: float
+    role_bound: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.spec, TensorSpec):
+            raise AlgebraError("prepared MaxSim spec must be a TensorSpec")
+        fibers = tuple(self.fibers)
+        coordinates: set[tuple[int, int]] = set()
+        for fiber in fibers:
+            if not isinstance(fiber, PreparedFeatureFiber):
+                raise AlgebraError("prepared MaxSim fibers must be PreparedFeatureFiber")
+            if (
+                fiber.plane >= len(self.spec.planes)
+                or fiber.role >= len(self.spec.roles)
+            ):
+                raise AlgebraError("prepared MaxSim fiber coordinate is out of range")
+            if len(fiber.scaled_values) != self.spec.feature_dimension:
+                raise AlgebraError("prepared MaxSim fiber has the wrong feature size")
+            coordinate = (fiber.plane, fiber.role)
+            if coordinate in coordinates:
+                raise AlgebraError("prepared MaxSim fiber coordinates must be unique")
+            coordinates.add(coordinate)
+        if self.kernel is not None:
+            if not isinstance(self.kernel, SeparableKernel):
+                raise AlgebraError("prepared MaxSim kernel must be a SeparableKernel")
+            if (
+                self.kernel.spec != self.spec
+                or self.kernel.spec_id != self.spec.spec_id
+            ):
+                raise AlgebraError("prepared MaxSim kernel TensorSpec does not match")
+        for label, value in (
+            ("plane bound", self.plane_bound),
+            ("role bound", self.role_bound),
+        ):
+            if not math.isfinite(value) or value < 0.0:
+                raise AlgebraError(
+                    f"prepared MaxSim {label} must be finite and non-negative"
+                )
+        object.__setattr__(self, "fibers", fibers)
+
+
+def _prepare_feature_fibers(tensor: DenseTensor) -> tuple[PreparedFeatureFiber, ...]:
+    fibers: list[PreparedFeatureFiber] = []
+    for plane in range(len(tensor.spec.planes)):
+        for role in range(len(tensor.spec.roles)):
+            values = tensor.values[plane][role]
+            if not any(value != 0.0 for value in values):
+                continue
+            scale = max(abs(value) for value in values)
+            scaled_values = tuple(value / scale for value in values)
+            fibers.append(
+                PreparedFeatureFiber(
+                    plane=plane,
+                    role=role,
+                    scaled_values=scaled_values,
+                    norm=math.hypot(*scaled_values),
+                )
+            )
+    return tuple(fibers)
+
+
+def prepare_fiber_maxsim_query(
+    query: TensorLike,
+    kernel: SeparableKernel | None = None,
+) -> PreparedFiberMaxSimQuery:
+    """Materialize and normalize every non-zero query fiber exactly once."""
+
+    query = _require_tensor(query, label="query")
+    if kernel is not None:
+        if not isinstance(kernel, SeparableKernel):
+            raise AlgebraError("kernel must be a SeparableKernel")
+        if kernel.spec != query.spec or kernel.spec_id != query.spec_id:
+            raise AlgebraError("kernel TensorSpec does not match the query")
+        plane_bound = operator_norm_upper_bound(kernel.plane_matrix)
+        role_bound = operator_norm_upper_bound(kernel.role_matrix)
+    else:
+        plane_bound = role_bound = 1.0
+    return PreparedFiberMaxSimQuery(
+        spec=query.spec,
+        fibers=_prepare_feature_fibers(to_dense(query)),
+        kernel=kernel,
+        plane_bound=plane_bound,
+        role_bound=role_bound,
+    )
+
+
+def _prepared_fiber_cosine(
+    left: PreparedFeatureFiber, right: PreparedFeatureFiber
+) -> float:
+    numerator = _dot(
+        left.scaled_values,
+        right.scaled_values,
+        label="scaled cosine numerator",
+    )
+    score = _finite(numerator / (left.norm * right.norm), label="cosine")
+    if score > 1.0:
+        if score > 1.0 + 1e-12:
+            raise AlgebraError("cosine exceeded its mathematical bound")
+        return 1.0
+    if score < -1.0:
+        if score < -1.0 - 1e-12:
+            raise AlgebraError("cosine exceeded its mathematical bound")
+        return -1.0
+    return score
+
+
+def prepared_fiber_maxsim(
+    prepared_query: PreparedFiberMaxSimQuery,
+    document: TensorLike,
+) -> float:
+    """Score one document with query-side work prepared outside the loop.
+
+    The operation order inside each cosine, kernel weight and MaxSim reduction
+    is deliberately identical to :func:`fiber_maxsim`.  Document fibers are
+    prepared once for this call and are not retained in mutable global state.
+    """
+
+    if not isinstance(prepared_query, PreparedFiberMaxSimQuery):
+        raise AlgebraError("prepared_query must be a PreparedFiberMaxSimQuery")
+    document = _require_tensor(document, label="document")
+    if (
+        document.spec != prepared_query.spec
+        or document.spec_id != prepared_query.spec.spec_id
+    ):
+        raise AlgebraError("prepared query and document TensorSpecs do not match")
+
+    document_fibers = _prepare_feature_fibers(to_dense(document))
+    if not prepared_query.fibers or not document_fibers:
+        return 0.0
+    if prepared_query.plane_bound == 0.0 or prepared_query.role_bound == 0.0:
+        return 0.0
+
+    maxima: list[float] = []
+    for query_fiber in prepared_query.fibers:
+        candidates: list[float] = []
+        for document_fiber in document_fibers:
+            similarity = _prepared_fiber_cosine(query_fiber, document_fiber)
+            if prepared_query.kernel is not None:
+                similarity *= (
+                    prepared_query.kernel.plane_matrix[query_fiber.plane][
+                        document_fiber.plane
+                    ]
+                    * prepared_query.kernel.role_matrix[query_fiber.role][
+                        document_fiber.role
+                    ]
+                    / (prepared_query.plane_bound * prepared_query.role_bound)
                 )
             candidates.append(_finite(similarity, label="fiber MaxSim candidate"))
         maxima.append(max(candidates))
@@ -934,11 +1232,18 @@ __all__ = [
     "separable_contraction",
     "operator_norm_upper_bound",
     "normalized_structured_score",
+    "PreparedFlattenedBilinearQuery",
+    "prepare_flattened_bilinear_query",
+    "normalized_prepared_flattened_bilinear_score",
     "normalized_flattened_bilinear_score",
     "structured_score",
     "identity_contraction",
     "identity_contraction_equivalent",
     "fiber_maxsim",
+    "PreparedFeatureFiber",
+    "PreparedFiberMaxSimQuery",
+    "prepare_fiber_maxsim_query",
+    "prepared_fiber_maxsim",
     "ContractionContribution",
     "ContractionExplanation",
     "contraction_contributions",
