@@ -899,7 +899,7 @@ $plan = "docs/IKARUS_ARIADNE_MASTER_PLAN.md"
 $planSha = (Get-FileHash $plan -Algorithm SHA256).Hash.ToLower()
 $env:DAEDALUS_IRON_PLAN_AMENDMENT = $planSha
 
-python tools/iron_plan_guard.py verify
+python tools/iron_plan_guard.py verify (replaced by daedalus/hooks/, 2026-08-23)
 ```
 
 Bash:

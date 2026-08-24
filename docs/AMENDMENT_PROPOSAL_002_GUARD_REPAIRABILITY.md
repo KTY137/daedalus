@@ -359,8 +359,8 @@ Per §15 rollback is a new amendment, never a history rewrite.
 
 ## Evidence required before acceptance
 
-1. `python tools/iron_plan_guard.py verify` → OK.
-2. `python -m pytest tests/test_iron_plan_guard.py -q` → all pass, including the
+1. `python tools/iron_plan_guard.py verify` (replaced by daedalus/hooks/, 2026-08-23) → OK.
+2. `python -m pytest tests/test_iron_plan_guard.py -q` (replaced by daedalus/hooks/, 2026-08-23) → all pass, including the
    repaired `test_ci_history_check_accepts_adoption_and_rejects_rewrite`.
 3. New regression tests, each failing before the change:
    - the revision-0 fixture digest equals the ledger's `base_plan_sha256`;

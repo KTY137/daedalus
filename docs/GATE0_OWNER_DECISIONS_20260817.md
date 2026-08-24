@@ -90,7 +90,7 @@ Artefakten, daher Owner.
 MEASURED 2026-08-17 abends: Ein frisch angelegter Windows-Worktree checkt
 `daedalus/kairos/_gated_writes_legacy.py.src` mit CRLF aus
 (`git ls-files --eol` → `i/lf w/crlf`), der On-Disk-Blob-Hash weicht dann vom
-Pin in `gated_writes.py` ab und `iron_plan_guard.py verify` bricht mit 3
+Pin in `gated_writes.py` ab und `iron_plan_guard.py verify` (replaced by daedalus/hooks/, 2026-08-23) bricht mit 3
 Fehlern (eine Ursache). Fail-closed hat gehalten: weder die Watchdog-Session
 noch die Koordinatorin durften die Datei normalisieren.
 

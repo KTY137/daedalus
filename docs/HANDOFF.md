@@ -1515,7 +1515,7 @@ Current numbers: 212 modules, 131 entry points, **10 unreached** (7 islands,
 3 shims: `decompose.py`, `drafts.py`, `mission_control.py`), 7 dark switches,
 6 doc drifts, 0 engine disagreements.
 
-**`--check` belongs in CI, NOT in a pre-commit hook.** 15-20s; a slow hook gets
+**`--check` belongs in CI, NOT in a pre-commit hook** (replaced by daedalus/hooks/, 2026-08-23). 15-20s; a slow hook gets
 bypassed, which is the exact failure this subsystem exists to prevent.
 
 **The snapshot MUST stay committed.** Untracked, there is no diff — and the

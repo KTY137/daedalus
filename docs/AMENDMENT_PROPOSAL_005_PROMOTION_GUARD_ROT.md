@@ -25,7 +25,7 @@ at `60b2bfe` (`origin/integration/g0-consolidated-20260807`), checked out LF.
 ### The trunk fails its own guard
 
 ```
-$ python tools/iron_plan_guard.py verify
+$ python tools/iron_plan_guard.py verify (replaced by daedalus/hooks/, 2026-08-23)
 IRON PLAN ERROR: daedalus/kairos/gated_writes.py exposes automatic promotion
 exit: 1
 ```

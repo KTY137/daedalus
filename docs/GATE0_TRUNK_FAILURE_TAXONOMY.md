@@ -158,7 +158,7 @@ seam that no type checker or import graph protects.
 ## The blocker that stops all of this from landing
 
 Nothing above can be committed. The pre-commit guard runs
-`iron_plan_guard verify`, which exits **1** on this trunk because its
+`iron_plan_guard verify` (replaced by daedalus/hooks/, 2026-08-23), which exits **1** on this trunk because its
 sealed-promotion check references a constant that no longer exists. Details and
 the proposed repair are in `AMENDMENT_PROPOSAL_005_PROMOTION_GUARD_ROT.md`.
 

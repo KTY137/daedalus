@@ -87,7 +87,7 @@ These are hard blockers today. Effects are as the scanner infers them; the
 | A12 | `tools/lane_invariants.py:274` | `tools.lane_invariants:main` | `filesystem_write` | as discovered |
 | A13 | `tools/funnel_report.py:438` | `tools.funnel_report:main` | `process_spawn` | as discovered (reads a run dir; the `fan_out` mention is docstring only) |
 | A14 | `tools/run_gate_checks.py:46` | `tools.run_gate_checks:main` | `process_spawn` | as discovered |
-| A15 | `tools/iron_plan_hook_runner.py:44` | `tools.iron_plan_hook_runner:main` | `process_spawn` | as discovered |
+| A15 | `tools/iron_plan_hook_runner.py:44` (replaced by daedalus/hooks/, 2026-08-23) | `tools.iron_plan_hook_runner:main` | `process_spawn` | as discovered |
 
 **A1 and A2 are the two that spend real money.** Verified call sites:
 
