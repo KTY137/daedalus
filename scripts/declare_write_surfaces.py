@@ -1661,6 +1661,32 @@ def main(argv: Sequence[str] | None = None) -> int:
                 source_revision=revision,
                 collector_secret_bytes=collector_secret(Path(key_path)),
             )
+            # RETAINED, not merely printed (Momus cut D item 3, 2026-08-24):
+            # today every honest authentication run REFUSES -- two of six
+            # stage inputs have no producer at this head -- and a refusal
+            # that only scrolls by is a negative result destroyed. It lands
+            # beside the declaration it judged, named as what is owed, and
+            # counted by nobody: the chain still refuses to call anything
+            # authenticated off the back of this file (it is a record of
+            # absence, and it has no wire form into the verifiers).
+            out_dir, refusal = declaration_out_dir(root, revision, args.out_dir)
+            if refusal is None:
+                try:
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    (out_dir / "authentication-owed.json").write_bytes(
+                        canonical_json({
+                            "schema": "daedalus-write-authentication-owed/1",
+                            "source_revision": revision,
+                            "authentication": summary["authentication"],
+                        }).encode("ascii"))
+                    summary["authentication_owed_path"] = (
+                        (out_dir / "authentication-owed.json")
+                        .relative_to(root).as_posix())
+                except OSError as exc:
+                    summary["authentication_owed_error"] = (
+                        f"{type(exc).__name__}: {exc}")
+            else:
+                summary["authentication_owed_error"] = refusal
         print(json.dumps(summary, indent=2, ensure_ascii=False))
         return 0
 
