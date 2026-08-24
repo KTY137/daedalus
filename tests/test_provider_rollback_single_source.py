@@ -297,16 +297,25 @@ def test_the_effect_matrix_cost_of_this_consolidation_is_exactly_one_named_row()
         if row.severity == "blocker" and row.subject in ROLLBACK_SUBJECTS
     )
 
-    known = (
-        "entrypoint.effect_drift: "
-        "daedalus.providers.ollama:OllamaProvider.rollback "
-        "-- new undeclared effects: network_egress, process_spawn"
-    )
-    assert blockers == [known], (
-        "the Gate-0 effect matrix for the rollback rows is not in its measured "
-        f"state.\nexpected exactly:\n  {known}\ngot:\n  "
-        + ("\n  ".join(blockers) if blockers else "(no blocker at all)")
-        + "\nIf the registry row was corrected, this pin is obsolete: replace "
-          "it with `assert not blockers`. If a different blocker appeared, the "
-          "undo path of a write lane just moved out from under its registry "
-          "row -- read it before making this green again.")
+    # THE PIN RESOLVED, the way its own text prescribed (2026-08-24,
+    # b90d236a): the FALLBACK was corrected -- an interface-contract default
+    # with no observed sink may question a reviewed declaration as the review
+    # finding entrypoint.effect_default_exceeds_declaration, but no longer
+    # overrules it as a drift blocker. So: no blocker on either rollback row,
+    # and the ignorance still NAMED for the ollama row rather than swallowed.
+    assert not blockers, (
+        "a blocker attached to a rollback row again -- the undo path of a "
+        "write lane just moved out from under its registry row; read it "
+        "before making this green:\n  " + "\n  ".join(blockers))
+    named_defaults = [
+        f"{row.code}: {row.subject}"
+        for row in report.findings
+        if row.code == "entrypoint.effect_default_exceeds_declaration"
+        and row.subject in ROLLBACK_SUBJECTS
+    ]
+    assert named_defaults == [
+        "entrypoint.effect_default_exceeds_declaration: "
+        "daedalus.providers.ollama:OllamaProvider.rollback"
+    ], (
+        "the scanner's admitted ignorance about the ollama rollback stopped "
+        f"being named: {named_defaults}")

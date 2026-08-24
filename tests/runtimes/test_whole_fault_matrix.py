@@ -304,6 +304,13 @@ def test_the_promoted_combiner_reproduces_the_landed_verdict_from_the_observatio
     )
 
     landed_revision = "c93191fef4a89de316529d22d54713acebeae097"
+    # THE REPLAY CLOCK IS THE OBSERVATIONS' OWN ERA, not today's. The
+    # reconciliation deadline turns an UNRECONCILED observation into a blocker
+    # once it ages past the limit, so a replay under datetime.now() reproduces
+    # the landed verdict only until the calendar crosses that line -- measured
+    # 2026-08-24, two fault.reconciliation-overdue rows that the landed
+    # verification never saw. A reproduction of a historical verdict runs at
+    # the historical clock.
     now = datetime.now(timezone.utc)
     catalog = RUNTIME_FAULT_CATALOG
     fixture_secret = b"replay-secret-one" * 4
@@ -333,6 +340,14 @@ def test_the_promoted_combiner_reproduces_the_landed_verdict_from_the_observatio
     fixture_matrix = build_matrix_from_fixture_run_directory(
         LANDED_DIR / "fixture", catalog=catalog, source_revision=landed_revision
     )
+    host_matrix_for_clock = build_matrix_from_run_directory(
+        LANDED_DIR / "linux-host", catalog=catalog, source_revision=landed_revision
+    )
+    now = max(
+        datetime.fromisoformat(observation.observed_at)
+        for matrix_ in (fixture_matrix, host_matrix_for_clock)
+        for observation in matrix_.observations
+    ) + timedelta(minutes=1)
     host_matrix = build_matrix_from_run_directory(
         LANDED_DIR / "linux-host", catalog=catalog, source_revision=landed_revision
     )

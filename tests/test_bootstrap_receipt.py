@@ -490,6 +490,7 @@ class TheExternalTargetReceipt(unittest.TestCase):
                     "--repo-root", str(target),
                     "--task-id", task_id,
                     "--instruction", "create an isolated candidate probe",
+                    "--paths", "candidate.txt",   # the declared scope (68b8d856)
                     "--gate-command", json.dumps(gate_argv),
                 ])
 

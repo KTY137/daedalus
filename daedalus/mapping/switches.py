@@ -40,6 +40,11 @@ _SKIP_DIRS = frozenset({
     "__pycache__", "node_modules", "build", "dist", "site-packages",
     "runs", "inbox", "outbox", "tests", "fixtures", "apps", "structcore-rs",
     "vscode-agent-env", ".claude", "egg-info", "daedalus.egg-info",
+    # Corpora are evidence, not source: experiments/forest_v2/*/corpus carries
+    # a DELIBERATELY unparseable fixture, and sweeping it turned the whole
+    # analysis red in every clean clone (MEASURED 2026-08-24, B6 baseline).
+    # Same category the self-registration names for daedalus/eval/fixtures.
+    "corpus",
 })
 
 # Platform variables the OS owns. They are read, but they are not Daedalus

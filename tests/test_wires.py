@@ -62,15 +62,20 @@ class DeepSeekUnitTest(unittest.TestCase):
             captured.update(kw)
             return "  hi  "
 
-        with mock.patch.object(ikarus_os, "chat_completion", side_effect=fake):
+        # The egress gate runs BEFORE the (mocked) call and reads the key as
+        # the declared consent for the deepseek lane; without one the refusal
+        # is correct and this unit test never reaches its subject (measured in
+        # every clean clone). A dummy key declares consent; no egress happens,
+        # chat_completion is mocked.
+        with mock.patch.dict(os.environ, {"DEEPSEEK_API_KEY": "unit-test-dummy"}),              mock.patch.object(ikarus_os, "chat_completion", side_effect=fake):
             out = ikarus_os._deepseek("hello", "deepseek-v4-flash", "low")
         self.assertEqual(out, "hi")
         self.assertEqual(captured["base_url"], "https://api.deepseek.com")
         self.assertEqual(captured["model"], "deepseek-v4-flash")
-        self.assertEqual(captured["api_key"], os.environ.get("DEEPSEEK_API_KEY", ""))
+        self.assertEqual(captured["api_key"], "unit-test-dummy")
 
     def test_returns_none_on_failure(self):
-        with mock.patch.object(ikarus_os, "chat_completion", side_effect=RuntimeError("dead")):
+        with mock.patch.dict(os.environ, {"DEEPSEEK_API_KEY": "unit-test-dummy"}),              mock.patch.object(ikarus_os, "chat_completion", side_effect=RuntimeError("dead")):
             self.assertIsNone(ikarus_os._deepseek("hello", "m", "low"))
 
 

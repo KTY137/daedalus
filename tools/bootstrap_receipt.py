@@ -471,8 +471,12 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
     before = primary_fingerprint(target)
     stamp: dict = {}
 
+    # The declared write paths ARE the attempt's scope: since 68b8d856 an
+    # undeclared scope refuses the attempt (empty is not "declare nothing"),
+    # so a caller that wants a candidate must say where it may land.
     task = TaskSpec(task_id=task_id, instruction=instruction,
-                    base_revision=base_revision, gate_paths=tuple(gate_paths))
+                    base_revision=base_revision, gate_paths=tuple(gate_paths),
+                    target_paths=tuple(paths or ()))
     runner = stamped_offload_runner(
         live=live, paths=paths, local_only=local_only,
         test_command=test_command, test_timeout_s=test_timeout_s,

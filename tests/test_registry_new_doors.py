@@ -766,11 +766,10 @@ def test_the_new_rows_add_no_conformance_blocker():
         for finding in report.findings
         if finding.severity == "blocker"
     )
-    #: MEASURED at this head, before Phase 4 landed: one blocker, on a provider
-    #: rollback owned by another lane. Phase 4 must not add to it.
-    assert blockers == [
-        ("entrypoint.effect_drift", "daedalus.providers.ollama:OllamaProvider.rollback")
-    ], f"new conformance blockers: {blockers}"
+    #: MEASURED 2026-08-24 after b90d236a: the rollback drift was the
+    #: scanner's ignorance-default and is a review finding now, so the
+    #: measured blocker set is EMPTY -- and Phase 4 must keep it that way.
+    assert blockers == [], f"new conformance blockers: {blockers}"
 
     gaps = [f for f in report.findings if f.severity == "gap"]
     assert len(gaps) == 19, f"Gate-0 gap count moved to {len(gaps)}"
