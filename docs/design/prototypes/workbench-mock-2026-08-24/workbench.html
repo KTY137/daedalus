@@ -1,0 +1,263 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Daedalus — Werkbank</title>
+<style>
+:root{
+  --bg:#ECECEE; --panel:#FBFBFC; --panel2:#F4F4F6; --ink:#16171A; --ink2:#5E6169; --ink3:#8E9199;
+  --line:#DFDFE3; --line2:#EAEAEE; --accent:#2A63C8; --live:#B4690E; --bad:#B3261E; --ok:#1D6F42;
+  --sys:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sys);font-size:13.5px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden}
+.app{display:grid;grid-template-columns:224px 348px 1fr 276px;grid-template-rows:44px 1fr 26px;height:100vh}
+
+/* toolbar */
+.tb{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--panel2);border-bottom:.5px solid var(--line)}
+.tb .brand{font-weight:600;letter-spacing:-.01em}
+.tb .rev{color:var(--ink3);font-size:12.5px}
+.tb .spacer{flex:1}
+.seg{display:flex;background:#E4E4E8;border-radius:7px;padding:2px}
+.seg button{font:inherit;font-size:12.5px;border:0;background:transparent;color:var(--ink2);padding:4px 11px;border-radius:5px;cursor:pointer}
+.seg button[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 .5px 1.5px rgba(0,0,0,.14)}
+.search{width:250px;background:#fff;border:.5px solid var(--line);border-radius:7px;padding:5px 9px;color:var(--ink3);font-size:12.5px;display:flex;justify-content:space-between}
+.kbd{font-family:var(--mono);font-size:11px;color:var(--ink3)}
+
+/* sidebar */
+.sb{background:var(--panel2);border-right:.5px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;gap:2px}
+.sb h3{font-size:11px;font-weight:600;color:var(--ink3);letter-spacing:.04em;text-transform:uppercase;padding:10px 8px 6px}
+.sb a{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:6px;color:var(--ink);text-decoration:none;font-size:13px}
+.sb a .n{color:var(--ink3);font-variant-numeric:tabular-nums;font-size:12px}
+.sb a[aria-current=true]{background:#fff;box-shadow:0 .5px 1.5px rgba(0,0,0,.1);font-weight:500}
+.sb .foot{margin-top:auto;padding:6px 8px;color:var(--ink2);display:flex;justify-content:space-between}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:1px}
+.dot.on{background:var(--ok)} .dot.off{background:#C6C8CE}
+
+/* chat */
+.chat{background:var(--panel);border-right:.5px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.chat .head{padding:12px 16px 10px;border-bottom:.5px solid var(--line2)}
+.chat .head h2{font-size:14px;font-weight:600;letter-spacing:-.005em}
+.chat .head p{color:var(--ink2);font-size:12.5px;margin-top:1px}
+.stages{display:flex;gap:0;padding:8px 16px;border-bottom:.5px solid var(--line2);font-size:11px;color:var(--ink3)}
+.stages span{flex:1}
+.stages b{display:block;font-weight:500;color:var(--ink2);font-size:11.5px}
+.stages .now b{color:var(--live)}
+.thread{flex:1;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:13px}
+.turn.me{color:var(--ink2)}
+.turn.me .who,.turn.ik .who{font-size:11px;color:var(--ink3);letter-spacing:.03em;text-transform:uppercase;margin-bottom:3px}
+.turn p{font-size:13.5px}
+.turn.ik p{color:var(--ink)}
+.cite{font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.prov{font-size:10px;color:var(--ink3);letter-spacing:.04em;vertical-align:2px;margin-left:3px}
+.card{border:.5px solid var(--line);border-radius:9px;padding:11px 12px;background:var(--panel2)}
+.card h4{font-size:13px;font-weight:600;margin-bottom:3px}
+.card p{font-size:12.5px;color:var(--ink2)}
+.row{display:flex;gap:8px;margin-top:9px}
+.btn{font:inherit;font-size:12.5px;border-radius:6px;padding:5px 12px;border:.5px solid var(--line);background:#fff;cursor:pointer}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.comp{border-top:.5px solid var(--line2);padding:10px 16px 12px}
+.comp .field{display:flex;align-items:center;gap:8px;border:.5px solid var(--line);border-radius:8px;background:#fff;padding:7px 10px}
+.comp .field span{color:var(--ink3);font-size:13px;flex:1}
+.caret{width:1px;height:15px;background:var(--ink);display:inline-block}
+
+/* workbench */
+.wb{background:var(--panel);display:flex;flex-direction:column;min-height:0;border-right:.5px solid var(--line)}
+.wb .wbhead{padding:11px 16px;border-bottom:.5px solid var(--line2);display:flex;align-items:baseline;gap:10px}
+.wb .wbhead h2{font-size:14px;font-weight:600}
+.wb .wbhead .sub{color:var(--ink2);font-size:12.5px}
+.wb .wbhead .right{margin-left:auto;color:var(--ink3);font-size:12px}
+.wbbody{flex:1;overflow:hidden;position:relative}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:500;color:var(--ink3);font-size:11px;letter-spacing:.03em;text-transform:uppercase;padding:8px 16px;border-bottom:.5px solid var(--line)}
+thead th.num,tbody td.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody td{padding:0 16px;height:34px;border-bottom:.5px solid var(--line2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tbody tr:hover{background:var(--panel2)}
+tbody tr[aria-selected=true]{background:#E8EFFB}
+td.path{font-family:var(--mono);font-size:11.5px;width:auto}
+table{table-layout:auto}
+thead th.num,tbody td.num{width:74px;padding:8px 10px}
+tbody td.num{padding:0 10px}
+thead th:last-child,tbody td:last-child{width:96px}
+.tag{font-size:11px;color:var(--ink2)}
+.tag.dark{color:var(--bad)} .tag.island{color:var(--live)}
+.bar{display:inline-block;height:5px;border-radius:3px;background:var(--accent);opacity:.75;vertical-align:1px}
+
+/* blast */
+.blast{position:absolute;inset:0}
+.blast svg{width:100%;height:100%}
+.bnode text{font-family:var(--sys);font-size:11.5px;fill:var(--ink)}
+.bnode.sel text{font-weight:600}
+.blegend{position:absolute;left:16px;bottom:14px;color:var(--ink2);font-size:12px}
+
+/* treemap */
+.tm{position:absolute;inset:14px 16px;display:grid;gap:3px}
+.cell{border-radius:4px;padding:7px 8px;overflow:hidden;color:#fff}
+.cell .p{font-family:var(--mono);font-size:11px;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .m{font-size:11px;opacity:.8;margin-top:2px}
+.cell.lo{color:var(--ink)}
+
+/* inspector */
+.insp{background:var(--panel2);padding:14px 16px;overflow:hidden}
+.insp h3{font-size:11px;color:var(--ink3);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+.insp h2{font-family:var(--mono);font-size:13px;font-weight:600;margin-bottom:10px;word-break:break-all}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px;margin-bottom:12px}
+.kv dt{color:var(--ink3)} .kv dd{color:var(--ink);font-variant-numeric:tabular-nums}
+.insp p{font-size:12.5px;color:var(--ink2);margin-bottom:10px}
+.insp .lnk{color:var(--accent);font-size:12.5px;display:block;margin-bottom:5px;text-decoration:none}
+.quote{border-left:2px solid var(--line);padding-left:9px;font-size:12px;color:var(--ink2);margin-bottom:8px}
+.quote b{display:block;color:var(--ink3);font-weight:500;font-size:11px;margin-top:2px}
+
+/* status */
+.st{grid-column:1/-1;background:var(--panel2);border-top:.5px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 14px;font-size:11.5px;color:var(--ink2)}
+.st .sp{flex:1}
+</style>
+<body>
+<div class="app">
+  <div class="tb">
+    <span class="brand">Daedalus</span><span class="rev">Revision r7c2e1a · Gate 0</span>
+    <div class="seg" id="seg">
+      <button data-v="structure">Structure</button><button data-v="blast">Blast radius</button><button data-v="hotspots">Hotspots</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="search"><span>Search or run a command</span><span class="kbd">⌘K</span></div>
+  </div>
+
+  <nav class="sb">
+    <h3>Projects</h3>
+    <a href="#" aria-current="true"><span><span class="dot on"></span>Daedalus</span><span class="n">149</span></a>
+    <a href="#"><span><span class="dot off"></span>TCT scan planner</span><span class="n">62</span></a>
+    <a href="#"><span><span class="dot off"></span>Lehrstuhl wiki</span><span class="n">—</span></a>
+    <h3>Views</h3>
+    <a href="#" id="nav-structure"><span>Structure</span></a>
+    <a href="#" id="nav-blast"><span>Blast radius</span></a>
+    <a href="#" id="nav-hotspots"><span>Hotspots</span></a>
+    <a href="#"><span>Knowledge library</span><span class="n">7</span></a>
+    <div class="foot"><span>Settings</span><span class="kbd">⌘,</span></div>
+  </nav>
+
+  <section class="chat">
+    <div class="head"><h2>Ikarus</h2><p>Propagate Event.voltage → bias_voltage · M-0412</p></div>
+    <div class="stages">
+      <span><b>Intent</b>done</span><span><b>Plan</b>done</span><span class="now"><b>Build</b>running</span>
+      <span><b>Gates</b>waiting</span><span><b>Delivery</b>waiting</span><span><b>Digestion</b>waiting</span>
+    </div>
+    <div class="thread">
+      <div class="turn me"><div class="who">You</div><p>Was passiert, wenn ich enforce.write_root() ändere?</p></div>
+      <div class="turn ik"><div class="who">Ikarus</div><p>Direkt betroffen sind 23 Aufrufer in 9 Modulen; über zwei Ebenen hinweg 61 Dateien. Der teuerste Pfad läuft über <span class="cite">Attempt.run()</span> in die Gates. Ich habe die Werkbank auf den Blast radius von <span class="cite">enforce.write_root()</span> gestellt.<span class="prov">GEMESSEN</span></p></div>
+      <div class="turn me"><div class="who">You</div><p>Und wo ist die Fäulnis am schlimmsten?</p></div>
+      <div class="turn ik"><div class="who">Ikarus</div><p>Churn mal Komplexität stapelt sich in <span class="cite">structcore/typegraph.py</span> — 53 kB, 41 Änderungen in 30 Tagen, keine Tests darüber. Zwei Tool-Ausgaben habe ich zurückgehalten: beide enthielten secret-bearing paths.<span class="prov">GEMESSEN</span></p></div>
+      <div class="card">
+        <h4>Attempt 18 wartet auf dich</h4>
+        <p>Auf der Claude-Lane fertig geworden und für die Gates vorgeschlagen. Annehmen schiebt die Mission zu Gates, ablehnen schickt den Build zu Attempt 19. Beides ist widerrufbar.</p>
+        <div class="row"><button class="btn pri">Annehmen</button><button class="btn">Ablehnen</button><button class="btn">Warum</button></div>
+      </div>
+    </div>
+    <div class="comp"><div class="field"><span>Frag Ikarus — es schlägt vor, du entscheidest</span><i class="caret"></i></div></div>
+  </section>
+
+  <main class="wb">
+    <div class="wbhead" id="wbhead"></div>
+    <div class="wbbody" id="wbbody"></div>
+  </main>
+
+  <aside class="insp" id="insp"></aside>
+
+  <div class="st">
+    <span>Lane Claude · api.anthropic.com</span><span>3 live · 2 queued · 17 done · 4 rejected</span>
+    <span>$0.41 von $2.00 heute</span><span class="sp"></span><span>2 zurückgehalten · secret-bearing paths</span><span>Kill switch armed</span>
+  </div>
+</div>
+
+<script>
+const MODULES = [
+ ["daedalus/policy/enforce.py",23,4,11,"B","wired"],
+ ["daedalus/structcore/typegraph.py",17,9,41,"E","wired"],
+ ["daedalus/kernel/attempt.py",14,7,22,"C","wired"],
+ ["daedalus/eval/graph_delta.py",11,5,18,"D","wired"],
+ ["daedalus/kernel/mission.py",12,3,7,"B","wired"],
+ ["daedalus/structcore/artifacts.py",9,6,15,"D","island"],
+ ["daedalus/tools/vet.py",8,4,9,"C","wired"],
+ ["daedalus/ledger.py",9,2,3,"A","wired"],
+ ["daedalus/promotion.py",6,3,5,"B","wired"],
+ ["daedalus/spine/effect_boundary.py",7,3,12,"C","wired"],
+ ["daedalus/gates/receipts.py",5,2,6,"B","wired"],
+ ["daedalus/observe/shape.py",2,1,1,"A","dark"],
+ ["daedalus/eval/preserve.py",1,2,4,"C","island"],
+ ["daedalus/gui/lint.py",3,1,2,"B","wired"],
+ ["daedalus/hooks/events.py",6,2,8,"B","wired"],
+ ["daedalus/arch_memory.py",4,3,14,"C","wired"],
+ ["daedalus/kernel/offload_lease.py",3,2,5,"B","island"],
+ ["daedalus/structcore/index.py",13,8,19,"D","wired"],
+];
+const VIEWS = {
+ structure: {
+  title:"Structure", sub:"149 Module · 4 Inseln · 11 dunkel", right:"Sortiert nach Fan-in",
+  body(){
+    const rows = MODULES.map((m,i)=>`<tr ${i===0?'aria-selected="true"':''}>
+      <td class="path" title="${m[0]}">${m[0]}</td>
+      <td class="num">${m[1]}</td><td class="num">${m[2]}</td>
+      <td class="num">${m[3]} <i class="bar" style="width:${Math.min(m[3],30)}px"></i></td>
+      <td class="num">${m[4]}</td>
+      <td><span class="tag ${m[5]==='wired'?'':m[5]}">${m[5]==='wired'?'verdrahtet':m[5]==='island'?'Insel':'dunkel'}</span></td></tr>`).join("");
+    return `<table><thead><tr>
+      <th>Modul</th><th class="num">Fan-in</th><th class="num">Fan-out</th><th class="num">Änd. 30 T.</th><th class="num">Komplex.</th><th>Status</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  }},
+ blast: {
+  title:"Blast radius", sub:"enforce.write_root() · 2 Ebenen", right:"17 Dateien direkt · 61 über zwei Ebenen",
+  body(){
+    const cx=470, cy=330;
+    const ring1=[["Attempt.run()",-230,-120],["vet.py",-250,60],["promote_sealed()",-120,180],["Ledger.charge()",120,-190],["EvidencePacket.seal()",240,-60],["tool-allowances.json",210,120]];
+    const ring2=[["gates/receipts.py",-380,-210],["mission.py",-400,10],["offload_lease.py",-330,190],["events.jsonl",-90,270],["graph_delta.py",300,-230],["artifacts.py",400,20],["index.py",340,220],["arch_memory.py",60,300]];
+    const e=(x1,y1,x2,y2,o)=>`<path d="M${x1} ${y1} Q ${(x1+x2)/2} ${(y1+y2)/2-30} ${x2} ${y2}" fill="none" stroke="#8E9199" stroke-opacity="${o}" stroke-width="1"/>`;
+    let svg=`<svg viewBox="0 0 940 660">`;
+    ring2.forEach(([n,x,y],i)=>{const p=ring1[i%ring1.length];svg+=e(cx+p[1],cy+p[2],cx+x,cy+y,.25)});
+    ring1.forEach(([n,x,y])=>svg+=e(cx,cy,cx+x,cy+y,.55));
+    svg+=`<circle cx="${cx}" cy="${cy}" r="9" fill="#2A63C8"/><g class="bnode sel"><text x="${cx+15}" y="${cy+4}">enforce.write_root()</text></g>`;
+    ring1.forEach(([n,x,y])=>{svg+=`<circle cx="${cx+x}" cy="${cy+y}" r="5.5" fill="#16171A"/><g class="bnode"><text x="${cx+x+11}" y="${cy+y+4}">${n}</text></g>`});
+    ring2.forEach(([n,x,y])=>{svg+=`<circle cx="${cx+x}" cy="${cy+y}" r="4" fill="#8E9199"/><g class="bnode"><text x="${cx+x+10}" y="${cy+y+4}" fill="#5E6169">${n}</text></g>`});
+    svg+=`</svg><div class="blegend">Ebene 1 dunkel · Ebene 2 grau · nur die Nachbarschaft, nie der ganze Graph</div>`;
+    return `<div class="blast">${svg}</div>`;
+  }},
+ hotspots: {
+  title:"Hotspots", sub:"Änderungen × Komplexität, letzte 30 Tage", right:"Fläche = Größe · Farbe = Risiko",
+  body(){
+    const d=[["structcore/typegraph.py",41,"E",6,4],["kernel/attempt.py",22,"C",4,3],["eval/graph_delta.py",18,"D",3,3],
+      ["structcore/index.py",19,"D",3,2],["arch_memory.py",14,"C",2,2],["policy/enforce.py",11,"B",3,2],
+      ["structcore/artifacts.py",15,"D",2,2],["spine/effect_boundary.py",12,"C",2,2],["hooks/events.py",8,"B",2,1],
+      ["tools/vet.py",9,"C",2,1],["gates/receipts.py",6,"B",2,1],["ledger.py",3,"A",2,1]];
+    const col=v=>v>=35?"#B3261E":v>=18?"#C2571A":v>=10?"#B4690E":v>=5?"#8A8D5A":"#DDE0E4";
+    return `<div class="tm" style="grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(8,1fr)">`+
+      d.map(([p,ch,cx,w,h])=>`<div class="cell ${ch<5?'lo':''}" style="grid-column:span ${w};grid-row:span ${h};background:${col(ch)}">
+        <div class="p">${p}</div><div class="m">${ch} Änderungen · ${cx}</div></div>`).join("")+`</div>`;
+  }}
+};
+const INSP = {
+ structure:`<h3>Auswahl</h3><h2>daedalus/policy/enforce.py</h2>
+  <dl class="kv"><dt>Fan-in</dt><dd>23 Aufrufer</dd><dt>Fan-out</dt><dd>4</dd><dt>Änderungen</dt><dd>11 in 30 Tagen</dd><dt>Komplexität</dt><dd>B</dd><dt>Status</dt><dd>verdrahtet</dd></dl>
+  <p>Die Write-Root-Prüfung ist die letzte Linie; alles darüber ist beratend.</p>
+  <a class="lnk" href="#">Blast radius öffnen</a><a class="lnk" href="#">Wiki-Seite öffnen</a><a class="lnk" href="#">Ikarus danach fragen</a>
+  <h3 style="margin-top:16px">Council, wörtlich</h3>
+  <div class="quote">Das Receipt-Schema sollte die Evaluator-Version tragen.<b>Codex</b></div>
+  <div class="quote">Die gehört ins EvidencePacket, sonst wiederholt jedes Receipt sie.<b>Gemini</b></div>`,
+ blast:`<h3>Im Radius</h3><h2>enforce.write_root()</h2>
+  <dl class="kv"><dt>Ebene 1</dt><dd>17 Dateien</dd><dt>Ebene 2</dt><dd>61 Dateien</dd><dt>Tests darüber</dt><dd>9</dd><dt>Ungeprüfte Kanten</dt><dd>3</dd></dl>
+  <p>Drei Beziehungen sind Vorschläge ohne Beleg — sie zählen nicht in die 17.</p>
+  <a class="lnk" href="#">Nur getestete Pfade zeigen</a><a class="lnk" href="#">Als Tabelle</a><a class="lnk" href="#">Ikarus danach fragen</a>`,
+ hotspots:`<h3>Größter Hotspot</h3><h2>structcore/typegraph.py</h2>
+  <dl class="kv"><dt>Größe</dt><dd>53,1 kB</dd><dt>Änderungen</dt><dd>41 in 30 Tagen</dd><dt>Komplexität</dt><dd>E</dd><dt>Abdeckung</dt><dd>keine</dd></dl>
+  <p>Zu groß für die Write-Lane (Kappe 24 kB) — genau die Module, die am meisten Pflege brauchen, kann kein Agent umschreiben.</p>
+  <a class="lnk" href="#">Destillieren</a><a class="lnk" href="#">Blast radius öffnen</a><a class="lnk" href="#">Ikarus danach fragen</a>`
+};
+const v = new URLSearchParams(location.search).get("view") || "structure";
+const V = VIEWS[v];
+document.getElementById("wbhead").innerHTML = `<h2>${V.title}</h2><span class="sub">${V.sub}</span><span class="right">${V.right}</span>`;
+document.getElementById("wbbody").innerHTML = V.body();
+document.getElementById("insp").innerHTML = INSP[v];
+document.querySelectorAll("#seg button").forEach(b=>{b.setAttribute("aria-pressed", b.dataset.v===v);b.onclick=()=>location.search="?view="+b.dataset.v;});
+["structure","blast","hotspots"].forEach(k=>{const a=document.getElementById("nav-"+k); if(a) a.onclick=e=>{e.preventDefault();location.search="?view="+k;};});
+document.getElementById("nav-"+v).setAttribute("aria-current","true");
+</script>

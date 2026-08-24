@@ -1,0 +1,548 @@
+<!-- leitstand · Der Leitstand · A Braun 1965 instrument panel: warm matte hardware, one signal orange, the graph as a wiring diagram and the decision as two physical keys. -->
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Der Leitstand</title>
+<style>
+  :root{
+    --chassis:#B7B4AE;
+    --panel:#D8D6D2;
+    --panel-lo:#CDCAC4;
+    --plate:#E4E2DD;
+    --plate-dim:#DEDCD6;
+    --paper:#F5F3EC;
+    --ink:#2B2823;
+    --eng:#514E48;
+    --dim:#5B5852;
+    --line:#4A463F;
+    --line-dim:#8B877E;
+    --orange:#D64A0C;
+    --orange-deep:#B03A06;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1440px;height:900px;overflow:hidden;}
+  body{
+    background:var(--chassis);
+    font-family:"Segoe UI","Bahnschrift",system-ui,sans-serif;
+    color:var(--ink);
+    font-size:14px;
+  }
+  .lbl{
+    font-family:Bahnschrift,"Segoe UI",system-ui,sans-serif;
+    font-stretch:87.5%;
+    letter-spacing:.05em;
+  }
+  code,.mono{
+    font-family:Consolas,"Cascadia Mono",monospace;
+  }
+  .num{font-variant-numeric:tabular-nums;}
+  .eng{
+    color:var(--eng);
+    text-shadow:0 1px 0 rgba(255,255,255,.65);
+  }
+
+  /* ── device ─────────────────────────────────────────── */
+  .device{
+    position:absolute; inset:8px;
+    background:var(--panel);
+    border-radius:14px;
+    box-shadow:
+      0 6px 18px rgba(0,0,0,.28),
+      inset 0 1px 0 rgba(255,255,255,.7),
+      inset 0 -2px 3px rgba(0,0,0,.12);
+    display:grid;
+    grid-template-rows:46px 118px 1fr 138px 48px;
+    overflow:hidden;
+  }
+
+  /* machined dividers */
+  .groove-b{border-bottom:1px solid rgba(0,0,0,.22); box-shadow:0 1px 0 rgba(255,255,255,.65);}
+  .band{position:relative;}
+  .band + .band::before{
+    content:""; position:absolute; left:0; right:0; top:0; height:2px;
+    background:linear-gradient(rgba(0,0,0,.20), rgba(255,255,255,.6));
+    pointer-events:none;
+  }
+
+  /* ── bezels ─────────────────────────────────────────── */
+  .bezel{
+    background:var(--panel-lo);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 26px;
+  }
+  .bezel .wordmark{font-size:15px; font-weight:600;}
+  .bezel .wordmark span{font-weight:350; opacity:.85;}
+  .bezel .meta{font-size:12.5px;}
+  .bezel .meta code{font-size:12px;}
+  .bezel-bottom{font-size:12.5px; gap:0;}
+  .bezel-bottom .cell{display:flex; align-items:center; gap:9px; padding:0 20px;}
+  .bezel-bottom .cell + .cell{border-left:1px solid rgba(0,0,0,.16); box-shadow:inset 1px 0 0 rgba(255,255,255,.55);}
+  .bezel-bottom .cell:first-child{padding-left:0;}
+  .bezel-bottom .cell:last-child{padding-right:0;}
+  .meter{
+    width:86px; height:7px; border-radius:4px;
+    background:#BEBBB4;
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.6);
+    overflow:hidden;
+  }
+  .meter i{display:block; width:20.5%; height:100%; background:var(--orange); border-radius:4px 0 0 4px;}
+
+  /* ── top band: projects · mission · kill ────────────── */
+  .top{
+    display:flex; align-items:stretch; gap:0;
+    padding:14px 26px 12px;
+  }
+  .tgroup{display:flex; flex-direction:column; justify-content:flex-start;}
+  .tgroup .cap{font-size:10.5px; letter-spacing:.14em; margin-bottom:8px;}
+  .tsep{
+    width:2px; margin:4px 24px 2px;
+    background:linear-gradient(90deg, rgba(0,0,0,.18), rgba(255,255,255,.6));
+    border-radius:1px;
+  }
+  .projects{display:flex; gap:10px;}
+  .pkey{
+    min-height:52px; min-width:158px;
+    display:flex; align-items:center; gap:10px;
+    padding:0 16px;
+    border-radius:6px;
+    border:1px solid rgba(0,0,0,.28);
+    background:linear-gradient(#EEECE7,#DAD7D2);
+    box-shadow:0 2px 0 rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.8);
+    font-size:13px;
+    cursor:pointer;
+  }
+  .pkey .n{margin-left:auto; font-size:12.5px; color:var(--dim);}
+  .pkey .led{width:7px; height:7px; border-radius:50%; background:#B4B1AA; box-shadow:inset 0 1px 1px rgba(0,0,0,.35);}
+  .pkey.on{
+    background:linear-gradient(#D2CFC9,#DBD8D3);
+    box-shadow:inset 0 2px 3px rgba(0,0,0,.22), inset 0 -1px 0 rgba(255,255,255,.5);
+    transform:translateY(1px);
+    font-weight:600;
+  }
+  .pkey.on .led{background:var(--orange); box-shadow:0 0 0 1px rgba(0,0,0,.15);}
+
+  /* mission detent strip */
+  .mission{flex:1;}
+  .rail{
+    position:relative; height:22px; border-radius:11px;
+    background:linear-gradient(#C6C3BD,#D2CFC9);
+    box-shadow:inset 0 2px 3px rgba(0,0,0,.30), 0 1px 0 rgba(255,255,255,.7);
+  }
+  .rail .tick{
+    position:absolute; top:6px; bottom:6px; width:2px;
+    background:rgba(0,0,0,.22); border-radius:1px;
+  }
+  .knob{
+    position:absolute; top:-6px; width:46px; height:34px; margin-left:-23px;
+    border-radius:5px;
+    border:1px solid rgba(0,0,0,.35);
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,.10) 0 1px, transparent 1px 5px),
+      linear-gradient(#EFEDE8,#D6D3CE);
+    box-shadow:0 3px 4px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.85);
+  }
+  .knob::after{
+    content:""; position:absolute; left:50%; top:4px; bottom:4px; width:3px; margin-left:-1.5px;
+    background:var(--orange); border-radius:2px;
+  }
+  .stages{display:flex; margin-top:9px;}
+  .stage-cell{flex:1; text-align:center; font-size:12px;}
+  .stage-cell .st{display:inline-block; margin-left:5px;}
+  .stage-cell.done{color:var(--ink);}
+  .stage-cell.done .st{font-size:11px;}
+  .stage-cell.act{color:var(--ink); font-weight:600;}
+  .stage-cell.act .st{color:var(--orange); font-size:13px; line-height:0;}
+  .stage-cell.todo{color:var(--dim);}
+  .stage-cell.todo .st{
+    display:inline-block; width:7px; height:7px; border-radius:50%;
+    border:1.5px solid #8F8B83; vertical-align:1px;
+  }
+
+  /* kill switch */
+  .kill{align-items:flex-end; text-align:right;}
+  .kill .cap{align-self:flex-end;}
+  .toggle{
+    position:relative; width:66px; height:34px; border-radius:6px;
+    border:1px solid rgba(0,0,0,.35);
+    background:linear-gradient(#C9C6C0,#D8D5D0);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.25);
+  }
+  .toggle .paddle{
+    position:absolute; right:2px; top:2px; bottom:2px; width:35px;
+    border-radius:4px;
+    background:linear-gradient(#EFEDE8,#D8D5D0);
+    box-shadow:0 1px 2px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.85);
+  }
+  .toggle .window{
+    position:absolute; left:9px; top:11px; width:14px; height:12px; border-radius:2px;
+    background:var(--orange);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.35);
+  }
+  .kill .state{font-size:12px; margin-top:7px;}
+
+  /* ── middle band ────────────────────────────────────── */
+  .middle{
+    display:grid; grid-template-columns:1fr 2px 1fr;
+  }
+  .vsep{
+    background:linear-gradient(90deg, rgba(0,0,0,.20), rgba(255,255,255,.6));
+  }
+  .half{padding:18px 26px 14px; display:flex; flex-direction:column; position:relative;}
+  .phead{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom:12px;
+  }
+  .phead .t{font-size:12px; letter-spacing:.12em;}
+  .phead .t code{font-size:13.5px; letter-spacing:0; color:var(--ink); text-shadow:none; font-weight:600;}
+  .phead .nums{font-size:13px; color:var(--ink); font-weight:600;}
+  .phead .nums small{font-weight:400; color:var(--eng); font-size:12px;}
+
+  /* screws */
+  .screw{
+    position:absolute; width:11px; height:11px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #E9E7E2, #BDBAB3 70%, #A5A29B);
+    box-shadow:inset 0 1px 1px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.6);
+  }
+  .screw::after{
+    content:""; position:absolute; left:1.5px; right:1.5px; top:50%; height:1.6px; margin-top:-0.8px;
+    background:rgba(0,0,0,.42); border-radius:1px;
+    transform:rotate(var(--r,24deg));
+  }
+  .screw.tl{left:8px; top:8px;} .screw.tr{right:8px; top:8px; --r:-38deg;}
+  .screw.bl{left:8px; bottom:8px; --r:64deg;} .screw.br{right:8px; bottom:8px; --r:-12deg;}
+
+  .schematic{flex:1; display:flex; flex-direction:column;}
+  .schematic svg{width:100%; height:auto; display:block;}
+  .legend{
+    margin-top:auto; padding-top:10px;
+    display:flex; gap:26px; align-items:center;
+    font-size:11.5px;
+  }
+  .legend .sw{display:inline-block; width:26px; vertical-align:middle; margin-right:7px;}
+  .legend .sw i{display:block; border-top:2px solid var(--line);}
+  .legend .sw.dash i{border-top-style:dashed; border-top-color:#6E6A62;}
+  .legend .sw.dim i{border-top:8px solid var(--plate-dim); outline:1px solid var(--line-dim);}
+
+  /* ── conversation: paper tape ───────────────────────── */
+  .printer{position:relative;}
+  .slot{
+    position:relative; z-index:2;
+    height:13px; margin:0 -8px;
+    border-radius:7px;
+    background:linear-gradient(#9C9992,#B3B0A9);
+    box-shadow:inset 0 2px 3px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.65);
+  }
+  .tape{
+    position:relative; z-index:1;
+    margin:-5px 4px 0;
+    background:var(--paper);
+    border:1px solid rgba(0,0,0,.14);
+    border-bottom:none;
+    box-shadow:inset 0 3px 5px rgba(0,0,0,.10);
+    padding:30px 30px 22px 56px;
+  }
+  .tear{
+    height:9px; margin:0 4px;
+    background:conic-gradient(from 135deg at 50% 0, var(--paper) 90deg, transparent 0);
+    background-size:16px 9px;
+    background-repeat:repeat-x;
+    filter:drop-shadow(0 2px 2px rgba(0,0,0,.18));
+  }
+  .tape::before{ /* sprocket holes */
+    content:""; position:absolute; left:0; top:0; bottom:0; width:30px;
+    background:
+      radial-gradient(circle at 15px 12px, rgba(0,0,0,.06) 4.5px, transparent 5px),
+      radial-gradient(circle at 15px 11px, var(--panel) 3.6px, transparent 4.2px);
+    background-size:30px 26px;
+    background-repeat:repeat-y;
+    border-right:1px dashed rgba(0,0,0,.14);
+  }
+  .msg{padding:2px 0 20px;}
+  .msg + .msg{
+    border-top:1px dashed rgba(43,40,35,.28);
+    padding-top:20px;
+  }
+  .msg .who{
+    font-size:11.5px; letter-spacing:.16em; color:var(--dim);
+    display:flex; align-items:center; gap:12px; margin-bottom:8px;
+  }
+  .msg .who::after{content:""; flex:0; }
+  .msg p{font-size:15.5px; line-height:1.6; max-width:56ch;}
+  .msg code{
+    font-size:13.5px;
+    background:rgba(43,40,35,.06);
+    border:1px solid rgba(43,40,35,.12);
+    border-radius:3px; padding:0 4px;
+  }
+  .stamp{
+    display:inline-block;
+    font-family:Bahnschrift,"Segoe UI",sans-serif; font-stretch:87.5%;
+    font-size:11px; letter-spacing:.18em; font-weight:600;
+    color:var(--orange-deep);
+    border:2px solid var(--orange-deep);
+    border-radius:3px;
+    padding:2px 9px 1px;
+    transform:rotate(-2.5deg);
+    opacity:.92;
+  }
+  .cites{
+    margin-top:12px; font-size:12px; color:var(--dim);
+  }
+  .cites code{font-size:11.5px; background:none; border:none; padding:0; color:var(--eng);}
+
+  /* input slot */
+  .ask{margin-top:14px;}
+  .ask .cap{font-size:10.5px; letter-spacing:.14em; margin-bottom:7px;}
+  .ask .row{display:flex; gap:12px;}
+  .well{
+    flex:1; height:48px; border-radius:6px;
+    background:#F7F5EF;
+    box-shadow:inset 0 2px 4px rgba(0,0,0,.22), inset 0 0 0 1px rgba(0,0,0,.18), 0 1px 0 rgba(255,255,255,.7);
+    display:flex; align-items:center; padding:0 16px;
+  }
+  .caret{
+    display:inline-block; width:2px; height:20px; background:var(--ink);
+    animation:blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink{50%{opacity:0;}}
+  @media (prefers-reduced-motion:reduce){.caret{animation:none;}}
+  .key{
+    min-height:48px; padding:0 26px;
+    border-radius:6px;
+    border:1px solid rgba(0,0,0,.30);
+    background:linear-gradient(#EEECE7,#D8D5D0);
+    box-shadow:0 2px 0 rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.8);
+    font-family:Bahnschrift,"Segoe UI",sans-serif; font-stretch:87.5%;
+    font-size:14px; letter-spacing:.06em; color:var(--ink);
+    cursor:pointer;
+  }
+  .key:active{transform:translateY(1px); box-shadow:0 1px 0 rgba(0,0,0,.22);}
+
+  /* ── decision band ──────────────────────────────────── */
+  .decision{
+    display:flex; align-items:center; gap:20px;
+    padding:0 26px;
+    background:linear-gradient(#DCDAD5, #D4D1CC);
+  }
+  .decision .lamp{
+    width:10px; height:36px; border-radius:3px;
+    background:var(--orange);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.3), 0 1px 0 rgba(255,255,255,.5);
+    flex:none;
+  }
+  .decision .text{max-width:640px;}
+  .decision h1{
+    font-family:Bahnschrift,"Segoe UI",sans-serif; font-stretch:87.5%;
+    font-size:21px; font-weight:600; letter-spacing:.01em;
+    margin-bottom:5px;
+  }
+  .decision .sub{font-size:13.5px; color:#3E3B35; line-height:1.45;}
+  .decision .keys{margin-left:auto; display:flex; align-items:center; gap:14px;}
+  .key.quiet{min-height:52px; padding:0 24px; font-size:14px;}
+  .key.big{min-height:60px; padding:0 34px; font-size:16px;}
+  .key.commit{
+    min-height:60px; min-width:190px; font-size:16px; font-weight:600;
+    color:#fff;
+    background:linear-gradient(#E05512,#C24308);
+    border-color:#8C2F05;
+    box-shadow:0 3px 0 #7D2A05, inset 0 1px 0 rgba(255,255,255,.35);
+    text-shadow:0 1px 1px rgba(0,0,0,.25);
+  }
+  .key.commit:active{transform:translateY(2px); box-shadow:0 1px 0 #7D2A05;}
+</style>
+</head>
+<body>
+<div class="device">
+
+  <!-- top bezel -->
+  <div class="band bezel groove-b">
+    <div class="wordmark lbl eng">Daedalus <span>· Leitstand</span></div>
+    <div class="meta lbl eng num">Projekt Daedalus &nbsp;·&nbsp; Revision <code>r7c2e1a</code> &nbsp;·&nbsp; Gate 0</div>
+  </div>
+
+  <!-- top band: projects · mission strip · kill switch -->
+  <div class="band top">
+    <div class="tgroup">
+      <div class="cap lbl eng">Projekte</div>
+      <div class="projects">
+        <button class="pkey lbl on"><span class="led"></span>Daedalus<span class="n num">149</span></button>
+        <button class="pkey lbl"><span class="led"></span>TCT scan planner<span class="n num">62</span></button>
+        <button class="pkey lbl"><span class="led"></span>Lehrstuhl wiki<span class="n num">—</span></button>
+      </div>
+    </div>
+    <div class="tsep"></div>
+    <div class="tgroup mission">
+      <div class="cap lbl eng">Mission</div>
+      <div class="rail">
+        <span class="tick" style="left:8.33%"></span>
+        <span class="tick" style="left:25%"></span>
+        <span class="tick" style="left:41.66%"></span>
+        <span class="tick" style="left:58.33%"></span>
+        <span class="tick" style="left:75%"></span>
+        <span class="tick" style="left:91.66%"></span>
+        <span class="knob" style="left:41.66%"></span>
+      </div>
+      <div class="stages lbl">
+        <div class="stage-cell done">Intent<span class="st">✓</span></div>
+        <div class="stage-cell done">Plan<span class="st">✓</span></div>
+        <div class="stage-cell act">Build<span class="st">●</span></div>
+        <div class="stage-cell todo">Gates<span class="st"></span></div>
+        <div class="stage-cell todo">Delivery<span class="st"></span></div>
+        <div class="stage-cell todo">Digestion<span class="st"></span></div>
+      </div>
+    </div>
+    <div class="tsep"></div>
+    <div class="tgroup kill">
+      <div class="cap lbl eng">Kill switch</div>
+      <div class="toggle" role="switch" aria-checked="true" aria-label="Kill switch, scharf">
+        <span class="window"></span>
+        <span class="paddle"></span>
+      </div>
+      <div class="state lbl eng">scharf</div>
+    </div>
+  </div>
+
+  <!-- middle band -->
+  <div class="band middle">
+    <!-- stage: wiring diagram -->
+    <section class="half schematic">
+      <span class="screw tl"></span><span class="screw tr"></span>
+      <div class="phead">
+        <div class="t lbl eng">Umfeld von&nbsp; <code>enforce.write_root()</code></div>
+        <div class="nums num">17 direkt <small>·</small> 61 <small>über zwei Ebenen</small></div>
+      </div>
+      <svg viewBox="0 0 720 452" role="img" aria-label="Schaltbild: Aufrufer von enforce.write_root über zwei Ebenen">
+        <!-- trunk -->
+        <path d="M352 44 V372" stroke="#4A463F" stroke-width="1.8" fill="none"/>
+        <!-- level-1 wires -->
+        <path d="M296 96 H352 M352 152 H408 M296 208 H352 M352 264 H408 M296 320 H352" stroke="#4A463F" stroke-width="1.6" fill="none"/>
+        <!-- dashed unverified wire -->
+        <path d="M352 372 H408" stroke="#6E6A62" stroke-width="1.6" stroke-dasharray="5 4" fill="none"/>
+        <text x="380" y="394" text-anchor="middle" font-family="Bahnschrift,Segoe UI,sans-serif" font-size="9.5" fill="#514E48">unverifiziert</text>
+        <!-- junctions -->
+        <circle cx="352" cy="96" r="2.6" fill="#4A463F"/>
+        <circle cx="352" cy="152" r="2.6" fill="#4A463F"/>
+        <circle cx="352" cy="208" r="2.6" fill="#4A463F"/>
+        <circle cx="352" cy="264" r="2.6" fill="#4A463F"/>
+        <circle cx="352" cy="320" r="2.6" fill="#4A463F"/>
+        <circle cx="352" cy="372" r="2.6" fill="#6E6A62"/>
+
+        <!-- level-2 wires -->
+        <path d="M146 96 H139 V78 H132 M139 96 V114 H132" stroke="#8B877E" stroke-width="1.2" fill="none"/>
+        <path d="M558 152 H565 V134 H572 M565 152 V170 H572" stroke="#8B877E" stroke-width="1.2" fill="none"/>
+        <path d="M146 208 H132" stroke="#8B877E" stroke-width="1.2" fill="none"/>
+        <path d="M558 264 H572" stroke="#8B877E" stroke-width="1.2" fill="none"/>
+        <path d="M146 320 H132" stroke="#8B877E" stroke-width="1.2" fill="none"/>
+        <path d="M558 372 H572" stroke="#8B877E" stroke-width="1.2" fill="none"/>
+
+        <!-- center plate -->
+        <rect x="252" y="6" width="200" height="38" rx="4" fill="#2B2823"/>
+        <rect x="252" y="6" width="6" height="38" rx="3" fill="#D64A0C"/>
+        <text x="358" y="30" text-anchor="middle" font-family="Consolas,monospace" font-size="13.5" fill="#F5F3EC">enforce.write_root()</text>
+
+        <!-- level-1 plates -->
+        <g font-family="Consolas,monospace" font-size="12" fill="#2B2823">
+          <rect x="146" y="81" width="150" height="30" rx="3" fill="#E4E2DD" stroke="#55524B" stroke-width="1.2"/>
+          <text x="221" y="100" text-anchor="middle">Attempt.run()</text>
+          <rect x="408" y="137" width="150" height="30" rx="3" fill="#E4E2DD" stroke="#55524B" stroke-width="1.2"/>
+          <text x="483" y="156" text-anchor="middle">vet.py</text>
+          <rect x="146" y="193" width="150" height="30" rx="3" fill="#E4E2DD" stroke="#55524B" stroke-width="1.2"/>
+          <text x="221" y="212" text-anchor="middle">promote_sealed()</text>
+          <rect x="408" y="249" width="150" height="30" rx="3" fill="#E4E2DD" stroke="#55524B" stroke-width="1.2"/>
+          <text x="483" y="268" text-anchor="middle">Ledger.charge()</text>
+          <rect x="146" y="305" width="150" height="30" rx="3" fill="#E4E2DD" stroke="#55524B" stroke-width="1.2"/>
+          <text x="221" y="324" text-anchor="middle">EvidencePacket.seal()</text>
+          <rect x="408" y="357" width="150" height="30" rx="3" fill="#E4E2DD" stroke="#55524B" stroke-width="1.2"/>
+          <text x="483" y="376" text-anchor="middle">tool-allowances.json</text>
+        </g>
+
+        <!-- level-2 plates (dimmer) -->
+        <g font-family="Consolas,monospace" font-size="10.5" fill="#5B5852">
+          <rect x="6"   y="66"  width="126" height="24" rx="2.5" fill="#DEDCD6" stroke="#9B978E"/>
+          <text x="69"  y="82"  text-anchor="middle">Mission.spawn()</text>
+          <rect x="6"   y="102" width="126" height="24" rx="2.5" fill="#DEDCD6" stroke="#9B978E"/>
+          <text x="69"  y="118" text-anchor="middle">EventStore.append()</text>
+          <rect x="572" y="122" width="126" height="24" rx="2.5" fill="#DEDCD6" stroke="#9B978E"/>
+          <text x="635" y="138" text-anchor="middle">policy.check()</text>
+          <rect x="572" y="158" width="126" height="24" rx="2.5" fill="#DEDCD6" stroke="#9B978E"/>
+          <text x="635" y="174" text-anchor="middle">gates/matrix.py</text>
+          <rect x="6"   y="196" width="126" height="24" rx="2.5" fill="#DEDCD6" stroke="#9B978E"/>
+          <text x="69"  y="212" text-anchor="middle">owner_approval.key</text>
+          <rect x="572" y="252" width="126" height="24" rx="2.5" fill="#DEDCD6" stroke="#9B978E"/>
+          <text x="635" y="268" text-anchor="middle">receipts.jsonl</text>
+          <rect x="6"   y="308" width="126" height="24" rx="2.5" fill="#DEDCD6" stroke="#9B978E"/>
+          <text x="69"  y="324" text-anchor="middle">capsule.build()</text>
+          <rect x="572" y="360" width="126" height="24" rx="2.5" fill="#DEDCD6" stroke="#9B978E"/>
+          <text x="635" y="376" text-anchor="middle">agentenv.json</text>
+        </g>
+      </svg>
+      <div class="legend eng lbl">
+        <span><span class="sw"><i></i></span>verifizierte Kante</span>
+        <span><span class="sw dash"><i></i></span>unverifizierter Vorschlag</span>
+        <span><span class="sw dim"><i></i></span>Ebene 2</span>
+      </div>
+    </section>
+
+    <div class="vsep"></div>
+
+    <!-- conversation: paper tape -->
+    <section class="half">
+      <span class="screw tl"></span><span class="screw tr"></span>
+      <div class="phead">
+        <div class="t lbl eng">Gespräch mit Ikarus</div>
+      </div>
+      <div class="printer">
+        <div class="slot"></div>
+        <div class="tape">
+          <div class="msg">
+            <div class="who lbl">Du</div>
+            <p>Was passiert, wenn ich <code>enforce.write_root()</code> ändere?</p>
+          </div>
+          <div class="msg">
+            <div class="who lbl">Ikarus <span class="stamp">Gemessen</span></div>
+            <p>Direkt betroffen sind 23 Aufrufer in 9&nbsp;Modulen; über zwei Ebenen
+               61&nbsp;Dateien. Der teuerste Pfad läuft über <code>Attempt.run()</code>
+               in&nbsp;die&nbsp;Gates.</p>
+            <div class="cites lbl">Belege&nbsp;&nbsp;<code>Attempt.run()</code> · <code>enforce.write_root()</code></div>
+          </div>
+        </div>
+        <div class="tear"></div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="ask">
+        <div class="cap lbl eng">Frage an Ikarus</div>
+        <div class="row">
+          <div class="well"><span class="caret"></span></div>
+          <button class="key">Senden</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- decision band -->
+  <div class="band decision">
+    <div class="lamp"></div>
+    <div class="text">
+      <h1>Attempt 18 wartet auf dich</h1>
+      <div class="sub">Auf der Claude-Lane fertig, für die Gates vorgeschlagen. Beides widerrufbar.</div>
+    </div>
+    <div class="keys">
+      <button class="key quiet">Warum</button>
+      <button class="key big">Ablehnen</button>
+      <button class="key commit">Annehmen</button>
+    </div>
+  </div>
+
+  <!-- bottom bezel: state, engraved -->
+  <div class="band bezel bezel-bottom">
+    <div class="cell lbl eng">Lane Claude&nbsp; <code>api.anthropic.com</code></div>
+    <div class="cell lbl eng num"><span class="meter"><i></i></span>$0.41 von $2.00 heute</div>
+    <div class="cell lbl eng num">2 zurückgehalten <span style="opacity:.8">(secret-bearing paths)</span></div>
+    <div class="cell lbl eng num">3 live · 17 done</div>
+  </div>
+
+</div>
+</body>
+</html>

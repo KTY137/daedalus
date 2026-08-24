@@ -1,0 +1,446 @@
+<!-- depesche · Die Depesche · The conversation set as a newspaper front page: the question is the headline, the graph is Abbildung 1, the state is the colophon. -->
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Die Depesche</title>
+<style>
+  :root{
+    --paper:#FAF8F4;
+    --ink:#151210;
+    --ink-dim:#5C554E;
+    --ink-faint:#8A8279;
+    --red:#A3161F;
+    --hair:rgba(21,18,16,.22);
+    --hair-strong:rgba(21,18,16,.6);
+    --serif:Georgia, Cambria, "Times New Roman", Times, serif;
+    --sans:"Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    --mono:Consolas, "Cascadia Mono", ui-monospace, Menlo, monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    min-height:900px;
+    position:relative;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead{
+    width:1216px;
+    max-width:calc(100% - 96px);
+    margin:16px auto 0;
+    text-align:center;
+  }
+  .masthead .rule-top{border-top:3px solid var(--ink)}
+  .nameplate{
+    font-family:var(--serif);
+    font-weight:700;
+    font-size:46px;
+    letter-spacing:.16em;
+    line-height:1.15;
+    padding:10px 0 6px;
+    text-transform:none;
+  }
+  .dateline{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    border-top:1px solid var(--hair-strong);
+    border-bottom:1px solid var(--hair-strong);
+    padding:7px 2px;
+    font-family:var(--sans);
+    font-size:12px;
+    letter-spacing:.06em;
+    color:var(--ink-dim);
+  }
+  .dateline .mid{color:var(--ink);font-weight:600}
+  .dateline code{font-family:var(--mono);font-size:11.5px;letter-spacing:0}
+
+  /* ---------- article column ---------- */
+  .article{
+    width:680px;
+    margin:22px auto 0;
+    position:relative;
+  }
+
+  .speaker{
+    font-family:var(--sans);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--red);
+    margin-bottom:8px;
+  }
+  .speaker.ink{color:var(--ink-dim)}
+
+  .question{
+    font-family:var(--serif);
+    font-style:italic;
+    font-weight:700;
+    font-size:31px;
+    line-height:1.22;
+    letter-spacing:.002em;
+  }
+  .question code{
+    font-family:var(--mono);
+    font-style:normal;
+    font-weight:600;
+    font-size:25px;
+  }
+
+  .turn-ikarus{margin-top:20px}
+  .lede{
+    font-size:18.5px;
+    line-height:1.5;
+    max-width:64ch;
+  }
+  .lede::first-letter{
+    font-size:52px;
+    font-weight:700;
+    float:left;
+    line-height:.86;
+    padding:4px 8px 0 0;
+  }
+  .lede code{font-family:var(--mono);font-size:15.5px}
+  .stamp{
+    display:inline-block;
+    text-transform:uppercase;
+    font-family:var(--sans);
+    font-size:10.5px;
+    font-weight:700;
+    letter-spacing:.24em;
+    color:var(--red);
+    border:1.5px solid var(--red);
+    padding:3px 8px 2px 10px;
+    transform:rotate(-2.5deg);
+    margin-left:10px;
+    vertical-align:2px;
+  }
+  .sourceline{
+    margin-top:10px;
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-dim);
+  }
+  .sourceline .sep{color:var(--ink-faint)}
+
+  /* ---------- figure ---------- */
+  figure.stage{
+    margin-top:18px;
+    border-top:1px solid var(--hair-strong);
+    border-bottom:1px solid var(--hair);
+    padding:8px 0 10px;
+  }
+  .fig-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-family:var(--sans);
+    font-size:11.5px;
+    letter-spacing:.08em;
+    color:var(--ink-dim);
+    padding-bottom:2px;
+  }
+  .fig-head .fig-no{font-weight:700;color:var(--ink)}
+  .fig-head .fig-nums{font-weight:700;color:var(--ink);font-size:12.5px;letter-spacing:.05em}
+  .fig-head .fig-nums em{font-style:normal;color:var(--red)}
+  figure.stage svg{display:block;width:100%;height:auto}
+  figcaption{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:13.5px;
+    line-height:1.45;
+    color:var(--ink-dim);
+    border-top:1px solid var(--hair);
+    padding-top:7px;
+  }
+  figcaption code{font-family:var(--mono);font-style:normal;font-size:12px}
+
+  /* ---------- decision ---------- */
+  .decision{
+    margin-top:18px;
+  }
+  .decision p{
+    font-size:17px;
+    line-height:1.5;
+  }
+  .decision .runin{
+    font-family:var(--sans);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--red);
+    margin-right:10px;
+  }
+  .actions{
+    margin-top:6px;
+    display:flex;
+    align-items:center;
+    gap:26px;
+  }
+  .actions button{
+    appearance:none;
+    background:none;
+    border:none;
+    cursor:pointer;
+    font-family:var(--sans);
+    font-size:13.5px;
+    font-weight:700;
+    letter-spacing:.04em;
+    color:var(--ink);
+    padding:13px 6px 11px;
+    min-height:44px;
+    border-bottom:2px solid var(--ink);
+  }
+  .actions button.primary{
+    color:var(--red);
+    border-bottom-color:var(--red);
+  }
+  .actions button.tertiary{
+    font-weight:400;
+    color:var(--ink-dim);
+    border-bottom:1px dotted var(--ink-dim);
+  }
+
+  /* ---------- input ---------- */
+  .compose{
+    margin-top:18px;
+    display:flex;
+    align-items:center;
+    min-height:46px;
+    border-bottom:1px solid var(--hair-strong);
+    gap:12px;
+  }
+  .compose .prompt{
+    font-family:var(--sans);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    flex:0 0 auto;
+  }
+  .caret{
+    flex:0 0 auto;
+    width:1.5px;height:21px;
+    background:var(--ink);
+    animation:blink 1.1s steps(2,start) infinite;
+  }
+  .compose .hint{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:15.5px;
+    color:var(--ink-dim);
+    flex:1 1 auto;
+  }
+  .compose .send{
+    appearance:none;background:none;border:none;cursor:pointer;
+    font-family:var(--sans);
+    font-size:12.5px;font-weight:700;letter-spacing:.06em;
+    color:var(--ink);
+    padding:12px 6px;
+    min-height:44px;
+    flex:0 0 auto;
+  }
+  @keyframes blink{50%{opacity:0}}
+  @media (prefers-reduced-motion: reduce){.caret{animation:none}}
+
+  /* ---------- marginalia ---------- */
+  .marginalia{
+    position:absolute;
+    top:182px;
+    right:calc(50% + 388px);
+    width:220px;
+    text-align:right;
+    font-family:var(--sans);
+    color:var(--ink-dim);
+  }
+  .marg-group{margin-bottom:30px}
+  .marg-title{
+    font-size:10.5px;
+    font-weight:700;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    margin-bottom:8px;
+  }
+  .marg-row{
+    font-size:12.5px;
+    line-height:1.9;
+    white-space:nowrap;
+  }
+  .marg-row .n{font-variant-numeric:tabular-nums;color:var(--ink-faint);margin-left:7px}
+  .marg-row.current{color:var(--ink);font-weight:600}
+  .marg-row.current .mark{color:var(--red)}
+  .marg-row .glyph{display:inline-block;width:16px;margin-left:6px;color:var(--ink-faint)}
+  .marg-row.current .glyph{color:var(--red)}
+  .marg-note{
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:12.5px;
+    line-height:1.5;
+    color:var(--ink-faint);
+  }
+
+  /* ---------- colophon ---------- */
+  .colophon{
+    margin-top:auto;
+    width:1216px;
+    max-width:calc(100% - 96px);
+    align-self:center;
+    border-top:1px solid var(--hair-strong);
+    padding:9px 0 14px;
+    text-align:center;
+    font-family:var(--sans);
+    font-size:11.5px;
+    letter-spacing:.05em;
+    color:var(--ink-dim);
+  }
+  .colophon code{font-family:var(--mono);font-size:11px;letter-spacing:0}
+  .colophon .sep{margin:0 7px;color:var(--ink-faint)}
+  .colophon .armed{color:var(--red);font-weight:600}
+</style>
+</head>
+<body>
+
+  <header class="masthead">
+    <div class="rule-top"></div>
+    <div class="nameplate">DAEDALUS</div>
+    <div class="dateline">
+      <span>Projekt Daedalus</span>
+      <span class="mid">Sonntag, 23. August 2026</span>
+      <span>Revision <code>r7c2e1a</code> · Gate 0</span>
+    </div>
+  </header>
+
+  <aside class="marginalia" aria-label="Projekte und Missionsphasen">
+    <div class="marg-group">
+      <div class="marg-title">Projekte</div>
+      <div class="marg-row current"><span class="mark">▸</span> Daedalus<span class="n">149</span></div>
+      <div class="marg-row">TCT scan planner<span class="n">62</span></div>
+      <div class="marg-row">Lehrstuhl wiki<span class="n">—</span></div>
+    </div>
+    <div class="marg-group">
+      <div class="marg-title">Mission 18</div>
+      <div class="marg-row">Intent<span class="glyph">✓</span></div>
+      <div class="marg-row">Plan<span class="glyph">✓</span></div>
+      <div class="marg-row current">Build<span class="glyph">●</span></div>
+      <div class="marg-row">Gates<span class="glyph">·</span></div>
+      <div class="marg-row">Delivery<span class="glyph">·</span></div>
+      <div class="marg-row">Digestion<span class="glyph">·</span></div>
+    </div>
+    <div class="marg-group">
+      <div class="marg-note">Abb. 1 zeigt nur die gemessene Nachbarschaft — nichts davon ist schon entschieden.</div>
+    </div>
+  </aside>
+
+  <main class="article">
+
+    <section class="turn-du">
+      <div class="speaker">Du</div>
+      <h1 class="question">Was passiert, wenn ich <code>enforce.write_root()</code> ändere?</h1>
+    </section>
+
+    <section class="turn-ikarus">
+      <div class="speaker ink">Ikarus</div>
+      <p class="lede">Direkt betroffen sind 23 Aufrufer in 9&nbsp;Modulen; über zwei Ebenen 61&nbsp;Dateien. Der teuerste Pfad läuft über <code>Attempt.run()</code> in die Gates.<span class="stamp">Gemessen</span></p>
+      <p class="sourceline">enforce.write_root()<span class="sep"> · </span>Attempt.run()<span class="sep"> · gemessen an </span>r7c2e1a</p>
+    </section>
+
+    <figure class="stage">
+      <div class="fig-head">
+        <span><span class="fig-no">Abbildung 1.</span> Nachbarschaft von <code style="font-family:var(--mono);font-size:11px;letter-spacing:0">enforce.write_root()</code></span>
+        <span class="fig-nums"><em>17 direkt</em> · 61 über zwei Ebenen</span>
+      </div>
+      <svg viewBox="0 0 680 206" role="img" aria-label="Bogendiagramm der Aufrufer von enforce.write_root()">
+        <!-- baseline -->
+        <line x1="14" y1="104" x2="666" y2="104" stroke="var(--ink)" stroke-opacity=".25" stroke-width="1"/>
+
+        <!-- dashed unverified edge: vet.py -> tool-allowances.json -->
+        <path d="M 178 104 Q 364 -46 550 104" fill="none" stroke="var(--ink)" stroke-opacity=".55" stroke-width="1" stroke-dasharray="4 4"/>
+
+        <!-- level-1 arcs from enforce.write_root() (x=364) -->
+        <path d="M 178 104 Q 271 -50 364 104" fill="none" stroke="var(--ink)" stroke-width=".9" stroke-opacity=".8"/>
+        <path d="M 240 104 Q 302 -22 364 104" fill="none" stroke="var(--ink)" stroke-width=".9" stroke-opacity=".8"/>
+        <path d="M 302 104 Q 333 40 364 104" fill="none" stroke="var(--ink)" stroke-width=".9" stroke-opacity=".8"/>
+        <path d="M 364 104 Q 395 40 426 104" fill="none" stroke="var(--ink)" stroke-width=".9" stroke-opacity=".8"/>
+        <path d="M 364 104 Q 457 -50 550 104" fill="none" stroke="var(--ink)" stroke-width=".9" stroke-opacity=".8"/>
+        <!-- most expensive path, red: enforce.write_root() -> Attempt.run() -->
+        <path d="M 364 104 Q 426 -22 488 104" fill="none" stroke="var(--red)" stroke-width="2.2"/>
+
+        <!-- level-2 arcs, dim -->
+        <path d="M 178 104 Q 103 -8 28 104"  fill="none" stroke="var(--ink)" stroke-width=".7" stroke-opacity=".24"/>
+        <path d="M 178 104 Q 121 22 64 104"  fill="none" stroke="var(--ink)" stroke-width=".7" stroke-opacity=".24"/>
+        <path d="M 240 104 Q 170 -4 100 104" fill="none" stroke="var(--ink)" stroke-width=".7" stroke-opacity=".24"/>
+        <path d="M 302 104 Q 219 -22 136 104" fill="none" stroke="var(--ink)" stroke-width=".7" stroke-opacity=".24"/>
+        <path d="M 488 104 Q 537 30 586 104" fill="none" stroke="var(--ink)" stroke-width=".7" stroke-opacity=".24"/>
+        <path d="M 550 104 Q 581 56 612 104" fill="none" stroke="var(--ink)" stroke-width=".7" stroke-opacity=".24"/>
+        <path d="M 488 104 Q 563 -8 638 104" fill="none" stroke="var(--ink)" stroke-width=".7" stroke-opacity=".24"/>
+        <path d="M 426 104 Q 545 -50 664 104" fill="none" stroke="var(--ink)" stroke-width=".7" stroke-opacity=".24"/>
+
+        <!-- level-2 nodes -->
+        <circle cx="28"  cy="104" r="2" fill="var(--ink)" fill-opacity=".35"/>
+        <circle cx="64"  cy="104" r="2" fill="var(--ink)" fill-opacity=".35"/>
+        <circle cx="100" cy="104" r="2" fill="var(--ink)" fill-opacity=".35"/>
+        <circle cx="136" cy="104" r="2" fill="var(--ink)" fill-opacity=".35"/>
+        <circle cx="586" cy="104" r="2" fill="var(--ink)" fill-opacity=".35"/>
+        <circle cx="612" cy="104" r="2" fill="var(--ink)" fill-opacity=".35"/>
+        <circle cx="638" cy="104" r="2" fill="var(--ink)" fill-opacity=".35"/>
+        <circle cx="664" cy="104" r="2" fill="var(--ink)" fill-opacity=".35"/>
+
+        <!-- level-1 nodes -->
+        <circle cx="178" cy="104" r="3" fill="var(--ink)"/>
+        <circle cx="240" cy="104" r="3" fill="var(--ink)"/>
+        <circle cx="302" cy="104" r="3" fill="var(--ink)"/>
+        <circle cx="426" cy="104" r="3" fill="var(--ink)"/>
+        <circle cx="488" cy="104" r="3" fill="var(--ink)"/>
+        <circle cx="550" cy="104" r="3" fill="var(--ink)"/>
+        <!-- subject node -->
+        <circle cx="364" cy="104" r="4.5" fill="var(--red)"/>
+
+        <!-- labels, rotated like printed chart ticks -->
+        <g font-family="Consolas, ui-monospace, monospace" font-size="11" fill="var(--ink)">
+          <text transform="translate(176,120) rotate(-38)" text-anchor="end">vet.py</text>
+          <text transform="translate(238,120) rotate(-38)" text-anchor="end">Ledger.charge()</text>
+          <text transform="translate(300,120) rotate(-38)" text-anchor="end">promote_sealed()</text>
+          <text transform="translate(362,120) rotate(-38)" text-anchor="end" font-weight="700" font-size="11.5">enforce.write_root()</text>
+          <text transform="translate(424,120) rotate(-38)" text-anchor="end">EvidencePacket.seal()</text>
+          <text transform="translate(486,120) rotate(-38)" text-anchor="end">Attempt.run()</text>
+          <text transform="translate(548,120) rotate(-38)" text-anchor="end">tool-allowances.json</text>
+        </g>
+      </svg>
+      <figcaption>Bögen: gemessene Aufrufbeziehungen zu <code>enforce.write_root()</code>; gedimmte Bögen: zweite Ebene. Rot: der teuerste Pfad über <code>Attempt.run()</code> in die Gates. Gestrichelt: eine unbestätigte Kante.</figcaption>
+    </figure>
+
+    <section class="decision">
+      <p><span class="runin">Zur Entscheidung</span>Attempt 18 wartet auf dich — auf der Claude-Lane fertig, für die Gates vorgeschlagen. Beides widerrufbar.</p>
+      <div class="actions">
+        <button type="button" class="primary">Annehmen</button>
+        <button type="button">Ablehnen</button>
+        <button type="button" class="tertiary">Warum</button>
+      </div>
+    </section>
+
+    <div class="compose" role="textbox" aria-label="Nachricht an Ikarus">
+      <span class="prompt">Du</span>
+      <span class="caret"></span>
+      <span class="hint">Frag weiter — Ikarus antwortet mit Messungen.</span>
+      <button type="button" class="send">Senden</button>
+    </div>
+
+  </main>
+
+  <footer class="colophon">
+    Lane Claude<span class="sep">·</span><code>api.anthropic.com</code><span class="sep">·</span>$0.41 von $2.00 heute<span class="sep">·</span>2 zurückgehalten (secret-bearing paths)<span class="sep">·</span><span class="armed">Kill switch scharf</span><span class="sep">·</span>3 live<span class="sep">·</span>17 done
+  </footer>
+
+</body>
+</html>

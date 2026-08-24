@@ -1,0 +1,208 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Daedalus — Stilstudien</title>
+<style>
+/* ============ shared skeleton ============ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--sys);font-size:13.5px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden;background:var(--room);color:var(--ink)}
+.app{display:grid;grid-template-columns:216px 350px 1fr 280px;grid-template-rows:44px 1fr 26px;height:100vh;position:relative;z-index:1}
+.scene{position:fixed;inset:0;z-index:0}
+.scene svg{width:100%;height:100%}
+
+.tb{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--chrome);border-bottom:var(--hair);backdrop-filter:var(--frost);-webkit-backdrop-filter:var(--frost)}
+.brand{font-weight:600;letter-spacing:-.01em}
+.rev{color:var(--ink3);font-size:12.5px}
+.spacer{flex:1}
+.seg{display:flex;background:var(--well);border-radius:8px;padding:2px}
+.seg span{font-size:12.5px;color:var(--ink2);padding:4px 12px;border-radius:6px}
+.seg .on{background:var(--segon);color:var(--ink);box-shadow:var(--seghalo)}
+.search{width:230px;background:var(--field);border:var(--hair);border-radius:8px;padding:5px 10px;color:var(--ink3);font-size:12.5px;display:flex;justify-content:space-between}
+.kbd{font-family:var(--mono);font-size:11px}
+
+.sb{background:var(--chrome);border-right:var(--hair);padding:12px 8px;display:flex;flex-direction:column;gap:2px;backdrop-filter:var(--frost);-webkit-backdrop-filter:var(--frost)}
+.sb h3{font-size:10.5px;font-weight:600;color:var(--ink3);letter-spacing:.05em;text-transform:uppercase;padding:10px 8px 6px}
+.sb a{display:flex;justify-content:space-between;padding:6px 9px;border-radius:7px;color:var(--ink);text-decoration:none;font-size:13px}
+.sb a .n{color:var(--ink3);font-variant-numeric:tabular-nums;font-size:12px}
+.sb a.cur{background:var(--sel);font-weight:500}
+.sb .foot{margin-top:auto;padding:6px 9px;color:var(--ink2);display:flex;justify-content:space-between}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:1px}
+.dot.on{background:var(--ok)} .dot.off{background:var(--ink3)}
+
+.chat{background:var(--panel);border-right:var(--hair);display:flex;flex-direction:column;backdrop-filter:var(--frost);-webkit-backdrop-filter:var(--frost)}
+.chat .head{padding:13px 16px 10px;border-bottom:var(--hair2)}
+.chat .head h2{font-size:14px;font-weight:600}
+.chat .head p{color:var(--ink2);font-size:12px;margin-top:1px}
+.stages{display:flex;padding:8px 16px;border-bottom:var(--hair2);font-size:10.5px;color:var(--ink3)}
+.stages span{flex:1}
+.stages b{display:block;font-weight:500;color:var(--ink2);font-size:11px}
+.stages .now b{color:var(--live)}
+.thread{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:13px;overflow:hidden}
+.who{font-size:10.5px;color:var(--ink3);letter-spacing:.04em;text-transform:uppercase;margin-bottom:3px}
+.turn p{font-size:13.5px}
+.turn.me p{color:var(--ink2)}
+.cite{font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.prov{font-size:9.5px;color:var(--ink3);letter-spacing:.05em;vertical-align:2px;margin-left:3px}
+.card{border:var(--hair);border-radius:10px;padding:12px 13px;background:var(--card)}
+.card h4{font-size:13px;font-weight:600;margin-bottom:3px}
+.card p{font-size:12.5px;color:var(--ink2)}
+.row{display:flex;gap:8px;margin-top:10px}
+.btn{font-size:12.5px;border-radius:7px;padding:5px 13px;border:var(--hair);background:var(--field);color:var(--ink)}
+.btn.pri{background:var(--accent);border-color:transparent;color:var(--onaccent);font-weight:500}
+.comp{border-top:var(--hair2);padding:10px 16px 12px}
+.field{display:flex;align-items:center;border:var(--hair);border-radius:9px;background:var(--field);padding:7px 11px}
+.field span{color:var(--ink3);font-size:13px;flex:1}
+.caret{width:1px;height:15px;background:var(--ink)}
+
+.stage{position:relative;display:flex;flex-direction:column}
+.stagehead{display:flex;align-items:baseline;gap:10px;padding:11px 16px;color:var(--ink);backdrop-filter:var(--frost);-webkit-backdrop-filter:var(--frost);background:var(--stagehead);border-bottom:var(--hair2)}
+.stagehead h2{font-size:14px;font-weight:600}
+.stagehead .sub{color:var(--ink2);font-size:12.5px}
+.stagehead .right{margin-left:auto;color:var(--ink3);font-size:12px}
+.stagefoot{margin-top:auto;display:flex;gap:14px;padding:9px 16px;color:var(--ink2);font-size:12px;background:var(--stagehead);border-top:var(--hair2);backdrop-filter:var(--frost);-webkit-backdrop-filter:var(--frost)}
+
+.insp{background:var(--panel);border-left:var(--hair);padding:14px 16px;backdrop-filter:var(--frost);-webkit-backdrop-filter:var(--frost)}
+.insp h3{font-size:10.5px;color:var(--ink3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px}
+.insp h2{font-family:var(--mono);font-size:12.5px;font-weight:600;margin-bottom:10px;word-break:break-all}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px;margin-bottom:12px}
+.kv dt{color:var(--ink3)} .kv dd{font-variant-numeric:tabular-nums}
+.insp p{font-size:12.5px;color:var(--ink2);margin-bottom:10px}
+.lnk{color:var(--accent);font-size:12.5px;display:block;margin-bottom:6px;text-decoration:none}
+
+.st{grid-column:1/-1;background:var(--chrome);border-top:var(--hair);display:flex;gap:18px;align-items:center;padding:0 16px;font-size:11.5px;color:var(--ink2);backdrop-filter:var(--frost);-webkit-backdrop-filter:var(--frost)}
+.st .sp{flex:1}
+
+/* ============ style A — Nachtglas ============ */
+body[data-s="a"]{
+  --room:#0B0A09;
+  --sys:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
+  --ink:#F4F1EC; --ink2:#B5AFA6; --ink3:#7E7970;
+  --chrome:rgba(24,22,20,.55); --panel:rgba(20,19,17,.62); --card:rgba(255,255,255,.05);
+  --stagehead:rgba(14,13,12,.35);
+  --well:rgba(255,255,255,.07); --segon:rgba(255,255,255,.14); --seghalo:0 .5px 2px rgba(0,0,0,.4);
+  --field:rgba(255,255,255,.06); --sel:rgba(255,255,255,.1);
+  --hair:.5px solid rgba(255,255,255,.11); --hair2:.5px solid rgba(255,255,255,.07);
+  --accent:#E7A94F; --onaccent:#181206; --live:#E7A94F; --ok:#69B37E;
+  --frost:blur(22px) saturate(1.15);
+}
+/* ============ style B — Tagglas ============ */
+body[data-s="b"]{
+  --room:#D6D8DC;
+  --sys:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
+  --ink:#16171A; --ink2:#585B62; --ink3:#8B8E96;
+  --chrome:rgba(246,246,248,.66); --panel:rgba(250,250,251,.72); --card:rgba(255,255,255,.6);
+  --stagehead:rgba(244,244,246,.5);
+  --well:rgba(0,0,0,.06); --segon:#fff; --seghalo:0 .5px 2px rgba(0,0,0,.16);
+  --field:rgba(255,255,255,.75); --sel:rgba(255,255,255,.9);
+  --hair:.5px solid rgba(0,0,0,.12); --hair2:.5px solid rgba(0,0,0,.07);
+  --accent:#2A63C8; --onaccent:#fff; --live:#A5680B; --ok:#1D6F42;
+  --frost:blur(26px) saturate(1.4);
+}
+/* ============ style C — Tinte ============ */
+body[data-s="c"]{
+  --room:#0A0B0D;
+  --sys:"Avenir Next","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono",ui-monospace,Consolas,monospace;
+  --ink:#EDEFF2; --ink2:#9AA0A9; --ink3:#5F646D;
+  --chrome:#0E0F12; --panel:#0E0F12; --card:#14161A;
+  --stagehead:rgba(10,11,13,.6);
+  --well:#16181C; --segon:#22252B; --seghalo:none;
+  --field:#14161A; --sel:#1A1D22;
+  --hair:.5px solid #23252A; --hair2:.5px solid #1A1C20;
+  --accent:#5FB2FF; --onaccent:#061018; --live:#D9A03F; --ok:#5FC98A;
+  --frost:none;
+}
+body[data-s="c"] .scene{filter:saturate(.9)}
+</style>
+<body>
+<div class="scene"><svg id="svg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice"></svg></div>
+<div class="app">
+  <div class="tb">
+    <span class="brand">Daedalus</span><span class="rev">Revision r7c2e1a · Gate 0</span>
+    <div class="seg"><span>Structure</span><span class="on">Nachbarschaft</span><span>Hotspots</span></div>
+    <span class="spacer"></span>
+    <div class="search"><span>Suchen oder Befehl ausführen</span><span class="kbd">⌘K</span></div>
+  </div>
+  <nav class="sb">
+    <h3>Projekte</h3>
+    <a class="cur" href="#"><span><span class="dot on"></span>Daedalus</span><span class="n">149</span></a>
+    <a href="#"><span><span class="dot off"></span>TCT scan planner</span><span class="n">62</span></a>
+    <a href="#"><span><span class="dot off"></span>Lehrstuhl wiki</span><span class="n">—</span></a>
+    <h3>Ansichten</h3>
+    <a href="#"><span>Structure</span></a>
+    <a class="cur" href="#"><span>Nachbarschaft</span></a>
+    <a href="#"><span>Hotspots</span></a>
+    <a href="#"><span>Knowledge library</span><span class="n">7</span></a>
+    <div class="foot"><span>Einstellungen</span><span class="kbd">⌘,</span></div>
+  </nav>
+  <section class="chat">
+    <div class="head"><h2>Ikarus</h2><p>Propagate Event.voltage → bias_voltage · M-0412</p></div>
+    <div class="stages">
+      <span><b>Intent</b>fertig</span><span><b>Plan</b>fertig</span><span class="now"><b>Build</b>läuft</span>
+      <span><b>Gates</b>wartet</span><span><b>Delivery</b>wartet</span><span><b>Digestion</b>wartet</span>
+    </div>
+    <div class="thread">
+      <div class="turn me"><div class="who">Du</div><p>Was passiert, wenn ich enforce.write_root() ändere?</p></div>
+      <div class="turn ik"><div class="who">Ikarus</div><p>Direkt betroffen sind 23 Aufrufer in 9 Modulen; über zwei Ebenen 61 Dateien. Der teuerste Pfad läuft über <span class="cite">Attempt.run()</span> in die Gates. Die Bühne zeigt die Nachbarschaft von <span class="cite">enforce.write_root()</span>.<span class="prov">GEMESSEN</span></p></div>
+      <div class="card">
+        <h4>Attempt 18 wartet auf dich</h4>
+        <p>Auf der Claude-Lane fertig und für die Gates vorgeschlagen. Beides ist widerrufbar.</p>
+        <div class="row"><span class="btn pri">Annehmen</span><span class="btn">Ablehnen</span><span class="btn">Warum</span></div>
+      </div>
+    </div>
+    <div class="comp"><div class="field"><span>Frag Ikarus — es schlägt vor, du entscheidest</span><i class="caret"></i></div></div>
+  </section>
+  <main class="stage">
+    <div class="stagehead"><h2>Nachbarschaft</h2><span class="sub">enforce.write_root() · 2 Ebenen</span><span class="right">17 direkt · 61 über zwei Ebenen</span></div>
+    <div class="stagefoot"><span>Ebene 1 hell · Ebene 2 zurückgesetzt</span><span class="sp" style="flex:1"></span><span>Ziehen dreht · Rad zoomt · Esc löst</span></div>
+  </main>
+  <aside class="insp">
+    <h3>Im Radius</h3><h2>enforce.write_root()</h2>
+    <dl class="kv"><dt>Ebene 1</dt><dd>17 Dateien</dd><dt>Ebene 2</dt><dd>61 Dateien</dd><dt>Tests darüber</dt><dd>9</dd><dt>Ungeprüft</dt><dd>3 Kanten</dd></dl>
+    <p>Drei Beziehungen sind Vorschläge ohne Beleg — sie zählen nicht in die 17.</p>
+    <a class="lnk" href="#">Als Tabelle</a><a class="lnk" href="#">Wiki-Seite öffnen</a><a class="lnk" href="#">Ikarus danach fragen</a>
+  </aside>
+  <div class="st">
+    <span>Lane Claude · api.anthropic.com</span><span>3 live · 2 queued · 17 done</span><span>$0.41 von $2.00 heute</span>
+    <span class="sp"></span><span>2 zurückgehalten · secret-bearing paths</span><span>Kill switch scharf</span>
+  </div>
+</div>
+<script>
+const S = document.currentScript ? null : null;
+const style = new URLSearchParams(location.search).get("s") || "a";
+document.body.dataset.s = style;
+/* ---- the scene: a lit 3D-ish neighbourhood drawn in SVG, styled per look ---- */
+const svg = document.getElementById("svg");
+const CX = 856, CY = 470;               // stage centre (right of chat column)
+const P = {
+  a:{halo:"#E7A94F", node:"#EFE6D8", far:"#8B857B", edge:"#CFC8BC", glowOp:.5, roomTop:"#141210", roomBot:"#070606", fog:"#0B0A09"},
+  b:{halo:"#2A63C8", node:"#3C3F45", far:"#9DA1A8", edge:"#6E7278", glowOp:.28, roomTop:"#E4E6EA", roomBot:"#C4C7CD", fog:"#D6D8DC"},
+  c:{halo:"#5FB2FF", node:"#E8EAEE", far:"#565B64", edge:"#9AA0A9", glowOp:.4, roomTop:"#101114", roomBot:"#08090B", fog:"#0A0B0D"},
+}[style];
+let d = `<defs>
+  <radialGradient id="room" cx="60%" cy="38%" r="80%">
+    <stop offset="0%" stop-color="${P.roomTop}"/><stop offset="100%" stop-color="${P.roomBot}"/>
+  </radialGradient>
+  <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="${P.halo}" stop-opacity="${P.glowOp}"/><stop offset="100%" stop-color="${P.halo}" stop-opacity="0"/>
+  </radialGradient>
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.1"/></filter>
+  <filter id="far" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.6"/></filter>
+</defs>
+<rect width="1440" height="900" fill="url(#room)"/>
+<ellipse cx="${CX}" cy="${CY+180}" rx="430" ry="60" fill="#000" opacity="${style==='b'?.10:.35}"/>
+<circle cx="${CX}" cy="${CY}" r="300" fill="url(#halo)"/>`;
+const ring1 = [["Attempt.run()",-200,-118,10],["vet.py",-238,52,8],["promote_sealed()",-92,166,8],["Ledger.charge()",92,-176,9],["EvidencePacket.seal()",148,-64,9],["tool-allowances.json",128,116,7]];
+const ring2 = [["gates/receipts.py",-268,-208],["mission.py",-286,-6],["offload_lease.py",-252,178],["events.jsonl",-58,252],["graph_delta.py",196,-216],["artifacts.py",214,32],["index.py",176,208],["arch_memory.py",84,268]];
+const edge=(x1,y1,x2,y2,w,o)=>`<path d="M${x1} ${y1} Q ${(x1+x2)/2} ${(y1+y2)/2-26} ${x2} ${y2}" fill="none" stroke="${P.edge}" stroke-opacity="${o}" stroke-width="${w}"/>`;
+ring2.forEach((n,i)=>{const p=ring1[i%6]; d+=edge(CX+p[1],CY+p[2],CX+n[1],CY+n[2],.8,.18)});
+ring1.forEach(n=>d+=edge(CX,CY,CX+n[1],CY+n[2],1.2,.5));
+d+=`<path d="M${CX} ${CY} Q ${CX+120} ${CY-260} ${CX+300-8} ${CY-206}" fill="none" stroke="${P.halo}" stroke-width="1.6" stroke-dasharray="5 5" stroke-opacity=".8"/>`;
+ring2.forEach(([n,x,y])=>{d+=`<g filter="url(#far)"><circle cx="${CX+x}" cy="${CY+y}" r="5" fill="${P.far}"/></g><text x="${CX+x+11}" y="${CY+y+4}" font-size="11" fill="${P.far}" font-family="var(--sys)">${n}</text>`});
+ring1.forEach(([n,x,y,r])=>{d+=`<g filter="url(#soft)"><circle cx="${CX+x}" cy="${CY+y}" r="${r}" fill="${P.node}"/><circle cx="${CX+x-r*.3}" cy="${CY+y-r*.35}" r="${r*.35}" fill="#fff" opacity=".55"/></g><text x="${CX+x+r+7}" y="${CY+y+4}" font-size="12" font-weight="500" fill="${P.node===('#3C3F45')?'#2A2D33':P.node}" font-family="var(--sys)">${n}</text>`});
+d+=`<circle cx="${CX}" cy="${CY}" r="13" fill="${P.halo}"/><circle cx="${CX-4}" cy="${CY-5}" r="4.5" fill="#fff" opacity=".7"/>
+<text x="${CX+22}" y="${CY+5}" font-size="13.5" font-weight="600" fill="${style==='b'?'#16171A':'#F4F1EC'}" font-family="var(--sys)">enforce.write_root()</text>`;
+svg.innerHTML = d;
+</script>

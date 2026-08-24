@@ -1,0 +1,762 @@
+{
+ "project": "daedalus",
+ "revision": "r7c2e1a",
+ "gate": "Gate 0 — Canonical Kernel",
+ "rim": {
+  "budget": {
+   "spent_tokens": 12480,
+   "cap_tokens": 40000,
+   "spent_usd": 0.41,
+   "cap_usd": 2.0
+  },
+  "attempts": {
+   "live": 3,
+   "queued": 2,
+   "done": 17,
+   "rejected": 4
+  },
+  "evidence": {
+   "packets": 9,
+   "receipts_signed": 24,
+   "receipts_total": 24
+  },
+  "withheld": {
+   "count": 2,
+   "reason": "secret-bearing paths"
+  },
+  "kill_switch": "armed"
+ },
+ "graph": {
+  "planes": [
+   "code",
+   "type",
+   "data",
+   "knowledge"
+  ],
+  "nodes": [
+   {
+    "id": "c1",
+    "plane": "code",
+    "label": "daedalus/kernel/mission.py",
+    "kind": "file"
+   },
+   {
+    "id": "c2",
+    "plane": "code",
+    "label": "Mission.compile()",
+    "kind": "method",
+    "parent": "c1"
+   },
+   {
+    "id": "c3",
+    "plane": "code",
+    "label": "Attempt.run()",
+    "kind": "method"
+   },
+   {
+    "id": "c4",
+    "plane": "code",
+    "label": "EvidencePacket.seal()",
+    "kind": "method"
+   },
+   {
+    "id": "c5",
+    "plane": "code",
+    "label": "daedalus/policy/enforce.py",
+    "kind": "file"
+   },
+   {
+    "id": "c6",
+    "plane": "code",
+    "label": "enforce.write_root()",
+    "kind": "function",
+    "parent": "c5"
+   },
+   {
+    "id": "c7",
+    "plane": "code",
+    "label": "enforce.egress()",
+    "kind": "function",
+    "parent": "c5"
+   },
+   {
+    "id": "c8",
+    "plane": "code",
+    "label": "daedalus/ledger.py",
+    "kind": "file"
+   },
+   {
+    "id": "c9",
+    "plane": "code",
+    "label": "Ledger.charge()",
+    "kind": "method",
+    "parent": "c8"
+   },
+   {
+    "id": "c10",
+    "plane": "code",
+    "label": "daedalus/promotion.py",
+    "kind": "file"
+   },
+   {
+    "id": "c11",
+    "plane": "code",
+    "label": "promote_sealed()",
+    "kind": "function",
+    "parent": "c10"
+   },
+   {
+    "id": "c12",
+    "plane": "code",
+    "label": "daedalus/tools/vet.py",
+    "kind": "file"
+   },
+   {
+    "id": "t1",
+    "plane": "type",
+    "label": "MissionContract",
+    "kind": "schema"
+   },
+   {
+    "id": "t2",
+    "plane": "type",
+    "label": "WorkItem",
+    "kind": "schema"
+   },
+   {
+    "id": "t3",
+    "plane": "type",
+    "label": "Attempt",
+    "kind": "schema"
+   },
+   {
+    "id": "t4",
+    "plane": "type",
+    "label": "EvidencePacket",
+    "kind": "schema"
+   },
+   {
+    "id": "t5",
+    "plane": "type",
+    "label": "Receipt",
+    "kind": "schema"
+   },
+   {
+    "id": "t6",
+    "plane": "type",
+    "label": "PolicyDecision",
+    "kind": "enum"
+   },
+   {
+    "id": "t7",
+    "plane": "type",
+    "label": "Budget",
+    "kind": "schema"
+   },
+   {
+    "id": "d1",
+    "plane": "data",
+    "label": "runs/events.jsonl",
+    "kind": "event-store"
+   },
+   {
+    "id": "d2",
+    "plane": "data",
+    "label": "runs/budget/ledger.json",
+    "kind": "table"
+   },
+   {
+    "id": "d3",
+    "plane": "data",
+    "label": "runs/receipts/",
+    "kind": "cas"
+   },
+   {
+    "id": "d4",
+    "plane": "data",
+    "label": "artifacts/ (content-addressed)",
+    "kind": "cas"
+   },
+   {
+    "id": "d5",
+    "plane": "data",
+    "label": "fixtures/adapters/*.json",
+    "kind": "fixture"
+   },
+   {
+    "id": "d6",
+    "plane": "data",
+    "label": ".agentenv/tool-allowances.json",
+    "kind": "policy"
+   },
+   {
+    "id": "k1",
+    "plane": "knowledge",
+    "label": "Master Plan §4 Invariants",
+    "kind": "doc"
+   },
+   {
+    "id": "k2",
+    "plane": "knowledge",
+    "label": "Master Plan §10 Gate 0",
+    "kind": "doc"
+   },
+   {
+    "id": "k3",
+    "plane": "knowledge",
+    "label": "ADR-009 The Grove",
+    "kind": "adr"
+   },
+   {
+    "id": "k4",
+    "plane": "knowledge",
+    "label": "Sealed promotion",
+    "kind": "concept"
+   },
+   {
+    "id": "k5",
+    "plane": "knowledge",
+    "label": "Fault-injection matrix 24/24",
+    "kind": "claim"
+   },
+   {
+    "id": "k6",
+    "plane": "knowledge",
+    "label": "Owner decision #1: 13 doors",
+    "kind": "issue"
+   },
+   {
+    "id": "k7",
+    "plane": "knowledge",
+    "label": "Evidence boundary",
+    "kind": "concept"
+   }
+  ],
+  "edges": [
+   {
+    "s": "c1",
+    "t": "c2",
+    "rel": "defines",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c2",
+    "t": "c3",
+    "rel": "calls",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c3",
+    "t": "c4",
+    "rel": "calls",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c3",
+    "t": "c6",
+    "rel": "calls",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c3",
+    "t": "c7",
+    "rel": "calls",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c3",
+    "t": "c9",
+    "rel": "calls",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c11",
+    "t": "c4",
+    "rel": "requires",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c12",
+    "t": "c5",
+    "rel": "imports",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "t1",
+    "t": "t2",
+    "rel": "contains",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "t2",
+    "t": "t3",
+    "rel": "spawns",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "t3",
+    "t": "t4",
+    "rel": "yields",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "t4",
+    "t": "t5",
+    "rel": "contains",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c2",
+    "t": "t1",
+    "rel": "returns",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c3",
+    "t": "t3",
+    "rel": "implements",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c4",
+    "t": "t4",
+    "rel": "implements",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c6",
+    "t": "t6",
+    "rel": "returns",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c9",
+    "t": "t7",
+    "rel": "reads",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c3",
+    "t": "d1",
+    "rel": "appends",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c9",
+    "t": "d2",
+    "rel": "writes",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c4",
+    "t": "d3",
+    "rel": "writes",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c4",
+    "t": "d4",
+    "rel": "addresses",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c6",
+    "t": "d6",
+    "rel": "reads",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "t5",
+    "t": "d3",
+    "rel": "serialized-as",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "t1",
+    "t": "d1",
+    "rel": "serialized-as",
+    "cross": true,
+    "verified": false,
+    "score": 0.71
+   },
+   {
+    "s": "c11",
+    "t": "k4",
+    "rel": "implements",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c11",
+    "t": "k1",
+    "rel": "bound-by",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c6",
+    "t": "k1",
+    "rel": "bound-by",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "c7",
+    "t": "k7",
+    "rel": "bound-by",
+    "cross": true,
+    "verified": false,
+    "score": 0.64
+   },
+   {
+    "s": "d5",
+    "t": "k5",
+    "rel": "evidences",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "d6",
+    "t": "k6",
+    "rel": "blocked-by",
+    "cross": true,
+    "verified": true
+   },
+   {
+    "s": "k2",
+    "t": "k5",
+    "rel": "requires",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "k3",
+    "t": "k4",
+    "rel": "decides",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "k4",
+    "t": "k7",
+    "rel": "depends-on",
+    "cross": false,
+    "verified": true
+   },
+   {
+    "s": "c12",
+    "t": "k6",
+    "rel": "mentions",
+    "cross": true,
+    "verified": false,
+    "score": 0.38
+   }
+  ]
+ },
+ "chat": [
+  {
+   "role": "owner",
+   "text": "Warum ist Attempt 17 abgelehnt worden?"
+  },
+  {
+   "role": "ikarus",
+   "text": "Attempt 17 hat die Evidenzgrenze verletzt: der Kandidat hat versucht, runs/budget/ledger.json zu schreiben. enforce.write_root() hat das geschlossen — fail-closed, bevor ein Byte gelandet ist.",
+   "provenance": "M",
+   "evidence": [
+    "receipt 0x3f9a…c21",
+    "events.jsonl #4812"
+   ]
+  },
+  {
+   "role": "ikarus",
+   "text": "Zwei Tool-Ausgaben habe ich dir nicht gezeigt: beide enthielten secret-bearing paths. Das ist die einzige Stelle, an der ich heute etwas zurückgehalten habe.",
+   "provenance": "M",
+   "withheld": 2
+  },
+  {
+   "role": "owner",
+   "text": "Und was kostet uns der Rest der Kampagne?"
+  },
+  {
+   "role": "ikarus",
+   "text": "Bei gleichbleibender Rate ~27,5k Tokens — das ist eine Hochrechnung aus 17 Attempts, keine Messung. Kappe liegt bei 40k; der Kill-Switch ist scharf.",
+   "provenance": "I",
+   "evidence": [
+    "ledger.json"
+   ]
+  }
+ ],
+ "knowledge_page": {
+  "title": "Sealed promotion",
+  "plane": "knowledge",
+  "kind": "concept",
+  "body": "No candidate auto-merges or self-promotes. Promotion requires an evidence packet, policy checks, and explicit owner approval. The promotion path is sealed from the candidate: a candidate cannot reach its evaluator, its policy, its ledger, or this mechanism.",
+  "provenance": "Master Plan §4.5 [adopted 2026-07-30]",
+  "backlinks": [
+   "promote_sealed()",
+   "ADR-009 The Grove",
+   "Evidence boundary",
+   "Owner decision #1: 13 doors"
+  ],
+  "open_question": "Approval trust root — owner decision pending"
+ },
+ "lenses": [
+  "structure",
+  "evidence",
+  "cost"
+ ],
+ "projects": [
+  {
+   "id": "daedalus",
+   "name": "Daedalus",
+   "active": true,
+   "watcher": "live",
+   "modules": 149,
+   "islands": 4,
+   "dark": 11
+  },
+  {
+   "id": "project_tct",
+   "name": "TCT scan planner",
+   "active": false,
+   "watcher": "idle",
+   "modules": 62,
+   "islands": 2,
+   "dark": 3
+  },
+  {
+   "id": "lehrstuhl",
+   "name": "Lehrstuhl wiki",
+   "active": false,
+   "watcher": "idle",
+   "modules": 0,
+   "islands": 0,
+   "dark": 0
+  }
+ ],
+ "mission": {
+  "title": "Propagate Event.voltage → bias_voltage across Python, Markdown and CSV",
+  "id": "M-0412",
+  "stages": [
+   {
+    "name": "Intent",
+    "state": "done",
+    "note": "compiled to MissionContract"
+   },
+   {
+    "name": "Plan",
+    "state": "done",
+    "note": "2 work items, 4 planes"
+   },
+   {
+    "name": "Build",
+    "state": "live",
+    "note": "attempt 18 of 20 · Claude lane"
+   },
+   {
+    "name": "Gates",
+    "state": "waiting",
+    "note": "tests · schema · links"
+   },
+   {
+    "name": "Delivery",
+    "state": "waiting",
+    "note": "evidence packet → your decision"
+   },
+   {
+    "name": "Digestion",
+    "state": "waiting",
+    "note": "what the project learned"
+   }
+  ]
+ },
+ "slice": {
+  "state": "warm",
+  "refreshed": "14:02",
+  "tokens_in_slice": 8120,
+  "tokens_full": 112400,
+  "withheld_paths": 2
+ },
+ "lanes": [
+  {
+   "runtime": "Claude",
+   "read": true,
+   "propose": true,
+   "write": "within a mission",
+   "locked": false,
+   "host": "api.anthropic.com"
+  },
+  {
+   "runtime": "Codex",
+   "read": true,
+   "propose": true,
+   "write": "never",
+   "locked": true,
+   "reason": "Codex never writes."
+  },
+  {
+   "runtime": "Gemini",
+   "read": true,
+   "propose": true,
+   "write": "never",
+   "locked": true,
+   "reason": "Gemini never writes."
+  },
+  {
+   "runtime": "Ollama (local)",
+   "read": true,
+   "propose": true,
+   "write": "ask every time",
+   "locked": false,
+   "host": "127.0.0.1:11434",
+   "resolved_host_warning": false
+  }
+ ],
+ "settings": {
+  "route": "Auto",
+  "local_may_leave_machine": false,
+  "spending_ceiling_usd": 2.0,
+  "autonomy": "within a mission",
+  "statements": [
+   "Ikarus proposes. You decide.",
+   "The sensitivity floor is always on.",
+   "Daedalus never holds a key."
+  ],
+  "memory": {
+   "remember_across_sessions": true,
+   "do_not_remember_this_project": false,
+   "retention": "90 days"
+  },
+  "appearance": {
+   "theme": "Auto",
+   "accent": "Blue",
+   "motion": "Calm",
+   "text_size": "Default",
+   "density": "Comfortable"
+  }
+ },
+ "library": {
+  "global": [
+   {
+    "title": "How we review",
+    "path": "library/how-we-review.md"
+   },
+   {
+    "title": "Reading list — evolution",
+    "path": "library/reading-evolution.md"
+   }
+  ],
+  "project_wiki": [
+   {
+    "title": "Sealed promotion",
+    "path": "docs/wiki/sealed-promotion.md",
+    "backlinks": 4
+   },
+   {
+    "title": "Evidence boundary",
+    "path": "docs/wiki/evidence-boundary.md",
+    "backlinks": 7
+   },
+   {
+    "title": "Gate 0 — what exit means",
+    "path": "docs/wiki/gate-0.md",
+    "backlinks": 3
+   }
+  ],
+  "module_pages": [
+   {
+    "module": "daedalus/policy/enforce.py",
+    "auto": {
+     "fan_in": 23,
+     "fan_out": 4,
+     "churn_30d": 11,
+     "complexity": "B"
+    },
+    "notes": "Write-root checks are the last line; everything above is advisory. Do not add a second allowlist here — extend tool-allowances.json instead."
+   },
+   {
+    "module": "daedalus/ledger.py",
+    "auto": {
+     "fan_in": 9,
+     "fan_out": 2,
+     "churn_30d": 3,
+     "complexity": "A"
+    },
+    "notes": ""
+   }
+  ]
+ },
+ "council": [
+  {
+   "vendor": "Codex",
+   "text": "The receipt schema should carry the evaluator version; without it a replay cannot prove it ran the same gate."
+  },
+  {
+   "vendor": "Gemini",
+   "text": "I would not add the evaluator version to the receipt — it belongs to the EvidencePacket, otherwise every receipt repeats it."
+  },
+  {
+   "vendor": "Ollama · qwen2.5-coder",
+   "text": "No objection to either; the test fixture does not exercise this path."
+  }
+ ],
+ "palette": [
+  {
+   "verb": "Distill",
+   "hint": "focus the slice on a module"
+  },
+  {
+   "verb": "Focus",
+   "hint": "bring a module into view"
+  },
+  {
+   "verb": "Canary",
+   "hint": "run the cheap smoke on the current attempt"
+  },
+  {
+   "verb": "Council",
+   "hint": "ask the other vendors, verbatim"
+  },
+  {
+   "verb": "Doctor",
+   "hint": "check lanes, hosts and keys"
+  },
+  {
+   "verb": "Open page",
+   "hint": "knowledge library"
+  },
+  {
+   "verb": "Find module",
+   "hint": "149 modules"
+  }
+ ],
+ "status": {
+  "lane": "Claude",
+  "resolved_host": "api.anthropic.com",
+  "spend_today_usd": 0.41,
+  "tokens_today": 12480
+ }
+}

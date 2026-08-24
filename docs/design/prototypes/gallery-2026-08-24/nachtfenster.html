@@ -1,0 +1,388 @@
+<!-- nachtfenster · Das Nachtfenster · Boring discipline done with love: a four-pane night window where the table and the map are the same object seen twice. -->
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Daedalus — Das Nachtfenster</title>
+<style>
+  :root{
+    --bg-top:#0a0a0f; --bg-bot:#020203;
+    --elev:#0a0a0c; --elev2:#0d0d11;
+    --hair:rgba(255,255,255,.08);
+    --hair-soft:rgba(255,255,255,.05);
+    --txt:#e9e9ef; --txt2:#a6a6b4; --txt3:#82828f;
+    --accent:#5E6AD2; --accent-text:#9aa3ec;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;
+    --r:16px; --r-s:10px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1440px;height:900px;overflow:hidden}
+  body{
+    background:linear-gradient(180deg,var(--bg-top) 0%,var(--bg-bot) 100%);
+    color:var(--txt);
+    font:400 13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  code{font-family:var(--mono);font-size:.92em;background:rgba(255,255,255,.06);
+    border:1px solid var(--hair-soft);border-radius:5px;padding:1px 5px;color:#d6d9f2}
+
+  /* ---------- frame ---------- */
+  .topbar{height:52px;display:flex;align-items:center;gap:14px;padding:0 20px;
+    border-bottom:1px solid var(--hair)}
+  .wordmark{font-weight:600;font-size:13.5px;letter-spacing:.01em}
+  .tb-sep{width:1px;height:16px;background:var(--hair)}
+  .tb-item{color:var(--txt2);font-size:12.5px}
+  .tb-item code{background:none;border:none;padding:0;color:var(--txt2)}
+  .tb-right{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--txt2);font-size:12.5px}
+  .gate-chip{border:1px solid var(--hair);border-radius:999px;padding:3px 10px;font-size:11.5px;color:var(--txt2)}
+
+  .main{display:grid;grid-template-columns:216px 360px 1fr 240px;height:848px}
+
+  /* ---------- sidebar ---------- */
+  .side{border-right:1px solid var(--hair);padding:18px 14px;display:flex;flex-direction:column;gap:26px}
+  .eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--txt3);margin-bottom:10px;padding-left:8px}
+  .proj{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--r-s);
+    color:var(--txt2);font-size:13px;min-height:36px}
+  .proj.active{background:rgba(255,255,255,.05);color:var(--txt);border:1px solid var(--hair-soft)}
+  .proj .n{margin-left:auto;font-size:11.5px;color:var(--txt3);font-family:var(--mono)}
+  .stage-list{display:flex;flex-direction:column;gap:2px}
+  .mstage{display:flex;align-items:center;gap:10px;padding:6px 10px;font-size:12.5px;color:var(--txt3)}
+  .mstage .glyph{width:16px;text-align:center;font-size:11px;color:var(--txt3)}
+  .mstage.done{color:var(--txt2)} .mstage.done .glyph{color:var(--txt2)}
+  .mstage.now{color:var(--txt)} .mstage.now .glyph{color:var(--accent-text)}
+  .side-foot{margin-top:auto;padding:0 8px;color:var(--txt3);font-size:11.5px}
+
+  /* ---------- conversation ---------- */
+  .conv{border-right:1px solid var(--hair);display:flex;flex-direction:column}
+  .conv-head{height:56px;display:flex;align-items:center;gap:10px;padding:0 20px;
+    border-bottom:1px solid var(--hair-soft)}
+  .conv-head .t{font-weight:600;font-size:13.5px}
+  .conv-head .s{color:var(--txt3);font-size:12px}
+  .thread{flex:1;padding:20px;display:flex;flex-direction:column;justify-content:flex-end;gap:18px;overflow:hidden}
+  .msg .who{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--txt3);margin-bottom:6px}
+  .msg .body{font-size:13.5px;line-height:1.6;color:var(--txt)}
+  .msg.you .body{color:var(--txt2)}
+  .stamp-row{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .stamp{font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--accent-text);
+    border:1px solid rgba(94,106,210,.35);border-radius:5px;padding:2px 7px}
+  .stamp-note{font-size:11.5px;color:var(--txt3)}
+
+  .decision{background:var(--elev);border:1px solid var(--hair);border-radius:var(--r);
+    padding:16px;margin-top:2px}
+  .decision .eyebrow{padding-left:0;margin-bottom:8px}
+  .decision p{font-size:13px;line-height:1.55;color:var(--txt)}
+  .decision .sub{color:var(--txt2)}
+  .dec-actions{display:flex;gap:8px;margin-top:14px}
+  .btn{min-height:44px;padding:0 18px;border-radius:11px;font-size:13px;font-weight:500;
+    display:inline-flex;align-items:center;justify-content:center;cursor:pointer;border:none}
+  .btn-primary{background:var(--accent);color:#fff;flex:1;
+    box-shadow:0 0 26px rgba(94,106,210,.42),0 1px 0 rgba(255,255,255,.12) inset}
+  .btn-ghost{background:transparent;color:var(--txt2);border:1px solid var(--hair)}
+  .btn-text{background:transparent;color:var(--txt3);padding:0 12px}
+
+  .composer{padding:14px 20px 18px;border-top:1px solid var(--hair-soft)}
+  .input{min-height:46px;background:var(--elev);border:1px solid var(--hair);border-radius:12px;
+    display:flex;align-items:center;padding:0 14px;gap:1px}
+  .caret{width:1.5px;height:17px;background:var(--accent-text);animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{0%,60%{opacity:1}61%,100%{opacity:.15}}
+  .placeholder{color:var(--txt3);font-size:13px;margin-left:6px}
+  .input .send{margin-left:auto;color:var(--txt3);font-size:11.5px;font-family:var(--mono)}
+
+  /* ---------- stage ---------- */
+  .stage{padding:20px 22px;display:flex;flex-direction:column;min-width:0}
+  .stage-head{display:flex;align-items:baseline;gap:14px;padding-bottom:16px}
+  .stage-head h1{font-size:15px;font-weight:600;letter-spacing:.01em}
+  .stage-head h1 code{font-size:14px;background:rgba(255,255,255,.05)}
+  .stage-nums{margin-left:auto;color:var(--txt2);font-size:12.5px;white-space:nowrap}
+  .stage-nums b{font-weight:600;color:var(--txt)}
+  .stage-body{flex:1;display:grid;grid-template-columns:1fr 1px 1.06fr;gap:0;
+    background:var(--elev);border:1px solid var(--hair);border-radius:var(--r);min-height:0}
+  .vsep{background:var(--hair-soft)}
+
+  .rank{padding:18px 18px 16px;display:flex;flex-direction:column;min-width:0}
+  .rank-head{display:flex;justify-content:space-between;font-size:10.5px;font-weight:600;
+    letter-spacing:.09em;text-transform:uppercase;color:var(--txt3);
+    padding:0 10px 10px;border-bottom:1px solid var(--hair-soft)}
+  .rows{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;padding:6px 0}
+  .row{display:flex;flex-direction:column;gap:8px;padding:14px 10px;border-radius:var(--r-s);
+    border:1px solid transparent}
+  .row .line{display:flex;align-items:baseline;gap:8px}
+  .row .idx{font-family:var(--mono);font-size:10.5px;color:var(--txt3);width:14px}
+  .row .name{font-family:var(--mono);font-size:12.5px;color:var(--txt)}
+  .row .tag{margin-left:auto;font-size:10.5px;color:var(--txt3);white-space:nowrap}
+  .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.06);margin-left:22px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:2px;background:rgba(94,106,210,.55)}
+  .row.hot{background:rgba(94,106,210,.09);border-color:rgba(94,106,210,.28)}
+  .row.hot .bar i{background:var(--accent)}
+  .row.hot .tag{color:var(--accent-text)}
+  .legend{padding:14px 10px 2px;border-top:1px solid var(--hair-soft);
+    display:flex;flex-direction:column;gap:7px;font-size:11.5px;color:var(--txt3)}
+  .lg{display:flex;align-items:center;gap:9px}
+  .dot1{width:8px;height:8px;border-radius:50%;background:#c9cde9}
+  .dot2{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.25)}
+  .dashline{width:20px;height:0;border-top:1.5px dashed rgba(255,255,255,.35)}
+
+  .map{padding:14px 10px;display:flex;align-items:center;justify-content:center;min-width:0}
+  .map svg{width:100%;height:100%;max-height:720px}
+
+  /* ---------- inspector ---------- */
+  .insp{border-left:1px solid var(--hair);padding:18px 16px;display:flex;flex-direction:column;gap:24px}
+  .insp .eyebrow{padding-left:2px}
+  .kv{display:flex;flex-direction:column;gap:11px;padding:0 2px}
+  .kv .k{font-size:11px;color:var(--txt3)}
+  .kv .v{font-size:12.5px;color:var(--txt)}
+  .kv .v.mono{font-family:var(--mono);font-size:11.5px}
+  .budget-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.07);margin-top:6px}
+  .budget-bar i{display:block;height:100%;width:20.5%;border-radius:2px;background:var(--accent)}
+  .pairline{display:flex;justify-content:space-between;align-items:baseline}
+  .kswitch{display:flex;align-items:center;gap:8px;font-size:12.5px}
+  .kswitch .led{width:7px;height:7px;border-radius:50%;background:#d8d8e2;
+    box-shadow:0 0 0 3px rgba(255,255,255,.07)}
+  .insp-foot{margin-top:auto;border-top:1px solid var(--hair-soft);padding-top:12px}
+  .foot-btn{width:100%;min-height:44px;background:transparent;border:1px solid var(--hair);
+    border-radius:11px;color:var(--txt2);font-size:12.5px;font-weight:500;cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-family:inherit}
+  .foot-btn .chev{color:var(--txt3)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="wordmark">Daedalus</span>
+  <span class="tb-sep"></span>
+  <span class="tb-item">Projekt Daedalus&nbsp;·&nbsp;<code>r7c2e1a</code></span>
+  <div class="tb-right">
+    <span class="gate-chip">Gate 0 · Kanonischer Kern</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- sidebar -->
+  <nav class="side">
+    <div>
+      <div class="eyebrow">Projekte</div>
+      <div class="proj active">Daedalus <span class="n">149</span></div>
+      <div class="proj">TCT scan planner <span class="n">62</span></div>
+      <div class="proj">Lehrstuhl wiki <span class="n">—</span></div>
+    </div>
+    <div>
+      <div class="eyebrow">Mission</div>
+      <div class="stage-list">
+        <div class="mstage done"><span class="glyph">✓</span>Intent</div>
+        <div class="mstage done"><span class="glyph">✓</span>Plan</div>
+        <div class="mstage now"><span class="glyph">●</span>Build</div>
+        <div class="mstage"><span class="glyph">·</span>Gates</div>
+        <div class="mstage"><span class="glyph">·</span>Delivery</div>
+        <div class="mstage"><span class="glyph">·</span>Digestion</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- conversation -->
+  <section class="conv">
+    <div class="conv-head">
+      <span class="t">Ikarus</span>
+      <span class="s">antwortet aus gemessener Evidenz</span>
+    </div>
+    <div class="thread">
+      <div class="msg you">
+        <div class="who">Du</div>
+        <div class="body">Was passiert, wenn ich <code>enforce.write_root()</code> ändere?</div>
+      </div>
+      <div class="msg">
+        <div class="who">Ikarus</div>
+        <div class="body">Direkt betroffen sind 23 Aufrufer in 9 Modulen; über zwei Ebenen
+          61 Dateien. Der teuerste Pfad läuft über <code>Attempt.run()</code> in die Gates.</div>
+        <div class="stamp-row">
+          <span class="stamp">GEMESSEN</span>
+          <span class="stamp-note">aus dem Forest dieser Revision</span>
+        </div>
+      </div>
+
+      <div class="decision">
+        <div class="eyebrow">Entscheidung</div>
+        <p>Attempt 18 wartet auf dich — auf der Claude-Lane fertig, für die Gates
+          vorgeschlagen. <span class="sub">Beides widerrufbar.</span></p>
+        <div class="dec-actions">
+          <button class="btn btn-primary">Annehmen</button>
+          <button class="btn btn-ghost">Ablehnen</button>
+          <button class="btn btn-text">Warum</button>
+        </div>
+      </div>
+    </div>
+    <div class="composer">
+      <div class="input">
+        <span class="caret"></span>
+        <span class="placeholder">Frag Ikarus …</span>
+        <span class="send">⏎</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- stage -->
+  <section class="stage">
+    <div class="stage-head">
+      <h1>Nachbarschaft von <code>enforce.write_root()</code></h1>
+      <span class="stage-nums"><b>17</b> direkt&nbsp;·&nbsp;<b>61</b> über zwei Ebenen</span>
+    </div>
+    <div class="stage-body">
+
+      <!-- ranked table -->
+      <div class="rank">
+        <div class="rank-head"><span>Betroffene Datei</span><span>Pfadgewicht</span></div>
+        <div class="rows">
+        <div class="row hot">
+          <div class="line"><span class="idx">1</span><span class="name">Attempt.run()</span><span class="tag">teuerster Pfad → Gates</span></div>
+          <div class="bar"><i style="width:100%"></i></div>
+        </div>
+        <div class="row">
+          <div class="line"><span class="idx">2</span><span class="name">vet.py</span></div>
+          <div class="bar"><i style="width:71%"></i></div>
+        </div>
+        <div class="row">
+          <div class="line"><span class="idx">3</span><span class="name">promote_sealed()</span></div>
+          <div class="bar"><i style="width:57%"></i></div>
+        </div>
+        <div class="row">
+          <div class="line"><span class="idx">4</span><span class="name">Ledger.charge()</span></div>
+          <div class="bar"><i style="width:44%"></i></div>
+        </div>
+        <div class="row">
+          <div class="line"><span class="idx">5</span><span class="name">EvidencePacket.seal()</span></div>
+          <div class="bar"><i style="width:32%"></i></div>
+        </div>
+        <div class="row">
+          <div class="line"><span class="idx">6</span><span class="name">tool-allowances.json</span></div>
+          <div class="bar"><i style="width:18%"></i></div>
+        </div>
+        </div>
+        <div class="legend">
+          <div class="lg"><span class="dot1"></span>Ebene 1 — direkte Aufrufer</div>
+          <div class="lg"><span class="dot2"></span>Ebene 2 — gedimmt</div>
+          <div class="lg"><span class="dashline"></span>Kante unbestätigt</div>
+        </div>
+      </div>
+
+      <div class="vsep"></div>
+
+      <!-- mirrored node map -->
+      <div class="map">
+        <svg viewBox="0 0 300 600" role="img" aria-label="Nachbarschaftskarte von enforce.write_root()">
+          <!-- level-2 edges -->
+          <g stroke="rgba(255,255,255,.10)" stroke-width="1">
+            <line x1="210" y1="152" x2="258" y2="92"/>
+            <line x1="210" y1="152" x2="282" y2="170"/>
+            <line x1="80"  y1="180" x2="35"  y2="120"/>
+            <line x1="80"  y1="180" x2="95"  y2="95"/>
+            <line x1="245" y1="308" x2="280" y2="380"/>
+            <line x1="215" y1="455" x2="255" y2="520"/>
+            <line x1="48"  y1="268" x2="25"  y2="205"/>
+          </g>
+          <!-- unverified dashed edge -->
+          <line x1="90" y1="430" x2="60" y2="540" stroke="rgba(255,255,255,.32)"
+                stroke-width="1.3" stroke-dasharray="4 4"/>
+          <!-- level-1 edges -->
+          <g stroke="rgba(255,255,255,.16)" stroke-width="1.2">
+            <line x1="150" y1="300" x2="80"  y2="180"/>
+            <line x1="150" y1="300" x2="245" y2="308"/>
+            <line x1="150" y1="300" x2="215" y2="455"/>
+            <line x1="150" y1="300" x2="90"  y2="430"/>
+            <line x1="150" y1="300" x2="48"  y2="268"/>
+          </g>
+          <!-- hot edge mirrors row 1 -->
+          <line x1="150" y1="300" x2="210" y2="152" stroke="rgba(94,106,210,.75)" stroke-width="1.8"/>
+
+          <!-- level-2 nodes -->
+          <g fill="rgba(255,255,255,.24)">
+            <circle cx="258" cy="92"  r="3.5"/>
+            <circle cx="282" cy="170" r="3.5"/>
+            <circle cx="35"  cy="120" r="3.5"/>
+            <circle cx="95"  cy="95"  r="3.5"/>
+            <circle cx="280" cy="380" r="3.5"/>
+            <circle cx="255" cy="520" r="3.5"/>
+            <circle cx="60"  cy="540" r="3.5"/>
+            <circle cx="25"  cy="205" r="3.5"/>
+          </g>
+
+          <!-- level-1 nodes -->
+          <g fill="#c9cde9">
+            <circle cx="80"  cy="180" r="5"/>
+            <circle cx="245" cy="308" r="5"/>
+            <circle cx="215" cy="455" r="5"/>
+            <circle cx="90"  cy="430" r="5"/>
+            <circle cx="48"  cy="268" r="5"/>
+          </g>
+          <!-- hot node -->
+          <circle cx="210" cy="152" r="5.5" fill="#aab2f0"/>
+          <circle cx="210" cy="152" r="10" fill="none" stroke="rgba(94,106,210,.55)" stroke-width="1.3"/>
+
+          <!-- center -->
+          <circle cx="150" cy="300" r="7" fill="#e9e9ef"/>
+          <circle cx="150" cy="300" r="13" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+
+          <!-- labels -->
+          <g font-family="ui-monospace,'Cascadia Code',Consolas,monospace" font-size="11">
+            <text x="150" y="326" text-anchor="middle" fill="#e9e9ef">enforce.write_root()</text>
+            <text x="210" y="133" text-anchor="middle" fill="#aab2f0">Attempt.run()</text>
+            <text x="80"  y="163" text-anchor="middle" fill="#b4b4c2">vet.py</text>
+            <text x="292" y="290" text-anchor="end"    fill="#b4b4c2">promote_sealed()</text>
+            <text x="215" y="478" text-anchor="middle" fill="#b4b4c2">Ledger.charge()</text>
+            <text x="90"  y="416" text-anchor="middle" fill="#b4b4c2">EvidencePacket.seal()</text>
+            <text x="20"  y="249" text-anchor="start"  fill="#b4b4c2">tool-allowances.json</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- inspector -->
+  <aside class="insp">
+    <div>
+      <div class="eyebrow">Lane</div>
+      <div class="kv">
+        <div>
+          <div class="k">Aktive Lane</div>
+          <div class="v">Claude</div>
+        </div>
+        <div>
+          <div class="k">Endpunkt</div>
+          <div class="v mono">api.anthropic.com</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="eyebrow">Budget heute</div>
+      <div class="kv">
+        <div>
+          <div class="pairline"><span class="v">$0.41</span><span class="k">von $2.00</span></div>
+          <div class="budget-bar"><i></i></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="eyebrow">Schutz</div>
+      <div class="kv">
+        <div>
+          <div class="v">2 zurückgehalten</div>
+          <div class="k">Pfade mit Secrets</div>
+        </div>
+        <div class="kswitch"><span class="led"></span>Kill switch scharf</div>
+      </div>
+    </div>
+    <div>
+      <div class="eyebrow">Attempts</div>
+      <div class="kv">
+        <div class="pairline"><span class="v">3 live</span><span class="k">17 done</span></div>
+      </div>
+    </div>
+    <div class="insp-foot">
+      <button class="foot-btn">Protokoll der Lane ansehen <span class="chev">›</span></button>
+    </div>
+  </aside>
+
+</div>
+</body>
+</html>
