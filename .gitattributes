@@ -70,6 +70,19 @@ tests/fixtures/ignition/voltage/** -text
 runs/ignition/**/store/** -text
 runs/ignition/**/store/blobs/** -diff
 
+# Retained raw traces and negative run evidence are byte-exact measurements,
+# not platform-native text. Keep checkout conversion and textual diff drivers
+# away from the large raw streams; small inventory summaries remain diffable.
+runs/loop/ignition_trace_*.jsonl -text -diff
+runs/watchdog/mission-20260823/pathsens-*-3fd5fd5e-raw.txt -text -diff
+runs/watchdog/mission-20260823/suite-discovery-*-raw.txt -text -diff
+runs/watchdog/mission-20260823/suite-redfiles-*-raw.txt -text -diff
+runs/watchdog/mission-20260823/suite-redfiles-*-stderr.txt -text -diff
+runs/watchdog/mission-20260823/suite-21f21f2a-* -text -diff
+runs/watchdog/mission-20260823/pathsens_files.txt -text
+runs/watchdog/mission-20260823/redfiles.txt -text
+runs/watchdog/mission-20260823/suite-run2-head-at-start.txt -text
+
 # The head-revision integration review (tests/gates/
 # test_repository_head_revision_integration_review.py) pins these two by RAW
 # byte blob sha. Unpinned, core.autocrlf=true materialised them with CRLF in

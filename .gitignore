@@ -111,10 +111,9 @@ tests/_looptmp/
 runs/hooks/
 runs/arch_memory.shown
 
-# Local kernel evidence stores and raw loop syscall traces are reproducible
-# runtime state.  Gate-exit receipts remain explicitly tracked below/elsewhere.
+# Local kernel evidence stores are reproducible runtime state. Gate-exit
+# receipts and referenced raw traces remain tracked below/elsewhere.
 runs/kernel/evidence-store/
-runs/loop/*.jsonl
 
 # Local unification safety snapshots. Any unique evidence must be recovered
 # into its canonical tracked location before the snapshot is discarded.
@@ -125,6 +124,13 @@ runs/unification-backup-*/
 vault/.obsidian/appearance.json
 vault/.obsidian/graph.json
 vault/.obsidian/themes/
+
+# Superseded 2026-08-22 recovery exports. Their effective changes and unique
+# session evidence are already present in tracked history/canonical vault notes.
+docs/recovery/amendment_003_commitmsg.txt
+docs/recovery/amendment_003_serena_first_kit.py
+docs/recovery/docs_sweep_2026_08_22_commitmsg.txt
+docs/recovery/cleanup_2026-08-22/
 
 # watchdog run state (tools/watchdog.py); the mission ledgers runs/watchdog/mission-*/ stay tracked
 runs/watchdog/state.json

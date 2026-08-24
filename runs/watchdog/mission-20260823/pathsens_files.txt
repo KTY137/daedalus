@@ -1,0 +1,9 @@
+tests/test_spine_attempt.py
+tests/test_spine_attempt_containment.py
+tests/test_worktree.py
+tests/test_worktree_properties.py
+tests/test_killswitch.py
+tests/test_killswitch_profile_root.py
+tests/test_killswitch_control_root.py
+tests/test_loop_governance_head.py
+tests/test_mapping_cli.py

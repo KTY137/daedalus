@@ -1,0 +1,38 @@
+{
+  "schema": "daedalus.retained-trace/1",
+  "trace_path": "runs/loop/ignition_trace_9887a98e.jsonl",
+  "source_revision": "9887a98ecd74d49ba7f78df0553ad485c2afbd32",
+  "sha256": "b2f4c18f74e9369639d565d7aa7df6ab1c8bb6f3e74d9c5d3acffdf91099bdfa",
+  "byte_length": 1932519,
+  "event_count": 5926,
+  "json_parse_errors": 0,
+  "classification": "retained_negative_evidence",
+  "retention_reason": "The tracked blocker and watchdog progress record refer to this raw audit trace; without it the complete measurement is not cloneable.",
+  "references": [
+    "runs/loop/blocker_9887a98e.json",
+    "runs/watchdog/mission-20260822/PROGRESS.md"
+  ],
+  "contains_local_path_markers": true,
+  "credential_scan_result": "no credential pattern hit",
+  "event_counts": {
+    "os.remove": 5521,
+    "os.rmdir": 287,
+    "os.mkdir": 42,
+    "open:write": 34,
+    "subprocess.Popen": 20,
+    "os.rename": 6,
+    "guard.install_process_guard:exit": 2,
+    "os.link": 2,
+    "guard.install_process_guard:enter": 2,
+    "loop.LoopDriver.run:exit": 1,
+    "loop.main:enter": 1,
+    "wrapper.summary": 1,
+    "wrapper.hook_installed": 1,
+    "picker.build_queue:enter": 1,
+    "wrapper.import_end": 1,
+    "picker.build_queue:exit": 1,
+    "wrapper.import_begin": 1,
+    "loop.main:exit": 1,
+    "loop.LoopDriver.run:enter": 1
+  }
+}
