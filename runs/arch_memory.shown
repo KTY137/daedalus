@@ -1,5 +1,5 @@
-ARCH MEMORY IS STALE: built at 30880377, HEAD is now 2e7dc1ba -- rebuild: python -m daedalus.arch_memory
-ARCHITECTURE: STALE -- measured at 79553172, HEAD is 30880377
+ARCH MEMORY IS STALE: built at 3e758392, HEAD is now 6225d3e4 -- rebuild: python -m daedalus.arch_memory
+ARCHITECTURE: STALE -- measured at 79553172, HEAD is 3e758392
   144 modules | 8 islands | 3 shims | 12 unreached · 2 doc-drift
 PACKAGES
   adapters    universal interface for CLI agent runtimes
