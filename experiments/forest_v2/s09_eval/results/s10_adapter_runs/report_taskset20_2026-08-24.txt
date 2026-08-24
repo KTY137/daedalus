@@ -1,0 +1,191 @@
+==============================================================================
+Forest v2 kill-criteria evaluation (master plan section 14)
+==============================================================================
+ADVISORY -- this report gates nothing, promotes nothing and blocks nothing. A
+KILL is a proposal to open an amendment (plan section 15), not an action.
+
+run              s09-taskset20@d849c2a9-adapted-2026-08-24
+source           real s09_eval harness run, input experiments/forest_v2/s09_eval/results/s10_adapter_runs/raw_taskset20_2026-08-24.json, adapted at repo HEAD 7d4689db1311480cb04b18f315152effcc3943f3 by experiments/forest_v2/s09_eval/to_s10.py; excluded arms and why -- recency_prior: s09's own README calls this the strongest baseline measured in the program ('leads every column'), and it is query-blind by design -- but s10's role vocabulary (full/fusion/code_only/bm25/rewired/separate_indices/graph_priority/random_priority/evaluator_only/token_matched) has no slot for a query-blind churn prior. Forcing it into any of those roles would misdescribe the mechanism, so it is left out and named here instead of silently dropped.; path_lexical: scores path-token overlap with the query only; not restricted to one Project-Twin plane and not a fusion mechanism, so it has no honest s10 role either.; bm25_content_only: the same BM25 index as 'bm25' with path tokens stripped from the document -- a second real, measured arm, but s10 has no role for 'this role's own document-composition ablation', and giving it the same role as 'bm25' at the same variant would collide in ResultSet.find() (which treats >1 arm per (role, variant) as an error, not a coin flip).; no cross-plane fusion retriever exists anywhere in this program: s07 ships a lexical index only, s08 ships LexicalRetriever / CodeGraphRetriever / FourPlaneNoFusionRetriever / UnionNoFusionRetriever / SinglePlaneOracleRetriever (none of them combines per-plane scores), s09 ships random_uniform / path_lexical / bm25 / bm25_content_only / recency_prior. s10_kill/measured_inputs.py records the identical fact about s08 independently; this is not a new finding, it is the same one confirmed a third time.
+primary metric   reciprocal_rank   (declared in the input, not chosen here)
+cases / seeds    20 / 1
+roles present    bm25, random_priority
+decision rule    CI95 percentile bootstrap (10000 resamples, seed 20260818), equivalence margin +/-0.02, min_cases 10
+coverage         0 of 16 plan criteria decidable from this run (0.0%)
+verdicts         KEEP 0  KILL 0  INCONCLUSIVE 0  UNDECIDABLE 2  NOT_EVALUABLE 14
+register         verified 1:1 against C:\Users\nukei\Desktop\agent_env.worktrees\heracles-s09-s10-adapter\docs\IKARUS_ARIADNE_MASTER_PLAN.md section 14
+                 (16 bullets, plan sha256 01df5d2e47df)
+
+------------------------------------------------------------------------------
+ARMS AS LABELLED  (criteria select by role -- check the labels)
+------------------------------------------------------------------------------
+  bm25               bm25/raw
+       s09_eval baseline 'bm25', real harness output (not a rebuild from
+       aggregates); reciprocal_rank per case under the harness's
+       budget-equality rules, identical candidate universe and content cap
+       as every other arm in the same run
+  bm25               bm25/scrubbed
+       s09_eval baseline 'bm25', real harness output (not a rebuild from
+       aggregates); reciprocal_rank per case under the harness's
+       budget-equality rules, identical candidate universe and content cap
+       as every other arm in the same run
+  random_priority    random_uniform/raw
+       s09_eval baseline 'random_uniform', real harness output (not a
+       rebuild from aggregates); reciprocal_rank per case under the
+       harness's budget-equality rules, identical candidate universe and
+       content cap as every other arm in the same run
+  random_priority    random_uniform/scrubbed
+       s09_eval baseline 'random_uniform', real harness output (not a
+       rebuild from aggregates); reciprocal_rank per case under the
+       harness's budget-equality rules, identical candidate universe and
+       content cap as every other arm in the same run
+
+------------------------------------------------------------------------------
+GOLD-LABEL PLANE x PLANE EACH ARM CAN RETURN
+(a comparison can only move where a gold label and both arms' reach overlap)
+
+  plane        docs   gold   arms (Y = in index scope, . = out of scope, ? = undeclared)
+  --------------------------------------------------------------------------
+  code            -     17   bm25/raw=Y, bm25/scrubbed=Y, random_uniform/raw=Y, random_uniform/scrubbed=Y
+  type            -      0   bm25/raw=., bm25/scrubbed=., random_uniform/raw=., random_uniform/scrubbed=.   <-- never a retrieval target
+  data            -      0   bm25/raw=Y, bm25/scrubbed=Y, random_uniform/raw=Y, random_uniform/scrubbed=Y   <-- never a retrieval target
+  knowledge       -      0   bm25/raw=Y, bm25/scrubbed=Y, random_uniform/raw=Y, random_uniform/scrubbed=Y   <-- never a retrieval target
+  3 of 20 cases carry no declared gold plane
+  planes that are never a retrieval target in this run: type, data, knowledge
+
+------------------------------------------------------------------------------
+PREJUDICE PER PRIOR
+------------------------------------------------------------------------------
+[XXXX] four_plane_project_twin  (0/9 decidable)
+      no criterion for this prior could be decided, and 2 of them (14.2, 14.3)
+      could not be decided by this data at any sample size -- the object the
+      criterion names, or the observation that would separate the arms, is
+      absent from the input. A larger run of the same data would only narrow the
+      intervals around a comparison that cannot move
+      not asked by this run (no control arm shipped): 14.1, 14.4, 14.7, 14.9,
+      14.12
+      UNDECIDABLE on this data at any sample size: 14.2, 14.3
+[ -- ] genesis_motif_composition  (0/2 decidable)
+      no criterion for this prior could be decided from this run
+[ -- ] graph_conditioned_context  (0/2 decidable)
+      no criterion for this prior could be decided from this run
+      not asked by this run (no control arm shipped): 14.6, 14.8
+[ -- ] latent_cross_plane_discovery  (0/1 decidable)
+      no criterion for this prior could be decided from this run
+[ -- ] orchestration_evolution  (0/1 decidable)
+      no criterion for this prior could be decided from this run
+[ -- ] repository_corpus_reuse  (0/1 decidable)
+      no criterion for this prior could be decided from this run
+
+------------------------------------------------------------------------------
+CRITERIA
+------------------------------------------------------------------------------
+[ -- ] 14.1  full_beats_code_only_and_bm25  NOT_EVALUABLE
+       "the full representation does not beat code-only or BM25 retrieval"
+       run lacks the arms this criterion compares (variant 'raw')
+       missing: full, code_only
+
+[XXXX] 14.2  rewired_cross_plane_edges_equivalent  UNDECIDABLE
+       "degree-preserving randomized cross-plane edges perform equivalently"
+       the run declares no graph census, so the number of cross-plane edges in
+       the graph under test is unknown; 14.2 is about cross-plane edges and
+       cannot be evaluated without counting them
+       ! corpus.graph: absent
+
+[XXXX] 14.3  four_indices_equal_fusion  UNDECIDABLE
+       "four independent indices perform equivalently to cross-plane fusion"
+       no arm in this run is a cross-plane fusion retriever, and there is no
+       fallback to another role: criterion 14.3 names fusion as its treatment,
+       so without one it has a single arm and cannot be decided at any sample
+       size
+       ! role 'fusion': absent
+
+[ -- ] 14.4  plane_has_no_marginal_contribution  NOT_EVALUABLE
+       "a plane has no marginal contribution in ablation"
+       run carries no plane ablation arms
+       missing: full
+
+[ -- ] 14.5  graph_movement_predicts_behaviour  NOT_EVALUABLE
+       "graph movement does not predict or cause behavioral improvement"
+       needs paired graph-delta and behavioural-outcome records; a retrieval
+       result set contains no behavioural outcome
+
+[ -- ] 14.6  graph_priority_beats_random_or_evaluator_only  NOT_EVALUABLE
+       "graph-conditioned prioritization does not beat random or evaluator-only
+       choice"
+       run carries no graph-conditioned prioritization arm with a control
+       missing: graph_priority
+
+[ -- ] 14.7  gain_vanishes_after_leakage_scrub  NOT_EVALUABLE
+       "the gain disappears after temporal and knowledge-leakage scrubbing"
+       the full arm and a baseline must both appear on the raw and scrubbed
+       variants
+       missing: full/scrubbed, baseline/scrubbed
+
+[ -- ] 14.8  extra_tokens_explain_the_gain  NOT_EVALUABLE
+       "extra context tokens explain the whole gain"
+       run has no token-matched baseline (a baseline handed the same extra
+       budget)
+       missing: full, token_matched
+
+[ -- ] 14.9  cost_worsens_quality_cost_frontier  NOT_EVALUABLE
+       "graph construction/query cost worsens the quality/cost frontier"
+       run lacks a full arm and a cheap baseline to price against
+       missing: full
+
+[ -- ] 14.10  revision_atomic_snapshot_cost  NOT_EVALUABLE
+       "revision-atomic snapshots cannot be maintained at usable cost"
+       needs snapshot build/maintenance cost telemetry per revision, which this
+       format does not carry
+
+[ -- ] 14.11  embedding_precision_after_verification  NOT_EVALUABLE
+       "embedding proposals cannot achieve useful precision after verification
+       cost"
+       needs proposal-level precision and verifier cost, not ranked file lists
+
+[ -- ] 14.12  benefit_vanishes_on_held_out  NOT_EVALUABLE
+       "benefits disappear on held-out repositories, under equal context
+       budgets, or in cross-project transfer"
+       run declares no in_domain / held_out case groups
+       missing: case_groups.held_out, case_groups.in_domain
+
+[ -- ] 14.13  motif_composition_beats_direct  NOT_EVALUABLE
+       "motif composition does not outperform direct generation after
+       equalizing model, tokens, repair budget, and evaluator access"
+       needs generation trials with a build/repair ladder; out of scope for a
+       retrieval measurement
+
+[ -- ] 14.14  genesis_roundtrip_predicts_buildable  NOT_EVALUABLE
+       "Genesis round-trip conformance fails to predict buildable, usable
+       software"
+       needs round-trip conformance and build outcomes
+
+[ -- ] 14.15  corpus_licensing_provenance_blocks_reuse  NOT_EVALUABLE
+       "corpus licensing/provenance or extraction cost prevents reproducible
+       reuse"
+       needs per-document corpus ingestion metadata -- source repository,
+       revision, license, temporal cutoff, extraction version and extraction
+       cost (plan sections 5 and 9.1) -- none of which a retrieval result set
+       carries. This criterion is not about ranking at all, so no result set of
+       this schema can ever decide it; deciding it needs a corpus manifest
+       audit, which is a different instrument. Recorded rather than dropped:
+       the first version of this register omitted it entirely and shrank its
+       own denominator by doing so
+
+[ -- ] 14.16  orchestration_evolution_transfer  NOT_EVALUABLE
+       "orchestration evolution gains vanish when evaluated on unseen
+       repositories and fixed models"
+       needs orchestration campaign results across repositories
+
+------------------------------------------------------------------------------
+Absence of a difference is not evidence of equivalence: an INCONCLUSIVE
+verdict means the run was too small or too noisy to decide, and must not
+be read as a pass. Underpowered and budget-asymmetric comparisons are
+withheld rather than reported as results.
+
+UNDECIDABLE is not INCONCLUSIVE. INCONCLUSIVE says this data could have
+decided and did not, so a larger run would help. UNDECIDABLE says this
+data could never decide it: the object the criterion names, or the
+observation that separates the two arms, is not in the input. Enlarging
+such a run shrinks the interval around a comparison that cannot move,
+which walks towards a verdict without measuring anything.
+------------------------------------------------------------------------------
