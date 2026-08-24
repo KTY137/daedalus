@@ -923,7 +923,7 @@ relevante Planprojektionen
 Danach:
 
 ```bash
-python tools/iron_plan_guard.py verify
+python tools/iron_plan_guard.py verify (removed 2026-08-22)
 python -m unittest tests.test_iron_plan_guard -v
 git diff --check
 git add <exakte Dateien>

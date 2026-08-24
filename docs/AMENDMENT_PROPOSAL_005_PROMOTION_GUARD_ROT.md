@@ -35,7 +35,7 @@ consolidated trunk that step has been failing since the strangler landed.
 
 ### Why check 1 is permanently red
 
-`tools/iron_plan_guard.py:711`
+`tools/iron_plan_guard.py:711 (removed 2026-08-22)`
 
 ```python
 if _literal_assignment(gated_tree, "AUTO_PROMOTE_LEVELS") != ("never",):
