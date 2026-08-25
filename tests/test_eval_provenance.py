@@ -19,6 +19,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from daedalus.eval.provenance import check_import_provenance
 from daedalus.eval.tasks import AGENT_ENV_ROOT
@@ -37,7 +38,19 @@ class AWrongTreeIsCaught(unittest.TestCase):
         # The candidate's daedalus/ was destroyed, or never copied. On
         # 2026-07-30 an external write lane destroyed 3 of 5 modules while
         # reporting success on all five, so this is not hypothetical.
-        got = check_import_provenance(tempfile.mkdtemp())
+        candidate = Path(tempfile.mkdtemp())
+        outside = Path(tempfile.mkdtemp())
+        package = outside / "daedalus"
+        package.mkdir()
+        (package / "__init__.py").write_text(
+            "ORIGIN = 'outside-candidate'\n", encoding="utf-8"
+        )
+        # Make the historical shadowing failure deterministic.  Depending on
+        # whether this checkout is installed editable, an empty candidate alone
+        # either imports the host checkout or imports nothing; this explicit
+        # outside package always exercises the wrong-tree branch.
+        with mock.patch.dict(os.environ, {"PYTHONPATH": str(outside)}):
+            got = check_import_provenance(candidate)
         self.assertFalse(got.ok)
         self.assertIn("OUTSIDE", got.reason)
 
@@ -67,10 +80,24 @@ class ItFailsClosed(unittest.TestCase):
         # runs fine and reports an import error, which is fatal for THIS
         # evaluation even though it says nothing about the repo.
         empty = tempfile.mkdtemp()
-        env_clean = dict(os.environ)
-        env_clean.pop("PYTHONPATH", None)
-        got = check_import_provenance(empty)
+        probe = subprocess.CompletedProcess(
+            args=[sys.executable, "-c", "probe"],
+            returncode=0,
+            stdout=(
+                '{"import_error": "ModuleNotFoundError: No module named '
+                "'daedalus'\"}\n"
+            ),
+            stderr="",
+        )
+        with mock.patch(
+            "daedalus.eval.provenance.subprocess.run", return_value=probe
+        ):
+            got = check_import_provenance(empty)
         self.assertFalse(got.ok)
+        self.assertIsNone(got.resolved)
+        self.assertIn("ModuleNotFoundError", got.raw["import_error"])
+        self.assertIn("cannot import daedalus", got.reason)
+        self.assertIn("EVALUATION VOID", got.as_error())
 
     def test_a_zero_timeout_fails_rather_than_passing(self):
         got = check_import_provenance(AGENT_ENV_ROOT, timeout_s=0.0)

@@ -280,8 +280,9 @@ def test_no_outcome_removes_work_from_the_queue(repo, no_eval, outcome):
 def test_every_attempt_state_the_writer_can_produce_is_classified():
     """The drift check. attempt.py owns the state vocabulary; an unclassified
     state would fall silently through to UNKNOWN_OUTCOME and be sunk to the
-    floor without anyone having argued for it. (It found one: the brief named
-    six states, ATTEMPT_STATES has seven -- ``storage_unavailable``.)"""
+    floor without anyone having argued for it. This has caught both
+    ``storage_unavailable`` and ``lease_refused`` as the writer vocabulary
+    evolved."""
     from daedalus.spine.attempt import ATTEMPT_STATES
 
     assert set(OUTCOME_POLICY) == set(ATTEMPT_STATES)
@@ -307,7 +308,8 @@ def test_the_policy_is_ordered_the_way_its_prose_claims():
     assert r["clean"] < r["no_change"] < r["runner_failed"]
     # infrastructure barely moves the work
     assert r["runner_failed"] < r["worktree_failed"] <= r["cancelled"]
-    assert r["cancelled"] < r["storage_unavailable"] < 1.0
+    assert r["cancelled"] < r["storage_unavailable"] == r["lease_refused"] < 1.0
+    assert s["storage_unavailable"] == s["lease_refused"] == 0.10
     # at the floor, a finished patch is the last thing to pick up again
     assert s["clean"] > s["gates_failed"] > s["no_change"] > s["runner_failed"]
     assert UNKNOWN_OUTCOME.severity > s["clean"]
@@ -344,7 +346,8 @@ def test_an_in_flight_attempt_is_sunk_as_hard_as_a_finished_one(repo, no_eval):
 # --------------------------------------------------------------------------- #
 # compounding                                                                  #
 # --------------------------------------------------------------------------- #
-def test_repeats_of_a_mild_outcome_compound(repo, no_eval):
+@pytest.mark.parametrize("outcome", ("worktree_failed", "lease_refused"))
+def test_repeats_of_a_mild_outcome_compound(repo, no_eval, outcome):
     """One worktree failure is an accident; five in a row is a broken task.
     Without compounding, an outcome judged harmless would let the loop re-pick a
     candidate it can never even check out -- the original defect, reintroduced
@@ -352,8 +355,8 @@ def test_repeats_of_a_mild_outcome_compound(repo, no_eval):
     cold = _cold(repo)
     top = _by_name(cold, "twin-one")
 
-    once = _by_name(_warm(repo, [(top, "worktree_failed")]), "twin-one")
-    five = _by_name(_warm(repo, [(top, "worktree_failed")] * 5), "twin-one")
+    once = _by_name(_warm(repo, [(top, outcome)]), "twin-one")
+    five = _by_name(_warm(repo, [(top, outcome)] * 5), "twin-one")
 
     assert five.evidence["memory_offset_ceiling"] < \
            once.evidence["memory_offset_ceiling"]

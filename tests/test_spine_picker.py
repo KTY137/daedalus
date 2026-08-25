@@ -620,6 +620,7 @@ def test_once_attempts_exactly_one_candidate_and_prints_the_packet(
     ("runner_failed", picker.EXIT_FAILED),
     ("worktree_failed", picker.EXIT_FAILED),
     ("storage_unavailable", picker.EXIT_FAILED),
+    ("lease_refused", picker.EXIT_FAILED),
     ("cancelled", picker.EXIT_FAILED),
     ("some_future_state", picker.EXIT_FAILED),
 ])

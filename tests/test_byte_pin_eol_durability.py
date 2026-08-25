@@ -148,7 +148,15 @@ def test_the_census_finds_at_least_the_known_subjects():
 
 def test_an_ordinary_module_is_not_eol_pinned():
     """Without this, a repo-wide `* -text` would make the guard vacuously green."""
-    assert _text_unset("daedalus/router.py") is False
+    # Use deliberately nonexistent canaries instead of a real module.  A real
+    # module can legitimately join a byte-pinned closure later (router.py did),
+    # which turns this negative-control test stale without broadening any rule.
+    for rel in (
+        "daedalus/_ordinary_eol_canary.py",
+        "tests/_ordinary_eol_canary.py",
+        "tools/_ordinary_eol_canary.py",
+    ):
+        assert _text_unset(rel) is False, rel
 
 
 # --------------------------------------------------------------------------

@@ -226,7 +226,9 @@ def test_the_same_lease_cannot_run_a_second_attempt(repo, armed_switch,
     the same lease is refused as lease_refused BEFORE any worktree exists --
     its own state, so the receipt does not claim a worktree failure that
     never happened."""
+    from daedalus.kairos.worktree import GitWorktreeManager
     from daedalus.spine.attempt import STATE_LEASE_REFUSED, TaskAttempt, TaskSpec
+    from daedalus.spine.receipts import AttemptContractSet
 
     monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
     ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
@@ -243,7 +245,19 @@ def test_the_same_lease_cannot_run_a_second_attempt(repo, armed_switch,
     first._attempt_lease = lease
     assert first.run().state == "clean"
 
-    second = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+    runner_calls = []
+    worktree_calls = []
+
+    def forbidden_runner(ctx):
+        runner_calls.append(ctx)
+        raise AssertionError("a refused replay reached the runner")
+
+    def forbidden_worktree(*args, **kwargs):
+        worktree_calls.append((args, kwargs))
+        raise AssertionError("a refused replay created a worktree")
+
+    monkeypatch.setattr(GitWorktreeManager, "create_worktree", forbidden_worktree)
+    second = TaskAttempt(task, runner=forbidden_runner,
                          gate=_passing_gate(), repo_root=repo,
                          ledger_path=ledger_path)
     second._attempt_lease = lease
@@ -251,6 +265,17 @@ def test_the_same_lease_cannot_run_a_second_attempt(repo, armed_switch,
     assert result.state == STATE_LEASE_REFUSED
     assert "refused to begin" in (result.error or "")
     assert result.lease_outcome is None
+    assert runner_calls == []
+    assert worktree_calls == []
+    contracts = AttemptContractSet.from_dict(result.contracts)
+    assert contracts.policy is not None
+    assert contracts.policy.verdict == "deny"
+    assert contracts.policy.effect_scope.read_only is True
+    assert contracts.policy.effect_scope.has_effects is False
+    assert contracts.policy.effect_scope.writable_paths == ()
+    assert contracts.attempt is None
+    assert contracts.evidence is None
+    assert contracts.receipt is None
     # the second attempt's intent is resolved, not leaked open:
     led = SpineLedger(ledger_path)
     try:

@@ -2026,7 +2026,11 @@ def canonicalise_attempt(
         )
         target_paths = tuple(getattr(task, "target_paths", ()) or ())
         state = str(getattr(result, "state", ""))
-        denied = state in {"storage_unavailable", "worktree_failed"}
+        denied = state in {
+            "storage_unavailable",
+            "worktree_failed",
+            "lease_refused",
+        }
         # THE REFUSAL IS RECORDED FIRST, and before the scope check. A deny
         # decision grants nothing, so it does not need a declared write scope to
         # be well-formed -- and an attempt the spine turned away is exactly the

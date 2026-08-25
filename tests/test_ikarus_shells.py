@@ -217,7 +217,11 @@ class HandLivenessVocabularyTest(unittest.TestCase):
                  ((False, "URLError: timed out", "TimeoutError"), health.UNKNOWN)]
         for ret, expected in cases:
             with self.subTest(expected=expected):
-                with mock.patch.object(health, "_ollama_alive", return_value=ret):
+                with mock.patch.object(
+                    health,
+                    "hand_admission",
+                    return_value=(True, "local", "test endpoint admitted"),
+                ), mock.patch.object(health, "_ollama_alive", return_value=ret):
                     self.assertEqual(health.hand_state("http://h:1").state, expected)
 
     def test_the_probe_speaks_the_same_five_words(self):
@@ -226,7 +230,11 @@ class HandLivenessVocabularyTest(unittest.TestCase):
                               ((False, "d", "ConnectionRefusedError"), health.ABSENT),
                               ((False, "d", "TimeoutError"), health.UNKNOWN)]:
             with self.subTest(expected=expected):
-                with mock.patch.object(health, "_ollama_alive", return_value=ret):
+                with mock.patch.object(
+                    health,
+                    "hand_admission",
+                    return_value=(True, "local", "test endpoint admitted"),
+                ), mock.patch.object(health, "_ollama_alive", return_value=ret):
                     rep = spec.fn(health.Ctx())
                 self.assertEqual(rep.state, expected)
                 self.assertTrue(rep.facts, "a state must carry its evidence")

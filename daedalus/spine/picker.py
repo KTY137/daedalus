@@ -1867,6 +1867,13 @@ OUTCOME_POLICY: dict[str, OutcomePolicy] = {
         meaning="the storage guard refused before anything ran",
         verdict="the furthest an outcome gets from evidence about the task: a "
                 "condition of the box that will clear on its own"),
+    "lease_refused": OutcomePolicy(
+        outcome="lease_refused", residual=0.95, severity=0.10,
+        meaning="the canonical Effect Lease refused before any worktree or "
+                "runner existed",
+        verdict="an admission, replay, or kill-switch refusal says nothing "
+                "about task merit; retain almost the whole band, while repeat "
+                "compounding prevents an unchanged caller from spinning"),
 }
 
 # The outcome is missing or is a string nobody has classified. FAIL CLOSED to

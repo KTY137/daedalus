@@ -74,6 +74,8 @@ states:
 
 ``storage_unavailable``  the watermark refused before anything was recorded or
                          created (fail closed; never spill onto another volume)
+``lease_refused``        the canonical Effect Lease refused before a worktree
+                         or runner existed (admission, replay, or kill switch)
 ``worktree_failed``      no isolated checkout could be produced, or the patch
                          could not be captured out of one
 ``runner_failed``        the injected runner raised
@@ -82,12 +84,14 @@ states:
 ``clean``                a patch exists and the gates passed
 ``cancelled``            the cancel token fired at a checkpoint
 
-``no_change`` and ``cancelled`` are additions to the five states the brief
-named. ``cancelled`` is required by the cancellation contract. ``no_change``
-exists because gates run against an UNMODIFIED tree are a vacuous pass: without
-this state a runner that did nothing returns ``clean``, which is exactly the
-kind of unearned green this project forbids. Gates are skipped in that state --
-there is nothing to judge.
+``no_change``, ``cancelled`` and ``lease_refused`` are named distinctions the
+original brief did not carry. ``cancelled`` is required by the cancellation
+contract. ``lease_refused`` prevents a pre-effect authorization failure from
+claiming a worktree failure that never happened. ``no_change`` exists because
+gates run against an UNMODIFIED tree are a vacuous pass: without this state a
+runner that did nothing returns ``clean``, which is exactly the kind of unearned
+green this project forbids. Gates are skipped in that state -- there is nothing
+to judge.
 
 LEDGER RESOLUTION
 -----------------

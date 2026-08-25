@@ -194,6 +194,12 @@ def test_git_is_told_long_paths_on_windows(temp_git_repo, worktree_root,
         return real_run(cmd, **kwargs)
 
     monkeypatch.setattr(worktree_module.subprocess, "run", spy)
+    local_before = subprocess.run(
+        ["git", "config", "--local", "--null", "--list"],
+        cwd=temp_git_repo,
+        capture_output=True,
+        check=True,
+    ).stdout
     manager = GitWorktreeManager(temp_git_repo)
     manager._run_git("rev-parse", "HEAD")
     assert seen, "no git call was made"
@@ -204,9 +210,13 @@ def test_git_is_told_long_paths_on_windows(temp_git_repo, worktree_root,
         assert cmd[3:] == ["rev-parse", "HEAD"]
     else:
         assert cmd[1:] == ["rev-parse", "HEAD"]
-    assert subprocess.run(["git", "config", "--get", "core.longpaths"],
-                          cwd=temp_git_repo, capture_output=True,
-                          text=True).stdout.strip() == ""
+    local_after = subprocess.run(
+        ["git", "config", "--local", "--null", "--list"],
+        cwd=temp_git_repo,
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert local_after == local_before
 
 def test_env_override_controls_placement(temp_git_repo, tmp_path, monkeypatch):
     override_root = tmp_path / "custom_root"
