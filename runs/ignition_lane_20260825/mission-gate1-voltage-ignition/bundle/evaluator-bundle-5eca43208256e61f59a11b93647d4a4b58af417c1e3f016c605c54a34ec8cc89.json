@@ -1,0 +1,248 @@
+{
+  "closure": {
+    "count": 127,
+    "digest": "91758afd1e70d76d4e38a4df283f062176bd2120d1ca2d89aaef703b0169ed8e",
+    "modules": {
+      "daedalus/__init__.py": "e8833a427b5a50e06246c7c9e57b01a50274579c",
+      "daedalus/adapters/events.py": "c11ec9747624d84be6c8f1dcfac2567f6ffc0d47",
+      "daedalus/agents_registry.py": "3184d946475b20dc9dfbeeee760208e9f8a7538f",
+      "daedalus/atomic.py": "1ad2b459bc1676780ff5a6f5712b1a6fcaa110a0",
+      "daedalus/benchmark.py": "d77cf19a716260434823f2dc81ce4ee047f8af04",
+      "daedalus/bookkeeper.py": "43932e16616919813bf2e26b1e74adcbb26d4f8f",
+      "daedalus/budget.py": "fb4a5e16be471882f50142446a57b697ae1bcefe",
+      "daedalus/build.py": "26e7491f2b81ed8b1474b299530e1c0cc98c388b",
+      "daedalus/categories.py": "a6c3d4586706a97f924c69df11d002222dd3e8bc",
+      "daedalus/claude_bridge.py": "692efff84d3c9494ac9f29e4aa88f23ea5969ee4",
+      "daedalus/claude_detect.py": "ae6b3440237a7116ce03c1c049d418e0f93a42d9",
+      "daedalus/config.py": "a11f699cb1af09a2e177e5d302c644e22491ed7a",
+      "daedalus/context_plan.py": "e2b5f3564600b35df1d317cae97f76def02b2b6e",
+      "daedalus/core.py": "fd9b6ec16e812cfb912aa7859814194e2ebb0ab8",
+      "daedalus/doctor.py": "c7d976123dd452d0f1711385ddffe52ecf4542c8",
+      "daedalus/enforce.py": "fe835d170989e36a81c043a20e7f8bc6f5cdb950",
+      "daedalus/eval/correctness.py": "5635e0d65ad7f232c8e815187c5974a8c0d522dd",
+      "daedalus/eval/harness.py": "4b3d79e797bd0253744751dcd4fd39dbc0906d24",
+      "daedalus/eval/mint.py": "536d276bde9f1408ea2c8a7f02071ad3376aab67",
+      "daedalus/eval/tasks.py": "ea137ab80f45252081255449dc45e3ad468fe9fe",
+      "daedalus/fallback.py": "00addc4abde8573bd10011e890ca5286fdbf9a92",
+      "daedalus/file_bridge.py": "cb34a533fe19ad789d8a666107433646667e5187",
+      "daedalus/health.py": "96a912042b268d74f62296f02701aa25b2664da9",
+      "daedalus/ignition/__init__.py": "3270894bfd4f797e94340aba66f443c591c06675",
+      "daedalus/ignition/bundle.py": "a974343878d0d2b5b82c813efe9a249489a05663",
+      "daedalus/ignition/checks.py": "6889e94cdde1c76667c29ae10194e852f595cd4e",
+      "daedalus/ignition/gate1.py": "96587dc32dcf7227334b6c222a0512c5c76be8cd",
+      "daedalus/ignition/runner.py": "3f282a594f42de48661c4d87cc7d6b789f65e742",
+      "daedalus/kairos/decompose.py": "2c1091f3c5cf972d7c62a8cedded2fd03ec6d20b",
+      "daedalus/kairos/drafts.py": "8ebcccc38e4f536690a85dd6179cf5931e0b32d3",
+      "daedalus/kairos/gated_writes.py": "61ad3dccfac4c255873d9b127b348bd4e0ddf20e",
+      "daedalus/kairos/scheduler.py": "e22578c4e377eac0d2126a228b4f9b2b697d66a9",
+      "daedalus/kairos/worktree.py": "88c217e12e2b09782c3c55702d0ad5d0f4c3ee8c",
+      "daedalus/kernel/approvals.py": "30a1fbb4bed24f393e4502fa2ab9a5b405e19abf",
+      "daedalus/kernel/authorization.py": "0492f01e0cbb047433f9d71933686d62dfef30c1",
+      "daedalus/kernel/contracts.py": "2621a010d8b2a54b1ffd9d36c6aaa30b289fc0e2",
+      "daedalus/kernel/effect_replay.py": "b1d876f942e661123d4f50307bedefeb59161793",
+      "daedalus/kernel/effects.py": "0d4d3bbbdaccfa11948f2cbdacc3ac449bef7a1f",
+      "daedalus/kernel/fourfold_evidence.py": "a6cfe1f120f47828f2a3775226459023da778e00",
+      "daedalus/kernel/offload_lease.py": "ea5699177dd17cebb750e4e773a8522f541d854d",
+      "daedalus/kernel/promotion.py": "b8523c5555d59e0a8ad538472ab031a5761d242e",
+      "daedalus/kernel/promotion_trust_root.py": "1942bc8e5aac5de91b23dafe44deb10f1c147738",
+      "daedalus/kernel/runtime_conformance.py": "d82a05b08a6550a3081a98a3c579ac061daa07a3",
+      "daedalus/kernel/runtime_effects.py": "706d7e8e33bf283af8f302c396e32190a4e6dbc3",
+      "daedalus/lanes/__init__.py": "f611e33912223415b81a1d524724c1b592f4a46c",
+      "daedalus/lanes/checks.py": "c69056b43da962d7c83fc66e4a5c202862065fd0",
+      "daedalus/lanes/graph_brief.py": "e374b2caa8d672737a5be58139248800732f56ba",
+      "daedalus/lanes/grounding.py": "b0ecb03db9ad39061a7f9e77cdfa411b662515be",
+      "daedalus/mapping/__init__.py": "16e3cdf8d228ba42a6b78495e1be861b57797145",
+      "daedalus/mapping/drift.py": "70311a95e07d8abe1777efb87967a32877950ee8",
+      "daedalus/mapping/inventory.py": "325b6c6688e853f46a6cb815487cfea67fa4b5db",
+      "daedalus/mapping/reach.py": "988c3a4057d183ec0efdd38cfcac91aad266d56e",
+      "daedalus/mapping/render.py": "70356946f6e35adabb0e7c341d9f81055832593e",
+      "daedalus/mapping/spectral.py": "04c3abe6d4e7b12461a9b58cc245504a3e3eb508",
+      "daedalus/mapping/switches.py": "3db6c5d99e5cd592650e1aa13a1e0a5db7cfd5e5",
+      "daedalus/memory/__init__.py": "a002ca8dab8ec31c6dcf86f8a7d5ae0d92cb30a3",
+      "daedalus/memory/embeddings.py": "1fe84fd7c18507cd33e9f6ca29ac753b562ddd2a",
+      "daedalus/metrics.py": "470cae455643a10e4236174d3f2c1e8786f2d5b7",
+      "daedalus/offload.py": "c410a027c0a152ee8de928c3a567175d206852c9",
+      "daedalus/preservation.py": "8d0e8e2d586e61b2eab68563e22a70c98ae7ae8a",
+      "daedalus/primary_tree.py": "01484a9b8cf61f0de43e738b4e1cb096b1118112",
+      "daedalus/projects.py": "fac0659b28914bcd08821cf0350562a23067b1b9",
+      "daedalus/provider_router.py": "d0c05198197c292a292b906d0e5514651dec3c5b",
+      "daedalus/providers/__init__.py": "b6767255f58cbf01a820e60ce679d7217a125ae5",
+      "daedalus/providers/_ollama_native.py": "8661668222228299c31c15c85204f09a8cc10aae",
+      "daedalus/providers/_openai_compat.py": "5a4a0a3d0cd5edd639aa7f70f1943dc04781bd32",
+      "daedalus/providers/_report.py": "fe6cfdab6530b191c41d107a026b51d2120a7db3",
+      "daedalus/providers/base.py": "7b5adf772f9af5a594b27000371c4393015de564",
+      "daedalus/providers/claude_cli.py": "b7f8d0d475366bf40de81792bc57a0956e5c83da",
+      "daedalus/providers/codex_cli.py": "a5629615a13957c29d3f73f6d5aaf614dda9afa1",
+      "daedalus/providers/deepseek.py": "67f37d57369d9c2d682f2da421e552d2741878a0",
+      "daedalus/providers/ollama.py": "c97ae8289bd3044783d96b4034fa81c4b90207af",
+      "daedalus/providers/personas.py": "45881530914fe7cb4b28d04d632edf754dd772ad",
+      "daedalus/router.py": "578ee2cd437746057ea4dee10854392a638576e2",
+      "daedalus/runtimes/broker.py": "a0b07085bcb44b4149887b09275dc5675f685c01",
+      "daedalus/runtimes/profiles.py": "7201469a392a431d91af4c6ac12d86bdaa3c6c94",
+      "daedalus/runtimes/provider_observation.py": "85a426501665e5ccda0b1c6125439128cb31f128",
+      "daedalus/runtimes/trust.py": "eb4105e58a7e30fb9c231f08b88e59354fc6a400",
+      "daedalus/runtimes/trust_store.py": "2f952e432b379e2b5dc891a230e95ed1c477a155",
+      "daedalus/schemas.py": "ad6d811fdcba11e509395c8938c4e90e069a412d",
+      "daedalus/semantic_route.py": "a40270e87aa62967b98fb8a534465eed81250ec6",
+      "daedalus/sensitivity.py": "98dda1d990b4dde6865da0017b4d63b952fab646",
+      "daedalus/spine/__init__.py": "f459bb00a5f03ff3f2d6512711d9afdce15f6c0a",
+      "daedalus/spine/attempt.py": "6b41e5330b22f4d3b71e54750cc9ffba76f4e8dc",
+      "daedalus/spine/bootstrap.py": "6e0dc0c4cbbfb01d244bf271a135eacd08470f06",
+      "daedalus/spine/cancel.py": "31fe82862196c86cb08a3ec39b834a8a31bba0a8",
+      "daedalus/spine/containment.py": "7c2d5db6e1a7d97280a7be320f3e1d100a9203cf",
+      "daedalus/spine/docrefs.py": "bafab0829fa70e1a3336abbe34d26880354c0392",
+      "daedalus/spine/durability.py": "0ab23314d957084a2b176e5dd9910f205e75d8c3",
+      "daedalus/spine/effect_boundary.py": "0d16092bafb1a0645355329bd48c883a92a1d6dc",
+      "daedalus/spine/envelope.py": "fa6fe91669ca0e5c3fefbce67bfbbe39b06a75f3",
+      "daedalus/spine/killswitch.py": "bbfbcf9d9d43be9d644a91af798e0c70d9fcecd3",
+      "daedalus/spine/ledger.py": "da9d7412e7e3fb0f916af9291b1cb59330efb4d4",
+      "daedalus/spine/picker.py": "e32873b2513a031a68a0105c61b785bb82ec5adf",
+      "daedalus/spine/receipts.py": "49669aaf5d65a2cceb1da43ad1b653aca7a0f652",
+      "daedalus/spine/writer_inventory.py": "cdb082114b2454a7a84f91726999e8a544b401b3",
+      "daedalus/status.py": "f0da94c7d2ddb1d093546233993645d351e50fa2",
+      "daedalus/storage.py": "e66c2f1a033ae881ea1f480e7d1735f1584f3b37",
+      "daedalus/structcore/__init__.py": "40f0db19971ae298c7bf348288bc263b7a86b519",
+      "daedalus/structcore/cache.py": "57819ed58e3236c561b62ecb35f5d156c6b98a5b",
+      "daedalus/structcore/churn.py": "d02b219a5ea99308508e5fd39b1ab1bb0bf8e7eb",
+      "daedalus/structcore/clones.py": "7779b020a12340d6664adfdc6c9f4d6d25133384",
+      "daedalus/structcore/cycles.py": "332f2097a65e078917bd929526cb7d4af187bcac",
+      "daedalus/structcore/dss.py": "3bdd1e233cf4a9fab96a0194b8dbe4f9055391f0",
+      "daedalus/structcore/forest.py": "dc58ce4cf5179796f0d6c37c21b9d7e285afe120",
+      "daedalus/structcore/graph.py": "59588236f639ff7a17fcaacdd6b58598be4097c0",
+      "daedalus/structcore/ignore.py": "374a69f4b192b914bc7cea16d1f452fc5e5bf0c7",
+      "daedalus/structcore/imports.py": "1b0b58d5d7d99ba3cfcde9ae8dd93b75e9111c8b",
+      "daedalus/structcore/index.py": "932f0ee9f0438106f11536aaf064a5ce317b8b23",
+      "daedalus/structcore/languages.py": "b18b8017ba915c9bc90333852a73de317c981f8f",
+      "daedalus/structcore/markdown.py": "78375f90ee65f5c1ae5522d77f5c9a8bd164cb75",
+      "daedalus/structcore/metrics.py": "3f1876b0ff9d5aabd59e3877b38858ba5ffa3e60",
+      "daedalus/structcore/parse.py": "278f3f070f7b7796fd5c6d4f3c79e704cbfbd818",
+      "daedalus/structcore/perfile.py": "4efb1057576a58a4659c152e7c7b53b1497b76ff",
+      "daedalus/structcore/slice.py": "0d878b8c8d69db2d81d196ae101b7aadd49bf364",
+      "daedalus/structcore/tokens.py": "46c8542778c0505bb5595e14bf7889321342d117",
+      "daedalus/structcore/typegraph.py": "a291c2ff29bb1733a4f774d445e71e0c1a4abe90",
+      "daedalus/token_policy.py": "30aee93fcf4952d97d6f8e65a09f9f9dbeba17a6",
+      "daedalus/twin/__init__.py": "895d2cbc5ee55a0167aa8b62f80f972bddfdc23f",
+      "daedalus/twin/_reference_claims.py": "b9884500d2378aaa63b12e887c5786e02f460eb4",
+      "daedalus/twin/_reference_common.py": "ec61429aa01687149265934d89bceb6e941855ef",
+      "daedalus/twin/_reference_inventory.py": "70dece0b11b24db04a996d897e597a7ed0f4f510",
+      "daedalus/twin/contracts.py": "78a119e32ac8048065c134465f38f5deed621d39",
+      "daedalus/twin/legacy_forest.py": "a48544e2b740381c0f76cb1d0f442b8f2cb03ceb",
+      "daedalus/twin/projection_verifier.py": "2e044a734c9436c63050b7ce9c609fd79873098f",
+      "daedalus/twin/reference_compiler.py": "75ed4c6edeb442d9a746aa17a491734370ebf759",
+      "daedalus/verifier.py": "1dd9153bbcf361c1b289c85a95b03d52a21c6f26"
+    },
+    "unreadable": []
+  },
+  "criterion": {
+    "bytes": 1759,
+    "canonical_sha256": "d2c96a9858c12a1ce4d16ef4b95fa190df2c7911c8e39c20f3c78bf6bc659dbb",
+    "path": "tests/test_event_field.py",
+    "sha256": "811c95fdadbf2d02ab30a4e49beb9a4923b99eeb8feb30bcbf8816f8e05f0c1e"
+  },
+  "digest": "5eca43208256e61f59a11b93647d4a4b58af417c1e3f016c605c54a34ec8cc89",
+  "environment_fingerprint": {
+    "conftest_chain": {
+      "candidates": [
+        {
+          "conftest_sha256": null,
+          "dir": ".",
+          "exists": true
+        },
+        {
+          "conftest_sha256": null,
+          "dir": "tests",
+          "exists": false
+        }
+      ],
+      "target": "tests/test_event_field.py"
+    },
+    "digest": "4a4f7e511eeaf4b0dbc58680f47ee9aa8f72685aeb192f24d5952b5f1d7930dc",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "pytest_plugins": [
+      {
+        "name": "anyio",
+        "version": "4.6.2.post1"
+      },
+      {
+        "name": "hypothesis",
+        "version": "6.163.0"
+      },
+      {
+        "name": "pytest-asyncio",
+        "version": "1.4.0"
+      }
+    ],
+    "pytest_plugins_error": null,
+    "pytest_plugins_measured": true,
+    "python_version": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+    "pythonpath": "",
+    "schema": "daedalus-gate1-environment-fingerprint/1"
+  },
+  "evaluators": {
+    "daedalus/ignition/bundle.py": {
+      "blob_sha1": "a974343878d0d2b5b82c813efe9a249489a05663",
+      "committed_blob_sha1": "a974343878d0d2b5b82c813efe9a249489a05663",
+      "platform_dependent": true,
+      "running_bytes_sha256": "5ef717bf8c430dac6837b18401ec8620ea051fcb5823990ff98eec41f1a43fa9",
+      "uncommitted": false,
+      "unreadable": false
+    },
+    "daedalus/ignition/checks.py": {
+      "blob_sha1": "6889e94cdde1c76667c29ae10194e852f595cd4e",
+      "committed_blob_sha1": "6889e94cdde1c76667c29ae10194e852f595cd4e",
+      "platform_dependent": true,
+      "running_bytes_sha256": "7538522d3f2a63ecff42cebc2ce105799ba5c9c89b15c00ed9218baa3b0bf285",
+      "uncommitted": false,
+      "unreadable": false
+    },
+    "daedalus/ignition/gate1.py": {
+      "blob_sha1": "96587dc32dcf7227334b6c222a0512c5c76be8cd",
+      "committed_blob_sha1": "96587dc32dcf7227334b6c222a0512c5c76be8cd",
+      "platform_dependent": true,
+      "running_bytes_sha256": "c44cbbd4e1d68bd3184434d3d9b5c9437b566ac0f0931b7d413ef28ce8d53f3b",
+      "uncommitted": false,
+      "unreadable": false
+    },
+    "daedalus/ignition/runner.py": {
+      "blob_sha1": "3f282a594f42de48661c4d87cc7d6b789f65e742",
+      "committed_blob_sha1": "3f282a594f42de48661c4d87cc7d6b789f65e742",
+      "platform_dependent": true,
+      "running_bytes_sha256": "ba0f2136c492fae797b47310e5e68f1735bb0e9f210958719c49bd4f44430552",
+      "uncommitted": false,
+      "unreadable": false
+    },
+    "daedalus/spine/receipts.py": {
+      "blob_sha1": "49669aaf5d65a2cceb1da43ad1b653aca7a0f652",
+      "committed_blob_sha1": "49669aaf5d65a2cceb1da43ad1b653aca7a0f652",
+      "platform_dependent": true,
+      "running_bytes_sha256": "e727c0a5d718a73eb2470d104e0f3f254cb6d2fb7077294209fade095654e360",
+      "uncommitted": false,
+      "unreadable": false
+    },
+    "daedalus/twin/reference_compiler.py": {
+      "blob_sha1": "75ed4c6edeb442d9a746aa17a491734370ebf759",
+      "committed_blob_sha1": "75ed4c6edeb442d9a746aa17a491734370ebf759",
+      "platform_dependent": true,
+      "running_bytes_sha256": "e00588abb1da83cc294d332b07ef5e18c78411b22aea9d549e7fc3f24196fcb9",
+      "uncommitted": false,
+      "unreadable": false
+    }
+  },
+  "fully_committed": true,
+  "nodes": {
+    "code-type": [
+      "tests/test_event_field.py::test_type_exposes_the_renamed_field"
+    ],
+    "data-knowledge": [
+      "tests/test_event_field.py::test_csv_header_carries_the_renamed_field",
+      "tests/test_event_field.py::test_wiki_documents_the_renamed_field",
+      "tests/test_event_field.py::test_wiki_links_resolve"
+    ]
+  },
+  "schema": "daedalus-gate1-evaluator-bundle/2",
+  "toolchain": {
+    "pytest": "9.1.1",
+    "python": "3.10.11",
+    "python_implementation": "cpython"
+  }
+}

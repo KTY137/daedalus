@@ -1,0 +1,5 @@
+schema check: data/events.csv against schemas/event.schema.json
+csv header: id, bias_voltage
+schema properties: bias_voltage, id
+rows: 1
+verdict: passed
