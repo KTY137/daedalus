@@ -55,7 +55,8 @@
     "full_suite": "not executed",
     "packaging": "not executed",
     "hosted_ci": "issue #67 remains open; absent or zero-step runs are not evidence",
-    "evidence_class": "author-side source construction and static syntax only; no exact-head green claim"
+    "evidence_class": "author-side source construction, static syntax, and isolated dependency-stub smoke; no exact-repository or exact-head green claim",
+    "isolated_dependency_stub_smoke": "passed for exact replay issuance, signature verification, and refusal of a retained chain result that differs from collector replay"
   },
   "non_goals": [
     "modifying GateReport-v4 placeholder-removal or non-runtime reconstruction semantics",
