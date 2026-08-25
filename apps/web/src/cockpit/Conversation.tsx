@@ -75,12 +75,12 @@ export interface ConversationProps {
   /** used to turn a cited path into a clickable jump */
   resolveModule: (needle: string) => string | undefined;
   onFocusModule: (module: string) => void;
-  /** a one-line hint of what the stage currently shows, put in front of the question */
-  contextLine?: string;
+  /** the module the stage currently shows, offered as something to insert */
+  contextModule?: string;
   compact?: boolean;
 }
 
-export function Conversation({ project, resolveModule, onFocusModule, contextLine, compact }: ConversationProps) {
+export function Conversation({ project, resolveModule, onFocusModule, contextModule, compact }: ConversationProps) {
   const [turns, setTurns] = useState<Turn[]>(loadTurns);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -126,7 +126,18 @@ export function Conversation({ project, resolveModule, onFocusModule, contextLin
     setDraft('');
     setError('');
     setBusy(true);
-    const asked = contextLine ? `${contextLine}\n\n${message}` : message;
+    /**
+     * WHAT IS SENT IS WHAT WAS TYPED.
+     *
+     * An earlier version of this prepended a line naming the module on the
+     * stage. It read as helpful and was not: the backend classifies intent by
+     * substring (daedalus/ikarus_os.py::classify), so a focus on `clones.py`
+     * or `hotspots.py` silently routed a plain question down the distillation
+     * path, and the turn stored in the conversation was not the sentence the
+     * person wrote. Context is offered as something to INSERT, visibly, above
+     * the composer — never spliced into someone's question behind their back.
+     */
+    const asked = message;
     setTurns((prev) => [...prev, { role: 'you', text: message }, { role: 'ikarus', text: '', streaming: true }]);
 
     stream.current = streamIkarus(project, asked, undefined, undefined, undefined, {
@@ -162,7 +173,7 @@ export function Conversation({ project, resolveModule, onFocusModule, contextLin
         }
       }
     });
-  }, [busy, contextLine, draft, project, settle]);
+  }, [busy, draft, project, settle]);
 
   return (
     <section className={compact ? 'convo compact' : 'convo'} aria-label="Gespräch mit Ikarus">
@@ -201,6 +212,21 @@ export function Conversation({ project, resolveModule, onFocusModule, contextLin
       </div>
 
       {error && <p className="convo-error" role="alert">{error}</p>}
+
+      {contextModule && (
+        <div className="composer-context">
+          <span>
+            Auf der Bühne: <code>{contextModule}</code>
+          </span>
+          <button
+            type="button"
+            onClick={() => setDraft((d) => (d ? `${d.replace(/\s+$/, '')} ${contextModule} ` : `${contextModule} `))}
+            title="Den Pfad in deine Frage einfügen"
+          >
+            Einfügen
+          </button>
+        </div>
+      )}
 
       <form
         className="composer"

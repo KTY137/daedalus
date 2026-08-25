@@ -260,16 +260,14 @@ export function Cockpit() {
     setPaletteOpen(true);
   }, []);
 
-  const contextLine = nh
-    ? `Auf der Bühne steht ${nh.focus} (${nh.direct} direkte Nachbarn, ${nh.reach} über zwei Ebenen) im Projekt ${project}.`
-    : undefined;
+  const contextModule = nh?.focus;
 
   const conversation = (
     <Conversation
       project={project}
       resolveModule={resolveModule}
       onFocusModule={chooseFocus}
-      contextLine={contextLine}
+      contextModule={contextModule}
       compact={theme.composition.chat === 'card'}
     />
   );

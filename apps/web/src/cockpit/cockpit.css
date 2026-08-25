@@ -411,6 +411,29 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 
 .convo-error { color: var(--bad); font-size: var(--fs-sm); }
 
+.composer-context {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+  min-width: 0;
+}
+.composer-context span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-context button {
+  flex: none;
+  min-height: 30px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.composer-context button:hover { color: var(--accent); border-color: var(--accent); }
+
 .composer { display: flex; gap: var(--u2); align-items: stretch; }
 .composer input {
   flex: 1;

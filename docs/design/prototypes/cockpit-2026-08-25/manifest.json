@@ -1,0 +1,82 @@
+{
+  "base": "http://127.0.0.1:8765",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "shots": [
+    {
+      "themeId": "kammer",
+      "chat": "card",
+      "chrome": "bar",
+      "decision": "float",
+      "stage": "forest",
+      "nodes": 32,
+      "focus": "daedalus/spine/attempt.py",
+      "counts": "20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0",
+      "status": "agent_env · C:\\Users\\nukei\\Desktop\\agent_envZustand wird gelesen …Promotion gesperrt · 2 Blocker349 Dateien im Kern · 2036 ausgeschlossen von 2385 gescannt349 Knoten · 848 Kanten gezeichnet · 1840 führen aus der Kartetree-sitter · lizardlive · 0 in der Schlange",
+      "file": "kammer.png"
+    },
+    {
+      "themeId": "werkstatt",
+      "chat": "drawer",
+      "chrome": "bar",
+      "decision": "inline",
+      "stage": "cards",
+      "nodes": 20,
+      "focus": "daedalus/spine/attempt.py",
+      "counts": "20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0",
+      "status": "agent_env · C:\\Users\\nukei\\Desktop\\agent_envZustand wird gelesen …Promotion gesperrt · 2 Blocker349 Dateien im Kern · 2036 ausgeschlossen von 2385 gescannt349 Knoten · 848 Kanten gezeichnet · 1840 führen aus der Kartetree-sitter · lizardlive · 0 in der Schlange",
+      "file": "werkstatt.png"
+    },
+    {
+      "themeId": "sternkarte",
+      "chat": "drawer",
+      "chrome": "bar",
+      "decision": "float",
+      "stage": "stars",
+      "nodes": 28,
+      "focus": "daedalus/spine/attempt.py",
+      "counts": "20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0",
+      "status": "agent_env · C:\\Users\\nukei\\Desktop\\agent_envZustand wird gelesen …Promotion gesperrt · 2 Blocker349 Dateien im Kern · 2036 ausgeschlossen von 2385 gescannt349 Knoten · 848 Kanten gezeichnet · 1840 führen aus der Kartetree-sitter · lizardlive · 0 in der Schlange",
+      "file": "sternkarte.png"
+    },
+    {
+      "themeId": "depesche",
+      "chat": "flow",
+      "chrome": "masthead",
+      "decision": "inline",
+      "stage": "arcs",
+      "nodes": 15,
+      "focus": "daedalus/spine/attempt.py",
+      "counts": "20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0",
+      "status": "agent_env · C:\\Users\\nukei\\Desktop\\agent_envZustand wird gelesen …Promotion gesperrt · 2 Blocker349 Dateien im Kern · 2036 ausgeschlossen von 2385 gescannt349 Knoten · 848 Kanten gezeichnet · 1840 führen aus der Kartetree-sitter · lizardlive · 0 in der Schlange",
+      "file": "depesche.png"
+    },
+    {
+      "themeId": "nachtfenster",
+      "chat": "column",
+      "chrome": "rail",
+      "decision": "inline",
+      "stage": "forest",
+      "nodes": 32,
+      "focus": "daedalus/spine/attempt.py",
+      "counts": "20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0",
+      "status": "agent_env · C:\\Users\\nukei\\Desktop\\agent_envZustand wird gelesen …Promotion gesperrt · 2 Blocker349 Dateien im Kern · 2036 ausgeschlossen von 2385 gescannt349 Knoten · 848 Kanten gezeichnet · 1840 führen aus der Kartetree-sitter · lizardlive · 0 in der Schlange",
+      "file": "nachtfenster.png"
+    },
+    {
+      "themeId": "leitstand",
+      "chat": "column",
+      "chrome": "bar",
+      "decision": "bar",
+      "stage": "cards",
+      "nodes": 20,
+      "focus": "daedalus/spine/attempt.py",
+      "counts": "20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0",
+      "status": "agent_env · C:\\Users\\nukei\\Desktop\\agent_envZustand wird gelesen …Promotion gesperrt · 2 Blocker349 Dateien im Kern · 2036 ausgeschlossen von 2385 gescannt349 Knoten · 848 Kanten gezeichnet · 1840 führen aus der Kartetree-sitter · lizardlive · 0 in der Schlange",
+      "file": "leitstand.png"
+    }
+  ],
+  "consoleErrors": []
+}
