@@ -301,6 +301,76 @@ test.describe('cockpit', () => {
     expect(body, 'the answer is a placeholder').not.toMatch(/^(undefined|null|\[object Object\])$/);
   });
 
+  test('the whole surface is reachable and visible from the keyboard', async ({ page }) => {
+    await openCockpit(page);
+    await waitForStage(page);
+
+    /**
+     * Three things, all of which previous rounds were dinged for:
+     * every control has a NAME, every focused control has a visible RING, and
+     * the graph is reachable and operable without a pointer. A design that
+     * only works for a mouse is a design that works for a screenshot.
+     */
+    const seen: Array<{ name: string; ring: boolean; tag: string; focused: string; blurred: string }> = [];
+    for (let i = 0; i < 14; i += 1) {
+      await page.keyboard.press('Tab');
+      const info = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        if (!el || el === document.body) return null;
+        const read = () => {
+          const cs = getComputedStyle(el);
+          return `${cs.outlineStyle}|${cs.outlineWidth}|${cs.outlineColor}|${cs.boxShadow}|${cs.borderColor}`;
+        };
+        /**
+         * A ring is a DIFFERENCE, not a property.
+         *
+         * The first version of this check accepted any box-shadow, and every
+         * panel in this interface has one — so it passed with the focus rule
+         * deleted. Focused and unfocused are both read from the same element
+         * and compared; only a change counts.
+         */
+        const focused = read();
+        el.blur();
+        const blurred = read();
+        el.focus();
+        return {
+          tag: el.tagName.toLowerCase(),
+          name: (el.getAttribute('aria-label') || el.textContent || el.getAttribute('placeholder') || '').trim().slice(0, 40),
+          ring: focused !== blurred,
+          focused,
+          blurred
+        };
+      });
+      if (!info) break;
+      seen.push(info);
+    }
+
+    expect(seen.length, 'nothing was focusable at all').toBeGreaterThan(5);
+
+    const unnamed = seen.filter((s) => !s.name);
+    expect(unnamed, `focusable controls with no accessible name: ${unnamed.map((u) => u.tag).join(', ')}`).toHaveLength(0);
+
+    const ringless = seen.filter((s) => !s.ring);
+    expect(
+      ringless,
+      `focused without a visible ring: ${ringless.map((r) => `${r.tag} "${r.name}" (${r.focused})`).join(' | ')}`
+    ).toHaveLength(0);
+
+    // The stage takes focus and the arrow keys move a real cursor on it.
+    await page.locator('.stage-svg').focus();
+    await expect(page.locator('.stage-svg')).toBeFocused();
+    const before = await page.locator('.stage-node').count();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    expect(await page.locator('.stage-node').count(), 'the arrow keys changed what is drawn').toBe(before);
+
+    // Escape closes what Escape should close.
+    await page.keyboard.press('Control+k');
+    await expect(page.locator('.palette')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.palette')).toHaveCount(0);
+  });
+
   test('the composer is live, or it is not there', async ({ page }) => {
     await openCockpit(page);
     await waitForStage(page);
