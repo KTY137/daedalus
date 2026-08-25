@@ -30,11 +30,20 @@ root = ["uproot==5.7.5"]
 # adapter pins langsmith tracing off explicitly rather than trusting that no
 # environment variable on the machine turns it on.
 orchestration = ["langgraph>=1.2,<2"]
-# Property-based tests (docs/ABSORPTION.md D1). Test-time only: nothing under
-# daedalus/ imports hypothesis, only tests/. MPL-2.0 -- see ABSORPTION.md D1
-# bar 3 for why that licence attaches to nothing here (imported, never
-# modified/redistributed).
-test = ["hypothesis>=6.163"]
+# Test-time only: nothing under daedalus/ imports either of these, only tests/.
+# The core stays zero-dependency; this extra is what `python -m pytest tests/`
+# (the runner README.md documents) actually needs.
+#   pytest      -- required by 116 of 254 files in tests/ (MEASURED 2026-08-25,
+#                  `grep -l "import pytest" tests/test_*.py | wc -l`). It was
+#                  undeclared until then, so a fresh checkout whose venv
+#                  installed only the declared extras could not run 46% of the
+#                  suite -- including the Gate-0 fault, containment, promotion
+#                  and killswitch tests -- and got a module-not-found error
+#                  rather than a red test.
+#   hypothesis  -- property-based tests (docs/ABSORPTION.md D1). MPL-2.0 -- see
+#                  ABSORPTION.md D1 bar 3 for why that licence attaches to
+#                  nothing here (imported, never modified/redistributed).
+test = ["pytest>=8", "hypothesis>=6.163"]
 
 [project.scripts]
 daedalus = "daedalus.cli:main"
