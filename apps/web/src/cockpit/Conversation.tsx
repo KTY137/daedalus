@@ -180,9 +180,10 @@ export function Conversation({ project, resolveModule, onFocusModule, contextMod
       <div className="convo-scroll" ref={scroller}>
         {turns.length === 0 && (
           <p className="convo-empty">
-            Frag Ikarus etwas über <b>{project || 'dieses Projekt'}</b> — zum Beispiel, was passiert, wenn du das Modul
-            in der Mitte änderst. Antworten aus dem lokalen Index tragen den Stempel GEMESSEN, Antworten eines Modells
-            den Namen des Modells.
+            {/* Short on purpose: this sits in a card, a drawer and a column,
+                and the narrowest of the three was clipping the last line. */}
+            Frag Ikarus etwas über <b>{project || 'dieses Projekt'}</b>. Antworten aus dem lokalen Index tragen den
+            Stempel GEMESSEN, Antworten eines Modells dessen Namen.
           </p>
         )}
         {turns.map((t, i) => (

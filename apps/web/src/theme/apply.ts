@@ -30,8 +30,20 @@ export const THEME_VARS = [
   '--stage-curve', '--stage-glow', '--stage-size-fanin'
 ] as const;
 
+/**
+ * The smallest text this interface will render, in px.
+ *
+ * A scale of 1.22 on a 14px base puts the second step down at 9.4px, and a
+ * `code` element inside it at 8.7px — measured, on the shipped build. Below
+ * this floor a font stack stops being typography and becomes texture, so the
+ * scale is clamped rather than trusted. Themes may make text bigger; nothing
+ * can make it smaller than this.
+ */
+const MIN_TEXT_PX = 11;
+
 function step(base: number, scale: number, n: number): string {
-  return `${(base * Math.pow(scale, n)).toFixed(2)}px`;
+  const raw = base * Math.pow(scale, n);
+  return `${Math.max(MIN_TEXT_PX, raw).toFixed(2)}px`;
 }
 
 function shadowFor(elevation: number, base: 'light' | 'dark'): string {
@@ -79,7 +91,7 @@ export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.docume
   s.setProperty('--fs-scale', String(t.scale));
   s.setProperty('--fs-xs', step(t.size, t.scale, -2));
   s.setProperty('--fs-sm', step(t.size, t.scale, -1));
-  s.setProperty('--fs-md', `${t.size}px`);
+  s.setProperty('--fs-md', `${Math.max(MIN_TEXT_PX, t.size).toFixed(2)}px`);
   s.setProperty('--fs-lg', step(t.size, t.scale, 1));
   s.setProperty('--fs-xl', step(t.size, t.scale, 2));
   s.setProperty('--fs-2xl', step(t.size, t.scale, 3));

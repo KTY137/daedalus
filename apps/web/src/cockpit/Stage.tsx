@@ -416,6 +416,18 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
                   <title>
                     {isMore ? p.full : `${p.id}${p.node ? ` — ${p.node.fan_in} Importeure, ${p.node.loc} Zeilen` : ''}`}
                   </title>
+                  {/* A pointer target, not a dot. A level-2 glyph is 10px
+                      across and nobody hits a 10px circle; this invisible
+                      circle makes the hit area at least 36px while the
+                      drawing stays the size the data says it is. It cannot
+                      reach 44 without swallowing its neighbours — the ring
+                      relaxes to roughly 32px spacing — so the palette and the
+                      arrow keys stay the larger equivalent path, and
+                      tools/audit.mjs reports that exception out loud rather
+                      than excluding SVG from the count. */}
+                  {!isMore && (
+                    <circle cx={p.x} cy={p.y} r={Math.max(18, p.r + 10)} fill="transparent" />
+                  )}
                   <Glyph p={p} kind={theme.stage.glyph} selected={selected} dimmed={dimmed} />
                   {/* On the axis, names hang BELOW it at 45 degrees, reading
                       down-and-right, so they never cross the arcs above. The
@@ -446,7 +458,7 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
                     </text>
                   )}
                   {asCard && p.node && (
-                    <text className="stage-sub" x={p.x} y={p.y + 14} textAnchor="middle" fontSize={10.5} opacity={dimmed ? 0.4 : 0.75}>
+                    <text className="stage-sub" x={p.x} y={p.y + 14} textAnchor="middle" fontSize={11} opacity={dimmed ? 0.4 : 0.9}>
                       {p.node.fan_in} Importeure
                     </text>
                   )}

@@ -40,7 +40,10 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 }
 
 .cockpit .muted { color: var(--ink3); }
-.cockpit code, .cockpit .mono { font-family: var(--font-mono); font-size: 0.92em; }
+/* No 0.92em here. The smallest step of the scale is already at the 11px floor
+   (theme/apply.ts), and shrinking `code` inside it produced 8.7px text on the
+   shipped build. Monospace reads larger at the same nominal size anyway. */
+.cockpit code, .cockpit .mono { font-family: var(--font-mono); font-size: inherit; }
 
 /* ---------------------------------------------------------------- chrome */
 
@@ -65,9 +68,12 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 }
 .projects button { white-space: nowrap; }
 
+/* 44px, and it is the TARGET that has to be 44 — not the ink. The visual
+   weight of these controls comes from their type and border, so the height is
+   free to be a pointer target rather than a design statement. */
 .projects button,
 .chrome-tools button {
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 var(--u3);
   border: var(--border) solid transparent;
   border-radius: var(--radius-sm);
@@ -226,7 +232,7 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .stage-elision button {
   display: block;
   margin-top: 4px;
-  min-height: 30px;
+  min-height: 44px;
   padding: 0 var(--u2);
   border: var(--border) solid var(--line);
   border-radius: var(--radius-sm);
@@ -238,7 +244,10 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 }
 .stage-elision button:hover { color: var(--accent); border-color: var(--accent); }
 
-.stage-label.more { fill: var(--accent); font-family: var(--font-body); }
+/* The count is data and reads as ink; the dashed ring around it is the
+   affordance and keeps the accent. An accent bright enough to be a fill is not
+   always legible enough to be a label — measured at 2.1:1 in Leitstand. */
+.stage-label.more { fill: var(--ink); font-family: var(--font-body); }
 
 .stage-overlay { position: absolute; top: var(--u4); right: var(--u6); width: min(360px, 34vw); }
 .stage-panel { position: absolute; left: var(--u6); bottom: var(--u4); width: min(430px, 38vw); }
@@ -254,8 +263,8 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
   color: var(--ink3);
 }
 .stage-tools button {
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border: var(--border) solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -400,7 +409,8 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .cite {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  padding: 2px 6px;
+  min-height: 44px;
+  padding: 2px 8px;
   border: var(--border) solid var(--line);
   border-radius: var(--radius-sm);
   background: transparent;
@@ -422,7 +432,7 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .composer-context span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-context button {
   flex: none;
-  min-height: 30px;
+  min-height: 44px;
   padding: 0 var(--u2);
   border: var(--border) solid var(--line);
   border-radius: var(--radius-sm);
@@ -510,7 +520,18 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
   color: var(--ink2);
 }
 .status-item { display: inline-flex; align-items: center; gap: 6px; }
-.status-item.link { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+/* The health item is a control, so it is a control-sized target. The rest of
+   the bar is text and stays text. */
+.status-item.link {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0 var(--u1);
+  min-height: 44px;
+  text-align: left;
+}
 .status-item.ok { color: var(--ok); }
 .status-item.warn { color: var(--live); }
 .status-item.bad { color: var(--bad); }
@@ -531,7 +552,7 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
   justify-content: space-between;
   gap: var(--u2);
   width: 100%;
-  min-height: 32px;
+  min-height: 44px;
   padding: 0 var(--u1);
   border: 0;
   background: transparent;
@@ -614,7 +635,7 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .chrome-link {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 var(--u3);
   border: var(--border) solid transparent;
   border-radius: var(--radius-sm);
