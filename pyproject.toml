@@ -40,10 +40,22 @@ orchestration = ["langgraph>=1.2,<2"]
 #                  suite -- including the Gate-0 fault, containment, promotion
 #                  and killswitch tests -- and got a module-not-found error
 #                  rather than a red test.
+#   jsonschema  -- required by 7 files in tests/ that validate the Gate-0
+#                  contract schemas (fault matrix, repository write
+#                  classification, provider target receipt retention). Also
+#                  undeclared until 2026-08-25, and the reason those 7 were the
+#                  only collection errors left after pytest was declared:
+#                  `pytest tests/ --collect-only` reported exactly 7 errors,
+#                  one per file. Nothing under daedalus/ imports it.
+#   pytest-asyncio -- the 10 `@pytest.mark.asyncio` tests in test_adapters.py
+#                  and test_kairos_evolution.py. Without it pytest collects
+#                  them and then fails them with "async def functions are not
+#                  natively supported" -- loudly, at least, but their bodies
+#                  had never run. With it: 16 passed (MEASURED 2026-08-25).
 #   hypothesis  -- property-based tests (docs/ABSORPTION.md D1). MPL-2.0 -- see
 #                  ABSORPTION.md D1 bar 3 for why that licence attaches to
 #                  nothing here (imported, never modified/redistributed).
-test = ["pytest>=8", "hypothesis>=6.163"]
+test = ["pytest>=8", "pytest-asyncio>=0.24", "jsonschema>=4.23", "hypothesis>=6.163"]
 
 [project.scripts]
 daedalus = "daedalus.cli:main"
