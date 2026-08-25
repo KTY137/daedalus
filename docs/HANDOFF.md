@@ -19,14 +19,22 @@ tree that is no longer where the work happens.
 Base 7e7bfa7d; Q1–Q5 porting + delivery; Q4 ignition blocker at scheduler effect-lease boundary.
 Ledger: `runs/watchdog/mission-20260822/PROGRESS.md` (13 hours, 39 line items, last row 11:49Z).
 
-**Pending owner actions** (in `docs/decisions-pending/`):
-1. `promotion_allowed_signers.proposed` — signed approval root for promotion decisions.
-2. `control_root_migration.md` — the control-root migration; **loop refuses to arm until this runs**.
-3. `gated_writes_lease_handdown.patch` — sealed source pin bump for promotion seam.
+**Pending owner actions** (in `docs/decisions-pending/`, checked 2026-08-25 —
+the control-root migration and the sealed lease hand-down patch from the
+2026-08-22 list are both TAKEN, see `docs/decisions-taken/2026-08-23/`;
+`promotion_allowed_signers.proposed` moved to `docs/decisions-taken/2026-08-25/`):
+1. `AMENDMENT_DRAFT_classification_rung.md` — adds a `central_started`
+   disposition to the classification vocabulary; touches the classification
+   contract, owner-only.
+2. `B5_HANDOFF_COMMIT4.md` — partly superseded: its Commit-4 wiring landed
+   (see `docs/GATE0_INTEGRATION_GAPS_20260825.md` §6.3); its harder diagnosis
+   (only one door in the tree holds a lease) still stands.
+3. `b5_evidence_authentication_draft.patch` — make `evidence_authenticated` a
+   composed boolean rather than constant `false`; schema change, owner-only.
 
 **Branch consolidation 2026-08-23:** [MEASURED 2026-08-23] `origin/main` was 1,525 commits behind the local trunk (last push 2026-07-13) and is now fast-forwarded. Forest-v2 slices s02/s07/s09 landed from their lanes (`6f3aae70`). 148 `archive/*` tags on origin freeze every other line, 27 of them `-wip` salvage commits of uncommitted lane work; 31 lane worktrees and 50 local branches removed. **Pending owner action 4:** delete the 125 archived remote branches — kit and verified list in `docs/recovery/cleanup_2026-08-23/README.md` (the agent's mass deletion was refused by the harness).
 
-**Status update 2026-08-23:** [MEASURED 2026-08-23, Mnemosyne: commit `0f7f8187`] `tests/test_spine_attempt.py` green again (17 red → 0 green); was red since `57a2e7cb` due to `nearest_existing` climbing to ancestor. Fixed by `daedalus/primary_tree.planned_overlap_reason()` with forward-direction probing and shared renderer, both callers (`spine/attempt.py`, `kernel/offload_lease.py`) switched. Control-root migration and sealed lease hand-down patch remain pending owner actions in `docs/decisions-pending/`.
+**Status update 2026-08-23:** [MEASURED 2026-08-23, Mnemosyne: commit `0f7f8187`] `tests/test_spine_attempt.py` green again (17 red → 0 green); was red since `57a2e7cb` due to `nearest_existing` climbing to ancestor. Fixed by `daedalus/primary_tree.planned_overlap_reason()` with forward-direction probing and shared renderer, both callers (`spine/attempt.py`, `kernel/offload_lease.py`) switched. Control-root migration and sealed lease hand-down patch are TAKEN (`docs/decisions-taken/2026-08-23/`), not pending.
 
 ---
 
