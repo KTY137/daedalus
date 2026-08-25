@@ -2,7 +2,14 @@
 
 ## Status
 
-Proposed
+Proposed, then built: `daedalus/council/` (`bus.py`, `canary.py`, `publish.py`,
+`session.py`, `vendors.py`) exists and has produced chained transcripts under
+`runs/council/` from 2026-07-28 through at least 2026-08-20 [MEASURED
+2026-08-25, `ls daedalus/council/` and `runs/council/*.jsonl`]. The `/council`
+skill now invokes it directly. Whether §7's falsification measurement
+(inter-vendor vs. intra-vendor agreement) was ever run and what it found was
+not located in `docs/` during this pass; the design content below stands as
+recorded, unverified against that specific number.
 
 ## Context
 

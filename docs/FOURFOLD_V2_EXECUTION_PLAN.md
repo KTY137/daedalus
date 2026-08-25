@@ -1,11 +1,10 @@
 # Fourfold v2 Execution Plan
 
-Status: active derived projection  
-Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 3  
+Status: active derived projection; its dated PR-chain sections below are historical (see "Current Gate-0 execution boundary")  
+Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 7  
 Active gate: Gate 0 — Canonical Kernel  
-Projection base: explicitly frozen `g0/provider-target-receipt-retention-preflight-frozen-1636a72` at `1636a72ebf0da87ad84c7fb95c5e7fd79e5edab7`  
 Branch rule: exact reviewed or explicitly frozen parent -> short-lived focused Work Packet branch -> draft PR; never mutate `main` or `experimental` directly  
-Rule: this document records revision-bound status. It cannot amend the adopted Master Plan, authorize implementation, or substitute for evidence.
+Rule: this document records revision-bound status. It cannot amend the adopted Master Plan, authorize implementation, or substitute for evidence. For current Gate-0 boundary, read `docs/STATUS.md` first.
 
 ## Operating model
 
@@ -125,48 +124,21 @@ negative examples, and failed rebuilds are retained.
 - WP-08: one-axis-at-a-time Ariadne experiments that retain failures and never
   auto-promote.
 
-## Current Gate-0 execution boundary
+## Current Gate-0 execution boundary [SUPERSEDED, retained as history]
 
-This projection is bound to explicitly frozen source parent
-`1636a72ebf0da87ad84c7fb95c5e7fd79e5edab7`, selected from draft PR #218. The
-live PR may continue independently; this documentation packet does not claim that
-its frozen parent is the latest future head. It is status documentation only and
-cannot alter `GateReport.closed`.
-
-The selected provider-target retention line remains a sequence of focused draft
-packets rather than a collection PR:
-
-- provider observation/invocation identity and exact broker authority were
-  prepared through PRs #187, #192, #197, #199, #202, and #206;
-- revision-bound executable target manifests and inert source verification were
-  prepared through PRs #207, #209/#210, and #211;
-- durable provider-target receipt retention was prepared in PR #212;
-- its seven writes were exposed as blocking `inventory_only` surfaces in PR #213;
-- a signed non-executing retention guard subject was prepared in PR #214;
-- symlink and hard-link topology hardening was prepared in PR #215;
-- current inventory binding and a process-free repository-HEAD receipt were
-  prepared through PRs #216 and #217;
-- PR #218 composes authority, provider receipt, current HEAD, current seven-row
-  inventory, execution request, and inert EffectLease subject into a bounded
-  two-fence read-only preflight. At the frozen parent it rejects hostile
-  inventory-row subclasses and noncanonical retention paths before their methods
-  or authority comparisons are used, and its bounded mutation campaign targets
-  both fences.
-
-PR #218 permanently reports persisted Effect-Lease verification, effect start,
-retention write, canonical production registration, Gate transition, and closure
-as false. Its receipt is not a capability.
-
-The next dependent effectful packet must authenticate and consume the persisted
-retention lease, rerun the preflight immediately before admission, prove concrete
-Event Store and receipt-CAS targets outside the Primary Checkout, durably begin
-the effect, and only then invoke retention through one centrally registered exact
-entrypoint. Recovery must reconcile intent/CAS/terminal fault windows without
-automatic provider or retention re-execution.
-
-Parallel repository-write and runtime semantic drafts remain preparatory and
-unmerged. Controlled integration must retain exact source identity, use a fresh
-non-colliding Work Packet identity, and preserve narrow parentage.
+This section described a projection bound to frozen source parent
+`1636a72ebf0da87ad84c7fb95c5e7fd79e5edab7` (draft PR #218, itself the tail of a
+provider-target-retention packet chain #187–#217). As of this pass:
+PR #218 is `CLOSED` [MEASURED 2026-08-25, `gh pr view 218`], and the branch
+`g0/provider-target-receipt-retention-preflight-frozen-1636a72` no longer
+exists locally or on the remote — removed in the 2026-08-23 branch
+consolidation (`docs/recovery/BRANCH_CLEANUP_20260817.md`,
+`docs/recovery/cleanup_2026-08-23/`). PR #218 never reported persisted
+Effect-Lease verification, effect start, retention write, canonical
+production registration, Gate transition, or closure as true, so nothing this
+section described was ever a capability. The next effectful packet in this
+line, and the current Gate-0 execution boundary, are tracked in
+`docs/STATUS.md` and `docs/GATE0_OWNER_DECISIONS_20260817.md`, not here.
 
 ## External execution blocker
 
@@ -177,9 +149,11 @@ test, mutation, package, platform, runtime, or fault-matrix execution.
 
 Zero-step failures are external infrastructure observations only. They are
 neither passing evidence nor product-failure evidence. Until a trivial checkout
-job and the Iron Plan workflow record real executed steps, no packet may claim
-exact-head builder, independent review, malformed/stale, mutation, full-suite,
-packaging, platform, runtime, fault-matrix, or release evidence from hosted CI.
+job records real executed steps, no packet may claim exact-head builder,
+independent review, malformed/stale, mutation, full-suite, packaging, platform,
+runtime, fault-matrix, or release evidence from hosted CI. (The former "Iron
+Plan workflow" step no longer exists — retired 2026-08-25 along with the guard
+it ran; see `docs/STATUS.md`.)
 
 Independent preparation may continue where it does not depend on a green parent.
 Dependent production wiring, Gate closure, automatic actions, merge, promotion,
@@ -188,10 +162,11 @@ OwnerApproval, and owner closure decisions remain frozen.
 ## Last green evidence boundary
 
 Historical Fourfold PR #1 recorded a green Python 3.10/3.12 and hash-seed matrix
-plus Iron Plan verification for its historical subject. That evidence does not
-verify the current Gate-0 retention line. The frozen parent remains
-`prepared-unverified`; source review and machine-readable packet records preserve
-scope and blockers but do not satisfy the Gate-0 release report.
+for its historical subject (predating the 2026-08-22 guard retirement, so it
+still ran the since-removed Iron Plan verification step). That evidence never
+verified the PR #187–#218 retention line described above, which is itself now
+closed. Source review and machine-readable packet records preserve scope and
+blockers but do not satisfy the Gate-0 release report.
 
 ## Explicit non-actions
 
