@@ -144,14 +144,30 @@ test.describe('cockpit', () => {
     test.skip(others.length === 0, 'this machine has only one project registered — nothing to switch to');
 
     const second = others[0].trim();
+
+    // HOLD THE SECOND SCAN OPEN ON PURPOSE.
+    //
+    // The window between "the new project is selected" and "its map arrived"
+    // is exactly where the leak lives, and against a warm index that window is
+    // shorter than the poll interval — the assertion would pass by not
+    // looking. Delaying the second project's payload makes the window real and
+    // the check deterministic instead of dependent on how cold the cache is.
+    await page.route(
+      (url) => url.pathname === '/api/structure' && url.searchParams.get('project') === second,
+      async (route) => {
+        await new Promise((r) => setTimeout(r, 3_000));
+        await route.continue();
+      }
+    );
+
     await page.getByRole('button', { name: second, exact: true }).click();
 
-    // The map must go away BEFORE the new one arrives. Waiting straight for a
-    // node would be satisfied by the nodes that are already on screen, and the
-    // leak this test exists to catch would slip through its own assertion.
+    // While the second scan is held, the first project's map must be GONE and
+    // the surface must say what it is doing.
     await expect(page.locator('.stage-empty'), 'the previous map was not cleared on switch').toBeVisible({
       timeout: 15_000
     });
+    expect(await drawnModules(page), 'the previous map was still on screen while the next one loaded').toHaveLength(0);
 
     // A second project means a second scan, which is minutes on a cold index.
     // If it never lands, that is reported as NOT MEASURED rather than as a pass.
@@ -249,6 +265,40 @@ test.describe('cockpit', () => {
     // The built-in must be untouched and still selectable.
     await page.getByRole('tab', { name: 'Themes' }).click();
     await expect(page.locator('.studio-body .theme-list').first().locator('li')).toHaveCount(6);
+  });
+
+  test('a question gets a real answer, stamped with what produced it', async ({ page }) => {
+    await openCockpit(page);
+    await waitForStage(page);
+
+    /**
+     * "status" is the one word that routes deterministically
+     * (daedalus/ikarus_os.py::classify -> SHELL_DETERMINISTIC), so this spec
+     * exercises the whole conversation path — stream, deltas, final envelope,
+     * provenance stamp — without reaching a paid vendor. A test that spends
+     * money to prove a text box works is a test nobody runs twice.
+     */
+    await page.getByLabel('Nachricht an Ikarus').fill('status');
+    await page.getByRole('button', { name: 'Senden' }).click();
+
+    const answer = page.locator('.turn.ikarus').last();
+    await expect(answer, 'Ikarus never answered').toBeVisible({ timeout: 60_000 });
+
+    const stamp = answer.locator('.stamp');
+    await expect(stamp, 'the answer carries no provenance stamp').toBeVisible({ timeout: 60_000 });
+
+    const text = (await stamp.innerText()).trim();
+    // The stamp NAMES its source. "GEMESSEN" for the local index, the model's
+    // name for a model. One word for both would be the collapse this repo
+    // keeps deleting.
+    expect(text, `the stamp says nothing usable: ${JSON.stringify(text)}`).toMatch(/GEMESSEN|MODELL|FEHLGESCHLAGEN/);
+    if (/GEMESSEN/.test(text)) {
+      expect(text, 'a measured answer must say what measured it').toContain('lokaler Index');
+    }
+
+    const body = (await answer.locator('.turn-text').innerText()).trim();
+    expect(body.length, 'the answer is empty').toBeGreaterThan(0);
+    expect(body, 'the answer is a placeholder').not.toMatch(/^(undefined|null|\[object Object\])$/);
   });
 
   test('the composer is live, or it is not there', async ({ page }) => {

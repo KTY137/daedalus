@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Daedalus — Cockpit, 25.08.2026</title>
+<style>
+  :root {
+    --bg:#141210; --panel:#1c1917; --ink:#f2ece3; --ink2:#b3a99b; --ink3:#8a8073;
+    --line:#2e2925; --accent:#ffb85c;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--ink); font-family:var(--sans); line-height:1.5; padding:48px 32px 96px; }
+  header { max-width:70ch; margin:0 auto 48px; }
+  h1 { font-size:30px; font-weight:600; letter-spacing:-0.01em; }
+  .lede { color:var(--ink2); margin-top:12px; }
+  .lede b { color:var(--accent); font-weight:600; }
+  .grid { display:grid; gap:40px; max-width:1500px; margin:0 auto; }
+  figure { background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  img { display:block; width:100%; height:auto; }
+  figcaption { display:grid; gap:4px; padding:16px 18px 20px; border-top:1px solid var(--line); font-size:13px; color:var(--ink2); }
+  figcaption b { color:var(--ink); font-size:16px; text-transform:capitalize; }
+  figcaption .counts { color:var(--ink3); }
+  code { font-family:var(--mono); font-size:0.92em; color:var(--ink); }
+  footer { max-width:70ch; margin:56px auto 0; color:var(--ink3); font-size:13px; }
+</style>
+<header>
+  <h1>Cockpit — 25. August 2026</h1>
+  <p class="lede">
+    Keine Entwürfe. Jedes Bild ist ein <b>Screenshot der laufenden Anwendung</b>,
+    aus dem gebauten Bundle gegen die lokale API. Die sechs Entwürfe der
+    Gallery-Runde sind jetzt sechs <b>Themes</b> einer Oberfläche — Farbe, Schrift,
+    Material <em>und</em> Aufbau — alle im Theme-Studio bearbeitbar.
+  </p>
+</header>
+<div class="grid">
+<figure>
+  <img src="kammer.png" alt="Cockpit im Theme kammer">
+  <figcaption>
+    <b>kammer</b>
+    <span>Kopf bar · Gespräch card · Entscheidung float · Bühne forest</span>
+    <span>32 Knoten gezeichnet · Mitte <code>daedalus/spine/attempt.py</code></span>
+    <span class="counts">20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0</span>
+  </figcaption>
+</figure>
+<figure>
+  <img src="werkstatt.png" alt="Cockpit im Theme werkstatt">
+  <figcaption>
+    <b>werkstatt</b>
+    <span>Kopf bar · Gespräch drawer · Entscheidung inline · Bühne cards</span>
+    <span>20 Knoten gezeichnet · Mitte <code>daedalus/spine/attempt.py</code></span>
+    <span class="counts">20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0</span>
+  </figcaption>
+</figure>
+<figure>
+  <img src="sternkarte.png" alt="Cockpit im Theme sternkarte">
+  <figcaption>
+    <b>sternkarte</b>
+    <span>Kopf bar · Gespräch drawer · Entscheidung float · Bühne stars</span>
+    <span>28 Knoten gezeichnet · Mitte <code>daedalus/spine/attempt.py</code></span>
+    <span class="counts">20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0</span>
+  </figcaption>
+</figure>
+<figure>
+  <img src="depesche.png" alt="Cockpit im Theme depesche">
+  <figcaption>
+    <b>depesche</b>
+    <span>Kopf masthead · Gespräch flow · Entscheidung inline · Bühne arcs</span>
+    <span>15 Knoten gezeichnet · Mitte <code>daedalus/spine/attempt.py</code></span>
+    <span class="counts">20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0</span>
+  </figcaption>
+</figure>
+<figure>
+  <img src="nachtfenster.png" alt="Cockpit im Theme nachtfenster">
+  <figcaption>
+    <b>nachtfenster</b>
+    <span>Kopf rail · Gespräch column · Entscheidung inline · Bühne forest</span>
+    <span>32 Knoten gezeichnet · Mitte <code>daedalus/spine/attempt.py</code></span>
+    <span class="counts">20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0</span>
+  </figcaption>
+</figure>
+<figure>
+  <img src="leitstand.png" alt="Cockpit im Theme leitstand">
+  <figcaption>
+    <b>leitstand</b>
+    <span>Kopf bar · Gespräch column · Entscheidung bar · Bühne cards</span>
+    <span>20 Knoten gezeichnet · Mitte <code>daedalus/spine/attempt.py</code></span>
+    <span class="counts">20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0</span>
+  </figcaption>
+</figure>
+</div>
+<footer>
+  Aufgenommen mit <code>apps/web/tools/shoot.mjs</code>; was auf jedem Bild zu sehen war,
+  steht in <code>manifest.json</code>. Hintergrund und offene Punkte: <code>README.md</code>.
+</footer>
