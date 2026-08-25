@@ -28,6 +28,24 @@ const HEIGHT = Number(arg('height', 900));
 const THEMES = arg('themes', 'kammer,werkstatt,sternkarte,depesche,nachtfenster,leitstand').split(',');
 const WAIT_MS = Number(arg('wait', 120000));
 
+const log = (line) => process.stdout.write(String(line).concat('\n'));
+
+/**
+ * Wait until the status line stops saying it is still reading the health
+ * surface. That surface measurably costs ~40s here, so shooting before it
+ * lands gives every round a bar reading "Zustand wird gelesen ..." — true, and
+ * useless, since the thing under review is what the bar says once it knows.
+ * Waited for, never faked: if it never settles, the shot keeps the unread
+ * state and says so out loud.
+ */
+async function settleHealth(page) {
+  await page
+    .waitForFunction(() => !(document.querySelector('.statusline')?.textContent || '').includes('wird gelesen'), {
+      timeout: 180000
+    })
+    .catch(() => log('  (health never settled; the shot shows it unread)'));
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true });
   const browser = await chromium.launch();
@@ -42,8 +60,14 @@ async function main() {
 
   // First load: warm the structure index once so the per-theme shots are not
   // all screenshots of the same "the map is being built" message.
+  //
+  // The health wait belongs here too, and not only in the loop. Reloading while
+  // a health request is in flight does not cancel it server-side, so the next
+  // page's request queues behind an answer nobody will read — which is why the
+  // FIRST theme, and only the first, kept being shot with an unread state line.
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.stage-node', { timeout: WAIT_MS });
+  await settleHealth(page);
 
   for (const id of THEMES) {
     await page.evaluate((themeId) => localStorage.setItem('daedalus-theme-id', themeId), id);
@@ -53,6 +77,7 @@ async function main() {
     // is a picture of a cockpit that happens to have nothing pending, which is
     // a different design than the one being reviewed.
     await page.waitForSelector('.decision', { timeout: 15000 }).catch(() => {});
+    await settleHealth(page);
     await page.waitForTimeout(700);
 
     const seen = await page.evaluate(() => ({
