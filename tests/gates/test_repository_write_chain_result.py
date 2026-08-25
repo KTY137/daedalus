@@ -273,6 +273,32 @@ def test_derived_counts_boolean_and_digest_cannot_be_forged(
         with pytest.raises(chain.RepositoryWriteChainResultError):
             chain.RepositoryWriteChainResult.from_dict(tampered)
 
+    forged_surface = json.loads(json.dumps(payload))
+    forged_surface["surfaces"][0]["authenticated"] = False
+    with pytest.raises(chain.RepositoryWriteChainResultError):
+        chain.RepositoryWriteChainResult.from_dict(forged_surface)
+
+
+def test_builder_refuses_a_missing_stage_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _surface("daedalus/attempt.py")
+    row = _central(surface)
+    report = project_repository_write_classifications(_inventory(surface), (row,))
+    stage_reports = {
+        stage: SimpleNamespace(digest=str(index) * 64)
+        for index, stage in enumerate(AuthenticationStage, start=1)
+        if stage is not AuthenticationStage.LEASE
+    }
+    monkeypatch.setattr(
+        chain,
+        "_run_stage_verifiers",
+        lambda subject, inputs: stage_reports,
+    )
+
+    with pytest.raises(chain.RepositoryWriteChainResultError):
+        chain.build_repository_write_chain_result(report, inputs=_inputs())
+
 
 def test_stage_digest_omission_and_duplicate_json_keys_are_refused(
     monkeypatch: pytest.MonkeyPatch,
