@@ -38,10 +38,15 @@ module (one-line fix, not protected, not blocking); and
 
 ## Why it is moot rather than accepted or rejected
 
-The retained-source strangler (`_gated_writes_legacy.py.src`) and the guard
-that would have enforced this `.gitattributes` rule are both gone; current
-`daedalus/kairos/gated_writes.py` and `daedalus/kernel/promotion.py` no
-longer exec a pinned blob this way [MEASURED 2026-08-25: no
-`AUTO_PROMOTE_LEVELS` or blob-pin symbols in the current module]. Whether the
-present tree has any live CRLF/blob-pin exposure is not established by this
-record and would need fresh measurement, not a replay of this one.
+The *guard* that would have enforced this `.gitattributes` rule
+(`tools/iron_plan_guard.py`) is gone. The *mechanism it was proposed for* is
+not: `daedalus/kairos/gated_writes.py` still execs a pinned retained-source
+blob (`_gated_writes_legacy.py.src`, pin `ec2fa2d6d0…`, `AUTO_PROMOTE_LEVELS =
+("never",)` inside it) [MEASURED 2026-08-25 — corrects an earlier, wrong
+"no longer exec a pinned blob" claim in this record; the same pin is also
+recorded live in `docs/decisions-taken/2026-08-23/control_root_migration.md`].
+Whether the present tree still has the CRLF-normalization exposure this
+proposal identified is therefore an open question, not a moot one — it would
+need a fresh reproduction on an `autocrlf=true` Windows checkout, not a replay
+of this record. Status stays MOOT only in the narrow sense that no
+`.gitattributes` rule was ever proposed against the *current* pin.
