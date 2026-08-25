@@ -12,7 +12,10 @@ import {
 import { useThemes } from '../theme/ThemeProvider';
 import { ThemeStudio } from '../theme/ThemeStudio';
 import type { GovernancePayload, ProjectRow, StructurePayload, TopologyPayload } from '../types';
+import GlassSurface from '../components/GlassSurface';
+import { loadAutonomy, saveAutonomy, type AutonomyLevel } from './autonomy';
 import { Conversation } from './Conversation';
+import { Settings } from './Settings';
 import { Decision } from './Decision';
 import { buildIndex, defaultFocus, neighbourhood, rankModules, searchModules, shortLabel } from './graph';
 import { Stage } from './Stage';
@@ -69,6 +72,17 @@ export function Cockpit() {
     }
   });
   const [studioOpen, setStudioOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** which runtime answers; '' means "let the backend route" */
+  const [brain, setBrain] = useState<string>(() => {
+    try {
+      return localStorage.getItem('daedalus-brain') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [autonomy, setAutonomy] = useState<AutonomyLevel>(loadAutonomy);
+  const [autoLog, setAutoLog] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [live, setLive] = useState<{ inFlight?: number; queued?: number }>({});
@@ -228,6 +242,20 @@ export function Cockpit() {
     });
   }, [index, structureFor]);
 
+  const chooseBrain = useCallback((id: string) => {
+    setBrain(id);
+    try {
+      localStorage.setItem('daedalus-brain', id);
+    } catch {
+      /* storage blocked — the choice still holds for this session */
+    }
+  }, []);
+
+  const chooseAutonomy = useCallback((level: AutonomyLevel) => {
+    setAutonomy(level);
+    saveAutonomy(level);
+  }, []);
+
   const goto = useCallback((next: 'map' | 'chat') => {
     setView(next);
     try {
@@ -294,6 +322,7 @@ export function Cockpit() {
       } else if (e.key === 'Escape') {
         setPaletteOpen(false);
         setStudioOpen(false);
+        setSettingsOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -319,13 +348,35 @@ export function Cockpit() {
       resolveModule={resolveModule}
       onFocusModule={chooseFocus}
       contextModule={contextModule}
+      provider={brain || undefined}
+      autonomy={autonomy}
+      onDispatched={() => {
+        setDraftSignal((n) => n + 1);
+        setAutoLog((n) => n + 1);
+      }}
     />
   );
   const decision = (
-    <Decision signal={draftSignal} onChanged={() => setDraftSignal((n) => n + 1)} onCount={setPendingCount} />
+    <Decision
+      signal={draftSignal}
+      onChanged={() => setDraftSignal((n) => n + 1)}
+      onCount={setPendingCount}
+      autonomy={autonomy}
+      onAutomatic={() => setAutoLog((n) => n + 1)}
+    />
   );
 
-  const stageHeader = nh ? (
+  /**
+   * The one pane of glass on the map.
+   *
+   * `@react-bits/GlassSurface` is the real thing — an SVG displacement filter
+   * with a chromatic edge, the Apple/visionOS material rather than a
+   * backdrop-filter pretending to be one, and it falls back cleanly where the
+   * filter is unsupported. ONE pane: the owner's earlier ruling was glass as a
+   * material for at most two surfaces, and this is the surface that sits over
+   * the graph.
+   */
+  const stageHeaderInner = nh ? (
     <>
       <h1 className="stage-focus" title={nh.focus}>
         {shortLabel(nh.focus)}
@@ -354,6 +405,25 @@ export function Cockpit() {
       )}
     </>
   ) : null;
+
+  const stageHeader =
+    stageHeaderInner && theme.form.material === 'glass' ? (
+      <GlassSurface
+        width="100%"
+        height="auto"
+        borderRadius={theme.form.radius}
+        blur={theme.form.blur}
+        backgroundOpacity={theme.form.alpha}
+        saturation={1.4}
+        brightness={60}
+        opacity={0.9}
+        className="stage-header-glass"
+      >
+        {stageHeaderInner}
+      </GlassSurface>
+    ) : (
+      stageHeaderInner
+    );
 
   const emptyStage = (
     <div className="stage-empty">
@@ -400,6 +470,7 @@ export function Cockpit() {
           <ViewSwitch view={view} onGo={goto} pending={pendingCount} />
           <ChromeTools
             onStudio={() => setStudioOpen(true)}
+            onSettings={() => setSettingsOpen(true)}
             onPalette={() => {
               setPaletteScope('all');
               setPaletteOpen(true);
@@ -417,6 +488,7 @@ export function Cockpit() {
         <div className="chrome-spacer" />
         <ChromeTools
           onStudio={() => setStudioOpen(true)}
+          onSettings={() => setSettingsOpen(true)}
           onPalette={() => {
             setPaletteScope('all');
             setPaletteOpen(true);
@@ -525,6 +597,16 @@ export function Cockpit() {
         </div>
       )}
 
+      <Settings
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        brain={brain}
+        onBrain={chooseBrain}
+        autonomy={autonomy}
+        onAutonomy={chooseAutonomy}
+        logSignal={autoLog}
+      />
+
       <ThemeStudio open={studioOpen} onClose={() => setStudioOpen(false)} />
     </div>
   );
@@ -584,11 +666,13 @@ function ProjectPicker({
 
 function ChromeTools({
   onStudio,
+  onSettings,
   onPalette,
   onRefresh,
   loading
 }: {
   onStudio: () => void;
+  onSettings: () => void;
   onPalette: () => void;
   onRefresh: () => void;
   loading: boolean;
@@ -600,6 +684,9 @@ function ChromeTools({
       </button>
       <button type="button" onClick={onRefresh} disabled={loading} title="Index neu bauen">
         {loading ? 'Liest …' : 'Neu lesen'}
+      </button>
+      <button type="button" onClick={onSettings} title="Brain, Autonomie, Erreichbarkeit">
+        Einstellungen
       </button>
       <button type="button" onClick={onStudio} title="Themes">
         Themes

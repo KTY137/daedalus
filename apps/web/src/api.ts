@@ -228,10 +228,55 @@ export function updateCategory(project: string, category: string, patch: Record<
   });
 }
 
-export function queueTask(project: string, objective: string, lane: string) {
-  return request('/api/queue', {
+/* ---- Conversations: the chat that survives a reload ---- */
+
+export interface ConversationTurn {
+  user_message: string;
+  assistant_text: string | null;
+  intent?: string;
+  provider_used?: string;
+  model_used?: string;
+  created?: string;
+  proposed_action?: Record<string, unknown> | null;
+}
+
+export interface ConversationView {
+  conversation_id: string;
+  exists: boolean;
+  turn_count: number;
+  narrative?: string;
+  turns: ConversationTurn[];
+  turns_returned: number;
+  open_dispatches?: Array<Record<string, unknown>>;
+}
+
+/**
+ * Mint an id. Deliberately a pure id: the row is created by the FIRST
+ * `append_turn`, so this never leaves a conversation-shaped id behind that
+ * GET would 404 on forever.
+ */
+export function newConversation() {
+  return request<ApiEnvelope & { conversation_id: string }>('/api/conversations', {
     method: 'POST',
-    body: JSON.stringify({ project, objective, lane, source: 'agent-os', strategy: 'single' })
+    body: '{}'
+  });
+}
+
+/** The resumable view: the narrative, the bounded turn list, open dispatches. */
+export function getConversation(id: string, limit = 40) {
+  return request<ApiEnvelope & { conversation: ConversationView }>(
+    `/api/conversations/${encodeURIComponent(id)}?limit=${limit}`
+  );
+}
+
+export function queueTask(project: string, objective: string, lane: string, conversationId?: string) {
+  // `conversation_id` is the link between a dispatch and the turn that asked
+  // for it — the thread's own record of what it set running.
+  const body: Record<string, unknown> = { project, objective, lane, source: 'agent-os', strategy: 'single' };
+  if (conversationId) body.conversation_id = conversationId;
+  return request<ApiEnvelope & { task?: Record<string, unknown> }>('/api/queue', {
+    method: 'POST',
+    body: JSON.stringify(body)
   });
 }
 
@@ -256,12 +301,14 @@ export function askIkarus(
   message: string,
   provider?: string,
   model?: string,
-  effort?: EffortLevel
+  effort?: EffortLevel,
+  conversationId?: string
 ) {
   const body: Record<string, unknown> = { project, message };
   if (provider) body.provider = provider;
   if (model && model.trim()) body.model = model.trim();
   if (effort) body.effort = effort;
+  if (conversationId) body.conversation_id = conversationId;
   return request<IkarusAskPayload>('/api/ikarus/ask', {
     method: 'POST',
     body: JSON.stringify(body)
@@ -319,12 +366,16 @@ export function streamIkarus(
     onDelta: (text: string) => void;
     onFinal: (payload: IkarusAskPayload) => void;
     onError: (err: Error) => void;
-  }
+  },
+  conversationId?: string
 ): { close: () => void } {
   const qs = new URLSearchParams({ project, message });
   if (provider) qs.set('provider', provider);
   if (model && model.trim()) qs.set('model', model.trim());
   if (effort) qs.set('effort', effort);
+  // Passed through to ikarus_os.ask_stream: this is what turns a sequence of
+  // one-shot answers into a conversation that survives a reload.
+  if (conversationId) qs.set('conversation_id', conversationId);
 
   const es = new EventSource(`/api/ikarus/stream?${qs.toString()}`);
 

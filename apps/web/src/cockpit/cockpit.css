@@ -294,6 +294,15 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
   max-width: 40ch;
   pointer-events: none;
 }
+
+/* GlassSurface centres its content and pads it in rem; this block is a
+   left-aligned header, and its spacing belongs to the theme. */
+.stage-header .glass-surface__content {
+  display: block;
+  text-align: left;
+  padding: var(--u3) var(--u4);
+}
+.stage-header .glass-surface { min-width: 34ch; }
 .stage-eyebrow {
   font-size: var(--fs-xs);
   letter-spacing: 0.12em;
@@ -632,6 +641,85 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
   cursor: pointer;
 }
 .composer button:disabled { opacity: 0.45; cursor: default; }
+
+/* --------------------------------------------------------- thread bar */
+
+.convo-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+  border-bottom: var(--border) solid var(--line2);
+  padding-bottom: var(--u1);
+}
+.convo-thread { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.convo-bar button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.convo-bar button:hover:not(:disabled) { color: var(--ink); border-color: var(--accent); }
+.convo-bar button:disabled { opacity: 0.45; cursor: default; }
+.convo-bar .convo-stop { color: var(--bad); border-color: var(--bad); }
+
+/* ------------------------------------------------------------- an offer */
+
+/* Ikarus proposing something is not a chat message and should not read like
+   one. It is a decision with two answers, inline in the thread where it was
+   made — the same grammar as the draft card, one level quieter. */
+.offer {
+  margin-top: var(--u2);
+  padding: var(--u2) var(--u3);
+  border: var(--border) solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  display: grid;
+  gap: 2px;
+}
+.offer-eyebrow {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.offer-what { color: var(--ink); }
+.offer-where { font-size: var(--fs-xs); color: var(--ink3); }
+.offer-acts { display: flex; gap: var(--u2); margin-top: var(--u2); flex-wrap: wrap; }
+.offer-acts button {
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.offer-acts button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.offer-outcome {
+  display: inline-block;
+  margin-top: var(--u1);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+
+.decision-auto {
+  font-size: var(--fs-xs);
+  color: var(--live);
+  border-left: 2px solid var(--live);
+  padding-left: var(--u2);
+  margin-top: var(--u2);
+}
 
 /* -------------------------------------------------------------- decision */
 

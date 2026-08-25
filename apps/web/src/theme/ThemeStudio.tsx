@@ -241,6 +241,14 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
       </nav>
 
       <div className="studio-body">
+        {/* One way back that is always in the same place. The tab row above is
+            the other, and it was the one that got squeezed flat. */}
+        {tab !== 'themes' && (
+          <button type="button" className="studio-back" onClick={() => setTab('themes')}>
+            ← Zurück zur Theme-Liste
+          </button>
+        )}
+
         {tab === 'themes' && (
           <>
             <div className="studio-group-title">Eingebaut · aus der Gallery-Runde vom 24.08.2026</div>

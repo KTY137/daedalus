@@ -102,15 +102,36 @@
   font-size: var(--fs-xs);
 }
 
+/**
+ * `flex: none` on every band, and it is not cosmetic.
+ *
+ * The studio is a flex column whose body scrolls. Flex items shrink by
+ * default, so with the notice and the problem list present the tab row was
+ * squeezed to 14px tall [MEASURED 2026-08-25] — present in the DOM, unreadable
+ * and unhittable on screen. The owner's report was "im theme editor hardstuck
+ * bei Farbe", and that is exactly what a 14px navigation does.
+ */
+.studio-head,
+.studio-active,
+.studio-note,
+.studio-problems,
+.studio-tabs {
+  flex: none;
+}
+.studio-body { flex: 1 1 auto; min-height: 0; }
+
 .studio-tabs {
   display: flex;
   gap: 2px;
   padding: 0 var(--u4);
   border-bottom: var(--border) solid var(--line2);
   overflow-x: auto;
+  min-height: 44px;
+  align-items: stretch;
 }
 .studio-tabs button {
-  min-height: 38px;
+  min-height: 44px;
+  flex: none;
   padding: 0 var(--u2);
   border: 0;
   border-bottom: 2px solid transparent;
@@ -125,6 +146,23 @@
 .studio-tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
 
 .studio-body { overflow: auto; padding: var(--u3) var(--u4) var(--u8); }
+
+.studio-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin-bottom: var(--u2);
+  padding: 0 var(--u2) 0 var(--u1);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.studio-back:hover { color: var(--ink); border-color: var(--line); }
 .studio-section { display: grid; gap: var(--u3); margin-bottom: var(--u6); }
 .studio-group-title {
   font-size: var(--fs-xs);
