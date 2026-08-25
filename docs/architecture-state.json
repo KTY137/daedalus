@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "2fdfea33ad3b9035b271f93f20cb71678a8c3447"
+    "head": "59c1ff12363073c8108c4ba2e2ff9880c04530c6"
   },
   "counts": {
     "dark_switches": 3,
-    "doc_drift": 32,
+    "doc_drift": 31,
     "index_extra_edges": 1,
     "islands": 79,
-    "modules": 1645,
-    "shims": 8,
-    "test_only": 42,
+    "modules": 1650,
+    "shims": 7,
+    "test_only": 43,
     "unknown": 29,
     "unparsable": 1,
-    "unreached": 116
+    "unreached": 115
   },
   "ignore": {
     "env": "",
@@ -160,6 +160,7 @@
     "daedalus/kernel/promotion.py",
     "daedalus/kernel/promotion_execution.py",
     "daedalus/kernel/promotion_execution_reader.py",
+    "daedalus/kernel/promotion_fingerprint.py",
     "daedalus/kernel/promotion_trust_root.py",
     "daedalus/kernel/runtime_conformance.py",
     "daedalus/kernel/runtime_effect_replay.py",
@@ -316,7 +317,9 @@
     "daedalus/web_api.py",
     "daedalus/wiki/__init__.py",
     "daedalus/wiki/links.py",
+    "daedalus/wiki/plan.py",
     "daedalus/wiki/vault.py",
+    "daedalus/wiki/verify.py",
     "docs/recovery/amendment_003_serena_first_kit.py",
     "docs/recovery/amendment_004_descope_harness_kit.py",
     "docs/recovery/amendment_005_kit.py",
@@ -441,6 +444,8 @@
     "experiments/tensor_embedding/arm_d_nary_model.py",
     "experiments/tensor_embedding/arm_e_tensor_space.py",
     "experiments/tensor_embedding/arm_f_pykeen.py",
+    "experiments/tensor_embedding/arm_h_real_fourfold.py",
+    "experiments/tensor_embedding/bench_crossplane.py",
     "experiments/tensor_embedding/hrr.py",
     "runs/ab/blind.py",
     "runs/ab/oracle_check.py",
@@ -1675,7 +1680,7 @@
     "daedalus/kairos/evolution.py",
     "daedalus/kairos/shadow_shell.py",
     "daedalus/kernel/effect_recovery.py",
-    "daedalus/langgraph_adapter.py",
+    "daedalus/kernel/promotion_fingerprint.py",
     "daedalus/observe/shape.py",
     "daedalus/runtimes/provider_invocation_authority.py",
     "daedalus/runtimes/provider_invocation_registry.py",
@@ -1787,7 +1792,6 @@
     "daedalus/mission_control.py",
     "daedalus/observe/__init__.py",
     "daedalus/twin/extractors/__init__.py",
-    "daedalus/wiki/__init__.py",
     "experiments/forest_v2/s02_types/corpus_alias/xpkg/__init__.py",
     "experiments/forest_v2/tensor_semantic_composite/__init__.py"
   ],
@@ -1803,6 +1807,7 @@
     "daedalus/kairos/evolution.py",
     "daedalus/kairos/shadow_shell.py",
     "daedalus/kernel/effect_recovery.py",
+    "daedalus/kernel/promotion_fingerprint.py",
     "daedalus/observe/shape.py",
     "daedalus/runtimes/faults.py",
     "daedalus/runtimes/provider_executable_structure.py",
@@ -1861,7 +1866,6 @@
     "doc-only:DAEDALUS_SERENA_HOOK",
     "doc-only:DAEDALUS_WATCHDOG",
     "doc-only:DEFAULT_ROOT",
-    "doc-only:FORCE_COLOR",
     "doc-only:FROZEN_GATE_PATHS",
     "doc-only:HARNESS_PACKAGES",
     "doc-only:INVENTORY_ONLY",
@@ -1881,5 +1885,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:c384de963de7097f4c04e675a228b757643a9acb2c1b22d80c63123907647101"
+  "digest": "sha256:9e74e437ead5d678b293250c7a5f16b848aab4f0ba8051f767299eb9f2f1854d"
 }
