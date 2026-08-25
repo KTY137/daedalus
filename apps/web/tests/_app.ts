@@ -67,9 +67,20 @@ export function collect(page: Page): Signals {
   return s;
 }
 
-/** Load the cockpit and prove it actually mounted. */
+/**
+ * Load the CLASSIC surface and prove it actually mounted.
+ *
+ * `/` now opens the themed cockpit (`src/cockpit/`), which has its own suite in
+ * `cockpit.spec.ts`. Everything in this helper — the dock, the three spaces,
+ * the health badges — belongs to the surface that is still served at
+ * `?surface=classic`, and that surface still owns the contracts these specs
+ * pin. Pointing them at the new shell instead would have turned a real suite
+ * into a red one for a reason that is not a defect.
+ */
+export const CLASSIC = '/?surface=classic';
+
 export async function openApp(page: Page): Promise<void> {
-  const res = await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const res = await page.goto(CLASSIC, { waitUntil: 'domcontentloaded' });
   expect(res, 'the server did not answer GET / at all').not.toBeNull();
   expect(res!.status(), 'GET / did not come back 200').toBe(200);
 

@@ -197,9 +197,21 @@ export interface HealthPayload extends ApiEnvelope {
   asked?: { deep: boolean; probe_remote: boolean; only: string | null };
 }
 
-/** Cheap, read-only system glance. Expensive and remote probes remain off. */
-export function getHealth() {
-  return request<HealthPayload>('/api/health', undefined, 30_000);
+/**
+ * Read-only system glance. Expensive and remote probes remain off.
+ *
+ * The 30s budget this used to carry was BELOW what the endpoint costs. Measured
+ * on this machine 2026-08-25, a shallow assess() takes ~39.5s wall (slowest
+ * probes: picker.queue 13.9s, embed.bench 6.0s, hand.executor 6.0s), so every
+ * call timed out and the surfaces printed "Zustand ungelesen" over a health
+ * surface that was working. A timeout shorter than the work turns a slow
+ * answer into a reported failure, which is the same lie as the reverse.
+ *
+ * 90s is the budget, not the expectation: callers should render "wird gelesen"
+ * meanwhile and must not block anything else on it.
+ */
+export function getHealth(timeoutMs = 90_000) {
+  return request<HealthPayload>('/api/health', undefined, timeoutMs);
 }
 
 export function updateAgent(project: string, agent: string, patch: Record<string, unknown>) {

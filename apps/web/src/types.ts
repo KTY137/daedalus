@@ -267,6 +267,20 @@ export interface StructureGraph {
   /** Total edges found, before the edge cap. */
   n_edges_total: number;
   /**
+   * Edges whose BOTH endpoints survived the node cap — the only ones that can
+   * be drawn at all. Optional: an older backend does not send it.
+   */
+  n_edges_eligible?: number;
+  /** Edges actually in `edges` after the edge cap. */
+  n_edges_shown?: number;
+  /**
+   * Edges that exist in the repository and lead OUT of the drawn map, because
+   * one endpoint did not survive the node cap. A map that hides this reads as
+   * a complete picture of a codebase it has only sampled, so the cockpit says
+   * the number out loud.
+   */
+  n_edges_offmap?: number;
+  /**
    * True when `nodes`/`edges` are a bounded slice of the whole graph (the
    * backend keeps the highest-heat nodes). The UI MUST surface this — this
    * project has a hard no-silent-caps rule.
