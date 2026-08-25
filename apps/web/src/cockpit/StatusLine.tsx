@@ -1,5 +1,5 @@
 import type { HealthPayload } from '../api';
-import type { GovernancePayload, StructurePayload } from '../types';
+import type { GovernancePayload, StructurePayload, TopologyPayload } from '../types';
 
 /**
  * One line of state, and every item in it is a fact somebody can check.
@@ -17,6 +17,7 @@ export interface StatusLineProps {
   healthError?: string;
   governance?: GovernancePayload;
   structure?: StructurePayload;
+  topology?: TopologyPayload;
   inFlight?: number;
   queued?: number;
   streamLive?: boolean;
@@ -44,6 +45,7 @@ export function StatusLine({
   healthError,
   governance,
   structure,
+  topology,
   inFlight,
   queued,
   streamLive,
@@ -88,11 +90,30 @@ export function StatusLine({
         </span>
       ) : null}
 
+      {/* Labelled "Karte", because the topology item beside it reports a
+          DIFFERENT graph with a bigger node count. Two unlabelled numbers for
+          "the graph" on one bar is how a reader ends up trusting whichever they
+          read first. */}
       {graph ? (
-        <span className="status-item">
-          {graph.nodes.length} Knoten · {graph.edges.length} Kanten gezeichnet
-          {graph.n_edges_offmap ? ` · ${graph.n_edges_offmap} führen aus der Karte` : ''}
-          {graph.truncated ? ' · Karte beschnitten' : ''}
+        <span
+          className="status-item"
+          title="Die gezeichnete Karte ist die nach Hitze gerankte, gedeckelte Teilmenge des Index — nicht der ganze Importgraph."
+        >
+          Karte {graph.nodes.length} Knoten · {graph.edges.length} Kanten
+          {graph.n_edges_offmap ? ` · ${graph.n_edges_offmap} führen heraus` : ''}
+          {graph.truncated ? ' · beschnitten' : ''}
+        </span>
+      ) : null}
+
+      {topology?.topology?.available ? (
+        <span
+          className={`status-item ${topology.topology.connected_components > 1 ? 'warn' : ''}`}
+          title={`${topology.topology.graph_type}. Methode: ${topology.topology.method} — ${topology.topology.reason}`}
+        >
+          Importgraph {topology.topology.node_count} Knoten ·{' '}
+          {topology.topology.connected_components === 1
+            ? 'zusammenhängend'
+            : `${topology.topology.connected_components} Komponenten`}
         </span>
       ) : null}
 

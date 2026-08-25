@@ -1,4 +1,4 @@
-import type { ApiEnvelope, BootstrapPayload, ControlPlanePayload, DashboardPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload } from './types';
+import type { ApiEnvelope, BootstrapPayload, ControlPlanePayload, DashboardPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TopologyPayload } from './types';
 
 /**
  * Why a request failed, kept SEPARATE from the message.
@@ -629,6 +629,17 @@ export function getStructure(project: string, refresh = false): Promise<Structur
 }
 
 /** Distill a target module/symbol down to a minimal review slice. */
+/**
+ * The spectral read of the import graph. Cheap once the index is warm (it
+ * reuses the same scoped index as `/api/structure`), and until 2026-08-25 it
+ * had no caller anywhere in this repository.
+ */
+export function getTopology(project: string, refresh = false): Promise<TopologyPayload> {
+  const qs = new URLSearchParams({ project });
+  if (refresh) qs.set('refresh', '1');
+  return request<TopologyPayload>(`/api/topology?${qs.toString()}`, undefined, 120_000);
+}
+
 export function distill(project: string, target: string): Promise<DistillPayload> {
   return request<DistillPayload>('/api/distill', {
     method: 'POST',

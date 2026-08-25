@@ -288,6 +288,37 @@ export interface StructureGraph {
   truncated: boolean;
 }
 
+/**
+ * `GET /api/topology` — the spectral read of the import graph.
+ *
+ * This is a DIFFERENT graph from `StructureGraph`: an undirected projection of
+ * the directed import edges over the whole scanned index, where the map the
+ * stage draws is the heat-ranked, capped subset. The two report different node
+ * counts on purpose and the cockpit labels both, because one number quietly
+ * replacing the other is how a surface starts describing a codebase it never
+ * looked at.
+ *
+ * `method` and `reason` are the honest half: when the graph is disconnected
+ * there is no unique Fiedler vector, and the backend says so instead of
+ * returning a partition it could not justify.
+ */
+export interface TopologyPayload extends ApiEnvelope {
+  topology: {
+    available: boolean;
+    graph_type: string;
+    node_count: number;
+    edge_count: number;
+    connected_components: number;
+    method: string;
+    reason: string;
+    partition_a: string[];
+    partition_b: string[];
+    cut_edges: number;
+    conductance: number;
+    algebraic_connectivity: number;
+  };
+}
+
 export interface StructurePayload {
   ok: boolean;
   project: string;

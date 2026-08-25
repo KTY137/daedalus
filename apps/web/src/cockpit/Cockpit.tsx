@@ -4,13 +4,14 @@ import {
   getHealth,
   getProjects,
   getStructure,
+  getTopology,
   isBackendDown,
   openEventStream,
   type HealthPayload
 } from '../api';
 import { useThemes } from '../theme/ThemeProvider';
 import { ThemeStudio } from '../theme/ThemeStudio';
-import type { GovernancePayload, ProjectRow, StructurePayload } from '../types';
+import type { GovernancePayload, ProjectRow, StructurePayload, TopologyPayload } from '../types';
 import { Conversation } from './Conversation';
 import { Decision } from './Decision';
 import { buildIndex, defaultFocus, neighbourhood, rankModules, searchModules, shortLabel } from './graph';
@@ -37,6 +38,7 @@ export function Cockpit() {
   const [project, setProject] = useState('');
   const [structure, setStructure] = useState<StructurePayload | undefined>();
   const [structureFor, setStructureFor] = useState('');
+  const [topology, setTopology] = useState<TopologyPayload | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [offline, setOffline] = useState(false);
@@ -120,6 +122,24 @@ export function Cockpit() {
   useEffect(() => {
     if (project) void loadStructure(project);
   }, [project, loadStructure]);
+
+  /**
+   * The spectral read of the import graph, fetched AFTER the map so it can
+   * never delay the picture. It answers a question the map cannot: whether the
+   * graph is one thing or many. On this repository it is 46 things, which is
+   * also why 1840 edges lead off the drawn map.
+   */
+  useEffect(() => {
+    if (!structureFor) return;
+    let alive = true;
+    setTopology(undefined);
+    getTopology(structureFor)
+      .then((p) => alive && setTopology(p))
+      .catch(() => alive && setTopology(undefined));
+    return () => {
+      alive = false;
+    };
+  }, [structureFor]);
 
   /* ---- health + governance ---- */
   useEffect(() => {
@@ -413,6 +433,7 @@ export function Cockpit() {
           healthError={healthError}
           governance={governance}
           structure={structure}
+          topology={topology}
           inFlight={live.inFlight}
           queued={live.queued}
           streamLive={streamLive}
