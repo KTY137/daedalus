@@ -225,7 +225,7 @@ Remaining steps after approval:
 2. Re-run the migration commands in existing checkouts.
 3. Run the 6 previously-uncollectable promotion modules and record real
    pass/fail (collection succeeding is not the same as passing).
-4. `python tools/iron_plan_guard.py verify`.
+4. `python tools/iron_plan_guard.py (removed 2026-08-23) verify`.
 
 ---
 
@@ -252,7 +252,7 @@ yet landed on any branch, because the canonical trunk is still undecided.
 
 ## Independent defect 2 (separate, lower severity)
 
-`tools/iron_plan_guard.py` — `git_command_is_mutating` (~line 1176) — classifies
+`tools/iron_plan_guard.py (removed 2026-08-22)` — `git_command_is_mutating` (~line 1176) — classifies
 read-only `git merge-base` and `git branch --merged` as mutating, because the
 invocation parser reduces the token `merge-base` to `merge`. This blocks
 ordinary read-only repository inspection with a protected-artifact denial.
