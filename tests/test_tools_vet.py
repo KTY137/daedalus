@@ -682,19 +682,58 @@ class InertAllowanceIsReported(unittest.TestCase):
 
 class LiveRepoConfig(unittest.TestCase):
     """The gate must see what this repo actually ships, not just fixtures.
-    Before the fix, ``npx -y @upstash/context7-mcp`` — this checkout's own
-    context7 server, with no ``@version`` at all — was invisible to a rule
-    hunting only for ``@latest``."""
 
-    def test_this_repos_context7_entry_is_flagged_unpinned(self):
+    This class used to assert that the live context7 entry IS flagged
+    ``mcp.unpinned``, because it was spelled ``npx -y @upstash/context7-mcp``
+    — a scoped npm package with no ``@version`` at all, which a rule hunting
+    only for ``@latest`` saw nothing to report about. That regression is pinned
+    by ``UnpinnedDetection.test_scoped_package_with_no_version_at_all``, which
+    carries the literal old entry as a fixture, so it cannot come back.
+
+    Asserting it again here made the test go red on 2026-08-25 for a reason
+    that was not a defect: every entry in ``.mcp.json`` was rewritten to an
+    absolute path to an installed ``dist/index.js``, to stop npx spawning a
+    console window per call. Those entries are no longer npx invocations, so
+    ``mcp.unpinned`` correctly does not fire — the test was demanding that the
+    checkout stay badly configured. A test must pin the FACT it cares about,
+    not the SPELLING a config happened to have when it was written.
+
+    The fact is: whatever this checkout ships must be code that was reviewed,
+    and the gate must actually have looked at each entry rather than skipped
+    it. Both are asserted below over every server, with the count named, so
+    neither can pass by finding nothing to check.
+    """
+
+    def _live_servers(self):
         p = Path(".mcp.json")
         if not p.exists():
             self.skipTest(".mcp.json is not present in this checkout")
-        cfg = json.loads(p.read_text(encoding="utf-8"))
-        servers = cfg.get("mcpServers") or {}
-        self.assertIn("context7", servers, "this test pins the exact live entry the gate must catch")
-        v = vet.vet_mcp_server("context7", servers["context7"])
-        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+        servers = (json.loads(p.read_text(encoding="utf-8")).get("mcpServers") or {})
+        if not servers:
+            self.skipTest(".mcp.json declares no MCP servers")
+        return servers
+
+    def _live_verdicts(self):
+        servers = self._live_servers()
+        return servers, {name: vet.vet_mcp_server(name, spec)
+                         for name, spec in servers.items()}
+
+    def test_the_gate_reaches_every_server_this_checkout_ships(self):
+        """Invariant 2: an entry the gate could not read is not a clean entry."""
+        servers, verdicts = self._live_verdicts()
+        self.assertEqual(set(verdicts), set(servers))
+        unscannable = {name: list(v.skipped) for name, v in verdicts.items()
+                       if v.outcome == vet.UNSCANNABLE}
+        self.assertEqual(unscannable, {},
+                         f"of {len(servers)} live servers, these could not be scanned at all")
+
+    def test_no_server_this_checkout_ships_runs_unreviewed_code_tomorrow(self):
+        servers, verdicts = self._live_verdicts()
+        offenders = {name: [f.excerpt for f in v.findings if f.rule == "mcp.unpinned"]
+                     for name, v in verdicts.items()}
+        offenders = {name: why for name, why in offenders.items() if why}
+        self.assertEqual(offenders, {},
+                         f"checked {len(servers)} live servers; these do not pin what they run")
 
 
 class ShellWrapperPayloadIsNotOneToken(unittest.TestCase):
