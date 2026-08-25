@@ -1,82 +1,129 @@
 # Daedalus — where the truth is today
 
-The one-page pointer table. It says where to look, never what the numbers are:
-a status page that carries numbers is a status page that goes stale between
-commits. Every claim below names the command that produced it.
+This is the one-page navigation and state boundary. It points to the artifacts
+that own each claim; it does not copy live metrics into prose. A status claim is
+revision-bound evidence, never timeless truth.
 
-**MEASURED 2026-08-22 at `f828ee58` on branch `main`.** `main` moves several
-times an hour while lanes land; re-read the row, not the sha.
+**MEASURED 2026-08-25 at `2de997ef` on branch `main`.** `main` is active and may
+move after this measurement. Re-run the named command or inspect the named
+artifact before relying on a current result.
 
-## The fork is settled
+## The canonical line is settled
 
-`main` in `C:/Users/nukei/Desktop/agent_env_g0` **is** the g0 trunk, and it is
-the only line where code and tests live. The 2026-08-22 ruling took Option A;
-the iron guard ceremony was retired in the same decision.
-
-| | where | state |
+| subject | authority | state |
 | --- | --- | --- |
-| truth (code, tests, docs) | this repo, branch `main` | active |
-| pre-ruling checkpoint | tag `archive/checkpoint-2026-07-20-session` | frozen, read-only history |
+| code, tests, current docs | this repository, branch `main` | active |
+| owner working checkout | `C:/Users/nukei/Desktop/agent_env` | the single active checkout |
+| pre-unification checkpoint | tag `archive/checkpoint-2026-07-20-session` | frozen, read-only history |
 
-[MEASURED: `git tag -l` lists the archive tag; amendment record 7 carries
-`approval_ref: owner-decision-2026-08-22-unify-on-g0-and-retire-guard` and
-`result_revision: 7`.] Anything written before 2026-08-22 that describes "two
-lines", "the trunk branch", or "this repo is not the truth" is history. Read it
-as evidence of what was measured then.
+The 2026-08-24 unification completed the 2026-08-22 owner ruling: the former
+`agent_env_g0` checkout was retired, its required content was reconciled into
+`main`, and the surviving checkout became `agent_env`. Text that still presents
+`agent_env_g0`, a second trunk, or a live checkpoint line as current is history,
+not operating guidance.
 
-## Five hops, and what each one is for
+Revision-bound evidence: commits `9831ddae` and `870bfdf7` record the merge and
+single-checkout transition. Neither record grants promotion or closes a gate.
 
-1. `README.md` — what Daedalus is, and the rules that do not bend.
-2. **this file** — where the truth is, and what is unsettled.
-3. `docs/IKARUS_ARIADNE_MASTER_PLAN.md` — the sole semantic authority:
-   invariants, gates, priors, delivery order. Revision 7, version 1.2.3, active
-   gate **Gate 0 — Canonical Kernel** [MEASURED: file header lines 4-9].
-   Its amendment chain is `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`,
-   7 records, sequence 1..7 unbroken [MEASURED: parsed 2026-08-22].
-4. `docs/architecture-narrative.md` — WHY the structure is what it is, paired
-   with the mechanical snapshot `docs/architecture-state.json`.
-5. `docs/adrs/` — the decision records, one namespace, `docs/adrs/README.md`
-   first. ADRs are history/backlog: they never override the plan.
+## Five hops to the authoritative material
 
-## What is unsettled, and where it waits
+1. `README.md` — product purpose, operating model, and the rules that do not
+   bend.
+2. **this file** — current line, unresolved boundaries, and where to inspect
+   them.
+3. `docs/IKARUS_ARIADNE_MASTER_PLAN.md` — sole semantic authority. Its current
+   header is Revision 7, Version 1.2.3, status `adopted`, active delivery gate
+   **Gate 0 — Canonical Kernel**.
+4. `docs/architecture-narrative.md` together with
+   `docs/architecture-state.json` — architectural intent plus the generated,
+   revision-stamped mechanical projection.
+5. `docs/adrs/README.md` and `docs/adrs/` — decisions and design history. ADRs
+   do not override the master plan.
 
-| open thing | where it waits |
+The amendment chain is
+`docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`. Program detail lives in
+`docs/DAEDALUS_GESAMTPLAN.md`, within the master plan's bounds.
+
+## Delivery state
+
+**Gate 0 remains open.** Gate 1 is not activated, and Gate 2 research cannot be
+used as evidence that an earlier gate closed. The Forest-v2 fusion work merged
+on 2026-08-24 remains an isolated experiment: its measured result is
+inconclusive, and its presence on `main` grants no production or promotion
+authority.
+
+The repository-level execution ledger is issue #43. The Gate-0 critical path
+remains represented by issues #33 through #39. Exact closure still requires the
+machine-readable report, independent reviews, and an explicit owner decision;
+green tests alone are not closure.
+
+## Current exact-head evidence boundary
+
+GitHub Actions issue #67 is still open. Earlier hosted jobs repeatedly ended
+before Step 1 with no logs or artifacts; those runs are infrastructure
+observations, not product evidence. The current `main` head has no PR-triggered
+workflow run attached to it. A new PR must show real checkout and command steps
+before #67 can be considered recovered.
+
+Until then, do not claim hosted CI, platform-matrix, mutation, package,
+fault-matrix, or release evidence from the zero-step period. Locally recorded
+runs remain useful only for the exact revision and command they name.
+
+## Architecture snapshot boundary
+
+`docs/architecture-state.json` is now generated from branch `main`, not from the
+archived checkpoint. Its current stamp is `94eb3515`, while this status
+measurement is at `2de997ef`; therefore it is stale relative to current HEAD.
+That is ordinary head drift, not the old wrong-branch mismatch.
+
+Use:
+
+```powershell
+python -m daedalus.cli map --check
+```
+
+for the live verdict. Do not copy module, island, drift, or reachability counts
+from the JSON unless its revision stamp matches the subject being discussed.
+Regenerate only through the mapping command; the generated fields are not
+hand-edited.
+
+## Decisions that no longer wait in the pending queue
+
+| decision | current state | evidence location |
+| --- | --- | --- |
+| unify on one `main` checkout | taken and executed | commits `9831ddae`, `870bfdf7` |
+| migrate the control root | taken | `docs/decisions-taken/2026-08-23/control_root_migration.md` |
+| bump the sealed promotion source pin | taken | `docs/decisions-taken/2026-08-23/gated_writes_lease_handdown.patch` |
+| install the promotion signer root | installed | `.agentenv/promotion_allowed_signers` |
+
+The signer file is a trust-root input, not an OwnerApproval and not permission
+to promote automatically.
+
+## Active high-signal blockers
+
+| boundary | tracking issue |
 | --- | --- |
-| signed approval root for promotion | `docs/decisions-pending/promotion_allowed_signers.proposed` |
-| control-root migration | TAKEN 2026-08-23 -- `docs/decisions-taken/2026-08-23/control_root_migration.md` |
-| sealed source pin bump for the promotion seam | TAKEN 2026-08-23 -- `docs/decisions-taken/2026-08-23/gated_writes_lease_handdown.patch` |
-| this session's mission and its ledger | `docs/missions/MISSION_2026-08-22.md` |
-| consolidation programme this page belongs to | `docs/inventory/2026-08-21/GIGA_PLAN_2026-08-22.md` |
+| hosted Actions must execute real steps | #67 |
+| post-provider evidence failure must remain unknown outcome | #123 |
+| recovery must authenticate the original observation/provider identity | #186 |
+| invoked adapter must be mechanically bound to the authenticated provider | #188 |
+| provider-observation ledger writes must be inventoried and guarded | #189 |
+| release closure must bind canonical repository-write inventory | #194 |
 
-The three pending decisions are [INHERITED] from `docs/HANDOFF.md` (top block,
-2026-08-22); the files themselves are [MEASURED] present in
-`docs/decisions-pending/`.
+This table is a navigation aid, not an exhaustive gate report. The exact blocker
+set belongs in the current machine-readable Gate-0 report.
 
-## The architecture snapshot is stale, and by more than a commit
+## Where measured results live
 
-`docs/architecture-state.json` is stamped
-`repo_state.branch = "checkpoint/2026-07-20-session"`,
-`head = afd2968d`, `dirty = true` — it was generated on the line that has since
-been archived. `python -m daedalus.cli map --check` exits non-zero against it
-and reports different live counts (`modules` 471 live vs 1311 in the snapshot,
-`islands` 49 vs 25) under a different ignore configuration, which the check
-itself flags as non-comparable [MEASURED 2026-08-22].
-
-Do not copy numbers out of that JSON. Re-baselining it is a reviewed decision,
-not a docs edit: `map --check` reports 1147 blocking items, and a `--refresh`
-would bank 26 new islands in one unreviewed stroke. It is left stale **and
-labelled** rather than quietly refreshed.
-
-## Numbers live in receipts, not here
-
-| you want | read |
+| question | inspect |
 | --- | --- |
-| what the last full suite did | `runs/watchdog/mission-20260822/PROGRESS.md` |
-| Gate-0 closure state | `docs/GATE0_OWNER_DECISIONS_20260817.md`, `runs/gate0-*/` |
-| spend and egress coverage | `docs/SPEND_AND_EGRESS_COVERAGE.md` (`status: reconstruction`) |
-| session history and handoffs | `docs/HANDOFF.md` — frozen, append-only |
-| archived 2026-07-30 swarm output | `docs/archive/swarm-2026-07-30/README.md` |
+| latest recorded watchdog/test chronology | `runs/watchdog/mission-20260822/PROGRESS.md` and `vault/Sessions/` |
+| Gate-0 owner decisions and release evidence | `docs/GATE0_OWNER_DECISIONS_20260817.md` and `runs/gate0-*/` |
+| current architecture projection | `python -m daedalus.cli map --check` plus `docs/architecture-state.json` |
+| spend and egress reconstruction | `docs/SPEND_AND_EGRESS_COVERAGE.md` |
+| historical handoff chronology | `docs/HANDOFF.md` |
+| Forest-v2 experiment evidence | `experiments/forest_v2/` and its committed result artifacts |
 
-`docs/` holds 487 tracked files [MEASURED 2026-08-22, `git ls-files docs`].
-Most of them are evidence and history. This page and the four hops above are
-the only entry points that claim to be current.
+Most of `docs/`, `runs/`, and `vault/` is evidence or history. The authoritative
+entry path is deliberately small: README → STATUS → master plan → architecture
+pair → ADR index.
