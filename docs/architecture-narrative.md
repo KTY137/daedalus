@@ -215,7 +215,7 @@ Behauptungen, die aufgestellt, gemessen und zurückgezogen wurden. Das ist der w
 - **Folge** — All eight struck from the vocabulary with named re-entry conditions per item. Sparse spectral analysis survives as read-only, size-limited VISUALISATION whose every payload carries a reason saying the cut does not prove conflict-free edit scopes. The candidate-authored-tests item is the one with the largest doctrine-vs-enforcement gap: prohibited in three documents, enforced in none, because there is no OS sandbox.
 
 Source: `docs/architecture-map.html` §“Die Umkehrungen”; the underlying
-records are in `docs/HANDOFF.md`, `runs/council/room.md`, `docs/FOUNDATION_AUDIT.md`
+records are in `docs/HANDOFF.md`, `runs/council/room.md`, `docs/archive/FOUNDATION_AUDIT.md`
 and `docs/adrs/002-hermes-upstream.md`.
 
 ## Drift, von Hand belegt {#drift}

@@ -14,7 +14,7 @@ Claude and Codex are collaborators, not single points of failure.
 Codex continues with:
 
 1. current git status
-2. `daedalus/memory/todos.local.md`
+2. `memory/todos.local.md`
 3. local tests
 4. concise recovery TODOs
 

@@ -1,8 +1,18 @@
 # Going live with real Ollama agents
 
-Everything is built and tested (28 tests green), but the bench can only execute
-once Ollama is actually running on this machine. Right now `doctor` says NOT
-READY (server unreachable). Run this sequence:
+The write path below is built and covered by the harness suite; the bench can
+only execute once Ollama is actually running on this machine. Whether `doctor`
+says READY is a property of your machine right now, not of this page — run it
+rather than trusting a sentence written on some earlier day.
+
+> The "28 tests green" this page used to claim was measured in the harness's
+> first weeks; the suite collects 7798 tests today [MEASURED 2026-08-25,
+> `pytest tests/ --collect-only`]. A count is not a readiness claim, which is
+> why it no longer appears here. `python -m daedalus.cli health --deep` and
+> `python -m daedalus.cli governance` are the commands that answer readiness,
+> and they exit non-zero rather than round up.
+
+Run this sequence:
 
 ## 1. Start Ollama + pull the models  (your machine — I can't do this)
 

@@ -28,7 +28,8 @@ confident prose with no control behind it.
   FETCHED version string is a snapshot and **must be re-pinned before anyone
   acts on this document.**
 - **INHERITED** — taken from an in-repo document (`docs/FITNESS_SIGNAL.md`,
-  `docs/GATE_DISCRIMINATION.md`, `docs/adrs/016`, `docs/adrs/017`,
+  `docs/GATE_DISCRIMINATION.md`, `docs/adrs/016-autonomy-preconditions.md`,
+  `docs/adrs/017-assistant-upstream.md`,
   `docs/HANDOFF.md`) and not independently re-verified here.
 
 ---
@@ -79,7 +80,7 @@ INHERITED, in the stated order of severity:
    criterion that decides the question — is **UNMEASURED**, with a recorded
    advance prediction that mutation score will be *green* on the `worktree.py`
    repository deletion, because you cannot mutate a guard that was never written.
-3. **The evaluator and its corpus are advisory.** MEASURED: `eval/harness.py`
+3. **The evaluator and its corpus are advisory.** MEASURED: `daedalus/eval/harness.py`
    scores by **substring containment** (`_recall`: `m not in slice_text`;
    `_score`: case-insensitive `in`). No oracle, no tests-as-scoring. The
    docstring says so: *"ADVISORY ONLY … must never be wired to block an
@@ -116,7 +117,7 @@ socket, no dependency. Cheapest bucket and usually the right answer.*
   `FAIL_TO_PASS` (red before the patch, green after) and `PASS_TO_PASS` (green
   before **and** after). Resolution requires every F2P test to pass and every
   P2P test to keep passing. FETCHED.
-- **Why here.** This is the exact property `eval/harness.py` lacks. A substring
+- **Why here.** This is the exact property `daedalus/eval/harness.py` lacks. A substring
   check cannot fail for a wrong-but-plausible patch; an F2P test can only pass
   if the behaviour changed, and a P2P list is a regression fence. And the repo
   **already proved this rule works, in another language**: MEASURED,
@@ -124,7 +125,7 @@ socket, no dependency. Cheapest bucket and usually the right answer.*
   the seeded rule* to go **newly** red, receipting 11 seeded / 11 caught over a
   baseline that already had 2 failing tests. Adopting the schema generalises an
   in-repo precedent under a name every reader already understands, and gives
-  `eval/mint.py` — which today mints `must_include` substring labels from a diff
+  `daedalus/eval/mint.py` — which today mints `must_include` substring labels from a diff
   — a target shape that is falsifiable.
 - **Adopt the schema. Do NOT adopt the corpus.** FETCHED: OpenAI published an
   audit in February 2026 of 138 of the 500 SWE-bench Verified problems (27.6%)
@@ -134,7 +135,7 @@ socket, no dependency. Cheapest bucket and usually the right answer.*
   ours. The *schema* is not implicated by that finding — the flawed tests were
   bad F2P sets, which is an argument for minting our own under a good schema.
 - **Cost** two list fields on a minted task, plus a mint-time check that the
-  F2P test is red at `minted_at_sha^`. `eval/mint.py` already runs
+  F2P test is red at `minted_at_sha^`. `daedalus/eval/mint.py` already runs
   `git log <minted_at_sha>^` for the backtest-clean arm in `ceiling.py`, so the
   machinery to check "red before" exists.
 
@@ -391,7 +392,7 @@ mechanism; "be inspired by X" is not a recommendation.*
   thing that *judges* it (scorer) are separate, separately swappable, and both
   named in the log. (b) The sandbox is a **named provider selected per task**,
   so "which boundary did this task run inside" is a recorded field.
-- **Why here.** (a) MEASURED: `eval/harness.py` fuses production and judgement —
+- **Why here.** (a) MEASURED: `daedalus/eval/harness.py` fuses production and judgement —
   `_recall` computes the substring match inline, and there is no scorer object to
   swap for a test-based one. Splitting them is the refactor that makes F1
   (adopting `FAIL_TO_PASS`) a change of scorer rather than a rewrite of the
@@ -411,7 +412,7 @@ mechanism; "be inspired by X" is not a recommendation.*
   benchmark is contamination-resistant *by construction* rather than by secrecy.
   FETCHED. It works: FETCHED, the standardised leader on 2026-06-28 scores 59.1%,
   far below Verified-era numbers.
-- **Why here.** MEASURED: `eval/ceiling.py` already runs a backtest-clean arm
+- **Why here.** MEASURED: `daedalus/eval/ceiling.py` already runs a backtest-clean arm
   (`git log <minted_at_sha>^`) *alongside* a leaky full-history arm specifically
   to expose the self-prediction artifact, and measured clean 1/43 = 2.3% against
   leaky 42/43. That is the same instinct — hold-back by construction, with the
