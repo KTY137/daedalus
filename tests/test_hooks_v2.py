@@ -402,6 +402,37 @@ def _serena_up(monkeypatch, up: bool) -> None:
     monkeypatch.setattr(tools, "serena_is_reachable", lambda env=None: up)
 
 
+def test_routing_does_not_nudge_into_a_server_indexing_another_tree(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    """Reachability is not correctness.
+
+    Cerberus/Momus 2026-08-25: the routing branch gated on serena_is_reachable
+    alone, so a server rooted at a DIFFERENT tree was still declared in force
+    and Grep/Read were steered into it. The answers would describe another
+    repository. Fail open to the native tools instead.
+    """
+    _serena_up(monkeypatch, True)
+    monkeypatch.setenv("DAEDALUS_SERENA_HOOK", "deny")
+    call = payload(repo, "PreToolUse", tool_name="Grep", tool_input={"pattern": "def build_wave"})
+
+    # same tree -> the routing rule applies as before
+    (repo / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {"serena": {"args": ["--project", str(repo)]}}})
+    )
+    _, out = run("pre_tool", call)
+    assert out != "", "routing must still fire when the server indexes THIS tree"
+
+    # other tree -> no nudge at all
+    other = tmp_path / "dead_tree"
+    other.mkdir()
+    (repo / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {"serena": {"args": ["--project", str(other)]}}})
+    )
+    _, out = run("pre_tool", call)
+    assert out == "", "a mismatched root must not be routed into, not even as advice"
+
+
 def test_serena_write_tool_is_denied_only_on_root_mismatch(repo: Path, tmp_path: Path, monkeypatch) -> None:
     _serena_up(monkeypatch, True)
     call = payload(repo, "PreToolUse", tool_name="mcp__serena__replace_symbol_body", tool_input={"name_path": "f"})

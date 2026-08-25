@@ -7,36 +7,33 @@
         "--context",
         "claude-code",
         "--project",
-        "c:/Users/nukei/Desktop/agent_env_g0"
+        "c:/Users/nukei/Desktop/agent_env"
       ]
     },
     "playwright": {
-      "command": "npx",
+      "command": "C:/Program Files/nodejs/node.exe",
       "args": [
-        "@playwright/mcp@latest"
+        "C:/Users/nukei/AppData/Roaming/npm/node_modules/@playwright/mcp/cli.js"
       ]
     },
     "context7": {
-      "command": "npx",
+      "command": "C:/Program Files/nodejs/node.exe",
       "args": [
-        "-y",
-        "@upstash/context7-mcp"
+        "C:/Users/nukei/AppData/Roaming/npm/node_modules/@upstash/context7-mcp/dist/index.js"
       ]
     },
     "shadcn": {
-      "command": "npx",
+      "command": "C:/Program Files/nodejs/node.exe",
       "args": [
-        "-y",
-        "shadcn@latest",
+        "C:/Users/nukei/AppData/Roaming/npm/node_modules/shadcn/dist/index.js",
         "mcp"
       ]
     },
     "obsidian-vault": {
-      "command": "npx",
+      "command": "C:/Program Files/nodejs/node.exe",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "C:/Users/nukei/Desktop/agent_env_g0/vault"
+        "C:/Users/nukei/AppData/Roaming/npm/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js",
+        "C:/Users/nukei/Desktop/agent_env/vault"
       ]
     }
   }

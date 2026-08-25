@@ -193,7 +193,8 @@ def pre_tool(payload: dict, root: Path, sid: str, env: dict | None = None) -> Ho
                         f"Serena's configured project root is {mismatch}, but this session "
                         f"works in {root}. {tool_name} would edit the other tree "
                         "(incident 2026-08-22). Use Edit/Write/Bash with absolute paths in "
-                        "this tree; Serena read tools stay available."
+                        "this tree. Serena READ tools answer about the other tree "
+                        "too, so they are not a safe substitute here."
                     ),
                     note="serena-write-mismatch",
                 )
@@ -210,6 +211,10 @@ def pre_tool(payload: dict, root: Path, sid: str, env: dict | None = None) -> Ho
         return HookResult()
     if nudge is None:
         return HookResult()
+    if serena_root_mismatch(root) is not None:
+        # Reachability is not correctness: a server indexing another tree answers
+        # confidently about code that is not here. Fail open to the native tools.
+        return HookResult(note="serena-root-mismatch")
     if not serena_is_reachable(env):
         return HookResult(note="serena-unreachable")
 
