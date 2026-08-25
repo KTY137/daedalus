@@ -146,9 +146,47 @@ def test_the_census_finds_at_least_the_known_subjects():
     )
 
 
-def test_an_ordinary_module_is_not_eol_pinned():
-    """Without this, a repo-wide `* -text` would make the guard vacuously green."""
-    assert _text_unset("daedalus/router.py") is False
+def test_the_pin_list_is_not_a_repo_wide_catch_all():
+    """Without this, a repo-wide `* -text` would make the guard vacuously green.
+
+    The control used to be one hardcoded module, ``daedalus/router.py``, picked
+    on 2026-08-22 as "an ordinary one". The pinned closure then grew until it
+    swallowed that module -- `5ebd9395` "the evaluator closure grew by 3
+    modules, and the pin follows it" -- and this test went red for a reason
+    that has nothing to do with what its name asserts. There is no catch-all:
+    146 of 1163 tracked ``.py`` files are pinned, 12.6% [MEASURED 2026-08-25].
+
+    A control sample frozen as a path constant is a control that the thing it
+    controls for can eventually eat. So the control is chosen at run time, and
+    the catch-all is refuted directly instead of by proxy. This is the byte
+    pin's THIRD failure direction, after "subject missing from the list, digest
+    drifts" and "subject in the list, any platform-newline write corrupts the
+    diff" (see ``docs/PLAN_DIGEST_EOL_FINDING.md``).
+    """
+    # 1. Refute the catch-all directly. These are the shapes that would pin the
+    #    whole tree and make the guard below unfalsifiable.
+    catch_all = [pat for pat, unset in _rules()
+                 if unset and pat in {"*", "**", "*.py", "**/*.py", "**/*"}]
+    assert catch_all == [], (
+        "a catch-all `-text` pattern makes the durability guard vacuous, "
+        "because then every subject is trivially pinned: " + ", ".join(catch_all)
+    )
+
+    # 2. And prove a concrete unpinned module exists, found now rather than
+    #    assumed. If this ever empties, the guard has stopped being falsifiable
+    #    whether or not a catch-all pattern is what did it.
+    candidates = sorted(
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "daedalus").rglob("*.py")
+        if "__pycache__" not in path.parts
+    )
+    assert candidates, "no modules under daedalus/ -- cannot measure"
+    unpinned = [rel for rel in candidates if not _text_unset(rel)]
+    assert unpinned, (
+        "every module under daedalus/ is `-text` pinned ({} of {}), so "
+        "test_every_byte_pin_subject_is_eol_pinned cannot fail and proves "
+        "nothing.".format(len(candidates) - len(unpinned), len(candidates))
+    )
 
 
 # --------------------------------------------------------------------------
