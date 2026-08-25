@@ -347,7 +347,15 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
   padding: var(--u3);
   gap: var(--u2);
 }
-:root[data-chat='column'] .convo { flex: 1; }
+.convo > .ctxplan { flex: none; }
+/* In a column the surrounding panel is what scrolls, so the conversation
+   sizes to its content and an opened context plan can simply be longer.
+   Forcing it to fill the column squeezed that plan down to its first line. */
+:root[data-chat='column'] .convo { flex: 0 0 auto; }
+:root[data-chat='column'] .convo-scroll { max-height: 30vh; }
+/* Capped even in a column: an open plan that pushes the input off the bottom
+   of the panel has taken the box away from the person who was typing in it. */
+:root[data-chat='column'] .ctxplan-body { max-height: 40vh; }
 .convo.compact { max-height: min(42vh, 420px); }
 
 .convo-scroll {
@@ -420,6 +428,70 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .cite:hover { color: var(--accent); border-color: var(--accent); }
 
 .convo-error { color: var(--bad); font-size: var(--fs-sm); }
+
+/* --------------------------------------------------------- context plan */
+
+.ctxplan { display: grid; gap: var(--u1); }
+.ctxplan-toggle {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.ctxplan-toggle:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.ctxplan-toggle:disabled { opacity: 0.45; cursor: default; }
+
+.ctxplan-body {
+  border-left: 2px solid var(--line);
+  padding: var(--u1) 0 var(--u1) var(--u2);
+  max-height: 34vh;
+  overflow: auto;
+}
+.ctxplan-line { font-size: var(--fs-xs); color: var(--ink2); }
+.ctxplan-line code { margin-right: 6px; }
+.ctxplan-error { font-size: var(--fs-xs); color: var(--bad); }
+.ctxplan-seeds { list-style: none; margin: var(--u1) 0; padding: 0; counter-reset: seed; }
+.ctxplan-seeds li {
+  counter-increment: seed;
+  display: flex;
+  align-items: center;
+  gap: var(--u1);
+}
+.ctxplan-seeds button,
+.ctxplan-off {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-align: left;
+}
+.ctxplan-seeds button { cursor: pointer; }
+.ctxplan-seeds button:hover { color: var(--accent); }
+.ctxplan-off { color: var(--ink3); }
+.ctxplan-seeds li::before {
+  content: counter(seed) '.';
+  flex: none;
+  width: 1.6em;
+  text-align: right;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.ctxplan-name { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctxplan-score { font-family: var(--font-mono); color: var(--ink3); flex: none; }
 
 .composer-context {
   display: flex;

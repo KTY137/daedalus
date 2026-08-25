@@ -1,4 +1,4 @@
-import type { ApiEnvelope, BootstrapPayload, ControlPlanePayload, DashboardPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TopologyPayload } from './types';
+import type { ApiEnvelope, BootstrapPayload, ContextPlanPayload, ControlPlanePayload, DashboardPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TopologyPayload } from './types';
 
 /**
  * Why a request failed, kept SEPARATE from the message.
@@ -629,6 +629,17 @@ export function getStructure(project: string, refresh = false): Promise<Structur
 }
 
 /** Distill a target module/symbol down to a minimal review slice. */
+/**
+ * What the system would READ to work on an objective — the seed ranking, the
+ * terms it derived, whether the latent route was consulted, and the receipt
+ * digests. Fast once the index is warm (~0.26s measured), and it had no caller
+ * anywhere in this repository until 2026-08-25.
+ */
+export function getContextPlan(project: string, objective: string): Promise<ContextPlanPayload> {
+  const qs = new URLSearchParams({ project, q: objective });
+  return request<ContextPlanPayload>(`/api/context/plan?${qs.toString()}`, undefined, 60_000);
+}
+
 /**
  * The spectral read of the import graph. Cheap once the index is warm (it
  * reuses the same scoped index as `/api/structure`), and until 2026-08-25 it

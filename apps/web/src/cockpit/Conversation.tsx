@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { askIkarus, isBackendDown, streamIkarus } from '../api';
 import type { IkarusAskPayload } from '../types';
+import { ContextPlan } from './ContextPlan';
 
 /**
  * The conversation with Ikarus.
@@ -213,6 +214,13 @@ export function Conversation({ project, resolveModule, onFocusModule, contextMod
       </div>
 
       {error && <p className="convo-error" role="alert">{error}</p>}
+
+      <ContextPlan
+        project={project}
+        objective={draft}
+        onFocusModule={onFocusModule}
+        resolveModule={resolveModule}
+      />
 
       {contextModule && (
         <div className="composer-context">

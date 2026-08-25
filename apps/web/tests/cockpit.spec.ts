@@ -371,6 +371,40 @@ test.describe('cockpit', () => {
     await expect(page.locator('.palette')).toHaveCount(0);
   });
 
+  test('the context plan shows what would be read, with its ranking and its receipt', async ({ page }) => {
+    await openCockpit(page);
+    await waitForStage(page);
+
+    const toggle = page.getByRole('button', { name: 'Was würde gelesen?' });
+    await expect(toggle, 'the context plan control is missing').toBeVisible();
+    // Disabled with nothing typed, because there is nothing to plan for — not
+    // as decoration.
+    await expect(toggle).toBeDisabled();
+
+    await page.getByLabel('Nachricht an Ikarus').fill('was passiert wenn ich attempt.py aendere');
+    await expect(toggle).toBeEnabled();
+    await toggle.click();
+
+    const body = page.locator('.ctxplan-body');
+    await expect(body, 'the plan never rendered').toBeVisible({ timeout: 60_000 });
+
+    // A ranked list with the ranking removed is a list of opinions.
+    const seeds = body.locator('.ctxplan-seeds li');
+    expect(await seeds.count(), 'no seeds were listed').toBeGreaterThan(0);
+    const scores = await body.locator('.ctxplan-score').allInnerTexts();
+    scores.forEach((sc) => expect(sc.trim(), `a seed carries no score: ${sc}`).toMatch(/^\d\.\d\d$/));
+    const numeric = scores.map((sc) => Number(sc));
+    expect([...numeric].sort((a, b) => b - a), 'the seeds are not in ranked order').toEqual(numeric);
+
+    const text = await body.innerText();
+    // The terms it actually derived, and the receipt that ties this list to a run.
+    expect(text, 'the plan does not say which terms it used').toMatch(/Suchbegriffe/);
+    expect(text, 'the plan carries no receipt digest').toMatch(/Quittung/);
+    // When the latent route is off it says so in its own words, rather than
+    // presenting a lexical-only result as the whole method.
+    expect(text, 'the plan says nothing about the latent route').toMatch(/latent/i);
+  });
+
   test('the composer is live, or it is not there', async ({ page }) => {
     await openCockpit(page);
     await waitForStage(page);
