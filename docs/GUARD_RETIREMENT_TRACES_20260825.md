@@ -44,7 +44,7 @@ ordered the deleted command as the **first action** of every dispatched agent:
 
 | file | line | text |
 |---|---:|---|
-| `.claude/agents/atalanta.md` | 11 | "Run `python tools/iron_plan_guard.py verify` first." |
+| `.claude/agents/atalanta.md` | 11 | "Run `python tools/iron_plan_guard.py (removed 2026-08-22) verify` first." |
 | `.claude/agents/heracles.md` | 11 | same, "before any edit" |
 | `.claude/agents/hephaestus.md` | 11 | same |
 
@@ -114,8 +114,8 @@ This is the one a lane must not tidy, because the dead names are **test-pinned
 in three places**.
 
 - `.agentenv/agentenv.json` — `policy.high_risk_paths` lists
-  `tools/iron_plan_guard.py`, `tools/iron_plan_hook_runner.py`,
-  `tests/test_iron_plan_guard.py`, plus `.agents/skills/enforce-iron-plan/`,
+  `tools/iron_plan_guard.py` (removed 2026-08-22), `tools/iron_plan_hook_runner.py` (removed 2026-08-22),
+  `tests/test_iron_plan_guard.py` (removed 2026-08-22), plus `.agents/skills/enforce-iron-plan/`,
   `.githooks/` and `.codex/`. Six of its 28 entries point at nothing. Under the
   plan's authority table this file is the **mechanical veto policy** — the one
   artifact here that is not merely descriptive — and `.agentenv/` protects
@@ -205,8 +205,8 @@ path mentions:]
 
 | file | line | claims removed | actually |
 |---|---:|---|---|
-| `docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md` | 85 | `tools/audit_triage.py` | present at HEAD, tracked |
-| `docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md` | 86 | `tools/agent_findings.py` | present at HEAD, tracked |
+| `docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md` | 85 | `tools/audit_triage.py` (removed 2026-08-21) | present at HEAD, tracked |
+| `docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md` | 86 | `tools/agent_findings.py` (removed 2026-08-21) | present at HEAD, tracked |
 | `docs/HANDOFF_2026-07-30_NIGHT.md` | 386 | `tools/agent_findings.py` | present at HEAD, tracked |
 
 Neither file was ever deleted: `git log --diff-filter=D` returns nothing for
@@ -269,7 +269,7 @@ result.**
 python - <<'EOF'
 import subprocess
 TERMS = ["iron_plan_guard", "iron_plan_hook_runner", "enforce-iron-plan",
-         "iron-plan.yml", "DAEDALUS_IRON_PLAN_AMENDMENT"]
+         "iron-plan.yml (removed 2026-08-22)", "DAEDALUS_IRON_PLAN_AMENDMENT"]
 files = [f for f in subprocess.run(["git","ls-files"],capture_output=True,text=True).stdout.split("\n") if f]
 for f in files:
     try: text = open(f,"rb").read().decode("utf-8","replace")
