@@ -107,6 +107,47 @@ def test_run_refuses_an_empty_command(fixture_repo):
         gitio._run(fixture_repo["repo"], [])
 
 
+def test_run_disables_transports_lazy_fetch_prompts_replacements_and_locks(
+    fixture_repo, monkeypatch, tmp_path
+):
+    seen = {}
+    real_run = gitio.subprocess.run
+    trace = tmp_path / "git-trace.log"
+    trace2 = tmp_path / "git-trace2-event.log"
+    hostile = {
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES": "hostile-routing-value",
+        "GIT_DIR": "hostile-routing-value",
+        "GIT_OBJECT_DIRECTORY": "hostile-routing-value",
+        "GIT_TRACE": str(trace),
+        "GIT_TRACE2_EVENT": str(trace2),
+        "GIT_WORK_TREE": "hostile-routing-value",
+    }
+    for name, value in hostile.items():
+        monkeypatch.setenv(name, value)
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs["env"])
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(gitio.subprocess, "run", spy)
+    assert gitio.rev_parse(fixture_repo["repo"], "HEAD") == fixture_repo["child"]
+    assert seen["GIT_ALLOW_PROTOCOL"] == ""
+    assert seen["GIT_NO_LAZY_FETCH"] == "1"
+    assert seen["GIT_TERMINAL_PROMPT"] == "0"
+    assert seen["GCM_INTERACTIVE"] == "Never"
+    assert seen["GIT_NO_REPLACE_OBJECTS"] == "1"
+    assert seen["GIT_OPTIONAL_LOCKS"] == "0"
+    assert seen["GIT_PROTOCOL_FROM_USER"] == "0"
+    inherited_git = {
+        name: value
+        for name, value in seen.items()
+        if name.upper().startswith("GIT_")
+    }
+    assert inherited_git == gitio._SAFE_GIT_ENV
+    assert not trace.exists()
+    assert not trace2.exists()
+
+
 def test_read_blobs_goes_through_the_read_only_gate(fixture_repo, monkeypatch):
     """``cat-file --batch`` used to bypass ``_run`` because it needs stdin."""
     seen = []

@@ -2,9 +2,9 @@
 
 Every call that touches a repository the harness did not create goes through
 :func:`_run`, which refuses any verb outside ``_READ_ONLY_VERBS`` (``log``,
-``rev-parse``, ``ls-tree``, ``cat-file``).  Pure stdlib plus the ``git``
-binary, which is the data source for the task set -- the history IS the
-ground truth, so reading it is not optional.
+``rev-list``, ``rev-parse``, ``ls-tree``, ``cat-file``). Pure stdlib plus the
+``git`` binary, which is the data source for the task set -- the history IS
+the ground truth, so reading it is not optional.
 
 The docstring here used to say "no command in this module can mutate a
 repository".  That was wrong in two directions and is corrected in place:
@@ -18,11 +18,13 @@ repository".  That was wrong in two directions and is corrected in place:
   exist, and never into the source repository.  It is the one exception, it
   is named, and it is deliberately not routed through the read-only gate.
 
-The precise claim is therefore: **no function in this module can mutate the
-repository it reads from**, and exactly one function writes at all.
+The precise claim is therefore narrower: calls routed through ``_run`` are
+transport-disabled, locally read-only Git plumbing. ``make_preimage_clone``
+is an explicit writer outside that gate and outside that claim.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,7 +35,17 @@ _FS = "\x1f"
 #: record separator between log records
 _RS = "\x1e"
 
-_READ_ONLY_VERBS = frozenset({"log", "rev-parse", "ls-tree", "cat-file"})
+_READ_ONLY_VERBS = frozenset(
+    {"log", "rev-list", "rev-parse", "ls-tree", "cat-file"}
+)
+_SAFE_GIT_ENV = {
+    "GIT_ALLOW_PROTOCOL": "",
+    "GIT_NO_LAZY_FETCH": "1",
+    "GIT_NO_REPLACE_OBJECTS": "1",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_PROTOCOL_FROM_USER": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+}
 
 
 class GitError(RuntimeError):
@@ -47,15 +59,30 @@ def _run(repo: Path, args: Sequence[str], stdin: bytes | None = None) -> bytes:
     in this package goes through, so "read-only on the source" is one
     checkable property instead of a promise repeated in five docstrings.
     ``stdin`` exists so ``cat-file --batch`` can be fed *through* the gate
-    rather than around it.
+    rather than around it. Every inherited ``GIT_*`` variable is removed and
+    only explicit safety settings are added back. Promised objects may not be
+    fetched lazily: unavailable local evidence is a failure rather than
+    permission to contact a remote or rewrite objects.
     """
     if not args or args[0] not in _READ_ONLY_VERBS:
         raise GitError(f"refusing non-read-only git verb: {args[:1]}")
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.upper().startswith("GIT_")
+    }
+    environment.update(
+        {
+            "GCM_INTERACTIVE": "Never",
+            **_SAFE_GIT_ENV,
+        }
+    )
     proc = subprocess.run(
         ["git", "-C", str(repo), *args],
         input=stdin,
         capture_output=True,
         check=False,
+        env=environment,
     )
     if proc.returncode != 0:
         detail = proc.stderr.decode("utf-8", "replace").strip()

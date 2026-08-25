@@ -15,14 +15,43 @@ Two kinds of assertion live here, deliberately kept apart:
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pytest
+
+
+HERE = Path(__file__).resolve().parent
+FOREST_ROOT = HERE.parent
+REPO_ROOT = FOREST_ROOT.parents[1]
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(FOREST_ROOT))
 
 import probe_external_corpora as pec  # noqa: E402
+from _historical_tree_fixture import materialize_historical_tree  # noqa: E402
+from s09_eval import gitio  # noqa: E402
 
 _REPORT: dict | None = None
+S02_SOURCE_REVISION = "deabb5182e94eeb939611aa835f72ca8234e84c8"
+S02_DAEDALUS_TREE = "aacb26ef791f0b0c96a0a840e24c6ba63c32bab8"
+
+
+@pytest.fixture(scope="module")
+def historical_kernel(tmp_path_factory: pytest.TempPathFactory) -> dict:
+    """Rebuild the published kernel row from exactly its measured source."""
+    assert gitio.rev_parse(REPO_ROOT, f"{S02_SOURCE_REVISION}:daedalus") == (
+        S02_DAEDALUS_TREE
+    )
+    tree = materialize_historical_tree(
+        REPO_ROOT,
+        S02_SOURCE_REVISION,
+        tmp_path_factory.mktemp("forest_s02_history") / "source",
+        prefixes=("daedalus",),
+    )
+    assert tree.blob_count == 291
+    kernel = next(spec for spec in pec.CORPORA if spec["name"] == "kernel")
+    return pec.measure({**kernel, "root": tree.root})
 
 
 def report() -> dict:
@@ -58,9 +87,11 @@ def test_absent_corpora_say_why_instead_of_vanishing() -> None:
 # --------------------------------------------------------------------------
 # the in-repository corpora are pinned
 # --------------------------------------------------------------------------
-def test_kernel_row_is_the_retracted_headline_restated() -> None:
-    """If this fails the kernel package moved; re-measure the write-up."""
-    entry = row("kernel")
+def test_kernel_row_is_the_retracted_headline_restated(
+    historical_kernel: dict,
+) -> None:
+    """The published row replays against its exact historical source tree."""
+    entry = historical_kernel
     assert entry["present"] is True
     assert entry["functions"] == 4203
     assert entry["annotation_only_pct"] == 92.89  # the control
@@ -73,14 +104,16 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     assert entry["verified_share_of_internal_pct"] == 100.0
 
 
-def test_fixture_row_shows_what_the_kernel_row_cannot() -> None:
+def test_fixture_row_shows_what_the_kernel_row_cannot(
+    historical_kernel: dict,
+) -> None:
     entry = row("fixture_alias")
     assert entry["annotation_only_pct"] == 73.68
     assert entry["marginal_pp"] == 15.7895
     assert entry["internal_named_only"] == 5
     assert entry["verified_share_of_internal_pct"] == 76.19
     # two orders of magnitude apart from the kernel's 0.119 pp
-    assert entry["marginal_pp"] > row("kernel")["marginal_pp"] * 100
+    assert entry["marginal_pp"] > historical_kernel["marginal_pp"] * 100
 
 
 # --------------------------------------------------------------------------
@@ -118,19 +151,28 @@ def test_the_corpus_set_actually_spans_annotation_postures() -> None:
     assert high, "no heavily-annotated corpus in the set"
 
 
-def test_stdlib_decouples_coverage_from_resolvability() -> None:
-    """The external case the kernel package could never make.
+def test_stdlib_row_is_descriptive_content_pinned_evidence() -> None:
+    """Validate the row contract without universalising one stdlib build.
 
-    Version-independent claim only: some real, large, externally authored
-    corpus is annotated in the low single digits while nearly every type name
-    it does write attributes fine.  The exact figures are in the write-up with
-    the interpreter version and the content pin next to them.
+    CPython distributions with the same language version can ship materially
+    different library trees. Semantic thresholds therefore belong to a named
+    content pin, not to this cross-run contract test.
     """
     entry = row("stdlib")
     if not entry["present"]:  # pragma: no cover - stdlib is always there
         return
-    assert entry["files_parsed"] > 100
-    assert entry["annotation_only_pct"] < 5.0
-    assert entry["type_name_resolution_pct"] > 90.0
-    # and the verification gap the kernel package hides at 0
-    assert entry["internal_named_only"] > 0
+    pin = entry["corpus_pin"]
+    assert pin["files"] == entry["files_parsed"] + entry["files_unparseable"]
+    assert pin["files"] > 0
+    assert re.fullmatch(r"[0-9a-f]{64}", pin["sha256"])
+    assert entry["functions"] > 0
+    assert entry["type_name_sites"] > 0
+    assert sum(entry["type_name_sites_by_bucket"].values()) == entry["type_name_sites"]
+    for rate in (
+        "annotation_only_pct",
+        "full_resolver_pct",
+        "type_name_resolution_pct",
+        "sig_present_annotations_resolve_pct",
+        "verified_share_of_internal_pct",
+    ):
+        assert 0.0 <= entry[rate] <= 100.0, rate

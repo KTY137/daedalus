@@ -9,10 +9,11 @@ Two kinds of test live here on purpose:
 * hermetic tests over synthetic corpora, which pin the scoring behaviour
   (saturation, length normalisation, idf, determinism) and never move when the
   repository moves;
-* a small **known-hit self-test** over two real subtrees of this repository.
-  It is the only thing that can catch "the maths is right, the retrieval is
-  useless".  It asserts rank-1 for targets whose filename *and* body are about
-  the query, and it is deliberately scoped to subtrees so it stays sub-second.
+* a small **known-hit self-test** over two real subtrees from the exact
+  historical revision where its contamination firewall was re-measured. It
+  is the only thing that can catch "the maths is right, the retrieval is
+  useless" without letting later repository growth rewrite the corpus. It
+  asserts rank-1 for targets whose filename *and* body are about the query.
 """
 from __future__ import annotations
 
@@ -22,7 +23,11 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+HERE = Path(__file__).resolve().parent
+FOREST_ROOT = HERE.parent
+REPO_ROOT = FOREST_ROOT.parents[1]
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(FOREST_ROOT))
 
 from bm25_index import (  # noqa: E402
     SCHEMA,
@@ -31,8 +36,16 @@ from bm25_index import (  # noqa: E402
     tokenize,
     token_counts,
 )
+from _historical_tree_fixture import (  # noqa: E402
+    HistoricalTree,
+    materialize_historical_tree,
+)
+from s09_eval import gitio  # noqa: E402
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+
+S07_SOURCE_REVISION = "dd1a4a2103a9952963e267c0bf5f4f3582d1e2ab"
+S07_TOOLS_TREE = "740685aa810a54b35ece54717b6ed5f42379eb04"
+S07_FOREST_TREE = "ff4df8704d9da6de6e18395a2192412a5f125300"
 
 # Contamination firewall for the known-hit tests, expressed relative to the
 # `experiments/forest_v2` subtree.  This file, the measurement script and the
@@ -46,6 +59,23 @@ FOREST_V2_QUERY_CARRIERS = frozenset(
         "s07_bm25/test_bm25_index.py",
     }
 )
+
+
+@pytest.fixture(scope="module")
+def historical_source(tmp_path_factory: pytest.TempPathFactory) -> HistoricalTree:
+    """Replay the real-tree tests against their exact leak-closed corpus."""
+    assert gitio.rev_parse(REPO_ROOT, f"{S07_SOURCE_REVISION}:tools") == S07_TOOLS_TREE
+    assert gitio.rev_parse(
+        REPO_ROOT, f"{S07_SOURCE_REVISION}:experiments/forest_v2"
+    ) == S07_FOREST_TREE
+    tree = materialize_historical_tree(
+        REPO_ROOT,
+        S07_SOURCE_REVISION,
+        tmp_path_factory.mktemp("forest_s07_history") / "source",
+        prefixes=("tools", "experiments/forest_v2"),
+    )
+    assert tree.blob_count == 28
+    return tree
 
 
 # --------------------------------------------------------------- tokenizer
@@ -341,31 +371,41 @@ def test_cli_emits_the_s09_json_contract(tmp_path, capsys):
         ),
     ],
 )
-def test_known_hits_rank_first_in_a_real_subtree(subtree, query, expected, exclude):
-    root = REPO_ROOT / subtree
-    if not root.is_dir():  # pragma: no cover - worktree layout guard
-        pytest.skip(f"{subtree} missing")
+def test_known_hits_rank_first_in_a_real_subtree(
+    historical_source: HistoricalTree,
+    subtree,
+    query,
+    expected,
+    exclude,
+):
+    root = historical_source.root / subtree
     index = BM25Index.build(root, IndexConfig(exclude_paths=exclude))
     hits = index.search(query, k=5)
     assert hits, f"no hits for {query!r}"
     assert hits[0].path == expected, [hit.path for hit in hits]
 
 
-def test_confusable_neighbour_is_a_retained_known_miss():
+def test_confusable_neighbour_is_a_retained_known_miss(
+    historical_source: HistoricalTree,
+):
     """RETAINED NEGATIVE RESULT -- do not "fix" by rewording the query.
 
     ``probe_call_resolution.py`` is the same-module baseline probe;
     ``probe_cross_module_resolution.py`` is its continuation and repeats every
     one of the query's terms while describing the baseline it extends.  Bag of
     words cannot separate "the document about X" from "the document that cites
-    X"; the gold file lands at rank 3 (measured 2026-08-18).  This is precisely
-    the class of failure a structure-aware retriever has to beat, so the miss
-    is pinned rather than papered over.
+    X"; the gold file landed at rank 3 before the README contamination leak was
+    closed. The leak-closed dd1 measurement and the current BM25 implementation
+    both yield rank 2 on this exact source tree, so the retained miss remains
+    strictly worse than rank 1 and inside the original top-five ceiling. This
+    is precisely the class of failure a structure-aware retriever has to beat,
+    so the miss is pinned rather than papered over.
     """
-    root = REPO_ROOT / "experiments/forest_v2"
-    if not root.is_dir():  # pragma: no cover - worktree layout guard
-        pytest.skip("forest_v2 missing")
+    root = historical_source.root / "experiments/forest_v2"
     index = BM25Index.build(root, IndexConfig(exclude_paths=FOREST_V2_QUERY_CARRIERS))
-    rank = index.rank_of("same module call site resolution baseline probe", "probe_call_resolution.py")
+    rank = index.rank_of(
+        "same module call site resolution baseline probe",
+        "probe_call_resolution.py",
+    )
     assert rank is not None and rank > 1, "the known miss disappeared -- re-measure and re-record"
     assert rank <= 5, f"the known miss got worse: rank {rank}"

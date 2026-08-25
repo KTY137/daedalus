@@ -4534,3 +4534,70 @@ re-running these slices re-measures against the current tree and records a
 new row — they do not edit the old one. [MEASURED 2026-08-23, consolidation
 worktree: `pytest experiments/forest_v2/{s02_types,s07_bm25,s09_eval}` →
 256 passed, 3 failed, 20.44s.]
+
+## Historical fixture resolution (2026-08-25)
+
+The three failures recorded by the consolidation note above were real evidence
+of a missing source binding, not permission to update the published numbers or
+replace the retired guard with a convenient new gold file. G0-CI-02 repairs the
+executable tests by replaying only their repository-backed rows against the
+exact source revisions that produced them:
+
+| slice | source revision | selected tree objects |
+| --- | --- | --- |
+| s02 kernel row | `deabb5182e94eeb939611aa835f72ca8234e84c8` | `daedalus` = `aacb26ef791f0b0c96a0a840e24c6ba63c32bab8` |
+| s07 leak-closed real-tree self-tests | `dd1a4a2103a9952963e267c0bf5f4f3582d1e2ab` | `tools` = `740685aa810a54b35ece54717b6ed5f42379eb04`; `experiments/forest_v2` = `ff4df8704d9da6de6e18395a2192412a5f125300` |
+
+`_historical_tree_fixture.py` reads those objects through the existing s09
+read-only Git gate (`rev-list`, `rev-parse`, `ls-tree`, and
+`cat-file --batch` only),
+recomputes every Git blob digest, and writes verified bytes solely below the OS
+temporary root and outside the current, common, admin, main, and linked-worktree
+boundaries exposed by the source metadata. A common path not named `.git` fails
+closed. Git records no backlink to the original worktree when a separate admin
+directory is itself named `.git`; for that indistinguishable layout, the
+independent `.git`-ancestor scan refuses output below the original worktree and
+allows a safe sibling outside every worktree. The gate blocks all Git transport,
+requests no-lazy behavior where supported, disables prompts, replacement
+objects, and optional locks, and strips every inherited `GIT_*` variable before
+adding back only explicit safety settings, including an empty protocol whitelist
+that repository configuration cannot override. A `rev-list --missing=print`
+preflight proves every selected blob is already local. Missing
+or promised-but-unavailable history is a failure, never a skip. There is no
+checkout, reset, worktree mutation, archive command, source-object network
+fetch, or write into a source repository.
+
+The replay leaves the scientific record intact:
+
+- s02 reproduces 4,203 functions, 92.89% annotation-only, 92.77% full
+  resolution, five marginal functions, 0.119 pp, zero internal named-only
+  sites, and 100% verified internal names;
+- s07 again ranks the historical `iron_plan_guard.py`,
+  `effect_boundary_check.py`, and `s07_bm25/bm25_index.py` first;
+- the deliberately retained confusable-neighbour miss remains worse than rank
+  1 and within the frozen top-five ceiling: the initial pre-firewall run was
+  rank 3; the exact leak-closed dd1 corpus and exclusions recorded rank 2, and
+  the current BM25 implementation replays rank 2 on those same bytes.
+
+Current-tree arithmetic and external-corpus property tests continue to read the
+current tree. This is a test/evidence repair, not a new measurement, a product
+claim, or a resurrection of the retired plan guard.
+
+### Retraction: the stdlib threshold was not version-independent
+
+Fresh-runner validation found a fourth, previously hidden failure. The s02
+test called `type_name_resolution_pct > 90` a version-independent stdlib
+property. That claim is false: even two Windows CPython 3.10.11 distributions
+ship different stdlib corpora and cross the threshold in opposite directions.
+
+| distribution | content pin | parsed / unparseable files | type-name resolution |
+| --- | --- | ---: | ---: |
+| Windows Store CPython 3.10.11 | `11bdae63f1e0ea5965f8de1812570f93b4b7dbda78f006782fdd98e0922c58d0` | 616 / 0 | 98.78% |
+| python.org CPython 3.10.11 used by the Windows CI cell | `64816f4681596d15cf8c559cbd8f4317f89b808ee7bda8b5645305b66e42c5a0` | 793 / 5 | **88.96%** |
+| managed Windows CPython 3.12.13 comparison | `92050ff29cf114ef0fd769c97273acd972399815b39bc620c9ef11833b4e76ad` | 527 / 0 | 98.89% |
+
+The universal threshold assertion is retracted, not lowered. The executable
+cross-run test now checks that the descriptive stdlib row is non-empty,
+arithmetically coherent, rate-bounded, and bound to a full content digest.
+Semantic comparisons remain attributable only to their interpreter,
+distribution, and exact corpus pin.
