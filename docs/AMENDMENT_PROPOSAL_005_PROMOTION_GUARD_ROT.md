@@ -1,7 +1,7 @@
 # Amendment proposal 005 — the promotion guard lost its subject
 
 Status: **MOOT — never approved, subject retired.** Proposed 2026-08-17 by
-Athena (coordinator) against `tools/iron_plan_guard.py`, deleted in the
+Athena (coordinator) against `tools/iron_plan_guard.py (removed 2026-08-22)`, deleted in the
 2026-08-22 guard retirement before the amendment protocol was invoked.
 Affected invariants claimed: 5 (sealed promotion), 10 (no silent constitution
 change).

@@ -1,8 +1,8 @@
 # Amendment proposal 002 — guard repairability
 
 Status: **MOOT — never approved, subject retired.** Proposed 2026-08-1x by the
-repository owner's session against `tools/iron_plan_guard.py` and
-`tests/test_iron_plan_guard.py`. Both files were deleted in the 2026-08-22
+repository owner's session against `tools/iron_plan_guard.py (removed 2026-08-22)` and
+`tests/test_iron_plan_guard.py (removed 2026-08-22)`. Both files were deleted in the 2026-08-22
 guard retirement (master plan revision 7); the amendment protocol was never
 invoked to approve or reject this proposal, and there is nothing left to apply
 it to. [MEASURED 2026-08-25: neither file exists at HEAD.]

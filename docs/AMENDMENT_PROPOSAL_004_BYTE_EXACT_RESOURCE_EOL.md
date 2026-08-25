@@ -2,7 +2,7 @@
 
 Status: **MOOT — never approved, subject retired.** Proposed 2026-08-17 by
 Athena (coordinator) against the then-integration branch
-`origin/integration/g0-consolidated-20260807`. `tools/iron_plan_guard.py`,
+`origin/integration/g0-consolidated-20260807`. `tools/iron_plan_guard.py (removed 2026-08-22)`,
 the protected artifact this amendment would have added a `.gitattributes`
 rule under, was deleted in the 2026-08-22 guard retirement before the
 amendment protocol was invoked.
