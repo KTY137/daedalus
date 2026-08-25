@@ -70,6 +70,16 @@ tests/fixtures/ignition/voltage/** -text
 runs/ignition/**/store/** -text
 runs/ignition/**/store/blobs/** -diff
 
+# A content-addressed blob is named by the sha256 of its own bytes. If Git
+# rewrites its line endings on checkout it no longer hashes to its own name
+# and the evidence it carries becomes unverifiable. The rule above named ONE
+# lane directory; runs/ignition_lane_20260825/ fell straight through it and
+# Git warned 'LF will be replaced by CRLF' while committing the receipt.
+# Measured 2026-08-25: 22 of 33 tracked CAS blobs were unprotected.
+# Match the STORE SHAPE, not a lane name, so the next lane cannot slip past.
+runs/**/store/blobs/sha256/** -text -diff
+runs/**/store/** -text
+
 # Retained raw traces and negative run evidence are byte-exact measurements,
 # not platform-native text. Keep checkout conversion and textual diff drivers
 # away from the large raw streams; small inventory summaries remain diffable.
