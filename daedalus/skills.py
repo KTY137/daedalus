@@ -695,6 +695,17 @@ def _bundled_paths(directory: Path) -> tuple[tuple[str, ...], bool]:
     Bounded and sorted. These are shown to humans. Nothing opens them, and the
     only reason they are collected at all is so a reviewer can see that a skill
     shipped code before deciding to trust its prose.
+
+    ``truncated`` means THE LIST IS INCOMPLETE, for any reason -- not only the
+    count bound. Cerberus 2026-08-25 (critical 1): dropping a real directory
+    entry silently let ``vet_skill`` return ``cleared=True`` for a directory
+    holding an unscanned, attacker-controlled file. A skill shipping
+    ``scripts/helper.py`` as a symlink to a payload outside the directory vetted
+    CLEAR with zero findings, while anything opening that path read the payload.
+    ``truncated`` is the ONLY channel by which vet learns it saw less than the
+    directory holds (``vet.py``: bundled_truncated -> skipped -> UNSCANNABLE),
+    so every drop of a real entry must raise it. Absence of evidence is reported
+    as absence of evidence.
     """
     found: list[str] = []
     truncated = False
@@ -704,17 +715,25 @@ def _bundled_paths(directory: Path) -> tuple[tuple[str, ...], bool]:
             break
         try:
             if not path.is_file():
+                # A directory is not a dropped file: nothing is hidden by this.
                 continue
         except OSError:
+            # The entry exists and we could not classify it. Say so.
+            truncated = True
             continue
         if path.name == SKILL_FILENAME and path.parent == directory:
+            # The skill body itself, scanned on its own path -- not "bundled".
             continue
         if not _contained(path, directory):
-            # A symlink out of the skill directory is not "a bundled file".
+            # A symlink out of the skill directory is not "a bundled file" --
+            # but it IS an entry in the listing that we are not reporting, and
+            # whatever opens it gets the target's bytes.
+            truncated = True
             continue
         try:
             rel = path.relative_to(directory).as_posix()
         except ValueError:
+            truncated = True
             continue
         found.append(rel)
     return tuple(found), truncated
