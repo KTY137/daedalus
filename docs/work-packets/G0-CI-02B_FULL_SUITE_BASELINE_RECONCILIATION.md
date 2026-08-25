@@ -136,3 +136,42 @@ red.
 The complete-suite acceptance run must start from a tree with no ignored build
 or runtime output and must span no edits. A focused pass or a run over a moving
 tree is not full-suite acceptance.
+
+## Complete-suite acceptance receipt
+
+The full run completed on the exact source tree later committed as
+`b848d947f9eae037da4fd2ce1606e1cc86111239` (tree
+`9159d042675f5a093c3b99d9f69fb93e1785f047`). The run added only an external
+JUnit output argument to the command above and ended:
+
+- 8,814 passed;
+- 136 skipped with their reasons reported;
+- 9 strict expected failures retained;
+- 2,161 subtests passed;
+- 17 warnings, all the reported `record_property`/JUnit-family compatibility
+  warnings;
+- 3,686.778 seconds (`1:01:26`), exit 0.
+
+The boundary algorithm hashed every tracked or untracked, non-ignored path as
+`path bytes + kind + byte length + SHA-256(content)` under the domain separator
+`daedalus-source-manifest-v1`. Start and end both contained 3,144 entries and
+both produced
+`3c3b35b610cb5047faea722206ed27afcac34bd9de22c5fc85cda61f42926e45`.
+The porcelain-status digest stayed
+`05299d0a7339832b654d5d4cea792c12b54c9c0549f6fe5d00ae16d0dda10043`;
+the unstaged binary-diff digest stayed
+`718eb1999740680b37c553860f5d4360b3cf9772dae3d4cf002dad988c9e0337`;
+and the staged diff was empty at both boundaries. The run began with zero
+ignored entries. Its twelve ignored cache/runtime targets were moved intact to
+a recoverable OS-temporary stash after the end boundary was measured.
+
+The external JUnit report is 1,383,923 bytes and hashes to
+`0704c16b367644c35f57795ba3645ec5c288cf27ac74478adbf307779ed4abd0`.
+It is not an authoritative repository artifact and is not cited for candidate
+identity; the committed source tree and the reproducible command above are.
+
+Other agents changed shared repository refs and local branch-tracking
+configuration while this worktree's suite ran, so this is not claimed as an
+isolated whole-`.git` execution. `HEAD`, its tree, the source manifest, worktree
+status, staged state, and candidate diff remained byte-identical. No merge,
+promotion, release, or automatic approval occurred.

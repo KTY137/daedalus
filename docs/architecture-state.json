@@ -4,7 +4,7 @@
   "repo_state": {
     "branch": "codex/g0-forest-baseline-binding-20260825",
     "dirty": true,
-    "head": "a664348c8e7ea9b89dd1a89e6bd904a121cd97ae"
+    "head": "b848d947f9eae037da4fd2ce1606e1cc86111239"
   },
   "counts": {
     "dark_switches": 3,
@@ -777,5 +777,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:be403fbf24eff9ebb2a454563e68109291aeac622edbf0854d98f31a5226b8f9"
+  "digest": "sha256:dc79107b7d9340e3a972d99e91abefef5b38c5002542542a0c0fb376e6c22d7c"
 }
