@@ -319,6 +319,40 @@ export interface TopologyPayload extends ApiEnvelope {
   };
 }
 
+/**
+ * `GET /api/context/plan?project=&q=` — what the system would READ to work on
+ * an objective, before anything reads it.
+ *
+ * This is the distillation claim made inspectable: a ranked seed list with
+ * scores, the query terms actually derived, whether the latent route was
+ * consulted (and why not, when it was not), and receipt digests over the
+ * objective and the seed evidence. Until 2026-08-25 it had no caller.
+ */
+export interface ContextPlanPayload extends ApiEnvelope {
+  context_plan: {
+    schema: string;
+    objective: string;
+    project: string;
+    seeds: {
+      lexical_weight: number;
+      latent_weight: number;
+      latent_applied: boolean;
+      effective_latent_weight: number;
+      /** module -> score, already fused */
+      scores: Record<string, number>;
+      lexical?: { projector_version?: string; query_terms?: string[] };
+      latent?: { status?: string; message?: string; consulted?: boolean; answered?: boolean };
+    };
+    receipt: {
+      receipt_sha256: string;
+      objective_sha256: string;
+      seed_evidence_sha256?: string;
+      dss_receipt_sha256?: string;
+      scope_key?: string;
+    };
+  };
+}
+
 export interface StructurePayload {
   ok: boolean;
   project: string;

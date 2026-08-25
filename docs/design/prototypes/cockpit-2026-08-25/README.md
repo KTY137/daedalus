@@ -48,6 +48,20 @@ states how many direct and how many distant neighbours were left out, and
 pressing either lists exactly those modules. The stage never quietly draws 14 of
 80.
 
+## What would be read, before anything reads it
+
+![Kontextplan](kontextplan.png)
+
+`Was würde gelesen?` next to the composer calls `/api/context/plan` with the
+question you typed and shows the ranking it produced: the seeds, their scores,
+the terms it actually derived from your sentence, whether the latent route was
+consulted (it is off, and it says so in its own words), and the receipt digests
+that tie the list to a run. That endpoint had no caller anywhere until
+2026-08-25 either.
+
+This is the distillation claim made inspectable rather than asserted. A ranked
+list with the ranking removed is a list of opinions.
+
 ## The floor, measured
 
 `apps/web/tools/audit.mjs` drives the built bundle through all six themes at
@@ -85,5 +99,6 @@ red.
 
 - Depesche's arc figure is the least finished of the six; the axis takes what
   fits at 96px per name and hands the rest to the aggregate glyph.
-- The cockpit does not yet reach `/api/topology`, `/api/capabilities` or
-  `/api/context/plan`. Those endpoints still have no client anywhere.
+- `/api/capabilities`, `/api/latent/search`, `/api/events/memory`,
+  `/api/accelerators/status` and the three PUT routes still have no client
+  anywhere. `/api/topology` and `/api/context/plan` got theirs on 2026-08-25.
