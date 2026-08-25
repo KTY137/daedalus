@@ -48,6 +48,38 @@ interface View {
   k: number;
 }
 
+/**
+ * An elbow, the way a wiring diagram draws one.
+ *
+ * Straight centre-to-centre lines through a field of boxes are the "chaos" the
+ * owner named: they cross every card on the way and none of them says which
+ * way the dependency runs. An orthogonal route leaves the source's SIDE, turns
+ * once, and arrives at the target's side — so the picture reads as a diagram
+ * rather than as a spider.
+ */
+function elbowPath(from: Placed, to: Placed): string {
+  const fw = (from.boxW ?? from.r * 2) / 2;
+  const tw = (to.boxW ?? to.r * 2) / 2;
+  const rightward = to.x >= from.x;
+  const sx = from.x + (rightward ? fw : -fw);
+  const ex = to.x + (rightward ? -tw : tw);
+  const sy = from.y;
+  const ey = to.y;
+  if (Math.abs(ey - sy) < 1.5) return `M ${sx} ${sy} L ${ex} ${ey}`;
+  const mx = (sx + ex) / 2;
+  const r = Math.min(10, Math.abs(ex - sx) / 3, Math.abs(ey - sy) / 2);
+  const dirX = ex >= sx ? 1 : -1;
+  const dirY = ey >= sy ? 1 : -1;
+  return [
+    `M ${sx} ${sy}`,
+    `L ${mx - r * dirX} ${sy}`,
+    `Q ${mx} ${sy} ${mx} ${sy + r * dirY}`,
+    `L ${mx} ${ey - r * dirY}`,
+    `Q ${mx} ${ey} ${mx + r * dirX} ${ey}`,
+    `L ${ex} ${ey}`
+  ].join(' ');
+}
+
 function edgePath(line: Line, curve: number, arcs: boolean): string {
   const { from, to } = line;
   if (arcs) {
@@ -102,7 +134,13 @@ function Glyph({ p, kind, selected, dimmed }: { p: Placed; kind: ThemeSpec['stag
 
   if (kind === 'card') {
     const w = cardWidth(p);
-    const h = p.level === 0 ? 46 : 34;
+    const h = p.level === 0 ? 48 : 36;
+    /**
+     * A panel, not a swatch. This used to fill with `--node` — the colour of a
+     * graph DOT — which on a dark theme painted a white box on black for every
+     * neighbour. A card is a surface: the theme's own panel fill, a hairline,
+     * and the theme's own radius.
+     */
     return (
       <g opacity={opacity}>
         <rect
@@ -110,10 +148,10 @@ function Glyph({ p, kind, selected, dimmed }: { p: Placed; kind: ThemeSpec['stag
           y={p.y - h / 2}
           width={w}
           height={h}
-          rx={4}
-          fill={p.level === 0 ? 'var(--surface)' : 'var(--node)'}
+          rx={Math.min(10, Math.max(2, p.r))}
+          fill={p.level === 0 ? 'var(--surface2)' : 'var(--surface)'}
           stroke={selected || p.level === 0 ? 'var(--accent)' : 'var(--line)'}
-          strokeWidth={selected || p.level === 0 ? 2 : 1}
+          strokeWidth={selected || p.level === 0 ? 1.5 : 1}
         />
       </g>
     );
@@ -145,10 +183,22 @@ function Glyph({ p, kind, selected, dimmed }: { p: Placed; kind: ThemeSpec['stag
     );
   }
 
+  // 'disc': flat fill, hairline ring, no gloss. The pearl gradient read as a
+  // toy; a shipped interface draws a shape and lets the size carry the number.
   return (
     <g opacity={opacity}>
-      <circle cx={p.x} cy={p.y} r={p.r} fill={p.level === 0 ? 'var(--accent)' : fill} />
-      {selected && p.level !== 0 && <circle cx={p.x} cy={p.y} r={p.r + 5} fill="none" stroke="var(--accent)" strokeWidth={1.5} />}
+      {p.level === 0 && <circle cx={p.x} cy={p.y} r={p.r * 2.1} fill="url(#stage-halo)" />}
+      <circle
+        cx={p.x}
+        cy={p.y}
+        r={p.r}
+        fill={p.level === 0 ? 'var(--accent)' : fill}
+        stroke={p.level === 0 ? 'var(--accent)' : 'var(--line)'}
+        strokeWidth={1}
+      />
+      {selected && p.level !== 0 && (
+        <circle cx={p.x} cy={p.y} r={p.r + 5} fill="none" stroke="var(--accent)" strokeWidth={1.5} />
+      )}
     </g>
   );
 }
@@ -173,6 +223,8 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
   }, []);
 
   const isArcs = theme.stage.layout === 'arcs';
+  // Columns get orthogonal routing; a spoke through a card is not a relation.
+  const isColumns = theme.stage.layout === 'cards';
 
   /**
    * The regions the interface covers, as constants rather than measurements.
@@ -364,7 +416,7 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
               return (
                 <path
                   key={`${l.from.id}->${l.to.id}-${i}`}
-                  d={edgePath(l, theme.stage.curve, isArcs)}
+                  d={isColumns ? elbowPath(l.from, l.to) : edgePath(l, theme.stage.curve, isArcs)}
                   fill="none"
                   stroke={lit ? 'var(--edge-hot)' : 'var(--edge)'}
                   strokeWidth={lit ? 1.8 : touchesFocus ? 1.2 : 0.8}

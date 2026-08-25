@@ -5,16 +5,16 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "apps/web/src/styles.css",
+    "css": "src/styles.css",
     "baseColor": "slate",
     "cssVariables": true
   },
   "aliases": {
-    "components": "apps/web/src/components",
-    "utils": "apps/web/src/lib/utils",
-    "ui": "apps/web/src/components/ui",
-    "lib": "apps/web/src/lib",
-    "hooks": "apps/web/src/hooks"
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
   },
   "registries": {
     "@react-bits": "https://reactbits.dev/r/{name}.json"

@@ -46,17 +46,27 @@ function step(base: number, scale: number, n: number): string {
   return `${Math.max(MIN_TEXT_PX, raw).toFixed(2)}px`;
 }
 
+/**
+ * Elevation, read off shipped interfaces rather than invented.
+ *
+ * MEASURED 2026-08-25 with tools/reference.mjs: Linear's panels carry
+ * `rgba(0,0,0,.2) 0 0 0 1px` — a RING, not a drop shadow — plus a stack of
+ * near-zero-alpha layers. Raycast layers a 1.5px dark edge with a white inset
+ * highlight. Graphite uses `rgba(0,0,0,.25) 0 4px 4px`. None of them use the
+ * big soft blur that says "card floating over nothing", which is what this
+ * function used to emit at both levels.
+ */
 function shadowFor(elevation: number, base: 'light' | 'dark'): string {
   if (elevation <= 0) return 'none';
   const dark = base === 'dark';
   if (elevation === 1) {
     return dark
-      ? '0 1px 2px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.35)'
-      : '0 1px 2px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.07)';
+      ? '0 0 0 1px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.04)'
+      : '0 0 0 1px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.05)';
   }
   return dark
-    ? '0 2px 6px rgba(0,0,0,.55), 0 20px 60px rgba(0,0,0,.5)'
-    : '0 2px 6px rgba(0,0,0,.08), 0 18px 48px rgba(0,0,0,.12)';
+    ? '0 0 0 1px rgba(0,0,0,.5), 0 2px 4px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05)'
+    : '0 0 0 1px rgba(0,0,0,.07), 0 2px 6px rgba(0,0,0,.06), 0 10px 28px rgba(0,0,0,.07)';
 }
 
 export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.documentElement): void {
