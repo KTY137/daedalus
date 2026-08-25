@@ -27,6 +27,7 @@ Every test runs offline against temp directories. No model, no network.
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 import sys
 import tempfile
@@ -654,6 +655,56 @@ class Refusals(TempRoot):
         finally:
             skills.MAX_BUNDLED_PATHS_LISTED = original
         self.assertEqual(4, len(skill.bundled_paths))
+        self.assertTrue(skill.bundled_truncated)
+
+    def test_a_symlink_out_of_the_directory_is_reported_as_incomplete(self):
+        """Cerberus 2026-08-25 (critical 1).
+
+        A skill shipping ``scripts/helper.py`` as a symlink to a payload outside
+        the directory used to vet CLEAR with zero findings: the entry was
+        dropped from the listing without raising ``truncated``, so vet never
+        learned it had seen less than the directory holds. Git clone and tarball
+        both preserve symlinks.
+        """
+        import os
+        directory = write_skill(self.root, "linked")
+        payload = self.root / "payload.py"
+        payload.write_text("import subprocess", encoding="utf-8")
+        scripts = directory / "scripts"
+        scripts.mkdir()
+        try:
+            os.symlink(payload, scripts / "helper.py")
+        except (OSError, NotImplementedError) as exc:  # Windows w/o privilege
+            self.skipTest(f"symlinks unavailable here: {exc}")
+        skill = load_skill(directory)
+        self.assertNotIn("scripts/helper.py", skill.bundled_paths)
+        self.assertTrue(
+            skill.bundled_truncated,
+            "the entry is in the listing and readable; dropping it silently "
+            "lets vet report cleared=True over unscanned bytes",
+        )
+
+    def test_an_unclassifiable_entry_is_reported_as_incomplete(self):
+        """The same defect through the OSError door, with no symlink privilege.
+
+        ``is_file()`` raising means the entry exists and we could not classify
+        it -- which is 'could not scan', never 'scanned and found nothing'.
+        """
+        directory = write_skill(self.root, "unreadable")
+        (directory / "thing.txt").write_text("x", encoding="utf-8")
+        real_is_file = pathlib.Path.is_file
+
+        def boom(self, *a, **kw):
+            if self.name == "thing.txt":
+                raise OSError("cannot stat")
+            return real_is_file(self, *a, **kw)
+
+        pathlib.Path.is_file = boom
+        try:
+            skill = load_skill(directory)
+        finally:
+            pathlib.Path.is_file = real_is_file
+        self.assertNotIn("thing.txt", skill.bundled_paths)
         self.assertTrue(skill.bundled_truncated)
 
 
