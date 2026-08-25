@@ -173,6 +173,9 @@ python -m daedalus.cli offload "Add a docstring to <some function>" `
 
 # 4. the cockpit: local web API + Agent OS webapp
 python -m daedalus.cli web        # -> http://127.0.0.1:8765
+#   /                    the themed cockpit: the code map, Ikarus, decisions
+#   /?surface=classic    the previous surface: dock, spaces, runtime panels
+#   Themes (top right)   six built-in designs, all editable, forks on first edit
 
 # sanity
 python -m pytest tests/

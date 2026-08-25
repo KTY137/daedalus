@@ -146,9 +146,25 @@ built React app (`apps/web/`):
 - `PUT /api/projects/{p}/team|autonomy|agents/{a}|categories/{c}`
 
 **Secrets stay server-side**: `.env` loads into the process; the API only ever
-returns `configured: true/false`, never key values. The webapp is an operational
-cockpit (agent-network graph, inspector, Role Wheel, **Draft Inbox**, mission
-feed, provider/env status), not a landing page.
+returns `configured: true/false`, never key values.
+
+**Two surfaces, one bundle** (since 2026-08-25):
+
+- `/` opens the **cockpit** (`apps/web/src/cockpit/`) — one project, one module
+  at the centre of its measured neighbourhood, the conversation with Ikarus, and
+  whatever draft is waiting for a decision. Its whole appearance AND its
+  composition come from the active theme (`apps/web/src/theme/`): six built-ins
+  carry the six designs of the gallery round of 2026-08-24, and the Theme Studio
+  edits any of them live, forking a built-in on first edit. Themes are data;
+  they can be exported and imported as JSON.
+- `?surface=classic` opens the **previous cockpit** — dock, three spaces,
+  Mission Control, Draft Inbox, runtime and control-plane panels. It still holds
+  wiring the new surface has not absorbed, and its acceptance suite still pins
+  those contracts. It is loaded lazily, so its stylesheet (whose element
+  selectors predate the split) cannot reach the new surface.
+
+Neither surface is a landing page; both read the same API and hold no state the
+API does not already own.
 
 ---
 
