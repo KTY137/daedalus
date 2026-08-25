@@ -21,7 +21,7 @@ Examples:
   powershell -ExecutionPolicy Bypass -File tools/continuous_daedalus.ps1 Uninstall
 #>
 
-[CmdletBinding(SupportsShouldProcess = $true)]
+[CmdletBinding()]
 param(
     [Parameter(Position = 0)]
     [ValidateSet('Install', 'Uninstall', 'Status', 'RunOnce', 'Start', 'Stop', 'Arm')]
@@ -201,13 +201,11 @@ switch ($Action) {
             -Principal $principal `
             -Description 'Bounded Daedalus pick-attempt-gate-nominate loop. Never auto-merges or promotes.'
 
-        if ($PSCmdlet.ShouldProcess($FullTaskName, 'Register bounded continuous Daedalus task')) {
-            Register-ScheduledTask `
-                -TaskPath $TaskPath `
-                -TaskName $TaskName `
-                -InputObject $task `
-                -Force | Out-Null
-        }
+        Register-ScheduledTask `
+            -TaskPath $TaskPath `
+            -TaskName $TaskName `
+            -InputObject $task `
+            -Force | Out-Null
 
         Write-Host "Installed $FullTaskName"
         Write-Host "Interval: $IntervalMinutes minute(s)"
@@ -220,9 +218,7 @@ switch ($Action) {
         $existing = Get-TaskOrNull
         if ($null -ne $existing) {
             Stop-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
-            if ($PSCmdlet.ShouldProcess($FullTaskName, 'Unregister continuous Daedalus task')) {
-                Unregister-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -Confirm:$false
-            }
+            Unregister-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -Confirm:$false
         }
         # Uninstall leaves the kill switch stopped. Reinstallation therefore
         # cannot resume silently without an explicit arm.
