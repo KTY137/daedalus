@@ -8,43 +8,77 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus/gates/repository_write_chain_result.py"
-TESTS = ("tests/gates/test_repository_write_chain_result.py",)
+CORE = ROOT / "daedalus/gates/_repository_write_chain_result_base.py"
+FACADE = ROOT / "daedalus/gates/repository_write_chain_result.py"
+TESTS = (
+    "tests/gates/test_repository_write_chain_result.py",
+    "tests/gates/test_repository_write_chain_result_hardening.py",
+)
 MUTATIONS = {
     "authenticate-a-blocked-surface": (
+        CORE,
         "        return not self.candidate_blockers and authenticated_over_stages(\n",
         "        return authenticated_over_stages(\n",
     ),
     "authenticate-an-incomplete-inventory": (
+        CORE,
         "        return bool(self.surfaces) and not self.missing_surface_count and all(\n",
         "        return bool(self.surfaces) and all(\n",
     ),
     "accept-forged-derived-fields": (
+        CORE,
         "        if dict(value) != result.to_dict():\n",
         "        if False and dict(value) != result.to_dict():\n",
     ),
     "accept-forged-surface-authentication": (
+        CORE,
         '        if value["authenticated"] != result.authenticated:\n',
         '        if False and value["authenticated"] != result.authenticated:\n',
     ),
     "accept-a-missing-stage-report": (
-        "    if set(reports) != set(AuthenticationStage):\n",
-        "    if False and set(reports) != set(AuthenticationStage):\n",
+        FACADE,
+        "    if set(reports) != set(_base.AuthenticationStage):\n",
+        "    if False and set(reports) != set(_base.AuthenticationStage):\n",
+    ),
+    "accept-noncanonical-wire-bytes": (
+        FACADE,
+        "    if raw != canonical:\n",
+        "    if False and raw != canonical:\n",
+    ),
+    "accept-conflicting-non-runtime-bindings": (
+        FACADE,
+        "    if (\n"
+        "        auth.not_applicable_binding\n"
+        "        and admission_binding\n"
+        "        and auth.not_applicable_binding != admission_binding\n"
+        "    ):\n",
+        "    if False and (\n"
+        "        auth.not_applicable_binding\n"
+        "        and admission_binding\n"
+        "        and auth.not_applicable_binding != admission_binding\n"
+        "    ):\n",
     ),
 }
 
 
 def main() -> int:
-    original = TARGET.read_text(encoding="utf-8")
+    originals = {
+        target: target.read_text(encoding="utf-8")
+        for target, _, _ in MUTATIONS.values()
+    }
     survivors: list[str] = []
     try:
-        for name, (needle, replacement) in MUTATIONS.items():
+        for name, (target, needle, replacement) in MUTATIONS.items():
+            original = originals[target]
             count = original.count(needle)
             if count != 1:
                 raise RuntimeError(
                     f"mutation {name} expected one source anchor, found {count}"
                 )
-            TARGET.write_text(original.replace(needle, replacement), encoding="utf-8")
+            target.write_text(
+                original.replace(needle, replacement),
+                encoding="utf-8",
+            )
             completed = subprocess.run(
                 [sys.executable, "-m", "pytest", "-q", *TESTS],
                 cwd=ROOT,
@@ -56,9 +90,10 @@ def main() -> int:
             )
             if completed.returncode == 0:
                 survivors.append(name)
-            TARGET.write_text(original, encoding="utf-8")
+            target.write_text(original, encoding="utf-8")
     finally:
-        TARGET.write_text(original, encoding="utf-8")
+        for target, original in originals.items():
+            target.write_text(original, encoding="utf-8")
     if survivors:
         print("surviving mutations: " + ", ".join(survivors), file=sys.stderr)
         return 1
