@@ -44,6 +44,14 @@ orchestration = ["langgraph>=1.2,<2"]
 #                  Note the recursion: the first count of this was `tests/test_*.py`,
 #                  which sees only the top level and reported 116 of 254. Both
 #                  halves of a ratio need the same, windowless instrument.
+#                  CI never hit this, because it patched around it: 72 of the 98
+#                  files in .github/workflows/ install pytest by hand, 195 times
+#                  in total, in nine different spellings -- one of which is
+#                  `pip install -e ".[test]" pytest`, installing the declared
+#                  test extra and then appending the thing it forgot. The
+#                  dependency was known; it was recorded 195 times at the call
+#                  site and zero times where a call site could read it. Those
+#                  195 hand-patches are now redundant rather than load-bearing.
 #   jsonschema  -- required by 7 files in tests/ that validate the Gate-0
 #                  contract schemas (fault matrix, repository write
 #                  classification, provider target receipt retention). Also
