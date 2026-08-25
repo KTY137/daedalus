@@ -882,7 +882,7 @@ git pull --ff-only origin experimental
 
 git status --short
 git rev-parse HEAD
-python tools/iron_plan_guard.py verify
+python tools/iron_plan_guard.py verify (removed 2026-08-22)
 python -m pytest -q
 
 git tag -a daedalus-plan-r1-baseline-2026-07-31 \
@@ -916,15 +916,15 @@ Der Plan-PR muss atomar ändern:
 docs/IKARUS_ARIADNE_MASTER_PLAN.md
 docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl
 CLAUDE.md beziehungsweise abgeleitete Instruktionen, falls nötig
-tests/test_iron_plan_guard.py
+tests/test_iron_plan_guard.py (removed 2026-08-22)
 relevante Planprojektionen
 ```
 
 Danach:
 
 ```bash
-python tools/iron_plan_guard.py verify
-python -m unittest tests.test_iron_plan_guard -v
+python tools/iron_plan_guard.py (removed 2026-08-22) verify
+python -m unittest tests.test_iron_plan_guard (removed 2026-08-22) -v
 git diff --check
 git add <exakte Dateien>
 git commit -m "plan: adopt Fourfold dual-layer and Genesis strategy"

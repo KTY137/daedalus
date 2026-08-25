@@ -135,7 +135,7 @@ blind against a wall and then reads the result as success.
    Every run back to 2026-08-23 shows the same 4-second failure. This is an
    owner action in GitHub Billing, not a repository edit.
 2. **94 of the 98 workflows called a deleted script.** They ran
-   `python tools/iron_plan_guard.py verify`; that file was deleted by the
+   `python tools/iron_plan_guard.py (removed 2026-08-22) verify`; that file was deleted by the
    unification commit `79825b57` on 2026-08-22 when the guard ceremony was
    retired, and no workflow marked the step `continue-on-error`. In 26 of the
    94 that step sat above `pytest`, in 68 it sat below [MEASURED 2026-08-25
