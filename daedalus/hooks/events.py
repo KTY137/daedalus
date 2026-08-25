@@ -8,8 +8,17 @@ import datetime
 import time
 from pathlib import Path
 
-from ._common import HookResult, _Lock, hooks_dir, trim_to_budget, update_state
+from ._common import (
+    HookResult,
+    _Lock,
+    clip_block,
+    hooks_dir,
+    trim_lines,
+    update_state,
+    with_deadline,
+)
 from ._tree import (
+    UNREADABLE_KEY,
     fingerprint_diff,
     last_sweep,
     source_fingerprint,
@@ -20,6 +29,16 @@ MIN_PARALLEL = 4
 #: A subagent entry older than this is pruned from the live set: the harness
 #: does not promise a SubagentStop for an agent it killed.
 AGENT_STALE_S = 2 * 3600
+#: The architecture delta's own budget. A block with no budget of its own
+#: competes for the whole turn budget, and the trimmer settles that competition
+#: by deletion -- see :func:`_common.clip_block` for the measurement.
+ARCH_DELTA_CHARS = 600
+#: Wall-clock budgets for the two PYTHON-side dependencies. Every git call is
+#: already capped by subprocess timeout; these two were capped by nothing, and
+#: a hook has no deadline of its own. [MEASURED 2026-08-25] one turn row reads
+#: 139,592 ms and a direct render_delta call exceeded 120 s on this tree.
+SHIFT_BUDGET_S = 2.0
+ARCH_BUDGET_S = 3.0
 
 CREW_TARGETS = (
     "DeepSeek (advisory, reads daedalus/) -- reviews, adversarial audits, research with paths=[]",
@@ -34,16 +53,22 @@ LEGEND = (
 
 
 def _shift_line(root: Path) -> str:
-    try:
-        from daedalus import shift as shift_mod
+    def render() -> str:
+        try:
+            from daedalus import shift as shift_mod
 
-        s = shift_mod.load(root)
-        line = s.render()
-        if s.goal and s.expired:
-            line += "  <- the declared window has passed; report and confirm before continuing"
-        return line
-    except Exception:  # noqa: BLE001 - the clock must not cost the turn
-        return "[clock unavailable]"
+            s = shift_mod.load(root)
+            line = s.render()
+            if s.goal and s.expired:
+                line += "  <- the declared window has passed; report and confirm before continuing"
+            return line
+        except Exception:  # noqa: BLE001 - the clock must not cost the turn
+            return "[clock unavailable]"
+
+    # Two failures, two words. "unavailable" is a clock that raised;
+    # "timed out" is a clock that never came back -- and only the second one
+    # was costing the user a prompt.
+    return with_deadline(render, SHIFT_BUDGET_S, "[clock timed out]")
 
 
 # --------------------------------------------------------------------------
@@ -76,8 +101,8 @@ def session_start(payload: dict, root: Path, sid: str) -> HookResult:
         state["started"] = payload.get("source") or payload.get("start_reason") or "startup"
 
     update_state(root, sid, mutate)
-    text, trimmed = trim_to_budget(lines)
-    return HookResult(text=text, note="trimmed" if trimmed else "")
+    text, dropped = trim_lines(lines)
+    return HookResult(text=text, note=f"trimmed:{dropped}" if dropped else "")
 
 
 # --------------------------------------------------------------------------
@@ -111,9 +136,17 @@ def _crew_lines(state: dict) -> tuple[list[str], dict]:
 
 def _changed_line(root: Path, state: dict) -> str:
     current = source_fingerprint(root)
+    if UNREADABLE_KEY in current:
+        # Returning "" here reads as "nothing changed". A fingerprint built on
+        # a git call that failed cannot support that sentence.
+        return (
+            f"CHANGED: cannot say -- git was unreadable ({current[UNREADABLE_KEY]}); "
+            "this is NOT a report that the tree is unchanged"
+        )
     test = state.get("last_test")
     if isinstance(test, dict) and isinstance(test.get("fp"), dict):
-        diff = fingerprint_diff(test["fp"], current)
+        stored = {k: v for k, v in test["fp"].items() if k != UNREADABLE_KEY}
+        diff = fingerprint_diff(stored, current)
         if not diff:
             return ""
         shown = ", ".join(diff[:4]) + (f", +{len(diff) - 4}" if len(diff) > 4 else "")
@@ -123,7 +156,7 @@ def _changed_line(root: Path, state: dict) -> str:
         )
     base = state.get("base_fp")
     if isinstance(base, dict):
-        diff = fingerprint_diff(base, current)
+        diff = fingerprint_diff({k: v for k, v in base.items() if k != UNREADABLE_KEY}, current)
         if diff:
             shown = ", ".join(diff[:4]) + (f", +{len(diff) - 4}" if len(diff) > 4 else "")
             return (
@@ -165,16 +198,20 @@ def _watchdog_anomalies(root: Path) -> list[str] | None:
 def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
     lines: list[str] = [_shift_line(root)]
 
-    try:
-        from daedalus import arch_memory
+    def render_arch() -> str:
+        try:
+            from daedalus import arch_memory
 
-        delta = arch_memory.render_delta(
-            root, shown_path=hooks_dir(root) / f"arch-{sid}.shown", silent_when_unchanged=True
-        )
-        if delta:
-            lines.append(delta)
-    except Exception:  # noqa: BLE001
-        pass
+            return arch_memory.render_delta(
+                root, shown_path=hooks_dir(root) / f"arch-{sid}.shown", silent_when_unchanged=True
+            ) or ""
+        except Exception:  # noqa: BLE001
+            return ""
+
+    delta = clip_block(
+        with_deadline(render_arch, ARCH_BUDGET_S, "[architecture delta timed out]"),
+        ARCH_DELTA_CHARS,
+    )
 
     collected: dict = {}
 
@@ -201,15 +238,24 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
         
 
     update_state(root, sid, mutate)
-    lines += collected.get("crew", [])
+    # PRIORITY ORDER, and deliberately not narrative order. `trim_lines` drops
+    # from the END, so the last line is the first casualty -- and the last line
+    # used to be the watchdog's anomalies, i.e. the most alarming thing this
+    # hook has to say was first out. Alarms now precede the crew count, and the
+    # architecture delta goes last: it is the largest block and the least
+    # urgent, and it is clipped to its own budget above so that even when it
+    # survives it cannot crowd the alarms out.
+    if collected.get("watchdog"):
+        lines.append(collected["watchdog"])
     if collected.get("changed"):
         lines.append(collected["changed"])
     if collected.get("config"):
         lines.append(collected["config"])
-    if collected.get("watchdog"):
-        lines.append(collected["watchdog"])
-    text, trimmed = trim_to_budget(lines)
-    return HookResult(text=text, note="trimmed" if trimmed else "")
+    lines += collected.get("crew", [])
+    if delta:
+        lines.append(delta)
+    text, dropped = trim_lines(lines)
+    return HookResult(text=text, note=f"trimmed:{dropped}" if dropped else "")
 
 
 # --------------------------------------------------------------------------
@@ -234,7 +280,7 @@ def subagent_start(payload: dict, root: Path, sid: str) -> HookResult:
         lines.append(archived)
     if facts.serena_mismatch:
         lines.append("Use Edit/Write/Bash with absolute paths in this tree; Serena read tools only.")
-    text, _ = trim_to_budget(lines, 600)
+    text, _ = trim_lines(lines, 600)
     return HookResult(
         payload={
             "hookSpecificOutput": {
@@ -280,6 +326,11 @@ def config_change(payload: dict, root: Path, sid: str) -> HookResult:
 # --------------------------------------------------------------------------
 
 
+#: The heading compaction markers belong under. It is written when the note is
+#: created AND checked when it already exists -- see _append_compaction_marker.
+COMPACTION_SECTION = "## Kompaktierungen"
+
+
 def _local_now() -> datetime.datetime:
     """A seam for deterministic marker tests; production uses local time so
     the marker lands in the same daily note the operator sees in the vault."""
@@ -292,14 +343,30 @@ def _one_line(value: object, limit: int) -> str:
     return text[:limit]
 
 
-def _append_compaction_marker(note: Path, header: str, line: str) -> None:
-    """Create a daily note once, or append one marker to the existing note.
+def _append_compaction_marker(
+    note: Path, header: str, line: str, section: str = COMPACTION_SECTION
+) -> None:
+    """Create a daily note once, or append one marker UNDER ``section``.
 
     Serialize the create-or-append decision. Exclusive creation alone is not
     sufficient: another process can observe the empty file between ``open(x)``
     and the creator's first write, append its marker, and have that marker
     overwritten by the creator. The package's existing Windows-safe lock keeps
     the frontmatter unique and every marker append-only.
+
+    APPENDING IS NOT ENOUGH ON ITS OWN. The header -- and with it the section
+    heading -- used to be written only when this function CREATED the note. It
+    is not the only writer of that file: the work watchdog opens the same daily
+    note at ~02:29 under its own ``## watchdog`` heading, hours before any
+    compaction can happen. [MEASURED 2026-08-25] against the real shape of
+    ``vault/Sessions/2026-08-25.md``: every marker landed under ``## watchdog``
+    and ``## Kompaktierungen`` was never created at all. A record filed under
+    the wrong heading is a record that says something untrue about what it is.
+    So a note that exists without the section gains the section.
+
+    Line endings follow the FILE, not this process. The vault's notes are CRLF
+    on this machine, and appending with ``newline="\n"`` left a mixed-ending
+    file in git on every compaction.
     """
     note.parent.mkdir(parents=True, exist_ok=True)
     lock = note.with_name(f".{note.name}.precompact.lock")
@@ -307,9 +374,21 @@ def _append_compaction_marker(note: Path, header: str, line: str) -> None:
         try:
             with note.open("x", encoding="utf-8", newline="\n") as handle:
                 handle.write(header + line)
+            return
         except FileExistsError:
-            with note.open("a", encoding="utf-8", newline="\n") as handle:
-                handle.write(line)
+            pass
+        raw = note.read_bytes()
+        eol = "\r\n" if b"\r\n" in raw else "\n"
+        existing = raw.decode("utf-8", errors="replace")
+        prefix = ""
+        if existing and not existing.endswith(("\n", "\r")):
+            prefix = "\n"
+        if section not in existing:
+            prefix += "\n" + section + "\n\n"
+        # Build with "\n" throughout, translate ONCE: translating a prefix that
+        # already contains "\r\n" would produce "\r\r\n".
+        with note.open("a", encoding="utf-8", newline="") as handle:
+            handle.write((prefix + line).replace("\n", eol))
 
 
 def pre_compact(payload: dict, root: Path, sid: str) -> HookResult:
@@ -337,10 +416,10 @@ def pre_compact(payload: dict, root: Path, sid: str) -> HookResult:
     )
     header = (
         f"---\ntags: [session]\ndate: {now:%Y-%m-%d}\n---\n\n"
-        f"# Session {now:%Y-%m-%d}\n\n## Kompaktierungen\n\n"
+        f"# Session {now:%Y-%m-%d}\n\n{COMPACTION_SECTION}\n\n"
     )
     try:
-        _append_compaction_marker(note, header, line)
+        _append_compaction_marker(note, header, line, COMPACTION_SECTION)
     except OSError as exc:
         return HookResult(note=f"precompact:write-failed:{type(exc).__name__}")
     return HookResult(note=f"precompact:{trigger}")
