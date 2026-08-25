@@ -61,7 +61,7 @@ protected. Left alone: it is a hint, not an order, and it fails closed.
 ## 2. CI — REPAIRED 2026-08-25
 
 - `.github/workflows/` — **170 step lines across 94 files**, each
-  `- run: python tools/iron_plan_guard.py verify`, no `continue-on-error`; in
+  `- run: python tools/iron_plan_guard.py (removed 2026-08-22) verify`, no `continue-on-error`; in
   26 of the 94 the step sat above `pytest`. Removed; 0 lines added.
 - `.github/CODEOWNERS` — 6 ownership lines naming the ceremony
   (`iron_plan_guard.py (removed 2026-08-22)`, `iron_plan_hook_runner.py (removed 2026-08-22)`,

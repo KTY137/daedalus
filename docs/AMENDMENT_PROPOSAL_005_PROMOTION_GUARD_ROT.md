@@ -35,7 +35,7 @@ it polices).
 
 ## Why it is moot rather than accepted or rejected
 
-`tools/iron_plan_guard.py` no longer exists, so there is nothing to
+`tools/iron_plan_guard.py (removed 2026-08-22)` no longer exists, so there is nothing to
 re-point. The underlying observation — promotion authorization now lives in
 `daedalus/kernel/promotion.py` and `daedalus/kernel/approvals.py` — still
 matches the current tree [MEASURED 2026-08-25: both modules present]; any

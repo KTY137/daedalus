@@ -287,7 +287,7 @@ somebody has to answer out loud). Note that `--refresh` goes through the central
 effect boundary (`cli.mapping_drift`), so it is a guarded write, not a free one.
 
 **Do not** simply `--refresh` and bank the numbers: four modules are `VANISHED`
-(in the snapshot, not on disk), including `daedalus/crew_hook.py`, which the bad
+(in the snapshot, not on disk), including `daedalus/crew_hook.py (replaced by daedalus/hooks/, 2026-08-23)`, which the bad
 merge inserted. Confirm each deletion was intended before baking it in.
 
 ---
