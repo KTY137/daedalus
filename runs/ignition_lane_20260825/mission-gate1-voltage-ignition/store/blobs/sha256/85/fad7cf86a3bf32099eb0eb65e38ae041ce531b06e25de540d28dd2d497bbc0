@@ -1,0 +1,66 @@
+diff --git a/data/events.csv b/data/events.csv
+index 4111e71..a459fe7 100644
+--- a/data/events.csv
++++ b/data/events.csv
+@@ -1,2 +1,2 @@
+-id,voltage
++id,bias_voltage
+ 1,125.0
+diff --git a/fourfold.json b/fourfold.json
+index a441fba..63083f8 100644
+--- a/fourfold.json
++++ b/fourfold.json
+@@ -32,9 +32,9 @@
+       "kind": "type_matches_csv_field",
+       "type_file": "src/ignition_app/models.py",
+       "type_name": "Event",
+-      "type_field": "voltage",
++      "type_field": "bias_voltage",
+       "csv_file": "data/events.csv",
+-      "csv_field": "voltage"
++      "csv_field": "bias_voltage"
+     },
+     {
+       "kind": "type_matches_schema_field",
+@@ -48,9 +48,9 @@
+       "kind": "type_matches_schema_field",
+       "type_file": "src/ignition_app/models.py",
+       "type_name": "Event",
+-      "type_field": "voltage",
++      "type_field": "bias_voltage",
+       "schema_file": "schemas/event.schema.json",
+-      "schema_field": "voltage"
++      "schema_field": "bias_voltage"
+     },
+     {
+       "kind": "wiki_documents_node",
+diff --git a/schemas/event.schema.json b/schemas/event.schema.json
+index ec2651c..9f47126 100644
+--- a/schemas/event.schema.json
++++ b/schemas/event.schema.json
+@@ -3,10 +3,10 @@
+   "$id": "https://example.invalid/event.schema.json",
+   "title": "Ignition Event",
+   "type": "object",
+-  "required": ["id", "voltage"],
++  "required": ["id", "bias_voltage"],
+   "properties": {
+     "id": {"type": "string"},
+-    "voltage": {"type": "number"}
++    "bias_voltage": {"type": "number"}
+   },
+   "additionalProperties": false
+ }
+diff --git a/wiki/Event.md b/wiki/Event.md
+index 34ba775..941cc14 100644
+--- a/wiki/Event.md
++++ b/wiki/Event.md
+@@ -1,6 +1,6 @@
+-# Event voltage
++# Event bias_voltage
+ 
+ The [`Event`](../src/ignition_app/models.py) type stores the measured
+-`voltage`. Rows are loaded by the [repository](../src/ignition_app/repository.py)
++`bias_voltage`. Rows are loaded by the [repository](../src/ignition_app/repository.py)
+ from the [event CSV](../data/events.csv) and constrained by the
+ [event schema](../schemas/event.schema.json).

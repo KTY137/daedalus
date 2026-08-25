@@ -1,0 +1,645 @@
+{
+  "attempts": [
+    {
+      "attempt_contract_sha256": "045e73d24fcda7efd11868e1ecf248c36de69fba2c578ad91766af3710223040",
+      "attempt_id": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-267dd6",
+      "attempt_receipt_sha256": "92cfc979b649f446183fe186e917486349fa43a6ec18e3a6f4dcd893c89f0309",
+      "changed_paths": [
+        "src/ignition_app/models.py",
+        "src/ignition_app/repository.py"
+      ],
+      "contracts_error": null,
+      "evidence_assurance": [
+        "deterministic"
+      ],
+      "evidence_packet_sha256": "c65b725a475db6f5fac532edd2928c47ff683e91d59b0ab3c0362e1718f8a510",
+      "evidence_status": "passed",
+      "gate_command": [
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "--no-header",
+        "tests/test_event_field.py::test_type_exposes_the_renamed_field"
+      ],
+      "gate_criterion_paths": [
+        "tests/test_event_field.py"
+      ],
+      "gate_name": "ignition-code-type",
+      "gate_output_sha256": "83233045b29d7e361ffc4826f9d8bccce43519f1b85f8d1deec84241634c1b2a",
+      "gate_passed": true,
+      "patch_locator": "artifact-locator:sha256:546528555d6eceb87150fbfd0976aedf639cdd645f6368a8360d6a275e1f95a9",
+      "patch_sha256": "cc040292b7ec9834adab83b9aa8423a19bde38338246106f58ff2a07e85b075d",
+      "policy_decision_sha256": "b92615f65eb5e7cb97ffa0847506a02d79b52b9e2f5529c5e80e15f4857e39ea",
+      "policy_verdict": "allow",
+      "state": "clean",
+      "target_paths": [
+        "src/ignition_app/models.py",
+        "src/ignition_app/repository.py"
+      ],
+      "work_item_id": "wi-000-c41495030c8f"
+    },
+    {
+      "attempt_contract_sha256": "0ad3035dd5130efb81627b6fa02cbcdcc7a7d16aa2cbc611c26cfdb27145746b",
+      "attempt_id": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-f5e000",
+      "attempt_receipt_sha256": "9644cfb3a536c453c41c9c1ace0bafd6bf067e7917476f6fb654ef1f63f541ad",
+      "changed_paths": [
+        "data/events.csv",
+        "fourfold.json",
+        "schemas/event.schema.json",
+        "wiki/Event.md"
+      ],
+      "contracts_error": null,
+      "evidence_assurance": [
+        "deterministic"
+      ],
+      "evidence_packet_sha256": "33571633bb30a156690b91e65d9387e87454dd387ef7472b9c4d591c90d2e83b",
+      "evidence_status": "passed",
+      "gate_command": [
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "--no-header",
+        "tests/test_event_field.py::test_csv_header_carries_the_renamed_field",
+        "tests/test_event_field.py::test_wiki_documents_the_renamed_field",
+        "tests/test_event_field.py::test_wiki_links_resolve",
+        "ignition-schema-check",
+        "ignition-link-check"
+      ],
+      "gate_criterion_paths": [
+        "tests/test_event_field.py"
+      ],
+      "gate_name": "ignition-data-knowledge",
+      "gate_output_sha256": "37683b8c793531b2366b6b16deda82c46a77f628a9a0da19324fe6541a1e8322",
+      "gate_passed": true,
+      "patch_locator": "artifact-locator:sha256:98b63b81b24ed188072d0c6fe2ad6e31409e0c633f0b5d17966d21c8baf8a7c0",
+      "patch_sha256": "85fad7cf86a3bf32099eb0eb65e38ae041ce531b06e25de540d28dd2d497bbc0",
+      "policy_decision_sha256": "f0a308c7f795a9d0b8335657b58b12dc7458857e90f40fc89b87dbb3e5171dac",
+      "policy_verdict": "allow",
+      "state": "clean",
+      "target_paths": [
+        "data/events.csv",
+        "fourfold.json",
+        "schemas/event.schema.json",
+        "wiki/Event.md"
+      ],
+      "work_item_id": "wi-001-c8c563f2c0da"
+    }
+  ],
+  "blocker": null,
+  "blockers": [
+    "the previous receipt was produced by a different evaluator bundle (4b5f867b1957); two runs are a replay only under one bundle"
+  ],
+  "check_kinds": [
+    "link",
+    "pytest",
+    "schema"
+  ],
+  "checks": {
+    "link": {
+      "evaluator": "ignition-link-check",
+      "output_sha256": "641ce025fd271ad0bc6b53e2d0ec9626424442e7456ac126c691169791b171e5",
+      "passed": true,
+      "report_sha256": "d3065bff455b0019d307605ea3901d55324561d8fefe5a3ed204be1b9c0f82ca"
+    },
+    "pytest": {
+      "evaluator": "ignition-pytest-composed",
+      "output_sha256": "b6d2ac28a34dee893034ad6e7d23feb82d5ff7615c88527b3ee406c1ac49fe36",
+      "passed": true,
+      "report_sha256": "403dd80170df191e22701e472dd1ef57f83579fc8038fe682e06cb3deee5b8ca"
+    },
+    "schema": {
+      "evaluator": "ignition-schema-check",
+      "output_sha256": "8eaa6eb6fbcbb434c210d9f8da13534860627dc621828a3b7f77d8e8dac4b8da",
+      "passed": true,
+      "report_sha256": "f487bdb1b2073fe8e4b38623b34fa6d8306bb0ba3ba4409f234179f0fdc45804"
+    }
+  },
+  "collected_at": "2026-08-25T09:26:19Z",
+  "cost": {
+    "anchored_node_measurements": 4,
+    "negative_controls": 3,
+    "subject_coverage_measurements": 4,
+    "wall_clock_s": 118.2
+  },
+  "discrimination": {
+    "anchored_nodes": {
+      "tests/test_event_field.py::test_csv_header_carries_the_renamed_field": {
+        "gate": "data-knowledge",
+        "passed_on_base_revision": false,
+        "role": "fail_to_pass"
+      },
+      "tests/test_event_field.py::test_type_exposes_the_renamed_field": {
+        "gate": "code-type",
+        "passed_on_base_revision": false,
+        "role": "fail_to_pass"
+      },
+      "tests/test_event_field.py::test_wiki_documents_the_renamed_field": {
+        "gate": "data-knowledge",
+        "passed_on_base_revision": false,
+        "role": "fail_to_pass"
+      },
+      "tests/test_event_field.py::test_wiki_links_resolve": {
+        "gate": "data-knowledge",
+        "passed_on_base_revision": true,
+        "role": "pass_to_pass_guard"
+      }
+    },
+    "before_state": {
+      "conformance_suite_on_base_revision_passed": false,
+      "conformance_test_sha256": "d2c96a9858c12a1ce4d16ef4b95fa190df2c7911c8e39c20f3c78bf6bc659dbb"
+    },
+    "negative_controls": {
+      "link.missing_target": {
+        "control": "delete data/events.csv, which wiki/Event.md links to",
+        "passed": false,
+        "problems": [
+          "wiki/Event.md: link '../data/events.csv' does not resolve to a file in the tree"
+        ]
+      },
+      "pytest.base_revision": {
+        "control": "run the conformance suite on the unmodified base revision",
+        "passed": false,
+        "returncode": 1
+      },
+      "schema.half_renamed": {
+        "control": "revert schemas/event.schema.json to the base revision, keep the renamed CSV",
+        "passed": false,
+        "problems": [
+          "schema declares field(s) the CSV header does not carry: voltage",
+          "CSV header carries field(s) the schema does not declare: bias_voltage",
+          "required field 'voltage' is absent from the CSV header"
+        ]
+      }
+    },
+    "subject_coverage": {
+      "data/events.csv": {
+        "control": "revert data/events.csv to the base revision, keep the rest of the candidate",
+        "fourfold_refusal": "ReferenceCompileError: CSV field does not exist: data/events.csv#bias_voltage",
+        "noticed_by": [
+          "anchored-nodes",
+          "fourfold.compile",
+          "ignition-schema-check"
+        ],
+        "reverted": true,
+        "unread": false
+      },
+      "fourfold.json": {
+        "control": "revert fourfold.json to the base revision, keep the rest of the candidate",
+        "fourfold_refusal": "ReferenceCompileError: dataclass field does not exist: src/ignition_app/models.py#Event.voltage",
+        "noticed_by": [
+          "fourfold.compile"
+        ],
+        "reverted": true,
+        "unread": false
+      },
+      "schemas/event.schema.json": {
+        "control": "revert schemas/event.schema.json to the base revision, keep the rest of the candidate",
+        "fourfold_refusal": "ReferenceCompileError: schema field does not exist: schemas/event.schema.json#bias_voltage",
+        "noticed_by": [
+          "fourfold.compile",
+          "ignition-schema-check"
+        ],
+        "reverted": true,
+        "unread": false
+      },
+      "wiki/Event.md": {
+        "control": "revert wiki/Event.md to the base revision, keep the rest of the candidate",
+        "fourfold_refusal": "",
+        "noticed_by": [
+          "anchored-nodes"
+        ],
+        "reverted": true,
+        "unread": false
+      }
+    },
+    "unsealed_verdict_conjuncts": {
+      "ignition-data-knowledge": [
+        {
+          "criterion_location": "daedalus.ignition.checks.schema_check",
+          "evaluator": "ignition-schema-check",
+          "in_judged_tree": false,
+          "known_weakness": "compares CSV header and schema property SETS; a schema whose properties carry no types and whose required list is empty satisfies it, and per-row type checks are then vacuous",
+          "sealed_by_gate_criterion_paths": false
+        },
+        {
+          "criterion_location": "daedalus.ignition.checks.link_check",
+          "evaluator": "ignition-link-check",
+          "in_judged_tree": false,
+          "known_weakness": "requires each relative link to resolve to an existing file; a link retargeted to another existing file still resolves",
+          "sealed_by_gate_criterion_paths": false
+        }
+      ]
+    }
+  },
+  "evaluator_bundle": {
+    "closure": {
+      "count": 127,
+      "digest": "91758afd1e70d76d4e38a4df283f062176bd2120d1ca2d89aaef703b0169ed8e",
+      "modules": {
+        "daedalus/__init__.py": "e8833a427b5a50e06246c7c9e57b01a50274579c",
+        "daedalus/adapters/events.py": "c11ec9747624d84be6c8f1dcfac2567f6ffc0d47",
+        "daedalus/agents_registry.py": "3184d946475b20dc9dfbeeee760208e9f8a7538f",
+        "daedalus/atomic.py": "1ad2b459bc1676780ff5a6f5712b1a6fcaa110a0",
+        "daedalus/benchmark.py": "d77cf19a716260434823f2dc81ce4ee047f8af04",
+        "daedalus/bookkeeper.py": "43932e16616919813bf2e26b1e74adcbb26d4f8f",
+        "daedalus/budget.py": "fb4a5e16be471882f50142446a57b697ae1bcefe",
+        "daedalus/build.py": "26e7491f2b81ed8b1474b299530e1c0cc98c388b",
+        "daedalus/categories.py": "a6c3d4586706a97f924c69df11d002222dd3e8bc",
+        "daedalus/claude_bridge.py": "692efff84d3c9494ac9f29e4aa88f23ea5969ee4",
+        "daedalus/claude_detect.py": "ae6b3440237a7116ce03c1c049d418e0f93a42d9",
+        "daedalus/config.py": "a11f699cb1af09a2e177e5d302c644e22491ed7a",
+        "daedalus/context_plan.py": "e2b5f3564600b35df1d317cae97f76def02b2b6e",
+        "daedalus/core.py": "fd9b6ec16e812cfb912aa7859814194e2ebb0ab8",
+        "daedalus/doctor.py": "c7d976123dd452d0f1711385ddffe52ecf4542c8",
+        "daedalus/enforce.py": "fe835d170989e36a81c043a20e7f8bc6f5cdb950",
+        "daedalus/eval/correctness.py": "5635e0d65ad7f232c8e815187c5974a8c0d522dd",
+        "daedalus/eval/harness.py": "4b3d79e797bd0253744751dcd4fd39dbc0906d24",
+        "daedalus/eval/mint.py": "536d276bde9f1408ea2c8a7f02071ad3376aab67",
+        "daedalus/eval/tasks.py": "ea137ab80f45252081255449dc45e3ad468fe9fe",
+        "daedalus/fallback.py": "00addc4abde8573bd10011e890ca5286fdbf9a92",
+        "daedalus/file_bridge.py": "cb34a533fe19ad789d8a666107433646667e5187",
+        "daedalus/health.py": "96a912042b268d74f62296f02701aa25b2664da9",
+        "daedalus/ignition/__init__.py": "3270894bfd4f797e94340aba66f443c591c06675",
+        "daedalus/ignition/bundle.py": "a974343878d0d2b5b82c813efe9a249489a05663",
+        "daedalus/ignition/checks.py": "6889e94cdde1c76667c29ae10194e852f595cd4e",
+        "daedalus/ignition/gate1.py": "96587dc32dcf7227334b6c222a0512c5c76be8cd",
+        "daedalus/ignition/runner.py": "3f282a594f42de48661c4d87cc7d6b789f65e742",
+        "daedalus/kairos/decompose.py": "2c1091f3c5cf972d7c62a8cedded2fd03ec6d20b",
+        "daedalus/kairos/drafts.py": "8ebcccc38e4f536690a85dd6179cf5931e0b32d3",
+        "daedalus/kairos/gated_writes.py": "61ad3dccfac4c255873d9b127b348bd4e0ddf20e",
+        "daedalus/kairos/scheduler.py": "e22578c4e377eac0d2126a228b4f9b2b697d66a9",
+        "daedalus/kairos/worktree.py": "88c217e12e2b09782c3c55702d0ad5d0f4c3ee8c",
+        "daedalus/kernel/approvals.py": "30a1fbb4bed24f393e4502fa2ab9a5b405e19abf",
+        "daedalus/kernel/authorization.py": "0492f01e0cbb047433f9d71933686d62dfef30c1",
+        "daedalus/kernel/contracts.py": "2621a010d8b2a54b1ffd9d36c6aaa30b289fc0e2",
+        "daedalus/kernel/effect_replay.py": "b1d876f942e661123d4f50307bedefeb59161793",
+        "daedalus/kernel/effects.py": "0d4d3bbbdaccfa11948f2cbdacc3ac449bef7a1f",
+        "daedalus/kernel/fourfold_evidence.py": "a6cfe1f120f47828f2a3775226459023da778e00",
+        "daedalus/kernel/offload_lease.py": "ea5699177dd17cebb750e4e773a8522f541d854d",
+        "daedalus/kernel/promotion.py": "b8523c5555d59e0a8ad538472ab031a5761d242e",
+        "daedalus/kernel/promotion_trust_root.py": "1942bc8e5aac5de91b23dafe44deb10f1c147738",
+        "daedalus/kernel/runtime_conformance.py": "d82a05b08a6550a3081a98a3c579ac061daa07a3",
+        "daedalus/kernel/runtime_effects.py": "706d7e8e33bf283af8f302c396e32190a4e6dbc3",
+        "daedalus/lanes/__init__.py": "f611e33912223415b81a1d524724c1b592f4a46c",
+        "daedalus/lanes/checks.py": "c69056b43da962d7c83fc66e4a5c202862065fd0",
+        "daedalus/lanes/graph_brief.py": "e374b2caa8d672737a5be58139248800732f56ba",
+        "daedalus/lanes/grounding.py": "b0ecb03db9ad39061a7f9e77cdfa411b662515be",
+        "daedalus/mapping/__init__.py": "16e3cdf8d228ba42a6b78495e1be861b57797145",
+        "daedalus/mapping/drift.py": "70311a95e07d8abe1777efb87967a32877950ee8",
+        "daedalus/mapping/inventory.py": "325b6c6688e853f46a6cb815487cfea67fa4b5db",
+        "daedalus/mapping/reach.py": "988c3a4057d183ec0efdd38cfcac91aad266d56e",
+        "daedalus/mapping/render.py": "70356946f6e35adabb0e7c341d9f81055832593e",
+        "daedalus/mapping/spectral.py": "04c3abe6d4e7b12461a9b58cc245504a3e3eb508",
+        "daedalus/mapping/switches.py": "3db6c5d99e5cd592650e1aa13a1e0a5db7cfd5e5",
+        "daedalus/memory/__init__.py": "a002ca8dab8ec31c6dcf86f8a7d5ae0d92cb30a3",
+        "daedalus/memory/embeddings.py": "1fe84fd7c18507cd33e9f6ca29ac753b562ddd2a",
+        "daedalus/metrics.py": "470cae455643a10e4236174d3f2c1e8786f2d5b7",
+        "daedalus/offload.py": "c410a027c0a152ee8de928c3a567175d206852c9",
+        "daedalus/preservation.py": "8d0e8e2d586e61b2eab68563e22a70c98ae7ae8a",
+        "daedalus/primary_tree.py": "01484a9b8cf61f0de43e738b4e1cb096b1118112",
+        "daedalus/projects.py": "fac0659b28914bcd08821cf0350562a23067b1b9",
+        "daedalus/provider_router.py": "d0c05198197c292a292b906d0e5514651dec3c5b",
+        "daedalus/providers/__init__.py": "b6767255f58cbf01a820e60ce679d7217a125ae5",
+        "daedalus/providers/_ollama_native.py": "8661668222228299c31c15c85204f09a8cc10aae",
+        "daedalus/providers/_openai_compat.py": "5a4a0a3d0cd5edd639aa7f70f1943dc04781bd32",
+        "daedalus/providers/_report.py": "fe6cfdab6530b191c41d107a026b51d2120a7db3",
+        "daedalus/providers/base.py": "7b5adf772f9af5a594b27000371c4393015de564",
+        "daedalus/providers/claude_cli.py": "b7f8d0d475366bf40de81792bc57a0956e5c83da",
+        "daedalus/providers/codex_cli.py": "a5629615a13957c29d3f73f6d5aaf614dda9afa1",
+        "daedalus/providers/deepseek.py": "67f37d57369d9c2d682f2da421e552d2741878a0",
+        "daedalus/providers/ollama.py": "c97ae8289bd3044783d96b4034fa81c4b90207af",
+        "daedalus/providers/personas.py": "45881530914fe7cb4b28d04d632edf754dd772ad",
+        "daedalus/router.py": "578ee2cd437746057ea4dee10854392a638576e2",
+        "daedalus/runtimes/broker.py": "a0b07085bcb44b4149887b09275dc5675f685c01",
+        "daedalus/runtimes/profiles.py": "7201469a392a431d91af4c6ac12d86bdaa3c6c94",
+        "daedalus/runtimes/provider_observation.py": "85a426501665e5ccda0b1c6125439128cb31f128",
+        "daedalus/runtimes/trust.py": "eb4105e58a7e30fb9c231f08b88e59354fc6a400",
+        "daedalus/runtimes/trust_store.py": "2f952e432b379e2b5dc891a230e95ed1c477a155",
+        "daedalus/schemas.py": "ad6d811fdcba11e509395c8938c4e90e069a412d",
+        "daedalus/semantic_route.py": "a40270e87aa62967b98fb8a534465eed81250ec6",
+        "daedalus/sensitivity.py": "98dda1d990b4dde6865da0017b4d63b952fab646",
+        "daedalus/spine/__init__.py": "f459bb00a5f03ff3f2d6512711d9afdce15f6c0a",
+        "daedalus/spine/attempt.py": "6b41e5330b22f4d3b71e54750cc9ffba76f4e8dc",
+        "daedalus/spine/bootstrap.py": "6e0dc0c4cbbfb01d244bf271a135eacd08470f06",
+        "daedalus/spine/cancel.py": "31fe82862196c86cb08a3ec39b834a8a31bba0a8",
+        "daedalus/spine/containment.py": "7c2d5db6e1a7d97280a7be320f3e1d100a9203cf",
+        "daedalus/spine/docrefs.py": "bafab0829fa70e1a3336abbe34d26880354c0392",
+        "daedalus/spine/durability.py": "0ab23314d957084a2b176e5dd9910f205e75d8c3",
+        "daedalus/spine/effect_boundary.py": "0d16092bafb1a0645355329bd48c883a92a1d6dc",
+        "daedalus/spine/envelope.py": "fa6fe91669ca0e5c3fefbce67bfbbe39b06a75f3",
+        "daedalus/spine/killswitch.py": "bbfbcf9d9d43be9d644a91af798e0c70d9fcecd3",
+        "daedalus/spine/ledger.py": "da9d7412e7e3fb0f916af9291b1cb59330efb4d4",
+        "daedalus/spine/picker.py": "e32873b2513a031a68a0105c61b785bb82ec5adf",
+        "daedalus/spine/receipts.py": "49669aaf5d65a2cceb1da43ad1b653aca7a0f652",
+        "daedalus/spine/writer_inventory.py": "cdb082114b2454a7a84f91726999e8a544b401b3",
+        "daedalus/status.py": "f0da94c7d2ddb1d093546233993645d351e50fa2",
+        "daedalus/storage.py": "e66c2f1a033ae881ea1f480e7d1735f1584f3b37",
+        "daedalus/structcore/__init__.py": "40f0db19971ae298c7bf348288bc263b7a86b519",
+        "daedalus/structcore/cache.py": "57819ed58e3236c561b62ecb35f5d156c6b98a5b",
+        "daedalus/structcore/churn.py": "d02b219a5ea99308508e5fd39b1ab1bb0bf8e7eb",
+        "daedalus/structcore/clones.py": "7779b020a12340d6664adfdc6c9f4d6d25133384",
+        "daedalus/structcore/cycles.py": "332f2097a65e078917bd929526cb7d4af187bcac",
+        "daedalus/structcore/dss.py": "3bdd1e233cf4a9fab96a0194b8dbe4f9055391f0",
+        "daedalus/structcore/forest.py": "dc58ce4cf5179796f0d6c37c21b9d7e285afe120",
+        "daedalus/structcore/graph.py": "59588236f639ff7a17fcaacdd6b58598be4097c0",
+        "daedalus/structcore/ignore.py": "374a69f4b192b914bc7cea16d1f452fc5e5bf0c7",
+        "daedalus/structcore/imports.py": "1b0b58d5d7d99ba3cfcde9ae8dd93b75e9111c8b",
+        "daedalus/structcore/index.py": "932f0ee9f0438106f11536aaf064a5ce317b8b23",
+        "daedalus/structcore/languages.py": "b18b8017ba915c9bc90333852a73de317c981f8f",
+        "daedalus/structcore/markdown.py": "78375f90ee65f5c1ae5522d77f5c9a8bd164cb75",
+        "daedalus/structcore/metrics.py": "3f1876b0ff9d5aabd59e3877b38858ba5ffa3e60",
+        "daedalus/structcore/parse.py": "278f3f070f7b7796fd5c6d4f3c79e704cbfbd818",
+        "daedalus/structcore/perfile.py": "4efb1057576a58a4659c152e7c7b53b1497b76ff",
+        "daedalus/structcore/slice.py": "0d878b8c8d69db2d81d196ae101b7aadd49bf364",
+        "daedalus/structcore/tokens.py": "46c8542778c0505bb5595e14bf7889321342d117",
+        "daedalus/structcore/typegraph.py": "a291c2ff29bb1733a4f774d445e71e0c1a4abe90",
+        "daedalus/token_policy.py": "30aee93fcf4952d97d6f8e65a09f9f9dbeba17a6",
+        "daedalus/twin/__init__.py": "895d2cbc5ee55a0167aa8b62f80f972bddfdc23f",
+        "daedalus/twin/_reference_claims.py": "b9884500d2378aaa63b12e887c5786e02f460eb4",
+        "daedalus/twin/_reference_common.py": "ec61429aa01687149265934d89bceb6e941855ef",
+        "daedalus/twin/_reference_inventory.py": "70dece0b11b24db04a996d897e597a7ed0f4f510",
+        "daedalus/twin/contracts.py": "78a119e32ac8048065c134465f38f5deed621d39",
+        "daedalus/twin/legacy_forest.py": "a48544e2b740381c0f76cb1d0f442b8f2cb03ceb",
+        "daedalus/twin/projection_verifier.py": "2e044a734c9436c63050b7ce9c609fd79873098f",
+        "daedalus/twin/reference_compiler.py": "75ed4c6edeb442d9a746aa17a491734370ebf759",
+        "daedalus/verifier.py": "1dd9153bbcf361c1b289c85a95b03d52a21c6f26"
+      },
+      "unreadable": []
+    },
+    "criterion": {
+      "bytes": 1759,
+      "canonical_sha256": "d2c96a9858c12a1ce4d16ef4b95fa190df2c7911c8e39c20f3c78bf6bc659dbb",
+      "path": "tests/test_event_field.py",
+      "sha256": "811c95fdadbf2d02ab30a4e49beb9a4923b99eeb8feb30bcbf8816f8e05f0c1e"
+    },
+    "digest": "5eca43208256e61f59a11b93647d4a4b58af417c1e3f016c605c54a34ec8cc89",
+    "environment_fingerprint": {
+      "conftest_chain": {
+        "candidates": [
+          {
+            "conftest_sha256": null,
+            "dir": ".",
+            "exists": true
+          },
+          {
+            "conftest_sha256": null,
+            "dir": "tests",
+            "exists": false
+          }
+        ],
+        "target": "tests/test_event_field.py"
+      },
+      "digest": "4a4f7e511eeaf4b0dbc58680f47ee9aa8f72685aeb192f24d5952b5f1d7930dc",
+      "platform": "Windows-10-10.0.26200-SP0",
+      "pytest_plugins": [
+        {
+          "name": "anyio",
+          "version": "4.6.2.post1"
+        },
+        {
+          "name": "hypothesis",
+          "version": "6.163.0"
+        },
+        {
+          "name": "pytest-asyncio",
+          "version": "1.4.0"
+        }
+      ],
+      "pytest_plugins_error": null,
+      "pytest_plugins_measured": true,
+      "python_version": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+      "pythonpath": "",
+      "schema": "daedalus-gate1-environment-fingerprint/1"
+    },
+    "evaluators": {
+      "daedalus/ignition/bundle.py": {
+        "blob_sha1": "a974343878d0d2b5b82c813efe9a249489a05663",
+        "committed_blob_sha1": "a974343878d0d2b5b82c813efe9a249489a05663",
+        "platform_dependent": true,
+        "running_bytes_sha256": "5ef717bf8c430dac6837b18401ec8620ea051fcb5823990ff98eec41f1a43fa9",
+        "uncommitted": false,
+        "unreadable": false
+      },
+      "daedalus/ignition/checks.py": {
+        "blob_sha1": "6889e94cdde1c76667c29ae10194e852f595cd4e",
+        "committed_blob_sha1": "6889e94cdde1c76667c29ae10194e852f595cd4e",
+        "platform_dependent": true,
+        "running_bytes_sha256": "7538522d3f2a63ecff42cebc2ce105799ba5c9c89b15c00ed9218baa3b0bf285",
+        "uncommitted": false,
+        "unreadable": false
+      },
+      "daedalus/ignition/gate1.py": {
+        "blob_sha1": "96587dc32dcf7227334b6c222a0512c5c76be8cd",
+        "committed_blob_sha1": "96587dc32dcf7227334b6c222a0512c5c76be8cd",
+        "platform_dependent": true,
+        "running_bytes_sha256": "c44cbbd4e1d68bd3184434d3d9b5c9437b566ac0f0931b7d413ef28ce8d53f3b",
+        "uncommitted": false,
+        "unreadable": false
+      },
+      "daedalus/ignition/runner.py": {
+        "blob_sha1": "3f282a594f42de48661c4d87cc7d6b789f65e742",
+        "committed_blob_sha1": "3f282a594f42de48661c4d87cc7d6b789f65e742",
+        "platform_dependent": true,
+        "running_bytes_sha256": "ba0f2136c492fae797b47310e5e68f1735bb0e9f210958719c49bd4f44430552",
+        "uncommitted": false,
+        "unreadable": false
+      },
+      "daedalus/spine/receipts.py": {
+        "blob_sha1": "49669aaf5d65a2cceb1da43ad1b653aca7a0f652",
+        "committed_blob_sha1": "49669aaf5d65a2cceb1da43ad1b653aca7a0f652",
+        "platform_dependent": true,
+        "running_bytes_sha256": "e727c0a5d718a73eb2470d104e0f3f254cb6d2fb7077294209fade095654e360",
+        "uncommitted": false,
+        "unreadable": false
+      },
+      "daedalus/twin/reference_compiler.py": {
+        "blob_sha1": "75ed4c6edeb442d9a746aa17a491734370ebf759",
+        "committed_blob_sha1": "75ed4c6edeb442d9a746aa17a491734370ebf759",
+        "platform_dependent": true,
+        "running_bytes_sha256": "e00588abb1da83cc294d332b07ef5e18c78411b22aea9d549e7fc3f24196fcb9",
+        "uncommitted": false,
+        "unreadable": false
+      }
+    },
+    "fully_committed": true,
+    "nodes": {
+      "code-type": [
+        "tests/test_event_field.py::test_type_exposes_the_renamed_field"
+      ],
+      "data-knowledge": [
+        "tests/test_event_field.py::test_csv_header_carries_the_renamed_field",
+        "tests/test_event_field.py::test_wiki_documents_the_renamed_field",
+        "tests/test_event_field.py::test_wiki_links_resolve"
+      ]
+    },
+    "schema": "daedalus-gate1-evaluator-bundle/2",
+    "toolchain": {
+      "pytest": "9.1.1",
+      "python": "3.10.11",
+      "python_implementation": "cpython"
+    }
+  },
+  "evaluator_bundle_artifact": {
+    "digest": "5eca43208256e61f59a11b93647d4a4b58af417c1e3f016c605c54a34ec8cc89",
+    "path": "bundle/evaluator-bundle-5eca43208256e61f59a11b93647d4a4b58af417c1e3f016c605c54a34ec8cc89.json"
+  },
+  "evidence_packet": {
+    "attempt_id": "gate1-voltage-composed-eede2f17f6b8",
+    "candidate_artifact_sha256": "97c61fa3e919f0d9126324c77ad4828a273b97cfd5b5ab9541293676e490e8a3",
+    "error": null,
+    "evaluation_status": "passed",
+    "items": [
+      {
+        "assurance": "deterministic",
+        "evaluator": "ignition-attempt-binding",
+        "evidence_id": "gate1-attempt-binding",
+        "evidence_locator": "artifact-locator:sha256:c82fdba88da62df5e1872ef85860abeaa070e627ad8c462d605277de7bdb56bf",
+        "output_sha256": "a6131e5587edd7ec3add4c5f367602afe52a24924a6cb37cdb6f187ead145276",
+        "verdict": "passed"
+      },
+      {
+        "assurance": "deterministic",
+        "evaluator": "ignition-behavior",
+        "evidence_id": "gate1-behavior",
+        "evidence_locator": "artifact-locator:sha256:e7cb6bd3b2448b03d69a622c2b0046fc8101489b0d948afc47f9861a3cdd232d",
+        "output_sha256": "0525e55aede160f1031bb068665cf8df1ffe565f17ba13e8f97ecec38db3b53b",
+        "verdict": "passed"
+      },
+      {
+        "assurance": "deterministic",
+        "evaluator": "ignition-link-check",
+        "evidence_id": "gate1-check-links",
+        "evidence_locator": "artifact-locator:sha256:060e64173a6da08240710e5e842dbb2ea59710edfda1b9936b56e759ea8d2cd8",
+        "output_sha256": "641ce025fd271ad0bc6b53e2d0ec9626424442e7456ac126c691169791b171e5",
+        "verdict": "passed"
+      },
+      {
+        "assurance": "deterministic",
+        "evaluator": "ignition-pytest-composed",
+        "evidence_id": "gate1-check-pytest",
+        "evidence_locator": "artifact-locator:sha256:49b2fb900da6b98d0f5b38aef75db805dda38bb38a1ab026cea28d58e93afd1c",
+        "output_sha256": "b6d2ac28a34dee893034ad6e7d23feb82d5ff7615c88527b3ee406c1ac49fe36",
+        "verdict": "passed"
+      },
+      {
+        "assurance": "deterministic",
+        "evaluator": "ignition-schema-check",
+        "evidence_id": "gate1-check-schema",
+        "evidence_locator": "artifact-locator:sha256:bb7334afd5aa79f63576caa337aad633149482c3f398e625b0cdaef37eed51ef",
+        "output_sha256": "8eaa6eb6fbcbb434c210d9f8da13534860627dc621828a3b7f77d8e8dac4b8da",
+        "verdict": "passed"
+      },
+      {
+        "assurance": "deterministic",
+        "evaluator": "ignition-graph-delta",
+        "evidence_id": "gate1-graph-delta",
+        "evidence_locator": "artifact-locator:sha256:cf9c70acb214046b9047fac011516176c1acd62160363fcff2c163d25cca8e62",
+        "output_sha256": "54a0735ada74f295ff05d4d16cab598dad7896e7d5d01e3aed18cad7ae14e3cc",
+        "verdict": "passed"
+      },
+      {
+        "assurance": "deterministic",
+        "evaluator": "fourfold.snapshot-binding",
+        "evidence_id": "gate1-voltage-composed-eede2f17f6b8:fourfold",
+        "evidence_locator": "artifact-locator:sha256:983da3e252a0e88a8274be34cd7f70d59e580206e562abdb53e97df6ff443958",
+        "output_sha256": "8d206e7517404790ce0fbba24f281ae8ec5393b53826f62d094fa86ca8d886fb",
+        "verdict": "passed"
+      }
+    ],
+    "packet_id": "gate1-voltage-evidence",
+    "packet_sha256": "9d4bcb6c0a43b4aff94a5db73d96a52ba1d2c72c9c3c35d1a9a0736e42cec902",
+    "source_revision": "143b03596f0d77eddcf115089918e431b0d051f3a087a6d0def5f891315b02b1"
+  },
+  "fourfold": {
+    "base_snapshot_sha256": "b08765ab83160e061078ca9bf0cf3919459429826240096445fa00bf1b3b713f",
+    "base_source_bundle_sha256": "bc77ee15665ce2784757bfdf3f52217982d6bf3a194f547bd592e75ad2e50536",
+    "candidate_snapshot_sha256": "8d206e7517404790ce0fbba24f281ae8ec5393b53826f62d094fa86ca8d886fb",
+    "candidate_source_bundle_sha256": "97c61fa3e919f0d9126324c77ad4828a273b97cfd5b5ab9541293676e490e8a3",
+    "graph_delta": {
+      "added_bindings": [
+        "0ade0c8b821d26b168bb39005677af9219d8a3f94cd538309c14410c3a30b04a",
+        "165be1217523ce50024d15c821c4d95acb10c0de2642277b30f22f53124bb980",
+        "25da10229bed2d6f63879a36d6cd44e614d1b2ad13370bf62c395a54370eea64",
+        "2c14388f0315eca92e0311a4262a148a334722a7646eed40dc2bc4aeae44ae36",
+        "4973db38a52ef44e615fc04d90690d6cac41e66dc470fc150ef035d10da5a843",
+        "58752f0b516e42a98c1521648f4260622a794c58127da362281cee8f80c66b85",
+        "8e4626875581ddd1431c66d380583c821af92e0b8fc2772db9949f13396965df",
+        "a10947842c5d7e6f48aad862ff68c7d96a229a592b1aad198a3a0a544288c909",
+        "d383222cacc8ee0b3f12ed4f721445273f4882a5c612332e865abe1807284df1",
+        "ded2da894eec14dbf3b441def89179e9e9ac73943fc8be3841b3b9cae7ef2036"
+      ],
+      "added_nodes": [
+        "data:field:data/events.csv#bias_voltage",
+        "data:schema-field:schemas/event.schema.json#bias_voltage",
+        "type:field:src/ignition_app/models.py#Event.bias_voltage"
+      ],
+      "removed_bindings": [
+        "18c1dd29a1dba21bb2c3e5a8a4b514fa02ff45a894106b58cea0d68cc31317f3",
+        "1c8474886210bb900434482a8744a6586f850d801257c298b1cdc817205aea8c",
+        "24ef87c81fe5f6fab1d3737a7ff1c9a09aa24ebb7c3dec3054641f760111b223",
+        "2d85a69e084fdee3d08fc18bd6296d2d2ac470232ad962b0fe86b47cb930be8b",
+        "37d103b3434296152c3069870ca5a6f4246d4f6f0c0c6154228c43b07523817f",
+        "3f5ed9313f38869346fcfe41bb3a0467d7aa2ed269c32c24172ebc880a7f705e",
+        "687605d34ea968443e39b55cb14f6095e8d9b1d08206a6f405e2861cbbd63a7e",
+        "6dcd6d96298ccfbd5d6f4901a0f8b2739f4ef158bb82e66d20951968c3dd2f7c",
+        "9821f106ae987e649d711b7dc3f872d09b60cff35291084bc1f3e9fe46983eaa",
+        "a06166f2fa0e0b94aef38afde92f86044387c8f3403007c97b1750b9c0cb7e0c"
+      ],
+      "removed_nodes": [
+        "data:field:data/events.csv#voltage",
+        "data:schema-field:schemas/event.schema.json#voltage",
+        "type:field:src/ignition_app/models.py#Event.voltage"
+      ]
+    },
+    "graph_delta_sha256": "1bef5f55a1acfdfceb8a48b9fb1c80d2b4f2e17aa1102e14200e9bf492fb01a5"
+  },
+  "gate": 1,
+  "iron_plan": "ALIGNED",
+  "mission_id": "mission-gate1-voltage-ignition",
+  "mission_objective": "propagate the Event.voltage -> Event.bias_voltage rename across the code, type, data and knowledge planes of the ignition target project",
+  "mission_sha256": "9c571c289f2b1e40a550cbe7248f06a017d8b86e7b910a899aff61cfd2c36bb4",
+  "mission_source_revision": "ebd198e90563554297ec644d2318496b52977ed5",
+  "promotion": {
+    "auto_merge": false,
+    "owner_approval": "not requested",
+    "reason": "plan Invariant 5: promotion requires an evidence packet, policy checks and explicit owner approval; this slice produces the packet and stops",
+    "status": "nominated, not promoted"
+  },
+  "replay": {
+    "base_revision": "ebd198e90563554297ec644d2318496b52977ed5",
+    "base_revision_stable": true,
+    "candidate_revision": "143b03596f0d77eddcf115089918e431b0d051f3a087a6d0def5f891315b02b1",
+    "candidate_revision_stable": true,
+    "check_reports_stable": true,
+    "criterion_changed_since_previous": false,
+    "fixture_tree_sha256": "33460ac359217c6a0fb97890a8a3dba75d7edb7b1223c05e80259a3b0c514cb9",
+    "graph_delta_stable": true,
+    "is_replay": true,
+    "mission_id_stable": true,
+    "mission_sha256_stable": null,
+    "note": "mission_id, work_item_ids, base_revision and candidate_revision are functions of the fixture tree and the frozen git identity; attempt ids carry a per-run nonce by construction (the branch name IS the effect key) and are expected to differ between runs",
+    "packet_sha256_stable": false,
+    "previous_collected_at": "2026-08-25T09:22:06Z",
+    "previous_conformance_test_sha256": "d2c96a9858c12a1ce4d16ef4b95fa190df2c7911c8e39c20f3c78bf6bc659dbb",
+    "previous_evaluator_bundle_digest": "4b5f867b1957ffe823b7eb0e435abbae29fdd3dc0514895979c77688e6a986a7",
+    "previous_fixture_tree_sha256": "33460ac359217c6a0fb97890a8a3dba75d7edb7b1223c05e80259a3b0c514cb9",
+    "previous_graph_delta_sha256": "1bef5f55a1acfdfceb8a48b9fb1c80d2b4f2e17aa1102e14200e9bf492fb01a5",
+    "previous_mission_sha256": "cbb70c82b1f6320f5844fb73cbd2aabe43453005ab6c6f9316e486aaa8f3f275",
+    "previous_packet_sha256": "614541c1e8d08fe5ae1aa6c526cb41162f5b44ca83d8e5a8560842dac098289c",
+    "previous_run_complete": false,
+    "replay_demonstrated": false,
+    "same_collected_at": false,
+    "same_evaluator_bundle": false,
+    "same_fixture": true,
+    "work_item_ids_stable": true
+  },
+  "schema": "daedalus-gate1-ignition-receipt/1",
+  "work_item_ids": [
+    "wi-000-c41495030c8f",
+    "wi-001-c8c563f2c0da"
+  ]
+}

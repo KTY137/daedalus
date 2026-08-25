@@ -1,0 +1,143 @@
+{
+  "attempts": [
+    {
+      "attempt_contract_sha256": "cdeb3f40453a010a3c469ae63680a305035a4987e6400dfd2851182acab2ddcc",
+      "attempt_id": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-ee0cae",
+      "attempt_receipt_sha256": "837fc0cd1b4b9112c4e6de15aa64a8a67ee1c154a1b635e7dabc3de46f23b8da",
+      "branch": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-ee0cae",
+      "changed_paths": [
+        "src/ignition_app/models.py",
+        "src/ignition_app/repository.py"
+      ],
+      "contracts_error": null,
+      "evidence_assurance": [
+        "deterministic"
+      ],
+      "evidence_packet_sha256": "4f3c806fc5dcdce153834bfd304e7abc391db45775690cffdcbd0306aa79c0e7",
+      "evidence_status": "passed",
+      "gate_command": [
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "--no-header",
+        "tests/test_event_field.py::test_type_exposes_the_renamed_field"
+      ],
+      "gate_criterion_paths": [
+        "tests/test_event_field.py"
+      ],
+      "gate_ms": 5907,
+      "gate_name": "ignition-code-type",
+      "gate_output_sha256": "f0f6b60bd0564c33d85f0a4824a8470857ccf43076cfc041966e4d7460786c00",
+      "gate_passed": true,
+      "mission_id": "mission-gate1-voltage-ignition",
+      "patch_locator": "artifact-locator:sha256:4c931ae7e893cc63f06395112552cf263c68ea8e3bf9eedf80752b4ea95032a5",
+      "patch_sha256": "cc040292b7ec9834adab83b9aa8423a19bde38338246106f58ff2a07e85b075d",
+      "policy_decision_sha256": "138d8bd99f1ea2ac1ce966ef1ad30c25bcc27d30e5b9a8ad99d0c731431664db",
+      "policy_verdict": "allow",
+      "runtime_manifest_sha256": "e0d8b0b77ec4323075fe3931745adc11a474eba5ae12e54aaa853715e5df3f3c",
+      "state": "clean",
+      "target_paths": [
+        "src/ignition_app/models.py",
+        "src/ignition_app/repository.py"
+      ],
+      "work_item_id": "wi-000-c41495030c8f",
+      "worktree_removed": true
+    },
+    {
+      "attempt_contract_sha256": "61535d025cdaaa167f0f2921dc33b55926b9ecf39f885370ab162f88a2b8620c",
+      "attempt_id": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-0f33d4",
+      "attempt_receipt_sha256": "0821e2ca61b63d39e37eeca1e7db7f2790ea88a5d673e9c0fe178568d9b1b03a",
+      "branch": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-0f33d4",
+      "changed_paths": [
+        "data/events.csv",
+        "fourfold.json",
+        "schemas/event.schema.json",
+        "wiki/Event.md"
+      ],
+      "contracts_error": null,
+      "evidence_assurance": [
+        "deterministic"
+      ],
+      "evidence_packet_sha256": "61eea5885423932a0d72e9e0eea7a59dccf50af8c92bc4b40f7e75b554b5c2a2",
+      "evidence_status": "passed",
+      "gate_command": [
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "--no-header",
+        "tests/test_event_field.py::test_csv_header_carries_the_renamed_field",
+        "tests/test_event_field.py::test_wiki_documents_the_renamed_field",
+        "tests/test_event_field.py::test_wiki_links_resolve",
+        "ignition-schema-check",
+        "ignition-link-check"
+      ],
+      "gate_criterion_paths": [
+        "tests/test_event_field.py"
+      ],
+      "gate_ms": 11297,
+      "gate_name": "ignition-data-knowledge",
+      "gate_output_sha256": "5bf374cb37c368601dd4dc1d07461660b02b824b44d683a1d8c16d0facbf82b4",
+      "gate_passed": true,
+      "mission_id": "mission-gate1-voltage-ignition",
+      "patch_locator": "artifact-locator:sha256:30b29ec60c445a3382906beef1a70082b2d20d6c6749bcc70958c7f899556db2",
+      "patch_sha256": "85fad7cf86a3bf32099eb0eb65e38ae041ce531b06e25de540d28dd2d497bbc0",
+      "policy_decision_sha256": "19e76e8df71d9556fe17fda9cf1fd61538ac74055783010f0f5b7477d5538ead",
+      "policy_verdict": "allow",
+      "runtime_manifest_sha256": "30cbff056d335e420e83257e5881df3ba981d694ce88294ded54e2b145b13f66",
+      "state": "clean",
+      "target_paths": [
+        "data/events.csv",
+        "fourfold.json",
+        "schemas/event.schema.json",
+        "wiki/Event.md"
+      ],
+      "work_item_id": "wi-001-c8c563f2c0da",
+      "worktree_removed": true
+    }
+  ],
+  "check_reports": {
+    "kinds": [
+      "link",
+      "pytest",
+      "schema"
+    ],
+    "reports": [
+      {
+        "evaluator": "ignition-pytest-code-type",
+        "kind": "pytest",
+        "output_sha256": "f0f6b60bd0564c33d85f0a4824a8470857ccf43076cfc041966e4d7460786c00",
+        "passed": true,
+        "report_sha256": "9f170e76a200832b0db0e852c9807cfd8e446c7b770473ba67e4a1e39240c5d0"
+      },
+      {
+        "evaluator": "ignition-pytest-data-knowledge",
+        "kind": "pytest",
+        "output_sha256": "6422addcfffc817bb041c91efbb31d466492cdea17b0ed347c18f474303e4feb",
+        "passed": true,
+        "report_sha256": "c23501f98b6945d7d559bf20fd4c676dfd335121f60a90d85e7bdee6d27e18a7"
+      },
+      {
+        "evaluator": "ignition-link-check",
+        "kind": "link",
+        "output_sha256": "641ce025fd271ad0bc6b53e2d0ec9626424442e7456ac126c691169791b171e5",
+        "passed": true,
+        "report_sha256": "d3065bff455b0019d307605ea3901d55324561d8fefe5a3ed204be1b9c0f82ca"
+      },
+      {
+        "evaluator": "ignition-schema-check",
+        "kind": "schema",
+        "output_sha256": "8eaa6eb6fbcbb434c210d9f8da13534860627dc621828a3b7f77d8e8dac4b8da",
+        "passed": true,
+        "report_sha256": "f487bdb1b2073fe8e4b38623b34fa6d8306bb0ba3ba4409f234179f0fdc45804"
+      }
+    ]
+  },
+  "mission_id": "mission-gate1-voltage-ignition",
+  "mission_sha256": "fdfdeb1fc40850137a1d1145f296c3f0ece86d613947d4f2a4a8f254b9780d7f",
+  "schema": "daedalus-ignition-attempt-binding/1",
+  "total_gate_ms": 17204
+}
