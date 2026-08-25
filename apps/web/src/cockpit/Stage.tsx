@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ThemeSpec } from '../theme/types';
 import type { Neighbourhood } from './graph';
-import { DEFAULT_BUDGET, MORE_ID, layoutFor, type Box, type Line, type Placed } from './layout';
+import { DEFAULT_BUDGET, MORE_ID, labelSizeFor, layoutFor, type Box, type Line, type Placed } from './layout';
 
 /**
  * The stage: one module and what actually reaches it, drawn as SVG.
@@ -314,7 +314,7 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
     return Boolean(litIds && (litIds.has(l.from.id) || litIds.has(l.to.id)));
   };
 
-  const labelSize = (p: Placed) => (p.level === 0 ? 15 : p.level === 1 ? 12.5 : 11);
+  const labelSize = (p: Placed) => labelSizeFor(p.level);
 
   return (
     <div className="stage" ref={frame}>
@@ -391,7 +391,7 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
               const labelY = isMore
                 ? p.y + 4
                 : isArcs && p.level === 0
-                  ? p.y - (p.r + 14)
+                  ? p.y - (p.r + 32)
                   : asCard
                     ? p.y + p.labelDy
                     : p.anchor === 'middle'

@@ -2,9 +2,10 @@
 
 **These are not mockups.** Every image in this folder is a screenshot of the
 running application at `apps/web`, taken from the built bundle served by
-`python -m daedalus.cli web`, against the live local API. `manifest.json`
-records what was on screen for each one: the theme, the composition attributes,
-the number of nodes drawn, and the module in the middle.
+`python -m daedalus.cli web`, against the live local API. Two per theme —
+`karte-*.png` and `gespraech-*.png` — and `manifest.json` records what was on
+screen for each: the theme, the composition attributes, the nodes drawn, the
+module in the middle and the state line verbatim.
 
 ## What changed
 
@@ -12,20 +13,32 @@ The gallery round of 2026-08-24 was left as "the live decision": six designs,
 pick one, throw five away. The owner asked a different question — *"können wir
 ein theme editor haben mit multiple themes?"* — and this round is the answer.
 
-Every design is now a **theme**. A theme here is not a palette: the gallery
-round asked for divergence in COMPOSITION, so a theme carries where the
-conversation sits, what the chrome is and how the stage draws, alongside colour,
-type and material. All six are built in, all six are editable, and a seventh
-does not need another design round.
+Every design is now a **theme**. A theme here is not a palette: it carries the
+chrome, the layout of the conversation page and how the stage draws, alongside
+colour, type and material. All six are built in, all six are editable, and a
+seventh does not need another design round.
 
-| theme | chrome | conversation | decision | stage |
-| --- | --- | --- | --- | --- |
-| Kammer | bar | card over the stage | floating | node forest, pearls |
-| Werkstatt | bar | drawer below | with the conversation | cards |
-| Sternkarte | bar | drawer below | floating | star chart |
-| Depesche | masthead | in the text flow | with the conversation | arc figure |
-| Nachtfenster | bar | column beside | with the conversation | node forest, discs |
-| Leitstand | bar | column beside | own bar | cards |
+**The map is its own page** (owner's call, same day: *"ich will das der Graph
+eine seperate Seite erhält und lesbarer ist"*). `Karte` gives the graph the
+whole canvas with nothing laid over it; `Gespräch` gives the conversation a
+page where it is the hero rather than a card in a corner, with the pending
+decision at the top and the map reference beside it. Labels went from 12.5px to
+14.5px, the focus from 15 to 19, node radii up by half, and the budget from 14
+to 18 direct neighbours — the room to be legible is what a page buys.
+
+Two knobs were DELETED rather than left in place: `decision` (nothing floats
+over the map any more, so it positioned nothing) and the `card` / `drawer`
+values of `chat` (same reason). Stored themes carrying them migrate to
+`column` silently. A knob that no longer moves anything is worse than no knob.
+
+| theme | chrome | conversation page | stage |
+| --- | --- | --- | --- |
+| Kammer | bar | with side column | node forest, pearls |
+| Werkstatt | bar | with side column | cards |
+| Sternkarte | bar | with side column | star chart |
+| Depesche | masthead | one centred measure | arc figure |
+| Nachtfenster | bar | with side column | node forest, discs |
+| Leitstand | bar | with side column | cards |
 
 ## What is real
 
@@ -64,12 +77,13 @@ list with the ranking removed is a list of opinions.
 
 ## The floor, measured
 
-`apps/web/tools/audit.mjs` drives the built bundle through all six themes at
-1440 / 1280 / 900 px and reports contrast (composited through translucent
+`apps/web/tools/audit.mjs` drives the built bundle through all six themes, BOTH
+pages, at 1440 / 1280 / 900 px and reports contrast (composited through translucent
 panels, SVG text included), pointer targets, the smallest rendered font size
 and horizontal overflow.
 
-**18 of 18 combinations clean** [MEASURED 2026-08-25]: no text below 4.5:1
+**36 of 36 combinations clean** — six themes × two pages × three widths
+[MEASURED 2026-08-25]: no text below 4.5:1
 (3:1 for large), no HTML control under 44 px, no horizontal overflow, smallest
 text exactly 11 px.
 

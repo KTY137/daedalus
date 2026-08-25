@@ -92,7 +92,7 @@ export interface LayoutOptions {
   avoid?: Box[];
 }
 
-export const DEFAULT_BUDGET = { maxLevel1: 14, maxLevel2: 16 };
+export const DEFAULT_BUDGET = { maxLevel1: 18, maxLevel2: 20 };
 
 /** id of the aggregate glyph; not a module, and never focusable as one */
 export const MORE_ID = '::more::';
@@ -101,14 +101,42 @@ const MAX_LABEL = 26;
 /** average glyph advance for the mono stack, as a fraction of font size */
 const CHAR_W = 0.58;
 
+/**
+ * Shorten from the MIDDLE, never from the end.
+ *
+ * `provider_target_receipt_retention_admission.py` and
+ * `provider_target_receipt_retention_completed_evidence.py` both end up as
+ * `provider_target_receipt_r…` when the tail is cut — two different modules
+ * wearing one label, which is worse than a long name. Keeping the head and the
+ * tail keeps them distinguishable.
+ */
+function trimTo(label: string, max: number): string {
+  if (label.length <= max) return label;
+  const head = Math.ceil((max - 1) * 0.55);
+  const tail = max - 1 - head;
+  return `${label.slice(0, head)}…${label.slice(label.length - tail)}`;
+}
+
 function trim(label: string): string {
-  return label.length > MAX_LABEL ? `${label.slice(0, MAX_LABEL - 1)}…` : label;
+  return trimTo(label, MAX_LABEL);
+}
+
+/**
+ * Label sizes, and they live here because the LAYOUT resolves collisions
+ * against label boxes. If these and the renderer's sizes drift apart, the
+ * layout separates boxes that are not the boxes being drawn — so both read
+ * this one table.
+ */
+export const LABEL_PX = { focus: 19, near: 14.5, far: 12.5 } as const;
+
+export function labelSizeFor(level: 0 | 1 | 2): number {
+  return level === 0 ? LABEL_PX.focus : level === 1 ? LABEL_PX.near : LABEL_PX.far;
 }
 
 function radiusFor(n: Neighbour | undefined, level: 0 | 1 | 2, sizeByFanIn: number): number {
-  const basis = level === 0 ? 16 : level === 1 ? 9 : 5;
+  const basis = level === 0 ? 22 : level === 1 ? 12 : 7;
   const fan = n?.node?.fan_in ?? 0;
-  const growth = Math.log2(1 + Math.max(0, fan)) * (level === 0 ? 2.2 : level === 1 ? 1.8 : 0.9);
+  const growth = Math.log2(1 + Math.max(0, fan)) * (level === 0 ? 2.4 : level === 1 ? 2 : 1);
   return basis + growth * sizeByFanIn;
 }
 
@@ -121,17 +149,56 @@ function radiusFor(n: Neighbour | undefined, level: 0 | 1 | 2, sizeByFanIn: numb
  * the same file. Where a short name repeats, its parent directory joins it.
  */
 function labeller(ids: string[]): (id: string) => string {
-  const counts = new Map<string, number>();
-  ids.forEach((id) => {
+  const unique = [...new Set(ids)];
+
+  // 1. the file name, with its parent directory where the file name repeats
+  const shortCounts = new Map<string, number>();
+  unique.forEach((id) => {
     const short = shortLabel(id);
-    counts.set(short, (counts.get(short) ?? 0) + 1);
+    shortCounts.set(short, (shortCounts.get(short) ?? 0) + 1);
   });
-  return (id: string) => {
+  const base = new Map<string, string>();
+  unique.forEach((id) => {
     const short = shortLabel(id);
-    if ((counts.get(short) ?? 0) < 2) return short;
+    if ((shortCounts.get(short) ?? 0) < 2) {
+      base.set(id, short);
+      return;
+    }
     const parts = id.split(/[\/]/);
-    return parts.length > 1 ? `${parts[parts.length - 2]}/${short}` : short;
-  };
+    base.set(id, parts.length > 1 ? `${parts[parts.length - 2]}/${short}` : short);
+  });
+
+  /**
+   * 2. shorten, and CHECK THE RESULT.
+   *
+   * Truncation can manufacture the collision it was meant to avoid:
+   * `provider_target_receipt_retention_completed_evidence.py` and
+   * `provider_target_receipt_retention_effect_terminal_evidence.py` shorten to
+   * the same string at any sane width, and two nodes then claim to be the same
+   * file. Where that happens the budget is widened for exactly those names
+   * until they differ, or until they are drawn whole.
+   */
+  const out = new Map<string, string>();
+  const byLabel = new Map<string, string[]>();
+  unique.forEach((id) => {
+    const label = trim(base.get(id)!);
+    out.set(id, label);
+    byLabel.set(label, [...(byLabel.get(label) ?? []), id]);
+  });
+
+  byLabel.forEach((owners) => {
+    if (owners.length < 2) return;
+    for (let width = MAX_LABEL + 6; width <= 64; width += 6) {
+      const widened = new Map(owners.map((id) => [id, trimTo(base.get(id)!, width)] as const));
+      if (new Set(widened.values()).size === owners.length) {
+        widened.forEach((label, id) => out.set(id, label));
+        return;
+      }
+    }
+    owners.forEach((id) => out.set(id, base.get(id)!));
+  });
+
+  return (id: string) => out.get(id) ?? shortLabel(id);
 }
 
 function place(
@@ -154,7 +221,7 @@ function place(
     r,
     level,
     kind: 'node',
-    label: trim(full),
+    label: full,
     full,
     anchor,
     labelDy: level === 0 ? r + 24 : 4,
@@ -168,7 +235,7 @@ function labelBox(p: Placed): { x1: number; x2: number; y1: number; y2: number }
   if (p.boxW && p.boxH) {
     return { x1: p.x - p.boxW / 2, x2: p.x + p.boxW / 2, y1: p.y - p.boxH / 2, y2: p.y + p.boxH / 2 };
   }
-  const size = p.level === 0 ? 15 : p.level === 1 ? 12.5 : 11;
+  const size = labelSizeFor(p.level);
   const w = p.label.length * size * CHAR_W;
   const gap = p.r + 10;
   const cy = p.y + p.labelDy;
@@ -231,7 +298,7 @@ function avoidBoxes(placed: Placed[], boxes: Box[], width: number, height: numbe
  * The focus never moves — it is the thing you asked about.
  */
 function relaxLabels(placed: Placed[], width: number, height: number, passes = 140): void {
-  const pad = 6;
+  const pad = 9;
   const movable = placed.filter((p) => p.level !== 0);
   for (let pass = 0; pass < passes; pass += 1) {
     let moved = false;
@@ -467,7 +534,9 @@ export function radialLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayou
    * keeps the ring a ring, where pushing turns it into a queue against the
    * edge of the keep-out box.
    */
-  const taken: Placed[] = [];
+  // Everything already on the stage, level 1 included. Checking only against
+  // other level-2 nodes let a distant node land on top of a direct neighbour.
+  const taken: Placed[] = placed.filter((p) => p.level !== 0);
   const total = Math.max(1, sel.level2.length);
   const step = Math.PI / 22;
   let dropped = 0;
@@ -660,11 +729,23 @@ export function arcLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayout {
   // The axis sits low: the arcs need the room above it, and the names need the
   // room below it. Splitting the frame in half gave both half of what they use.
   const baseline = Math.round(height * 0.7);
-  const margin = 70;
-  const span = Math.max(1, width - margin * 2);
-  const gap = span / Math.max(1, order.length - 1);
-
   const name = labeller(order.map((entry) => entry.id));
+
+  /**
+   * The right margin is the length of the longest NAME, not a constant.
+   *
+   * These labels hang below the axis at 45 degrees, so the last one on the
+   * right runs out of the frame by roughly its own length times cos(45). A
+   * fixed margin clipped `embeddings.py` off the edge; measuring the labels
+   * that are actually seated does not.
+   */
+  const longest = Math.max(...order.map((entry) => trim(name(entry.id)).length), 1);
+  const runOut = longest * LABEL_PX.far * CHAR_W * 0.71;
+  const marginLeft = 70;
+  const marginRight = Math.min(width * 0.22, Math.max(70, runOut + 24));
+  const margin = marginLeft;
+  const span = Math.max(1, width - marginLeft - marginRight);
+  const gap = span / Math.max(1, order.length - 1);
   const placed: Placed[] = [];
   const byId = new Map<string, Placed>();
   order.forEach((entry, i) => {

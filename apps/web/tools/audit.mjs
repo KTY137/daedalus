@@ -31,6 +31,7 @@ const THEMES = arg('themes', 'kammer,werkstatt,sternkarte,depesche,nachtfenster,
 const WIDTHS = arg('widths', '1440,1280,900').split(',').map(Number);
 const MIN_TARGET = Number(arg('target', 44));
 const MIN_FONT = Number(arg('font', 11));
+const PAGES = arg('pages', 'map,chat').split(',');
 
 const log = (line) => process.stdout.write(String(line).concat('\n'));
 
@@ -199,35 +200,46 @@ async function main() {
   for (const id of THEMES) {
     await page.evaluate((t) => localStorage.setItem('daedalus-theme-id', t), id);
     for (const width of WIDTHS) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.reload({ waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.stage-node', { timeout: 180_000 });
-      await page.waitForTimeout(500);
+      for (const surface of PAGES) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.evaluate((v) => localStorage.setItem('daedalus-cockpit-view', v), surface);
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        /**
+         * BOTH pages are measured. The map and the conversation are separate
+         * pages since 2026-08-25, and an audit that only ever loaded the one
+         * the app opens on would report a clean floor for half a product.
+         */
+        if (surface === 'map') await page.waitForSelector('.stage-node', { timeout: 180_000 });
+        else await page.waitForSelector('.talk-main', { timeout: 180_000 });
+        await page.waitForTimeout(600);
 
-      const r = await page.evaluate(measure, { minTarget: MIN_TARGET, minFont: MIN_FONT });
-      const bad = r.overflowX > 1 || r.contrastCount > 0 || r.targetCount > 0 || r.tooSmallFont;
-      if (bad) failures += 1;
-      log(`\n${id} @ ${width}px  ${bad ? 'FAIL' : 'ok'}`);
-      log(`  overflow-x ${r.overflowX}px · smallest text ${r.smallestFont.size}px (${r.smallestFont.where})`);
-      if (r.contrastCount) {
-        log(`  contrast: ${r.contrastCount} below floor`);
-        r.contrast.forEach((c) => log(`    ${c.ratio}:1 (needs ${c.floor}) ${c.size}px  ${c.where}  "${c.text}"`));
-      }
-      if (r.targetCount) {
-        log(`  targets under ${MIN_TARGET}px: ${r.targetCount}`);
-        r.targets.forEach((t) => log(`    ${t.w}x${t.h}  ${t.where}${t.svg ? ' [svg]' : ''}  "${t.label}"`));
-      }
-      if (r.excusedCount) {
-        log(
-          `  excused: ${r.excusedCount} graph nodes below ${MIN_TARGET}px (smallest side ${r.excusedSmallest}px) — ` +
-            'a 44px target would swallow its neighbour; ctrl+K and the arrow keys are the larger equivalent path'
-        );
+        const r = await page.evaluate(measure, { minTarget: MIN_TARGET, minFont: MIN_FONT });
+        const bad = r.overflowX > 1 || r.contrastCount > 0 || r.targetCount > 0 || r.tooSmallFont;
+        if (bad) failures += 1;
+        log(`
+${id} · ${surface} @ ${width}px  ${bad ? 'FAIL' : 'ok'}`);
+        log(`  overflow-x ${r.overflowX}px · smallest text ${r.smallestFont.size}px (${r.smallestFont.where})`);
+        if (r.contrastCount) {
+          log(`  contrast: ${r.contrastCount} below floor`);
+          r.contrast.forEach((c) => log(`    ${c.ratio}:1 (needs ${c.floor}) ${c.size}px  ${c.where}  "${c.text}"`));
+        }
+        if (r.targetCount) {
+          log(`  targets under ${MIN_TARGET}px: ${r.targetCount}`);
+          r.targets.forEach((t) => log(`    ${t.w}x${t.h}  ${t.where}${t.svg ? ' [svg]' : ''}  "${t.label}"`));
+        }
+        if (r.excusedCount) {
+          log(
+            `  excused: ${r.excusedCount} graph nodes below ${MIN_TARGET}px (smallest side ${r.excusedSmallest}px) — ` +
+              'a 44px target would swallow its neighbour; ctrl+K and the arrow keys are the larger equivalent path'
+          );
+        }
       }
     }
   }
 
   await browser.close();
-  log(`\n${failures} theme/width combinations below the floor`);
+  log(`
+${failures} theme/page/width combinations below the floor`);
   process.exit(failures ? 1 : 0);
 }
 

@@ -52,7 +52,7 @@ export const BUILT_INS: ThemeSpec[] = [
     },
     form: { radius: 24, border: 1, unit: 8, elevation: 2, material: 'glass', blur: 26, alpha: 0.11 },
     stage: { layout: 'forest', glyph: 'pearl', backboneOnly: true, curve: 0, sizeByFanIn: 0.75, glow: 0.85 },
-    composition: { chrome: 'bar', chat: 'card', decision: 'float' }
+    composition: { chrome: 'bar', chat: 'column' }
   },
 
   {
@@ -93,7 +93,7 @@ export const BUILT_INS: ThemeSpec[] = [
     },
     form: { radius: 6, border: 1, unit: 8, elevation: 1, material: 'flat', blur: 0, alpha: 1 },
     stage: { layout: 'cards', glyph: 'card', backboneOnly: false, curve: 0, sizeByFanIn: 0, glow: 0 },
-    composition: { chrome: 'bar', chat: 'drawer', decision: 'inline' }
+    composition: { chrome: 'bar', chat: 'column' }
   },
 
   {
@@ -134,7 +134,7 @@ export const BUILT_INS: ThemeSpec[] = [
     },
     form: { radius: 3, border: 1, unit: 8, elevation: 1, material: 'flat', blur: 0, alpha: 0.94 },
     stage: { layout: 'stars', glyph: 'star', backboneOnly: true, curve: 0.28, sizeByFanIn: 1, glow: 0.5 },
-    composition: { chrome: 'bar', chat: 'drawer', decision: 'float' }
+    composition: { chrome: 'bar', chat: 'column' }
   },
 
   {
@@ -175,7 +175,7 @@ export const BUILT_INS: ThemeSpec[] = [
     },
     form: { radius: 0, border: 1, unit: 8, elevation: 0, material: 'paper', blur: 0, alpha: 1 },
     stage: { layout: 'arcs', glyph: 'disc', backboneOnly: false, curve: 1, sizeByFanIn: 0.4, glow: 0 },
-    composition: { chrome: 'masthead', chat: 'flow', decision: 'inline' }
+    composition: { chrome: 'masthead', chat: 'flow' }
   },
 
   {
@@ -216,7 +216,7 @@ export const BUILT_INS: ThemeSpec[] = [
     },
     form: { radius: 16, border: 1, unit: 8, elevation: 1, material: 'flat', blur: 0, alpha: 1 },
     stage: { layout: 'forest', glyph: 'disc', backboneOnly: true, curve: 0.12, sizeByFanIn: 0.6, glow: 0.2 },
-    composition: { chrome: 'rail', chat: 'column', decision: 'inline' }
+    composition: { chrome: 'rail', chat: 'column' }
   },
 
   {
@@ -257,7 +257,7 @@ export const BUILT_INS: ThemeSpec[] = [
     },
     form: { radius: 2, border: 1, unit: 7, elevation: 1, material: 'flat', blur: 0, alpha: 1 },
     stage: { layout: 'cards', glyph: 'card', backboneOnly: false, curve: 0, sizeByFanIn: 0, glow: 0 },
-    composition: { chrome: 'bar', chat: 'column', decision: 'bar' }
+    composition: { chrome: 'bar', chat: 'column' }
   }
 ];
 

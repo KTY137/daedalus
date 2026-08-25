@@ -45,6 +45,15 @@ async function drawnModules(page: Page): Promise<string[]> {
   );
 }
 
+/**
+ * The map and the conversation are separate pages since 2026-08-25, and `/`
+ * opens the map. Anything asking about the conversation says so first.
+ */
+async function goChat(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /Gespräch/ }).click();
+  await expect(page.locator('.talk-main'), 'the conversation page never opened').toBeVisible({ timeout: 10_000 });
+}
+
 /** The selected project, read from the chrome rather than from our own state. */
 async function selectedProject(page: Page): Promise<string> {
   return (await page.locator('.projects button.on').first().innerText()).trim();
@@ -278,6 +287,8 @@ test.describe('cockpit', () => {
      * provenance stamp — without reaching a paid vendor. A test that spends
      * money to prove a text box works is a test nobody runs twice.
      */
+    await goChat(page);
+
     await page.getByLabel('Nachricht an Ikarus').fill('status');
     await page.getByRole('button', { name: 'Senden' }).click();
 
@@ -375,6 +386,8 @@ test.describe('cockpit', () => {
     await openCockpit(page);
     await waitForStage(page);
 
+    await goChat(page);
+
     const toggle = page.getByRole('button', { name: 'Was würde gelesen?' });
     await expect(toggle, 'the context plan control is missing').toBeVisible();
     // Disabled with nothing typed, because there is nothing to plan for — not
@@ -408,6 +421,8 @@ test.describe('cockpit', () => {
   test('the composer is live, or it is not there', async ({ page }) => {
     await openCockpit(page);
     await waitForStage(page);
+
+    await goChat(page);
 
     const input = page.getByLabel('Nachricht an Ikarus');
     await expect(input, 'the conversation has no visible input').toBeVisible();

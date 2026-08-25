@@ -27,25 +27,21 @@ export type StageLayout =
   /** one axis, relations as arcs above it — the printed figure */
   | 'arcs';
 
-/** Where the conversation with Ikarus lives. */
+/**
+ * How the conversation page is laid out.
+ *
+ * It used to say where the conversation sat RELATIVE TO THE MAP — a card over
+ * it, a drawer under it, a column beside it. The map is its own page since
+ * 2026-08-25 and nothing floats over it any more, so only the two arrangements
+ * that still describe something real survive. `card` and `drawer` are migrated
+ * to `column` on read; a knob that no longer moves anything is worse than no
+ * knob at all.
+ */
 export type ChatPlacement =
-  /** a floating card over the stage (kammer) */
-  | 'card'
-  /** a full-width drawer under the stage (sternkarte) */
-  | 'drawer'
-  /** a standing column beside the stage (nachtfenster, leitstand) */
+  /** the conversation with a side column for the map reference and the hot list */
   | 'column'
-  /** in the flow of the page, the stage is a figure inside it (depesche) */
+  /** one centred measure, everything stacked (Depesche) */
   | 'flow';
-
-/** Where a pending decision appears. */
-export type DecisionPlacement =
-  /** a card floating at the top right of the stage */
-  | 'float'
-  /** a full-width bar under everything */
-  | 'bar'
-  /** in the text flow, next to the answer */
-  | 'inline';
 
 /** The top chrome. */
 export type Chrome =
@@ -156,7 +152,6 @@ export interface ThemeStage {
 export interface ThemeComposition {
   chrome: Chrome;
   chat: ChatPlacement;
-  decision: DecisionPlacement;
 }
 
 export interface ThemeSpec {

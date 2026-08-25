@@ -121,7 +121,6 @@ export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.docume
   root.dataset.material = f.material;
   root.dataset.chrome = theme.composition.chrome;
   root.dataset.chat = theme.composition.chat;
-  root.dataset.decision = theme.composition.decision;
   root.dataset.stage = theme.stage.layout;
   root.dataset.glyph = theme.stage.glyph;
   root.dataset.serif = t.displaySerif ? 'yes' : 'no';

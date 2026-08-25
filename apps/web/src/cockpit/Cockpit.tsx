@@ -47,6 +47,27 @@ export function Cockpit() {
   const [governance, setGovernance] = useState<GovernancePayload | undefined>();
   const [focus, setFocus] = useState('');
   const [direction] = useState<'both'>('both');
+  /**
+   * THE MAP IS A PAGE.
+   *
+   * Everything used to share one screen: the graph, the conversation, the
+   * decision and the state line, with two of them floating ON TOP of the
+   * graph. The owner's verdict on 2026-08-25 was that it read badly and that
+   * the graph needs a page of its own where it is legible. So there are two
+   * views, the map gets the whole canvas with nothing laid over it, and the
+   * conversation gets a page where IT is the hero instead of a card in a
+   * corner. The theme still decides how each page is composed.
+   */
+  const [view, setView] = useState<'map' | 'chat'>(() => {
+    const fromUrl = new URLSearchParams(location.search).get('view');
+    if (fromUrl === 'chat' || fromUrl === 'map') return fromUrl;
+    try {
+      const saved = localStorage.getItem('daedalus-cockpit-view');
+      return saved === 'chat' ? 'chat' : 'map';
+    } catch {
+      return 'map';
+    }
+  });
   const [studioOpen, setStudioOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -55,6 +76,7 @@ export function Cockpit() {
   const [budget, setBudget] = useState<{ hidden1: number; hidden2: number; ids: string[] }>({ hidden1: 0, hidden2: 0, ids: [] });
   const [paletteScope, setPaletteScope] = useState<'all' | 'hidden'>('all');
   const [draftSignal, setDraftSignal] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
   const serial = useRef(0);
   /** the project the map on screen belongs to, read outside render */
   const loadedFor = useRef('');
@@ -206,6 +228,15 @@ export function Cockpit() {
     });
   }, [index, structureFor]);
 
+  const goto = useCallback((next: 'map' | 'chat') => {
+    setView(next);
+    try {
+      localStorage.setItem('daedalus-cockpit-view', next);
+    } catch {
+      /* storage blocked — the choice still holds for this session */
+    }
+  }, []);
+
   const chooseFocus = useCallback(
     (module: string) => {
       setFocus(module);
@@ -288,17 +319,14 @@ export function Cockpit() {
       resolveModule={resolveModule}
       onFocusModule={chooseFocus}
       contextModule={contextModule}
-      compact={theme.composition.chat === 'card'}
     />
   );
-  const decision = <Decision signal={draftSignal} onChanged={() => setDraftSignal((n) => n + 1)} />;
+  const decision = (
+    <Decision signal={draftSignal} onChanged={() => setDraftSignal((n) => n + 1)} onCount={setPendingCount} />
+  );
 
   const stageHeader = nh ? (
     <>
-      <div className="stage-eyebrow">
-        Nachbarschaft · {project}
-        {structure?.structure?.repo_root ? '' : ''}
-      </div>
       <h1 className="stage-focus" title={nh.focus}>
         {shortLabel(nh.focus)}
       </h1>
@@ -362,69 +390,89 @@ export function Cockpit() {
     </div>
   );
 
-  return (
-    <div className="cockpit">
-      {theme.composition.chrome === 'masthead' ? (
-        <header className="chrome masthead">
-          <div className="masthead-rule" />
-          <h1 className="masthead-title">Daedalus</h1>
-          <div className="masthead-meta">
-            <ProjectPicker projects={projects} project={project} onPick={setProject} />
-            <span>{structure?.structure?.repo_root || ''}</span>
-            <ChromeTools onStudio={() => setStudioOpen(true)} onPalette={() => { setPaletteScope('all'); setPaletteOpen(true); }} onRefresh={() => void loadStructure(project, true)} loading={loading} />
-          </div>
-          <div className="masthead-rule" />
-        </header>
-      ) : (
-        <header className="chrome bar">
+  const chrome =
+    theme.composition.chrome === 'masthead' ? (
+      <header className="chrome masthead">
+        <div className="masthead-rule" />
+        <h1 className="masthead-title">Daedalus</h1>
+        <div className="masthead-meta">
           <ProjectPicker projects={projects} project={project} onPick={setProject} />
-          <div className="chrome-spacer" />
-          <ChromeTools onStudio={() => setStudioOpen(true)} onPalette={() => { setPaletteScope('all'); setPaletteOpen(true); }} onRefresh={() => void loadStructure(project, true)} loading={loading} />
-        </header>
-      )}
-
-      <main className="cockpit-body">
-        <div className="cockpit-stage">
-          {nh ? (
-            <Stage
-              neighbourhood={nh}
-              theme={theme}
-              onFocus={chooseFocus}
-              onBudget={onBudget}
-              onShowHidden={showHidden}
-              header={stageHeader}
-              overlay={theme.composition.decision === 'float' ? decision : undefined}
-              panel={theme.composition.chat === 'card' ? conversation : undefined}
-            />
-          ) : (
-            emptyStage
-          )}
+          <ViewSwitch view={view} onGo={goto} pending={pendingCount} />
+          <ChromeTools
+            onStudio={() => setStudioOpen(true)}
+            onPalette={() => {
+              setPaletteScope('all');
+              setPaletteOpen(true);
+            }}
+            onRefresh={() => void loadStructure(project, true)}
+            loading={loading}
+          />
         </div>
+        <div className="masthead-rule" />
+      </header>
+    ) : (
+      <header className="chrome bar">
+        <ProjectPicker projects={projects} project={project} onPick={setProject} />
+        <ViewSwitch view={view} onGo={goto} pending={pendingCount} />
+        <div className="chrome-spacer" />
+        <ChromeTools
+          onStudio={() => setStudioOpen(true)}
+          onPalette={() => {
+            setPaletteScope('all');
+            setPaletteOpen(true);
+          }}
+          onRefresh={() => void loadStructure(project, true)}
+          loading={loading}
+        />
+      </header>
+    );
 
-        {theme.composition.chat === 'column' && (
-          <aside className="cockpit-column">
-            {theme.composition.decision === 'inline' && decision}
+  return (
+    <div className="cockpit" data-view={view}>
+      {chrome}
+
+      {view === 'map' ? (
+        <main className="cockpit-body map">
+          <div className="cockpit-stage">
+            {nh ? (
+              <Stage
+                neighbourhood={nh}
+                theme={theme}
+                onFocus={chooseFocus}
+                onBudget={onBudget}
+                onShowHidden={showHidden}
+                header={stageHeader}
+              />
+            ) : (
+              emptyStage
+            )}
+          </div>
+        </main>
+      ) : (
+        <main className="cockpit-body talk">
+          <section className="talk-main">
+            {decision}
             {conversation}
+          </section>
+          <aside className="talk-side">
+            {nh && (
+              <div className="focuscard">
+                <span className="focuscard-eyebrow">Auf der Karte</span>
+                <b className="focuscard-name">{shortLabel(nh.focus)}</b>
+                <span className="focuscard-path">{nh.focus}</span>
+                <span className="focuscard-counts">
+                  {nh.direct} direkt · {nh.reach} über zwei Ebenen
+                  {nh.focusNode ? ` · ${nh.focusNode.fan_in} Importeure` : ''}
+                </span>
+                <button type="button" onClick={() => goto('map')}>
+                  Auf der Karte ansehen
+                </button>
+              </div>
+            )}
             <HotList nodes={hottest} focus={focus} onPick={chooseFocus} />
           </aside>
-        )}
-
-        {theme.composition.chat === 'drawer' && (
-          <section className="cockpit-drawer">
-            {theme.composition.decision === 'inline' && decision}
-            {conversation}
-          </section>
-        )}
-
-        {theme.composition.chat === 'flow' && (
-          <section className="cockpit-flow">
-            {conversation}
-            {theme.composition.decision === 'inline' && decision}
-          </section>
-        )}
-      </main>
-
-      {theme.composition.decision === 'bar' && <div className="cockpit-decisionbar">{decision}</div>}
+        </main>
+      )}
 
       <footer className="cockpit-foot">
         <StatusLine
@@ -479,6 +527,37 @@ export function Cockpit() {
 
       <ThemeStudio open={studioOpen} onClose={() => setStudioOpen(false)} />
     </div>
+  );
+}
+
+/**
+ * Two pages, named for what they are. The badge is the count of decisions
+ * actually pending — it is absent when there are none, because a zero on a
+ * navigation control is a thing to look at that means nothing.
+ */
+function ViewSwitch({
+  view,
+  onGo,
+  pending
+}: {
+  view: 'map' | 'chat';
+  onGo: (v: 'map' | 'chat') => void;
+  pending: number;
+}) {
+  return (
+    <nav className="viewswitch" aria-label="Ansicht">
+      <button type="button" className={view === 'map' ? 'on' : ''} aria-current={view === 'map'} onClick={() => onGo('map')}>
+        Karte
+      </button>
+      <button type="button" className={view === 'chat' ? 'on' : ''} aria-current={view === 'chat'} onClick={() => onGo('chat')}>
+        Gespräch
+        {pending > 0 && (
+          <span className="viewswitch-badge" title={`${pending} Entscheidung(en) warten`}>
+            {pending}
+          </span>
+        )}
+      </button>
+    </nav>
   );
 }
 

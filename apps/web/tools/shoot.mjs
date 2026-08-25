@@ -6,7 +6,9 @@
  * been reviewed from screenshots whose provenance nobody could reconstruct;
  * the manifest is there so a shot can never be mistaken for a mock.
  *
- *   node tools/shoot.mjs --base http://127.0.0.1:5199 --out ../../docs/design/prototypes/cockpit-<date>
+ *   node tools/shoot.mjs --base http://127.0.0.1:8765 --out ../../docs/design/prototypes/cockpit-<date>
+ *
+ * Two shots per theme: the map page and the conversation page.
  *
  * It fails loudly if the page never rendered a node: a screenshot of an empty
  * stage that looks like a design decision is exactly the lie to avoid.
@@ -66,25 +68,25 @@ async function main() {
   // page's request queues behind an answer nobody will read — which is why the
   // FIRST theme, and only the first, kept being shot with an unread state line.
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.setItem('daedalus-cockpit-view', 'map'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.stage-node', { timeout: WAIT_MS });
   await settleHealth(page);
 
   for (const id of THEMES) {
-    await page.evaluate((themeId) => localStorage.setItem('daedalus-theme-id', themeId), id);
+    await page.evaluate((themeId) => {
+      localStorage.setItem('daedalus-theme-id', themeId);
+      localStorage.setItem('daedalus-cockpit-view', 'map');
+    }, id);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.stage-node', { timeout: WAIT_MS });
-    // The decision card is fetched separately; without waiting for it the shot
-    // is a picture of a cockpit that happens to have nothing pending, which is
-    // a different design than the one being reviewed.
-    await page.waitForSelector('.decision', { timeout: 15000 }).catch(() => {});
     await settleHealth(page);
     await page.waitForTimeout(700);
 
-    const seen = await page.evaluate(() => ({
+    const map = await page.evaluate(() => ({
       themeId: document.documentElement.dataset.themeId,
-      chat: document.documentElement.dataset.chat,
       chrome: document.documentElement.dataset.chrome,
-      decision: document.documentElement.dataset.decision,
+      chat: document.documentElement.dataset.chat,
       stage: document.documentElement.dataset.stage,
       nodes: document.querySelectorAll('.stage-node').length,
       focus: document.querySelector('.stage-path')?.textContent || '',
@@ -92,13 +94,33 @@ async function main() {
       status: document.querySelector('.statusline')?.textContent || ''
     }));
 
-    if (seen.themeId !== id) throw new Error(`asked for theme ${id}, the page applied ${seen.themeId}`);
-    if (!seen.nodes) throw new Error(`theme ${id} rendered zero nodes — refusing to save an empty stage`);
+    if (map.themeId !== id) throw new Error(`asked for theme ${id}, the page applied ${map.themeId}`);
+    if (!map.nodes) throw new Error(`theme ${id} rendered zero nodes — refusing to save an empty stage`);
 
-    const file = path.join(OUT, `${id}.png`);
-    await page.screenshot({ path: file, animations: 'disabled' });
-    manifest.shots.push({ ...seen, file: path.basename(file) });
-    process.stdout.write(`${id}: ${seen.nodes} nodes, focus ${seen.focus}\n`);
+    const mapFile = path.join(OUT, `karte-${id}.png`);
+    await page.screenshot({ path: mapFile, animations: 'disabled' });
+    manifest.shots.push({ ...map, page: 'karte', file: path.basename(mapFile) });
+    log(`${id} · karte: ${map.nodes} nodes, focus ${map.focus}`);
+
+    // ...and the conversation, which is the other page since 2026-08-25.
+    await page.getByRole('button', { name: /Gespräch/ }).click();
+    await page.waitForSelector('.talk-main', { timeout: 20000 });
+    // The decision is fetched when this page mounts; without waiting the shot
+    // is of a cockpit that happens to have nothing pending.
+    await page.waitForSelector('.decision', { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(700);
+
+    const talk = await page.evaluate(() => ({
+      themeId: document.documentElement.dataset.themeId,
+      chrome: document.documentElement.dataset.chrome,
+      chat: document.documentElement.dataset.chat,
+      pending: document.querySelector('.viewswitch-badge')?.textContent || '0',
+      status: document.querySelector('.statusline')?.textContent || ''
+    }));
+    const talkFile = path.join(OUT, `gespraech-${id}.png`);
+    await page.screenshot({ path: talkFile, animations: 'disabled' });
+    manifest.shots.push({ ...talk, page: 'gespraech', nodes: 0, focus: '', counts: '', file: path.basename(talkFile) });
+    log(`${id} · gespräch: ${talk.pending} pending`);
   }
 
   manifest.consoleErrors = consoleErrors;
