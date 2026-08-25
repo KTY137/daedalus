@@ -48,6 +48,30 @@ states how many direct and how many distant neighbours were left out, and
 pressing either lists exactly those modules. The stage never quietly draws 14 of
 80.
 
+## The floor, measured
+
+`apps/web/tools/audit.mjs` drives the built bundle through all six themes at
+1440 / 1280 / 900 px and reports contrast (composited through translucent
+panels, SVG text included), pointer targets, the smallest rendered font size
+and horizontal overflow.
+
+**18 of 18 combinations clean** [MEASURED 2026-08-25]: no text below 4.5:1
+(3:1 for large), no HTML control under 44 px, no horizontal overflow, smallest
+text exactly 11 px.
+
+Getting there fixed real things: a type scale that produced 8.7 px `code`,
+`--ink3` below the floor in three themes, Leitstand's whole palette sitting on
+the chassis grey instead of the plate, and Nachtfenster's accent failing when
+used as text rather than as a fill. The instrument itself had to be fixed
+first — its colour parser did not understand hex, so it read white-on-black as
+1.17:1.
+
+One exception is printed on every run rather than excluded from the count: a
+graph node's hit circle is 36 px, not 44, because the ring relaxes to about
+32 px of spacing and a 44 px target would swallow its neighbour. The larger
+equivalent path is real — ctrl+K lists every module as a 44 px row, and the
+arrow keys walk the same ring.
+
 ## The test that came out of round three
 
 `apps/web/tests/cockpit.spec.ts` is the per-project fake-data test round three

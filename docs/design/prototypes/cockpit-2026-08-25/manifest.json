@@ -35,7 +35,7 @@
       "chrome": "bar",
       "decision": "float",
       "stage": "stars",
-      "nodes": 28,
+      "nodes": 26,
       "focus": "daedalus/spine/attempt.py",
       "counts": "20 direkt · 143 über zwei Ebenen · 42 Importeure · 2776 Zeilen · Hitze 223.0",
       "status": "agent_env · C:\\Users\\nukei\\Desktop\\agent_env6 laufen · 6 beeinträchtigt · 4 ungeprüft · 4 unbekannt8 nicht bewiesen: bench.residency, bench.scheduled_task, hand.executor …Promotion gesperrt · 2 Blocker349 Dateien im Kern · 2036 ausgeschlossen von 2385 gescanntKarte 349 Knoten · 848 Kanten · 1840 führen herausImportgraph 964 Knoten · 46 Komponententree-sitter · lizardlive · 0 in der Schlange",
