@@ -1,0 +1,60 @@
+name: Actions recovery probe
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/actions-recovery-probe.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: actions-recovery-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checkout-smoke:
+    name: Trivial exact-head checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm hosted runner allocation
+        run: |
+          echo "runner=${RUNNER_OS}"
+          echo "event=${GITHUB_EVENT_NAME}"
+
+      - name: Checkout exact event head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact checked-out revision
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          printf 'expected=%s\nactual=%s\n' "$EXPECTED_SHA" "$actual_sha"
+          test "$actual_sha" = "$EXPECTED_SHA"
+
+      - name: Confirm local toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          git --version
+          python --version
+
+      - name: Record successful real-step probe
+        shell: bash
+        run: |
+          cat <<'EOF'
+          GitHub allocated a hosted runner, executed shell steps, checked out the
+          exact event head, and exposed the local Python toolchain. This proves
+          only runner recovery for this revision; it is not product, Gate, test,
+          package, platform-matrix, mutation, or release evidence.
+          EOF
