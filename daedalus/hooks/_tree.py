@@ -16,6 +16,11 @@ from ._common import HOOKS_DIR_REL, git
 NL = chr(10)
 SWEEPS_LOG_REL = ".claude/watchdog/docs/sweeps.log"
 SOURCE_SCOPES = ("daedalus", "tools", "tests", "scripts")
+#: Reserved key inside a fingerprint saying part of it could not be read. It is
+#: a key rather than a separate return value because `tools.post_tool` stores
+#: fingerprints verbatim and hashes `sorted(fp.items())`; a None would raise
+#: there, and a second return value would change a signature the suite pins.
+UNREADABLE_KEY = "~git-unreadable"
 
 #: Serena tools that mutate the project or Serena's memory store. A session
 #: whose Serena is indexed on another tree must not call these — the edit would
@@ -79,6 +84,11 @@ class TreeFacts:
     archived_tag: str
     serena_mismatch: str
     serena_configured: bool
+    #: git calls that could NOT be read for this snapshot. Empty is the normal
+    #: case and means the facts above are complete. A non-empty tuple means
+    #: some of them are MISSING, which is not the same as absent -- see the
+    #: GitOut docstring in ``_common``.
+    unreadable: tuple[str, ...] = ()
 
     def tree_line(self) -> str:
         # ASCII only: this line lands in a cp1252 console (shift.py learned it first).
@@ -86,6 +96,14 @@ class TreeFacts:
         if self.dirty_count:
             dirs = ", ".join(self.dirty_dirs) if self.dirty_dirs else "-"
             bits.append(f"dirty: {self.dirty_count} files ({dirs})")
+        if self.unreadable:
+            # Say it in the line itself. A snapshot that quietly drops the
+            # dirty count or the archive tag reads exactly like a clean,
+            # unarchived tree, and that is the reading that costs something.
+            bits.append(
+                "git unreadable: " + ", ".join(self.unreadable)
+                + " -- those facts are MISSING, not absent"
+            )
         if self.serena_mismatch:
             bits.append(f"configured serena root: {self.serena_mismatch} != this tree -> Serena WRITE tools denied")
         elif self.serena_configured:
@@ -98,13 +116,20 @@ class TreeFacts:
         return f"ARCHIVED TREE ({self.archived_tag}): history only; work belongs in the live tree"
 
 
-def dirty_summary(root: Path) -> tuple[int, tuple[str, ...]]:
+def dirty_summary(root: Path, unreadable: list[str] | None = None) -> tuple[int, tuple[str, ...]]:
     # The hooks' own state directory is excluded by pathspec, so the count is
     # the same whether or not the tree ignores runs/hooks/.
     status = git(
         root, "status", "--porcelain", "--untracked-files=normal", "--",
         ".", f":(exclude){HOOKS_DIR_REL}", ":(exclude)runs/arch_memory.shown",
     )
+    if not getattr(status, "ok", True):
+        # NOT a clean tree: a tree we could not look at. The distinction is the
+        # whole point -- `git status` measured 404-1,065 ms here against a
+        # 5,000 ms timeout, so this branch is reachable under load.
+        if unreadable is not None:
+            unreadable.append("status")
+        return 0, ()
     if not status:
         return 0, ()
     count = 0
@@ -122,11 +147,15 @@ def dirty_summary(root: Path) -> tuple[int, tuple[str, ...]]:
     return count, top
 
 
-def archived_tag(root: Path) -> str:
+def archived_tag(root: Path, unreadable: list[str] | None = None) -> str:
     """An ``archive/*`` tag on HEAD, or one matching the branch name (the
     archived checkpoint line carries later commits than its tag). Secondary
     signal: the user-level ``orient`` hook has the authoritative root list."""
     tags = git(root, "tag", "--points-at", "HEAD")
+    if not getattr(tags, "ok", True) and unreadable is not None:
+        # An unread tag list drops the ARCHIVED banner entirely, and that
+        # banner exists because four edits once landed in the wrong tree.
+        unreadable.append("tag")
     for tag in tags.splitlines():
         if tag.startswith("archive/"):
             return tag
@@ -140,17 +169,26 @@ def archived_tag(root: Path) -> str:
 
 
 def tree_facts(root: Path) -> TreeFacts:
-    count, dirs = dirty_summary(root)
+    unreadable: list[str] = []
+    count, dirs = dirty_summary(root, unreadable)
+    branch = git(root, "branch", "--show-current")
+    if not getattr(branch, "ok", True):
+        unreadable.append("branch")
+    head = git(root, "rev-parse", "--short=8", "HEAD")
+    if not getattr(head, "ok", True):
+        unreadable.append("head")
+    tag = archived_tag(root, unreadable)
     mismatch = serena_root_mismatch(root)
     return TreeFacts(
         name=root.name or str(root),
-        branch=git(root, "branch", "--show-current"),
-        head=git(root, "rev-parse", "--short=8", "HEAD"),
+        branch=str(branch),
+        head=str(head),
         dirty_count=count,
         dirty_dirs=dirs,
-        archived_tag=archived_tag(root),
+        archived_tag=tag,
         serena_mismatch=str(mismatch) if mismatch else "",
         serena_configured=serena_configured_root(root) is not None,
+        unreadable=tuple(unreadable),
     )
 
 
@@ -179,6 +217,13 @@ def source_fingerprint(root: Path) -> dict[str, str]:
     version missing ``x=2 -> x=3``)."""
     fp: dict[str, str] = {}
     diff = git(root, "diff", "HEAD", "--no-color", "--no-ext-diff", "--", *SOURCE_SCOPES)
+    if not getattr(diff, "ok", True):
+        # `git diff HEAD` measured 400 ms best / 5,372 ms worst against a
+        # 5,000 ms timeout on this tree. An empty result from a timed-out diff
+        # means "no source changed", which is the wrong direction to fail in.
+        # The marker travels WITH the fingerprint so a comparison can see it.
+        fp[UNREADABLE_KEY] = "diff"
+    
     current: str | None = None
     chunks: dict[str, list[str]] = {}
     for line in diff.splitlines():
@@ -191,6 +236,9 @@ def source_fingerprint(root: Path) -> dict[str, str]:
     for path, lines in chunks.items():
         fp[path] = hashlib.sha256(NL.join(lines).encode("utf-8", errors="replace")).hexdigest()[:16]
     untracked = git(root, "ls-files", "--others", "--exclude-standard", "--", *SOURCE_SCOPES)
+    if not getattr(untracked, "ok", True):
+        fp[UNREADABLE_KEY] = fp.get(UNREADABLE_KEY, "") + "+untracked"
+
     for rel in untracked.splitlines():
         try:
             fp[rel] = "new:" + hashlib.sha256((root / rel).read_bytes()).hexdigest()[:16]

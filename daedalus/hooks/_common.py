@@ -11,6 +11,7 @@ import random
 import re
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -59,7 +60,9 @@ class HookResult:
 def payload_is_usable(payload: dict) -> bool:
     """A hook payload the dispatcher may act on: a dict that names the event
     and a cwd. Anything else (empty stdin, malformed JSON, a list) means "not
-    a harness call" and the dispatcher does nothing -- no output, no state."""
+    a harness call": the dispatcher writes no output and touches no session
+    state. It does append one ledger row where the hooks already keep state,
+    so that being fed garbage is distinguishable from not being called."""
     return (
         isinstance(payload, dict)
         and isinstance(payload.get("hook_event_name"), str)
@@ -92,8 +95,41 @@ def read_payload(stream=None) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def git(root: Path, *args: str, timeout: float = GIT_TIMEOUT_S) -> str:
-    """stdout of a git command, or "" on any failure. Never raises."""
+class GitOut(str):
+    """git stdout that also knows whether the command actually SUCCEEDED.
+
+    :func:`git` used to return ``""`` for three different things: success with
+    no output, a non-zero exit, and a timeout or OSError. Every caller then
+    read ``""`` as a fact about the tree -- ``dirty_summary`` reported a CLEAN
+    tree, ``archived_tag`` dropped the archive warning, ``source_fingerprint``
+    reported no changes. Each of those failures points the same way: toward
+    LESS warning, silently.
+
+    [MEASURED 2026-08-25, five runs each on this tree] ``git diff HEAD`` over
+    the source scopes takes 400 ms at best and 5,372 ms at worst against a
+    5,000 ms timeout, and ``git status`` 404-1,065 ms. The silent branch is
+    reachable in ordinary operation, not just in theory.
+
+    A ``str`` subclass keeps every existing caller working unchanged (``if not
+    out``, ``.splitlines()``) and adds the one bit they were missing.
+    ``_watchdog_anomalies`` one module over already draws exactly this
+    distinction with None-versus-[]; this is the same rule where it was absent.
+    """
+
+    ok: bool
+
+    def __new__(cls, text: str = "", ok: bool = True) -> "GitOut":
+        obj = super().__new__(cls, text)
+        obj.ok = ok
+        return obj
+
+
+def git(root: Path, *args: str, timeout: float = GIT_TIMEOUT_S) -> GitOut:
+    """stdout of a git command as a :class:`GitOut`. Never raises.
+
+    ``.ok`` is False when the command could not be run, timed out, or exited
+    non-zero -- which is NOT the same as "it ran and said nothing".
+    """
     try:
         proc = subprocess.run(
             ["git", "-C", str(root), *args],
@@ -104,10 +140,44 @@ def git(root: Path, *args: str, timeout: float = GIT_TIMEOUT_S) -> str:
             timeout=timeout,
         )
     except (OSError, subprocess.SubprocessError):
-        return ""
+        return GitOut("", ok=False)
     # rstrip only: `git status --porcelain` lines START with a significant
     # space (" M path"), and a full strip() ate it on the first line.
-    return proc.stdout.rstrip(chr(13) + chr(10)) if proc.returncode == 0 else ""
+    if proc.returncode != 0:
+        return GitOut("", ok=False)
+    return GitOut(proc.stdout.rstrip(chr(13) + chr(10)), ok=True)
+
+
+def with_deadline(fn: Callable[[], Any], seconds: float, default: Any) -> Any:
+    """Run ``fn``, and give up on it after ``seconds``.
+
+    Every git call in this package is bounded by ``subprocess.run(timeout=)``.
+    The PYTHON-side dependencies were bounded by nothing at all: the shift
+    clock and the architecture delta are ordinary imports and calls, and a hook
+    has no deadline of its own. [MEASURED 2026-08-25] one ``turn`` row in
+    ``runs/hooks/ledger.jsonl`` reads 139,592 ms, and a direct call to
+    ``arch_memory.render_delta`` on this tree exceeded 120 s the same day. The
+    user's prompt waits for whatever the slowest dependency decides to do.
+
+    A daemon thread is the only honest bound available here: CPython cannot
+    interrupt a synchronous call, so a runaway is ABANDONED rather than
+    cancelled. It dies with the process, which for a hook is milliseconds
+    later. The caller supplies ``default``, and every caller in this package
+    supplies one that SAYS it could not measure rather than one that looks
+    like a measurement.
+    """
+    box: list = []
+
+    def run() -> None:
+        try:
+            box.append(fn())
+        except BaseException:  # noqa: BLE001 - the default is the caller's answer
+            pass
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(seconds)
+    return box[0] if box else default
 
 
 def repo_root(payload: dict, env: dict | None = None) -> Path:
@@ -272,15 +342,63 @@ def ledger_append(root: Path, row: dict) -> None:
 # --------------------------------------------------------------------------
 
 
-def trim_to_budget(lines: list[str], cap: int = TURN_BUDGET_CHARS) -> tuple[str, bool]:
+def trim_lines(lines: list[str], cap: int = TURN_BUDGET_CHARS) -> tuple[str, int]:
     """Join ``lines`` (given in priority order, most important first) and drop
-    from the END until the result fits. Returns (text, trimmed)."""
+    from the END until the result fits. Returns (text, dropped).
+
+    ``dropped`` COUNTS the lines removed; it is not a flag. Every caller that
+    used the old boolean keeps working (a count is truthy exactly when
+    something was dropped), and the ledger gains the number it was missing.
+    [MEASURED 2026-08-25, ``runs/hooks/ledger.jsonl``]: 111 of 113 turns
+    carried the note ``trimmed`` while 98 of them emitted ~250 characters --
+    the shift line alone. The note could not distinguish "one line shortened"
+    from "everything after the first line thrown away", so nobody read it for
+    113 turns. An instrument that cannot say how much it discarded reports its
+    own blindness as normal operation.
+    """
     kept = list(lines)
-    trimmed = False
+    dropped = 0
     while kept and len("\n".join(kept)) > cap:
         kept.pop()
-        trimmed = True
-    return "\n".join(kept), trimmed
+        dropped += 1
+    return "\n".join(kept), dropped
+
+
+def trim_to_budget(lines: list[str], cap: int = TURN_BUDGET_CHARS) -> tuple[str, bool]:
+    """:func:`trim_lines` as the boolean every existing caller expects."""
+    text, dropped = trim_lines(lines, cap)
+    return text, bool(dropped)
+
+
+#: Room reserved for the "clipped" marker inside :func:`clip_block`.
+_CLIP_MARKER_ROOM = 60
+
+
+def clip_block(text: str, cap: int) -> str:
+    """One optional multi-line block, cut to the whole leading lines that fit.
+
+    A block with no budget of its own competes for the WHOLE turn budget, and
+    :func:`trim_to_budget` resolves that competition by deletion. [MEASURED
+    2026-08-25]: the architecture delta is 1,299 characters and the shift line
+    251, so together they exceeded the 1,500-character cap by 50 -- and the
+    answer was to drop all 1,299, plus every line queued behind it. Clipping
+    keeps the head of the block, which is where its warnings are, and loses the
+    catalogue underneath, which is where they are not.
+    """
+    if not text or len(text) <= cap:
+        return text
+    lines = text.splitlines()
+    kept: list[str] = []
+    for line in lines:
+        if len("\n".join(kept + [line])) > cap - _CLIP_MARKER_ROOM:
+            break
+        kept.append(line)
+    if not kept:
+        return ""
+    hidden = len(lines) - len(kept)
+    if hidden > 0:
+        kept.append(f"  (+{hidden} lines clipped to the injection budget)")
+    return "\n".join(kept)
 
 
 def sha256_text(text: str) -> str:

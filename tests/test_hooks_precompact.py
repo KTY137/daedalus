@@ -187,4 +187,9 @@ def test_concurrent_daily_note_creation_writes_one_header(tmp_path: Path) -> Non
     text = note.read_text(encoding="utf-8")
     assert text.count("date: 2026-08-23") == 1
     assert sum(line.startswith("- marker ") for line in text.splitlines()) == 8
+    # The section heading is created by whichever appender first finds it
+    # missing, and that decision is a read-modify-write under the same lock.
+    # This header carries no section, so all eight threads race for it and
+    # must still produce exactly ONE heading.
+    assert text.count(events.COMPACTION_SECTION) == 1
     assert not note.with_name(f".{note.name}.precompact.lock").exists()
