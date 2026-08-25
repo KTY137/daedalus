@@ -58,6 +58,35 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 
 .chrome-spacer { flex: 1; }
 
+.viewswitch { display: flex; gap: 2px; }
+.viewswitch button {
+  position: relative;
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid transparent;
+  border-bottom-width: 2px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.viewswitch button:hover { color: var(--ink); }
+.viewswitch button.on { color: var(--ink); border-bottom-color: var(--accent); }
+.viewswitch-badge {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  text-align: center;
+}
+
 .projects {
   display: flex;
   gap: var(--u1);
@@ -124,51 +153,98 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
   min-width: 0;
 }
 
+/* --- the map page: the graph gets the whole canvas, nothing on top of it - */
+
+.cockpit-body.map { grid-template-columns: minmax(0, 1fr); }
 .cockpit-stage { position: relative; min-height: 0; min-width: 0; }
 
-:root[data-chat='column'] .cockpit-body { grid-template-columns: minmax(0, 1fr) minmax(320px, 27vw); }
-:root[data-chat='drawer'] .cockpit-body { grid-template-rows: minmax(0, 1fr) auto; }
-:root[data-chat='flow'] .cockpit-body { display: block; overflow: auto; }
-:root[data-chat='flow'] .cockpit-stage { height: 52vh; min-height: 380px; }
+/* --- the talk page: the conversation is the hero, not a card in a corner - */
 
-.cockpit-column {
+.cockpit-body.talk {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 23vw);
+  gap: var(--u8);
+  padding: var(--u6) var(--u8);
+  overflow: auto;
+  align-content: start;
+}
+:root[data-chat='flow'] .cockpit-body.talk {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--u6);
+}
+
+.talk-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u4);
+  width: 100%;
+  max-width: 78ch;
+  margin: 0 auto;
+  min-width: 0;
+}
+.talk-side {
   display: flex;
   flex-direction: column;
   gap: var(--u3);
-  padding: var(--u4);
-  border-left: var(--border) solid var(--line2);
-  min-height: 0;
-  overflow: auto;
+  min-width: 0;
 }
-
-.cockpit-drawer {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  align-items: stretch;
-  gap: var(--u4);
-  padding: var(--u3) var(--u6) var(--u4);
-  border-top: var(--border) solid var(--line2);
-  height: clamp(190px, 26vh, 300px);
-}
-/* One child means no decision is pending: the conversation takes the width
-   rather than leaving a hole where a card would have been. */
-.cockpit-drawer > :only-child { grid-column: 1 / -1; }
-/* The decision is the second column even though it is written first, so the
-   conversation keeps the reading position on the left in every theme. */
-.cockpit-drawer > .decision { grid-column: 2; grid-row: 1; overflow: auto; }
-.cockpit-drawer > .convo { grid-column: 1; grid-row: 1; }
-.convo-scroll { min-height: 48px; }
-
-.cockpit-flow {
-  max-width: 74ch;
+:root[data-chat='flow'] .talk-side {
+  max-width: 78ch;
   margin: 0 auto;
-  padding: var(--u6) var(--u4) var(--u8);
+  width: 100%;
 }
 
-.cockpit-decisionbar {
-  border-top: var(--border) solid var(--line2);
-  padding: var(--u3) var(--u6);
+/* On its own page the conversation is not a panel — it is the page. The
+   backdrop filter has to go too: a transparent element that still blurs what
+   is behind it renders as a visible pane with no edges. */
+/* `:root` on the front for specificity: the glass material rule further down
+   is `:root[data-material='glass'] .convo`, an exact tie, and a tie is decided
+   by source order — which put a blurred pane behind a transparent element. */
+:root .cockpit-body.talk .convo {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  gap: var(--u4);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
+.cockpit-body.talk .convo-scroll { max-height: none; overflow: visible; }
+.cockpit-body.talk .convo-empty { font-size: var(--fs-lg); max-width: 60ch; }
+.cockpit-body.talk .turn-text { font-size: var(--fs-lg); line-height: 1.5; }
+.cockpit-body.talk .composer input { min-height: 52px; font-size: var(--fs-lg); }
+.cockpit-body.talk .composer button { min-width: 52px; min-height: 52px; }
+
+.focuscard {
+  display: grid;
+  gap: 2px;
+  padding: var(--u3);
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+}
+.focuscard-eyebrow {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.focuscard-name { font-family: var(--font-mono); font-size: var(--fs-lg); }
+.focuscard-path { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink3); word-break: break-all; }
+.focuscard-counts { font-size: var(--fs-xs); color: var(--ink2); margin-top: var(--u1); }
+.focuscard button {
+  justify-self: start;
+  margin-top: var(--u2);
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.focuscard button:hover { color: var(--accent); border-color: var(--accent); }
 
 .cockpit-foot {
   border-top: var(--border) solid var(--line2);
@@ -185,7 +261,14 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .stage-label {
   fill: var(--ink);
   font-family: var(--font-mono);
+  /* A halo in the room's own tone. Labels sit on top of edges in every layout
+     and the arc figure runs whole bundles behind them; without this the ink
+     and the line share the same pixels and neither wins. paint-order puts the
+     stroke UNDER the fill, so the letterform is unchanged. */
   paint-order: stroke;
+  stroke: var(--room2);
+  stroke-width: 3px;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 .stage-label.focus {
@@ -193,14 +276,22 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
   font-size: var(--fs-lg);
   fill: var(--ink);
 }
-.stage-sub { fill: var(--ink3); font-family: var(--font-body); pointer-events: none; }
+.stage-sub {
+  fill: var(--ink3);
+  font-family: var(--font-body);
+  paint-order: stroke;
+  stroke: var(--room2);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
 .stage-node:hover .stage-label { fill: var(--accent); }
 
 .stage-header {
   position: absolute;
-  top: var(--u4);
+  top: var(--u3);
   left: var(--u6);
-  max-width: 42ch;
+  max-width: 40ch;
   pointer-events: none;
 }
 .stage-eyebrow {
@@ -211,7 +302,7 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 }
 .stage-focus {
   font-family: var(--font-mono);
-  font-size: var(--fs-xl);
+  font-size: var(--fs-2xl);
   font-weight: var(--display-weight);
   letter-spacing: var(--display-tracking);
   margin: var(--u1) 0 2px;

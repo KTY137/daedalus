@@ -19,9 +19,11 @@ export interface DecisionProps {
   /** bumped by the caller when something happened that may have created a draft */
   signal?: number;
   onChanged?: () => void;
+  /** how many drafts are pending, so the navigation can say so */
+  onCount?: (n: number) => void;
 }
 
-export function Decision({ signal = 0, onChanged }: DecisionProps) {
+export function Decision({ signal = 0, onChanged, onCount }: DecisionProps) {
   const [pending, setPending] = useState<DraftRow[]>([]);
   const [detail, setDetail] = useState<DraftDetail | undefined>();
   const [open, setOpen] = useState(false);
@@ -32,14 +34,16 @@ export function Decision({ signal = 0, onChanged }: DecisionProps) {
   const load = useCallback(async () => {
     try {
       const payload = await getDrafts();
-      setPending((payload.drafts || []).filter((d) => d.status === 'pending'));
+      const rows = (payload.drafts || []).filter((d) => d.status === 'pending');
+      setPending(rows);
+      onCount?.(rows.length);
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Entwürfe konnten nicht gelesen werden.');
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [onCount]);
 
   useEffect(() => {
     void load();
@@ -83,7 +87,24 @@ export function Decision({ signal = 0, onChanged }: DecisionProps) {
     [current, load, onChanged]
   );
 
-  if (!loaded) return null;
+  /**
+   * "Still reading" is not "nothing pending".
+   *
+   * This returned null until the first fetch landed, and on this machine that
+   * fetch takes 12.5s [MEASURED 2026-08-25 — /api/drafts lists all 428 drafts
+   * and has no limit]. For twelve seconds the page therefore showed an empty
+   * space where a decision would be, which reads as "nothing waits for you" —
+   * the exact collapse of "could not look" into "nothing to see" that this
+   * repository treats as a defect everywhere else.
+   */
+  if (!loaded) {
+    return (
+      <div className="decision quiet" aria-busy="true">
+        <span className="decision-eyebrow">Entscheidung</span>
+        <p className="decision-none">Entwürfe werden gelesen …</p>
+      </div>
+    );
+  }
 
   if (!current) {
     return (

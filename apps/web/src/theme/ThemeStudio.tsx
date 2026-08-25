@@ -464,29 +464,17 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
               onChange={(chrome) => edit({ composition: { chrome } })}
             />
             <Choice
-              label="Gespräch"
+              label="Gesprächsseite"
               value={theme.composition.chat}
               options={[
-                ['card', 'Karte über der Bühne'],
-                ['drawer', 'Schublade darunter'],
-                ['column', 'Spalte daneben'],
-                ['flow', 'Im Textfluss']
+                ['column', 'Mit Spalte daneben'],
+                ['flow', 'Ein Textfluss']
               ]}
               onChange={(chat) => edit({ composition: { chat } })}
             />
-            <Choice
-              label="Entscheidung"
-              value={theme.composition.decision}
-              options={[
-                ['float', 'Über der Bühne'],
-                ['inline', 'Beim Gespräch'],
-                ['bar', 'Eigene Leiste']
-              ]}
-              onChange={(decision) => edit({ composition: { decision } })}
-            />
             <p className="studio-hint">
-              Aufbau ist Teil des Themes, weil sich die sechs Entwürfe der Gallery-Runde genau hier unterschieden — nicht
-              in der Farbe.
+              Karte und Gespräch sind seit dem 25.08.2026 zwei Seiten. Über der Karte liegt nichts mehr, deshalb gibt es
+              hier auch keinen Regler mehr dafür, wo die Entscheidung schwebt — sie steht auf der Gesprächsseite oben.
             </p>
           </section>
         )}

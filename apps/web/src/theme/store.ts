@@ -70,6 +70,7 @@ function repair(
     return fallback;
   };
 
+  const raw2 = raw;
   const colorKeys = Object.keys(base.colors) as Array<keyof ThemeSpec['colors']>;
   const colors = {} as ThemeSpec['colors'];
   colorKeys.forEach((k) => {
@@ -112,8 +113,17 @@ function repair(
     },
     composition: {
       chrome: one('composition', 'chrome', ['bar', 'rail', 'masthead'] as const, base.composition.chrome),
-      chat: one('composition', 'chat', ['card', 'drawer', 'column', 'flow'] as const, base.composition.chat),
-      decision: one('composition', 'decision', ['float', 'bar', 'inline'] as const, base.composition.decision)
+      /**
+       * `card` and `drawer` described where the conversation sat over the map.
+       * The map is its own page now, so they mean `column` — migrated in
+       * silence, because nothing was lost and reporting it as a missing field
+       * would be a lie about what happened.
+       */
+      chat: (() => {
+        const raw = isRecord(raw2.composition) ? raw2.composition.chat : undefined;
+        if (raw === 'card' || raw === 'drawer') return 'column' as const;
+        return one('composition', 'chat', ['column', 'flow'] as const, base.composition.chat);
+      })()
     }
   };
 }
