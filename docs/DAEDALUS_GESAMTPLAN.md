@@ -1053,8 +1053,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python tools/iron_plan_guard.py verify
-      - run: python -m unittest tests.test_iron_plan_guard -v
+      - run: python tools/iron_plan_guard.py (removed 2026-08-23) verify
+      - run: python -m unittest tests.test_iron_plan_guard (removed 2026-08-23) -v
 
   package-and-contracts:
     strategy:

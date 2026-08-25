@@ -79,7 +79,7 @@ over the union, and a separately evaluated algorithm.
   inside `__main__` blocks, published on `generate.last_filtered`.
 - **Semantics-preserving generator — partial.** The other half of the cold
   start: rename a local, reorder independent statements, reformat. Good patches
-  by construction, exactly as mutants are bad ones. `daedalus/eval/preserve.py`
+  by construction, exactly as mutants are bad ones. `daedalus/preservation.py`
   (15.3k) exists on branch `experiment/deepseek-lab`, unmerged and under
   adversarial review. Without it a new project has no specificity arm.
 - **Intent plus delta, never delta alone.** A fix that deletes a check and a
@@ -101,9 +101,9 @@ over the union, and a separately evaluated algorithm.
 | Module | Size | Role |
 |---|---|---|
 | `structcore/typegraph.py` | 53.1k | type layer |
-| `eval/graph_delta.py` | 28.6k | fitness function |
+| `daedalus/eval/graph_delta.py` | 28.6k | fitness function |
 | `structcore/artifacts.py` | 27.5k | data layer |
-| `tools/vet.py` | 26.2k | capability gate |
+| `daedalus/tools/vet.py` | 26.2k | capability gate |
 
 This argues for a patch-based write path, and independently for the distillation
 lane: a module too large for an external agent is too large for a human.

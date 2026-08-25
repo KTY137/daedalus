@@ -1,4 +1,4 @@
-> **TOMBSTONE (2026-08-22).** Era-3 snapshot, kept as history at this path; the live architecture is [docs/architecture-narrative.md](architecture-narrative.md) + [docs/architecture-state.json](architecture-state.json), under [the master plan](IKARUS_ARIADNE_MASTER_PLAN.md). Era-3 context: [docs/ERA3_PLAN.md](ERA3_PLAN.md).
+> **TOMBSTONE (2026-08-22).** Era-3 snapshot, kept as history at this path; the live architecture is [docs/architecture-narrative.md](architecture-narrative.md) + [docs/architecture-state.json](architecture-state.json), under [the master plan](IKARUS_ARIADNE_MASTER_PLAN.md). Era-3 context: [docs/archive/ERA3_PLAN.md](archive/ERA3_PLAN.md).
 
 # Daedalus — Architecture
 
@@ -117,7 +117,7 @@ two UIs can't drift into two products.
 The point isn't "free replaces frontier" — it's **let the free agents eat the
 cheap grind so frontier tokens go to what matters.** Benchmarks bear this out:
 routine slice ~77% projected savings; a greenfield app build correctly stays
-frontier (see `benchmark`, `docs/VALIDATION_RUN.md`).
+frontier (see `benchmark`, `docs/archive/VALIDATION_RUN.md`).
 
 ---
 
@@ -130,7 +130,7 @@ frontier (see `benchmark`, `docs/VALIDATION_RUN.md`).
   whole-repo snapshot diff, and concurrent same-repo runs would cross-attribute
   changes. **`parallel=True`** enables real concurrency *safely*: per-task
   path-scoped attribution + refusal to parallelize path-conflicting write-tasks
-  (see `docs/PARALLEL_DISPATCH.md`). True multi-file throughput awaits
+  (see `docs/archive/PARALLEL_DISPATCH.md`). True multi-file throughput awaits
   per-runtime worktrees.
 
 ---

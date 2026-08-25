@@ -33,23 +33,32 @@ product identity.
 
 ## State of the tree
 
-MEASURED 2026-07-29 by `daedalus map --check` against the working tree. These
-are the *live* counts, not the committed snapshot — see the provenance note
-below, which is the whole reason this section exists.
+MEASURED 2026-08-25 by `daedalus map --check` against the working tree at
+`2de997ef`. These are the *live* counts, not the committed snapshot — see the
+provenance note below, which is the whole reason this section exists.
 
 | | | |
 |---|---:|---|
-| Python modules | 145 | across 10 packages |
-| Islands | 8 | present, but unreached from any entry point |
-| Unreached | 11 | no inbound edge in the call graph |
-| Shims | 3 | pure forwarding, no logic of their own |
-| Test-only | 6 | reached exclusively from `tests/` |
-| Unknown | 0 | parsed, unclassified |
-| Doc-drift | 2 | `FROZEN_GATE_PATHS`, `OLLAMA_NUM_PARALLEL` — documented, not in code |
-| Dark switches | 0 | no env switch reachable but undocumented |
-| Unparsable | 0 | |
+| Harness modules | 294 | tracked `.py` under `daedalus/`, across 21 subpackages |
+| Tracked `.py`, whole tree | 1162 | harness plus tests, tools, scripts, experiments, recovery kits |
+| Modules in the call graph | 1637 | everything `map` walks, tracked or not |
+| Islands | 78 | present, but unreached from any entry point |
+| Unreached | 115 | no inbound edge in the call graph |
+| Shims | 8 | pure forwarding, no logic of their own |
+| Test-only | 42 | reached exclusively from `tests/` |
+| Unknown | 29 | parsed, unclassified |
+| Doc-drift | 35 | documented names no code reads any more |
+| Dark switches | 3 | env switch reachable but undocumented |
+| Unparsable | 1 | |
 
-3043 tests collected (MEASURED 2026-07-29, `pytest tests/ --collect-only`).
+7798 tests collected (MEASURED 2026-08-25, `pytest tests/ --collect-only`,
+383s). `map --check` exits non-zero on **22 blocking items** at that revision.
+
+Read the first row for how big the harness is; read the rest for what the graph
+cannot currently justify. The gap between them is not a harness that grew
+tenfold — the walk covers `experiments/`, `scripts/`, `docs/recovery/*.py` and
+the vault's copies of those kits, and most of the new islands are one-shot
+recovery scripts that were never meant to have an inbound edge.
 
 **Provenance, and why it is not a formality.** `docs/architecture-state.json` is
 a *snapshot*, stamped with the commit it was generated against. When that stamp
@@ -58,6 +67,15 @@ out of it to treat it as untrusted. Numbers copied from a stale snapshot into
 prose are how a document starts describing a system that no longer exists —
 so read the live counts from `map --check`, not from the JSON, unless the
 freshness line confirms they agree.
+
+Right now the snapshot fails its own integrity check, and by more than a stale
+stamp: it was generated against `94eb3515` while HEAD is `2de997ef`, its
+`counts.modules` says 520 where its own module list holds 521, and the digest
+written beside the mechanical lists no longer matches them — which is what a
+hand-edited snapshot looks like [MEASURED 2026-08-25, `map --check`]. The
+snapshot also records a different `.daedalusignore`, so a run today and the
+baseline are not looking at the same tree and their green results are not the
+same claim. Re-baselining it is a reviewed decision, not a docs edit.
 
 The islands are not dead code by assumption — they are code the graph cannot
 currently justify. `daedalus map --check` is the gate: it exits non-zero on a
@@ -70,27 +88,33 @@ explicitly with a date and an owner.
 
 | Path | Purpose |
 |---|---|
-| `daedalus/` | The harness: router, providers, safety core, CLI, and the 9 subpackages below |
+| `daedalus/` | The harness: router, providers, safety core, CLI, and the 21 subpackages below |
 | `agents/` | Built-in agent role registry (JSON) |
 | `templates/` | Project-neutral defaults copied into any repo (`agents/`, `agentenv.json`, `project.example.json`, `CLAUDE.md`, `AGENTS.md`) |
 | `projects/` | Registered repos — one `<name>.json` per project, carrying its policy |
 | `tests/` | Harness test suite |
 | `docs/` | Architecture, protocol, decision records (`docs/adrs/`, one namespace), audit reports |
-| `tools/` | Standalone scripts that are not part of the shipped package |
+| `tools/` | Standalone scripts that are *not* part of the shipped package (`exclude`d in `pyproject.toml`) — distinct from `daedalus/tools/`, which is |
+| `scripts/`, `experiments/` | One-shot operational scripts, and frozen research spikes (`experiments/forest_v2/`). Most of the graph's islands live here |
 | `apps/`, `catalogue/`, `configs/` | Web/app surfaces, GUI catalogue, runtime configuration |
 | `structcore-rs/` | Rust structural core |
 | `vscode-agent-env/` | The VS Code extension (Mission Control) |
-| `outbox/`, `inbox/`, `runs/`, `memory/` | The file bus and local run state — all Git-ignored |
+| `outbox/`, `inbox/`, `runs/`, `memory/` | The file bus and local run state. **Not** wholesale Git-ignored: `.gitignore` excludes the volatile parts (`runs/*.json`, `memory/*.local.*`, `runs/processed/`) while retained evidence is committed — 836 tracked files under `runs/`, 32 under `inbox/` [MEASURED 2026-08-25, `git ls-files`] |
 | `.room/` | Cross-vendor shared transcript ("der Raum") |
 
-The `daedalus` package ships 9 subpackages: `adapters`, `council`, `eval`,
-`kairos`, `mapping`, `memory`, `providers`, `spine`, `structcore`.
+The `daedalus` package ships 21 subpackages: `adapters`, `council`, `eval`,
+`gates`, `gui`, `hooks`, `ignition`, `kairos`, `kernel`, `lanes`, `mapping`,
+`memory`, `observe`, `providers`, `runs`, `runtimes`, `spine`, `structcore`,
+`tools`, `twin`, `wiki`.
 
-> Packaging is load-bearing here. `pyproject.toml` uses an explicit `packages`
-> list, so a subpackage missing from it is simply absent from a built wheel —
-> and the omission is invisible locally, because every install on a dev box is
-> editable. `structcore`, `eval`, and `mapping` have each been missing at some
-> point. Verify with a real wheel, not with an import.
+> Packaging is load-bearing here. `pyproject.toml` now *discovers* them
+> (`[tool.setuptools.packages.find]`, `include = ["daedalus*"]`) instead of
+> naming them one by one. The earlier explicit list is why that changed:
+> `structcore`, `eval`, and `mapping` were each absent from a built wheel at
+> some point, and the omission was invisible locally because every install on a
+> dev box is editable. Discovery removes that particular trap, not the rule —
+> `exclude` still drops `tests*` and `tools*`, and package data is still listed
+> by hand. Verify with a real wheel, not with an import.
 
 ## Architecture layers
 
@@ -213,7 +237,22 @@ required to reach any vendor because it spends real money; `--dry-run` calls
 nothing.
 
 **Keep the map honest**
-`map [--check]` · `bookkeeper update` · `project-memory` · `benchmark`
+`map [--check]` · `bookkeeper update` · `project-memory` · `benchmark` ·
+`tokens`
+
+`tokens` reports what the session has burned — local Claude token usage, the
+spend ledger, the intent spine — and is OBSERVATION ONLY. It reads the ledger
+and decides nothing; the ceiling is enforced in `daedalus/budget.py`.
+
+**Gate-0 evidence**
+`fault-attestation issue|verify` · `fixture-fault-collect` ·
+`fixture-fault-attestation issue|verify`
+
+These are operator steps, deliberately separated from the drivers that produce
+the evidence: the fault driver never calls the attestation command, so
+*producing* evidence is not a way to produce *trust*. The live-host column and
+the deterministic-fixture column have their own authority and their own key, and
+neither issuer can sign the other's rows.
 
 **Configuration**
 `init` · `enforce` · `projects` · `agents` · `categories` · `squads` ·
@@ -318,12 +357,20 @@ Reviewer and test gates run before commit or PR. The Claude/Codex fallback
 policy is in [`docs/FALLBACK.md`](docs/FALLBACK.md): either side can continue
 with memory and tests when the other is unavailable.
 
-Memory is append-only and Git-ignored:
+Memory is append-only, and the `*.local.*` files specifically are Git-ignored:
 
 ```text
 memory/events.local.jsonl   append-only local event log
 memory/todos.local.md       generated human-readable recovery snapshot
 ```
+
+That distinction is load-bearing and easy to get backwards. Local *state* is
+ignored; retained *evidence* is committed. `runs/` is the clearest case — a
+receipt that only ever existed on one machine is not evidence, so the receipts
+are tracked and only the volatile artifacts are excluded. One consequence is
+worth knowing before reading any architecture number: `runs/` currently carries
+1109 Python modules, two thirds of everything `daedalus map` walks. See
+`docs/ARCHITECTURE_BASELINE_20260825.md`.
 
 ## License
 

@@ -4,16 +4,15 @@ This section supersedes everything below it, including the session-8 block.
 Everything below is history: its branch, test counts, and open items describe a
 tree that is no longer where the work happens.
 
-**The one thing to know first: main is now the g0 trunk. The fork ruling settled on Option A (2026-08-22).**
+**The one thing to know first: The fork has unified. There is ONE working tree: `agent_env` on main (2026-08-24).**
 
 | | path | branch | commit |
 | --- | --- | --- | --- |
-| truth (code + tests) | `C:/Users/nukei/Desktop/agent_env_g0` | `main` | `1e0f6a3c` |
-| archived checkpoint | `C:/Users/nukei/Desktop/agent_env` | `checkpoint/2026-07-20-session` (tag: `archive/checkpoint-2026-07-20-session`) | — |
+| truth (code + tests) | `C:/Users/nukei/Desktop/agent_env` | `main` | `2de997ef` |
+| archived/dead | `C:/Users/nukei/Desktop/agent_env_g0` | (not a git repository; no .git directory) | — |
 
-[MEASURED 2026-08-22, Mnemosyne: `git rev-parse HEAD` → `1e0f6a3c…`, `git branch
---show-current` → `main`.] The iron guard was retired (record 7 in ledger, owner
-decision recorded at 2026-08-22). The mission for this session is recorded at
+[MEASURED 2026-08-25, Mnemosyne: `git rev-parse HEAD` → `2de997ef` (hey), `git branch
+--show-current` → `main`. Agent_env_g0 verified not a git tree (no .git dir). Per session memory: Constitutional fork resolved 2026-08-24 with unification merge 9831ddae; ONE checkout remains. Iron guard retired at plan revision 7 (owner decision 2026-08-22).] The mission for this session is recorded at
 `docs/missions/MISSION_2026-08-22.md` — read it before making significant architectural decisions.
 
 **Mission summary:** 20 hours of implementation; main gained 40+ commits since the pre-ruling checkpoint.
