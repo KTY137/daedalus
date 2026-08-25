@@ -1,0 +1,68 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-GR-26",
+  "title": "Repository-Write Chain-Result Artifact Evidence and Byte Verification",
+  "gate": 0,
+  "parent_revision": "85db0c5410118f03f504897fa6f1ad8098a1031b",
+  "parent_branch": "g0/gate-report-chain-result-binding",
+  "branch": "g0/chain-result-artifact-verification",
+  "change_class": "additive-artifact-evidence-and-verification",
+  "authority": "artifact-verification-only",
+  "dependencies": [
+    "G0-RWI-20O",
+    "G0-GR-25"
+  ],
+  "primary_claim": "Canonical repository-write chain-result bytes can be bound to one exact GateReport-v4 and verified into a mechanical receipt without trusting caller-authored counts, authentication booleans, stage-digest sets, report bindings, or semantically equivalent non-canonical JSON.",
+  "scope": {
+    "adds_artifact_evidence_contract": "daedalus-repository-write-chain-artifact-evidence/1",
+    "adds_verification_receipt_contract": "daedalus-repository-write-chain-artifact-verification-receipt/1",
+    "binds_gate_report_v4_sha256": true,
+    "binds_chain_result_schema_and_sha256": true,
+    "binds_inventory_and_classification_sha256": true,
+    "binds_stage_digest_set_sha256": true,
+    "binds_surface_counts_and_authentication_state": true,
+    "requires_exact_canonical_bytes": true,
+    "rejects_empty_or_unauthenticated_clean_report_pair": true,
+    "resolves_artifact_locator": false,
+    "authenticates_artifact_signer": false,
+    "changes_gate_report_v4": false,
+    "changes_release_verifier": false,
+    "issues_owner_approval": false,
+    "closes_gate_0": false,
+    "activates_gate_1": false,
+    "activates_gate_2": false
+  },
+  "acceptance": [
+    "artifact evidence derives evidence_authenticated from exact retained counts",
+    "artifact locator digest equals the declared artifact-content digest",
+    "artifact evidence binds the exact GateReport-v4, chain-result, classification and inventory identities",
+    "verifier accepts exact immutable bytes only and reconstructs chain-result/1 strictly",
+    "duplicate keys, malformed JSON and non-canonical bytes are refused",
+    "artifact-content, chain-result, inventory, classification and stage-digest substitutions are refused",
+    "all retained counts and authentication state are compared to the reconstructed chain result",
+    "an authenticated chain requires an empty repository-write failure set",
+    "an unauthenticated or empty chain requires a non-empty repository-write failure set",
+    "the receipt provenance binds every report, evidence, byte and logical chain identity"
+  ],
+  "verification": {
+    "focused_tests_prepared": 8,
+    "bounded_mutations_prepared": 6,
+    "python_syntax_check": "passed for both implementation modules, focused tests and mutation runner",
+    "isolated_contract_smoke": "passed with dependency stubs for valid receipt, non-canonical-byte refusal, authenticated-chain/report-failure contradiction and empty-clean-chain refusal",
+    "exact_repository_focused_tests": "not executed in this connector session",
+    "bounded_mutation_execution": "not executed in this connector session",
+    "full_suite": "not executed",
+    "packaging": "not executed",
+    "hosted_ci": "no pull-request workflow run observed for either dependency head; issue #67 remains open",
+    "evidence_class": "author-side implementation, syntax and dependency-stub smoke; no exact-head green claim"
+  },
+  "non_goals": [
+    "local-CAS path resolution and TOCTOU-safe read admission",
+    "cross-binding a CAS resolution receipt with this verification receipt",
+    "release-verifier acceptance of GateReport-v4",
+    "artifact signer or collector authentication",
+    "generation of production chain-result evidence for current repository-write surfaces",
+    "OwnerApproval, merge, promotion or Gate transition"
+  ],
+  "next_packet": "Add read-only local-CAS resolution and atomic admission for the exact chain-result artifact, then extend the release verifier with an exact GateReport-v4, admitted chain-result and authenticated evidence tuple."
+}
