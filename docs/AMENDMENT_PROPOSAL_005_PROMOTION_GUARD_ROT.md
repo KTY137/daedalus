@@ -48,7 +48,7 @@ this check", citing:
 
 ```
 $ grep -rn "AUTO_PROMOTE_LEVELS" --include=*.py .
-./tools/iron_plan_guard.py:711
+./tools/iron_plan_guard.py (removed 2026-08-23):711
 ```
 
 That grep was wrong: `--include=*.py` excludes the retained blob. The constant
@@ -83,7 +83,7 @@ top-level assigns: ['_RETAINED_SOURCE_NAME', '_RETAINED_SOURCE_GIT_BLOB_SHA1',
 
 ### Why check 2 is permanently green — the serious half
 
-`tools/iron_plan_guard.py:715`
+`tools/iron_plan_guard.py (removed 2026-08-22):715`
 
 ```python
 if _function_calls_name(gated_tree, "run_write_wave", "promote_candidates"):

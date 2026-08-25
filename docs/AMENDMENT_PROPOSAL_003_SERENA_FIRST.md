@@ -126,7 +126,7 @@ and runs alongside the Iron Plan hook rather than in place of it.
 
 ### The artifact
 
-`.claude/hooks/serena-first.py` — **already written and tested; not yet
+`.claude/hooks/serena-first.py` (replaced by daedalus/hooks/, 2026-08-23) — **already written and tested; not yet
 registered.** `.claude/hooks/` is not protected, so the script itself is ordinary
 work. Only the `settings.json` line that arms it is protected.
 
@@ -169,7 +169,7 @@ Four graded escapes, narrowest first:
          "hooks": [
            {
              "type": "command",
-             "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
+             "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py (removed 2026-08-22)\" || exit 2",
              "timeout": 10,
              "statusMessage": "Guarding the Iron Plan..."
            }
@@ -180,7 +180,7 @@ Four graded escapes, narrowest first:
 +        "hooks": [
 +          {
 +            "type": "command",
-+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/serena-first.py\"",
++            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/serena-first.py (replaced by daedalus/hooks/, 2026-08-23)\"",
 +            "timeout": 10,
 +            "statusMessage": "Routing symbol work through Serena..."
 +          }
@@ -287,7 +287,7 @@ Already produced:
    Serena is reachable, the suite fails.
 3. Serena stdio handshake against the new `.mcp.json` command → `initialize` OK,
    21 tools.
-4. `python tools/iron_plan_guard.py verify` → OK.
+4. `python tools/iron_plan_guard.py (removed 2026-08-23) verify` → OK.
 
 Required before acceptance, and **not yet done** because they need the amended
 `settings.json` live:
@@ -305,20 +305,20 @@ Required before acceptance, and **not yet done** because they need the amended
 Observed while preparing this proposal; **not part of this amendment.**
 
 Two read-only inspections were denied. First a `Grep` over
-`tools/iron_plan_guard.py`:
+`tools/iron_plan_guard.py (removed 2026-08-22)`:
 
 ```
 Protected Iron Plan artifact(s) cannot change in ordinary work:
-tools/iron_plan_guard.py. Follow the owner-approved amendment protocol.
+tools/iron_plan_guard.py (removed 2026-08-22). Follow the owner-approved amendment protocol.
 ```
 
 Then, while gathering evidence for this proposal, a `git status`:
 
 ```
-$ git status --short tests/test_iron_plan_guard.py tools/iron_plan_guard.py \
+$ git status --short tests/test_iron_plan_guard.py (removed 2026-08-23) tools/iron_plan_guard.py \
       docs/IKARUS_ARIADNE_MASTER_PLAN.md
 Protected Iron Plan artifact(s) cannot change in ordinary work:
-tests/test_iron_plan_guard.py, tools/iron_plan_guard.py,
+tests/test_iron_plan_guard.py (removed 2026-08-23), tools/iron_plan_guard.py,
 docs/IKARUS_ARIADNE_MASTER_PLAN.md. Follow the owner-approved amendment
 protocol.
 ```
