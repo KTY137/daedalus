@@ -23,6 +23,13 @@ polyglot = [
     "tree-sitter-cpp==0.23.4",
 ]
 root = ["uproot==5.7.5"]
+# Optional graph engine for composing a run brief (daedalus/langgraph_adapter.py).
+# NOT a runtime dependency of anything: `create_run` defaults to engine="stdlib",
+# nothing under daedalus/ imports langgraph at module scope, and the adapter is
+# one file to delete. Pulls langchain-core and langsmith transitively -- the
+# adapter pins langsmith tracing off explicitly rather than trusting that no
+# environment variable on the machine turns it on.
+orchestration = ["langgraph>=1.2,<2"]
 # Property-based tests (docs/ABSORPTION.md D1). Test-time only: nothing under
 # daedalus/ imports hypothesis, only tests/. MPL-2.0 -- see ABSORPTION.md D1
 # bar 3 for why that licence attaches to nothing here (imported, never
