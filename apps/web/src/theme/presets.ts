@@ -15,6 +15,70 @@ import type { ThemeSpec } from './types';
 
 export const BUILT_INS: ThemeSpec[] = [
   {
+    id: 'referenz',
+    name: 'Referenz',
+    note: 'Aus gemessenen Oberflächen gebaut: fast schwarzer Grund, Flächen als Prozente von Weiß, ein Ring statt Schatten.',
+    base: 'dark',
+    origin: 'measured-2026-08-25',
+    /**
+     * NOT A TASTE. Every value below was read off a shipped interface with
+     * tools/reference.mjs on 2026-08-25 and is quoted here with its source:
+     *
+     *   linear.app     bg rgb(8,9,10); text f7f8f8 / d0d6e0 / 8a8f98 / 62666d;
+     *                  surfaces rgba(255,255,255,.02–.05); radius 6px dominant;
+     *                  shadow `rgba(0,0,0,.2) 0 0 0 1px` — a ring; sizes
+     *                  12/13/15/11/14; weights 510/400/590; tracking -0.13 to
+     *                  -0.18px at body size; gap 8px dominant.
+     *   raycast.com    bg rgb(7,8,10); radius 11px dominant; layered shadow
+     *                  with an inset white highlight.
+     *   graphite.dev   bg lab(2.75) ~ #070707; text hierarchy by ALPHA;
+     *                  radius 10/8/4; gap 8/16/4.
+     *
+     * The accent is Apple's system blue (#0A84FF), which measures 5.46:1 on
+     * this background — above the floor, and not a colour this project chose
+     * because it looked nice.
+     */
+    colors: {
+      room: '#111417',
+      room2: '#08090A',
+      surface: 'rgba(255,255,255,.035)',
+      surface2: 'rgba(255,255,255,.06)',
+      ink: '#F7F8F8',
+      ink2: '#D0D6E0',
+      ink3: '#8A8F98',
+      line: 'rgba(255,255,255,.09)',
+      line2: 'rgba(255,255,255,.055)',
+      accent: '#0A84FF',
+      // Dark ON the blue, not white. Apple's system blue is bright enough to
+      // be readable AS text on this background (5.46:1) and too bright to
+      // carry white text at 11-13px (3.43:1, measured). Something has to give,
+      // and it is not the blue.
+      accentInk: '#031627',
+      live: '#E9A23B',
+      bad: '#F0616D',
+      ok: '#4CC38A',
+      node: '#E7E9EE',
+      node2: '#6C727E',
+      edge: 'rgba(255,255,255,.10)',
+      edgeHot: '#0A84FF'
+    },
+    type: {
+      display: '"SF Pro Display", -apple-system, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif',
+      body: '"SF Pro Text", -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+      mono: 'ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace',
+      // 13 at 1.15 gives 11 / 11.3 / 13 / 15 / 17 / 20 — the measured range.
+      size: 13,
+      scale: 1.15,
+      displayWeight: 600,
+      displayTracking: -0.014,
+      displaySerif: false
+    },
+    form: { radius: 8, border: 1, unit: 8, elevation: 1, material: 'glass', blur: 20, alpha: 0.035 },
+    stage: { layout: 'cards', glyph: 'card', backboneOnly: true, curve: 0, sizeByFanIn: 0.8, glow: 0.12 },
+    composition: { chrome: 'bar', chat: 'column' }
+  },
+
+  {
     id: 'kammer',
     name: 'Kammer',
     note: 'Ein warm ausgeleuchteter Raum aus Perlknoten; die Oberfläche schwebt als Glas darin.',
@@ -263,7 +327,7 @@ export const BUILT_INS: ThemeSpec[] = [
 
 export const BUILT_IN_IDS = new Set(BUILT_INS.map((t) => t.id));
 
-export const DEFAULT_THEME_ID = 'kammer';
+export const DEFAULT_THEME_ID = 'referenz';
 
 export function builtIn(id: string): ThemeSpec | undefined {
   return BUILT_INS.find((t) => t.id === id);

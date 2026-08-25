@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { BUILT_INS } from '../src/theme/presets';
 import { collect, NOT_BUILT } from './_app';
 
 /**
@@ -221,9 +222,20 @@ test.describe('cockpit', () => {
     await page.getByRole('button', { name: 'Themes' }).click();
     await expect(page.locator('.studio.open')).toBeVisible();
 
-    // Six built-ins, one per design of the gallery round.
+    /**
+     * Exactly what the code defines — read FROM the code, not pinned to a
+     * number. A hard-coded 6 turns "someone added a theme" into a red test,
+     * and worse, would stay green if a theme silently vanished while another
+     * was added.
+     */
     const builtIns = page.locator('.studio-body .theme-list').first().locator('li');
-    await expect(builtIns).toHaveCount(6);
+    await expect(builtIns).toHaveCount(BUILT_INS.length);
+    for (const spec of BUILT_INS) {
+      await expect(
+        page.locator('.studio-body .theme-list').first().locator('.theme-name', { hasText: spec.name }),
+        `the built-in ${spec.id} is not listed`
+      ).toHaveCount(1);
+    }
 
     // Pick a different one and prove the SURFACE changed, not just a colour.
     const target = before.id === 'depesche' ? 'Werkstatt' : 'Depesche';
@@ -273,7 +285,7 @@ test.describe('cockpit', () => {
 
     // The built-in must be untouched and still selectable.
     await page.getByRole('tab', { name: 'Themes' }).click();
-    await expect(page.locator('.studio-body .theme-list').first().locator('li')).toHaveCount(6);
+    await expect(page.locator('.studio-body .theme-list').first().locator('li')).toHaveCount(BUILT_INS.length);
   });
 
   test('a question gets a real answer, stamped with what produced it', async ({ page }) => {

@@ -40,6 +40,54 @@ values of `chat` (same reason). Stored themes carrying them migrate to
 | Nachtfenster | bar | with side column | node forest, discs |
 | Leitstand | bar | with side column | cards |
 
+## The look, taken from shipped interfaces
+
+The owner's verdict on the first build, in his words: the nodes, the
+arrangement and the typography were what made it look wrong, and the direction
+should come from real products rather than from taste — *"guck mal im Internet
+wie nicht gevibecodete chat interfaces und graph views aussehen … orientier
+dich an apple designs"*.
+
+`apps/web/tools/reference.mjs` reads a live page's COMPUTED styles in a
+headless browser and prints what the CSS actually says. Run against linear.app,
+vercel.com, raycast.com, obsidian.md, cosmograph.app and graphite.dev on
+2026-08-25, the shared language was unmistakable:
+
+| | measured |
+| --- | --- |
+| background | `rgb(8,9,10)` (Linear) · `rgb(7,8,10)` (Raycast) · `lab(2.75)` ≈ `#070707` (Graphite) |
+| surfaces | white at **2–5 % alpha**, never a heavy pane |
+| text | 3–4 greys, or one colour at descending alpha (Graphite) |
+| radius | **6px** dominant (Linear) · 11px (Raycast) · 10/8/4 (Graphite) |
+| shadow | `rgba(0,0,0,.2) 0 0 0 1px` — **a ring**, plus near-zero layers |
+| type | **11–16px**, weights 400/510/590, **negative** tracking |
+| rhythm | **8px** gap dominant, then 4 and 16 |
+| backdrop blur | used in one to five places, at 4–20px |
+
+The built-in **Referenz** is that language, and the file says which value came
+from where. The accent is Apple's system blue `#0A84FF`, which measures 5.46:1
+on this background; its text is dark, because white on that blue measures
+3.43:1 at 11–13px and something has to give — and it is not the blue.
+
+Three things changed with it:
+
+- **the glyph.** The glossy pearl is gone. A card is now the theme's own
+  surface with a hairline and the theme's own radius, not a white swatch
+  filled with the colour of a graph dot.
+- **the arrangement.** The column layout routes edges as **elbows** — out of
+  the source's side, one turn, into the target's side. Straight
+  centre-to-centre lines through a field of boxes were the "chaos": they cross
+  every card on the way and none of them says which way the dependency runs.
+- **the framing.** Every layout now measures what it drew and centres THAT,
+  instead of centring the coordinate system and leaving a quarter of the
+  canvas empty.
+
+`components.json` moved next to `apps/web/tsconfig.json`, where the shadcn CLI
+can actually read it — at the repository root it could never resolve a
+tsconfig, so the registry toolchain had never run. `@/…` resolves in both
+tsconfig and Vite now, and `GlassSurface`, `SpotlightCard` and `Noise` are
+installed from `@react-bits`.
+
 ## What is real
 
 - the map: `/api/structure` — 349 nodes, 848 edges drawn, 1840 leading off the

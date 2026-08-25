@@ -291,6 +291,51 @@ function avoidBoxes(placed: Placed[], boxes: Box[], width: number, height: numbe
 }
 
 /**
+ * Put the drawing in the middle of the room it has.
+ *
+ * Every layout places relative to the frame's centre, but what it actually
+ * produces is a shape with its own bounding box — one heavy column, an
+ * aggregate glyph hanging below, a second level only on one side. The result
+ * sat high and to the right with a quarter of the canvas empty. This measures
+ * what was drawn and moves all of it, so the picture is centred rather than
+ * the coordinate system.
+ *
+ * The focus moves with everything else: keeping it pinned while its
+ * neighbourhood slid around it is what made the old pictures look off-balance.
+ */
+function centreInFrame(placed: Placed[], width: number, height: number, boxes: Box[]): void {
+  if (!placed.length) return;
+  const boxesOf = placed.map(occupied);
+  const x1 = Math.min(...boxesOf.map((b) => b.x1));
+  const x2 = Math.max(...boxesOf.map((b) => b.x2));
+  const y1 = Math.min(...boxesOf.map((b) => b.y1));
+  const y2 = Math.max(...boxesOf.map((b) => b.y2));
+
+  // The room is the frame minus whatever the interface covers along an edge.
+  let top = 16;
+  let bottom = height - 16;
+  boxes.forEach((b) => {
+    if (b.y1 <= 2) top = Math.max(top, b.y2 + 12);
+    else if (b.y2 >= height - 2) bottom = Math.min(bottom, b.y1 - 12);
+  });
+  if (bottom - top < 160) {
+    top = 16;
+    bottom = height - 16;
+  }
+
+  const dx = (width / 2 - (x1 + x2) / 2) * 0.9;
+  const dy = ((top + bottom) / 2 - (y1 + y2) / 2) * 0.9;
+  // Never push the drawing off the frame to centre it.
+  const clampedX = Math.max(8 - x1, Math.min(dx, width - 8 - x2));
+  const clampedY = Math.max(top - y1, Math.min(dy, bottom - y2));
+  if (Math.abs(clampedX) < 1 && Math.abs(clampedY) < 1) return;
+  placed.forEach((p) => {
+    p.x += clampedX;
+    p.y += clampedY;
+  });
+}
+
+/**
  * Separate labels, not dots.
  *
  * Vertical-only: moving a node sideways changes which side of the focus it
@@ -576,6 +621,7 @@ export function radialLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayou
 
   relaxLabels(placed, width, height);
   avoidBoxes(placed, boxes, width, height);
+  centreInFrame(placed, width, height, boxes);
 
   return {
     placed,
@@ -682,6 +728,7 @@ export function cardLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayout 
 
   relaxLabels(placed, width, height);
   avoidBoxes(placed, boxes, width, height);
+  centreInFrame(placed, width, height, boxes);
 
   return {
     placed,
