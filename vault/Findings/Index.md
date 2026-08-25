@@ -16,4 +16,6 @@ autoritativen Artefakt im Repo. Nie kopieren — `docs/` bleibt die Quelle.
 - [[Higher-Twin-NC-Erstmessung-20260820]] — erste K-Matrix des Interventions-Assays (38 Läufe, Kette verifiziert)
 - [[Vet-Py-Adversarial-Review-20260821]] — vet.py GO-WITH-CHANGES: Frontmatter ungescannt, MCP nie BLOCK, 3 Guards ungetestet
 
+- [[Cockpit-Themes-20260825]] — sechs Gallery-Entwuerfe werden Themes eines laufenden Cockpits (echte Daten, Fake-Data-Test)
+
 Neue Findings: Template [[../Templates/Finding|Finding]] nutzen.
