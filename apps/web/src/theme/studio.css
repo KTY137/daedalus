@@ -1,0 +1,259 @@
+/*
+ * The Theme Studio panel. It uses the ACTIVE theme's own tokens, so editing a
+ * theme changes the editor with it — if a palette makes text unreadable you
+ * find out in the panel that made it, immediately, rather than after closing.
+ */
+
+.studio {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(430px, 94vw);
+  display: flex;
+  flex-direction: column;
+  /* Two layers, and the order matters. A translucent --surface alone let the
+     stage's amber glow through a full-height panel of small labels, and the
+     tab row simply disappeared into it. The room tone underneath makes the
+     panel opaque; the surface tint on top keeps it the theme's material. */
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface), var(--surface));
+  color: var(--ink);
+  border-left: var(--border) solid var(--line);
+  box-shadow: var(--shadow);
+  transform: translateX(102%);
+  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 60;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+}
+.studio.open { transform: none; }
+@media (prefers-reduced-motion: reduce) { .studio { transition: none; } }
+
+:root[data-material='glass'] .studio {
+  backdrop-filter: blur(var(--blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
+}
+
+.studio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--u3) var(--u4);
+  border-bottom: var(--border) solid var(--line2);
+}
+.studio-head h2 {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: var(--fs-lg);
+}
+.studio-close {
+  width: 40px;
+  height: 40px;
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-lg);
+  cursor: pointer;
+}
+.studio-close:hover { color: var(--ink); border-color: var(--line); }
+
+.studio-active {
+  display: flex;
+  gap: var(--u3);
+  align-items: center;
+  padding: var(--u3) var(--u4);
+}
+.studio-active div { display: grid; min-width: 0; }
+.studio-active b { font-size: var(--fs-md); }
+.studio-active span { color: var(--ink3); font-size: var(--fs-xs); }
+
+.swatch {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-sm);
+  border: var(--border) solid var(--line);
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  padding-bottom: 6px;
+  flex: none;
+}
+.swatch i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+
+.studio-note {
+  margin: 0 var(--u4) var(--u2);
+  padding: var(--u2);
+  border-left: 2px solid var(--line);
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+}
+.studio-note.ok { border-color: var(--ok); color: var(--ok); }
+.studio-note.bad { border-color: var(--bad); color: var(--bad); }
+
+.studio-problems {
+  margin: 0 var(--u4) var(--u2);
+  padding-left: var(--u4);
+  color: var(--live);
+  font-size: var(--fs-xs);
+}
+
+.studio-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--u4);
+  border-bottom: var(--border) solid var(--line2);
+  overflow-x: auto;
+}
+.studio-tabs button {
+  min-height: 38px;
+  padding: 0 var(--u2);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.studio-tabs button:hover { color: var(--ink2); }
+.studio-tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+
+.studio-body { overflow: auto; padding: var(--u3) var(--u4) var(--u8); }
+.studio-section { display: grid; gap: var(--u3); margin-bottom: var(--u6); }
+.studio-group-title {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin: var(--u4) 0 var(--u1);
+}
+.studio-hint { color: var(--ink3); font-size: var(--fs-xs); }
+.studio-empty { color: var(--ink2); font-size: var(--fs-sm); }
+.studio-row { display: flex; gap: var(--u2); flex-wrap: wrap; }
+.studio-row button,
+.theme-acts button {
+  min-height: 36px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.studio-row button:disabled, .theme-acts button:disabled { opacity: 0.45; cursor: default; }
+.theme-acts button.danger { color: var(--bad); }
+
+.studio-body textarea {
+  width: 100%;
+  padding: var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  resize: vertical;
+}
+
+/* ------------------------------------------------------------ theme list */
+
+.theme-list { list-style: none; margin: 0 0 var(--u4); padding: 0; display: grid; gap: var(--u1); }
+.theme-list li {
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  padding: var(--u2);
+}
+.theme-list li.on { border-color: var(--accent); }
+.theme-pick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: 'sw name' 'sw note';
+  gap: 0 var(--u3);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  align-items: center;
+}
+.theme-pick .swatch { grid-area: sw; }
+.theme-name { grid-area: name; font-size: var(--fs-md); }
+.theme-note { grid-area: note; color: var(--ink3); font-size: var(--fs-xs); }
+.theme-rename {
+  grid-area: name;
+  min-height: 32px;
+  border: var(--border) solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  padding: 0 var(--u1);
+}
+.theme-acts { display: flex; gap: var(--u1); flex-wrap: wrap; margin-top: var(--u2); }
+
+/* ---------------------------------------------------------------- fields */
+
+.field { display: grid; gap: var(--u1); }
+.field-label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--u2);
+  font-size: var(--fs-xs);
+  color: var(--ink2);
+}
+.field-label b { font-family: var(--font-mono); color: var(--ink); }
+.field input[type='text'] {
+  min-height: 36px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  width: 100%;
+}
+.field input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 24px; }
+
+.color-row { display: flex; gap: var(--u2); align-items: center; }
+.color-row input[type='color'] {
+  width: 40px;
+  height: 36px;
+  padding: 0;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  flex: none;
+}
+.color-chip {
+  width: 40px;
+  height: 36px;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  flex: none;
+}
+
+.choice-row { display: flex; flex-wrap: wrap; gap: var(--u1); }
+.choice-row button {
+  min-height: 36px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.choice-row button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
