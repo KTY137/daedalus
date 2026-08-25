@@ -16,9 +16,22 @@ No contract, no store, no ledger and no promotion path is minted here:
   over a real :class:`daedalus.build.BuildSession`;
 * the two WorkItems are :class:`daedalus.build.BuildTask` objects whose ids come
   from :func:`daedalus.schemas.derive_work_item_id`, bound by the session;
-* each attempt is one :class:`daedalus.spine.attempt.TaskAttempt`, so it crosses
-  the ``python.attempt`` effect boundary and produces the AttemptContract,
-  PolicyDecision, EvidencePacket and AttemptReceipt that path already mints;
+* each attempt is one :class:`daedalus.spine.attempt.TaskAttempt`, which produces
+  the AttemptContract, PolicyDecision, EvidencePacket and AttemptReceipt that
+  path already mints. It does NOT yet cross the ``python.attempt`` effect
+  boundary: :class:`TaskAttempt` takes ``attempt_lease=None`` here (the pre-lease
+  behaviour), so none of the four contracts that
+  :func:`daedalus.kernel.offload_lease.acquire_attempt_lease` runs -- intent
+  ledger check, worktree containment, write fence over the declared target
+  paths, process spend net -- execute for this slice. Measured 2026-08-25
+  (Atalanta): the kept ``spine.sqlite3`` holds ``intents``/``intent_events``
+  only, two ``attempt.candidate`` rows INTENDED -> COMPLETED, no grant/begin/
+  finish triple and no lease column; ``lease_id`` appears nowhere in the receipt
+  tree. Consequence: ``wi-001`` writes ``fourfold.json``, its own scope
+  declaration, with no independent write fence. Closing this means handing
+  line ~793 a real lease and asserting a non-null ``lease_id`` in
+  ``tests/test_ignition_gate1.py``, which today contains no lease assertion at
+  all -- nothing goes red if the slice never leases;
 * the Gate-1 packet is
   :func:`daedalus.kernel.fourfold_evidence.assemble_fourfold_evidence_packet`;
 * the checks are :mod:`daedalus.ignition.checks`.
