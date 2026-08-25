@@ -135,8 +135,15 @@ function Invoke-DaedalusModule {
 
     Push-Location $Root
     try {
-        & $PythonPath @Arguments
-        return $LASTEXITCODE
+        # Capture the native success stream so the function returns exactly one
+        # integer rather than an array containing program output plus exit code.
+        # Write-Host keeps the operator-visible output out of the return stream.
+        $output = & $PythonPath @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+        foreach ($line in $output) {
+            Write-Host $line
+        }
+        return [int]$exitCode
     }
     finally {
         Pop-Location
