@@ -1,0 +1,67 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-GR-27",
+  "title": "Repository-Write Chain Collector Replay Attestation",
+  "gate": 0,
+  "parent_revision": "2c9e7d41a112111f850b089d0a4a107452813f9f",
+  "parent_branch": "g0/chain-result-artifact-verification",
+  "branch": "g0/chain-result-collector-replay-attestation",
+  "change_class": "additive-external-collector-replay-attestation",
+  "authority": "authenticated-evidence-only",
+  "dependencies": [
+    "G0-RWI-20O",
+    "G0-GR-25",
+    "G0-GR-26"
+  ],
+  "primary_claim": "A separately controlled collector can rerun the canonical six-verifier repository-write chain from exact raw authentication inputs, require an exact match with the retained chain-result artifact, and authenticate the result/artifact/report/toolchain identity with a short-lived signature.",
+  "scope": {
+    "adds_collector_attestation_contract": "daedalus-repository-write-chain-collector-replay-attestation/1",
+    "reruns_canonical_chain_builder": true,
+    "accepts_caller_authored_stage_reports": false,
+    "requires_exact_replay_equality": true,
+    "binds_gate_report_v4_sha256": true,
+    "binds_artifact_evidence_and_verification_sha256": true,
+    "binds_artifact_content_and_chain_result_sha256": true,
+    "binds_inventory_classification_and_stage_digest_set": true,
+    "binds_source_and_source_tree_revision": true,
+    "binds_collector_toolchain_sha256": true,
+    "authenticates_collector_signature": true,
+    "limits_attestation_ttl_hours": 24,
+    "changes_existing_chain_result_wire": false,
+    "changes_gate_report_v4": false,
+    "changes_release_verifier": false,
+    "issues_owner_approval": false,
+    "closes_gate_0": false,
+    "activates_gate_1": false,
+    "activates_gate_2": false
+  },
+  "acceptance": [
+    "the issuing path invokes build_repository_write_chain_result with exact typed raw authentication inputs",
+    "non-runtime bindings and their collector-secret map are forwarded to the canonical builder rather than reconstructed from JSON",
+    "a hand-authored all-verified chain result is refused when it differs from the collector replay",
+    "artifact evidence and the byte-verification receipt must exactly match the replayed chain result",
+    "the attestation signs exact report, artifact, verification, byte, chain, inventory, classification, stage-set and toolchain digests",
+    "unknown keys, signature substitution, foreign collector identity and foreign toolchain identity are refused",
+    "current source revision and source-tree revision must match the attestation and every retained subject",
+    "future, expired, overlong and pre-evidence attestations are refused",
+    "negative replay outcomes may be retained but cannot be transformed into evidence_authenticated=true"
+  ],
+  "verification": {
+    "focused_tests_prepared": 10,
+    "bounded_mutations_prepared": 5,
+    "python_ast_parse": "passed for implementation, focused tests and mutation runner",
+    "exact_repository_focused_tests": "not executed in this connector session",
+    "bounded_mutation_execution": "not executed in this connector session",
+    "full_suite": "not executed",
+    "packaging": "not executed",
+    "hosted_ci": "issue #67 remains open; absent or zero-step runs are not evidence",
+    "evidence_class": "author-side source construction and static syntax only; no exact-head green claim"
+  },
+  "non_goals": [
+    "modifying GateReport-v4 placeholder-removal or non-runtime reconstruction semantics",
+    "resolving a CAS locator or defending a path-level TOCTOU read",
+    "making the repository candidate its own trusted collector",
+    "release-verifier admission, OwnerApproval, merge, promotion or Gate transition"
+  ],
+  "next_packet": "After PR #231 uses one shared inventory/classification snapshot and preserves verified non-runtime bindings, require a valid collector replay attestation before any GateReport or release-verifier path may treat the chain result as authenticated."
+}
