@@ -80,6 +80,24 @@ def test_task_is_limited_interactive_and_non_overlapping() -> None:
     assert "-MultipleInstances Parallel" not in text
 
 
+def test_native_subprocess_wrapper_returns_only_the_integer_exit_code() -> None:
+    text = _text()
+    wrapper = _section(
+        text,
+        "function Invoke-DaedalusModule",
+        "function Get-TaskOrNull",
+    )
+    assert "$output = & $PythonPath @Arguments 2>&1" in wrapper
+    assert "$exitCode = $LASTEXITCODE" in wrapper
+    assert "Write-Host $line" in wrapper
+    assert "return [int]$exitCode" in wrapper
+
+    # Partial WhatIf semantics would be dangerous here: an earlier version
+    # could arm the kill switch while only simulating task registration.
+    assert "SupportsShouldProcess" not in text
+    assert "$PSCmdlet.ShouldProcess" not in text
+
+
 def test_human_stop_is_sticky_and_uninstall_stops_before_exit() -> None:
     text = _text()
     assert "daedalus.spine.killswitch', 'stop'" in text
