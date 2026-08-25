@@ -55,9 +55,9 @@ provenance note below, which is the whole reason this section exists.
 `pytest tests/ --collect-only`). That number requires the `test` extra to be
 installed: `pytest`, `jsonschema` and `pytest-asyncio` were used by the suite
 but declared nowhere until 2026-08-25, so an environment with only the declared
-extras collected 116 fewer files and 7 fewer modules and reported it as import
-errors rather than as red tests. `map --check` exits non-zero on **22 blocking
-items** at that revision.
+extras could not import **298 of the 529 files** under `tests/` and reported it
+as import errors rather than as red tests. `map --check` exits non-zero on
+**22 blocking items** at that revision.
 
 Read the first row for how big the harness is; read the rest for what the graph
 cannot currently justify. The gap between them is not a harness that grew

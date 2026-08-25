@@ -33,13 +33,17 @@ orchestration = ["langgraph>=1.2,<2"]
 # Test-time only: nothing under daedalus/ imports either of these, only tests/.
 # The core stays zero-dependency; this extra is what `python -m pytest tests/`
 # (the runner README.md documents) actually needs.
-#   pytest      -- required by 116 of 254 files in tests/ (MEASURED 2026-08-25,
-#                  `grep -l "import pytest" tests/test_*.py | wc -l`). It was
+#   pytest      -- required by 298 of 529 test files (MEASURED 2026-08-25,
+#                  `grep -rl "import pytest" --include="test_*.py" tests | wc -l`
+#                  against `find tests -name "test_*.py" | wc -l`). It was
 #                  undeclared until then, so a fresh checkout whose venv
-#                  installed only the declared extras could not run 46% of the
+#                  installed only the declared extras could not run 56% of the
 #                  suite -- including the Gate-0 fault, containment, promotion
 #                  and killswitch tests -- and got a module-not-found error
 #                  rather than a red test.
+#                  Note the recursion: the first count of this was `tests/test_*.py`,
+#                  which sees only the top level and reported 116 of 254. Both
+#                  halves of a ratio need the same, windowless instrument.
 #   jsonschema  -- required by 7 files in tests/ that validate the Gate-0
 #                  contract schemas (fault matrix, repository write
 #                  classification, provider target receipt retention). Also
