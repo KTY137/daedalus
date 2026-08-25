@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "36079d7c6bb88c03410f93315133fe47489ba222"
+    "head": "1364e415fab183b43485a3cbf563c02d263747ca"
   },
   "counts": {
     "dark_switches": 3,
     "doc_drift": 31,
     "index_extra_edges": 1,
-    "islands": 79,
-    "modules": 1650,
+    "islands": 81,
+    "modules": 1652,
     "shims": 7,
     "test_only": 43,
     "unknown": 29,
     "unparsable": 1,
-    "unreached": 115
+    "unreached": 117
   },
   "ignore": {
     "env": "",
@@ -445,6 +445,8 @@
     "experiments/tensor_embedding/arm_e_tensor_space.py",
     "experiments/tensor_embedding/arm_f_pykeen.py",
     "experiments/tensor_embedding/arm_h_real_fourfold.py",
+    "experiments/tensor_embedding/arm_j_tensor_vs_bm25.py",
+    "experiments/tensor_embedding/arm_k_fusion.py",
     "experiments/tensor_embedding/bench_crossplane.py",
     "experiments/tensor_embedding/hrr.py",
     "runs/ab/blind.py",
@@ -1740,6 +1742,8 @@
     "experiments/forest_v2/tensor_embeddings/sealed_eval.py",
     "experiments/forest_v2/tensor_semantic_composite/backend.py",
     "experiments/forest_v2/tensor_semantic_composite/contracts.py",
+    "experiments/tensor_embedding/arm_j_tensor_vs_bm25.py",
+    "experiments/tensor_embedding/arm_k_fusion.py",
     "experiments/tensor_embedding/hrr.py",
     "runs/deny-floor-corpus/build_corpus.py",
     "runs/deny-floor-corpus/trace_evaluator.py",
@@ -1885,5 +1889,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:e7c5377092ee5ddaa3bded26daf31c1bf2ae7ef986d547c11945e306ec4a4f2c"
+  "digest": "sha256:2244297a422234d4ada8c7678e9f75dd4f84f807b352ff22ce26da7a05647c6f"
 }

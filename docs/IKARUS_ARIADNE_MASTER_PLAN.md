@@ -582,4 +582,4 @@ does not waive owner approval, the amendment record, review, or evidence.
 Rollback is a new amendment, never a history rewrite.
 
 
-Retirement note (2026-08-22, revision 7): the mechanical guard (tools/iron_plan_guard.py, hooks, commit hooks, CI) is retired by owner decision. This plan stays the design authority as a document; changes are owner commits that append a record to the amendment chain by hand. The checkpoint line is frozen at tag archive/checkpoint-2026-07-20-session (e37294c3ff3b); its work is harvested onto main.
+Retirement note (2026-08-22, revision 7): the mechanical guard (tools/iron_plan_guard.py (removed 2026-08-22), hooks, commit hooks, CI) is retired by owner decision. This plan stays the design authority as a document; changes are owner commits that append a record to the amendment chain by hand. The checkpoint line is frozen at tag archive/checkpoint-2026-07-20-session (e37294c3ff3b); its work is harvested onto main.
