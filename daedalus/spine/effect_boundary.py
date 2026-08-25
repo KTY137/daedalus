@@ -1078,14 +1078,25 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="daedalus.kairos.worktree:GitWorktreeManager.create_worktree",
         effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN, Effect.REPOSITORY_MUTATION),
         guard_contracts=("containment.worktree",),
-        wiring=Wiring.LOCAL_GUARDS,
+        wiring=Wiring.CENTRAL,
         anchors=(
             GuardAnchor(
                 "daedalus.kairos.worktree:GitWorktreeManager.create_worktree",
                 "_refuse_if_repo_adjacent",
             ),
+            GuardAnchor(
+                "daedalus.kairos.worktree:GitWorktreeManager.create_worktree",
+                "begin_effect",
+            ),
         ),
-        notes="Allocation is confined and recorded before git worktree creation.",
+        notes=(
+            "Allocation is confined and recorded before git worktree creation. "
+            "BOTH anchors are kept deliberately: the central start is what "
+            "makes this row leasable, and the local check is the thing its "
+            "receipt quotes -- an anchor on begin_effect alone would let the "
+            "confinement proof be deleted while the receipt kept claiming it."
+        ),
+        migration="complete for the worktree.create entrypoint",
     ),
     EntrypointSpec(
         id="worktree.commit",
@@ -1093,14 +1104,23 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="daedalus.kairos.worktree:GitWorktreeManager.commit_candidate",
         effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN, Effect.REPOSITORY_MUTATION),
         guard_contracts=("containment.worktree",),
-        wiring=Wiring.LOCAL_GUARDS,
+        wiring=Wiring.CENTRAL,
         anchors=(
             GuardAnchor(
                 "daedalus.kairos.worktree:GitWorktreeManager.commit_candidate",
                 "_require_allocated_worktree",
             ),
+            GuardAnchor(
+                "daedalus.kairos.worktree:GitWorktreeManager.commit_candidate",
+                "begin_effect",
+            ),
         ),
-        notes="Only a worktree allocated by this manager may be staged and committed.",
+        notes=(
+            "Only a worktree allocated by this manager may be staged and "
+            "committed, and the six allocation proofs now precede a central "
+            "start rather than only a bare `git add -A`."
+        ),
+        migration="complete for the worktree.commit entrypoint",
     ),
     EntrypointSpec(
         id="worktree.cleanup",
@@ -1108,14 +1128,24 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="daedalus.kairos.worktree:GitWorktreeManager.cleanup_worktree",
         effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN, Effect.REPOSITORY_MUTATION),
         guard_contracts=("containment.worktree",),
-        wiring=Wiring.LOCAL_GUARDS,
+        wiring=Wiring.CENTRAL,
         anchors=(
             GuardAnchor(
                 "daedalus.kairos.worktree:GitWorktreeManager.cleanup_worktree",
                 "_require_allocated_worktree",
             ),
+            GuardAnchor(
+                "daedalus.kairos.worktree:GitWorktreeManager.cleanup_worktree",
+                "begin_effect",
+            ),
         ),
-        notes="Removal revalidates allocation and path identity; it is not generic rmtree.",
+        notes=(
+            "Removal revalidates allocation and path identity; it is not "
+            "generic rmtree. The central start sits between the revalidation "
+            "and the first unlink, so a receipt exists for a tree that is "
+            "about to be deleted and not merely for one that was."
+        ),
+        migration="complete for the worktree.cleanup entrypoint",
     ),
     EntrypointSpec(
         id="mcp.runtime",

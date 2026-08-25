@@ -615,6 +615,32 @@ def _remove_tree_no_follow(root: Path,
         _force_rmdir(directory)
 
 
+def _effect_boundary():
+    """The spine's effect boundary, imported at call time.
+
+    LAZY, and not because of a cycle -- ``daedalus.spine.effect_boundary``
+    imports nothing but the standard library, so a module-level import would
+    work. It is lazy for weight: that module is a 3.5k-line registry with an
+    AST scanner in it, and this manager is imported by callers that only want
+    to read a worktree root. ``reap_branches`` already paid for it this way;
+    the three doors migrated on 2026-08-25 share the same call rather than
+    repeating the import block four times.
+
+    Returns:
+        ``(REGISTRY_BY_ID, GuardDecision, begin_effect)``. The callers bind
+        ``begin_effect`` to a local name on purpose: the registry's guard
+        anchor is a mechanical AST check for a literal ``begin_effect`` call
+        in the migrated method, so hiding the call behind a wrapper here would
+        silently move the anchor off the boundary it is meant to pin.
+    """
+    from daedalus.spine.effect_boundary import (
+        REGISTRY_BY_ID,
+        GuardDecision,
+        begin_effect,
+    )
+    return REGISTRY_BY_ID, GuardDecision, begin_effect
+
+
 def remove_tree_no_follow(root: Path,
                           guarded_ancestors: Sequence[Path] = ()) -> None:
     """Public name for :func:`_remove_tree_no_follow`.
@@ -1041,6 +1067,29 @@ class GitWorktreeManager:
                 f"root could not be examined: {e}")
         self._refuse_if_repo_adjacent(resolved_root, "resolved worktree root")
 
+        # CENTRAL START, and this is the last line before the first byte moves.
+        # Everything above is a refusal; `mkdir` below is the first effect, so
+        # the receipt is written for a worktree that is ABOUT to exist, not for
+        # one that already does. The evidence quotes the three checks that just
+        # ran rather than asserting containment in the abstract -- a decision
+        # whose evidence names no check is the thing `begin_effect` refuses.
+        registry, GuardDecision, begin_effect = _effect_boundary()
+        begin_effect(
+            "worktree.create",
+            registry["worktree.create"].effects,
+            (
+                GuardDecision(
+                    "containment.worktree",
+                    True,
+                    f"allocation path {worktree_path} is not repo-adjacent, "
+                    f"lies strictly under the worktree root {_lexical(root)}, "
+                    f"and the resolved root {resolved_root} is not "
+                    f"repo-adjacent either; all three checked before any "
+                    f"directory is created",
+                ),
+            ),
+        )
+
         worktree_path.parent.mkdir(parents=True, exist_ok=True)
         require_storage(str(worktree_path.parent))
 
@@ -1170,6 +1219,31 @@ class GitWorktreeManager:
         # every directory it opens, because a check that happened earlier is
         # not a check that holds now.
         guarded = self._reach_chain(target)[:-1]
+
+        # CENTRAL START, after the proof and before the first unlink. Placing
+        # it after the removal would produce a receipt only for trees that were
+        # successfully deleted, which is exactly the population a receipt is
+        # least needed for: a removal that dies halfway (WorktreeRemovalRace)
+        # would leave a partially deleted tree with no record that anything was
+        # ever authorised to touch it.
+        registry, GuardDecision, begin_effect = _effect_boundary()
+        begin_effect(
+            "worktree.cleanup",
+            registry["worktree.cleanup"].effects,
+            (
+                GuardDecision(
+                    "containment.worktree",
+                    True,
+                    f"{target} passed _require_allocated_worktree (under this "
+                    f"manager's root, not repo-adjacent, no reparse point in "
+                    f"the reach chain lexically or resolved, a real directory, "
+                    f"and holding this manager's creation-time allocation "
+                    f"record); {len(guarded)} ancestor(s) are re-checked by the "
+                    f"no-follow walk itself",
+                ),
+            ),
+        )
+
         try:
             _remove_tree_no_follow(target, guarded_ancestors=guarded)
         except OSError as e:
@@ -1268,15 +1342,11 @@ class GitWorktreeManager:
                 failures are reported together rather than aborting on the
                 first one.
         """
-        from daedalus.spine.effect_boundary import (
-            REGISTRY_BY_ID,
-            GuardDecision,
-            begin_effect,
-        )
+        registry, GuardDecision, begin_effect = _effect_boundary()
 
         begin_effect(
             "worktree.reap",
-            REGISTRY_BY_ID["worktree.reap"].effects,
+            registry["worktree.reap"].effects,
             (
                 GuardDecision(
                     "containment.worktree",
@@ -1455,6 +1525,25 @@ class GitWorktreeManager:
             author: Optional author string (e.g., "Name <email>").
         """
         target = self._require_allocated_worktree(path)
+
+        # CENTRAL START. `git add -A` is the reason this row exists at all: run
+        # against a swapped directory it stages the developer's checkout, so
+        # the allocation proof above and this receipt bracket the one call that
+        # would turn a containment failure into a commit.
+        registry, GuardDecision, begin_effect = _effect_boundary()
+        begin_effect(
+            "worktree.commit",
+            registry["worktree.commit"].effects,
+            (
+                GuardDecision(
+                    "containment.worktree",
+                    True,
+                    f"{target} passed _require_allocated_worktree, so `git add "
+                    f"-A` and the commit below run inside a worktree this "
+                    f"manager allocated for this repository and nowhere else",
+                ),
+            ),
+        )
 
         # Stage all changes
         self._run_git('add', '-A', cwd=target)
