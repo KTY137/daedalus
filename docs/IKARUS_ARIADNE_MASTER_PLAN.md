@@ -547,7 +547,7 @@ Before editing:
 Before handing off:
 
 1. Complete the build/review chain in section 10 or name the exact blocked step.
-2. Run `python tools/iron_plan_guard.py verify`.
+2. Say in one line whether the work is `ALIGNED` / `EXPERIMENT` / `AMENDMENT`.
 3. Report:
 
    `Iron Plan: ALIGNED | EXPERIMENT | AMENDMENT`  

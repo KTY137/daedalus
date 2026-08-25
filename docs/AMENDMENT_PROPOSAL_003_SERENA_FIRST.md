@@ -21,7 +21,7 @@ in scope for this amendment:
   Fixed outside the amendment (`.mcp.json` is not protected): pinned local
   install, direct executable invocation, `context: claude-code`.
 - **Nothing stopped the cheaper Grep/Read habit even when Serena was up.**
-  Fixed by this amendment: `.claude/hooks/serena-first.py`, registered in the
+  Fixed by this amendment: `.claude/hooks/serena-first.py (replaced by daedalus/hooks/, 2026-08-23)`, registered in the
   protected `.claude/settings.json`, denied a declaration-shaped `Grep` and an
   un-scoped `Read` of a file over 120 lines while Serena was reachable,
   redirecting to `find_symbol` / `get_symbols_overview`. Fail-open by
@@ -43,7 +43,7 @@ before the guard was retired.
 
 ## Why it is superseded rather than merely old
 
-The mechanism it registered (`tools/iron_plan_guard.py`'s `settings.json`
+The mechanism it registered (`tools/iron_plan_guard.py (removed 2026-08-22)`'s `settings.json`
 hook block) and the file it enforced through no longer exist; the 2026-08-23
 hooks v2 rewrite (see `docs/superpowers/specs/2026-08-23-hooks-v2-design.md`)
 is a different implementation of the same intent, not a continuation of this

@@ -4,14 +4,14 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "c9f2524f893faa06d1c893eda478eb7bb3b17487"
+    "head": "e680f91cc575cc4409d0db28aa91f33fd8e8b8c6"
   },
   "counts": {
     "dark_switches": 3,
-    "doc_drift": 35,
+    "doc_drift": 32,
     "index_extra_edges": 1,
     "islands": 79,
-    "modules": 1641,
+    "modules": 1642,
     "shims": 8,
     "test_only": 42,
     "unknown": 29,
@@ -437,6 +437,7 @@
     "experiments/forest_v2/tensor_semantic_composite/contracts.py",
     "experiments/tensor_embedding/arm_a_capacity.py",
     "experiments/tensor_embedding/arm_b_fixture.py",
+    "experiments/tensor_embedding/arm_c_arity.py",
     "experiments/tensor_embedding/hrr.py",
     "runs/ab/blind.py",
     "runs/ab/oracle_check.py",
@@ -1863,13 +1864,10 @@
     "doc-only:INVENTORY_ONLY",
     "doc-only:LOCAL_GUARDS",
     "doc-only:MEM_CONFIRM_THRESHOLD",
-    "doc-only:MESSAGE_ARGUMENT",
     "doc-only:NODE_OPTIONS",
     "doc-only:OLLAMA_NUM_PARALLEL",
-    "doc-only:POLICY_ONLY_DIRECTORIES",
     "doc-only:PROTECTED_PATHS",
     "doc-only:SCAN_PACKAGES",
-    "doc-only:SELF_REPAIR",
     "doc-only:TLE_GRACE_S",
     "name-mismatch:DAEDALUS_RTX_SSH~DAEDALUS_RTX_SSH_HOST"
   ],
@@ -1880,5 +1878,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:48264beea919d8907d09028dc8a347ea6c7a7c45f005434c13c2f66f66432d6c"
+  "digest": "sha256:f6622392910bf57cd9a758cfdb39ff76242d349180baff41d101ae1557e0599f"
 }
