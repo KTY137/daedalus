@@ -29,7 +29,7 @@ product, and it is the whole exposure. Everything below follows from it.
 
 - **Does the gate actually run on this path?** Not "is there a fence" — is it *invoked
   here*. Known standing hole: `slice.py` imports nothing from `daedalus.sensitivity`, so
-  assembled slices reach `web_api.py` and `eval/harness.py` ungated. Re-verify rather than
+  assembled slices reach `web_api.py` and `daedalus/eval/harness.py` ungated. Re-verify rather than
   assume it has been fixed.
 - **Do two caches disagree about scope?** A cache keyed by repo root and another keyed by
   root+scope will diverge, and the narrower path inherits the wider one's contents. This

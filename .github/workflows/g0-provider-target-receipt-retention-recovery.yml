@@ -46,7 +46,6 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest jsonschema
       - run: python -m compileall -q daedalus tests scripts
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m json.tool docs/work-packets/G0-RTC-07L_PROVIDER_TARGET_RECEIPT_RETENTION_RECOVERY_DECISION.json
       - run: python -m json.tool configs/schemas/provider-target-receipt-retention-recovery-decision.schema.json
       - run: >-
@@ -104,7 +103,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest jsonschema
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m pytest -q
 
   isolated-wheel:

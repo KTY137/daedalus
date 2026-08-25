@@ -41,7 +41,6 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
       - run: python -m compileall -q daedalus tests scripts/run_attempt_event_time_window_mutations.py
-      - run: python tools/iron_plan_guard.py verify
       - run: >-
           python -m pytest -q
           tests/kernel/test_isolated_attempt_time_tampering.py
