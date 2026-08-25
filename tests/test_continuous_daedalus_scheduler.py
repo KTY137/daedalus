@@ -13,7 +13,7 @@ def _text() -> str:
 
 
 def _section(text: str, start: str, end: str) -> str:
-    before, marker, remainder = text.partition(start)
+    _, marker, remainder = text.partition(start)
     assert marker, f"missing section start: {start}"
     body, marker, _ = remainder.partition(end)
     assert marker, f"missing section end: {end}"
@@ -61,11 +61,8 @@ def test_default_run_is_small_and_finitely_bounded() -> None:
         "QueueLimit": "25",
     }
     for name, value in defaults.items():
-        pattern = rf"\[[^\]]+\]\s*\r?\n\s*\[[^\]]+\]\s*\r?\n\s*\[(?:int|double)\]\${name}\s*=\s*{re.escape(value)}"
-        if name in {"IntervalMinutes", "MaxIterations", "MaxWallClockSeconds", "QueueLimit"}:
-            assert re.search(pattern, text), f"default {name}={value} is not pinned"
-        else:
-            assert f"]${name} = {value}" in text
+        pattern = rf"\[(?:int|double)\]\${name}\s*=\s*{re.escape(value)}"
+        assert re.search(pattern, text), f"default {name}={value} is not pinned"
 
     assert "New-TimeSpan -Days 7300" in text
     assert "($MaxWallClockSeconds + 300)" in text
