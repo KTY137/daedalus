@@ -47,14 +47,16 @@ full-suite CI and require a separate work packet that binds the published
 measurements to their historical source trees. This packet does not rewrite
 historical numbers, delete the negative result, or weaken its rank ceiling.
 
-A later complete run of the retained fault/predecessor scope found one further
-parent blocker: 899 tests passed, two skipped, and
-`test_the_offload_door_lease_dominates_its_bench_write` failed because the
-inventory position `(651, 10)` was absent from the calculated dominance set.
-The candidate and exact parent are byte-identical across that test, offload
-implementation, inventory scanner, and evidence generator, so this packet did
-not introduce the defect. Its semantic classification and repair belong to a
-separate effect-boundary work packet.
+A later local run of the retained fault/predecessor scope appeared to find a
+fourth failure in
+`test_the_offload_door_lease_dominates_its_bench_write`. That measurement was
+invalid: an ignored `build/lib/daedalus/offload.py` copy from an earlier local
+package build contaminated the scanner's repository-wide Python name index.
+The same test passed in 28.86 seconds against a clean exact-parent archive.
+Automatic CI runs pytest before its package build, and the manual predecessor
+job does not build, so this is not a CI or parent-baseline blocker. The observed
+generated-tree sensitivity remains retained as a separate scanner-hardening
+lead; it is not converted into a source failure.
 
 The four workflows without the retired guard were
 `fourfold-polyglot-probe.yml`, `fourfold-v2.yml`,
@@ -249,13 +251,16 @@ to omit or silently deselect slow tests.
 
 On the frozen candidate source, before commit:
 
+- fresh Windows/Python 3.10 environment: 8,903 tests collected in 17.02
+  seconds with only the declared test extra and the two explicit plugins;
 - CI workflow contract: 10 passed;
 - actionlint 1.7.12: zero findings across all three active workflows;
 - compileall over production, tests, scripts, and tools: passed;
 - canonical focused fault tests: 24 passed;
 - bounded fault campaign: self-probe passed and 19/19 exact mutants killed;
-- predecessor/receipt scope: 899 passed, two skipped, and the one parent offload
-  dominance defect documented above failed in 723.99 seconds;
+- predecessor/receipt scope: a contaminated run reached 899 passed and two
+  skipped before the generated-tree offload false failure documented above;
+  the isolated clean-parent offload test then passed;
 - Python sdist/wheel build and twine 7.0.0 check: passed;
 - isolated no-dependency wheel install outside the checkout: all six declared
   resources, package imports, and `daedalus --help` passed;
@@ -266,9 +271,9 @@ On the frozen candidate source, before commit:
   match their exact parent blobs.
 
 The full candidate suite is not recorded as green. One run was intentionally
-stopped after the first three reproducible Forest failures; the complete
-specialized predecessor scope later exposed the fourth known parent defect.
-These negative results are retained rather than converted into a pass.
+stopped after the first three reproducible Forest failures. The later
+generated-tree-contaminated predecessor result is retained as invalid
+measurement rather than being misreported as a fourth source defect.
 
 ## External System-CI blocker
 
@@ -287,9 +292,8 @@ unless the account is upgraded or the repository made public.
 Therefore this packet can repair and locally validate the source definition,
 but exact-head System CI remains **UNVERIFIED** until the owner resolves billing
 and a pushed candidate executes real steps successfully. In addition, the
-three separately documented historical experiment baselines and the separate
-offload dominance defect must be repaired before the combined candidate can
-claim a green full suite.
+three separately documented historical experiment baselines must be repaired
+before the combined candidate can claim a green full suite.
 The billing failure is not a product failure, and a zero-step run is never
 green evidence.
 
@@ -318,8 +322,8 @@ and builds must be run from a frozen tree; any earlier run spanning a source
 change is retained as invalid measurement rather than counted.
 
 The current packet may be committed as an honest source-definition repair, but
-its combined automatic CI acceptance remains red on the four known parent
-defects above. Later baseline-binding and effect-boundary packets must rerun the
+its combined automatic CI acceptance remains red on the three known parent
+experiment baselines above. A later baseline-binding packet must rerun the
 complete frozen suite; a partial run or a collection-only result cannot close
 this condition.
 
