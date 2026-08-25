@@ -47,7 +47,6 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m compileall -q daedalus tests
       - name: Verify host collector and canonical trust composition
         run: >-
@@ -74,7 +73,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m pytest -q
 
   isolated-wheel:

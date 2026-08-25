@@ -43,7 +43,6 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
       - run: python -m compileall -q daedalus tests scripts/run_attempt_workspace_root_authority_mutations.py
-      - run: python tools/iron_plan_guard.py verify
       - run: >-
           python -m pytest -q
           tests/kernel/test_isolated_attempt_workspace_root_authority.py

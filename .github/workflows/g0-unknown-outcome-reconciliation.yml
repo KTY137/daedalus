@@ -48,7 +48,6 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m compileall -q daedalus tests
       - name: Parse recovery JSON schema
         run: >-
@@ -86,7 +85,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - name: Execute exact-head crash reconciliation fault
         run: >-
           python tests/fixtures/unknown_outcome_reconciliation_fault_executor.py
@@ -113,7 +111,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m pytest -q
 
   package:

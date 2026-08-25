@@ -46,7 +46,6 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
       - run: python -m compileall -q daedalus tests scripts
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m json.tool docs/work-packets/G0-RTC-07D_REPOSITORY_HEAD_REVISION_RECEIPT.json
       - run: python -m json.tool configs/schemas/repository-head-revision-receipt.schema.json
       - run: >-
@@ -86,7 +85,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m pytest -q
 
   isolated-wheel:

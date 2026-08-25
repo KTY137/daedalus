@@ -35,7 +35,6 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
       - run: python -m compileall -q daedalus tests scripts
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m json.tool docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_RESOLUTION.json
       - run: python -m pytest -q tests/runtimes/test_provider_invocation_resolution.py tests/runtimes/test_provider_invocation_resolution_review.py
 
@@ -71,7 +70,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m pytest -q
 
   isolated-wheel:

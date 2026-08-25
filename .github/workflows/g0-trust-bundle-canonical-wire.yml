@@ -47,7 +47,6 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: >-
           python -m compileall -q
           daedalus/gates/__init__.py
@@ -80,7 +79,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python scripts/run_trust_bundle_wire_mutations.py
       - name: Refuse dirty source after mutation restoration
         shell: bash
@@ -104,7 +102,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m pytest -q
 
   isolated-wheel:

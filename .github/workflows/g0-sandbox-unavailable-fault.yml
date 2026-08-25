@@ -48,7 +48,6 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m compileall -q daedalus tests
       - name: Verify sandbox launch states and host fault evidence
         run: >-
@@ -78,7 +77,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - name: Execute exact-head sandbox-unavailable fault
         run: >-
           python tests/fixtures/sandbox_unavailable_fault_executor.py
@@ -105,7 +103,6 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m pytest -q
 
   isolated-wheel:

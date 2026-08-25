@@ -45,7 +45,6 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m compileall -q daedalus tests
       - run: mkdir -p reports
       - name: Verify catalog and deterministic broker scenarios

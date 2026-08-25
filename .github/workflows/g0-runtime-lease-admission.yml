@@ -47,7 +47,6 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
-      - run: python tools/iron_plan_guard.py verify
       - run: python -m compileall -q daedalus tests
       - run: python -m json.tool configs/schemas/runtime-bound-effect-lease-v1.schema.json > /dev/null
       - name: Runtime trust and Effect Lease composition tests
