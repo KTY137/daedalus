@@ -1,0 +1,66 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20O",
+  "title": "Canonical Repository-Write Verifier Chain Result",
+  "gate": 0,
+  "parent_revision": "ab6ff3ef601089bef0f3c112295f0844e722cd2d",
+  "parent_branch": "main",
+  "branch": "g0/repository-write-chain-result",
+  "change_class": "additive-evidence-contract",
+  "authority": "authentication-retention-only",
+  "dependencies": [
+    "G0-RWI-20C",
+    "G0-RWI-20D",
+    "G0-RWI-20E",
+    "G0-RWI-20F",
+    "G0-RWI-20J",
+    "G0-RWI-20K",
+    "G0-RWI-20N"
+  ],
+  "primary_claim": "The six in-process repository-write verifiers can be retained as one canonical, revision-bound, content-addressed result without accepting caller-authored stage reports or authentication booleans.",
+  "scope": {
+    "adds_chain_result_schema": "daedalus-gate0-repository-write-chain-result/1",
+    "runs_all_six_verifiers_from_raw_inputs": true,
+    "binds_source_revision": true,
+    "binds_inventory_digest": true,
+    "binds_classification_digest": true,
+    "binds_all_stage_report_digests": true,
+    "retains_per_surface_stage_verdicts": true,
+    "derives_all_counts_and_booleans": true,
+    "rejects_candidate_blockers_as_authenticated": true,
+    "strict_loader": true,
+    "modifies_gate_report": false,
+    "changes_surface_classification": false,
+    "changes_scanner": false,
+    "issues_effect_authority": false,
+    "closes_gate_0": false,
+    "activates_gate_1": false,
+    "activates_gate_2": false
+  },
+  "acceptance": [
+    "all six AuthenticationStage values have exactly one bound digest",
+    "every classified surface has exactly one canonical terminal record",
+    "a candidate blocker makes the surface unauthenticated even when every stage verdict is verified",
+    "a missing inventory surface makes aggregate evidence_authenticated false",
+    "derived counts, evidence_authenticated, stage maps and digest substitution are refused",
+    "duplicate JSON keys and non-canonical retained artifacts are refused",
+    "loading is read-only and cannot mint verifier output"
+  ],
+  "verification": {
+    "new_focused_tests_prepared": 5,
+    "python_syntax_check": "passed for implementation and focused test module",
+    "isolated_contract_smoke": "passed with dependency stubs; canonical round-trip and blocked-row refusal exercised",
+    "exact_repository_focused_tests": "not executed in this connector session",
+    "full_suite": "not executed",
+    "packaging": "not executed",
+    "hosted_ci": "blocked by open issue #67 until jobs reach real steps",
+    "evidence_class": "author-side preparation; no exact-head green claim"
+  },
+  "non_goals": [
+    "GateReport-v3 consumption of the chain-result locator",
+    "production persistence of the artifact",
+    "classification of currently unclassified write surfaces",
+    "owner approval, promotion, merge or gate transition"
+  ],
+  "next_packet": "Bind a strictly loaded chain-result digest into the next GateReport schema and refuse stale or foreign classification, inventory, revision and stage identities."
+}
