@@ -9,14 +9,14 @@ existing bounded loop rather than inventing a second autonomous worker.
 The Windows task `\Daedalus\GateLoop` starts:
 
 ```powershell
-python -m daedalus.loop \
-  --repo-root <this checkout> \
-  --max-iterations 3 \
-  --max-wall-clock-s 1500 \
-  --max-spend-usd 1.00 \
-  --max-attempts-per-candidate 1 \
-  --queue-limit 25 \
-  --json \
+python -m daedalus.loop `
+  --repo-root <this checkout> `
+  --max-iterations 3 `
+  --max-wall-clock-s 1500 `
+  --max-spend-usd 1.00 `
+  --max-attempts-per-candidate 1 `
+  --queue-limit 25 `
+  --json `
   --arm
 ```
 
