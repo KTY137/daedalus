@@ -1,0 +1,71 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-GR-25",
+  "title": "GateReport-v4 Repository-Write Chain-Result Binding",
+  "gate": 0,
+  "parent_revision": "4eda464cbe1bd3e5c09e3f75627dca46754017e7",
+  "parent_branch": "g0/repository-write-chain-result",
+  "branch": "g0/gate-report-chain-result-binding",
+  "change_class": "additive-gate-report-strangler",
+  "authority": "report-binding-only",
+  "dependencies": [
+    "G0-RWI-20O",
+    "G0-GR-24"
+  ],
+  "primary_claim": "A Gate report can replace its placeholder repository-write authentication failures only after strictly binding one canonical verifier-chain result to the exact source revision, inventory, classification projection, surface identities, candidate blockers, stage applicability and non-runtime applicability identity.",
+  "scope": {
+    "adds_gate_report_schema": "daedalus-gate-report/6",
+    "adds_gate_report_class": "GateReportV4",
+    "preserves_gate_report_v3": true,
+    "binds_chain_result_schema": true,
+    "binds_chain_result_sha256": true,
+    "rederives_surface_identity": true,
+    "rederives_candidate_blockers": true,
+    "rederives_stage_applicability": true,
+    "rederives_non_runtime_binding": true,
+    "uses_repeated_report_drift_fence": true,
+    "uses_repeated_chain_drift_fence": true,
+    "strips_placeholder_authentication_failures_only_after_valid_binding": true,
+    "changes_gate_report_v3_wire": false,
+    "changes_classification_wire": false,
+    "changes_chain_result_wire": false,
+    "changes_release_verifier": false,
+    "issues_owner_approval": false,
+    "closes_gate_0": false,
+    "activates_gate_1": false,
+    "activates_gate_2": false
+  },
+  "acceptance": [
+    "a valid exact chain result is bound into GateReport-v4 by schema and canonical digest",
+    "foreign source revision, inventory or classification identity is refused",
+    "surface path, line, column, origin and binding digest must agree",
+    "classification verdict and candidate blockers must be re-derived and agree",
+    "stage applicability cannot be shortened to make a conjunction easier",
+    "non-runtime conformity applicability requires the exact retained execution identity",
+    "a refused or missing chain cannot remove GateReport-v3 authentication failures",
+    "a valid but unauthenticated chain replaces placeholders with its actual per-surface pending stages",
+    "report and chain inputs are each checked twice for drift",
+    "chain schema and digest remain mandatory GateReport-v4 blockers"
+  ],
+  "verification": {
+    "focused_tests_prepared": 8,
+    "bounded_mutations_prepared": 5,
+    "static_contract_review": "performed against GateReport-v3, classification-v2 and chain-result/1 source contracts",
+    "python_syntax_check": "not executed in this connector session",
+    "exact_repository_focused_tests": "not executed in this connector session",
+    "bounded_mutation_execution": "not executed in this connector session",
+    "full_suite": "not executed",
+    "packaging": "not executed",
+    "hosted_ci": "no pull-request workflow run observed for the dependency head; issue #67 remains open",
+    "evidence_class": "author-side implementation and test preparation; no exact-head green claim"
+  },
+  "non_goals": [
+    "replacement or removal of GateReport-v3",
+    "acceptance of caller-supplied stage reports",
+    "release-verifier acceptance of GateReport-v4",
+    "CAS resolution or signer authentication for the chain-result artifact",
+    "production evidence generation for current repository-write surfaces",
+    "OwnerApproval, merge, promotion or Gate transition"
+  ],
+  "next_packet": "Add immutable chain-result artifact evidence, strict CAS admission and release-verifier support for the exact GateReport-v4/chain-result pair; then generate exact-head production evidence for the remaining classified write surfaces."
+}
