@@ -430,6 +430,117 @@ test.describe('cockpit', () => {
     expect(text, 'the plan says nothing about the latent route').toMatch(/latent/i);
   });
 
+  test('the theme studio can always be navigated back out of', async ({ page }) => {
+    await openCockpit(page);
+    await waitForStage(page);
+    await page.getByRole('button', { name: 'Themes' }).click();
+    await expect(page.locator('.studio.open')).toBeVisible();
+
+    /**
+     * The tab row is a flex item in a column whose body scrolls, and flex
+     * items shrink: with a notice and a problem list present it collapsed to
+     * 14px tall — present in the DOM, unhittable on screen. The owner's report
+     * was "im theme editor hardstuck bei Farbe". Height is the assertion,
+     * because visibility was never the problem.
+     */
+    for (const name of ['Farbe', 'Schrift', 'Form', 'Bühne', 'Aufbau', 'Daten']) {
+      await page.getByRole('tab', { name }).click();
+      const tabs = page.locator('.studio-tabs');
+      const box = await tabs.boundingBox();
+      expect(box, 'the tab row has no box at all').not.toBeNull();
+      expect(
+        Math.round(box!.height),
+        `the tab row collapsed to ${Math.round(box!.height ?? 0)}px on the ${name} tab`
+      ).toBeGreaterThanOrEqual(40);
+
+      // …and a second way back that does not depend on that row.
+      await expect(page.getByRole('button', { name: /Zurück zur Theme-Liste/ })).toBeVisible();
+    }
+
+    await page.getByRole('button', { name: /Zurück zur Theme-Liste/ }).click();
+    await expect(page.locator('.studio-body .theme-list').first()).toBeVisible();
+  });
+
+  test('the thread survives a reload, which is what makes it a conversation', async ({ page }) => {
+    await openCockpit(page);
+    await waitForStage(page);
+    await goChat(page);
+
+    // Start from a clean thread so the assertion is about THIS turn. The view
+    // is pinned too: a reload lands on the remembered page, and waiting for
+    // the map on the conversation page is waiting for something that is
+    // correctly not there.
+    await page.evaluate(() => {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('daedalus-thread:'))
+        .forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem('daedalus-cockpit-view', 'chat');
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.talk-main')).toBeVisible({ timeout: 60_000 });
+
+    const question = 'status';
+    await page.getByLabel('Nachricht an Ikarus').fill(question);
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect(page.locator('.turn.ikarus .stamp').last()).toBeVisible({ timeout: 60_000 });
+
+    const thread = await page.evaluate(() =>
+      Object.entries(localStorage).find(([k]) => k.startsWith('daedalus-thread:'))?.[1]
+    );
+    expect(thread, 'no conversation id was minted, so nothing can be remembered').toBeTruthy();
+
+    /**
+     * THE POINT. A row of one-shot answers looks identical to a conversation
+     * until you reload. The backend has had a durable conversation store the
+     * whole time (daedalus/conversation.py); it simply had no caller.
+     */
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.talk-main')).toBeVisible({ timeout: 60_000 });
+
+    await expect(
+      page.locator('.turn.you').filter({ hasText: question }).first(),
+      'the question is gone after a reload — the thread is not durable'
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.turn.ikarus').first()).toBeVisible();
+  });
+
+  test('settings names the brain, the autonomy level and what is reachable', async ({ page }) => {
+    await openCockpit(page);
+    await waitForStage(page);
+
+    await page.getByRole('button', { name: 'Einstellungen' }).click();
+    const panel = page.locator('.settings.open');
+    await expect(panel).toBeVisible();
+
+    // Reachability is read from the runtime registry, not decorated. Wait for a
+    // ROW, not for any list item — the "still checking" line is an item too,
+    // and waiting for it would let this assertion pass without looking.
+    await expect(panel.locator('.reach-row').first()).toBeVisible({ timeout: 90_000 });
+    const rows = await panel.locator('.reach-row').count();
+    expect(rows, 'no runtime was listed at all').toBeGreaterThan(0);
+
+    // Only reachable runtimes may be offered as a brain: a list that offers an
+    // unreachable option is a list that lies.
+    const offered = await panel.locator('[role="radiogroup"][aria-label="Brain"] button').allInnerTexts();
+    const reachableNames = await panel
+      .locator('.reach li')
+      .filter({ has: page.locator('.reach-state.ok') })
+      .locator('.reach-name')
+      .allInnerTexts();
+    const extra = offered
+      .map((t) => t.trim())
+      .filter((t) => t !== 'Automatisch')
+      .filter((t) => !reachableNames.map((n) => n.trim()).includes(t));
+    expect(extra, `the brain picker offered runtimes that are not reachable: ${extra.join(', ')}`).toHaveLength(0);
+
+    // All four autonomy levels, and the dangerous one says what it does.
+    const levels = await panel.locator('.autonomy button b').allInnerTexts();
+    expect(levels.map((l) => l.trim())).toEqual(['Aus', 'Vorschläge', 'Entwürfe mit Grenzen', 'Alles']);
+    await panel.locator('.autonomy button', { hasText: 'Alles' }).click();
+    await expect(panel.locator('.settings-hint.bad', { hasText: /ohne Klick in dein Repository/ })).toBeVisible();
+    await panel.locator('.autonomy button', { hasText: 'Aus' }).first().click();
+  });
+
   test('the composer is live, or it is not there', async ({ page }) => {
     await openCockpit(page);
     await waitForStage(page);

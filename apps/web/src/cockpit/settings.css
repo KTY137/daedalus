@@ -1,0 +1,161 @@
+/*
+ * The settings panel. Same drawer mechanics as the Theme Studio — including
+ * `flex: none` on every band, because the studio's tab row once collapsed to
+ * 14px for exactly the reason a flex column shrinks its children.
+ */
+
+.settings {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(460px, 94vw);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface), var(--surface));
+  color: var(--ink);
+  border-left: var(--border) solid var(--line);
+  box-shadow: var(--shadow);
+  transform: translateX(102%);
+  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 60;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+}
+.settings.open { transform: none; }
+@media (prefers-reduced-motion: reduce) { .settings { transition: none; } }
+
+:root[data-material='glass'] .settings {
+  backdrop-filter: blur(var(--blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
+}
+
+.settings-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--u3) var(--u4);
+  border-bottom: var(--border) solid var(--line2);
+}
+.settings-head h2 {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: var(--fs-lg);
+}
+.settings-close {
+  width: 44px;
+  height: 44px;
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-lg);
+  cursor: pointer;
+}
+.settings-close:hover { color: var(--ink); border-color: var(--line); }
+
+.settings-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--u3) var(--u4) var(--u8); }
+.settings-section { margin-bottom: var(--u6); }
+.settings-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-bottom: var(--u2);
+}
+.settings-refresh {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+.settings-refresh:disabled { opacity: 0.5; cursor: default; }
+.settings-hint { color: var(--ink3); font-size: var(--fs-xs); margin-bottom: var(--u2); }
+.settings-hint.bad { color: var(--bad); }
+
+/* ------------------------------------------------------------- autonomy */
+
+.autonomy { display: grid; gap: var(--u1); }
+.autonomy button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: var(--u2);
+  min-height: 44px;
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  cursor: pointer;
+}
+.autonomy button b { color: var(--ink); font-size: var(--fs-sm); }
+.autonomy button span { font-size: var(--fs-xs); color: var(--ink3); }
+.autonomy button.on { border-color: var(--accent); background: var(--surface2); }
+.autonomy button.on b { color: var(--accent); }
+
+/* -------------------------------------------------------- reachability */
+
+.reach { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--u1); }
+.reach-row {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  min-height: 44px;
+}
+.reach-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reach-state { font-size: var(--fs-xs); }
+.reach-state.ok { color: var(--ok); }
+.reach-state.warn { color: var(--live); }
+.reach-state.bad { color: var(--bad); }
+.reach-row button {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.reach-row button:disabled { opacity: 0.5; cursor: default; }
+.reach-detail {
+  display: grid;
+  gap: 2px;
+  padding: 0 0 var(--u2) 15px;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+  word-break: break-word;
+}
+.reach-detail .bad { color: var(--bad); }
+
+/* ------------------------------------------------------------ the log */
+
+.autolog { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--u2); }
+.autolog li {
+  display: grid;
+  gap: 1px;
+  border-left: 2px solid var(--line);
+  padding-left: var(--u2);
+  font-size: var(--fs-xs);
+}
+.autolog-when { color: var(--ink3); }
+.autolog-what { color: var(--ink); }
+.autolog-detail { color: var(--ink2); word-break: break-word; }
+.autolog-level { color: var(--ink3); }

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyDraft, dismissDraft, getDraft, getDrafts, type DraftDetail, type DraftRow } from '../api';
+import { recordAutonomy, withinLimits, type AutonomyLevel } from './autonomy';
 
 /**
  * The one thing waiting for a person.
@@ -21,15 +22,25 @@ export interface DecisionProps {
   onChanged?: () => void;
   /** how many drafts are pending, so the navigation can say so */
   onCount?: (n: number) => void;
+  /** how much may happen without a click */
+  autonomy?: AutonomyLevel;
+  /** something was applied automatically, so the log view can re-read */
+  onAutomatic?: () => void;
 }
 
-export function Decision({ signal = 0, onChanged, onCount }: DecisionProps) {
+export function Decision({ signal = 0, onChanged, onCount, autonomy = 'aus', onAutomatic }: DecisionProps) {
   const [pending, setPending] = useState<DraftRow[]>([]);
   const [detail, setDetail] = useState<DraftDetail | undefined>();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [autoNote, setAutoNote] = useState('');
+  const autonomyRef = useRef(autonomy);
+  autonomyRef.current = autonomy;
+  /** drafts this session already decided about automatically, so a failed
+   *  apply is never retried in a loop */
+  const handled = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -54,6 +65,59 @@ export function Decision({ signal = 0, onChanged, onCount }: DecisionProps) {
   useEffect(() => {
     setOpen(false);
     setDetail(undefined);
+  }, [current?.id]);
+
+  /**
+   * APPLYING A DRAFT WITHOUT ASKING.
+   *
+   * Only at `entwuerfe` and `alles`, only once per draft per session, and at
+   * `entwuerfe` only when the draft's own report clears the limits in
+   * autonomy.ts. Every automatic apply is written to the log; a refusal is
+   * written to the card, in the reason's own words, so "it did not do it" is
+   * never silent either.
+   */
+  useEffect(() => {
+    const level = autonomyRef.current;
+    if (!current || level === 'aus' || level === 'vorschlaege') return;
+    if (handled.current.has(current.id)) return;
+    handled.current.add(current.id);
+
+    let alive = true;
+    (async () => {
+      try {
+        const full = await getDraft(current.id);
+        if (!alive) return;
+        const report = full.draft?.report;
+        const shape = {
+          files: report?.files_changed || [],
+          risks: report?.risks || [],
+          status: report?.status
+        };
+        const verdict = level === 'alles' ? { ok: true, why: '' } : withinLimits(shape);
+        if (!verdict.ok) {
+          setAutoNote(`Nicht automatisch angewandt — ${verdict.why}. Entscheide selbst.`);
+          return;
+        }
+        await applyDraft(current.id);
+        if (!alive) return;
+        recordAutonomy({
+          what: 'Entwurf angewandt',
+          detail: `${current.objective || current.id} · ${shape.files.length} Datei(en)`,
+          level
+        });
+        setAutoNote('');
+        onAutomatic?.();
+        await load();
+        onChanged?.();
+      } catch (e) {
+        if (alive) setAutoNote(`Automatisch anwenden fehlgeschlagen: ${e instanceof Error ? e.message : 'unbekannt'}`);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
   const why = useCallback(async () => {
@@ -141,6 +205,7 @@ export function Decision({ signal = 0, onChanged, onCount }: DecisionProps) {
         </button>
       </div>
 
+      {autoNote && <p className="decision-auto">{autoNote}</p>}
       {error && <p className="decision-error" role="alert">{error}</p>}
 
       {open && (
