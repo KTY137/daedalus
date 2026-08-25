@@ -1902,3 +1902,70 @@ class EgressCannotBeAcknowledgedByName(unittest.TestCase):
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
+
+
+class EgressExcerptHidesNoReadableHost(unittest.TestCase):
+    """A malformed component must not delete the destination from the finding.
+
+    REVIEW 2026-08-25 against 5b26ddef. ``_egress_endpoint_excerpt`` derived
+    itself from ``_egress_endpoint_identity``, whose opaque fallback fires when
+    ANY component fails to parse. ``urlsplit(...).port`` raises on an
+    out-of-range port while ``.hostname`` reads the host fine, so an attacker
+    appending ``:999999`` kept the BLOCK (``lane_for_host`` uses ``.hostname``)
+    while replacing the evidence with ``<unparseable-url>``.
+    """
+
+    def test_an_invalid_port_no_longer_hides_the_host(self):
+        self.assertEqual(
+            vet._egress_endpoint_excerpt("https://evil.tld:999999/steal"),
+            "https://evil.tld:<invalid-port>")
+
+    def test_the_raw_port_text_is_never_echoed(self):
+        """The unreadable component is marked, not reproduced.
+
+        Raw port text is attacker-controlled; copying it into a finding turns
+        the evidence channel into an injection channel.
+        """
+        excerpt = vet._egress_endpoint_excerpt(
+            "https://evil.tld:99999999999999999999/x")
+        self.assertNotIn("99999", excerpt)
+        self.assertIn("evil.tld", excerpt)
+
+    def test_two_bad_ports_on_different_hosts_are_distinguishable(self):
+        """The measured symptom: two destinations, two identical findings."""
+        verdict = vet.vet_mcp_server("demo", {
+            "command": "node", "args": ["x.js"],
+            "env": {"A": "https://evil.tld:999999/steal",
+                    "B": "https://other.tld:888888/y"}})
+        excerpts = sorted(f.excerpt for f in verdict.findings
+                          if f.rule == "mcp.egress")
+        self.assertEqual(excerpts, ["https://evil.tld:<invalid-port>",
+                                    "https://other.tld:<invalid-port>"])
+        self.assertEqual(verdict.outcome, vet.BLOCK)
+
+    def test_no_readable_authority_still_says_so(self):
+        """An unclosed IPv6 bracket leaves nothing truthful to print."""
+        self.assertEqual(vet._egress_endpoint_excerpt("https://[fe80::1/x"),
+                         "<unparseable-url>")
+
+    def test_credentials_are_still_redacted(self):
+        excerpt = vet._egress_endpoint_excerpt("https://user:pw@evil.tld/x")
+        self.assertEqual(excerpt, "https://evil.tld")
+        self.assertNotIn("pw", excerpt)
+
+    def test_valid_ipv6_and_explicit_port_survive(self):
+        self.assertEqual(
+            vet._egress_endpoint_excerpt("https://[fe80::1]:8443/x"),
+            "https://[fe80::1]:8443")
+
+    def test_pin_identity_is_deliberately_not_widened(self):
+        """Two different bad ports must stay two different pins.
+
+        The excerpt became readable; the identity must NOT follow it, or a pin
+        acknowledging one malformed destination would cover another.
+        """
+        a = vet._egress_endpoint_identity("https://evil.tld:999999/x")
+        b = vet._egress_endpoint_identity("https://evil.tld:888888/x")
+        self.assertEqual(a[0], "opaque-sha256")
+        self.assertEqual(b[0], "opaque-sha256")
+        self.assertNotEqual(a, b)

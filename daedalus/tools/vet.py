@@ -1109,12 +1109,53 @@ def _egress_endpoint_identities(sources) -> list[tuple[str, str, str]]:
 
 
 def _egress_endpoint_excerpt(url: str) -> str:
-    """Human-readable destination without URL credentials or path material."""
-    scheme, host, port = _egress_endpoint_identity(url)
-    if scheme == "opaque-sha256":
+    """Human-readable destination without URL credentials or path material.
+
+    PARSES FOR ITSELF, and does not reduce :func:`_egress_endpoint_identity`.
+    The two want opposite things from a malformed URL and sharing one parse
+    made the weaker one win.
+
+    REVIEW 2026-08-25 (Athena, against 5b26ddef). ``_egress_endpoint_identity``
+    falls back to an opaque digest whenever ANY component fails to parse, and
+    ``urlsplit(...).port`` raises for an out-of-range port while
+    ``.hostname`` returns the host perfectly well. Deriving the excerpt from
+    the identity therefore printed ``<unparseable-url>`` for
+    ``https://evil.tld:999999/steal`` -- a readable host, hidden behind one
+    bad integer. MEASURED: a spec with two such env URLs produced two
+    BYTE-IDENTICAL block findings, so the reviewer could not see that there
+    were two destinations, let alone which. The block itself never wavered
+    (``lane_for_host`` reads ``.hostname`` and still called both untrusted),
+    so this was never a fail-open -- it was invariant 3 failing: a finding a
+    human cannot overrule by looking is a finding they can only argue with.
+
+    The identity is deliberately NOT changed to match. Its opaque fallback is
+    what keeps two different malformed URLs distinct in
+    :func:`mcp_spec_digest`; collapsing them onto ``(scheme, host,
+    "<invalid>")`` would let a pin for one bad port acknowledge another.
+
+    The unreadable component is MARKED, never echoed: the raw port text is
+    attacker-controlled and reproducing it in a finding is how the evidence
+    channel becomes an injection channel. The host is echoed, because hiding
+    it is precisely what an out-of-range port would otherwise buy.
+    """
+    from urllib.parse import urlsplit
+
+    try:
+        parsed = urlsplit(url)
+        scheme = parsed.scheme.strip().lower()
+        host = (parsed.hostname or "").strip().lower()
+    except (ValueError, UnicodeError):
+        # No authority survived the parse at all (an unclosed IPv6 bracket,
+        # for one). There is nothing truthful left to print.
+        return "<unparseable-url>"
+    if not (scheme and host):
         return "<unparseable-url>"
     display_host = f"[{host}]" if ":" in host else host
-    return f"{scheme}://{display_host}{':' + port if port else ''}"
+    try:
+        port = "" if parsed.port is None else f":{parsed.port}"
+    except (ValueError, UnicodeError):
+        port = ":<invalid-port>"
+    return f"{scheme}://{display_host}{port}"
 
 
 #: The floor, applied to every token whether or not a launcher was recognised.
