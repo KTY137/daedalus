@@ -99,8 +99,8 @@ protected. Left alone: it is a hint, not an order, and it fails closed.
   `- run: python tools/iron_plan_guard.py verify`, no `continue-on-error`; in
   26 of the 94 the step sat above `pytest`. Removed; 0 lines added.
 - `.github/CODEOWNERS` — 6 ownership lines naming the ceremony
-  (`iron_plan_guard.py`, `iron_plan_hook_runner.py`,
-  `test_iron_plan_guard.py`, `enforce-iron-plan/`, `.githooks/`,
+  (`iron_plan_guard.py (removed 2026-08-22)`, `iron_plan_hook_runner.py (removed 2026-08-22)`,
+  `test_iron_plan_guard.py (removed 2026-08-22)`, `enforce-iron-plan/`, `.githooks/`,
   `workflows/iron-plan.yml` (removed 2026-08-22)). Removed. `/.codex/` is also dead and was **left**
   — it is not part of this ceremony.
 
