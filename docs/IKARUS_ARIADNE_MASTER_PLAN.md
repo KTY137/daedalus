@@ -1,12 +1,12 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 7
-Version: 1.2.3
+Revision: 8
+Version: 1.3.0
 Status: adopted  
 Date: 2026-08-02
 Owner: repository owner  
-Active delivery gate: Gate 0 — Canonical Kernel  
+Active delivery gate: Gate 1 — Renovation ignition slice  
 Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`
 
 This is the sole semantic authority for Daedalus architecture, product order,
@@ -366,7 +366,7 @@ complete.
 Work advances in order. A later-gate experiment may be prototyped only when it
 does not create a competing kernel and is explicitly labelled experimental.
 
-### Gate 0 — Canonical Kernel (active)
+### Gate 0 — Canonical Kernel (closed 2026-08-26, scoped owner decision)
 
 Deliver:
 
@@ -386,7 +386,7 @@ Deliver:
 Exit only when a fault-injection matrix demonstrates fail-closed protected
 effects and fail-open read-only inspection.
 
-### Gate 1 — Renovation ignition slice
+### Gate 1 — Renovation ignition slice (active)
 
 Prove one vertical Renovation mission: propagate `Event.voltage -> bias_voltage` across
 Python, Markdown, and CSV. Ikarus produces one MissionContract; the four planes
@@ -469,6 +469,21 @@ gate. This amendment makes the following constraints authoritative:
 4. Gate-0 closure still requires the remaining effectful-entrypoint migration,
    live runtime receipts, the complete fault matrix, independent architecture
    and security review, and an explicit owner closure decision.
+
+### Revision 8 — Scoped Gate-0 closure (2026-08-26)
+
+By explicit owner instruction of 2026-08-26, Gate 0 is closed as a SCOPED
+owner decision recorded in `docs/GATE0_CLOSURE_DECISION_20260826.md`, which
+disposes every blocker the machine report named at the closure revision. The
+mechanical report deliberately keeps saying `closed:false` while scoped rows
+remain open: the instrument is not rewritten by this decision, and the scoped
+rows keep being counted. The closure carries four binding obligations into the
+Gate-1 era (caller-injection half two with live envelope admission and receipt
+bundle persistence; no new effect path outside the canonical contracts; the
+scoped rows stay reported; Docker host procurement stays an open owner
+position). `security_boundary_claimed` stays false on purpose — closing the
+gate does not advertise a complete security guarantee, which this repository's
+own review rules class as a defect.
 
 ## 13. Forbidden default directions
 
