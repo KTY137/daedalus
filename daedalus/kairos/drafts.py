@@ -15,6 +15,7 @@ Claude action (Era-3 follow-up wires it into the webapp queue view).
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -76,8 +77,40 @@ def save_draft(objective: str, paths: list[str], agent: str, provider: str,
     return path
 
 
-def list_drafts() -> list[dict]:
-    """Newest-first summaries of every stored draft."""
+def same_repo(a: str, b: str) -> bool:
+    """Whether two repo-root strings name the same tree.
+
+    Compared as normalised, case-folded paths rather than as strings. The store
+    keeps whatever the writer happened to hold, and on Windows the same
+    repository arrives as ``C:\\Users\\...\\agent_env`` from the CLI and as
+    ``c:/users/.../agent_env`` from a URL. Comparing raw strings would hide a
+    project's own drafts from it -- the same class of lie as showing it
+    someone else's, just in the other direction.
+    """
+    if not a or not b:
+        return False
+    try:
+        return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+    except (TypeError, ValueError):
+        return False
+
+
+def list_drafts(repo_root: str | None = None) -> list[dict]:
+    """Newest-first summaries of stored drafts; all of them, or one repo's.
+
+    THE SUMMARY CARRIES ``repo_root``, AND THAT IS THE POINT. Every draft has
+    recorded which repository it was written against since ``save_draft``
+    gained the field, but this listing dropped it -- so ``/api/drafts`` had no
+    way to scope, the cockpit's decision card counted every project's drafts
+    under whichever project was selected, and a count of 427 under `agent_env`
+    included proposals written against a garden-notes fixture. That is exactly
+    the defect class design review has already caught twice on this surface:
+    one project's data displayed under another project's name.
+
+    A draft written before the field existed carries an empty root and belongs
+    to no project. It appears only in the unfiltered listing, never scoped into
+    a project that cannot be shown to own it.
+    """
     if not DRAFT_DIR.is_dir():
         return []
     out: list[dict] = []
@@ -86,6 +119,9 @@ def list_drafts() -> list[dict]:
             d = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        root = d.get("repo_root", "")
+        if repo_root and not same_repo(root, repo_root):
+            continue
         out.append({
             "id": d.get("id", p.stem),
             "created": d.get("created", ""),
@@ -93,6 +129,7 @@ def list_drafts() -> list[dict]:
             "objective": (d.get("objective") or "")[:100],
             "paths": d.get("paths", []),
             "status": d.get("status", "pending"),
+            "repo_root": root,
         })
     return out
 
