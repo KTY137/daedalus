@@ -1102,7 +1102,32 @@ class WaveExecutor:
         # can never claim a capability that was not the one actually issued --
         # and so an operator reading runs/loop/loop-*.json can join a spend to
         # the exact lease id, effect set and execution that authorised it.
+        # THE TERMINAL RECORDS, ONCE PER WAVE, and here because this is the
+        # first moment every dispatched execution has reached a terminal state:
+        # `offload` calls `finish_effect` on all three exits (completed,
+        # failed, cancelled) inside `_dispatch()` above. Until this call the
+        # write-evidence store held a lease subject and one execution identity
+        # per position and nothing saying any of them ended -- the producer
+        # half wired, the consumer half not.
+        #
+        # NOT ON A DRY RUN. A dry run derives every execution identity and
+        # starts none, so a sweep there would append one "no durable start"
+        # refusal per position on every planning pass and drown the refusals
+        # that mean something -- a LIVE position that was issued and never ran.
+        #
+        # Retention cannot fail the wave: `retain_terminal_records` reports on
+        # the lease and returns refusals, exactly as the issuer's own
+        # `lease-subject` and `disjointness` retention does.
+        terminal_refusals: tuple[str, ...] = ()
+        if (not dry_run and lease is not None
+                and getattr(lease, "granted", False)
+                and hasattr(lease, "retain_terminal_records")):
+            _terminal_records, terminal_refusals = lease.retain_terminal_records()
         lease_receipt = lease.receipt() if lease is not None else None
+        if lease_receipt is not None and terminal_refusals:
+            # Named on the receipt the operator already reads, not only inside
+            # a lease object the loop drops at the end of the wave.
+            lease_receipt["terminal_record_refusals"] = list(terminal_refusals)
         # WHAT THE CEILING ACTUALLY COST, closed and measured by the block
         # above. Carried beside `max_cost_microusd` (the declaration) so a
         # reader of runs/loop/*.json sees authorised and realized money in one

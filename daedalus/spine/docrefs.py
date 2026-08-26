@@ -338,6 +338,47 @@ _EXCLUDED_DIRS: frozenset[str] = frozenset({
 })
 
 
+def _repository_python_files(root: Path) -> list[Path]:
+    """Every ``*.py`` in THIS checkout, nested checkouts excluded.
+
+    A NESTED CHECKOUT MAKES EVERY MODULE AMBIGUOUS AT ONCE, and ambiguity is
+    this module's absent-module case (see :func:`_suffix_index`). A second copy
+    of the tree therefore does not add noise at the margin -- it turns the
+    resolver off, and the report that comes out says "no document mentions
+    this module" about modules that are mentioned, which reads exactly like
+    real drift.
+
+    MEASURED 2026-08-26 on the live tree, with a git worktree checked out under
+    ``.claude/worktrees/`` (git-excluded, so ``git status`` showed nothing):
+    3622 ambiguous path suffixes, of which **3242 were ambiguous only because
+    of that checkout**. Nine in ten. The name-based exclusion above could not
+    see it: the excluded set holds ``.worktrees`` but the directory in the tree
+    was ``.claude/worktrees``, and a list of names is always one name behind.
+
+    The rule is structural instead of nominal: a directory holding a ``.git``
+    entry is another repository -- a file for a worktree, a directory for a
+    clone -- and ``root`` itself is never tested, since the walk enters it
+    before any test applies. Pruned while walking, so a deep nested checkout
+    costs nothing to skip.
+    """
+
+    import os
+
+    found: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        dirnames[:] = sorted(
+            name
+            for name in dirnames
+            if name not in _EXCLUDED_DIRS
+            and not (here / name / ".git").exists()
+        )
+        for name in sorted(filenames):
+            if name.endswith(".py"):
+                found.append(here / name)
+    return found
+
+
 def _suffix_index(root: Path) -> dict[str, tuple[str, ...]]:
     """Map every path SUFFIX of every module to the files that end with it.
 
@@ -353,10 +394,8 @@ def _suffix_index(root: Path) -> dict[str, tuple[str, ...]]:
     finding against a file the author never mentioned.
     """
     index: dict[str, list[str]] = {}
-    for path in root.rglob("*.py"):
+    for path in _repository_python_files(root):
         rel_parts = path.relative_to(root).parts
-        if any(part in _EXCLUDED_DIRS for part in rel_parts):
-            continue
         rel = "/".join(rel_parts)
         for i in range(len(rel_parts)):
             index.setdefault("/".join(rel_parts[i:]), []).append(rel)

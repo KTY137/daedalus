@@ -257,3 +257,126 @@ def test_the_same_lease_cannot_run_a_second_attempt(repo, armed_switch,
         assert led.open_intents() == []
     finally:
         led.close()
+
+
+# --------------------------------------------------------------------------- #
+# the consumer half: a terminalised lease leaves a terminal RECORD             #
+# --------------------------------------------------------------------------- #
+def test_a_terminalised_attempt_lease_leaves_a_terminal_record(
+        repo, armed_switch, tmp_path, monkeypatch):
+    """The half of the write-evidence store that production never wrote.
+
+    MEASURED 2026-08-26 before the wiring: an attempt that runs to `clean`
+    leaves `lease-subject/*.json` and `lease-execution/*.json` in the evidence
+    root and `lease-terminal/` DOES NOT EXIST. The producer half was wired and
+    the consumer half was not, so the store recorded that a capability had been
+    granted and an execution identity derived, and never that either finished.
+    Gate 0 asks for a traceable receipt; a store that stops at "started" cannot
+    supply one, and it looks healthy while doing it.
+
+    The record is asserted by CONTENT, not by file count: it must name this
+    lease, this execution and a terminal state. A probe that only counted files
+    would pass on a record harvested from some other attempt in the same root.
+    """
+    import json
+
+    from daedalus.spine.attempt import TaskAttempt, TaskSpec
+
+    monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
+    task = TaskSpec(task_id="terminal-record", instruction="probe",
+                    target_paths=("docs/probe.md",))
+    ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
+    SpineLedger(ledger_path).close()
+    attempt = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+                          gate=_passing_gate(), repo_root=repo,
+                          ledger_path=ledger_path)
+    lease = _acquire(repo, switch=armed_switch, effect_key=attempt.branch,
+                     attempt_id=attempt.branch,
+                     writable_paths=("docs/probe.md",))
+    assert isinstance(lease, WaveOffloadLease), getattr(lease, "reasons", None)
+    attempt._attempt_lease = lease
+
+    result = attempt.run()
+    assert result.state == "clean", result.error
+    assert result.lease_outcome == "COMPLETED"
+    # Retention must never be able to fail an attempt whose effect succeeded.
+    assert result.lease_error is None, result.lease_error
+
+    root = Path(lease.evidence_root)
+    subjects = sorted((root / "lease-subject").glob("*.json"))
+    executions = sorted((root / "lease-execution").glob("*.json"))
+    terminals = sorted((root / "lease-terminal").glob("*.json"))
+    assert subjects and executions, (
+        "the producer half regressed; this probe is about the consumer half"
+    )
+    assert terminals, (
+        "the lease terminalised and the evidence store holds no terminal "
+        f"record: {sorted(p.name for p in root.iterdir())}"
+    )
+
+    execution = lease.issued_execution(1)
+    assert execution is not None
+    bodies = [json.loads(path.read_text(encoding="utf-8")) for path in terminals]
+    mine = [b for b in bodies if b.get("execution_id") == execution.execution_id]
+    assert len(mine) == 1, (
+        f"expected exactly one terminal record for {execution.execution_id}, "
+        f"got {[b.get('execution_id') for b in bodies]}"
+    )
+    body = mine[0]
+    assert body["lease_sha256"] == lease.lease.digest
+    assert body["entrypoint_id"] == ATTEMPT_ENTRYPOINT_ID
+    assert body["terminal_state"] in ("completed", "cancelled", "failed")
+    assert body["execution_request_sha256"] == execution.digest
+    # The lease reports what it retained, so a caller does not have to go
+    # looking on disk to find out whether the record exists. The key carries
+    # the execution id: a wave lease issues one per position, and a bare
+    # "lease_terminal" key would keep only the last.
+    key = f"lease_terminal:{execution.execution_id}"
+    assert lease.evidence_records.get(key) == body["record_sha256"]
+
+
+def test_a_refused_terminal_record_is_reported_and_never_fails_the_attempt(
+        repo, armed_switch, tmp_path, monkeypatch):
+    """Fault injection on the retention path: it reports, it does not raise.
+
+    Retention must never be able to revoke or fail what the ledger already
+    accepted -- the same rule the issuer states for `lease-subject` and
+    `disjointness`. The fault injected here is the one the code has a named
+    branch for: the grant retained no subject record, so there is nothing for
+    the terminal record to be bound to.
+
+    Both halves are asserted, because either alone is a false pass. An attempt
+    that still reaches `clean` with `lease_outcome == "COMPLETED"` proves the
+    refusal did not leak into the effect path; `lease_error` naming
+    `lease_terminal` proves the refusal was not swallowed. A retention that
+    fails silently would satisfy the first half exactly as well as a working
+    one.
+    """
+    from daedalus.spine.attempt import TaskAttempt, TaskSpec
+
+    monkeypatch.setenv("DAEDALUS_WORKTREE_ROOT", str(tmp_path / "wt"))
+    task = TaskSpec(task_id="terminal-refused", instruction="probe",
+                    target_paths=("docs/probe.md",))
+    ledger_path = repo / "runs" / "spine" / "spine.sqlite3"
+    SpineLedger(ledger_path).close()
+    attempt = TaskAttempt(task, runner=_writing_runner("docs/probe.md"),
+                          gate=_passing_gate(), repo_root=repo,
+                          ledger_path=ledger_path)
+    lease = _acquire(repo, switch=armed_switch, effect_key=attempt.branch,
+                     attempt_id=attempt.branch,
+                     writable_paths=("docs/probe.md",))
+    assert isinstance(lease, WaveOffloadLease), getattr(lease, "reasons", None)
+    # The injected fault: the subject record this grant retained is forgotten,
+    # exactly as it would be for a grant whose retention failed at issue time.
+    assert lease.evidence_records.pop("lease_subject", None)
+    attempt._attempt_lease = lease
+
+    result = attempt.run()
+
+    assert result.state == "clean", result.error
+    assert result.lease_outcome == "COMPLETED"
+    assert result.lease_error is not None, (
+        "the retention refusal was swallowed; only the lease object would know"
+    )
+    assert "lease_terminal" in result.lease_error, result.lease_error
+    assert not sorted((Path(lease.evidence_root) / "lease-terminal").glob("*.json"))

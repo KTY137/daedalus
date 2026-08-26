@@ -682,19 +682,79 @@ class InertAllowanceIsReported(unittest.TestCase):
 
 class LiveRepoConfig(unittest.TestCase):
     """The gate must see what this repo actually ships, not just fixtures.
-    Before the fix, ``npx -y @upstash/context7-mcp`` — this checkout's own
-    context7 server, with no ``@version`` at all — was invisible to a rule
-    hunting only for ``@latest``."""
 
-    def test_this_repos_context7_entry_is_flagged_unpinned(self):
+    ORIGINALLY this pinned one entry: ``npx -y @upstash/context7-mcp``, this
+    checkout's own context7 server with no ``@version`` at all, invisible to a
+    rule hunting only for ``@latest``. It asserted that entry was flagged
+    ``mcp.unpinned``.
+
+    RE-AIMED 2026-08-26, because the entry it pinned is gone. Every server in
+    ``.mcp.json`` was rewritten to an absolute path to an already-installed
+    module (an unrelated fix: the npx shim was opening a console window per
+    launch on Windows). Nothing fetches at start any more, so ``mcp.unpinned``
+    correctly does not fire, and the old assertion was pinning a fact about the
+    world rather than about the gate -- it failed while both the gate and the
+    config were right.
+
+    What survives is the INTENT, and it generalises: the gate must be run over
+    what this repository actually ships, and no live entry may fetch an
+    unpinned spec at start. That holds for entries nobody has written yet,
+    which the single-entry version did not. The fixture suites
+    (``UnpinnedDetection``, ``RemoteFetchDetection``) keep proving the rule
+    itself fires; this one proves it is pointed at the real config.
+
+    NOT ASSERTED HERE, and named so the silence is not read as approval: an
+    absolute path to an installed module carries no version identity, so
+    ``npm update`` can change what runs without changing what the digest binds.
+    That is a real weakening compared with a pinned spec, and it is a policy
+    question for the tool-allowance owner, not something this probe decides.
+    """
+
+    def _live_servers(self):
         p = Path(".mcp.json")
         if not p.exists():
             self.skipTest(".mcp.json is not present in this checkout")
-        cfg = json.loads(p.read_text(encoding="utf-8"))
-        servers = cfg.get("mcpServers") or {}
-        self.assertIn("context7", servers, "this test pins the exact live entry the gate must catch")
-        v = vet.vet_mcp_server("context7", servers["context7"])
-        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+        servers = (json.loads(p.read_text(encoding="utf-8")).get("mcpServers")
+                   or {})
+        if not servers:
+            self.skipTest(".mcp.json declares no servers")
+        return servers
+
+    def test_no_live_mcp_entry_fetches_an_unpinned_spec_at_start(self):
+        watched = {"mcp.unpinned", "mcp.remote_fetch"}
+        # THE CONTROL FIRST. An empty offender set is the pass condition, and
+        # an empty offender set is also what a rule that stopped firing
+        # produces -- so the probe proves it can still see one before it
+        # reports that it saw none. Same shape the live entry used to have.
+        control = vet.vet_mcp_server(
+            "control", {"command": "npx", "args": ["-y", "@upstash/context7-mcp"]}
+        )
+        self.assertTrue(
+            watched & {f.rule for f in control.findings},
+            "the unpinned/remote-fetch rules no longer fire at all; the live "
+            "sweep below would report clean for the wrong reason",
+        )
+
+        offenders = {}
+        for name, spec in sorted(self._live_servers().items()):
+            rules = {f.rule for f in vet.vet_mcp_server(name, spec).findings}
+            hit = rules & watched
+            if hit:
+                offenders[name] = sorted(hit)
+        self.assertEqual(offenders, {}, offenders)
+
+    def test_every_live_mcp_entry_gets_a_verdict_and_none_is_unscannable(self):
+        """A gate that cannot read an entry must say so, not stay quiet."""
+        outcomes = {
+            name: vet.vet_mcp_server(name, spec).outcome
+            for name, spec in sorted(self._live_servers().items())
+        }
+        self.assertEqual(
+            [n for n, o in outcomes.items() if o == vet.UNSCANNABLE], [], outcomes
+        )
+        self.assertEqual(
+            [n for n, o in outcomes.items() if o == vet.BLOCK], [], outcomes
+        )
 
 
 class ShellWrapperPayloadIsNotOneToken(unittest.TestCase):
