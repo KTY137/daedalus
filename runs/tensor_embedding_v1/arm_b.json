@@ -1,0 +1,416 @@
+{
+  "experiment": "tensor-embedding-v1",
+  "arm": "B",
+  "dimension": 1024,
+  "numpy": "1.26.4",
+  "fixture": "tests/fixtures/ignition/voltage",
+  "fixture_tree_digest": "c15c3bfdf0514522",
+  "fixture_node_count": 9,
+  "fixture_query_count": 4,
+  "chance_top1_on_fixture": 0.5,
+  "aligned": {
+    "exact": {
+      "top1": 1.0,
+      "detail": [
+        {
+          "query": "type:Event.id",
+          "truth": "data:csv.id",
+          "picked": "data:csv.id",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 1.0,
+            "data:csv.voltage": 0.0
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:csv.voltage",
+          "picked": "data:csv.voltage",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.0,
+            "data:csv.voltage": 1.0
+          }
+        },
+        {
+          "query": "type:Event.id",
+          "truth": "data:schema.id",
+          "picked": "data:schema.id",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 1.0,
+            "data:schema.voltage": 0.0
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:schema.voltage",
+          "picked": "data:schema.voltage",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.0,
+            "data:schema.voltage": 1.0
+          }
+        }
+      ]
+    },
+    "pooled": {
+      "top1": 1.0,
+      "detail": [
+        {
+          "query": "type:Event.id",
+          "truth": "data:csv.id",
+          "picked": "data:csv.id",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.5196,
+            "data:csv.voltage": -0.0084
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:csv.voltage",
+          "picked": "data:csv.voltage",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.0127,
+            "data:csv.voltage": 0.4947
+          }
+        },
+        {
+          "query": "type:Event.id",
+          "truth": "data:schema.id",
+          "picked": "data:schema.id",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.5111,
+            "data:schema.voltage": -0.0323
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:schema.voltage",
+          "picked": "data:schema.voltage",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.0279,
+            "data:schema.voltage": 0.5053
+          }
+        }
+      ]
+    },
+    "concat": {
+      "top1": 1.0,
+      "detail": [
+        {
+          "query": "type:Event.id",
+          "truth": "data:csv.id",
+          "picked": "data:csv.id",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.3292,
+            "data:csv.voltage": -0.0032
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:csv.voltage",
+          "picked": "data:csv.voltage",
+          "tie": false,
+          "scores": {
+            "data:csv.id": -0.0032,
+            "data:csv.voltage": 0.3292
+          }
+        },
+        {
+          "query": "type:Event.id",
+          "truth": "data:schema.id",
+          "picked": "data:schema.id",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.3389,
+            "data:schema.voltage": 0.0065
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:schema.voltage",
+          "picked": "data:schema.voltage",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.0065,
+            "data:schema.voltage": 0.3389
+          }
+        }
+      ]
+    },
+    "bound": {
+      "top1": 1.0,
+      "detail": [
+        {
+          "query": "type:Event.id",
+          "truth": "data:csv.id",
+          "picked": "data:csv.id",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.4771,
+            "data:csv.voltage": 0.2272
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:csv.voltage",
+          "picked": "data:csv.voltage",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.2395,
+            "data:csv.voltage": 0.4711
+          }
+        },
+        {
+          "query": "type:Event.id",
+          "truth": "data:schema.id",
+          "picked": "data:schema.id",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.4637,
+            "data:schema.voltage": 0.2114
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:schema.voltage",
+          "picked": "data:schema.voltage",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.2372,
+            "data:schema.voltage": 0.4635
+          }
+        }
+      ]
+    },
+    "_plane_recovery_from_bound": 1.0,
+    "_revision_recovery_from_bound": 1.0,
+    "_scenario": "aligned"
+  },
+  "renamed": {
+    "exact": {
+      "top1": 0.5,
+      "detail": [
+        {
+          "query": "type:Event.id",
+          "truth": "data:csv.id",
+          "picked": "data:csv.id",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 1.0,
+            "data:csv.voltage": 0.0
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:csv.voltage",
+          "picked": null,
+          "tie": true,
+          "scores": {
+            "data:csv.id": 0.0,
+            "data:csv.voltage": 0.0
+          }
+        },
+        {
+          "query": "type:Event.id",
+          "truth": "data:schema.id",
+          "picked": "data:schema.id",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 1.0,
+            "data:schema.voltage": 0.0
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:schema.voltage",
+          "picked": null,
+          "tie": true,
+          "scores": {
+            "data:schema.id": 0.0,
+            "data:schema.voltage": 0.0
+          }
+        }
+      ]
+    },
+    "pooled": {
+      "top1": 1.0,
+      "detail": [
+        {
+          "query": "type:Event.id",
+          "truth": "data:csv.id",
+          "picked": "data:csv.id",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.5196,
+            "data:csv.voltage": -0.0084
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:csv.voltage",
+          "picked": "data:csv.voltage",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.0044,
+            "data:csv.voltage": 0.2942
+          }
+        },
+        {
+          "query": "type:Event.id",
+          "truth": "data:schema.id",
+          "picked": "data:schema.id",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.5111,
+            "data:schema.voltage": -0.0323
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:schema.voltage",
+          "picked": "data:schema.voltage",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.0239,
+            "data:schema.voltage": 0.3109
+          }
+        }
+      ]
+    },
+    "concat": {
+      "top1": 1.0,
+      "detail": [
+        {
+          "query": "type:Event.id",
+          "truth": "data:csv.id",
+          "picked": "data:csv.id",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.3292,
+            "data:csv.voltage": -0.0032
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:csv.voltage",
+          "picked": "data:csv.voltage",
+          "tie": false,
+          "scores": {
+            "data:csv.id": -0.0044,
+            "data:csv.voltage": 0.2083
+          }
+        },
+        {
+          "query": "type:Event.id",
+          "truth": "data:schema.id",
+          "picked": "data:schema.id",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.3389,
+            "data:schema.voltage": 0.0065
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:schema.voltage",
+          "picked": "data:schema.voltage",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.0053,
+            "data:schema.voltage": 0.218
+          }
+        }
+      ]
+    },
+    "bound": {
+      "top1": 1.0,
+      "detail": [
+        {
+          "query": "type:Event.id",
+          "truth": "data:csv.id",
+          "picked": "data:csv.id",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.4771,
+            "data:csv.voltage": 0.2272
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:csv.voltage",
+          "picked": "data:csv.voltage",
+          "tie": false,
+          "scores": {
+            "data:csv.id": 0.2214,
+            "data:csv.voltage": 0.3688
+          }
+        },
+        {
+          "query": "type:Event.id",
+          "truth": "data:schema.id",
+          "picked": "data:schema.id",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.4637,
+            "data:schema.voltage": 0.2114
+          }
+        },
+        {
+          "query": "type:Event.voltage",
+          "truth": "data:schema.voltage",
+          "picked": "data:schema.voltage",
+          "tie": false,
+          "scores": {
+            "data:schema.id": 0.2199,
+            "data:schema.voltage": 0.3631
+          }
+        }
+      ]
+    },
+    "_plane_recovery_from_bound": 1.0,
+    "_revision_recovery_from_bound": 1.0,
+    "_scenario": "renamed"
+  },
+  "synthetic": {
+    "none": {
+      "exact": 1.0,
+      "pooled": 1.0,
+      "concat": 1.0,
+      "bound": 1.0
+    },
+    "prefix": {
+      "exact": 0.0,
+      "pooled": 1.0,
+      "concat": 1.0,
+      "bound": 1.0
+    },
+    "suffix": {
+      "exact": 0.0,
+      "pooled": 1.0,
+      "concat": 1.0,
+      "bound": 1.0
+    },
+    "abbrev": {
+      "exact": 0.0,
+      "pooled": 0.04,
+      "concat": 0.045,
+      "bound": 0.03
+    },
+    "foreign": {
+      "exact": 0.0,
+      "pooled": 0.01,
+      "concat": 0.005,
+      "bound": 0.015
+    }
+  },
+  "synthetic_n": 200,
+  "synthetic_chance_top1": 0.005,
+  "elapsed_seconds": 2.27
+}

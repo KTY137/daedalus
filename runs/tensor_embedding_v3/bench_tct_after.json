@@ -1,0 +1,30 @@
+{
+  "benchmark": "crossplane-doc-to-code",
+  "root": "C:\\Users\\nukei\\Desktop\\project_tct",
+  "tag": "tct_after",
+  "queries": 168,
+  "candidate_files": 411,
+  "chance_recall@10": 0.02433,
+  "ground_truth": "human-authored markdown links (NOT name equality)",
+  "query_scrubbing": "backticked spans, link targets, target basenames and their word pieces removed",
+  "results": {
+    "exact_token": {
+      "@1": 0.006,
+      "@5": 0.0357,
+      "@10": 0.0417,
+      "@25": 0.1131
+    },
+    "bm25": {
+      "@1": 0.1667,
+      "@5": 0.381,
+      "@10": 0.4762,
+      "@25": 0.6488
+    },
+    "doc_neighbour": {
+      "@1": 0.0595,
+      "@5": 0.0952,
+      "@10": 0.3333,
+      "@25": 0.4643
+    }
+  }
+}

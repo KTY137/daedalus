@@ -1,0 +1,189 @@
+{
+  "experiment": "tensor-embedding-v3",
+  "arm": "E",
+  "concepts": 400,
+  "rank": 48,
+  "epochs": 40,
+  "arity_choices": [
+    4,
+    5
+  ],
+  "numpy": "1.26.4",
+  "results": {
+    "none": {
+      "exact": {
+        "recall": {
+          "@1": 1.0,
+          "@5": 1.0,
+          "@10": 1.0
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 1.0,
+          "@5": 1.0,
+          "@10": 1.0
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 163
+      },
+      "trigram": {
+        "recall": {
+          "@1": 1.0,
+          "@5": 1.0,
+          "@10": 1.0
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 1.0,
+          "@5": 1.0,
+          "@10": 1.0
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 163
+      },
+      "cp_binary": {
+        "recall": {
+          "@1": 0.0,
+          "@5": 0.0075,
+          "@10": 0.0075
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.0,
+          "@5": 0.0,
+          "@10": 0.0
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 163
+      },
+      "cp_nary": {
+        "recall": {
+          "@1": 0.0,
+          "@5": 0.0,
+          "@10": 0.0125
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.0,
+          "@5": 0.0,
+          "@10": 0.0123
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 163
+      }
+    },
+    "mild": {
+      "exact": {
+        "recall": {
+          "@1": 0.32,
+          "@5": 0.3225,
+          "@10": 0.3225
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.3614,
+          "@5": 0.3614,
+          "@10": 0.3614
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 166
+      },
+      "trigram": {
+        "recall": {
+          "@1": 0.89,
+          "@5": 0.9575,
+          "@10": 0.99
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.9578,
+          "@5": 1.0,
+          "@10": 1.0
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 166
+      },
+      "cp_binary": {
+        "recall": {
+          "@1": 0.0075,
+          "@5": 0.0075,
+          "@10": 0.01
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.0,
+          "@5": 0.0,
+          "@10": 0.0
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 166
+      },
+      "cp_nary": {
+        "recall": {
+          "@1": 0.0,
+          "@5": 0.0025,
+          "@10": 0.0125
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.0,
+          "@5": 0.006,
+          "@10": 0.006
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 166
+      }
+    },
+    "scramble": {
+      "exact": {
+        "recall": {
+          "@1": 0.0,
+          "@5": 0.005,
+          "@10": 0.0075
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.0,
+          "@5": 0.0061,
+          "@10": 0.0061
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 163
+      },
+      "trigram": {
+        "recall": {
+          "@1": 0.0,
+          "@5": 0.0025,
+          "@10": 0.005
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.0,
+          "@5": 0.0061,
+          "@10": 0.0061
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 163
+      },
+      "cp_binary": {
+        "recall": {
+          "@1": 0.0,
+          "@5": 0.0,
+          "@10": 0.0
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.0,
+          "@5": 0.0,
+          "@10": 0.0
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 163
+      },
+      "cp_nary": {
+        "recall": {
+          "@1": 0.0,
+          "@5": 0.0,
+          "@10": 0.005
+        },
+        "recall_on_planes_binary_cannot_name": {
+          "@1": 0.0,
+          "@5": 0.0,
+          "@10": 0.0123
+        },
+        "queries": 400,
+        "queries_on_blind_planes": 163
+      }
+    }
+  },
+  "elapsed_seconds": 71.47
+}

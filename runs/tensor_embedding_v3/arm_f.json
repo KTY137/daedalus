@@ -1,0 +1,74 @@
+{
+  "experiment": "tensor-embedding-v3",
+  "arm": "F",
+  "implementation": "pykeen",
+  "model": "ComplEx",
+  "embedding_dim": 64,
+  "epochs": 120,
+  "concepts": 500,
+  "results": {
+    "scramble": {
+      "binary_hub": {
+        "hits@1": 0.0,
+        "hits@10": 0.0039,
+        "mrr": 0.0024,
+        "train_triples": 3798,
+        "test_triples": 255,
+        "entities": 3240
+      },
+      "reified": {
+        "hits@1": 0.001,
+        "hits@10": 0.003,
+        "mrr": 0.0027,
+        "train_triples": 4917,
+        "test_triples": 500,
+        "entities": 3740
+      },
+      "trigram_on_binary_expressible": {
+        "@1": 0.0,
+        "@10": 0.0,
+        "queries": 255,
+        "candidates": 3240
+      },
+      "trigram_on_all_roles": {
+        "@1": 0.0,
+        "@10": 0.0,
+        "queries": 500,
+        "candidates": 3240
+      }
+    },
+    "mild": {
+      "binary_hub": {
+        "hits@1": 0.0,
+        "hits@10": 0.0056,
+        "mrr": 0.0024,
+        "train_triples": 3773,
+        "test_triples": 266,
+        "entities": 3234
+      },
+      "reified": {
+        "hits@1": 0.0,
+        "hits@10": 0.005,
+        "mrr": 0.0023,
+        "train_triples": 4915,
+        "test_triples": 500,
+        "entities": 3734
+      },
+      "trigram_on_binary_expressible": {
+        "@1": 0.3158,
+        "@10": 1.0,
+        "queries": 266,
+        "candidates": 3244
+      },
+      "trigram_on_all_roles": {
+        "@1": 0.29,
+        "@10": 1.0,
+        "queries": 500,
+        "candidates": 3244
+      }
+    }
+  },
+  "pykeen": "1.11.1",
+  "torch": "2.13.0+cpu",
+  "elapsed_seconds": 311.38
+}

@@ -1,0 +1,27 @@
+{
+  "arm": "I",
+  "full_entities": 225468,
+  "full_triples": 355390,
+  "core_entities": 25696,
+  "core_triples": 104681,
+  "core_share": 0.114,
+  "core_avg_degree": 8.15,
+  "core_planes": {
+    "code": 24695,
+    "type": 995,
+    "knowledge": 6
+  },
+  "core_relations": 8,
+  "crossplane_surviving": {
+    "documents": 0,
+    "realises_field": 0
+  },
+  "model": "ComplEx",
+  "dim": 128,
+  "epochs": 25,
+  "hits@1": 0.0,
+  "hits@10": 0.0003,
+  "mrr": 0.0004,
+  "chance_hits@10": 0.00039,
+  "lift": 0.7
+}

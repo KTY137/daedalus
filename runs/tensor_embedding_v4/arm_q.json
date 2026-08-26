@@ -1,0 +1,192 @@
+{
+  "experiment": "tensor-embedding-v4 / Arm Q -- graph-assisted query expansion",
+  "spec": "runs/tensor_embedding_v4/SPEC.md (addendum Arm Q, frozen 2026-08-25)",
+  "date": "2026-08-25",
+  "root": "C:\\Users\\nukei\\Desktop\\project_tct",
+  "substrate": "runs\\tensor_embedding_v3\\triples_tct_after2.tsv",
+  "queries": 168,
+  "candidate_files": 411,
+  "chance_recall@10": 0.02433,
+  "leakage_lock": "knowledge:doc:<page> and all its edges removed from the working graph BEFORE anchor search, per query",
+  "control": {
+    "bm25_pure": {
+      "@1": 0.1667,
+      "@5": 0.3869,
+      "@10": 0.4821,
+      "@25": 0.6429
+    },
+    "reference": {
+      "@1": 0.167,
+      "@5": 0.387,
+      "@10": 0.482,
+      "@25": 0.643
+    },
+    "reproduced": true
+  },
+  "default": {
+    "w": 0.3,
+    "cap": 30,
+    "bm25_plus_expansion": {
+      "@1": 0.1607,
+      "@5": 0.4048,
+      "@10": 0.506,
+      "@25": 0.631
+    },
+    "rrf_expansion_doc_neighbour": {
+      "@1": 0.0893,
+      "@5": 0.3571,
+      "@10": 0.5536,
+      "@25": 0.744
+    }
+  },
+  "sweep": [
+    {
+      "w": 0.15,
+      "cap": 15,
+      "@1": 0.1667,
+      "@5": 0.3869,
+      "@10": 0.4881,
+      "@25": 0.6429
+    },
+    {
+      "w": 0.15,
+      "cap": 30,
+      "@1": 0.1667,
+      "@5": 0.3929,
+      "@10": 0.494,
+      "@25": 0.6488
+    },
+    {
+      "w": 0.3,
+      "cap": 15,
+      "@1": 0.1667,
+      "@5": 0.3929,
+      "@10": 0.494,
+      "@25": 0.6369
+    },
+    {
+      "w": 0.3,
+      "cap": 30,
+      "@1": 0.1607,
+      "@5": 0.4048,
+      "@10": 0.506,
+      "@25": 0.631
+    },
+    {
+      "w": 0.5,
+      "cap": 15,
+      "@1": 0.1607,
+      "@5": 0.3929,
+      "@10": 0.506,
+      "@25": 0.631
+    },
+    {
+      "w": 0.5,
+      "cap": 30,
+      "@1": 0.1667,
+      "@5": 0.3988,
+      "@10": 0.506,
+      "@25": 0.619
+    }
+  ],
+  "win_conditions": {
+    "Q1": {
+      "metric": "R@10",
+      "threshold": 0.482,
+      "value": 0.506,
+      "met": true
+    },
+    "Q2": {
+      "metric": "R@1",
+      "threshold": 0.167,
+      "value": 0.1607,
+      "met": false
+    }
+  },
+  "diagnostics": {
+    "zero_anchor_queries": 0,
+    "zero_anchor_pages": [],
+    "mean_anchors_per_query": 24.86,
+    "mean_expansion_tokens_before_cap": 1630.25,
+    "mean_expansion_tokens_default_cap": 30.0,
+    "top5_improvements": [
+      {
+        "page": "docs/wiki/control-index.md",
+        "target": "TCT_app/controller/plan_from_config.py",
+        "bm25_rank": 234,
+        "expansion_rank": 177,
+        "delta": 57
+      },
+      {
+        "page": "docs/wiki/control-index.md",
+        "target": "TCT_app/controller/plan_estimate.py",
+        "bm25_rank": 188,
+        "expansion_rank": 133,
+        "delta": 55
+      },
+      {
+        "page": "docs/wiki/simulated-devices.md",
+        "target": "TCT_app/devices/bias_supply_simulated.py",
+        "bm25_rank": 196,
+        "expansion_rank": 156,
+        "delta": 40
+      },
+      {
+        "page": "docs/wiki/depletion-voltage.md",
+        "target": "TCT_app/controller/scan_controller.py",
+        "bm25_rank": 66,
+        "expansion_rank": 27,
+        "delta": 39
+      },
+      {
+        "page": "docs/wiki/depletion-voltage.md",
+        "target": "TCT_app/data/hdf5_writer.py",
+        "bm25_rank": 186,
+        "expansion_rank": 147,
+        "delta": 39
+      }
+    ],
+    "top5_regressions": [
+      {
+        "page": "docs/wiki/laser-normalization.md",
+        "target": "TCT_app/analysis/laser_normalization.py",
+        "bm25_rank": 73,
+        "expansion_rank": 157,
+        "delta": -84
+      },
+      {
+        "page": "docs/wiki/analysis-index.md",
+        "target": "TCT_app/analysis/charge_calibration.py",
+        "bm25_rank": 120,
+        "expansion_rank": 160,
+        "delta": -40
+      },
+      {
+        "page": "docs/wiki/scan-geometry.md",
+        "target": "TCT_app/analysis/map_slice.py",
+        "bm25_rank": 56,
+        "expansion_rank": 92,
+        "delta": -36
+      },
+      {
+        "page": "docs/wiki/control-index.md",
+        "target": "TCT_app/controller/danger_gate.py",
+        "bm25_rank": 90,
+        "expansion_rank": 125,
+        "delta": -35
+      },
+      {
+        "page": "docs/wiki/configuration-keys.md",
+        "target": "TCT_app/controller/yaml_persist.py",
+        "bm25_rank": 76,
+        "expansion_rank": 108,
+        "delta": -32
+      }
+    ]
+  },
+  "deviation_notes": [
+    "step (b): for a documented class symbol its own fields/methods are included as members of 'the same class' (owner's field-expansion intent); pure module siblings are also included",
+    "has_type/param_type/returns_type are listed as relevant relations but no algorithm step consumes them; left unused"
+  ],
+  "runtime_seconds": 489.0
+}

@@ -1,0 +1,15 @@
+{
+  "arm": "G",
+  "substrate": "real Daedalus import graph",
+  "model": "ComplEx",
+  "dim": 128,
+  "epochs": 200,
+  "entities": 2781,
+  "relations": 2,
+  "train": 12690,
+  "test": 1395,
+  "hits@1": 0.0011,
+  "hits@10": 0.0176,
+  "mrr": 0.0085,
+  "chance_hits@10": 0.0036
+}

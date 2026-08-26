@@ -1,0 +1,111 @@
+{
+  "experiment": "tensor-embedding-v3",
+  "arm": "D",
+  "question": "is the data model binary because the world is, or because the schema is?",
+  "fixture": "tests/fixtures/ignition/voltage",
+  "binary_claim_count": 10,
+  "nary_claim_count": 2,
+  "nary_arities": [
+    4,
+    5
+  ],
+  "coverage": {
+    "manifestations_total": 9,
+    "planes_reachable_at_field_level_in_binary_model": [
+      "data",
+      "type"
+    ],
+    "manifestations_unnameable_in_binary_model": [
+      "knowledge:wiki/Event.md#voltage",
+      "code:repository.py#parse_event.voltage",
+      "code:repository.py#parse_event.id"
+    ],
+    "unnameable_count": 3
+  },
+  "hub_bias": {
+    "true_pairs_total": 16,
+    "pairs_asserted_in_binary_model": 4,
+    "pairs_missing": 12,
+    "pairs_missing_that_do_not_touch_the_type_hub": 9,
+    "examples_without_hub": [
+      [
+        "Event.id",
+        "code_use",
+        "data_column"
+      ],
+      [
+        "Event.id",
+        "code_use",
+        "schema_property"
+      ],
+      [
+        "Event.id",
+        "data_column",
+        "schema_property"
+      ],
+      [
+        "Event.voltage",
+        "code_use",
+        "data_column"
+      ],
+      [
+        "Event.voltage",
+        "code_use",
+        "doc_mention"
+      ],
+      [
+        "Event.voltage",
+        "code_use",
+        "schema_property"
+      ]
+    ]
+  },
+  "rename_detection": {
+    "nary/aligned": {
+      "inconsistent_claims_found": 0,
+      "detail": [],
+      "join_required": false
+    },
+    "nary/renamed": {
+      "inconsistent_claims_found": 1,
+      "detail": [
+        {
+          "claim_id": "realization:Event.voltage@rev-fixture",
+          "names": [
+            "bias_voltage",
+            "voltage"
+          ]
+        }
+      ],
+      "join_required": false
+    },
+    "binary/aligned": {
+      "inconsistent_claims_found": 0,
+      "detail": [],
+      "join_required": true,
+      "note": "each hit is a separate pair; deciding whether ONE concept is consistently renamed requires joining them on type_field outside the claim"
+    },
+    "binary/renamed": {
+      "inconsistent_claims_found": 2,
+      "detail": [
+        {
+          "kind": "type_matches_csv_field",
+          "pair": [
+            "bias_voltage",
+            "voltage"
+          ]
+        },
+        {
+          "kind": "type_matches_schema_field",
+          "pair": [
+            "bias_voltage",
+            "voltage"
+          ]
+        }
+      ],
+      "join_required": true,
+      "note": "each hit is a separate pair; deciding whether ONE concept is consistently renamed requires joining them on type_field outside the claim"
+    }
+  },
+  "elapsed_seconds": 0.03
+}

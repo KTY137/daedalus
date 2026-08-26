@@ -1,0 +1,61 @@
+{
+  "entities": 50493,
+  "triples": 94751,
+  "relations": 16,
+  "average_degree": 3.75,
+  "median_degree": 2,
+  "degree_1_share": 0.483,
+  "degree_ge_5_share": 0.1206,
+  "relation_counts": {
+    "defines_func": 21806,
+    "mentions": 20200,
+    "param_type": 8488,
+    "imports_from": 7507,
+    "imports": 6612,
+    "has_method": 6398,
+    "has_field": 5846,
+    "returns_type": 5061,
+    "has_type": 4355,
+    "has_column": 2469,
+    "defines_class": 2263,
+    "documents": 1368,
+    "realises_field": 816,
+    "has_property": 789,
+    "inherits": 634,
+    "links_to": 139
+  },
+  "plane_node_mentions": {
+    "code": 110822,
+    "type": 29302,
+    "data": 7332,
+    "knowledge": 42046
+  },
+  "core_3": {
+    "entities": 10256,
+    "triples": 41910,
+    "entity_share": 0.2031,
+    "planes": {
+      "knowledge": 3332,
+      "code": 6568,
+      "type": 356
+    },
+    "crossplane_full": {
+      "documents": 1368,
+      "realises_field": 816
+    },
+    "crossplane_surviving": {
+      "documents": 618,
+      "realises_field": 0
+    },
+    "crossplane_survival_rate": 0.283
+  },
+  "extraction_stats": {
+    "py_files": 2424,
+    "unparsable": 1,
+    "schema": 58,
+    "csv": 588,
+    "md": 2189,
+    "crossplane_doc_symbol": 5857,
+    "crossplane_data_type": 816
+  }
+}

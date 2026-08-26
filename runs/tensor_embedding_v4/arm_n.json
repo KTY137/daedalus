@@ -1,0 +1,162 @@
+{
+  "arm": "N",
+  "task": "wiki page -> source file it documents; PPR restart at the page node",
+  "graph": {
+    "nodes": 21101,
+    "undirected_edges": 36273,
+    "holdout": "GLOBAL: all 135 test documents_file edges removed for every query; 33 keep edges remain (their 33 pairs therefore see their own edge -> honest row = 135-test subset)",
+    "weightings": {
+      "uniform": "all edges weight 1",
+      "relinv": "w(rel)=1/count(rel); mentions is 30% of edges and lexically derived, inverse relation frequency gives each relation type equal total transition mass"
+    }
+  },
+  "ppr": {
+    "alpha": 0.15,
+    "max_iterations": 50,
+    "tol": 1e-08,
+    "iterations_used": {
+      "min": 50,
+      "max": 50
+    },
+    "tie_handling": "PPR-alone metrics: pessimistic (target after all ties); fusion rankings: stable alphabetical, same as BM25"
+  },
+  "queries": {
+    "total": 168,
+    "test_subset": 135,
+    "keep_subset": 33,
+    "unmapped": 0,
+    "unscoreable_pages": []
+  },
+  "candidates": 411,
+  "candidates_in_graph": 403,
+  "chance@10": 0.02433,
+  "fusion": "reciprocal rank fusion, k=60; rrf2=bm25+ppr_uniform, rrf3=bm25+ppr_uniform+doc_neighbour",
+  "results_all_168": {
+    "bm25": {
+      "@1": 0.1667,
+      "@5": 0.3869,
+      "@10": 0.4821,
+      "@25": 0.6488
+    },
+    "dn": {
+      "@1": 0.0595,
+      "@5": 0.0952,
+      "@10": 0.3333,
+      "@25": 0.4643
+    },
+    "ppr_uniform": {
+      "@1": 0.1964,
+      "@5": 0.5893,
+      "@10": 0.6726,
+      "@25": 0.8036
+    },
+    "ppr_relinv": {
+      "@1": 0.1369,
+      "@5": 0.3452,
+      "@10": 0.4583,
+      "@25": 0.625
+    },
+    "rrf2": {
+      "@1": 0.1964,
+      "@5": 0.5,
+      "@10": 0.631,
+      "@25": 0.7798
+    },
+    "rrf3": {
+      "@1": 0.1071,
+      "@5": 0.4524,
+      "@10": 0.6429,
+      "@25": 0.8274
+    }
+  },
+  "results_test_135": {
+    "bm25": {
+      "@1": 0.1704,
+      "@5": 0.3778,
+      "@10": 0.4741,
+      "@25": 0.6593
+    },
+    "dn": {
+      "@1": 0.0667,
+      "@5": 0.0963,
+      "@10": 0.3111,
+      "@25": 0.437
+    },
+    "ppr_uniform": {
+      "@1": 0.1111,
+      "@5": 0.4889,
+      "@10": 0.5926,
+      "@25": 0.7556
+    },
+    "ppr_relinv": {
+      "@1": 0.0148,
+      "@5": 0.1852,
+      "@10": 0.3259,
+      "@25": 0.5333
+    },
+    "rrf2": {
+      "@1": 0.1778,
+      "@5": 0.4741,
+      "@10": 0.6222,
+      "@25": 0.7556
+    },
+    "rrf3": {
+      "@1": 0.0963,
+      "@5": 0.4444,
+      "@10": 0.6296,
+      "@25": 0.8
+    }
+  },
+  "results_keep_33": {
+    "bm25": {
+      "@1": 0.1515,
+      "@5": 0.4242,
+      "@10": 0.5152,
+      "@25": 0.6061
+    },
+    "dn": {
+      "@1": 0.0303,
+      "@5": 0.0909,
+      "@10": 0.4242,
+      "@25": 0.5758
+    },
+    "ppr_uniform": {
+      "@1": 0.5455,
+      "@5": 1.0,
+      "@10": 1.0,
+      "@25": 1.0
+    },
+    "ppr_relinv": {
+      "@1": 0.6364,
+      "@5": 1.0,
+      "@10": 1.0,
+      "@25": 1.0
+    },
+    "rrf2": {
+      "@1": 0.2727,
+      "@5": 0.6061,
+      "@10": 0.6667,
+      "@25": 0.8788
+    },
+    "rrf3": {
+      "@1": 0.1515,
+      "@5": 0.4848,
+      "@10": 0.697,
+      "@25": 0.9394
+    }
+  },
+  "reference": {
+    "bm25_168": 0.482,
+    "doc_neighbour_168": 0.333,
+    "rrf_bm25_struct_168": 0.601,
+    "bm25_135": 0.474,
+    "note": "reference values from arm J/K artifacts (R@10)"
+  },
+  "controls": {
+    "zero_restart_hits_at_25": 0,
+    "target_restart_R@1": 1.0,
+    "target_restart_n": 135
+  },
+  "runtime_seconds": 404.7,
+  "seed_policy": "split rng seed 31 (arm J); PPR is deterministic, no stochastic component"
+}
