@@ -1369,6 +1369,105 @@ class WaveOffloadLease:
         """
         return self._executions.get(int(position))
 
+    def retain_terminal_record(
+        self, execution: EffectExecutionRequest
+    ) -> dict[str, Any] | None:
+        """Retain the terminal record for one execution that already finished.
+
+        THE CONSUMER HALF OF THIS STORE, and it was missing. ``execution_for``
+        retains ``lease-execution/*.json`` and the issuer retains
+        ``lease-subject/*.json``, so production recorded that a capability was
+        granted and an execution identity derived -- and nothing recorded that
+        either ever ended. MEASURED 2026-08-26 before this method existed: a
+        leased attempt that ran to ``clean`` left an evidence root holding
+        ``disjointness``, ``lease-execution`` and ``lease-subject``, and no
+        ``lease-terminal`` directory at all. Gate 0 wants a traceable receipt
+        (master plan section 8, step 9); a store that stops at "started" cannot
+        supply one while looking complete -- the exact failure shape
+        ``daedalus/spine/attempt.py`` names in its own comment: a guard that is
+        built and not connected is indistinguishable from a guard.
+
+        REPORTED, NEVER RAISED, for the same reason retention never decides a
+        grant: an evidence write that fails must not turn an attempt whose
+        leased effect succeeded into a failure. Every refusal lands in
+        ``evidence_errors`` under a named key, so a store missing a record says
+        on the lease why it is missing.
+
+        Returns the record, or ``None`` when there was nothing to retain.
+        """
+
+        key = f"lease_terminal:{execution.execution_id}"
+        if not self.evidence_root or not self.control_root_path:
+            self.evidence_errors.append(
+                f"{key}: this lease retains nothing (no evidence root)"
+            )
+            return None
+        subject_digest = self.evidence_records.get("lease_subject")
+        if not subject_digest:
+            # The subject record is what `emit_effect_lease_terminal_record`
+            # rebuilds the authorization from. Without it there is nothing to
+            # bind a terminal state to, and saying so beats writing a record
+            # that names a subject this store never retained.
+            self.evidence_errors.append(
+                f"{key}: no lease-subject record was retained for this grant, "
+                "so its terminal state cannot be bound to a subject"
+            )
+            return None
+        try:
+            subject_path = (
+                Path(self.evidence_root) / "lease-subject" / f"{subject_digest}.json"
+            )
+            subject = json.loads(subject_path.read_text(encoding="utf-8"))
+            record = emit_effect_lease_terminal_record(
+                subject,
+                execution,
+                evidence_root=self.evidence_root,
+                control_root_path=self.control_root_path,
+                keyring=self.authorization.lease_keyring,
+                ledger_path=self.ledger_path or None,
+            )
+        except (OSError, TypeError, ValueError, EffectLeaseError) as exc:
+            # The cause travels with the refusal, the rule
+            # `harvest_effect_lease_terminal_records` already follows: the
+            # replay projection collapses several distinct failures into one
+            # message, and reporting only that message names the symptom.
+            cause = exc.__cause__
+            detail = f" <- {type(cause).__name__}: {cause}" if cause else ""
+            self.evidence_errors.append(f"{key}: {type(exc).__name__}: {exc}{detail}")
+            return None
+        # KEYED BY EXECUTION, not by a bare "lease_terminal". A wave lease
+        # issues one execution identity per position, so a single key would
+        # record the last position's digest and silently drop the rest --
+        # exactly the shrinking-census failure this repository keeps finding in
+        # its own instruments.
+        self.evidence_records[key] = str(record["record_sha256"])
+        return record
+
+    def retain_terminal_records(
+        self,
+    ) -> tuple[tuple[dict[str, Any], ...], tuple[str, ...]]:
+        """Retain a terminal record for every execution identity this lease issued.
+
+        The wave-shaped caller of :meth:`retain_terminal_record`: a wave derives
+        one execution per position up front and terminalises the ones it
+        actually dispatched, so the sweep is over THIS lease's own issued set --
+        never over the whole store, which is what
+        :func:`harvest_effect_lease_terminal_records` is for.
+
+        Returns ``(records, refusals)``. A position that was issued and never
+        ran is a refusal with its reason, not a silent skip: a sweep that
+        dropped the executions it could not replay would report a clean store
+        while the interesting rows were the ones it left out.
+        """
+
+        records: list[dict[str, Any]] = []
+        before = len(self.evidence_errors)
+        for _position, execution in sorted(self._executions.items()):
+            record = self.retain_terminal_record(execution)
+            if record is not None:
+                records.append(record)
+        return tuple(records), tuple(self.evidence_errors[before:])
+
     def receipt(self) -> dict[str, Any]:
         """What the loop receipt and the attempt ledger carry about this lease."""
         scope = self.lease.effect_scope

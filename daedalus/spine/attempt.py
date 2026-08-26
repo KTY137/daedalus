@@ -1286,6 +1286,7 @@ class TaskAttempt:
         # None means the pre-lease behaviour, unchanged.
         self._attempt_lease = attempt_lease
         self._lease_start = None
+        self._lease_execution = None
         self._worktree_decision = None
         self._artifact_dir = Path(artifact_dir) if artifact_dir else None
         self._ledger = ledger
@@ -1555,14 +1556,37 @@ class TaskAttempt:
             outcome = "COMPLETED"
         else:
             outcome = "FAILED"
+        execution, self._lease_execution = self._lease_execution, None
         try:
             detail = hashlib.sha256(
                 f"attempt-state:{state_hint}".encode("ascii")).hexdigest()
             lease.authorization.finish_effect(
                 start.receipt, outcome=outcome, detail_sha256=detail)
-            return outcome, ""
         except Exception as e:  # noqa: BLE001 - reported, never raised
             return outcome, f"{type(e).__name__}: {e}"
+        # THE RECEIPT, not just the ledger row. `finish_effect` makes the
+        # execution terminal in the effect ledger; until this call the
+        # write-evidence store held a subject and an execution identity and
+        # nothing saying either ended, so nothing outside the ledger could
+        # trace the effect to its outcome. Retention is deliberately AFTER the
+        # terminalisation and deliberately cannot fail it: the method reports
+        # every refusal on the lease's own `evidence_errors` and returns None.
+        if execution is not None:
+            before = len(getattr(lease, "evidence_errors", ()) or ())
+            lease.retain_terminal_record(execution)
+            # A REFUSAL THAT ONLY THE LEASE OBJECT KNOWS ABOUT is a refusal
+            # nobody reads. The disjointness retention already surfaces on the
+            # result through `_lease_retention_error`; this one joins it, so a
+            # store that is missing a terminal record says so where the attempt
+            # is inspected and not only inside an object the caller may drop.
+            fresh = list(getattr(lease, "evidence_errors", ()) or ())[before:]
+            if fresh:
+                existing = getattr(self, "_lease_retention_error", None)
+                joined = "; ".join(fresh)
+                self._lease_retention_error = (
+                    f"{existing}; {joined}" if existing else joined
+                )
+        return outcome, ""
 
     def _attach_lease_terminal(self, result: AttemptResult) -> AttemptResult:
         """Report the lease identity and terminal outcome on the result."""
@@ -1638,6 +1662,13 @@ class TaskAttempt:
                         "under this lease; a retry is a NEW attempt with a "
                         "NEW effect key, never a replay"))
             self._lease_start = start
+            # THE EXACT EXECUTION THIS START COVERS, kept so the terminal
+            # record binds the identity that actually ran instead of one
+            # rediscovered by position later. `issued_execution(1)` would
+            # answer today -- an attempt lease is pinned to one position -- and
+            # would quietly bind the wrong row the day anything issues a
+            # second.
+            self._lease_execution = execution
             # The disjointness receipt RECORDS the containment.worktree
             # decision the boundary already took over the planned root.
             # Reported, never raised: retention must not revoke a capability

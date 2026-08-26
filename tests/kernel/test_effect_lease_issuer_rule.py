@@ -185,6 +185,20 @@ def test_the_attempt_row_became_issuable_and_nothing_else_did():
     would still refuse its two write effects. The set of issuable rows is
     enumerated rather than spot-checked: a registry or issuer edit that admits a
     sixth row fails here instead of silently minting a capability for it.
+
+    IT DID EXACTLY THAT, 2026-08-26, and the widening is recorded here rather
+    than absorbed. Registering ``tools.docs_reference_check`` -- a docs reporter
+    that was running as an unregistered effectful door -- made it the SIXTH
+    issuable row. The set is enumerated so that consequence has to be argued,
+    and the argument is that the row is issuable for the same reason its two
+    neighbours in this list already are: ``tools.funnel_report`` and
+    ``tools.run_gate_checks`` are CENTRAL rows declaring PROCESS_SPAWN alone
+    under ``budget.process_guard``, and so is this one. A capability the issuer
+    could mint for it authorises spawning ``git`` and nothing else -- no write
+    root, no egress, no credential -- so admitting it neither widens the
+    issuer's contract surface nor puts a write behind a reporter. Refusing it
+    while admitting the identical two would have been an accident of order, not
+    a rule.
     """
 
     spec, reasons = issuable_row("python.attempt")
@@ -198,6 +212,7 @@ def test_the_attempt_row_became_issuable_and_nothing_else_did():
         "cli.eval_ceiling",
         "python.attempt",
         "python.offload",
+        "tools.docs_reference_check",
         "tools.funnel_report",
         "tools.run_gate_checks",
     ), issuable

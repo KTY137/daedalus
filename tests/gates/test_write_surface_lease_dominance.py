@@ -42,6 +42,7 @@ not to type a word.
 """
 from __future__ import annotations
 
+import ast
 import importlib.util
 import sys
 from pathlib import Path
@@ -576,3 +577,94 @@ def _positions(derivation, disposition):
         for row in derivation.rows
         if row.guard is disposition
     }
+
+
+# --------------------------------------------------------------------------- #
+# the index is an instrument, and both ways it lied are pinned here            #
+# --------------------------------------------------------------------------- #
+def test_a_nested_checkout_does_not_disable_private_callee_attribution(tmp_path):
+    """A repository inside the repository is not "a bigger superset".
+
+    ``NameIndex`` is a deliberate over-count -- a name in a comment or a string
+    counts -- and the class argues that the failure direction is safe because
+    over-counting can only EXCLUDE a helper, never admit one. True, and not the
+    whole story: a nested checkout is a copy of every module in the tree, so
+    every module-private helper appears outside its own file at once and NO
+    door can ever admit a private callee again. The instrument then reports
+    zero attributed surfaces and looks exactly like a tree that has none.
+
+    MEASURED 2026-08-26: a git worktree under ``.claude/worktrees/`` (excluded
+    via ``.git/info/exclude``, so ``git status`` shows nothing) put 1173 files
+    into the index and took the offload door's dominated positions from 573 to
+    94. The fixture below is that situation in four files.
+    """
+    module = "".join(
+        line + chr(10)
+        for line in ("def _helper():", "    return 1", "", "",
+                     "def door():", "    return _helper()")
+    )
+    (tmp_path / "a.py").write_text(module, encoding="utf-8")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    # A worktree marks itself with a `.git` FILE, a clone with a directory.
+    # Both are pruned, and the fixture uses the shape that actually bit.
+    (nested / ".git").write_text("gitdir: /elsewhere" + chr(10),
+                                 encoding="utf-8")
+    (nested / "a.py").write_text(
+        "def _helper():" + chr(10) + "    return 1" + chr(10),
+        encoding="utf-8",
+    )
+
+    index = GEN.NameIndex.build(tmp_path)
+
+    assert "nested/a.py" not in index._per_file, sorted(index._per_file)
+    assert "_helper" not in index.outside("a.py"), (
+        "the nested checkout's copy of the module leaked its private helper "
+        "into the outside set, which silently disables attribution repo-wide"
+    )
+
+
+def test_the_generator_never_names_a_door_private_helper():
+    """The instrument must not appear in its own measurement.
+
+    ``NameIndex`` reads RAW TEXT, so an identifier written into a docstring or
+    a comment counts as a mention from that file. The generator is a file in
+    the tree like any other: spelling a door module's private helper anywhere
+    in it puts that name in every other file's ``outside`` set and refuses the
+    helper for the door that owns it.
+
+    This is not hypothetical. The commit that taught ``NameIndex.build`` to
+    prune nested checkouts documented the fix by naming the exact helper it had
+    just restored, and thereby broke it again -- the repair and its own defeat
+    in one file. The probe costs one read and would have caught it immediately.
+
+    A collision with one of the generator's OWN private helpers fails here too,
+    and that is correct rather than a false positive: the consequence on disk
+    is identical, and renaming one of the two is the fix.
+    """
+    generator = (REPO_ROOT / "scripts" / "declare_write_surfaces.py").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    mentioned = frozenset(GEN._IDENTIFIER.findall(generator))
+    doors, _skipped = GEN.resolve_central_doors(REPO_ROOT)
+    offenders: list[str] = []
+    for door in doors:
+        module_path = REPO_ROOT / door.rel_path
+        if not module_path.is_file():
+            continue
+        tree = ast.parse(module_path.read_text(encoding="utf-8", errors="replace"))
+        for statement in tree.body:
+            if not isinstance(
+                statement, (ast.FunctionDef, ast.AsyncFunctionDef)
+            ):
+                continue
+            name = statement.name
+            if not name.startswith("_") or name.startswith("__"):
+                continue
+            if name in mentioned:
+                offenders.append(f"{door.door_id}:{door.rel_path}:{name}")
+    assert not offenders, (
+        "the generator names these door-module private helpers, which "
+        "removes them from every door's admissible set:" + chr(10)
+        + (chr(10) + "  ").join(sorted(set(offenders)))
+    )

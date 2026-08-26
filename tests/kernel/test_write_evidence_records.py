@@ -289,6 +289,49 @@ def test_a_terminal_execution_is_recorded_in_lowercase(control):
     assert set(body["requested_effects"]) & {"filesystem_write", "repository_mutation"}
 
 
+def test_the_lease_sweeps_its_own_executions_and_names_the_ones_that_did_not_run(
+        control):
+    """The wave-shaped consumer, and the discrimination that makes it useful.
+
+    ``harvest_effect_lease_terminal_records`` sweeps the WHOLE store; a wave
+    holds one lease and wants its OWN issued set, because that is the set it
+    can say something true about. This probe issues two execution identities
+    and terminalises exactly one, so a sweep that reported both -- or that
+    quietly dropped the one it could not replay -- fails here rather than in a
+    receipt somebody reads later.
+
+    The refusal is asserted by CONTENT ("no durable start"), not by count: a
+    sweep that refused the finished execution for some unrelated reason would
+    also produce "one record, one refusal".
+    """
+    lease = _lease(control, "a-sweep")
+    ran = lease.execution_for(0, ("docs/x.md",))
+    never = lease.execution_for(1, ("docs/y.md",))
+    start = lease.authorization.begin_effect(ran)
+    lease.authorization.finish_effect(start.receipt, outcome="COMPLETED")
+
+    records, refusals = lease.retain_terminal_records()
+
+    assert [body["execution_id"] for body in records] == [ran.execution_id]
+    assert len(refusals) == 1
+    assert never.execution_id in refusals[0]
+    assert "no durable start" in refusals[0]
+    # Keyed by execution: a single "lease_terminal" key would have kept only
+    # whichever position happened to be swept last.
+    assert lease.evidence_records[f"lease_terminal:{ran.execution_id}"] == (
+        records[0]["record_sha256"]
+    )
+    assert f"lease_terminal:{never.execution_id}" not in lease.evidence_records
+    # And the sweep is idempotent, because the store is content-addressed:
+    # re-running it republishes the same bytes instead of accumulating a
+    # near-identical record per sweep.
+    again, _ = lease.retain_terminal_records()
+    assert [body["record_sha256"] for body in again] == [
+        body["record_sha256"] for body in records
+    ]
+    assert len(_records("lease-terminal")) == 1
+
+
 def test_a_terminal_record_names_a_ledger_row_that_still_exists(control, tmp_path):
     """The record is a replay result, not a memory of one: point the rebuild at
     an empty ledger and the same subject stops producing anything."""

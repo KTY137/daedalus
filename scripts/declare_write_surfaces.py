@@ -495,18 +495,63 @@ class NameIndex:
 
     @classmethod
     def build(cls, root: Path) -> "NameIndex":
+        """Every ``*.py`` in THIS checkout, and deliberately not in another one.
+
+        A NESTED CHECKOUT IS ANOTHER REPOSITORY, and counting it here is not a
+        harmless superset -- it is a copy of every module in the tree, so every
+        module-private helper in the repository appears "outside" its own file
+        and NO private callee can ever be admitted again. The over-counting
+        rule in the class docstring says the failure direction is safe, and it
+        is: nothing wrong gets admitted. What it does not say, and what this
+        cost, is that the safe direction is also the direction in which the
+        instrument reports NOTHING and looks healthy doing it.
+
+        MEASURED 2026-08-26 in the live tree: a worktree checked out under
+        ``.claude/worktrees/`` (created the previous evening, git-excluded and
+        therefore invisible to ``git status``) contributed 1173 files. With
+        them, the ``python.offload`` door -- the one row in the registry that
+        dominates any write surface at all -- admitted no private callee and
+        94 dominated positions. Without them it admits its bench helper and
+        573 positions, including the write that
+        ``tests/gates/test_write_surface_lease_dominance.py`` exists to pin.
+        Same commit, same code, two different answers, and the wrong one was
+        the quiet one.
+
+        NO DOOR'S PRIVATE HELPER MAY BE NAMED ANYWHERE IN THIS FILE, and the
+        first draft of this docstring named one. The index is built from RAW
+        TEXT (see the class docstring), so spelling the identifier here put it
+        in every other file's ``outside`` set and disabled the attribution this
+        very method had just repaired -- the fix and its own defeat in one
+        commit. ``test_the_generator_never_names_a_door_private_helper`` pins
+        it; describe helpers, never spell them.
+
+        Pruned while walking rather than filtered afterwards: a nested checkout
+        can be arbitrarily deep, and ``rglob`` would still pay to descend it.
+        A directory holding a ``.git`` entry -- file (worktree) or directory
+        (clone) -- is such a root; ``root`` itself is never pruned, since it is
+        entered before any test applies to it.
+        """
+
         per_file: dict[str, frozenset[str]] = {}
-        for path in sorted(root.rglob("*.py")):
-            parts = set(path.parts)
-            if ".git" in parts or "__pycache__" in parts:
-                continue
-            try:
-                text = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            per_file[path.relative_to(root).as_posix()] = frozenset(
-                _IDENTIFIER.findall(text)
+        for dirpath, dirnames, filenames in os.walk(root):
+            here = Path(dirpath)
+            dirnames[:] = sorted(
+                name
+                for name in dirnames
+                if name not in (".git", "__pycache__")
+                and not (here / name / ".git").exists()
             )
+            for name in sorted(filenames):
+                if not name.endswith(".py"):
+                    continue
+                path = here / name
+                try:
+                    text = path.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                per_file[path.relative_to(root).as_posix()] = frozenset(
+                    _IDENTIFIER.findall(text)
+                )
         return cls(per_file)
 
     def outside(self, rel_path: str) -> frozenset[str]:
@@ -1135,7 +1180,7 @@ def derive(
         # it says nothing about whether THIS write happened inside one.  Those
         # two claims come apart exactly when the write is reachable from both a
         # leased and an un-leased caller -- which is what `python.offload` was
-        # at 21f21f2a (its `worker.run` sat in `_offload_impl`, which the
+        # at 21f21f2a (its `worker.run` sat in the planner helper, which the
         # un-leased `live=False` path also called, so the door declared zero
         # surfaces) and which any door with an OPTIONAL authorization
         # reproduces.  That case was caught by accident, because the
@@ -1149,9 +1194,15 @@ def derive(
         # around it: the planner returns a description of the dispatch and the
         # provider run moved behind a caller the un-leased path cannot reach,
         # so that one surface is now attributed.  The snapshot helper's
-        # `subprocess.run` in the same file still is not -- `_repo_snapshot` is
+        # `subprocess.run` in the same file still is not -- that helper is
         # imported and called by other modules -- which is the discrimination
         # this guard is for.
+        #
+        # HELPERS ARE DESCRIBED HERE, NEVER SPELLED.  `NameIndex` reads raw
+        # text, so an identifier written into a comment in THIS file lands in
+        # every other file's `outside` set and refuses the helper for the door
+        # that owns it.  See `NameIndex.build` and
+        # `test_the_generator_never_names_a_door_private_helper`.
         lease_dominated = (surface.line, surface.column) in leased_by_door.get(
             door_id, frozenset()
         )
@@ -1204,7 +1255,7 @@ def derive(
             # fact; a silent absence reads as "there was nothing to classify".
             # MEASURED 21f21f2a: this was `python.offload`'s own state --
             # authenticated with zero refusals, dominating no blocking surface,
-            # because its writes sat in `_offload_impl`, which the un-leased
+            # because its writes sat in the planner helper, which the un-leased
             # `live=False` path also called. It no longer is, and this branch
             # stayed because the next door to consume a lease will land here
             # before it lands anywhere else.
@@ -1537,7 +1588,7 @@ def authenticate_in_process(
     }
 
 
-def _head_revision(root: Path) -> str:
+def _resolve_source_revision(root: Path) -> str:
     try:
         out = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"],
@@ -1591,7 +1642,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
-    revision = args.source_revision or _head_revision(root)
+    revision = args.source_revision or _resolve_source_revision(root)
     evidence_root = args.evidence_root
     control_root_path = args.control_root
     if args.authenticate:

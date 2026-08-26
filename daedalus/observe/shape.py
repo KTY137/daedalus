@@ -35,7 +35,7 @@ kept apart on purpose.
 WHY THIS IS NOT IN ``structcore``
 ---------------------------------
 Because getting a live object means the program RAN. ``structcore`` is a static
-pass by construction and ``tools/vet.py`` states the rule outright: you do not
+pass by construction and ``daedalus/tools/vet.py`` states the rule outright: you
 run untrusted code to decide anything about it. So observation is a separate,
 opt-in lane that *feeds* the graph with edges stamped ``provenance=observed`` —
 it is never part of an index build, and it runs only on trees the operator owns.
