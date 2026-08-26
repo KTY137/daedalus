@@ -4,14 +4,14 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "e1b75e33d495d5ef5d05fe010deb15b35b4c7c6a"
+    "head": "ad2f6636f4e8632617795d189a42a1cca0007d15"
   },
   "counts": {
     "dark_switches": 3,
     "doc_drift": 32,
     "index_extra_edges": 1,
     "islands": 83,
-    "modules": 1665,
+    "modules": 1667,
     "shims": 7,
     "test_only": 42,
     "unknown": 29,
@@ -329,6 +329,7 @@
     "docs/recovery/amendment_005_kit.py",
     "docs/recovery/amendment_006_kit.py",
     "docs/recovery/amendment_gesamtplan_kit.py",
+    "docs/recovery/gate0_seal_append_record.py",
     "docs/recovery/house_cleanup_kit.py",
     "docs/recovery/production_key_ceremony_kit.py",
     "docs/recovery/serena_mcp_timeout_kit.py",
@@ -1683,6 +1684,7 @@
     "vault/docs/recovery/amendment_005_kit.py",
     "vault/docs/recovery/amendment_006_kit.py",
     "vault/docs/recovery/amendment_gesamtplan_kit.py",
+    "vault/docs/recovery/gate0_seal_append_record.py",
     "vault/docs/recovery/house_cleanup_kit.py",
     "vault/docs/recovery/production_key_ceremony_kit.py",
     "vault/docs/recovery/serena_mcp_timeout_kit.py",
@@ -1904,5 +1906,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:b85e4f2af2e8937bc6ceeb6645c964fd70c3184e95f50a61a4f8e81a09856b54"
+  "digest": "sha256:43f57aa84d5259068ebad0e48a85e6e5a7d1cd57a906898b09506b71881d83d3"
 }
