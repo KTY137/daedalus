@@ -96,7 +96,7 @@ protected. Left alone: it is a hint, not an order, and it fails closed.
 ## 2. CI — REPAIRED 2026-08-25
 
 - `.github/workflows/` — **170 step lines across 94 files**, each
-  `- run: python tools/iron_plan_guard.py verify`, no `continue-on-error`; in
+  `- run: python tools/iron_plan_guard.py verify` (removed 2026-08-22), no `continue-on-error`; in
   26 of the 94 the step sat above `pytest`. Removed; 0 lines added.
 - `.github/CODEOWNERS` — 6 ownership lines naming the ceremony
   (`iron_plan_guard.py (removed 2026-08-22)`, `iron_plan_hook_runner.py (removed 2026-08-22)`,
@@ -249,7 +249,7 @@ lesson. The larger half:
 Measured, twice, on this afternoon. Both sessions first searched for the
 literal `(removed 2026-08-22)` and each was blind to the other's `-08-23`
 stamps. The second attempt still caught only one of the three false stamps,
-because in `` `tools/audit_triage.py:248` `` the closing backtick sits after the
+because in `` `tools/audit_triage.py:248` (removed 2026-08-22)`` the closing backtick sits after the
 line number and the path-extracting regex stopped early. It found all three
 only once it was calibrated — assert 3/3 against the cases already reported —
 before its output was believed. Without those three reports the sweep would
