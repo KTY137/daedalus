@@ -2451,6 +2451,91 @@ _PHASE4_DOOR_ROWS: tuple[EntrypointSpec, ...] = (
 ENTRYPOINTS += _PHASE4_DOOR_ROWS
 
 
+# Doors that appeared AFTER the Phase-4 sweep, registered the same way instead
+# of exempted.  All three were reported as ``entrypoint.unregistered`` blockers
+# by ``python -m daedalus.gates report --gate 0`` at 0430c07f -- the first two
+# because a wiki lane added two new module tails, the third because a docs
+# reporter grew a git spawn.  A blocker that appears because someone added a
+# door is the registry working; the answer is a row, not a wider exemption.
+#
+# EFFECTS ARE DERIVED, NOT PAINTED.  ``discover_entrypoints`` at that revision
+# reports ``filesystem_write`` for both wiki tails (evidence ``mkdir@243`` /
+# ``write_text@244`` and ``mkdir@372`` / ``write_text@373`` -- pre-patch line
+# numbers) and ``process_spawn`` alone for the docs reporter (evidence
+# ``delegates:_resolve_candidates``, ``delegates:scan``).  Nothing else is
+# claimed: neither wiki tail spawns, opens a socket, or reads a credential, and
+# the docs reporter creates no file.  ``tests/test_registry_new_doors.py``
+# re-derives all three in BOTH directions, so an under-declaration and a
+# painted label fail the same way the ten Phase-4 rows do.
+_LATE_DOOR_ROWS: tuple[EntrypointSpec, ...] = (
+    EntrypointSpec(
+        id="cli.wiki_plan",
+        surface=Surface.CLI,
+        target="daedalus.wiki.plan:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.wiki.plan:main", "begin_effect"),),
+        notes=(
+            "`python -m daedalus.wiki.plan <root> [authors] [wiki-dir]` is the "
+            "only door; there is no `daedalus wiki-plan` subcommand. "
+            "FILESYSTEM_WRITE: the tail of main mkdirs `<root>/runs` and "
+            "writes `wiki_plan.json` there, and <root> is whatever path the "
+            "operator passes -- the write target is argument-controlled, which "
+            "is the reason the boundary sits above argument handling rather "
+            "than next to the write. The survey half (survey/assign/"
+            "build_plan) only reads, so no further effect is declared: no "
+            "subprocess, no urlopen, no credential-shaped environment read is "
+            "reachable from this door."
+        ),
+        migration="complete for the cli.wiki_plan entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.wiki_verify",
+        surface=Surface.CLI,
+        target="daedalus.wiki.verify:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.wiki.verify:main", "begin_effect"),),
+        notes=(
+            "The wiki lane's own verifier, and its sibling door to "
+            "cli.wiki_plan. FILESYSTEM_WRITE for the same argument-controlled "
+            "reason: main mkdirs `<root>/runs` and writes `wiki_verify.json`. "
+            "Worth stating plainly because this door PRINTS A VERDICT: the "
+            "artifact it leaves behind is evidence, and evidence produced "
+            "outside the boundary is exactly the shape this registry exists to "
+            "refuse. Reading the tree (index_symbols, tree_vocabulary, "
+            "_config_keys) performs no other effect."
+        ),
+        migration="complete for the cli.wiki_verify entrypoint",
+    ),
+    EntrypointSpec(
+        id="tools.docs_reference_check",
+        surface=Surface.CLI,
+        target="tools.docs_reference_check:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.docs_reference_check:main", "begin_effect"),),
+        notes=(
+            "Reports markdown references to files that no longer exist. "
+            "PROCESS_SPAWN and nothing else: _tracked_markdown runs `git "
+            "ls-files` and _resolve_candidates runs git once per candidate "
+            "name through subprocess.run, so a single invocation fans out into "
+            "many children -- the cost this door actually imposes is process "
+            "count, not bytes written. It creates no file (every output goes "
+            "to stdout/stderr), which is why FILESYSTEM_WRITE is absent here "
+            "while both wiki rows above carry it; that difference is the "
+            "discrimination that keeps the effect column informative."
+        ),
+        migration="complete for the tools.docs_reference_check entrypoint",
+    ),
+)
+
+ENTRYPOINTS += _LATE_DOOR_ROWS
+
+
 REGISTRY_BY_ID: Mapping[str, EntrypointSpec] = MappingProxyType(
     {row.id: row for row in ENTRYPOINTS}
 )

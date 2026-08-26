@@ -101,7 +101,7 @@ from daedalus.spine.effect_boundary import (  # noqa: E402
 # --------------------------------------------------------------------------- #
 
 #: The ten rows Phase 4 added, and the entry function each one guards.
-NEW_ROWS: dict[str, str] = {
+PHASE4_ROWS: dict[str, str] = {
     "cli.killswitch": "daedalus.spine.killswitch:_main",
     "cli.health": "daedalus.health:main",
     "cli.progress": "daedalus.progress:main",
@@ -113,6 +113,24 @@ NEW_ROWS: dict[str, str] = {
     "cli.build_exec": "daedalus.build_exec:main",
     "cli.bootstrap": "daedalus.spine.bootstrap:main",
 }
+
+#: Doors registered AFTER the Phase-4 sweep, kept in a second dict for one
+#: reason that is not cosmetic: the Phase-4 ten are all invisible to the static
+#: scanner (that is why they survived unregistered, and why each costs an
+#: ``entrypoint.not_rediscovered`` REVIEW finding), whereas these three were
+#: FOUND by the scanner as ``entrypoint.unregistered`` blockers in the Gate-0
+#: report at 0430c07f.  Merging them into one dict would have forced the
+#: accounting probe below to accept either answer for either group, which is
+#: how a probe stops discriminating.  Every derivation probe still runs over
+#: both groups through ``NEW_ROWS``.
+LATE_ROWS: dict[str, str] = {
+    "cli.wiki_plan": "daedalus.wiki.plan:main",
+    "cli.wiki_verify": "daedalus.wiki.verify:main",
+    "tools.docs_reference_check": "tools.docs_reference_check:main",
+}
+
+#: Every row this file derives, both groups.
+NEW_ROWS: dict[str, str] = {**PHASE4_ROWS, **LATE_ROWS}
 
 #: The four candidates that were examined and deliberately got NO row, with the
 #: claim each refusal rests on.  Tested, so a refusal cannot quietly rot into a
@@ -753,12 +771,16 @@ def test_a_planted_effect_and_a_deleted_one_are_both_caught():
 
 
 def test_the_new_rows_add_no_conformance_blocker():
-    """Registering ten doors must not make the matrix worse.
+    """Registering these doors must not make the matrix worse.
 
     Ten ``entrypoint.not_rediscovered`` REVIEW findings are the expected and
-    documented price -- the registry's own label for a registered target the
-    conservative scanner cannot classify, which is precisely why these doors
-    survived unregistered. Blockers and Gate-0 gaps must not move.
+    documented price for ``PHASE4_ROWS`` -- the registry's own label for a
+    registered target the conservative scanner cannot classify, which is
+    precisely why those doors survived unregistered. ``LATE_ROWS`` is the
+    opposite case and is asserted as such: the scanner DOES see all three, so
+    each must be rediscovered, and rediscovery is what removed their
+    ``entrypoint.unregistered`` blockers. Blockers stay empty and the Gate-0
+    gap count must not move.
     """
     report = check_conformance(ROOT)
     blockers = sorted(
@@ -772,17 +794,31 @@ def test_the_new_rows_add_no_conformance_blocker():
     assert blockers == [], f"new conformance blockers: {blockers}"
 
     gaps = [f for f in report.findings if f.severity == "gap"]
-    assert len(gaps) == 19, f"Gate-0 gap count moved to {len(gaps)}"
+    #: RE-MEASURED 2026-08-26 at 0430c07f: 16, not the 19 pinned here since
+    #: Phase 4.  The three that left are not this lane's doing -- the count was
+    #: already 16 in a Gate-0 report run BEFORE any edit in this change, so the
+    #: constant had gone stale under an earlier commit and this probe had been
+    #: failing for whoever ran it.  It is corrected rather than relaxed: the
+    #: number is still exact, because a range here would stop noticing the one
+    #: thing it exists to notice.  The three rows added in this change are all
+    #: CENTRAL and contribute no gap, which is why the count does not rise.
+    assert len(gaps) == 16, f"Gate-0 gap count moved to {len(gaps)}"
 
     not_rediscovered = {
         finding.subject
         for finding in report.findings
         if finding.code == "entrypoint.not_rediscovered"
     }
-    for target in NEW_ROWS.values():
+    for target in PHASE4_ROWS.values():
         assert target in not_rediscovered, (
             f"{target} is now rediscovered by the scanner -- good news, but "
             f"this probe's accounting is stale"
+        )
+    for target in LATE_ROWS.values():
+        assert target not in not_rediscovered, (
+            f"{target} stopped being rediscovered by the scanner; its row can "
+            f"no longer be checked against a discovery and this probe's "
+            f"accounting is stale"
         )
 
 

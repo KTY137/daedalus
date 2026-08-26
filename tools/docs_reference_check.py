@@ -37,6 +37,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# This file is advertised as `python tools/docs_reference_check.py` (see the
+# usage block above), which puts tools/ on sys.path and NOT the repository
+# root, so the effect-boundary import inside main() cannot find `daedalus`.
+# Module level is the only place this can be fixed: the boundary probe in
+# tests/test_registry_new_doors.py requires begin_effect to precede every
+# other call in main, so a sys.path repair inside the function would be a
+# call above the boundary.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 # The constitution and its chain. NEVER blocking, and not because they are
 # unimportant -- because AGENTS.md forbids an ordinary session from editing
 # them ("Ordinary tasks must not edit the plan, amendment chain, active
@@ -243,6 +253,23 @@ def scan() -> dict:
 
 
 def main(argv=None) -> int:
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape.
+    #
+    # This reporter writes nothing; it spawns. scan() -> _tracked_markdown()
+    # and _resolve_candidates() both run git through subprocess.run, once per
+    # candidate name, so a large tree turns one invocation into many child
+    # processes. PROCESS_SPAWN is the whole declaration: no file is created, no
+    # socket is opened, and no credential is read on this path, which is why
+    # the row does not carry the effect set its neighbours in tools/ do.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.docs_reference_check",
+        REGISTRY_BY_ID["tools.docs_reference_check"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--all", action="store_true",
                         help="report history pages too (never blocking)")
