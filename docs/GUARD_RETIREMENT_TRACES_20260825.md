@@ -123,7 +123,7 @@ in three places**.
 - `daedalus/sensitivity.py` ships the same defaults; line 215 also carries the
   name in an explanatory comment.
 - `tests/test_sensitivity_default_policy_pins.py` pins
-  `tools/iron_plan_guard.py` at lines 17, 70 and 143, including
+  `tools/iron_plan_guard.py` (removed 2026-08-22) at lines 17, 70 and 143, including
   `test_the_pinned_paths_also_read_as_high_change_risk`.
 
 So the entries cannot simply be deleted: the pin test is the thing that stops a
