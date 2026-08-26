@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "63cd0e6cfa8bcaa4cd691555805d1ef151d95930"
+    "head": "1b272b588d7f8593b388a50ad083f61d68b8c2b7"
   },
   "counts": {
     "dark_switches": 3,
     "doc_drift": 32,
     "index_extra_edges": 1,
-    "islands": 83,
-    "modules": 1667,
+    "islands": 84,
+    "modules": 1668,
     "shims": 7,
-    "test_only": 42,
+    "test_only": 43,
     "unknown": 29,
     "unparsable": 1,
-    "unreached": 119
+    "unreached": 120
   },
   "ignore": {
     "env": "",
@@ -130,6 +130,7 @@
     "daedalus/ikarus_act.py",
     "daedalus/ikarus_chat.py",
     "daedalus/ikarus_os.py",
+    "daedalus/ikarus_supervisor.py",
     "daedalus/kairos/__init__.py",
     "daedalus/kairos/archive.py",
     "daedalus/kairos/control.py",
@@ -1693,6 +1694,7 @@
   ],
   "islands": [
     "daedalus/eval/provenance.py",
+    "daedalus/ikarus_supervisor.py",
     "daedalus/kairos/archive.py",
     "daedalus/kairos/evolution.py",
     "daedalus/kairos/shadow_shell.py",
@@ -1824,6 +1826,7 @@
     "daedalus/gates/repository_write_artifact_cas.py",
     "daedalus/gates/repository_write_artifact_verifier.py",
     "daedalus/gates/repository_write_evidence.py",
+    "daedalus/ikarus_supervisor.py",
     "daedalus/kairos/archive.py",
     "daedalus/kairos/evolution.py",
     "daedalus/kairos/shadow_shell.py",
@@ -1906,5 +1909,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:0449761ce6690ee147b3d74e50a1f2f3b0b63d1014917382d359031ace7fa2a7"
+  "digest": "sha256:b70a2165fe40e7e4cdbdde7ceabe998ac8e4ee390823665135dd4b083a9fe98b"
 }
