@@ -21,7 +21,7 @@ created: 2026-08-17
 - [[SETUP]] — was der Owner einmalig einrichten muss
 - [[ENVIRONMENT_REPORT]] — was gebaut wurde, mit Quellen
 
-## Status-Snapshot (manuell gepflegt, Stand 2026-08-17)
+## Status-Snapshot (manuell gepflegt, Stand 2026-08-26)
 
 | Feld | Wert | Provenienz |
 | --- | --- | --- |
