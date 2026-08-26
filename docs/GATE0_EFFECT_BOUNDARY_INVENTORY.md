@@ -82,8 +82,8 @@ These are hard blockers today. Effects are as the scanner infers them; the
 | A7 | `tools/operability_drill.py:709` | `tools.operability_drill:main` | `filesystem_write`, `process_spawn` | + **`repository_mutation`** |
 | A8 | `tools/gate_host_preflight.py:363` | `tools.gate_host_preflight:main` | `filesystem_write`, `process_spawn` | + **`repository_mutation`** |
 | A9 | `tools/mutation_score.py:709` | `tools.mutation_score:main` | `filesystem_write` | as discovered |
-| A10 | `tools/audit_triage.py (removed 2026-08-21):248` | `tools.audit_triage:main` | `filesystem_write` | as discovered |
-| A11 | `tools/agent_findings.py (removed 2026-08-21):282` | `tools.agent_findings:main` | `filesystem_write` | as discovered |
+| A10 | `tools/audit_triage.py:248` | `tools.audit_triage:main` | `filesystem_write` | as discovered |
+| A11 | `tools/agent_findings.py:282` | `tools.agent_findings:main` | `filesystem_write` | as discovered |
 | A12 | `tools/lane_invariants.py:274` | `tools.lane_invariants:main` | `filesystem_write` | as discovered |
 | A13 | `tools/funnel_report.py:438` | `tools.funnel_report:main` | `process_spawn` | as discovered (reads a run dir; the `fan_out` mention is docstring only) |
 | A14 | `tools/run_gate_checks.py:46` | `tools.run_gate_checks:main` | `process_spawn` | as discovered |

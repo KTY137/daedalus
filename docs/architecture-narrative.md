@@ -207,7 +207,7 @@ Behauptungen, die aufgestellt, gemessen und zurückgezogen wurden. Das ist der w
 ### 'Hermes' was an upstream comms service worth integrating.
 
 - **gemessen** — An implementation audit found it was an unauthenticated WebSocket server bypassing the scheduler.
-- **Folge** — ADR-002 status REJECTED (not deferred); source removed; reopening requires a new ADR naming project, version, license, threat model and replacement cost. VERIFIED: daedalus/hermes/ still exists on disk containing only __pycache__.
+- **Folge** — ADR-002 status REJECTED (not deferred); source removed; reopening requires a new ADR naming project, version, license, threat model and replacement cost. Correction (ADR-017, 2026-07-29): the `daedalus/hermes/` bytecode husk this section once flagged as contradicting ADR-002 no longer exists on disk.
 
 ### Eight impressive ideas: hyperbolic geometry as semantics, weighted embedding averages as a code gradient, spectral partitions as conflict-free schedules, latent interpolation as a patch decoder, DLSS as a tensor backend, PhysX collisions as merge conflicts, layout distance as retrieval ground truth, candidate-authored tests as proof of correctness.
 
@@ -240,7 +240,6 @@ different questions.
 - DARK — DAEDALUS_RTX_OLLAMA_HOST / DAEDALUS_RTX_OLLAMA_TOKEN / DAEDALUS_RTX_TOKEN / DAEDALUS_NVOF_SDK, all unset (daedalus/accelerators.py:31-35). The remote RTX lane reports unconfigured. NOTE THE ASYMMETRY: runs/council/room.py:34 DEFAULTS the same host to http://100.119.126.9:11434, an off-machine tailnet bench, and is explicit that this is an egress lane, not 'local'.
 - DARK (other, all default-off or platform): DAEDALUS_SCAN_MIN_PARALLEL, DAEDALUS_NO_CACHE, DAEDALUS_CENTER, DAEDALUS_IGNORE, DAEDALUS_WEB_DEBUG (unset = the web server logs NOTHING per request), DAEDALUS_STREAM_HOOK_DIR (tests only), and the eval flags --arms/--tier2/--gate/--update-baseline/--mint-commit/--confirm-mint.
 - STALE — build/ (lib + bdist.win-amd64), untracked, a duplicate copy of the whole source tree that pollutes every repo-wide grep with false 'caller' hits and will drift silently. Confirmed present.
-- STALE — daedalus/hermes/ containing only __pycache__ (VERIFIED: `ls daedalus/hermes/` returns __pycache__ and nothing else). ADR-002 says Hermes was removed; the bytecode husk makes `ls daedalus/` contradict the ADR.
 - STALE — structcore-rs/ (Cargo.toml, src/, target/): zero Python callers, 12 tests all in one file, ~13 languages behind, no scope awareness, no safety gate. Its existence still shapes slice.py's degradation contract.
 - STALE — ~/.claude/skills/room/room.py: a 689-line divergent FORK of the 1,099-line runs/council/room.py, and SKILL.md:23 points every skill invocation at the fork. Missing: the hash-chained bus, `verify`, distilled attachments, the opus/fable speakers, and solo mode — so invoking the room via the skill reproduces the exact anchoring bug the repo engine was fixed to prevent.
 - STALE — docs/ARCHITECTURE.md + architecture.html + architecture_history/ (2026-07-06, 'Era 3, 230 tests green' against a tree now at ~1,399 tests), plus 12 more unlinked pre-audit docs in docs/. docs/FALLBACK.md and docs/MISSION_CONTROL.md are the same vintage but ARE still linked from README, so they read as current.
