@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "9896e438d3613ef34559738d7b19c86a92a0b23f"
+    "head": "3e3361c767bdad48a7231e2fd97b2e013cdb18c2"
   },
   "counts": {
     "dark_switches": 3,
-    "doc_drift": 31,
+    "doc_drift": 32,
     "index_extra_edges": 1,
-    "islands": 81,
-    "modules": 1652,
+    "islands": 82,
+    "modules": 1664,
     "shims": 7,
-    "test_only": 43,
+    "test_only": 41,
     "unknown": 29,
     "unparsable": 1,
-    "unreached": 117
+    "unreached": 118
   },
   "ignore": {
     "env": "",
@@ -316,8 +316,11 @@
     "daedalus/verifier.py",
     "daedalus/web_api.py",
     "daedalus/wiki/__init__.py",
+    "daedalus/wiki/__main__.py",
     "daedalus/wiki/links.py",
+    "daedalus/wiki/metrics.py",
     "daedalus/wiki/plan.py",
+    "daedalus/wiki/qml_index.py",
     "daedalus/wiki/vault.py",
     "daedalus/wiki/verify.py",
     "docs/recovery/amendment_003_serena_first_kit.py",
@@ -438,6 +441,10 @@
     "experiments/forest_v2/tensor_semantic_composite/__init__.py",
     "experiments/forest_v2/tensor_semantic_composite/backend.py",
     "experiments/forest_v2/tensor_semantic_composite/contracts.py",
+    "experiments/opus_fleet_watchdog/__init__.py",
+    "experiments/opus_fleet_watchdog/core.py",
+    "experiments/opus_fleet_watchdog/scheduler.py",
+    "experiments/opus_fleet_watchdog/session_probe.py",
     "experiments/tensor_embedding/arm_a_capacity.py",
     "experiments/tensor_embedding/arm_b_fixture.py",
     "experiments/tensor_embedding/arm_c_arity.py",
@@ -447,6 +454,11 @@
     "experiments/tensor_embedding/arm_h_real_fourfold.py",
     "experiments/tensor_embedding/arm_j_tensor_vs_bm25.py",
     "experiments/tensor_embedding/arm_k_fusion.py",
+    "experiments/tensor_embedding/arm_l_text_tensor.py",
+    "experiments/tensor_embedding/arm_m_path_materialize.py",
+    "experiments/tensor_embedding/arm_n_ppr.py",
+    "experiments/tensor_embedding/arm_p_contraction.py",
+    "experiments/tensor_embedding/arm_q_field_expansion.py",
     "experiments/tensor_embedding/bench_crossplane.py",
     "experiments/tensor_embedding/hrr.py",
     "runs/ab/blind.py",
@@ -1693,8 +1705,6 @@
     "daedalus/twin/extractors/registry.py",
     "daedalus/twin/extractors/root_file_adapter.py",
     "daedalus/twin/extractors/tree_sitter_adapter.py",
-    "daedalus/wiki/links.py",
-    "daedalus/wiki/vault.py",
     "docs/recovery/amendment_004_descope_harness_kit.py",
     "docs/recovery/serena_mcp_timeout_kit.py",
     "docs/recovery/unify_and_retire_guard_kit.py",
@@ -1744,6 +1754,9 @@
     "experiments/forest_v2/tensor_semantic_composite/contracts.py",
     "experiments/tensor_embedding/arm_j_tensor_vs_bm25.py",
     "experiments/tensor_embedding/arm_k_fusion.py",
+    "experiments/tensor_embedding/arm_m_path_materialize.py",
+    "experiments/tensor_embedding/arm_n_ppr.py",
+    "experiments/tensor_embedding/arm_p_contraction.py",
     "experiments/tensor_embedding/hrr.py",
     "runs/deny-floor-corpus/build_corpus.py",
     "runs/deny-floor-corpus/trace_evaluator.py",
@@ -1835,8 +1848,6 @@
     "daedalus/runtimes/recovery.py",
     "daedalus/structcore/artifacts.py",
     "daedalus/twin/extractors/tree_sitter_adapter.py",
-    "daedalus/wiki/links.py",
-    "daedalus/wiki/vault.py",
     "experiments/forest_v2/s11_fusion/__init__.py",
     "experiments/forest_v2/s11_fusion/fusion_retrievers.py",
     "experiments/forest_v2/tensor_embeddings/sealed_eval.py",
@@ -1850,6 +1861,7 @@
     "F2_S01_PATH"
   ],
   "doc_drift": [
+    "code-only:CODEX_HOME",
     "code-only:DAEDALUS_BUDGET_ENVELOPE",
     "code-only:DAEDALUS_FANOUT_CONCURRENCY",
     "code-only:DAEDALUS_GATE0_RELEASE_VERIFIER_SECRET",
@@ -1889,5 +1901,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:d38e0bd5237a995dfe67cd884cb41ff886805888935e3c6002dd71fdf5a6dfbd"
+  "digest": "sha256:249f92cf74a8a84ac654ef7204e5cb2df17c4c284fd9cf993ca36b8d50d09693"
 }
