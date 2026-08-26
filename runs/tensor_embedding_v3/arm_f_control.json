@@ -1,0 +1,13 @@
+{
+  "control": "random 10% split over the same graph",
+  "model": "ComplEx",
+  "embedding_dim": 64,
+  "epochs": 120,
+  "entities": 3623,
+  "train": 4875,
+  "test": 410,
+  "hits@1": 0.0,
+  "hits@10": 0.0024,
+  "mrr": 0.0027,
+  "chance_hits@10": 0.0028
+}

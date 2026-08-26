@@ -1,0 +1,357 @@
+{
+  "experiment": "tensor-embedding-v1",
+  "arm": "A",
+  "extension_sweep": {
+    "note": "added after the frozen grid saturated; not part of the frozen spec",
+    "trials": 50,
+    "rows": [
+      {
+        "d": 256,
+        "k": 8,
+        "hrr_accuracy": 0.9825,
+        "slot_accuracy": 1.0,
+        "slot_width": 32
+      },
+      {
+        "d": 256,
+        "k": 16,
+        "hrr_accuracy": 0.7425,
+        "slot_accuracy": 1.0,
+        "slot_width": 16
+      },
+      {
+        "d": 256,
+        "k": 32,
+        "hrr_accuracy": 0.3469,
+        "slot_accuracy": 1.0,
+        "slot_width": 8
+      },
+      {
+        "d": 256,
+        "k": 64,
+        "hrr_accuracy": 0.1181,
+        "slot_accuracy": 1.0,
+        "slot_width": 4
+      },
+      {
+        "d": 256,
+        "k": 128,
+        "hrr_accuracy": 0.0403,
+        "slot_accuracy": 0.9997,
+        "slot_width": 2
+      },
+      {
+        "d": 512,
+        "k": 8,
+        "hrr_accuracy": 1.0,
+        "slot_accuracy": 1.0,
+        "slot_width": 64
+      },
+      {
+        "d": 512,
+        "k": 16,
+        "hrr_accuracy": 0.985,
+        "slot_accuracy": 1.0,
+        "slot_width": 32
+      },
+      {
+        "d": 512,
+        "k": 32,
+        "hrr_accuracy": 0.7538,
+        "slot_accuracy": 1.0,
+        "slot_width": 16
+      },
+      {
+        "d": 512,
+        "k": 64,
+        "hrr_accuracy": 0.35,
+        "slot_accuracy": 1.0,
+        "slot_width": 8
+      },
+      {
+        "d": 512,
+        "k": 128,
+        "hrr_accuracy": 0.1186,
+        "slot_accuracy": 1.0,
+        "slot_width": 4
+      },
+      {
+        "d": 1024,
+        "k": 8,
+        "hrr_accuracy": 1.0,
+        "slot_accuracy": 1.0,
+        "slot_width": 128
+      },
+      {
+        "d": 1024,
+        "k": 16,
+        "hrr_accuracy": 1.0,
+        "slot_accuracy": 1.0,
+        "slot_width": 64
+      },
+      {
+        "d": 1024,
+        "k": 32,
+        "hrr_accuracy": 0.9919,
+        "slot_accuracy": 1.0,
+        "slot_width": 32
+      },
+      {
+        "d": 1024,
+        "k": 64,
+        "hrr_accuracy": 0.7462,
+        "slot_accuracy": 1.0,
+        "slot_width": 16
+      },
+      {
+        "d": 1024,
+        "k": 128,
+        "hrr_accuracy": 0.3377,
+        "slot_accuracy": 1.0,
+        "slot_width": 8
+      }
+    ]
+  },
+  "vocab": 1000,
+  "trials": 200,
+  "numpy": "1.26.4",
+  "elapsed_seconds": 42.49,
+  "rows": [
+    {
+      "d": 256,
+      "k": 2,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 128
+    },
+    {
+      "d": 256,
+      "k": 3,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 85
+    },
+    {
+      "d": 256,
+      "k": 4,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 64
+    },
+    {
+      "d": 256,
+      "k": 5,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 51
+    },
+    {
+      "d": 256,
+      "k": 6,
+      "hrr_accuracy": 0.9975,
+      "slot_accuracy": 1.0,
+      "slot_width": 42
+    },
+    {
+      "d": 256,
+      "k": 8,
+      "hrr_accuracy": 0.9819,
+      "slot_accuracy": 1.0,
+      "slot_width": 32
+    },
+    {
+      "d": 512,
+      "k": 2,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 256
+    },
+    {
+      "d": 512,
+      "k": 3,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 170
+    },
+    {
+      "d": 512,
+      "k": 4,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 128
+    },
+    {
+      "d": 512,
+      "k": 5,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 102
+    },
+    {
+      "d": 512,
+      "k": 6,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 85
+    },
+    {
+      "d": 512,
+      "k": 8,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 64
+    },
+    {
+      "d": 1024,
+      "k": 2,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 512
+    },
+    {
+      "d": 1024,
+      "k": 3,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 341
+    },
+    {
+      "d": 1024,
+      "k": 4,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 256
+    },
+    {
+      "d": 1024,
+      "k": 5,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 204
+    },
+    {
+      "d": 1024,
+      "k": 6,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 170
+    },
+    {
+      "d": 1024,
+      "k": 8,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 128
+    },
+    {
+      "d": 2048,
+      "k": 2,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 1024
+    },
+    {
+      "d": 2048,
+      "k": 3,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 682
+    },
+    {
+      "d": 2048,
+      "k": 4,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 512
+    },
+    {
+      "d": 2048,
+      "k": 5,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 409
+    },
+    {
+      "d": 2048,
+      "k": 6,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 341
+    },
+    {
+      "d": 2048,
+      "k": 8,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 256
+    },
+    {
+      "d": 4096,
+      "k": 2,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 2048
+    },
+    {
+      "d": 4096,
+      "k": 3,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 1365
+    },
+    {
+      "d": 4096,
+      "k": 4,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 1024
+    },
+    {
+      "d": 4096,
+      "k": 5,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 819
+    },
+    {
+      "d": 4096,
+      "k": 6,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 682
+    },
+    {
+      "d": 4096,
+      "k": 8,
+      "hrr_accuracy": 1.0,
+      "slot_accuracy": 1.0,
+      "slot_width": 512
+    }
+  ],
+  "min_dimension_for_99_percent": {
+    "2": {
+      "hrr_min_d_at_99pct": 256,
+      "slot_min_d_at_99pct": 256
+    },
+    "3": {
+      "hrr_min_d_at_99pct": 256,
+      "slot_min_d_at_99pct": 256
+    },
+    "4": {
+      "hrr_min_d_at_99pct": 256,
+      "slot_min_d_at_99pct": 256
+    },
+    "5": {
+      "hrr_min_d_at_99pct": 256,
+      "slot_min_d_at_99pct": 256
+    },
+    "6": {
+      "hrr_min_d_at_99pct": 256,
+      "slot_min_d_at_99pct": 256
+    },
+    "8": {
+      "hrr_min_d_at_99pct": 512,
+      "slot_min_d_at_99pct": 256
+    }
+  }
+}

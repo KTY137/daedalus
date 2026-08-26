@@ -1,0 +1,229 @@
+{
+  "experiment": "tensor-embedding-v2",
+  "dimension": 1024,
+  "concepts": 200,
+  "candidates_per_query": 40,
+  "chance_top1": 0.025,
+  "numpy": "1.26.4",
+  "regimes": {
+    "decomposable/rename=none": {
+      "0.0": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      },
+      "0.2": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.995
+      },
+      "0.4": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.995
+      },
+      "0.6": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      },
+      "0.8": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.99
+      }
+    },
+    "joint/rename=none": {
+      "0.0": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      },
+      "0.2": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.995
+      },
+      "0.4": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      },
+      "0.6": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.995
+      },
+      "0.8": {
+        "exact": 1.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      }
+    },
+    "decomposable/rename=prefix": {
+      "0.0": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      },
+      "0.2": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.995
+      },
+      "0.4": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.995
+      },
+      "0.6": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      },
+      "0.8": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.99
+      }
+    },
+    "joint/rename=prefix": {
+      "0.0": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      },
+      "0.2": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.995
+      },
+      "0.4": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      },
+      "0.6": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 0.99
+      },
+      "0.8": {
+        "exact": 0.0,
+        "pairwise_sum": 1.0,
+        "pairwise_min": 1.0,
+        "trilinear": 1.0
+      }
+    }
+  },
+  "k8_real_binding_arity": {
+    "source": "tests/fixtures/ignition/voltage/fourfold.json",
+    "claim_count": 10,
+    "arity_histogram": {
+      "2": 10
+    },
+    "claims_with_arity_ge_3": 0,
+    "per_claim": [
+      {
+        "kind": "code_declares_type",
+        "planes": [
+          "code",
+          "type"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "type_matches_csv_field",
+        "planes": [
+          "data",
+          "type"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "type_matches_csv_field",
+        "planes": [
+          "data",
+          "type"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "type_matches_schema_field",
+        "planes": [
+          "data",
+          "type"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "type_matches_schema_field",
+        "planes": [
+          "data",
+          "type"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "wiki_documents_node",
+        "planes": [
+          "code",
+          "knowledge"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "wiki_documents_node",
+        "planes": [
+          "knowledge",
+          "type"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "wiki_documents_node",
+        "planes": [
+          "code",
+          "knowledge"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "wiki_documents_node",
+        "planes": [
+          "data",
+          "knowledge"
+        ],
+        "arity": 2
+      },
+      {
+        "kind": "wiki_documents_node",
+        "planes": [
+          "data",
+          "knowledge"
+        ],
+        "arity": 2
+      }
+    ]
+  },
+  "elapsed_seconds": 18.71
+}

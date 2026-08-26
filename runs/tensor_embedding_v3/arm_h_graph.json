@@ -1,0 +1,42 @@
+{
+  "entities": 225468,
+  "triples": 355390,
+  "relations": 16,
+  "average_degree": 3.15,
+  "median_degree": 1,
+  "degree_1_share": 0.5907,
+  "degree_ge_5_share": 0.0942,
+  "relation_counts": {
+    "defines_func": 76136,
+    "has_method": 50890,
+    "imports_from": 42141,
+    "param_type": 39209,
+    "has_field": 32994,
+    "mentions": 20621,
+    "returns_type": 19996,
+    "defines_class": 17708,
+    "imports": 16565,
+    "has_type": 14254,
+    "inherits": 12351,
+    "documents": 7534,
+    "has_column": 2567,
+    "realises_field": 1322,
+    "has_property": 940,
+    "links_to": 162
+  },
+  "plane_node_mentions": {
+    "code": 528685,
+    "type": 124659,
+    "data": 8336,
+    "knowledge": 49100
+  },
+  "extraction_stats": {
+    "py_files": 8880,
+    "unparsable": 1,
+    "schema": 64,
+    "csv": 620,
+    "md": 2260,
+    "crossplane_doc_symbol": 7534,
+    "crossplane_data_type": 1322
+  }
+}
