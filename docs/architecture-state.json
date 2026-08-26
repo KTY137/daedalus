@@ -4,7 +4,7 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "01b57b40fd4764aaa8c3b040871e3eeafca09c58"
+    "head": "0c106b81f62bba17eace1f14751d6c3be211dbd4"
   },
   "counts": {
     "dark_switches": 3,
@@ -1909,5 +1909,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:b555e2b2a653af4cbb7726013a260d12d7f9461d84b35402a917f026dd423acf"
+  "digest": "sha256:05b37326d51462de858a7b0e547b394c36b4c0a0f6630dd1ec590405f78d4e52"
 }
