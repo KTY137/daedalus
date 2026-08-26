@@ -510,3 +510,41 @@ def test_survey_is_order_independent_of_the_filesystem(tmp_path: pathlib.Path) -
     assert len({t.loc for t in topics}) == 1, "fixture must produce equal weights"
     assert [t.name for t in topics] == sorted(t.name for t in topics)
     assert [t.name for t in wiki_plan.survey(tmp_path)] == [t.name for t in topics]
+
+
+def test_a_nested_checkout_is_not_half_the_plan(tmp_path: pathlib.Path) -> None:
+    """A repository below the root is a copy, not more material.
+
+    MEASURED 2026-08-26 on this repository, with a git worktree checked out at
+    `.claude/worktrees/`: the survey returned 983 files across 78 topics, and
+    **480 of those files came from the copy**. Nearly half the plan -- topics,
+    line weights, author assignment -- was computed over a duplicate of the
+    tree it was describing, and the authors would have been sent to write pages
+    about it.
+
+    The name-based `SKIP_DIRS` could not have caught it: the directory was
+    `.claude/worktrees`, not `.worktrees`, and a name list is always one name
+    behind. The rule is structural -- a directory holding a `.git` entry is a
+    different repository -- exactly like the `pyvenv.cfg` rule above.
+    """
+    _fat_dir(tmp_path, "core", prefix="core")
+    # A worktree marks itself with a `.git` FILE; a clone with a directory.
+    # The fixture uses the shape that actually bit.
+    _write(tmp_path, "nested/.git", "gitdir: /elsewhere" + chr(10))
+    _fat_dir(tmp_path, "nested/core", prefix="core")
+    _fat_dir(tmp_path, "nested/extra", prefix="extra")
+
+    topics = wiki_plan.survey(tmp_path)
+
+    assert _names(topics) == {"core"}, f"the nested checkout leaked: {_dirs(topics)}"
+    assert all(not f.startswith("nested/") for t in topics for f in t.files)
+
+    # DYNAMIC RANGE, the same control the venv probe carries: remove ONLY the
+    # marker and the identical directories qualify again. Without it this
+    # probe would also pass on a fixture that produced no topics at all.
+    (tmp_path / "nested" / ".git").unlink()
+    after = wiki_plan.survey(tmp_path)
+    assert "extra" in _names(after), (
+        "the fixture never had enough material to be excluded; this probe "
+        f"proves nothing: {_dirs(after)}"
+    )

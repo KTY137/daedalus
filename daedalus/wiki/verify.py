@@ -82,6 +82,17 @@ def exclusions(root: pathlib.Path, wiki_dir: pathlib.Path | None) -> list[pathli
     excluded = [(root / "runs").resolve()]
     if wiki_dir is not None:
         excluded.append(wiki_dir.resolve())
+    # A THIRD TREE, and the one nobody declared: a git worktree or clone
+    # checked out BELOW root is a different repository, so every module in it
+    # is a second copy of a module this checker has already counted. It cannot
+    # create a false acquittal -- the names are the same names -- but it halves
+    # `module_coverage` by doubling `source_modules`, and it asks for wiki
+    # pages about a duplicate. Structural, not a name in a list: `.claude/
+    # worktrees/` would never have been in one. MEASURED 2026-08-26: the
+    # sibling planner's survey drew 480 of 983 files from exactly such a copy.
+    for marker in root.rglob(".git"):
+        if marker.parent != root:
+            excluded.append(marker.parent.resolve())
     return excluded
 
 
