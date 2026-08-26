@@ -138,6 +138,33 @@ Closing one root cause moves a whole cluster.
 
 ---
 
+> **STATUS UPDATE 2026-08-26 (appended, nothing above rewritten).** Measured
+> again at `4f71c020`:
+>
+> * **Rank 1 still holds, unchanged.** `grep -rn "RuntimeBoundEffectAuthorization(" --include=*.py daedalus`
+>   returns 0 production files. The keystone is still one missing caller, and
+>   the last step behind it is owner-gated (key ceremony + live host, see
+>   `docs/GATE0_LIVE_RUNTIME_DECISION.md`, pending since 2026-08-18).
+> * **Rank 2, consumer half: CLOSED.** `harvest_effect_lease_terminal_records`
+>   no longer has zero production reach --
+>   `WaveOffloadLease.retain_terminal_record` is called from
+>   `TaskAttempt._finish_lease_terminal` and swept per wave from
+>   `build_exec.run_wave`. The producer/consumer asymmetry this section
+>   described is gone for the attempt and wave paths. The *ignition* path still
+>   does not lease at all; that is specified as
+>   `docs/work-packets/G1-LEASE-01-ignition-crosses-its-boundary.md`.
+> * **Rank 2, dominance number: unchanged, and now trustworthy again.**
+>   Re-derived at `4f71c020`: `surfaces=447 declared=35 unclassified=412`, 22
+>   doors, **still exactly one** lease-dominated door. Read
+>   `docs/GATE0_NESTED_CHECKOUT_INSTRUMENT_FAILURE_20260826.md` before
+>   comparing this number with any run taken after 2026-08-25 22:49: a worktree
+>   checked out inside the repository silently drove the same derivation to
+>   zero private callees. This survey predates it and was therefore clean.
+> * **Rank 3: RESOLVED.** `.daedalusignore` is tracked, `counts.modules` (1652)
+>   matches its own list, and `python -m daedalus.mapping.drift` compares. The
+>   remaining blocking items belong to uncommitted experiment lanes, not to the
+>   snapshot.
+
 ## 3. RANKED TOP 3 — what other lanes should act on
 
 Ranked strictly by whether closing the gap unblocks **Gate-0 closure** or the
