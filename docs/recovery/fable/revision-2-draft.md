@@ -1,5 +1,12 @@
 # Lane report: revision-2-draft
 
+**SUPERSEDED 2026-08-26.** This lane measured the Gesamtplan against the
+`work/g0-trunk-20260817` worktree (`closed=false`, 60 blockers) as a basis for
+an amendment *proposal*. Gate 0 has since closed (scoped) via master plan
+revision 8 — see `docs/GATE0_CLOSURE_DECISION_20260826.md`. No amendment based
+on this draft was adopted; the text below is retained unchanged as dated
+evidence, not as a live proposal.
+
 Lane: `revision-2-draft` (Fable long-context lane 1 of 5)
 Date: 2026-08-17
 Classification: **ALIGNED** (read-only analysis producing an AMENDMENT *proposal*; no protected
