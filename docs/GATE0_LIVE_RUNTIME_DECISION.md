@@ -1,6 +1,64 @@
 # Gate 0 — Entscheidungsvorlage: die zwei live-runtime-Fault-Zeilen
 
-Status: ENTWURF — ENTSCHEIDUNG STEHT AUS (nur der Owner entscheidet).
+Status: **UEBERHOLT 2026-08-26 — die hier gestellte Frage ist beantwortet.**
+Option A wurde am 2026-08-18 GEBAUT und gefahren; dieses Papier beschreibt
+eine Wahl, die noch am Tag seiner Entstehung getroffen wurde. Siehe den
+Stempel unten, bevor irgendetwas aus dem Text darunter uebernommen wird.
+
+---
+
+## STEMPEL 2026-08-26 (Athena) — was gemessen wurde
+
+`[MEASURED]` aus `runs/gate0-matrix-20260818-closure/whole-matrix-verdict.json`
+und `runs/gate0-closure-20260818/`:
+
+```text
+catalog_scenarios 24   observations 24   fault.missing 0
+columns           deterministic-fixture | linux-host | live-runtime
+key_material      production_key_material=true,
+                  issuer.gate0-live-runtime-production
+```
+
+Die dritte Spalte EXISTIERT, die Produktions-Keys wurden benutzt, und die
+zwei Live-Treiber liefen wirklich: der Binary-Drift-Treiber hat die
+installierte `ollama.exe` gehasht und einen gedrifteten Hash erzeugt
+(`binary-drift-observed: true`). Punkte 1-4 des Abschnitts "Was ein
+live-envelope-Collector konkret braeuchte" sind damit erledigt, nicht offen.
+
+**Was noch blockiert, sind 6 `fault.blocked`-Zeilen — nicht `fault.missing`
+— und sie haben genau zwei Ursachen:**
+
+| Ursache | Zeilen | Detail-Code |
+| --- | --- | --- |
+| kein Docker-CLI auf der Collector-Box | `runtime.egress.unauthorized-endpoint`, `runtime.process.oom`, `runtime.sandbox.daemon-unavailable`, `runtime.secrets.undeclared-access` | `docker-cli-unavailable` |
+| kein Live-Conformance-Envelope | `runtime.live-envelope.expiry`, `runtime.live-envelope.binary-drift` | `live-envelope-unavailable` |
+
+Die zweite Ursache ist woertlich: *"no live conformance envelope was supplied
+to this collector run"*. Ein `RuntimeConformanceEnvelope` mit
+`authority="live-runtime"` entsteht nur aus einem echten runtime-gebundenen
+Provider-Start — und **kein Produktions-Caller mintet eine
+`RuntimeBoundEffectAuthorization`** (`[MEASURED]` an `4f71c020`: 0 Dateien
+unter `daedalus/`, alle 6 Konstruktionsstellen liegen unter `tests/`).
+
+**Die offene Arbeit ist also weder A noch B, sondern Caller-Injection** — und
+sie ist die einzige der drei, die ohne Hardware und ohne Owner-Akt im Repo
+baubar ist. Dasselbe Stueck Arbeit erzeugt auch das fehlende
+Runtime-Conformance-Receipt-Bundle (eigener Gate-0-Blocker) und ist die
+Vorbedingung dafuer, dass `provider.claude` ueberhaupt CENTRAL werden kann.
+Siehe `docs/GATE0_INTEGRATION_GAPS_20260825.md` Rang 1.
+
+Fuer die vier `docker-cli-unavailable`-Zeilen bleibt eine echte Wahl, und
+dort ist die Empfehlung die UMGEKEHRTE zu der unten: scopen, nicht bauen.
+Ein gepflegter Linux-Host mit Docker ist Beschaffung, kein Engineering, und
+der Praezedenzfall dafuer steht in
+`docs/GATE0_LINUX_FAULT_SCOPING_DECISION.md`.
+
+Der Text ab hier ist der Entwurf vom 2026-08-18, unveraendert erhalten als
+datierte Evidenz. Er wird NICHT umgeschrieben — er hat die Optionen korrekt
+benannt; ueberholt ist nur sein Status.
+
+---
+
 Erstellt: 2026-08-18, Nachtschicht watchdog-mission3. Dieses Dokument
 entscheidet nichts und baut nichts; es benennt die Optionen und ihren Preis.
 
