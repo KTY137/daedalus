@@ -60,7 +60,7 @@ duty in those charters changed.
 dispatched the agent]` Atalanta ran at ~11:15-11:40 under the unrepaired
 charter. Her report carries, under the heading "Could not measure":
 
-> `tools/iron_plan_guard.py` does not exist (retired by owner decision, plan
+> `tools/iron_plan_guard.py` (replaced by daedalus/hooks/, 2026-08-23) does not exist (retired by owner decision, plan
 > revision 7)
 
 She caught the impossible order, classified it as *could not measure* —
@@ -207,7 +207,7 @@ path mentions:]
 |---|---:|---|---|
 | `docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md` | 85 | `tools/audit_triage.py` (removed 2026-08-21) | present at HEAD, tracked |
 | `docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md` | 86 | `tools/agent_findings.py` (removed 2026-08-21) | present at HEAD, tracked |
-| `docs/HANDOFF_2026-07-30_NIGHT.md` | 386 | `tools/agent_findings.py` | present at HEAD, tracked |
+| `docs/HANDOFF_2026-07-30_NIGHT.md` | 386 | `tools/agent_findings.py` (removed 2026-08-21) | present at HEAD, tracked |
 
 Neither file was ever deleted: `git log --diff-filter=D` returns nothing for
 either, and both resolve at HEAD. The stamps were not stale, they were **wrong
@@ -217,8 +217,8 @@ asserting a falsehood about live tooling.
 **Withdrawn in `131b83b6`** — "withdraw three removal stamps that were false
 when they were written" — by the session that had introduced them. Verified
 here afterwards: 33 stamped path mentions remain tree-wide and all 33 name a
-path that is genuinely gone; zero false stamps survive. `tools/audit_triage.py`
-(321 lines) and `tools/agent_findings.py` (309 lines) are both present at HEAD.
+path that is genuinely gone; zero false stamps survive. `tools/audit_triage.py` (removed 2026-08-21)
+(321 lines) and `tools/agent_findings.py` (removed 2026-08-21) (309 lines) are both present at HEAD.
 
 That withdrawal is *not* an answer to the doctrine question, and it is worth
 being clear why, because the distinction is the useful part:

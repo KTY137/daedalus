@@ -1053,7 +1053,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python tools/iron_plan_guard.py verify
+      - run: python tools/iron_plan_guard.py verify  # (replaced by daedalus/hooks/, 2026-08-23)
       - run: python -m unittest tests.test_iron_plan_guard -v
 
   package-and-contracts:
