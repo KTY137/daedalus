@@ -53,8 +53,35 @@ def _venv_roots(root: pathlib.Path) -> set[pathlib.Path]:
     return {cfg.parent for cfg in root.rglob("pyvenv.cfg")}
 
 
-def _usable(path: pathlib.Path, venvs: frozenset[pathlib.Path] = frozenset()) -> bool:
+def _nested_checkout_roots(root: pathlib.Path) -> set[pathlib.Path]:
+    """Directories below ``root`` that are a DIFFERENT repository.
+
+    A git worktree marks itself with a ``.git`` FILE, a clone with a directory;
+    either way the tree under it is a second copy of modules this survey has
+    already seen. Structural, not nominal, for the reason the venv rule above
+    is: a name list is always one name behind. ``.claude/worktrees/`` is not in
+    SKIP_DIRS and would not have been.
+
+    MEASURED 2026-08-26 on this repository, with one such worktree present:
+    the survey returned 983 files, of which **480 came from the copy**. Nearly
+    half the wiki plan was about a duplicate of the tree it was describing --
+    topics, weights and author assignment all computed over it.
+
+    ``root`` itself is never a nested checkout by this rule; it is the subject.
+    """
+    found: set[pathlib.Path] = set()
+    for marker in root.rglob(".git"):
+        parent = marker.parent
+        if parent != root:
+            found.add(parent)
+    return found
+
+
+def _usable(path: pathlib.Path, venvs: frozenset[pathlib.Path] = frozenset(),
+            nested: frozenset[pathlib.Path] = frozenset()) -> bool:
     if any(part in SKIP_DIRS for part in path.parts):
+        return False
+    if any(checkout in path.parents for checkout in nested):
         return False
     return not any(venv in path.parents for venv in venvs)
 
@@ -76,9 +103,10 @@ class Topic:
 def survey(root: pathlib.Path) -> list[Topic]:
     """Partition the tree into topics by directory, ranked by weight."""
     venvs = frozenset(_venv_roots(root))
+    nested = frozenset(_nested_checkout_roots(root))
     by_dir: dict[str, list[pathlib.Path]] = collections.defaultdict(list)
     for path in root.rglob("*.py"):
-        if not _usable(path, venvs) or path.stat().st_size > 400_000:
+        if not _usable(path, venvs, nested) or path.stat().st_size > 400_000:
             continue
         rel = path.relative_to(root)
         if rel.name.startswith("test_") or "tests" in rel.parts:

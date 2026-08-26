@@ -105,10 +105,15 @@ docstrings.
   `surfaces=447 declared=35 unclassified=412`, 22 doors, and **still exactly
   one** lease-dominated door. The headline finding is unchanged; what the
   checkout broke was every run after it.
-- It does not audit the other root-walking scanners. `daedalus/health.py`,
-  `daedalus/wiki/plan.py` and `daedalus/wiki/verify.py` also walk from a root
-  with name-based skip lists and were not measured here. That is named as
-  remaining work, not waved through.
+- It did not, at first, audit the other root-walking scanners. Two of the
+  three have since been measured and fixed in the same sweep:
+  `daedalus/wiki/plan.py` drew **480 of 983 surveyed files from the copy**
+  (78 topics -> 40, 983 files -> 503 after the prune), and
+  `daedalus/wiki/verify.py` counted the copy's modules as material the wiki
+  must cover, halving `module_coverage` -- it now excludes nested checkouts
+  through `exclusions()`, beside the wiki and `runs/` trees it already named.
+  `daedalus/health.py` still walks from a root with a name-based skip list and
+  is **not** measured. That one is named as remaining work, not waved through.
 
 ## Reproduce
 

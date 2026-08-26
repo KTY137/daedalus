@@ -612,3 +612,50 @@ def test_ordinary_project_evidence_still_clears_a_claim(
     assert "unknown_symbol" not in report["findings_by_kind"], (
         f"evidence at {rel} was ignored: {report['findings'].get('unknown_symbol')}")
     assert report["verdict"] == "PASS"
+
+
+def test_a_nested_checkout_does_not_supply_evidence_or_demand_pages(
+        tmp_path: pathlib.Path) -> None:
+    """The third tree nobody declared.
+
+    `exclusions` names two trees that may not supply evidence about the wiki
+    under test -- the wiki itself and `runs/`, both for the same reason: a
+    claim must not be acquitted by something the checker or the page wrote. A
+    git worktree or clone checked out BELOW the root is a third such tree, and
+    it was not named.
+
+    It cannot manufacture a false acquittal (the names in the copy are the same
+    names) -- it does something quieter: it doubles `source_modules`, so
+    `module_coverage` reports half of what the wiki actually covers, and it
+    asks for pages about a duplicate. MEASURED 2026-08-26: the sibling planner
+    drew 480 of 983 files from exactly such a copy on this repository.
+
+    Structural, not nominal: the directory that bit was `.claude/worktrees`,
+    which no name list held.
+    """
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "widget.py").write_text(
+        "def public_thing():" + chr(10) + "    return 1" + chr(10), encoding="utf-8")
+    nested = tmp_path / "nested"
+    (nested / "pkg").mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere" + chr(10), encoding="utf-8")
+    (nested / "pkg" / "widget.py").write_text(
+        "def public_thing():" + chr(10) + "    return 1" + chr(10), encoding="utf-8")
+    wiki = tmp_path / "docs" / "wiki"
+    wiki.mkdir(parents=True)
+
+    excluded = wiki_verify.exclusions(tmp_path, wiki)
+    assert nested.resolve() in excluded, [str(p) for p in excluded]
+
+    report = wiki_verify.verify(tmp_path, wiki)
+    assert report["source_modules"] == 1, (
+        "the nested checkout was counted as material the wiki must cover: "
+        f"{report['source_modules']}"
+    )
+
+    # DYNAMIC RANGE: drop only the marker and the same file counts again.
+    (nested / ".git").unlink()
+    assert wiki_verify.verify(tmp_path, wiki)["source_modules"] == 2, (
+        "the fixture's nested module was never countable; this probe proves "
+        "nothing"
+    )
