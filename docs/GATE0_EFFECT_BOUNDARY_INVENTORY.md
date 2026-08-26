@@ -6,6 +6,18 @@ Registry sha256 at measurement: `b8cab096e4bf2dfdc56866d1a5c4d726c34a2eb6091d969
 Scope: investigation and inventory. **No production code was changed to produce
 this document.**
 
+**Superseded [MEASURED 2026-08-26 against `daedalus/spine/effect_boundary.py` @ HEAD 0398be65]:**
+the Tier-0 items this document flagged as unregistered or under-declared are
+now fixed in the registry — `tools.guarded_call` (B1) is registered with
+`migration="complete"`; `provider.deepseek` now declares
+`SPEND`/`SECRETS`/`NETWORK_EGRESS`; `SCAN_PACKAGES` includes `"runs"` and
+`runs.council.room`, `runs.council.room_server`, `runs.ab.run_arm` (C1/C3/C4)
+are registered with completed migrations; the stale `cli.claude_bridge` row
+was deleted. The arithmetic and ranking below describe the pre-fix state and
+are kept as the record of what was found and why it was ranked first — verify
+current counts with the reproduction command in §0 rather than trusting the
+tables as present tense.
+
 Iron Plan: ALIGNED · Iron Gate: 0 · Invariant touched: 8 (bounded effects),
 1 (one kernel), 7 (provenance).
 
