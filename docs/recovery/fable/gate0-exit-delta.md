@@ -1,5 +1,10 @@
 # Lane report: gate0-exit-delta
 
+**SUPERSEDED 2026-08-26.** Measured against `work/g0-trunk-20260817`
+(`closed=false`, 60 blockers). Gate 0 has since closed (scoped), master plan
+revision 8 — see `docs/GATE0_CLOSURE_DECISION_20260826.md`. Retained unchanged
+as dated evidence.
+
 Lane: gate0-exit-delta (Fable long-context analysis, read-only)
 Date: 2026-08-17
 Trunk under measurement: `C:/Users/nukei/Desktop/agent_env_g0`, branch `work/g0-trunk-20260817`,

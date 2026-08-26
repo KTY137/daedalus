@@ -1,5 +1,10 @@
 # Lane: trunk-konkordanz — Gesamtplan Gate-0/Schritt-B/C/D gegen den konsolidierten Trunk
 
+**UEBERHOLT 2026-08-26.** Gemessen gegen `work/g0-trunk-20260817`
+(`closed=false`, 60 Blocker). Gate 0 ist seither (gescoped) geschlossen,
+Masterplan Revision 8 — siehe `docs/GATE0_CLOSURE_DECISION_20260826.md`. Der
+Text bleibt unveraendert als datierte Evidenz stehen.
+
 Datum: 2026-08-17 · Lane: Fable trunk-konkordanz · Klassifikation: ALIGNED (read-only Analyse, Gate 0)
 
 Gemessener Stand: Worktree `C:/Users/nukei/Desktop/agent_env_g0`, Branch `work/g0-trunk-20260817`,

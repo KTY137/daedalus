@@ -1,5 +1,11 @@
 # Workflow harvest — 20-lane repair workflow wf_1e718951-0ff
 
+**SUPERSEDED 2026-08-26.** Written against `work/g0-trunk-20260817`; the guard
+this file names as blocking commits (`tools/iron_plan_guard.py`) was retired
+by owner decision on 2026-08-22 (plan revision 7), and Gate 0 has since closed
+(scoped), revision 8. Retained unchanged as dated evidence of the lane
+disposition at harvest time.
+
 Lane: workflow-harvest (Fable long-context analysis, 2026-08-17)
 Classification: ALIGNED (read-only harvest; this report file is the only write)
 
