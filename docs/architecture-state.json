@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "d16706253bb69392fbf479b3f81c2168dd659ae2"
+    "head": "d0ff5863b0fa53ef3c7b84c46471d701b1752f89"
   },
   "counts": {
     "dark_switches": 3,
     "doc_drift": 32,
     "index_extra_edges": 1,
-    "islands": 82,
-    "modules": 1664,
+    "islands": 83,
+    "modules": 1665,
     "shims": 7,
-    "test_only": 41,
+    "test_only": 42,
     "unknown": 29,
     "unparsable": 1,
-    "unreached": 118
+    "unreached": 119
   },
   "ignore": {
     "env": "",
@@ -162,6 +162,7 @@
     "daedalus/kernel/promotion_execution_reader.py",
     "daedalus/kernel/promotion_fingerprint.py",
     "daedalus/kernel/promotion_trust_root.py",
+    "daedalus/kernel/runtime_authorization_issuer.py",
     "daedalus/kernel/runtime_conformance.py",
     "daedalus/kernel/runtime_effect_replay.py",
     "daedalus/kernel/runtime_effects.py",
@@ -1695,6 +1696,7 @@
     "daedalus/kairos/shadow_shell.py",
     "daedalus/kernel/effect_recovery.py",
     "daedalus/kernel/promotion_fingerprint.py",
+    "daedalus/kernel/runtime_authorization_issuer.py",
     "daedalus/observe/shape.py",
     "daedalus/runtimes/provider_invocation_authority.py",
     "daedalus/runtimes/provider_invocation_registry.py",
@@ -1825,6 +1827,7 @@
     "daedalus/kairos/shadow_shell.py",
     "daedalus/kernel/effect_recovery.py",
     "daedalus/kernel/promotion_fingerprint.py",
+    "daedalus/kernel/runtime_authorization_issuer.py",
     "daedalus/observe/shape.py",
     "daedalus/runtimes/faults.py",
     "daedalus/runtimes/provider_executable_structure.py",
@@ -1901,5 +1904,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:2e9c3a287cdf33aee6fd6b5f44d5d399f1438e80caa0f03ff02413c632c50b95"
+  "digest": "sha256:0258af2b18c49485c550b1468e013f3cf5b629cb6aa9d084564013df437bbded"
 }

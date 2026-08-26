@@ -162,7 +162,7 @@ remembers what it retired is working; these are not rot.
 ## 6. Frozen research data — leave, and know why
 
 `experiments/forest_v2/s07_bm25/` (index, measurement, taskset, tests) and
-`s09_eval/taskset*.json` reference `tools/iron_plan_guard.py` as a **corpus
+`s09_eval/taskset*.json` reference `tools/iron_plan_guard.py` (removed 2026-08-22) as a **corpus
 document**, not as a command. Repairing them would silently change a frozen
 retrieval corpus and invalidate every measurement taken against it — the plan's
 own rule about temporal provenance (§9.1) forbids exactly that. They stay.
