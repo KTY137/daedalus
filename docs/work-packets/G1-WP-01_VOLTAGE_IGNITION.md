@@ -5,8 +5,10 @@
 - Iron Plan: `ALIGNED`
 - Target gate: `1`
 - Base: `g0/sealed-promotion-runtime-sandbox`
-- Status: wired through the canonical kernel (2026-08-22); authoritative Gate-1
-  activation remains blocked on Gate-0 closure
+- Status: wired through the canonical kernel (2026-08-22). Gate 0 closed as a
+  scoped owner decision on 2026-08-26 (plan revision 8); Gate 1 is now the
+  active gate. This packet's own scoped-rehearsal limits (below) are unchanged
+  by that closure.
 - Promotion: forbidden
 
 ## Status — 2026-08-22 [MEASURED]
