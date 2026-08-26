@@ -83,6 +83,61 @@ class DraftStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             drafts.set_status(did, "merged")
 
+    def test_listing_scopes_to_one_repository(self):
+        """One project must never be shown another project's drafts.
+
+        The store is a single directory shared by every project. Before the
+        listing carried ``repo_root`` there was nothing to scope on, and the
+        cockpit's decision card counted every project's drafts under whichever
+        project happened to be selected -- the same defect class design review
+        has twice caught on this surface.
+        """
+        drafts.save_draft("Water the tomatoes", ["notes.md"], "gardener", "ollama",
+                          "Diego", _report(), repo_root="/repo/garden")
+        drafts.save_draft("Close the gate", ["daedalus/gate1.py"], "builder", "ollama",
+                          "Diego", _report(), repo_root="/repo/kernel")
+
+        everything = drafts.list_drafts()
+        self.assertEqual(len(everything), 2)
+        # the summary carries the root, or nothing downstream can scope at all
+        self.assertEqual({r["repo_root"] for r in everything},
+                         {"/repo/garden", "/repo/kernel"})
+
+        garden = drafts.list_drafts("/repo/garden")
+        self.assertEqual([r["objective"] for r in garden], ["Water the tomatoes"])
+        kernel = drafts.list_drafts("/repo/kernel")
+        self.assertEqual([r["objective"] for r in kernel], ["Close the gate"])
+
+    def test_scoping_survives_windows_path_spelling(self):
+        """The same tree spelled two ways is one tree.
+
+        A draft written by the CLI carries a native path; the same repository
+        arrives from a URL with forward slashes and a lower-case drive letter.
+        Comparing the raw strings would hide a project's own drafts from it,
+        which is the same lie as showing it someone else's.
+        """
+        drafts.save_draft("Close the gate", ["a.py"], "builder", "ollama", "Diego",
+                          _report(), repo_root="C:\\Users\\x\\agent_env")
+        for spelling in ("C:\\Users\\x\\agent_env",
+                         "C:/Users/x/agent_env",
+                         "c:\\users\\x\\agent_env",
+                         "C:\\Users\\x\\agent_env\\"):
+            with self.subTest(spelling=spelling):
+                self.assertEqual(len(drafts.list_drafts(spelling)), 1,
+                                 f"{spelling} did not resolve to the stored root")
+
+    def test_a_rootless_draft_is_claimed_by_no_project(self):
+        """A draft written before the field existed belongs to nobody.
+
+        Assigning it to whichever project asks would be inventing provenance.
+        It stays visible in the unfiltered listing and is absent from every
+        scoped one.
+        """
+        drafts.save_draft("Ancient proposal", ["x.md"], "old", "ollama", "Diego",
+                          _report(), repo_root=None)
+        self.assertEqual(len(drafts.list_drafts()), 1)
+        self.assertEqual(drafts.list_drafts("/repo/anything"), [])
+
     def test_path_traversal_ids_are_refused(self):
         # draft_id arrives from CLI args and URL segments -> must never index a
         # path outside DRAFT_DIR. Every accessor fails closed on a hostile id.

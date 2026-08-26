@@ -1583,5 +1583,11 @@ def _help_text() -> str:
         "- distill code (\"distill gui/motor_panel.py\", \"show duplicate clones\")\n"
         "- propose a task (\"build a settings dialog\") — you confirm before it runs\n"
         "- design an agent network (\"build an agent network with UI, API, QA roles\")\n"
-        "Pick a model in the header to give me a language brain (local Ollama is free)."
+        # Names the ACTION, not where the control is. This line used to say
+        # "in the header"; the cockpit moved the runtime picker into the
+        # composer on 2026-08-26 and the sentence became an instruction to
+        # look somewhere nothing is -- and it is served to two surfaces that
+        # put the control in different places. A help text that hard-codes a
+        # location is a fake affordance waiting for the next redesign.
+        "Choose a runtime to give me a language brain (local Ollama is free)."
     )

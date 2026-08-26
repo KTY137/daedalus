@@ -1542,9 +1542,35 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                               f"{type(exc).__name__}: {exc}",
                      "health": None}, status=500)
         elif path == "/api/drafts":
-            rows = drafts.list_drafts()
+            # SCOPED, AND IT SAYS WHICH SCOPE IT USED.
+            #
+            # The drafts store is one directory shared by every project, and
+            # this route used to return all of it under whichever project the
+            # cockpit had selected. `scope` is in the response so the surface
+            # can never present an unscoped count as a project's own: null
+            # means "every project", a path means "only this repository".
+            project = (qs.get("project") or [None])[0]
+            root, perr = "", ""
+            if project:
+                try:
+                    from .projects import load_project
+
+                    root = str(load_project(project).get("repo_root") or "")
+                except ValueError as exc:
+                    perr = str(exc)
+            warnings = []
+            if project and not root:
+                # Named a project we cannot resolve to a tree. Returning
+                # everything here would be the silent failure toward MORE data
+                # under a narrower name -- refuse to guess, and say so.
+                warnings.append(perr or f"unknown project '{project}'; no drafts could be scoped to it")
+                rows = []
+            else:
+                rows = drafts.list_drafts(root or None)
             pending = [d for d in rows if d.get("status") == "pending"]
-            self._send_json(core.envelope(None, drafts=rows, pending_count=len(pending)))
+            self._send_json(core.envelope(
+                project, drafts=rows, pending_count=len(pending),
+                scope=root or None, warnings=warnings))
         elif path.startswith("/api/drafts/"):
             draft_id = unquote(path.split("/", 3)[3])
             d = drafts.get_draft(draft_id)
