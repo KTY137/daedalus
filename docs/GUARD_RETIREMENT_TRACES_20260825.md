@@ -137,7 +137,7 @@ and its pin test together.
 ## 4. Authority text — OWNER-SHAPED, not touched
 
 - `docs/IKARUS_ARIADNE_MASTER_PLAN.md:550` (§15, *Before handing off*):
-  "2. Run `python tools/iron_plan_guard.py verify`." — **the plan mandates a
+  "2. Run `python tools/iron_plan_guard.py verify`." (removed 2026-08-22) — **the plan mandates a
   command the plan retires 35 lines later.** The retirement note was appended
   without editing §15.
 - §16 step 3 instructs an amending session to export
