@@ -185,6 +185,12 @@ export interface RuntimeRow {
   model_present: boolean;
   last_error: string;
   notes: string;
+  /** When this row's probe actually ran, and how old the reading is. Present
+   * because /api/runtimes/status caches the slow per-CLI probe (owner decision
+   * 2026-08-27): a cached "erreichbar" must show its age so it cannot lie about
+   * a CLI that broke since. Absent only from the uncached direct path. */
+  measured_at?: string;
+  measured_age_s?: number;
 }
 
 export interface RuntimeStatusPayload extends ApiEnvelope {

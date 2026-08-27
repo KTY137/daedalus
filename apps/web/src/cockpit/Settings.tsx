@@ -44,6 +44,22 @@ function stateOf(r: RuntimeRow): { word: string; tone: 'ok' | 'warn' | 'bad' } {
   return { word: 'nicht erreichbar', tone: 'bad' };
 }
 
+/** When this reading was actually measured. The probe is cached (owner
+ * decision 2026-08-27), so "erreichbar" is only honest if it says how old it
+ * is: a cached reachable for a CLI that broke a minute ago must not read as
+ * live. Empty when the backend sent no timestamp (the uncached path). */
+function measuredLabel(r: RuntimeRow): string {
+  if (typeof r.measured_at !== 'string' || !r.measured_at) return '';
+  const age = typeof r.measured_age_s === 'number' ? r.measured_age_s : 0;
+  if (age < 5) return 'gerade gemessen';
+  if (age < 90) return `gemessen vor ${Math.round(age)} s`;
+  const when = new Date(r.measured_at);
+  if (Number.isNaN(when.getTime())) return `gemessen vor ${Math.round(age)} s`;
+  const hh = String(when.getHours()).padStart(2, '0');
+  const mm = String(when.getMinutes()).padStart(2, '0');
+  return `gemessen ${hh}:${mm}`;
+}
+
 export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, logSignal = 0 }: SettingsProps) {
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
   const [env, setEnv] = useState<EnvStatusPayload | undefined>();
@@ -190,12 +206,14 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
           <ul className="reach">
             {runtimes.map((r) => {
               const s = stateOf(r);
+              const measured = measuredLabel(r);
               return (
                 <li key={r.id}>
                   <div className="reach-row">
                     <span className={`dot ${s.tone}`} aria-hidden="true" />
                     <span className="reach-name">{r.label || r.id}</span>
                     <span className={`reach-state ${s.tone}`}>{s.word}</span>
+                    {measured && <span className="reach-age">{measured}</span>}
                     <button type="button" onClick={() => void runTest(r.id)} disabled={testing === r.id}>
                       {testing === r.id ? '…' : 'Testen'}
                     </button>

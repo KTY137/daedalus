@@ -453,10 +453,13 @@ export function updateAutonomy(project: string, patch: Record<string, unknown>) 
  * conversation's runtime picker had nothing to offer and fell back to
  * printing a raw id where a name belongs.
  *
- * 45s is the measured cost plus headroom, not a guess. It is the honest fix
- * for a wrong constant; making the probe itself cheap is a backend change and
- * is written up in docs/design/handoffs-2026-08-26/. A caller that cannot
- * wait this long should say it is still checking — both of these do.
+ * The backend now CACHES the probe (owner decision 2026-08-27): only the first
+ * poll after a TTL window launches the CLIs, the rest are served from the last
+ * reading. Each row carries `measured_at`/`measured_age_s`, and the settings
+ * reachability list shows the age, so a cached "erreichbar" cannot pass itself
+ * off as live for a CLI that broke since. The 45s ceiling STAYS — it is the net
+ * for that first cold probe, which is still 12–36s by construction; the cache
+ * makes the common case instant, it does not make the cold case fast.
  */
 export function getRuntimeStatus() {
   return request<RuntimeStatusPayload>('/api/runtimes/status', undefined, 45_000);

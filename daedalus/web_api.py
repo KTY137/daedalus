@@ -1278,7 +1278,14 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         elif path == "/api/providers/status":
             self._send_json(_provider_status())
         elif path == "/api/runtimes/status":
-            self._send_json(core.envelope(None, **runtime_registry.all_status()))
+            # Cached, and every row says WHEN it was probed. Launching each CLI
+            # for its --version makes this call slow by construction and slower
+            # with use (owner decision 2026-08-27); the cache stops the relaunch
+            # per poll, and measured_at/measured_age_s keep a cached "erreichbar"
+            # from lying about a CLI that broke since. The surface shows the age.
+            self._send_json(
+                core.envelope(None, **runtime_registry.all_status(use_cache=True))
+            )
         elif path == "/api/accelerators/status":
             deep = (qs.get("deep") or ["0"])[0] in ("1", "true", "yes")
             probe_remote = (

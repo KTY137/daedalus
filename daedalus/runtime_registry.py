@@ -10,9 +10,12 @@ import json
 import os
 import shutil
 import subprocess
+import threading
+import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from .env import load_env
@@ -191,9 +194,78 @@ def runtime_status(runtime_id: str) -> dict[str, Any]:
     }
 
 
-def all_status() -> dict[str, Any]:
+# --------------------------------------------------------------------------- #
+# THE CACHE, AND WHY IT MUST CARRY WHEN IT MEASURED (owner decision 2026-08-27) #
+# --------------------------------------------------------------------------- #
+# runtime_status launches each CLI to read its --version, so /api/runtimes/status
+# is slow BY CONSTRUCTION and grows with use: MEASURED 16.6s under load, 28.0s on
+# a quiet box, 36.1s after the Playwright suite (docs/design/handoffs-2026-08-26).
+# The owner's ruling is to cache the probe rather than relaunch every CLI on every
+# poll -- but a cached reading that reports "erreichbar" for a CLI that broke a
+# minute ago is the exact lie this codebase forbids. So the contract is: every
+# CACHED row carries `measured_at` (when the probe actually ran) and
+# `measured_age_s`, and the surface shows it. The uncached path -- the direct
+# callers in tests and elsewhere -- is byte-identical to before; the field
+# appears only when a caller opts into the cache.
+_STATUS_CACHE_TTL_S = float(os.environ.get("DAEDALUS_RUNTIME_STATUS_TTL_S", "30"))
+_status_cache_lock = threading.Lock()
+#: runtime_id -> (monotonic_at, measured_at_iso, row) for the last probe.
+_status_cache: dict[str, tuple[float, str, dict[str, Any]]] = {}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def reset_status_cache() -> None:
+    """Drop every cached probe. For tests and for a deliberate refresh."""
+    with _status_cache_lock:
+        _status_cache.clear()
+
+
+def cached_runtime_status(
+    runtime_id: str, *, ttl_s: float | None = None
+) -> dict[str, Any]:
+    """`runtime_status` behind a per-runtime TTL cache, stamped with when the
+    probe ran. On a hit within the TTL the stored row is returned verbatim with
+    a fresh `measured_age_s`; on a miss or expiry the probe runs and the row is
+    stamped `measured_at` now. Each runtime is cached independently, so one slow
+    CLI never forces the others to be re-probed."""
+    ttl = _STATUS_CACHE_TTL_S if ttl_s is None else float(ttl_s)
+    now_mono = time.monotonic()
+    with _status_cache_lock:
+        entry = _status_cache.get(runtime_id)
+        # Strict: a reading is fresh only while it is YOUNGER than the TTL, so a
+        # zero TTL is always expired (an explicit "do not cache") rather than a
+        # one-shot cache that a same-tick second call would still hit.
+        if entry is not None and (now_mono - entry[0]) < ttl:
+            mono_at, iso_at, row = entry
+            return {
+                **row,
+                "measured_at": iso_at,
+                "measured_age_s": round(now_mono - mono_at, 3),
+            }
+    # Probe OUTSIDE the lock -- it can take seconds, and holding the lock would
+    # serialise every concurrent poll behind one slow CLI, which is the cost
+    # this cache exists to remove.
+    try:
+        row = runtime_status(runtime_id)
+    except Exception as exc:  # noqa: BLE001 - a probe failure is a row, not a raise
+        spec = next((r for r in RUNTIMES if r.id == runtime_id), None)
+        base = asdict(spec) if spec is not None else {"id": runtime_id}
+        row = {**base, "available": False, "auth_status": "error", "last_error": str(exc)}
+    iso_at = _now_iso()
+    with _status_cache_lock:
+        _status_cache[runtime_id] = (time.monotonic(), iso_at, row)
+    return {**row, "measured_at": iso_at, "measured_age_s": 0.0}
+
+
+def all_status(*, use_cache: bool = False, ttl_s: float | None = None) -> dict[str, Any]:
     rows = []
     for spec in RUNTIMES:
+        if use_cache:
+            rows.append(cached_runtime_status(spec.id, ttl_s=ttl_s))
+            continue
         try:
             rows.append(runtime_status(spec.id))
         except Exception as exc:
