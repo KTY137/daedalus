@@ -1,9 +1,10 @@
 # Daedalus — Current Claude Handoff (2026-08-22 — READ THIS FIRST)
 
-> **Status as of 2026-08-27:** The cockpit round committed at `0d3ea5d1`
-> (the six-lane frontend) and `3ee17d73` (rebuilt bundle). Orchestration:
-> `8b345413` (advisory fleet planning via langgraph_adapter) and `dda2eed4`
-> (opus-fleet experiment, read-only isolated test campaign).
+> **Status as of 2026-08-27, HEAD=b6cf72c5:** Work packet G1-IKARUS-02 landed with
+> ikarus_runtime_role.py port, test suite green (87/87). Includes prior cockpit
+> round (`0d3ea5d1`, `3ee17d73`), langgraph_adapter (`8b345413`), opus-fleet
+> experiment (`dda2eed4`). Only fixture bindings executable in this packet; real
+> runtimes remain source-only. See status update below.
 
 
 This section supersedes everything below it, including the session-8 block.
@@ -14,11 +15,10 @@ tree that is no longer where the work happens.
 
 | | path | branch | commit |
 | --- | --- | --- | --- |
-| truth (code + tests) | `C:/Users/nukei/Desktop/agent_env` | `main` | `2de997ef` |
+| truth (code + tests) | `C:/Users/nukei/Desktop/agent_env` | `main` | `b6cf72c5` |
 | archived/dead | `C:/Users/nukei/Desktop/agent_env_g0` | (not a git repository; no .git directory) | — |
 
-[MEASURED 2026-08-25, Mnemosyne: `git rev-parse HEAD` → `2de997ef` (hey), `git branch
---show-current` → `main`. Agent_env_g0 verified not a git tree (no .git dir). Per session memory: Constitutional fork resolved 2026-08-24 with unification merge 9831ddae; ONE checkout remains. Iron guard retired at plan revision 7 (owner decision 2026-08-22).] The mission for this session is recorded at
+[MEASURED 2026-08-27, Mnemosyne: `git rev-parse HEAD` → `b6cf72c5`, `git branch --show-current` → `main`. Agent_env_g0 verified not a git tree (no .git dir). Per session memory: Constitutional fork resolved 2026-08-24 with unification merge 9831ddae; ONE checkout remains. Iron guard retired at plan revision 7 (owner decision 2026-08-22).] The mission for this session is recorded at
 `docs/missions/MISSION_2026-08-22.md` — read it before making significant architectural decisions.
 
 **Mission summary:** 20 hours of implementation; main gained 40+ commits since the pre-ruling checkpoint.
@@ -41,6 +41,14 @@ the control-root migration and the sealed lease hand-down patch from the
 **Branch consolidation 2026-08-23:** [MEASURED 2026-08-23] `origin/main` was 1,525 commits behind the local trunk (last push 2026-07-13) and is now fast-forwarded. Forest-v2 slices s02/s07/s09 landed from their lanes (`6f3aae70`). 148 `archive/*` tags on origin freeze every other line, 27 of them `-wip` salvage commits of uncommitted lane work; 31 lane worktrees and 50 local branches removed. **Pending owner action 4:** delete the 125 archived remote branches — kit and verified list in `docs/recovery/cleanup_2026-08-23/README.md` (the agent's mass deletion was refused by the harness).
 
 **Status update 2026-08-23:** [MEASURED 2026-08-23, Mnemosyne: commit `0f7f8187`] `tests/test_spine_attempt.py` green again (17 red → 0 green); was red since `57a2e7cb` due to `nearest_existing` climbing to ancestor. Fixed by `daedalus/primary_tree.planned_overlap_reason()` with forward-direction probing and shared renderer, both callers (`spine/attempt.py`, `kernel/offload_lease.py`) switched. Control-root migration and sealed lease hand-down patch are TAKEN (`docs/decisions-taken/2026-08-23/`), not pending.
+
+**Status update 2026-08-27:** [MEASURED 2026-08-27, Mnemosyne: `git show --stat b6cf72c5` and `pytest tests/test_ikarus_runtime_role.py tests/test_ikarus_supervisor.py -v --co -q` (32 tests collected)] Commit `b6cf72c5` landed work packet **G1-IKARUS-02** (vendor-neutral runtime-role port): `daedalus/ikarus_runtime_role.py` (new, 395 lines), modifications to `daedalus/ikarus_supervisor.py` (737 line diff), new test file `tests/test_ikarus_runtime_role.py` (1003 lines, 26 test functions), ADR-022 (Hermes-agent bounded reuse), work packet doc, mission evidence (`runs/watchdog/mission-tensor-v4-advisory-20260825/`), and research provenance (`docs/research/hermes-agent-v2026.8.19-provenance.json`).
+
+  - **Test evidence:** [INHERITED from commit message: "87/87 tests green across the touched and new suites (ikarus_runtime_role, ikarus_supervisor, opus_fleet_cli, opus_fleet_scheduler, opus_fleet_session_probe)"] Work packet evidence reports: 32 tests in the core runtime-role + supervisor suites (70.13s); 95 tests with codex/broker/adapters (214.59s); 122 tests in full adversarial verification (170.45s). No release blockers in packet scope.
+
+  - **Scope — FIXTURE BINDINGS ONLY:** The docstring is explicit: "Only `fixture` bindings are executable in work packet G1-IKARUS-02... a real runtime stays `source-only` until a later packet." Real runtimes (claude_cli, codex_cli, hermes_agent) remain declaration-only; runtime execution ports for production are blocked on separate work packets per the packet's deferred-work list (§6.2).
+
+  - **Classification:** ALIGNED, Gate 1, per work packet doc. No Gate-1 completion claimed — this is one packet in the Gate-1 Renovation ignition slice.
 
 ---
 
