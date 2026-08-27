@@ -1,5 +1,11 @@
 # Daedalus — Current Claude Handoff (2026-08-22 — READ THIS FIRST)
 
+> **Status as of 2026-08-27:** The cockpit round committed at `0d3ea5d1`
+> (the six-lane frontend) and `3ee17d73` (rebuilt bundle). Orchestration:
+> `8b345413` (advisory fleet planning via langgraph_adapter) and `dda2eed4`
+> (opus-fleet experiment, read-only isolated test campaign).
+
+
 This section supersedes everything below it, including the session-8 block.
 Everything below is history: its branch, test counts, and open items describe a
 tree that is no longer where the work happens.
