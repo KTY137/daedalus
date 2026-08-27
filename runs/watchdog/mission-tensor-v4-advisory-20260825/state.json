@@ -1,0 +1,839 @@
+{
+  "calls_claimed": 1,
+  "campaign_id": "tensor-v4-advisory-20260825",
+  "config_digest": "9593975ab5adad23fe48cec385fb1734f49bc6aa7265c107af83469910161669",
+  "created_at": "2026-08-26T13:17:16.962634+00:00",
+  "evidence_frozen_at": "2026-08-27T00:17:25.029089+00:00",
+  "plan_digest": "0af4c86a7357df00defaa637ddd28c5a4d88c57e10de0c82ab552764f6d9fe7d",
+  "provider_decision": "claude",
+  "reason": "session_probe_error:probe_incomplete:process_census_failed",
+  "schema": "opus-fleet-watchdog-state/1",
+  "session_checks": [
+    {
+      "active_sessions": 4,
+      "observed_at": "2026-08-26T13:17:17.102889+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 3,
+      "observed_at": "2026-08-26T13:37:15.903192+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 3,
+      "observed_at": "2026-08-26T13:57:16.423696+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-26T14:17:17.176844+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 1,
+      "observed_at": "2026-08-26T14:37:20.404947+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T14:57:19.080240+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T15:17:18.148153+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T15:37:18.536578+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T15:57:19.449100+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T16:17:19.837366+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T16:37:20.007250+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-26T16:57:40.554186+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-26T17:17:23.957731+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-26T17:37:20.835419+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 4,
+      "observed_at": "2026-08-26T17:57:22.822129+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 7,
+      "observed_at": "2026-08-26T18:17:17.250064+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-26T18:37:15.245723+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-26T18:57:22.573909+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 1,
+      "observed_at": "2026-08-26T19:17:24.834637+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 1,
+      "observed_at": "2026-08-26T19:42:15.598926+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-26T19:57:48.021708+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 4,
+      "observed_at": "2026-08-26T20:17:16.877446+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 3,
+      "observed_at": "2026-08-26T20:37:15.738707+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 4,
+      "observed_at": "2026-08-26T20:57:13.903568+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 3,
+      "observed_at": "2026-08-26T21:17:13.535854+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 1,
+      "observed_at": "2026-08-26T21:37:16.939222+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T21:57:26.387531+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T22:17:18.097722+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T22:37:18.131909+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T22:57:17.033492+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T23:17:16.533726+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T23:37:17.280546+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-26T23:57:16.978641+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T00:17:24.714339+00:00",
+      "ok": true,
+      "reason": "",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T00:23:14.664160+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T00:37:16.474264+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T00:57:15.610387+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T01:17:15.784458+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T01:37:16.117272+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T01:57:16.186734+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T02:17:16.393725+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T02:37:15.891741+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T02:57:15.680272+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T03:17:16.249398+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T03:37:16.245238+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T03:57:15.602642+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T04:17:15.791971+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T04:37:15.833207+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T04:57:16.001169+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T05:17:16.206707+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T05:37:15.868797+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T05:57:15.629277+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 0,
+      "observed_at": "2026-08-27T06:17:14.950264+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": []
+    },
+    {
+      "active_sessions": 1,
+      "observed_at": "2026-08-27T07:06:02.220998+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 4,
+      "observed_at": "2026-08-27T07:17:26.860327+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 4,
+      "observed_at": "2026-08-27T07:37:15.651079+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 6,
+      "observed_at": "2026-08-27T08:02:16.089135+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 7,
+      "observed_at": "2026-08-27T08:17:14.863324+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 4,
+      "observed_at": "2026-08-27T08:41:26.112891+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-27T08:57:30.785169+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 3,
+      "observed_at": "2026-08-27T09:17:31.467409+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 3,
+      "observed_at": "2026-08-27T09:37:22.314330+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 5,
+      "observed_at": "2026-08-27T09:57:21.070604+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 4,
+      "observed_at": "2026-08-27T10:17:13.942738+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 2,
+      "observed_at": "2026-08-27T10:37:16.840980+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    },
+    {
+      "active_sessions": 1,
+      "observed_at": "2026-08-27T10:57:17.923405+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity"
+      ]
+    },
+    {
+      "active_sessions": 3,
+      "observed_at": "2026-08-27T11:17:17.739684+00:00",
+      "ok": false,
+      "reason": "probe_incomplete:process_census_failed",
+      "sources": [
+        "codex:recent-activity",
+        "hooks:agent_env"
+      ]
+    }
+  ],
+  "slots": [
+    {
+      "attempts": [
+        {
+          "api_error_status": null,
+          "chain_head": "c1329e64d95f62a1d4a66e96a618543e8082b5310ad300b3ce07825d640f0d07",
+          "chain_intact": true,
+          "claimed_at": "2026-08-27T00:17:25.043713+00:00",
+          "council_id": "ofw-tensor-v4-advisory-20260-01-8fb8a772-claude-1",
+          "ended": "rounds_complete",
+          "provider": "claude",
+          "reason": "",
+          "responded": 1,
+          "status": "completed",
+          "store_path": "C:\\Users\\nukei\\Desktop\\agent_env\\runs\\watchdog\\mission-tensor-v4-advisory-20260825\\ofw-tensor-v4-advisory-20260-01-8fb8a772-claude-1.jsonl"
+        }
+      ],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 1,
+      "probe": true,
+      "project": "agent_env",
+      "provider": "claude",
+      "reason": "",
+      "role": "plan-alignment auditor",
+      "slot_id": "advisory-slot-01",
+      "status": "completed"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 2,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "experiment falsifier",
+      "slot_id": "advisory-slot-02",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 3,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "data-leakage auditor",
+      "slot_id": "advisory-slot-03",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 4,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "candidate-set symmetry auditor",
+      "slot_id": "advisory-slot-04",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 5,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "equal-budget baseline auditor",
+      "slot_id": "advisory-slot-05",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 6,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "statistical reviewer",
+      "slot_id": "advisory-slot-06",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 7,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "tensor algebra specialist",
+      "slot_id": "advisory-slot-07",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 8,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "graph retrieval specialist",
+      "slot_id": "advisory-slot-08",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 9,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "lexical baseline specialist",
+      "slot_id": "advisory-slot-09",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 10,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "ablation designer",
+      "slot_id": "advisory-slot-10",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 11,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "reproducibility engineer",
+      "slot_id": "advisory-slot-11",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 12,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "provenance auditor",
+      "slot_id": "advisory-slot-12",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 13,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "implementation simplifier",
+      "slot_id": "advisory-slot-13",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 14,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "performance-budget reviewer",
+      "slot_id": "advisory-slot-14",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 15,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "negative-evidence custodian",
+      "slot_id": "advisory-slot-15",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 16,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "deterministic-check designer",
+      "slot_id": "advisory-slot-16",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 17,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "security and egress reviewer",
+      "slot_id": "advisory-slot-17",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 18,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "Project Twin architecture reviewer",
+      "slot_id": "advisory-slot-18",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 19,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "kill-criterion adjudicator",
+      "slot_id": "advisory-slot-19",
+      "status": "pending"
+    },
+    {
+      "attempts": [],
+      "evidence_digest": "22f7455ae1491f06c1a7d9f20d8d8e1fcd3572695fc1d445f66503e83d47bc2e",
+      "objective": "Continue the frozen tensor-embedding-v4 experiment as advisory work only. Identify one highest-value unresolved integration or verification step from the retained A-Q evidence. Preserve negative results, equal-budget baselines, predeclared win and kill criteria, candidate-set symmetry, and leakage controls. Do not propose production promotion, automatic merge, or a master-plan change. Produce specific claims with exact evidence citations and runnable checks for the next active coding agent.",
+      "ordinal": 20,
+      "probe": false,
+      "project": "agent_env",
+      "provider": "",
+      "reason": "",
+      "role": "next-work-packet editor",
+      "slot_id": "advisory-slot-20",
+      "status": "pending"
+    }
+  ],
+  "status": "waiting",
+  "updated_at": "2026-08-27T11:17:17.739705+00:00"
+}

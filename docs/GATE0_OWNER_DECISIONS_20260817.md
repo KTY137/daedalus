@@ -1,8 +1,13 @@
 # Gate 0 — Offene Owner-Entscheidungen (Stand 2026-08-17, abends)
 
+Status: **Punkte 1, 4, 5 MOOT** [MEASURED 2026-08-25] — `tools/iron_plan_guard.py` (removed 2026-08-22)
+existiert nicht mehr (Retirement 2026-08-22, Plan-Revision 7); jede Frage, die
+sich auf `PROTECTED_PATHS` oder den Guard-Text bezieht, hat kein Subjekt mehr.
+Punkte 2, 3, 6-9 nicht neu verifiziert, als historische Diagnose belassen.
+
 Vier Entscheidungen blockieren Rest-Failures der Voll-Suite (35 failed / 6428
 passed auf Trunk `7c88f72`, MEASURED 17:31). Keine davon ist eine Messung —
-alle vier sind Policy- bzw. Identitätsfragen, die nur der Owner treffen darf.
+alle vier sind Policy- bzw. Identitätsfragen, die nur der Owner treffen durfte.
 
 ## 1. Guard-Test-Fixture nach Amendment 005 (NEU diagnostiziert, MEASURED)
 

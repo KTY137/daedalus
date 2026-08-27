@@ -409,3 +409,5 @@ path declared as the leased attempt's write scope, was never created --
 `--local-only` without `--live` means `offload()` never reached its write
 branch (`_offload_impl` returned `would_offload` before any file I/O), which
 is exactly the "genuinely real, zero-risk" property this run was chosen for.
+
+**UPDATE 2026-08-26**: Gate 0 closed (657c8af5). This measurement documents a pre-closure state. The structural finding (Sections 4–5) about the reporter wiring remains valid and carries forward to any successor work.

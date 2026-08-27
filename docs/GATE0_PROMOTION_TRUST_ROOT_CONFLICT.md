@@ -1,6 +1,9 @@
 # Two trust roots for one seal — a decision the owner has to make
 
-Status: finding, no code changed
+Status: **RESOLVED.** [MEASURED 2026-08-25] `daedalus/kernel/promotion_trust_root.py`
+implements recommendation (2) below — git-signed tags (Option B) as the trust
+root, hybrid with the trunk's ledger. Kept as historical record of the
+analysis; not current architecture.
 Author: Athena, 2026-08-17
 Invariant: 4.5 sealed promotion, 4.1 one kernel
 Gate: 0

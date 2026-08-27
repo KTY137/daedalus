@@ -148,7 +148,6 @@ daedalus/kairos/scheduler.py|constant|DEFAULT_AVAILABILITY|Guarantees default av
 daedalus/kairos/scheduler.py|class|Assignment|Guarantees a dataclass holding task assignment, acceptance status, and reason.
 daedalus/kairos/scheduler.py|class|KairosScheduler|Guarantees bounded concurrency via max_workers and max_parallel_writes, and safe dispatch routing.
 daedalus/kairos/scheduler.py|function|main|Guarantees a CLI entry point for demo task planning.
-Route this task to Claude or local Ollama.
 tests/test_structcore_coverage.py|constant|REPO_ROOT|path to repo root
 tests/test_structcore_coverage.py|constant|C_BODY|C function body for test fixtures
 tests/test_structcore_coverage.py|constant|C_SIBLING|C sibling function body

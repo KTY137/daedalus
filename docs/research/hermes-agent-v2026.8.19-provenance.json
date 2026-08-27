@@ -1,0 +1,89 @@
+{
+  "schema": "daedalus-upstream-provenance/1",
+  "recorded_at": "2026-08-27",
+  "upstream": {
+    "name": "NousResearch/hermes-agent",
+    "repository": "https://github.com/NousResearch/hermes-agent",
+    "release": "v0.20.5",
+    "release_url": "https://github.com/NousResearch/hermes-agent/releases/tag/v2026.8.19",
+    "tag": "v2026.8.19",
+    "tag_object": "b05e680e63d39d5a8e3ec0f5842a41d1c4209c03",
+    "commit": "fcbd1076a93841fa88855acce810e342a5b78101",
+    "tree": "cc9f987a403a1d02b8b17cc527a57b54402e864b"
+  },
+  "archive": {
+    "method": "git -c core.autocrlf=false archive --format=tar <commit>",
+    "producer": "git version 2.38.1.windows.1",
+    "bytes": 166236160,
+    "sha256": "b7a86a237c11b4b5b439c6b803cc9837f1eab4861c3470a0b7f00651e18a5654"
+  },
+  "license": {
+    "spdx": "MIT",
+    "path": "LICENSE",
+    "bytes": 1070,
+    "sha256": "821556e6336796450ab852d375117b48a4887e71d255794fd6318d99982a5ab6",
+    "copyright": "Copyright (c) 2025 Nous Research",
+    "notice_required_if_copied": true
+  },
+  "inspected_sources": [
+    {
+      "path": "run_agent.py",
+      "sha256": "b8e0244cfdbdce9328040d92adb9b89d78351000ee88bafae35d71b3e33fb8a1",
+      "concepts": [
+        "enabled and disabled toolsets",
+        "event callback",
+        "iteration budget",
+        "wall-time run budget",
+        "skip memory and background review"
+      ]
+    },
+    {
+      "path": "agent/oneshot.py",
+      "sha256": "235053f5b384af07a981f1dd03816a828e0eefb5f1805fca4a1abcbc19e76c2a",
+      "concepts": ["stateless one-shot call separated from conversation state"]
+    },
+    {
+      "path": "acp_adapter/events.py",
+      "sha256": "a961f50b288feca5664871d929cbf2f2532cdaaa50f206ad6fbdcb77a9f2ca38",
+      "concepts": [
+        "thread-safe event forwarding",
+        "parallel same-name tool-call correlation",
+        "cancelled plan projection"
+      ]
+    },
+    {
+      "path": "tools/registry.py",
+      "sha256": "b45e8c80fafe7101909248ef53a5cc87a3337c2dc1e605a45c95bc054e2b4fe2",
+      "concepts": [
+        "tool registration metadata",
+        "collision and explicit override handling"
+      ]
+    }
+  ],
+  "adapted_concepts": [
+    {
+      "concept": "runtime selection by declared identity",
+      "daedalus_target": "daedalus/ikarus_runtime_role.py",
+      "adaptation": "immutable caller-local registry; duplicate rejection; no global singleton or late-wins override"
+    },
+    {
+      "concept": "session-independent orchestration binding",
+      "daedalus_target": "daedalus/ikarus_supervisor.py",
+      "adaptation": "runtime identity is plan and attempt metadata; chat/session history is absent; runtime statelessness remains a future conformance requirement"
+    }
+  ],
+  "copied_code": [],
+  "excluded_subsystems": [
+    "agent loop ownership",
+    "gateway and messaging",
+    "cron and scheduler",
+    "SessionDB and FTS5",
+    "memory and learning graph",
+    "plugin and skill mutation",
+    "terminal sandbox authority",
+    "batch checkpoints and statistics",
+    "approval policy",
+    "evaluator",
+    "promotion"
+  ]
+}

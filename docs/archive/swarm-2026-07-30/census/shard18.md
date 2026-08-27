@@ -11,14 +11,12 @@ tests/test_cascade.py|class|OffloadRoutingTests|Tests for daedalus.offload.offlo
 tests/test_cascade.py|class|SemanticFallbackTests|Tests for daedalus.semantic_route.semantic_route fallback behavior
 tests/test_cascade.py|class|WriteGuardTests|Regression tests for write guard policy based on Mary's findings
 tests/test_cascade.py|class|OffloadFailClosedTests|Tests that live writes without policy are refused (fail-closed)
-Route this task to Claude or local Ollama.
 daedalus/runtime_registry.py|module|runtime_registry|Provides a runtime registry with specifications for CLI and API runtimes, functions to check status of individual runtimes
 daedalus/runtime_registry.py|class|RuntimeSpec|Data class defining a runtime's id, label, mode, command, env_key, local, trusted_with_ip, can_write, agentic, and notes.
 daedalus/runtime_registry.py|constant|RUNTIMES|Tuple of RuntimeSpec instances for six predefined runtimes.
 daedalus/runtime_registry.py|function|runtime_status|Given a runtime_id, returns a dict with runtime spec fields plus available, auth_status, command_path, version, models, selected_model, model_present, last_error.
 daedalus/runtime_registry.py|function|all_status|Returns a dict with 'runtimes' key containing list of status dicts for all runtimes.
 daedalus/runtime_registry.py|function|test_runtime|Given a runtime_id, returns a dict with runtime, ok, mode, detail.
-Route this task to Claude or local Ollama.
 tests/test_categories_integration.py|class|DashboardCarriesCategoriesTest|Tests that dashboard carries categories joined with agents and matches direct get_categories
 tests/test_categories_integration.py|function|DashboardCarriesCategoriesTest.setUp|Sets up mocks for list_projects, _process_rows, and urlopen
 tests/test_categories_integration.py|function|DashboardCarriesCategoriesTest.test_dashboard_includes_categories_joined_with_agents|Ensures dashboard includes categories with agents and count
@@ -30,10 +28,7 @@ tests/test_categories_integration.py|class|QueueTaskCategoryStampTest|Tests queu
 tests/test_categories_integration.py|function|QueueTaskCategoryStampTest.setUp|Mocks resolve_repo_root and route_task
 tests/test_categories_integration.py|function|QueueTaskCategoryStampTest.test_queue_task_stamps_category_without_altering_requested_lane|Ensures category is stamped and lane unchanged
 tests/test_categories_integration.py|function|QueueTaskCategoryStampTest.test_queue_task_falls_back_to_empty_category_when_routing_fails|Ensures empty category fallback on routing failure
-Route this task to Claude or local Ollama.
 daedalus/eval/__main__.py|function|main|Processes command-line arguments and runs the appropriate evaluation or maintenance task, returning exit code 0 on success or 1 on error.
-Route this task to Claude or local Ollama.
-Route this task to Claude or local Ollama.
 tests/test_index_wiki_layer.py|class|TheGate|Ensures wiki layer is off by default and only activated when explicitly requested with documents.
 tests/test_index_wiki_layer.py|function|test_it_is_off_by_default|Asserts wiki_enabled() returns False by default.
 tests/test_index_wiki_layer.py|function|test_an_explicit_argument_wins_over_the_environment|Asserts wiki_enabled(True) returns True and wiki_enabled(False) returns False.
@@ -53,16 +48,12 @@ tests/test_index_wiki_layer.py|function|test_a_link_to_nothing_is_counted_not_in
 tests/test_index_wiki_layer.py|function|test_an_ambiguous_bare_name_produces_no_edge|Asserts no wiki_links for ambiguous name and ambiguous count >0.
 tests/test_index_wiki_layer.py|class|Determinism|Ensures wiki layer produces deterministic results.
 tests/test_index_wiki_layer.py|function|test_two_builds_agree|Asserts wiki keys identical between two builds.
-Route this task to Claude or local Ollama.
 daedalus/kairos/evolution.py|constant|DEFAULT_EVAL_TIMEOUT_S|Wall-clock ceiling for one candidate's test run.
 daedalus/kairos/evolution.py|class|EvolutionaryOrchestrator|Generates, evaluates, and selects candidates for code evolution.
-Route this task to Claude or local Ollama.
-Route this task to Claude or local Ollama.
 daedalus/hierarchy.py|constant|CAPABILITIES|Defines the static list of capabilities with their metadata.
 daedalus/hierarchy.py|function|capabilities|Returns an envelope with the capability list.
 daedalus/hierarchy.py|function|hierarchy|Builds and returns the full hierarchy graph for a project.
 daedalus/hierarchy.py|function|save_team|Saves team configuration changes for a project.
-Route this task to Claude or local Ollama.
 tests/test_envelope_coverage.py|function|record_producers|Returns a set of module paths that serialize a structured record into run state, used as the source of truth for the drift detector.
 tests/test_envelope_coverage.py|function|test_the_scan_finds_the_producers_that_were_actually_converted|Ensures the scan heuristic still detects the three known converted producers, otherwise calibration is broken.
 tests/test_envelope_coverage.py|function|test_no_new_record_producer_has_appeared_undeclared|Asserts no new record producer appears that is not in the declared ledger.
@@ -86,11 +77,6 @@ tests/test_dss.py|function|test_receipt_changes_when_seed_or_budget_changes|Test
 tests/test_dss.py|function|test_invalid_paths_and_scores_fail_closed|Tests that invalid paths and scores fail closed.
 daedalus/spine/__init__.py|module|daedalus.spine|Mission Spine light package.
 daedalus/spine/__init__.py|constant|__all__|List of public names re-exported from .ledger.
-Route this task to Claude or local Ollama.
-Route this task to Claude or local Ollama.
-Route this task to Claude or local Ollama.
-Route this task to Claude or local Ollama.
-Route this task to Claude or local Ollama.
 daedalus/structcore/report.py|function|structure_summary|Trims a full build_index result into a compact API payload for the cockpit Structure sheet.
 daedalus/mapping/__init__.py|constant|CLASSES|Re-exports CLASSES from daedalus.mapping.reach
 daedalus/mapping/__init__.py|constant|ENTRY_KINDS|Re-exports ENTRY_KINDS from daedalus.mapping.reach
@@ -120,8 +106,6 @@ daedalus/tools/__init__.py|constant|INVENTORY_VERSION|Version of the inventory m
 daedalus/tools/__init__.py|class|ToolRecord|Represents a record in the tool inventory.
 daedalus/tools/__init__.py|function|build|Builds the inventory from a project.
 daedalus/tools/__init__.py|function|render|Renders the inventory as a string.
-Route this task to Claude or local Ollama.
-Route this task to Claude or local Ollama.
 daedalus/adapters/__init__.py|class|AgentAdapter|Part of the universal CLI agent runtime interface.
 daedalus/adapters/__init__.py|class|AgentCapabilities|Part of the universal CLI agent runtime interface.
 daedalus/adapters/__init__.py|class|SessionEnded|Part of the universal CLI agent runtime interface.

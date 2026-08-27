@@ -1,0 +1,35 @@
+{
+  "calls": 1,
+  "entries": [
+    {
+      "at": 1787789845.2740166,
+      "basis": "worst_case",
+      "calls": 1,
+      "envelopes": [],
+      "id": "07eb48535d1b4f3e9bac7fb7629f5733",
+      "kind": "reserve",
+      "label": "opus-fleet:tensor-v4-advisory-20260825:advisory-slot-01:claude",
+      "model": "opus",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1787790194.3539286,
+      "envelopes": [],
+      "estimate_usd": 3.0,
+      "id": "07eb48535d1b4f3e9bac7fb7629f5733",
+      "kind": "settle",
+      "label": "opus-fleet:tensor-v4-advisory-20260825:advisory-slot-01:claude",
+      "model": "opus",
+      "reason": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    }
+  ],
+  "envelopes": {},
+  "open": {},
+  "period": "total",
+  "period_key": "total",
+  "spent_usd": 3.0,
+  "version": 1
+}

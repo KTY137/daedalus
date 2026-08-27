@@ -279,11 +279,11 @@ The §0 subversion is fifteen lines: `prepare_ignition_repo`, write the
 without it, once with.
 
 Iron Plan: ALIGNED
-Iron Gate: 0
+Iron Gate: 0 (now CLOSED at 657c8af5, 2026-08-26)
 Evidence: the executed FAIL→PASS subversion in §0; the 152-path corpus table in
 §2 with 94 admitted; the class-A audit-hook trace (899 opened, 563 module files,
 10 inside the candidate tree); the arbitrariness probe in §4; the
 `containment_escapes` composition matrix and the two holes in §5, including
 `attempt.py:1603`. All at `7b05c7f9`. `tools/iron_plan_guard.py` does not exist
 in this tree, so the mandated verify step could not run; the gap is reported,
-not routed around.
+not routed around. **UPDATE 2026-08-26**: This finding supports recommendation in CANDIDATE_WRITE_FENCE.md §7a; Gate 0 closure decision is recorded at GATE0_CLOSURE_DECISION_20260826.md.

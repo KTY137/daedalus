@@ -65,7 +65,6 @@ The later sealed promotion packet must still atomically consume the approval and
 ## Evidence commands
 
 ```bash
-python tools/iron_plan_guard.py verify
 python -m pytest -q \
   tests/kernel/test_fourfold_evidence.py \
   tests/kernel/test_fourfold_approval_integration.py \
@@ -74,3 +73,7 @@ python -m pytest -q \
   tests/twin/test_reference_hardening.py
 python -m build
 ```
+
+**STATUS UPDATE 2026-08-26 (appended, nothing above rewritten).**
+The reference to `python tools/iron_plan_guard.py verify` has been removed. The tool was deleted on 2026-08-22 by owner decision (commit 79825b57) when the mechanical guard was retired. The Iron Plan remains the design authority as a document; changes are now owner commits to the amendment chain.
+[MEASURED: tool confirmed deleted via git log]

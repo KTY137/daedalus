@@ -12,6 +12,8 @@ resolve → index → forest, im Working Tree, NICHT committed); Teil B **K1-Bac
 implementiert, aber UNVERDRAHTET** (`markdown.py` parst `[[wikilinks]]`, `index.py` ruft
 sie nicht auf). Details, Testzahlen und offene Fragen:
 [`TYPE_GRAPH_IMPLEMENTATION_REPORT.md`](TYPE_GRAPH_IMPLEMENTATION_REPORT.md).
+
+**STATUS UPDATE 2026-08-26 (appended, nothing above rewritten):** Teil A ist jetzt committed (Commits 94875549, 6a3a7087, 007a237b in HEAD). Die Invarianten I1–I6 und Test-Resultate bleiben wie in der Report-Datei dokumentiert.
 Provenienz-Regel ab hier: jede Zahl trägt **[MEASURED …]** (in diesem Repo ausgeführt und
 abgelesen), **[INHERITED …]** (von einem früheren Lauf gemessen, hier NICHT nachgemessen)
 oder **[ASSUMED]** (Schätzung, nie gemessen). Eine Zahl ohne Stempel ist ein Defekt.

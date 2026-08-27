@@ -1,7 +1,6 @@
 # Branch cleanup and integration-line survey — 2026-08-17
 
-Status: **partially executed**. Preservation is complete; deletion is pending
-owner approval. Nothing has been deleted.
+Status: **DATED 2026-08-17, measured on integration branches before main branch stabilization (2026-08-26)**. Preservation is complete; deletion pending owner approval. Nothing committed as of this survey date. **UPDATE 2026-08-26**: main branch now has Gate 0 sealed; `work/g0-trunk-20260817` referenced in this doc is historical. See `docs/GATE0_CLOSURE_DECISION_20260826.md` for current canonical state.
 
 ## Why this document exists
 

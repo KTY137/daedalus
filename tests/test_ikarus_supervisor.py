@@ -270,10 +270,13 @@ def test_the_ledger_carries_typed_state_and_no_transcript(
         }
         for row in body["items"]:
             assert set(row.keys()) == {
-                "work_item_id", "objective", "role", "paths", "status",
+                "work_item_id", "objective", "role", "runtime_id",
+                "runtime_binding_sha256", "paths", "status",
                 "attempt_id", "attempt_receipt_sha256",
                 "evidence_packet_sha256", "detail",
             }
+            assert row["runtime_id"] == "inprocess"
+            assert row["runtime_binding_sha256"] is None
             assert row["status"] in (
                 "planned", "dispatched", "landed", "bounced", "skipped", "refused"
             )

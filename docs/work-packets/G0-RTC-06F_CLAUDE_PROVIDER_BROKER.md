@@ -139,7 +139,6 @@ Mutation seeds:
 ## Verification contract
 
 ```bash
-python tools/iron_plan_guard.py verify
 python -m compileall -q daedalus tests
 python -m pytest -q \
   tests/providers/test_claude_runtime_broker.py \
@@ -155,6 +154,8 @@ python -m build
 
 Dedicated CI requests Python 3.10/3.12, two hash seeds, Linux and Windows for
 the focused boundary, the full suite on Linux, and isolated wheel imports.
+
+**STATUS UPDATE 2026-08-26 (appended, nothing above rewritten).** The `iron_plan_guard.py` tool was retired by owner decision 2026-08-22 (git commit 79825b57). The verification contract formerly listed `python tools/iron_plan_guard.py verify` as the first step; that command is now removed. The remaining test suite remains authoritative.
 
 ## Independent review findings fixed
 

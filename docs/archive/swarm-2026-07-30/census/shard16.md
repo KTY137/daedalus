@@ -130,7 +130,6 @@ tests/test_self_policy_confinement.py|constant|CONFINED|Sample policy configurat
 tests/test_self_policy_confinement.py|class|WriteAllowSemanticsTests|Tests that write_allow semantics are prefix-anchored, allow subtrees, and prevent file->descendant and substring matching bugs. Includes regression test for file entry descendant leak.
 tests/test_self_policy_confinement.py|class|ConfinementNarrowsButNeverWidensTests|Tests that write_allow does not bypass other safety mechanisms like secret_floor and high_risk_paths, and disables simulated exemptions.
 tests/test_self_policy_confinement.py|class|InstalledSelfPolicyTests|Tests the actual installed policy from .agentenv/agentenv.json to ensure write_allow is present and confines writes correctly, including that key safety files and the policy itself are not writable.
-Route this task to Claude or local Ollama.
 tests/test_structcore_graph.py|class|GraphInvariantsTest|ensures graph payload invariants: no dangling edges, consistent rel-path node namespace, honest truncation reporting (truncated flag, n_edges_eligible, n_edges_shown, n_edges_offmap), and edge cap behavior
 tests/test_structcore_graph.py|class|ScoreModulesAndHotspotsTest|ensures hotspots is exactly the top 15 of module_heat and score_modules ranks every module
 tests.test_ikarus_act|module|test_ikarus_act|Contains test cases for ikarus_act

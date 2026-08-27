@@ -74,18 +74,9 @@ two words to act on. It is the only place where a filled control is allowed.
 (spring, short, same curve everywhere), and stillness otherwise. Motion Off must actually still the
 room. If motion draws attention to itself, it is wrong.
 
-## What must still be true (from the earlier rounds — non-negotiable)
+## Non-negotiable rules (inherited from atelier, carried forward)
 
-- Per-project isolation, enforced by the fake-data gate in the build (keep `fakedata.cjs`).
-- Every control works against `fixture.json` or is disabled — but the reason now lives in a tooltip
-  and in the one contextual line that appears only when the user tries or hovers that control.
-- Withheld items are named with kind and place. Citations point at real fixture nodes.
-- Targets ≥ 44 px including 3D hit discs; AA contrast on every text; keyboard: arrows move in the
-  forest, Enter selects, Esc clears; visible focus; ⌘K opens and dismisses on one key.
-- The Ordered view stays as an alternative representation of the same nodes (owner's request):
-  reachable, same selection, morphing — but it is a *state*, not a permanently visible toolbar.
-- No React Bits background components or text effects. React Bits only where it carries structure
-  (list, sheet, nav) and only if it makes the screen quieter, not louder.
+All binding constraints from atelier-2026-08-23/BRIEF.md § "Rules from the research" still hold: per-project isolation, every control works or says disabled with reason inline, targets ≥44 px, AA contrast, ⌘K discipline, keyboard support (arrows/Enter/Esc), visible focus, the Ordered view as a state, and React Bits structure-only.
 
 ## Deliverables per iteration
 

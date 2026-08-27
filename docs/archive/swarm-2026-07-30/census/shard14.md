@@ -9,7 +9,6 @@ tests/test_stream_hook.py|function|test_garbage_stdin_exits_zero_and_logs_an_err
 tests/test_stream_hook.py|function|test_sidecar_failure_is_named_in_the_room_not_hidden|Guarantees sidecar write failure is reported in room text as UNAVAILABLE
 tests/test_stream_hook.py|function|test_log_rotates_at_its_cap|Guarantees log rotates at LOG_MAX_BYTES retaining one backup
 tests/test_stream_hook.py|function|test_log_records_every_field|Guarantees log entries contain all required tab-separated fields
-Route this task to Claude or local Ollama.
 daedalus/structcore/cache.py|function|cache_root|Get base directory for on-disk caches, with env override.
 daedalus/structcore/cache.py|function|enabled|Check if caching is enabled via environment variable.
 daedalus/structcore/cache.py|function|file_key|Content-addressed key for caching, including version and tokenizer identity.
@@ -124,7 +123,6 @@ tests/test_semantic_route_cold_start.py|class|SlowOllama|Simulates an Ollama emb
 tests/test_semantic_route_cold_start.py|class|ColdStartSurvivesTests|Tests that a slow first embedding does not kill latent routing.
 tests/test_semantic_route_cold_start.py|class|DeadlineIsNotADeadHostTests|Tests that timeout errors are reported correctly (not as host unreachable).
 tests/test_semantic_route_cold_start.py|class|BudgetEnvironmentTests|Tests that invalid or zero budgets fall back to defaults.
-Route this task to Claude or local Ollama.
 tests/test_wiki.py|class|VaultPathValidator|Validates vault_rel rejects dangerous path patterns
 tests/test_wiki.py|class|Frontmatter|Tests frontmatter parsing from YAML fences
 tests/test_wiki.py|class|PageReading|Tests page reading including title precedence, type default, UTF-8 refusal, discover, tree determinism

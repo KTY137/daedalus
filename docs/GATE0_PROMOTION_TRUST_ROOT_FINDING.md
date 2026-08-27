@@ -1,6 +1,12 @@
 # Gate 0 — Promotion-Trust-Root: konsolidierter Review-Befund (2026-08-18)
 
-Status: BEFUND, verbindlich für die Lane `grind/sealed-approval`. Advisory
+Status: **AUFGELÖST.** [MEASURED 2026-08-25] `daedalus/kernel/promotion_trust_root.py`
+implementiert Option B (git-signierte Tags) mit dem gehärteten `_hardened_env`
+(GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE entfernt, GIT_CONFIG_GLOBAL neutralisiert)
+— genau der Fix, den F1 unten verlangt. Als historischer Befund erhalten, keine
+aktuelle Architektur mehr.
+
+Ursprünglicher Status: BEFUND, verbindlich für die Lane `grind/sealed-approval`. Advisory
 in der Herkunft (Momus-Kritik + 10-Slice-codex-only-Council), verbindlich
 gemacht durch die Koordinatorin unter Owner-Delegation vom 2026-08-18.
 

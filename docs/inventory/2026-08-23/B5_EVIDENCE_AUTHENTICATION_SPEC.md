@@ -194,5 +194,5 @@ Each must go red when its guard is disabled; §4's anchors are the mechanical pr
 
 ---
 
-`Iron Plan: ALIGNED` · `Iron Gate: 0` ·
-`Evidence: design only — no edits, no tests, no commits. Measured at HEAD 26a8b5eb: 8 literal sites, 6 runner pins, 2 unpinned literals; all 29 declared surfaces resolved through the AST (0 eligible for central); report_v3 imports only the classification module. tools/iron_plan_guard.py absent from this tree, so the mandated verify step could not run.`
+`Iron Plan: ALIGNED` · `Iron Gate: 0` (now CLOSED at 657c8af5, 2026-08-26) ·
+`Evidence: design only — no edits, no tests, no commits. Measured at HEAD 26a8b5eb: 8 literal sites, 6 runner pins, 2 unpinned literals; all 29 declared surfaces resolved through the AST (0 eligible for central); report_v3 imports only the classification module. tools/iron_plan_guard.py absent from this tree, so the mandated verify step could not run. **This file captures Gate-0 design; Gate 0 closure decision is recorded separately at GATE0_CLOSURE_DECISION_20260826.md.**`
