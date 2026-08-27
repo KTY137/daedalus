@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "main",
     "dirty": true,
-    "head": "39aaf160a2c8f4111f44bd4af898299f01921429"
+    "head": "1f4dbd28d06588d8ce5b5c24cb3a38f5dd18f495"
   },
   "counts": {
     "dark_switches": 3,
-    "doc_drift": 32,
+    "doc_drift": 33,
     "index_extra_edges": 1,
-    "islands": 84,
-    "modules": 1668,
+    "islands": 85,
+    "modules": 1669,
     "shims": 7,
-    "test_only": 43,
+    "test_only": 44,
     "unknown": 29,
     "unparsable": 1,
-    "unreached": 120
+    "unreached": 121
   },
   "ignore": {
     "env": "",
@@ -130,6 +130,7 @@
     "daedalus/ikarus_act.py",
     "daedalus/ikarus_chat.py",
     "daedalus/ikarus_os.py",
+    "daedalus/ikarus_runtime_role.py",
     "daedalus/ikarus_supervisor.py",
     "daedalus/kairos/__init__.py",
     "daedalus/kairos/archive.py",
@@ -1694,6 +1695,7 @@
   ],
   "islands": [
     "daedalus/eval/provenance.py",
+    "daedalus/ikarus_runtime_role.py",
     "daedalus/ikarus_supervisor.py",
     "daedalus/kairos/archive.py",
     "daedalus/kairos/evolution.py",
@@ -1826,6 +1828,7 @@
     "daedalus/gates/repository_write_artifact_cas.py",
     "daedalus/gates/repository_write_artifact_verifier.py",
     "daedalus/gates/repository_write_evidence.py",
+    "daedalus/ikarus_runtime_role.py",
     "daedalus/ikarus_supervisor.py",
     "daedalus/kairos/archive.py",
     "daedalus/kairos/evolution.py",
@@ -1886,6 +1889,7 @@
     "doc-only:AUTO_PROMOTE_LEVELS",
     "doc-only:DAEDALUS_BUDGET_MAX_CALLS",
     "doc-only:DAEDALUS_BUDGET_USD",
+    "doc-only:DAEDALUS_GUI_BASE_URL",
     "doc-only:DAEDALUS_IRON_PLAN_AMENDMENT",
     "doc-only:DAEDALUS_SERENA_HOOK",
     "doc-only:DAEDALUS_WATCHDOG",
@@ -1909,5 +1913,5 @@
     "daedalus/eval/graph_delta.py -> daedalus/structcore/artifacts.py"
   ],
   "acceptances": [],
-  "digest": "sha256:ce8eea002b9a452c0a6b731ee8b79ff0cee993b649d874a8b584ac3b69f1a386"
+  "digest": "sha256:688c711ffca9a707d9e1d7110738eb62daea4bdda381a058b6fda9e4d314f22e"
 }
