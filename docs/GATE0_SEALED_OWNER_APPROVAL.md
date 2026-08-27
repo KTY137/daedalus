@@ -1,6 +1,14 @@
 # Gate 0: the sealed owner approval
 
-Status: **analysis and design options. Nothing implemented.** The choice of
+Status: **RESOLVED — recommendation (§5, option B) implemented.**
+[MEASURED 2026-08-25] `daedalus/spine/effect_boundary.py:151` now sets
+`"promotion.owner_approval": True`, and `python.promote_candidates`
+(`:407-422`) declares it as a required guard contract, verified by
+`daedalus/kernel/promotion_trust_root.py`. Kept as the design record; the
+options analysis (§4) and the regeneration/void-on-regenerate reasoning (§3)
+remain the rationale for the shipped design.
+
+Original status: **analysis and design options. Nothing implemented.** The choice of
 trust root is the owner's, not an implementer's, and it is the reason this note
 stops short of code.
 

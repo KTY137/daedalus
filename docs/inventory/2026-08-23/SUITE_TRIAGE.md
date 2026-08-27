@@ -284,7 +284,8 @@ document, the ledger row, and raw outputs under `runs/watchdog/`.
 
 `python tools/iron_plan_guard.py verify` **could not be run**: the file does not
 exist in this tree (see B3). The gap is reported rather than routed around.
+**UPDATE 2026-08-26**: this tool remains absent at HEAD.
 
 `Iron Plan: ALIGNED`
-`Iron Gate: 0`
+`Iron Gate: 0` (Gate 0 now CLOSED at HEAD 657c8af5, 2026-08-26)
 `Evidence: runs/watchdog/mission-20260823/suite-redfiles-3fd5fd5e-raw.txt (16 failed / 484 passed at pinned 3fd5fd5e, clean tree before and after); suite-discovery-4a5fe768-to-3fd5fd5e-raw.txt (33 failed / 8311 passed / 0 errors, moving HEAD, unattributable); pathsens-inplace-3fd5fd5e-raw.txt and the same-commit clone (269 passed / 1 skipped in both) refuting path sensitivity`

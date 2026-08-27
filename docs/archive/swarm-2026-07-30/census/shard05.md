@@ -117,7 +117,6 @@ daedalus/spine/docrefs.py|function|scan|Performs a full scan of the documentatio
 daedalus/spine/docrefs.py|function|verify_fix|Verifies that a proposed fix (a string diff) actually fixes broken references without reducing resolving count
 daedalus/spine/docrefs.py|function|verify_fix_counts|Compares before/after scan results and returns FixVerdict
 daedalus/spine/docrefs.py|function|verify_fixes|Batch verifies multiple fixes against a precomputed report
-Route this task to Claude or local Ollama.
 daedalus/provider_router.py|constant|LATENT_ENV|Operator kill switch for latent route; if set to 0/false/off disables embedding-based routing.
 daedalus/provider_router.py|constant|LATENT_DISABLED|Mechanism recorded when operator switched latent route off.
 daedalus/provider_router.py|constant|LATENT_OVERRULED|Latent route ran and was overruled due to lane change.

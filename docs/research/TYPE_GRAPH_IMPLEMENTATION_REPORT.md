@@ -4,6 +4,8 @@
 [`TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md`](TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md), Teil A
 (Stufe 1, Python only) · status: **built, tested, NOT committed** (working tree only)
 
+**STATUS UPDATE 2026-08-26 (appended, nothing above rewritten):** The type layer code is now committed in HEAD (commits 94875549, 6a3a7087, 007a237b). The report's verdicts on invariants I1–I6, test results (426 passing), and open questions (§8) remain unchanged; the code is live.
+
 ## Read this paragraph before any other
 
 **No thermometer failed. No test was skipped. No test is currently red.** 426 tests over

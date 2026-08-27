@@ -13,7 +13,6 @@ tests/test_latent_index_integrity.py|function|test_search_refuses_when_the_journ
 tests/test_latent_index_integrity.py|function|test_unknown_journal_id_is_unanchored_not_fresh|Test unknown journal ID yields unanchored.
 tests/test_latent_index_integrity.py|function|test_journal_position_rejects_nonsense|Test JournalPosition validation.
 tests/test_latent_index_integrity.py|function|test_an_offline_backend_is_not_reported_as_drift|Test offline backend yields embedder_unavailable.
-Route this task to Claude or local Ollama.
 tests/test_host_predicate.py|constant|TABLE|Provides the complete contract mapping host strings to expected lanes and reasons.
 tests/test_host_predicate.py|constant|HOSTS|Tuple of host strings extracted from TABLE for parametrization.
 tests/test_host_predicate.py|function|test_the_shared_predicate_answers_the_whole_table|Verifies that lane_for_host returns expected lane for every entry in TABLE.

@@ -27,7 +27,6 @@ daedalus/memory/projection_worker.py|function|complete_prefix_end|Returns byte o
 daedalus/memory/projection_worker.py|function|journal_position|Returns the journal's current position as a JournalPosition object, including content hash.
 daedalus/memory/projection_worker.py|function|scan_journal|Reads complete lines from a journal start offset, returning a list of JournalEntry objects.
 daedalus/memory/projection_worker.py|function|resolve_spec|Resolves embedding spec by picking index to write to without calling backend, handling conflicts.
-Route this task to Claude or local Ollama.
 daedalus/eval/mint.py|constant|MINT_CONFIRM_THRESHOLD|Number of independent confirmations before a minted task is taken out of quarantine
 daedalus/eval/mint.py|constant|DEFAULT_MINT_STORE_PATH|Path to the persisted store for minted tasks
 daedalus/eval/mint.py|constant|MUST_INCLUDE_CAP|Maximum number of must_include labels per task

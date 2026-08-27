@@ -17,7 +17,6 @@ daedalus/core.py|function|get_squads|Returns squad configuration with agent deta
 daedalus/core.py|function|enforcement_status|Checks AGENTS.md, CLAUDE.md for enforcement markers and state file existence
 daedalus/core.py|function|get_quality|Returns quality gate status: schema validation, local_only fail-closed, watcher staleness, fallback alarm
 daedalus/core.py|function|routing_summary|Recommends a routing lane based on project default, watcher staleness, fallback alarm, and Ollama availability
-Route this task to Claude or local Ollama.
 daedalus/file_bridge.py|constant|ROOT|Root directory of the project, parent of outbox/inbox/runs.
 daedalus/file_bridge.py|constant|OUTBOX|Directory where enqueued request files are placed.
 daedalus/file_bridge.py|constant|INBOX|Directory where report files are placed after processing.

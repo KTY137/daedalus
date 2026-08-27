@@ -38,7 +38,6 @@ tests/test_operability_drill.py|function|test_a_control_that_raises_is_INCOMPLET
 tests/test_operability_drill.py|function|test_the_receipt_records_the_revision_it_was_measured_at|Ensures the receipt JSON contains 'head' and 'scheduling_defensible'.
 tests/test_operability_drill.py|function|test_scheduling_defensible_is_true_ONLY_on_a_clean_exit|Ensures scheduling_defensible is False when a control fails.
 tests/test_operability_drill.py|function|test_the_drill_does_not_start_anything_by_itself|Ensures the drill module does not contain scheduling-related code.
-Route this task to Claude or local Ollama.
 tests/test_build.py|class|AssignBuilderTests|Tests assign_builder returns correct builder and frontier flag for various lanes.
 tests/test_build.py|class|PlanBuildShapeTests|Tests plan_build wave structure, metadata, and frontier vs local classification.
 tests/test_build.py|class|RoundTripTests|Tests to_dict/from_dict and persistence round-trips.

@@ -93,7 +93,6 @@ tests/test_claude_detect.py|constant|SAMPLE_SINGLE|Provides a sample single-line
 tests/test_claude_detect.py|constant|SAMPLE_FOLDED|Provides a sample folded-description frontmatter string.
 tests/test_claude_detect.py|class|ParseFrontmatterTests|Tests parse_frontmatter for single-line, folded, and missing frontmatter.
 tests/test_claude_detect.py|class|DetectClaudeCrewTests|Tests detect_claude_crew for agent detection and empty cases, and dashboard integration.
-Route this task to Claude or local Ollama.
 tests/test_structcore.py|constant|JOIN_WORKER|A ~6-line function byte-identical everywhere (Type-1 clone)
 tests/test_structcore.py|constant|RAMP_DOWN|Python function for ramp_down
 tests/test_structcore.py|constant|JS_BLOCK|JS block for formatStatus function (window clone)

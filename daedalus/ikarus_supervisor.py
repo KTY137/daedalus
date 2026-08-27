@@ -42,17 +42,35 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Callable, Mapping, Sequence
 
-from .build import BuildSession, BuildTask, Wave
-from .schemas import MissionContract, ResourceBudget
-from .spine.attempt import GateResult, TaskAttempt, TaskSpec
+from .build import BuildSession, BuildTask, Wave, mission_id_for_session
+from .ikarus_runtime_role import (
+    INPROCESS_RUNTIME_ID,
+    RuntimeRoleRegistry,
+    RuntimeRoleSnapshot,
+)
+from .schemas import (
+    MissionContract,
+    ResourceBudget,
+    derive_work_item_id,
+    work_item_identity_sha256,
+)
+from .spine.attempt import (
+    GateResult,
+    RunnerContext,
+    TaskAttempt,
+    TaskSpec,
+    TaskSpecInvalid,
+)
 from .spine.receipts import mission_contract_for_build_session
 
-LEDGER_SCHEMA = "daedalus-ikarus-state-ledger/1"
+LEDGER_SCHEMA = "daedalus-ikarus-state-ledger/2"
 
 #: Terminal work-item states the ledger may carry.  A coarse lifecycle on
 #: purpose, mirroring ``BuildTask.status`` — anything finer rides on the
@@ -92,6 +110,7 @@ class PlannedItem:
     role: str
     paths: tuple[str, ...]
     gate_paths: tuple[str, ...] = ()
+    runtime_id: str = INPROCESS_RUNTIME_ID
 
     def __post_init__(self) -> None:
         if not str(self.objective).strip():
@@ -100,8 +119,88 @@ class PlannedItem:
             raise ValueError("a planned item needs a role")
         if not self.paths:
             raise ValueError("a planned item must declare its target paths")
+        if not isinstance(self.runtime_id, str) or not self.runtime_id.strip():
+            raise ValueError("a planned item needs a runtime_id")
         object.__setattr__(self, "paths", tuple(str(p) for p in self.paths))
         object.__setattr__(self, "gate_paths", tuple(str(p) for p in self.gate_paths))
+        object.__setattr__(self, "runtime_id", self.runtime_id.strip())
+
+
+@dataclass(frozen=True)
+class _TaskPlanSnapshot:
+    """Caller-owned BuildTask primitives captured before any runner executes."""
+
+    mission_id: str
+    work_item_id: str
+    work_item_identity_sha256: str
+    objective: str
+    agent: str
+    paths: tuple[str, ...]
+    builder: str
+
+
+def _snapshot_planned_items(
+    items: Sequence[PlannedItem],
+) -> tuple[PlannedItem, ...]:
+    if isinstance(items, (str, bytes)):
+        raise SupervisorRefused("planned items must be a sequence of objects")
+    try:
+        return tuple(
+            PlannedItem(
+                objective=item.objective,
+                role=item.role,
+                paths=tuple(item.paths),
+                gate_paths=tuple(item.gate_paths),
+                runtime_id=item.runtime_id,
+            )
+            for item in items
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise SupervisorRefused("planned items are malformed") from exc
+
+
+def _snapshot_callback_task(task: TaskSpec) -> TaskSpec:
+    """Give injected code a value-equivalent copy, never the evidence object."""
+
+    metadata = json.loads(_canonical(dict(task.metadata)))
+    correctness_before_state = json.loads(
+        _canonical(dict(task.correctness_before_state))
+    )
+    return TaskSpec(
+        task_id=str(task.task_id),
+        instruction=str(task.instruction),
+        base_revision=(
+            None if task.base_revision is None else str(task.base_revision)
+        ),
+        gate_paths=tuple(str(path) for path in task.gate_paths),
+        metadata=MappingProxyType(metadata),
+        target_paths=tuple(str(path) for path in task.target_paths),
+        gate_argv=tuple(str(arg) for arg in task.gate_argv),
+        gate_cwd=str(task.gate_cwd),
+        gate_timeout_s=float(task.gate_timeout_s),
+        fail_to_pass=tuple(str(test) for test in task.fail_to_pass),
+        pass_to_pass=tuple(str(test) for test in task.pass_to_pass),
+        gate_criterion_paths=tuple(
+            str(path) for path in task.gate_criterion_paths
+        ),
+        gate_reads_scope=bool(task.gate_reads_scope),
+        correctness_before_state=MappingProxyType(correctness_before_state),
+    )
+
+
+def _snapshot_callback_context(
+    context: RunnerContext,
+    task_template: TaskSpec,
+) -> RunnerContext:
+    """Isolate callback mutation from TaskAttempt's canonical TaskSpec."""
+
+    return RunnerContext(
+        worktree=Path(context.worktree),
+        branch=str(context.branch),
+        base_revision=str(context.base_revision),
+        task=_snapshot_callback_task(task_template),
+        is_cancelled=context.is_cancelled,
+    )
 
 
 def _utc_now() -> str:
@@ -110,6 +209,95 @@ def _utc_now() -> str:
 
 def _canonical(body: Mapping[str, Any]) -> str:
     return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _runtime_binding(
+    item: PlannedItem,
+    runtime_roles: RuntimeRoleRegistry | None,
+) -> RuntimeRoleSnapshot | None:
+    if item.runtime_id == INPROCESS_RUNTIME_ID or runtime_roles is None:
+        return None
+    return runtime_roles.snapshot(item.role, item.runtime_id)
+
+
+def _resolve_runtime_bindings(
+    items: Sequence[PlannedItem],
+    runtime_roles: RuntimeRoleRegistry | None,
+) -> tuple[RuntimeRoleSnapshot | None, ...]:
+    if runtime_roles is not None and type(runtime_roles) is not RuntimeRoleRegistry:
+        raise SupervisorRefused(
+            "runtime_roles must be an exact immutable RuntimeRoleRegistry"
+        )
+    return tuple(_runtime_binding(item, runtime_roles) for item in items)
+
+
+def _task_builder(
+    item: PlannedItem,
+    binding: RuntimeRoleSnapshot | None,
+) -> str:
+    if item.runtime_id == INPROCESS_RUNTIME_ID:
+        return f"role:{item.role}"
+    # Keep the FULL digest in the session snapshot. The mission slug may use a
+    # display prefix, but this is the only structural field BuildTask offers
+    # for the selected builder and must not make drift diagnosis depend on a
+    # truncated identity.
+    suffix = binding.digest if binding is not None else "unresolved"
+    return f"role:{item.role}@runtime:{item.runtime_id}:{suffix}"
+
+
+def _planned_runtime_binding_sha256(
+    task: _TaskPlanSnapshot,
+    item: PlannedItem,
+) -> str | None:
+    if item.runtime_id == INPROCESS_RUNTIME_ID:
+        return None
+    prefix = f"role:{item.role}@runtime:{item.runtime_id}:"
+    if not task.builder.startswith(prefix):
+        return None
+    value = task.builder[len(prefix):]
+    if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
+        return None
+    return value
+
+
+def _plan_item_identity(
+    item: PlannedItem,
+    binding: RuntimeRoleSnapshot | None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "objective": item.objective,
+        "role": item.role,
+        "paths": list(item.paths),
+    }
+    # Preserve every legacy in-process mission id byte-for-byte. Runtime
+    # identity joins the plan only when the caller explicitly selects a
+    # variable backend.
+    if item.runtime_id != INPROCESS_RUNTIME_ID:
+        if item.gate_paths:
+            body["gate_paths"] = list(item.gate_paths)
+        body["runtime_id"] = item.runtime_id
+        body["runtime_binding_sha256"] = binding.digest if binding else None
+    return body
+
+
+def _plan_digest(
+    objective: str,
+    items: Sequence[PlannedItem],
+    bindings: Sequence[RuntimeRoleSnapshot | None],
+) -> str:
+    if len(items) != len(bindings):
+        raise SupervisorRefused("runtime binding count does not match planned items")
+    return hashlib.sha256(
+        _canonical(
+            {
+                "objective": objective,
+                "items": [
+                    _plan_item_identity(item, binding)
+                    for item, binding in zip(items, bindings)
+                ],
+            }
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 # --------------------------------------------------------------------------- #
@@ -199,6 +387,7 @@ def plan_mission(
     success_criteria: Sequence[str],
     project: str = "ikarus-supervisor",
     trace_id: str | None = None,
+    runtime_roles: RuntimeRoleRegistry | None = None,
 ) -> tuple[BuildSession, MissionContract]:
     """Compile intent into the one session/mission pair the kernel accepts.
 
@@ -211,6 +400,7 @@ def plan_mission(
     clock cannot be replayed.
     """
 
+    items = _snapshot_planned_items(items)
     if not items:
         raise SupervisorRefused("a mission with no work items is not a mission")
     # THE SLUG IS A FUNCTION OF THE PLAN, and this line exists because the
@@ -221,15 +411,8 @@ def plan_mission(
     # own docstring warns about ("a caller that cares supplies mission_id").
     # A timestamp would fix uniqueness and break replay; a content digest
     # gives both: same plan -> same id, different plan -> different id.
-    plan_digest = hashlib.sha256(
-        _canonical({
-            "objective": objective,
-            "items": [
-                {"objective": i.objective, "role": i.role, "paths": list(i.paths)}
-                for i in items
-            ],
-        }).encode("utf-8")
-    ).hexdigest()
+    bindings = _resolve_runtime_bindings(items, runtime_roles)
+    plan_digest = _plan_digest(objective, items, bindings)
     tasks = [
         BuildTask(
             objective=item.objective,
@@ -237,11 +420,11 @@ def plan_mission(
             category="renovation",
             lane="deterministic",
             tier="none",
-            builder=f"role:{item.role}",
+            builder=_task_builder(item, binding),
             frontier=False,
             paths=list(item.paths),
         )
-        for item in items
+        for item, binding in zip(items, bindings)
     ]
     session = BuildSession(
         feature=objective,
@@ -271,10 +454,11 @@ class MissionSupervisor:
     """Drive one planned mission through role attempts, ledger revision by
     ledger revision.
 
-    ``roles`` is the complete harness registry this mission may use.  It is
-    checked against the WHOLE plan before the first dispatch: a plan that
-    names an unknown role is refused with nothing run, because half a mission
-    executed under a misspelt role name is the expensive way to find a typo.
+    ``roles`` is the complete pre-existing harness mapping this mission may
+    use. Legacy in-process entries are keyed by role. Variable runtime entries
+    are keyed by :attr:`RuntimeRoleBinding.harness_key`, so an explicit runtime
+    can never fall back to a role-only callable. The whole plan is checked
+    before the first dispatch.
     """
 
     repo_root: Path
@@ -284,6 +468,9 @@ class MissionSupervisor:
     fail_fast: bool = True
     #: Populated by :meth:`run`.
     results: list[Any] = field(default_factory=list)
+    # Appended after every legacy constructor field so existing positional
+    # calls retain their original meaning. New callers should use the keyword.
+    runtime_roles: RuntimeRoleRegistry | None = None
 
     def run(
         self,
@@ -291,107 +478,519 @@ class MissionSupervisor:
         mission: MissionContract,
         items: Sequence[PlannedItem],
     ) -> dict[str, Any]:
-        tasks = session.waves[0].tasks
+        # MissionContract is caller-owned even though it is frozen. Snapshot
+        # and revalidate its complete canonical body before any caller-owned
+        # registry or harness lookup can run Python code. From here onward the
+        # live ``mission`` object is never consulted again.
+        if type(mission) is not MissionContract:
+            raise SupervisorRefused("mission must be an exact MissionContract")
+        try:
+            supplied_mission_sha256 = str(mission.digest)
+            mission_snapshot = MissionContract.from_dict(mission.to_dict())
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise SupervisorRefused(
+                "mission contract could not be snapshotted and validated"
+            ) from exc
+        mission_sha256 = mission_snapshot.digest
+        if mission_sha256 != supplied_mission_sha256:
+            raise SupervisorRefused(
+                "mission contract changed while its canonical snapshot was captured"
+            )
+        mission_body = mission_snapshot.to_dict()
+        mission_id = str(mission_snapshot.mission_id)
+        mission_objective = str(mission_snapshot.objective)
+        mission_source_revision = str(mission_snapshot.source_revision)
+        mission_work_item_ids = tuple(mission_snapshot.work_item_ids)
+        mission_policy_sha256 = str(mission_snapshot.policy_sha256)
+        mission_budget = ResourceBudget(
+            max_tokens=mission_snapshot.budget.max_tokens,
+            max_cost_microusd=mission_snapshot.budget.max_cost_microusd,
+            max_wall_time_s=mission_snapshot.budget.max_wall_time_s,
+            max_attempts=mission_snapshot.budget.max_attempts,
+        )
+
+        # Snapshot caller-owned frozen dataclasses before any runner is handed
+        # control. ``frozen=True`` prevents accidental assignment; it does not
+        # make object.__setattr__ a security boundary across a multi-item run.
+        items = _snapshot_planned_items(items)
+        try:
+            execution_root = Path(self.repo_root).resolve()
+            run_dir = Path(self.run_dir).resolve()
+            gate_timeout_s = float(self.gate_timeout_s)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise SupervisorRefused(
+                "supervisor repository/run paths or timeout could not be resolved"
+            ) from exc
+        if gate_timeout_s <= 0 or not math.isfinite(gate_timeout_s):
+            raise SupervisorRefused("supervisor gate timeout must be positive and finite")
+        if type(self.fail_fast) is not bool:
+            raise SupervisorRefused("supervisor fail_fast setting must be boolean")
+        fail_fast = self.fail_fast
+        result_sink = self.results
+        if len(session.waves) != 1:
+            raise SupervisorRefused(
+                "the Ikarus runtime port requires exactly one ordered work wave"
+            )
+        tasks = tuple(session.waves[0].tasks)
+        if any(type(task) is not BuildTask for task in tasks):
+            raise SupervisorRefused(
+                "session tasks must be exact BuildTask records"
+            )
+        task_plans = tuple(
+            _TaskPlanSnapshot(
+                mission_id=str(task.mission_id),
+                work_item_id=str(task.work_item_id),
+                work_item_identity_sha256=str(
+                    task.work_item_identity_sha256
+                ),
+                objective=str(task.objective),
+                agent=str(task.agent),
+                paths=tuple(str(path) for path in task.paths),
+                builder=str(task.builder),
+            )
+            for task in tasks
+        )
         if len(tasks) != len(items):
             raise SupervisorRefused(
                 f"plan drift: session carries {len(tasks)} tasks for "
                 f"{len(items)} planned items"
             )
-
-        # REFUSE THE WHOLE PLAN FIRST.  One pass over every role name before
-        # any attempt exists; the refusal lands in the ledger so a reader of
-        # the run directory sees WHY nothing ran.
-        ledger = StateLedger(self.run_dir / "ledger")
-        unknown = sorted(
-            {item.role for item in items} - set(self.roles.keys())
+        bindings = _resolve_runtime_bindings(items, self.runtime_roles)
+        expected_plan_digest = _plan_digest(session.feature, items, bindings)
+        expected_slug = f"ikarus-{expected_plan_digest[:12]}"
+        expected_mission_id = mission_id_for_session(
+            expected_slug, session.created
         )
-        rows = [
-            {
-                "work_item_id": task.work_item_id,
+        if session.slug != expected_slug or session.mission_id != expected_mission_id:
+            raise SupervisorRefused(
+                "plan identity drift: supplied items/runtime bindings do not "
+                "derive the session mission"
+            )
+        if session.mission_id != mission_id:
+            raise SupervisorRefused(
+                "session/mission drift: session mission_id does not match the "
+                "MissionContract"
+            )
+        for ordinal, task_plan in enumerate(task_plans):
+            identity = (
+                task_plan.objective,
+                task_plan.agent,
+                *sorted(task_plan.paths),
+            )
+            expected_identity_sha256 = work_item_identity_sha256(
+                mission_id,
+                ordinal=ordinal,
+                identity=identity,
+            )
+            expected_work_item_id = derive_work_item_id(
+                mission_id,
+                ordinal=ordinal,
+                identity=identity,
+            )
+            if (
+                task_plan.mission_id != mission_id
+                or task_plan.work_item_identity_sha256
+                != expected_identity_sha256
+                or task_plan.work_item_id != expected_work_item_id
+            ):
+                raise SupervisorRefused(
+                    "session work item identity drift: ordinal, mission, "
+                    "substance digest and work_item_id must derive together"
+                )
+        session_work_items = tuple(
+            sorted(task_plan.work_item_id for task_plan in task_plans)
+        )
+        if session_work_items != mission_work_item_ids:
+            raise SupervisorRefused(
+                "session/mission drift: work item ids do not match the "
+                "MissionContract"
+            )
+        if session.feature != mission_objective:
+            raise SupervisorRefused(
+                "session/mission drift: objective does not match the "
+                "MissionContract"
+            )
+        try:
+            planned_root = Path(session.repo_root).resolve()
+            # execution_root was snapshotted before any caller code can run.
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise SupervisorRefused(
+                "session repository root could not be resolved"
+            ) from exc
+        if planned_root != execution_root:
+            raise SupervisorRefused(
+                "session/supervisor drift: repository root does not match"
+            )
+
+        contract_path = run_dir / "mission.json"
+        if contract_path.exists():
+            try:
+                retained = MissionContract.from_dict(
+                    json.loads(contract_path.read_text(encoding="utf-8"))
+                )
+            except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+                raise SupervisorRefused(
+                    "existing mission.json is malformed and cannot be reused"
+                ) from exc
+            if retained.digest != mission_sha256:
+                raise SupervisorRefused(
+                    "existing mission.json belongs to a different mission"
+                )
+
+        # REFUSE THE WHOLE PLAN FIRST. One pass over every role/runtime pair
+        # before any attempt exists; the refusal lands in the ledger so a
+        # reader of the run directory sees WHY nothing ran. An explicit
+        # runtime NEVER falls back to the legacy role map.
+        ledger = StateLedger(run_dir / "ledger")
+        resolutions: list[
+            tuple[
+                Callable[[PlannedItem], Callable[[Any], dict]] | None,
+                Callable[[PlannedItem], Callable[[Any], GateResult]] | None,
+                RuntimeRoleSnapshot | None,
+                str | None,
+            ]
+        ] = []
+        for task_plan, item, binding in zip(task_plans, items, bindings):
+            if (
+                task_plan.objective != item.objective
+                or task_plan.paths != item.paths
+            ):
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        None,
+                        "work item substance drifted after planning: objective "
+                        "or target paths changed",
+                    )
+                )
+                continue
+            if item.runtime_id == INPROCESS_RUNTIME_ID:
+                harness = self.roles.get(item.role)
+                if task_plan.builder != _task_builder(item, None):
+                    error = "role binding drifted after planning"
+                elif harness is None:
+                    error = f"role {item.role!r} is not in the harness registry"
+                elif type(harness) is not RoleHarness or harness.role != item.role:
+                    error = f"role {item.role!r} has a malformed RoleHarness binding"
+                    harness = None
+                elif not callable(harness.runner_factory) or not callable(
+                    harness.gate_factory
+                ):
+                    error = f"role {item.role!r} has non-callable harness factories"
+                    harness = None
+                else:
+                    error = None
+                resolutions.append(
+                    (
+                        harness.runner_factory if harness is not None else None,
+                        harness.gate_factory if harness is not None else None,
+                        None,
+                        error,
+                    )
+                )
+                continue
+
+            if binding is None:
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        None,
+                        "runtime-role binding is not registered: "
+                        f"role={item.role!r} runtime_id={item.runtime_id!r}",
+                    )
+                )
+                continue
+            expected_builder = _task_builder(item, binding)
+            if task_plan.builder != expected_builder:
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "runtime-role binding drifted after planning: "
+                        f"planned={task_plan.builder!r} current={expected_builder!r}",
+                    )
+                )
+                continue
+            if not binding.executable:
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        f"runtime {item.runtime_id!r} is {binding.execution_mode}: "
+                        f"{binding.refusal_reason}",
+                    )
+                )
+                continue
+            harness = self.roles.get(binding.harness_key)
+            if harness is None:
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "executable fixture has no exact injected RoleHarness: "
+                        f"key={binding.harness_key!r}",
+                    )
+                )
+                continue
+            if type(harness) is not RoleHarness or harness.role != item.role:
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "runtime-role fixture has a malformed or role-mismatched "
+                        "RoleHarness",
+                    )
+                )
+                continue
+            if not callable(harness.runner_factory) or not callable(
+                harness.gate_factory
+            ):
+                resolutions.append(
+                    (
+                        None,
+                        None,
+                        binding,
+                        "runtime-role fixture has non-callable harness factories",
+                    )
+                )
+                continue
+            resolutions.append(
+                (
+                    harness.runner_factory,
+                    harness.gate_factory,
+                    binding,
+                    None,
+                )
+            )
+
+        # Construct every TaskSpec during whole-plan preflight. Path
+        # normalization/refusal must not happen after a row already says
+        # "dispatched", and a malformed later item must stop the mission before
+        # an earlier fixture is allowed to run.
+        specs: list[TaskSpec | None] = []
+        callback_task_templates: list[TaskSpec | None] = []
+        for index, (task_plan, item, resolution) in enumerate(
+            zip(task_plans, items, resolutions)
+        ):
+            runner_factory, gate_factory, binding, error = resolution
+            if error is not None:
+                specs.append(None)
+                callback_task_templates.append(None)
+                continue
+            runtime_metadata = {}
+            if binding is not None:
+                runtime_metadata = {
+                    "runtime_binding_schema": binding.schema,
+                    "runtime_id": binding.runtime_id,
+                    "runtime_binding_sha256": binding.digest,
+                    "runtime_adapter_id": binding.adapter_id,
+                    "runtime_adapter_version": binding.adapter_version,
+                    "runtime_source_revision": binding.source_revision,
+                    "runtime_origin": binding.origin,
+                    "runtime_execution_mode": binding.execution_mode,
+                }
+            try:
+                spec = TaskSpec(
+                    task_id=task_plan.work_item_id,
+                    instruction=task_plan.objective,
+                    base_revision=mission_source_revision,
+                    target_paths=task_plan.paths,
+                    gate_paths=item.gate_paths,
+                    gate_timeout_s=gate_timeout_s,
+                    metadata=MappingProxyType({
+                        "mission_id": mission_id,
+                        "work_item_id": task_plan.work_item_id,
+                        "role": item.role,
+                        "operator": "daedalus.ikarus_supervisor",
+                        **runtime_metadata,
+                    }),
+                )
+            except TaskSpecInvalid as exc:
+                resolutions[index] = (
+                    None,
+                    None,
+                    binding,
+                    f"task declaration refused before dispatch: {exc}",
+                )
+                specs.append(None)
+                callback_task_templates.append(None)
+                continue
+            specs.append(spec)
+            callback_template = _snapshot_callback_task(spec)
+            if callback_template.digest != spec.digest:
+                resolutions[index] = (
+                    None,
+                    None,
+                    binding,
+                    "callback TaskSpec snapshot changed the planned task digest",
+                )
+                specs[index] = None
+                callback_task_templates.append(None)
+                continue
+            callback_task_templates.append(callback_template)
+
+        rows = []
+        for task_plan, item, _resolution in zip(task_plans, items, resolutions):
+            rows.append({
+                "work_item_id": task_plan.work_item_id,
                 "objective": item.objective,
                 "role": item.role,
+                "runtime_id": item.runtime_id,
+                "runtime_binding_sha256": _planned_runtime_binding_sha256(
+                    task_plan, item
+                ),
                 "paths": list(item.paths),
                 "status": "planned",
                 "attempt_id": None,
                 "attempt_receipt_sha256": None,
                 "evidence_packet_sha256": None,
                 "detail": None,
-            }
-            for task, item in zip(tasks, items)
-        ]
+            })
         base = {
-            "mission_id": mission.mission_id,
-            "mission_sha256": mission.digest,
-            "objective": mission.objective,
-            "source_revision": mission.source_revision,
+            "mission_id": mission_id,
+            "mission_sha256": mission_sha256,
+            "objective": mission_objective,
+            "source_revision": mission_source_revision,
             "items": rows,
             "outcome": None,
         }
         # The mission contract itself is retained beside the ledger — the
         # ledger references it by digest and never restates it.
-        contract_path = self.run_dir / "mission.json"
         if not contract_path.exists():
             contract_path.write_text(
-                json.dumps(mission.to_dict(), indent=1, sort_keys=True),
+                json.dumps(mission_body, indent=1, sort_keys=True),
                 encoding="utf-8",
                 newline="\n",
             )
         ledger.publish(base)
 
-        if unknown:
-            for row in rows:
-                if row["role"] in unknown:
+        preflight_errors = [
+            error for _, _, _, error in resolutions if error is not None
+        ]
+        if preflight_errors:
+            for row, (_, _, _, error) in zip(rows, resolutions):
+                if error is not None:
                     row["status"] = "refused"
-                    row["detail"] = f"role {row['role']!r} is not in the harness registry"
+                    row["detail"] = error
                 else:
                     row["status"] = "skipped"
                     row["detail"] = "mission refused before dispatch"
             base["outcome"] = "refused"
             ledger.publish(base)
             raise SupervisorRefused(
-                "the plan names roles this supervisor was not given: "
-                + ", ".join(unknown)
+                "the plan has unresolved runtime-role bindings: "
+                + " | ".join(preflight_errors)
             )
 
         outcome = "landed"
-        for index, (task, item) in enumerate(zip(tasks, items)):
-            if outcome != "landed" and self.fail_fast:
+        for index, (
+            task,
+            task_plan,
+            item,
+            (runner_factory, gate_factory, binding, _),
+            spec,
+            callback_task_template,
+        ) in enumerate(
+            zip(
+                tasks,
+                task_plans,
+                items,
+                resolutions,
+                specs,
+                callback_task_templates,
+            )
+        ):
+            if outcome != "landed" and fail_fast:
                 task.status = "planned"
                 rows[index]["status"] = "skipped"
                 rows[index]["detail"] = "fail-fast: an earlier work item bounced"
                 ledger.publish(base)
                 continue
-            harness = self.roles[item.role]
+            if (
+                runner_factory is None
+                or gate_factory is None
+                or spec is None
+                or callback_task_template is None
+            ):
+                raise SupervisorRefused("runtime-role resolution disappeared")
             rows[index]["status"] = task.status = "dispatched"
             ledger.publish(base)
 
-            spec = TaskSpec(
-                task_id=task.work_item_id,
-                instruction=item.objective,
-                target_paths=item.paths,
+            # Factory evaluation is itself caller code. Keep it lazy so even a
+            # factory that writes or raises runs only after TaskAttempt has
+            # durably entered its intent/effect path. Capture callable
+            # references and separate item copies before any earlier runner
+            # can mutate caller-owned harness objects.
+            runner_item = PlannedItem(
+                objective=item.objective,
+                role=item.role,
+                paths=item.paths,
                 gate_paths=item.gate_paths,
-                gate_timeout_s=float(self.gate_timeout_s),
-                metadata={
-                    "mission_id": mission.mission_id,
-                    "work_item_id": task.work_item_id,
-                    "role": item.role,
-                    "operator": "daedalus.ikarus_supervisor",
-                },
+                runtime_id=item.runtime_id,
             )
+            gate_item = PlannedItem(
+                objective=item.objective,
+                role=item.role,
+                paths=item.paths,
+                gate_paths=item.gate_paths,
+                runtime_id=item.runtime_id,
+            )
+
+            def lazy_runner(
+                ctx,
+                *,
+                factory=runner_factory,
+                planned_item=runner_item,
+                task_template=callback_task_template,
+            ):
+                runner = factory(planned_item)
+                if not callable(runner):
+                    raise TypeError("runner_factory returned a non-callable")
+                return runner(_snapshot_callback_context(ctx, task_template))
+
+            def lazy_gate(
+                ctx,
+                *,
+                factory=gate_factory,
+                planned_item=gate_item,
+                task_template=callback_task_template,
+            ):
+                gate = factory(planned_item)
+                if not callable(gate):
+                    raise TypeError("gate_factory returned a non-callable")
+                return gate(_snapshot_callback_context(ctx, task_template))
+
             attempt = TaskAttempt(
                 spec,
-                runner=harness.runner_factory(item),
-                gate=harness.gate_factory(item),
-                repo_root=self.repo_root,
-                ledger_path=self.run_dir / "spine.sqlite3",
-                artifact_dir=self.run_dir / "artifacts",
-                mission_id=mission.mission_id,
-                budget=ResourceBudget(max_wall_time_s=int(self.gate_timeout_s) * 2),
+                runner=lazy_runner,
+                gate=lazy_gate,
+                repo_root=execution_root,
+                ledger_path=run_dir / "spine.sqlite3",
+                artifact_dir=run_dir / "artifacts",
+                mission_id=mission_id,
+                budget=mission_budget,
+                mission_policy_sha256=mission_policy_sha256,
             )
             result = attempt.run()
-            self.results.append(result)
-            task.mark("landed" if result.ok else "bounced", dict(result.to_dict()))
-            rows[index]["status"] = task.status
+            result_sink.append(result)
+            terminal_status = "landed" if result.ok else "bounced"
+            # BuildTask is only the mutable BuildSession projection. A runner
+            # may retain and mutate it, so bypass any instance-shadowed method
+            # and never read its status back into the retained ledger.
+            task_result = dict(result.to_dict())
+            task_result["work_item"] = {
+                "mission_id": mission_id,
+                "work_item_id": task_plan.work_item_id,
+            }
+            BuildTask.mark(task, terminal_status)
+            task.last_result = task_result
+            rows[index]["status"] = terminal_status
             rows[index]["attempt_id"] = result.branch
             # Digests, never copies: the ledger row points at the canonical
             # records by hash, exactly the posture the ignition receipt takes.

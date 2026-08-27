@@ -455,5 +455,6 @@ Packaging task itself: no denial was raised while building this package.
 Source tree shas: CHECKPOINT `3e758392845d9faf7877977d5ae8806973ed62e6` (checkpoint/2026-07-20-session), TRUNK `93f11adfb08efa713711fd62e9be7b46d8957166` (work/g0-trunk-20260817). Disposable worktrees: `C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp`, `.../preruling-g0`. No primary worktree was read for numbers or written by this package builder.
 
 Iron Plan: ALIGNED  
-Iron Gate: 0  
+Iron Gate: 0 (now CLOSED at HEAD 657c8af5, 2026-08-26; this package's evidence and D1 ruling predate closure)
 Evidence: the receipts in the legend; this package is a projection of them and adds no measurement of its own.
+**UPDATE 2026-08-26**: Gate 0 closure via owner decision (GATE0_CLOSURE_DECISION_20260826.md) sealed the phase described herein. The document's recommendations (Option A) have been canonicalized into the active gate. This record remains authoritative for the measured cost/evidence at 2026-08-22.

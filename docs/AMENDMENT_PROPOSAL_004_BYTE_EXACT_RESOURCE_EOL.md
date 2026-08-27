@@ -39,7 +39,7 @@ module (one-line fix, not protected, not blocking); and
 ## Why it is moot rather than accepted or rejected
 
 The *guard* that would have enforced this `.gitattributes` rule
-(`tools/iron_plan_guard.py`) is gone. The *mechanism it was proposed for* is
+(`tools/iron_plan_guard.py (removed 2026-08-22)`) is gone. The *mechanism it was proposed for* is
 not: `daedalus/kairos/gated_writes.py` still execs a pinned retained-source
 blob (`_gated_writes_legacy.py.src`, pin `ec2fa2d6d0…`, `AUTO_PROMOTE_LEVELS =
 ("never",)` inside it) [MEASURED 2026-08-25 — corrects an earlier, wrong
