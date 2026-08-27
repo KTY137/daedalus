@@ -1,9 +1,25 @@
 # Work Packet G1-LEASE-01 — the ignition slice crosses its own effect boundary
 
-**Status:** SPECIFIED, not started. **Classification:** `ALIGNED`.
+**Status:** DONE 2026-08-27 (`16cf061d` implementation, `ea286622` three-run
+receipt). Owner decision on the control root: **Option A** (installation
+checkout as authority), taken 2026-08-27. **Classification:** `ALIGNED`.
 **Active gate:** 0 (Gate-1 rehearsal per master-plan Revision 3 item 3).
 **Base revision:** `4f71c020`. **Owner:** repository owner.
 **Written:** 2026-08-26, with every precondition measured rather than assumed.
+
+## Closure evidence `[MEASURED 2026-08-27]`
+
+Acceptance matrix, all six rows: `pytest tests/test_ignition_gate1.py` →
+64 passed, including four new lease tests. Three consecutive
+`python -m daedalus.ignition` runs → `replay_demonstrated: true`,
+`previous_run_complete: true`, `same_evaluator_bundle: true`, `blockers: []`;
+both attempts `lease_outcome: "COMPLETED"`, `lease_error: null`; the operator
+control root's write-evidence store holds `lease-terminal/*.json` naming each
+execution (25 records after three runs); `promotion: "nominated, not promoted"`.
+Found while wiring and left for its owner (out of packet scope): `path_write_blocked`
+matches `write_allow` entries verbatim while normalising the candidate path, so
+an unnormalised entry confines its own path OUT — failing toward refusal. The
+slice pre-normalises its entries; `sensitivity.py` was not touched.
 
 ## The gap, in the module's own words
 
