@@ -140,6 +140,66 @@ def test_each_attempt_persisted_its_patch_to_the_content_addressed_store(slice_r
         assert str(row["patch_locator"]).startswith("artifact-locator:sha256:")
 
 
+def test_every_attempt_holds_a_lease_that_terminalises(slice_result):
+    """G1-LEASE-01 acceptance 1+2: the receipt proves the boundary was crossed.
+
+    Before this packet nothing went red if the slice never leased -- the
+    docstring said so itself. A non-null lease_id per attempt row is the
+    receipt-side proof; COMPLETED is the terminal outcome for a clean item.
+    """
+    rows = slice_result.receipt["attempts"]
+    assert len(rows) == 2
+    for row in rows:
+        assert row["lease_id"], "an attempt ran without a python.attempt lease"
+        assert row["lease_outcome"] == "COMPLETED"
+        assert row["lease_error"] is None
+
+
+def test_each_lease_left_a_terminal_record_in_the_operators_store(slice_result):
+    """G1-LEASE-01 acceptance 3: the terminal record lands where a reader
+    looks -- the installation control root's write-evidence store (owner
+    decision 2026-08-27, Option A). Execution ids embed the lease id
+    (``<lease_id>-exec-<key>``), so a record naming the execution names the
+    lease."""
+    from daedalus.kernel.offload_lease import write_evidence_root
+
+    base_revision = slice_result.receipt["replay"]["base_revision"]
+    terminal_dir = write_evidence_root(gate1.ROOT, base_revision) / "lease-terminal"
+    lease_ids = {row["lease_id"] for row in slice_result.receipt["attempts"]}
+    assert lease_ids and None not in lease_ids
+    found = set()
+    for record in terminal_dir.glob("*.json") if terminal_dir.is_dir() else ():
+        text = record.read_text(encoding="utf-8")
+        found.update(lid for lid in lease_ids if lid in text)
+    missing = lease_ids - found
+    assert not missing, (
+        f"no lease-terminal record names {sorted(missing)} under {terminal_dir}"
+    )
+
+
+def test_a_refused_lease_is_a_blocker_not_a_silent_unleased_run(
+    tmp_path, monkeypatch
+):
+    """G1-LEASE-01 acceptance 5: a denial lands in blockers; the pre-lease
+    behaviour (attempt_lease=None) must not silently return."""
+
+    class _Denied:
+        reasons = ("injected: the write fence refused every declared path",)
+
+    monkeypatch.setattr(gate1, "WaveLeaseDenied", _Denied)
+    monkeypatch.setattr(gate1, "acquire_attempt_lease", lambda *a, **kw: _Denied())
+    result = gate1.run_gate1_ignition(
+        receipt_root=tmp_path / "receipts",
+        collected_at="2026-08-22T00:00:00Z",
+    )
+    joined = " ".join(result.blockers)
+    assert "refused a python.attempt lease" in joined
+    assert "injected: the write fence refused every declared path" in joined
+    assert result.receipt["attempts"] == [], (
+        "a refused lease must not leave an attempt row claiming a boundary"
+    )
+
+
 def test_the_repository_fixture_is_never_written(slice_result):
     fixture_now = gate1.tree_digest(gate1.DEFAULT_FIXTURE)
     assert slice_result.receipt["replay"]["fixture_tree_sha256"] == fixture_now

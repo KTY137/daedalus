@@ -18,20 +18,22 @@ No contract, no store, no ledger and no promotion path is minted here:
   from :func:`daedalus.schemas.derive_work_item_id`, bound by the session;
 * each attempt is one :class:`daedalus.spine.attempt.TaskAttempt`, which produces
   the AttemptContract, PolicyDecision, EvidencePacket and AttemptReceipt that
-  path already mints. It does NOT yet cross the ``python.attempt`` effect
-  boundary: :class:`TaskAttempt` takes ``attempt_lease=None`` here (the pre-lease
-  behaviour), so none of the four contracts that
-  :func:`daedalus.kernel.offload_lease.acquire_attempt_lease` runs -- intent
-  ledger check, worktree containment, write fence over the declared target
-  paths, process spend net -- execute for this slice. Measured 2026-08-25
-  (Atalanta): the kept ``spine.sqlite3`` holds ``intents``/``intent_events``
-  only, two ``attempt.candidate`` rows INTENDED -> COMPLETED, no grant/begin/
-  finish triple and no lease column; ``lease_id`` appears nowhere in the receipt
-  tree. Consequence: ``wi-001`` writes ``fourfold.json``, its own scope
-  declaration, with no independent write fence. Closing this means handing
-  line ~793 a real lease and asserting a non-null ``lease_id`` in
-  ``tests/test_ignition_gate1.py``, which today contains no lease assertion at
-  all -- nothing goes red if the slice never leases;
+  path already mints -- and, since G1-LEASE-01 (owner decision 2026-08-27,
+  Option A), each attempt CROSSES the ``python.attempt`` effect boundary:
+  :func:`daedalus.kernel.offload_lease.acquire_attempt_lease` is called with
+  the INSTALLATION checkout as the authority root (control root, issuer key,
+  lease ledger and write-evidence store are the operator's, so the terminal
+  record accumulates where every other lease's does) and the scratch candidate
+  checkout as the subject the writes must not mutate. The four contracts the
+  row declares -- intent ledger, worktree containment, write fence over the
+  declared target paths, process spend net -- run for every attempt, so
+  ``wi-001`` writes ``fourfold.json`` behind an independent write fence now.
+  A refused lease is a loud blocker, never a silent unleased run, and the
+  receipt's attempt rows carry ``lease_id``/``lease_outcome``/``lease_error``.
+  CONSEQUENCE OF OPTION A, stated rather than hidden: a run of this slice is
+  no longer read-only with respect to the operator's control root -- it
+  appends to the effect-lease ledger and the write-evidence store there. The
+  repository checkout itself is still never written;
 * the Gate-1 packet is
   :func:`daedalus.kernel.fourfold_evidence.assemble_fourfold_evidence_packet`;
 * the checks are :mod:`daedalus.ignition.checks`.
@@ -75,6 +77,11 @@ from daedalus.ignition.runner import (
     tree_digest,
 )
 from daedalus.kernel.fourfold_evidence import assemble_fourfold_evidence_packet
+from daedalus.kernel.offload_lease import (
+    WaveLeaseDenied,
+    WaveLeaseKillSwitchEngaged,
+    acquire_attempt_lease,
+)
 from daedalus.schemas import (
     ContractProvenance,
     EvidenceItem,
@@ -83,6 +90,7 @@ from daedalus.schemas import (
     ResourceBudget,
     ResourceUsage,
 )
+from daedalus.sensitivity import Policy
 from daedalus.spine.attempt import GateResult, RunnerContext, TaskAttempt, TaskSpec
 from daedalus.spine.envelope import canonical_sha
 from daedalus.spine.receipts import mission_contract_for_build_session
@@ -813,6 +821,74 @@ def run_gate1_ignition(
                 mission_id=mission.mission_id,
                 budget=ResourceBudget(max_wall_time_s=int(gate_timeout_s)),
             )
+            # G1-LEASE-01 (owner decision 2026-08-27, Option A). The lease's
+            # AUTHORITY is the installation checkout: control root, issuer
+            # key, lease ledger and write-evidence store are the operator's,
+            # which is what makes the terminal record evidence a reader will
+            # find. The SUBJECT is the scratch candidate checkout the attempt
+            # must not mutate. The branch (and with it the effect key) is
+            # derived inside TaskAttempt.__init__ with a per-attempt nonce,
+            # so the lease is acquired AFTER construction and handed over
+            # before run() -- the order tests/kernel/test_attempt_lease.py
+            # pins; the public ``attempt_lease=`` keyword cannot be used
+            # without knowing the branch first.
+            try:
+                lease = acquire_attempt_lease(
+                    ROOT,
+                    source_revision=base_revision,
+                    mission_id=mission.mission_id,
+                    attempt_id=attempt.branch,
+                    effect_key=attempt.branch,
+                    writable_paths=tuple(task.paths),
+                    # The fence is exactly the work item's declared target
+                    # paths -- wi-001 declaring fourfold.json and then writing
+                    # it is precisely what this bound is for. Entries are
+                    # pre-normalised the way path_write_blocked normalises the
+                    # candidate path (forward slashes, lowercase), because the
+                    # matcher compares entries verbatim; an unnormalised entry
+                    # fails toward refusal (measured: wiki/Event.md).
+                    write_policy=Policy(
+                        write_allow=tuple(
+                            path.replace("\\", "/").lower()
+                            for path in task.paths
+                        )
+                    ),
+                    contained=True,
+                    containment_evidence=(
+                        "TaskAttempt worktree via GitWorktreeManager; the "
+                        "issuer measures the planned isolation root itself"
+                    ),
+                    subject_root=repo,
+                    worktree_root=attempt._manager.worktree_root,
+                    trace_id="gate1-voltage-ignition",
+                )
+            except WaveLeaseKillSwitchEngaged as halt:
+                # An engaged switch is an instruction to stop the run, not a
+                # verdict about this attempt. Stop -- with the reason in the
+                # receipt -- rather than running unleased.
+                blockers.append(
+                    f"work item {task.work_item_id} could not lease: the kill "
+                    f"switch for the installation control root is engaged "
+                    f"({halt}); the slice stops rather than run unleased"
+                )
+                task.mark("bounced", {"state": "lease_halted", "error": str(halt)})
+                break
+            if isinstance(lease, WaveLeaseDenied):
+                # G1-LEASE-01 acceptance 5: a refused lease is a loud blocker,
+                # never a silent fall-back to the pre-lease behaviour. The
+                # loop stops here so the lists behind the receipt's attempt
+                # rows stay aligned with the work items that actually ran.
+                blockers.append(
+                    f"work item {task.work_item_id} was refused a "
+                    f"python.attempt lease: {'; '.join(lease.reasons)}; "
+                    f"refusing to run the attempt unleased"
+                )
+                task.mark(
+                    "bounced",
+                    {"state": "lease_refused", "reasons": list(lease.reasons)},
+                )
+                break
+            attempt._attempt_lease = lease
             result = attempt.run()
             attempts.append(attempt)
             attempt_results.append(result)
@@ -1588,6 +1664,12 @@ def _attempt_binding(
             ),
             "attempt_receipt_sha256": getattr(getattr(contracts, "receipt", None), "digest", None),
             "contracts_error": getattr(contracts, "error", None),
+            # G1-LEASE-01: per-run like the attempt id, so these live in the
+            # attempt rows -- which the replay stability set deliberately
+            # excludes -- and never in graph_delta or check_reports.
+            "lease_id": result.lease_id,
+            "lease_outcome": result.lease_outcome,
+            "lease_error": result.lease_error,
         })
     return {
         "schema": "daedalus-ignition-attempt-binding/1",
@@ -1746,6 +1828,8 @@ def _refused_receipt(
                     "policy_verdict", "evidence_packet_sha256",
                     "evidence_status", "evidence_assurance",
                     "attempt_receipt_sha256", "contracts_error",
+                    # per-run lease evidence; outside the replay stability set
+                    "lease_id", "lease_outcome", "lease_error",
                 )
             }
             for row in binding["attempts"]
@@ -1840,6 +1924,8 @@ def _build_receipt(
                     "policy_verdict", "evidence_packet_sha256",
                     "evidence_status", "evidence_assurance",
                     "attempt_receipt_sha256", "contracts_error",
+                    # per-run lease evidence; outside the replay stability set
+                    "lease_id", "lease_outcome", "lease_error",
                 )
             }
             for row in binding["attempts"]
