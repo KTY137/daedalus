@@ -1,4 +1,4 @@
-"""tools/watchdog.py -- the two background watchdogs: docs and work.
+"""tools/watchdog.py -- background docs, work, and advisory-fleet watchdogs.
 
 Owner order 2026-08-22/23: a docs agent is always active, and a general work
 watchdog runs in the background, independent of any open Claude session.
@@ -8,6 +8,11 @@ watchdog runs in the background, independent of any open Claude session.
     python tools/watchdog.py install       register both as Windows scheduled tasks (user, no admin)
     python tools/watchdog.py uninstall     remove the tasks
     python tools/watchdog.py status        tasks, last runs, last anomalies
+    python tools/watchdog.py fleet         idle-gated, one-shot advisory fleet pass
+    python tools/watchdog.py fleet-install register the robust 20-minute fleet task
+    python tools/watchdog.py fleet-status  task contract plus campaign state
+    python tools/watchdog.py fleet-uninstall remove only the fleet task
+    --config PATH                          explicit fleet campaign JSON
     --dry-run                              never spawn the model, never commit
 
 MECHANICAL FIRST, MODEL ON EVIDENCE. A background loop that calls a model on a
@@ -57,6 +62,7 @@ through ``begin_effect``.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -80,6 +86,7 @@ REPORTS_DIR_REL = "runs/watchdog/reports"
 LOG_REL = "runs/watchdog/watchdog.log"
 SWEEPS_LOG_REL = ".claude/watchdog/docs/sweeps.log"
 PAUSE_REL = ".claude/watchdog/PAUSE"
+FLEET_CONFIG_REL = ".claude/watchdog/opus-fleet.json"
 #: ONE LOCK PER MODE. A single shared lock meant the docs pass -- which holds
 #: it for as long as a model call takes -- skipped every work pass that ticked
 #: while it ran, and on aligned 15/30-minute schedules that is every other one.
@@ -94,6 +101,21 @@ WORK_INTERVAL_MIN = 15
 REPORT_MIN_GAP_S = 2 * 3600
 MODEL = "claude-haiku-4-5"
 MODEL_TIMEOUT_S = 15 * 60
+#: The pruner. Owner decision 2026-08-25: Sonnet cleans and updates the docs on
+#: every docs tick with no per-pass cap, no rotation limit, and no spend
+#: ceiling. What stays is not a limit on the cleaning but the difference
+#: between a docs cleaner and a repo-wide mutator: no push, pathspec commits
+#: (other lanes stage in this tree), no history rewrite, and the constitution
+#: below stays unreadable to it because AGENTS.md forbids editing it silently.
+MODEL_PRUNE = "claude-sonnet-5"
+PRUNE_TIMEOUT_S = 25 * 60
+PRUNE_MAX_TURNS = 300
+PRUNE_STATE_REL = "runs/watchdog/prune-state.json"
+PRUNES_LOG_REL = "runs/watchdog/prunes.log"
+PRUNE_RECEIPT_REL = "runs/watchdog/prune-receipt.json"
+PRUNE_GLOBS = ("README.md", "docs/**/*.md")
+PRUNE_FORBIDDEN = ("AGENTS.md", "CLAUDE.md")
+PRUNE_FORBIDDEN_PREFIX = "docs/IKARUS_ARIADNE_MASTER_PLAN"
 #: The watchdog's OWN ledger file -- never ``runs/budget/ledger.json``, the one
 #: every interactive lane shares. Isolating the file is what makes "no
 #: spending limit" safe to grant: a ceiling high enough to never bind on a
@@ -209,7 +231,10 @@ class PassLock:
     def __enter__(self) -> bool:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            if time.time() - self.path.stat().st_mtime > MODEL_TIMEOUT_S + 60:
+            # the window has to cover the LONGEST pass that can hold this lock,
+            # or a running prune (PRUNE_TIMEOUT_S) gets declared dead mid-flight
+            # and a second pass starts on top of it
+            if time.time() - self.path.stat().st_mtime > max(MODEL_TIMEOUT_S, PRUNE_TIMEOUT_S) + 60:
                 self.path.unlink()
         except OSError:
             pass
@@ -307,7 +332,8 @@ def own_ledger(root: Path):
 
 
 def run_claude(root: Path, prompt: str, *, label: str, allowed_tools: str, max_turns: int,
-               model: str = MODEL, dry: bool = False) -> ModelRun:
+               model: str = MODEL, dry: bool = False,
+               timeout_s: int = MODEL_TIMEOUT_S) -> ModelRun:
     """One priced, bounded `claude -p` call. The prompt goes on stdin."""
     exe = shutil.which("claude")
     if exe is None:
@@ -334,12 +360,13 @@ def run_claude(root: Path, prompt: str, *, label: str, allowed_tools: str, max_t
     # ledger for 2026-08-24 shows the pairs: reserve/settle "watchdog.docs"
     # $0.42 beside reserve/settle "subprocess.run: ...claude.EXE" $3.00.
     text, cost, turns, failure = proc_out = "", None, None, ""
+    warning = ""
     try:
         with budget.guard("anthropic_cli", model, label=label, led=own_ledger(root)) as reservation:
             try:
                 proc = subprocess.run(
                     argv, input=prompt, capture_output=True, text=True, encoding="utf-8",
-                    errors="replace", timeout=MODEL_TIMEOUT_S, cwd=str(root),
+                    errors="replace", timeout=timeout_s, cwd=str(root),
                 )
             except subprocess.TimeoutExpired:
                 # settles the estimate: a timeout after the tokens were
@@ -360,14 +387,22 @@ def run_claude(root: Path, prompt: str, *, label: str, allowed_tools: str, max_t
             if isinstance(cost, (int, float)):
                 reservation.settle(float(cost))
             if proc.returncode != 0:
-                failure = f"exit {proc.returncode}: {proc.stderr[-500:]}"
-                proc_out = proc.stdout[-2000:]
+                # MEASURED 2026-08-25: `claude -p` exited 1 because a plugin
+                # SessionEnd hook failed AFTER the work was done and the
+                # result JSON was already on stdout. Losing a finished pass
+                # (and its turn count) to a cleanup hook costs a real sweep.
+                if text and cost is not None:
+                    warning = f"exit {proc.returncode} after a complete result: {proc.stderr[-300:]}"
+                else:
+                    failure = f"exit {proc.returncode}: {proc.stderr[-500:]}"
+                    proc_out = proc.stdout[-2000:]
     except budget.BudgetError as exc:
         return ModelRun(False, reason=f"budget refused: {exc}")
     seconds = time.perf_counter() - started
     if failure:
         return ModelRun(False, text=proc_out, cost_usd=cost, seconds=seconds, reason=failure)
-    return ModelRun(True, text=text, cost_usd=cost, turns=turns, seconds=seconds)
+    return ModelRun(True, text=text, cost_usd=cost, turns=turns, seconds=seconds,
+                    reason=warning)
 
 
 # --------------------------------------------------------------------------
@@ -474,6 +509,207 @@ Rules:
 - If a commit fails because of a lock, stop and report it; do not retry in a loop.
 
 End with: the commands you ran, the HEAD after your commit (or "no commit"), and the files changed."""
+
+
+def _prune_docs(root: Path) -> list[Path]:
+    """Every doc the pruner may touch: README plus all of docs/, recursively.
+
+    The drift sweep's DOC_FILES is deliberately non-recursive; the pruner is
+    not, because docs/wiki/ and the other subtrees are exactly where the bloat
+    accumulated (450 files, ~21k lines, MEASURED 2026-08-25).
+    """
+    seen: set[Path] = set()
+    for pattern in PRUNE_GLOBS:
+        seen.update(p for p in root.glob(pattern) if p.is_file())
+    out = []
+    for p in sorted(seen):
+        rel = p.relative_to(root).as_posix()
+        if rel in PRUNE_FORBIDDEN or rel.startswith(PRUNE_FORBIDDEN_PREFIX):
+            continue
+        out.append(p)
+    return out
+
+
+def _digest(path: Path) -> tuple[str, int]:
+    """(content digest, line count) - the pair a pass compares before/after."""
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return "", 0
+    return hashlib.sha256(raw).hexdigest()[:16], raw.count(b"\n")
+
+
+def prune_candidates(root: Path, cleaned: dict) -> list[Path]:
+    """Docs whose CURRENT content has not been cleaned yet.
+
+    This is not a cap on the pruner. One pass cannot reach 450 files, so
+    without a memory of where it got to it would re-read the head of the list
+    every 30 minutes and never touch the tail. A file re-enters the queue the
+    moment its content changes again.
+    """
+    out = []
+    for p in _prune_docs(root):
+        rel = p.relative_to(root).as_posix()
+        if cleaned.get(rel) != _digest(p)[0]:
+            out.append(p)
+    return out
+
+
+def prune_prompt(root: Path, candidates: list[Path], head: str) -> str:
+    listing = NL.join(f"- {p.relative_to(root).as_posix()}" for p in candidates)
+    receipt_shape = ('{"reviewed": ["<repo-relative posix path>", ...], '
+                     '"changed": [...], "notes": "<one line>"}')
+    return f"""You are Mnemosyne, chronicler of the Daedalus crew, running as the background docs pruner in {root} (branch main, HEAD {head}). Work in the foreground; use no Serena/MCP tools.
+
+Your job is two things, and the owner cares most about the first:
+
+1. CLEAN. The documentation is bloated and the owner is fed up with it. Cut it down. Concretely: duplicated sections that say the same thing in several files, superseded status blocks, "current state" claims that describe a state long past, handoff notes for work that finished, restatements of the master plan that add nothing, dead scaffolding, ceremonial preambles. Prefer removing to rewriting. A shorter true document beats a longer one.
+
+2. UPDATE. Where a document contradicts the code, make it match the code. The code is the truth; the document is the claim.
+
+Files queued this pass ({len(candidates)}). Get through as many as you can; whatever you do not reach comes back next pass, so never rush a file in order to cover more of them:
+{listing}
+
+Rules:
+- CHECK BEFORE YOU CUT. Read or Grep the code before rewriting a claim about it. Delete because you verified it is obsolete, never because it looks old. An unverified deletion is the one failure mode that matters here.
+- RECORDS MAY BE CONDENSED, NEVER ERASED. In docs/decisions-taken/, docs/adrs/, docs/archive/, docs/work-packets/: tighten the prose, but the decision, its date, and its outcome must survive. Do not delete a record file.
+- NEVER TOUCH: AGENTS.md, CLAUDE.md, docs/IKARUS_ARIADNE_MASTER_PLAN.md, docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl, or anything outside README.md and docs/. Never commit anything under runs/, .claude/, daedalus/, tests/, tools/, vault/.
+- SKIP WHAT SOMEONE ELSE IS HOLDING. Other lanes work in this checkout. Before you edit a file, run `git status --porcelain -- <file>`; if it already shows as modified, leave it alone this pass and say so at the end. Committing it by pathspec would commit their unfinished work. It returns to the queue once they land it.
+- Any number you keep gets a provenance stamp: MEASURED / INHERITED / ASSUMED.
+- COMMIT WITH A PATHSPEC ONLY, never the index (other lanes stage in this tree): write the message to runs/watchdog/prune-commitmsg.txt, then `git commit -F runs/watchdog/prune-commitmsg.txt -- <the doc files you changed>`. The message body ends with these two lines exactly:
+Watchdog-Prune: {head}
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+- Never `git add -A`, never `--no-verify`, never `git push`, never rewrite history.
+- If a commit fails because of a lock, stop and report it; do not retry in a loop.
+- BEFORE YOU FINISH, write runs/watchdog/prune-receipt.json:
+  {receipt_shape}
+  `reviewed` is every file you actually opened this pass; `changed` is every file you edited. This is how the watchdog knows where to resume, so an empty or missing receipt costs the next pass real work.
+
+End with: the files you changed, the lines you removed, the HEAD after your commit (or "no commit"), and anything you chose NOT to cut and why."""
+
+
+def prune_commit_effect(root: Path, head: str) -> tuple[list[str], int]:
+    """What the pruner itself committed since `head`: (files, net lines removed).
+
+    Attribution has to come from git, not from the working tree. Several lanes
+    commit into this checkout, so "the file changed" says nothing about who
+    changed it. The pruner stamps every commit of its own with
+    `Watchdog-Prune: <head>`; that trailer is the only claim we accept.
+    """
+    trailer = f"Watchdog-Prune: {head}"
+    mine = [c for c in git(root, "log", "--format=%H", f"{head}..HEAD").splitlines()
+            if c and trailer in git(root, "log", "-1", "--format=%B", c)]
+    files: set[str] = set()
+    added = deleted = 0
+    for commit in mine:
+        for line in git(root, "show", "--numstat", "--format=", commit).splitlines():
+            parts = line.split("\t")
+            if len(parts) != 3:
+                continue
+            plus, minus, path = parts
+            files.add(path)
+            if plus.isdigit():
+                added += int(plus)
+            if minus.isdigit():
+                deleted += int(minus)
+    return sorted(files), max(0, deleted - added)
+
+
+def prune_pass(root: Path, *, dry: bool = False, env: dict | None = None) -> dict:
+    """One Sonnet cleaning pass over the docs.
+
+    Owner decision 2026-08-25: no per-pass cap, no rotation limit, no spend
+    ceiling. The gates that remain are the ones shared with every other pass
+    (PAUSE, quiet HEAD, the pass lock) plus pathspec-only commits.
+    """
+    pstate = load_json(root / PRUNE_STATE_REL)
+    cleaned = pstate.get("cleaned") or {}
+    result: dict = {"kind": "prune", "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    why = paused(root, env)
+    if why:
+        result["skipped"] = why
+        return result
+    quiet, reason = head_quiet(root)
+    if not quiet:
+        result["skipped"] = reason
+        return result
+    candidates = prune_candidates(root, cleaned)
+    result["candidates"] = len(candidates)
+    if not candidates:
+        result["outcome"] = "corpus clean"
+        return result
+
+    head = git(root, "rev-parse", "--short=8", "HEAD")
+    queued = {p.relative_to(root).as_posix() for p in candidates}
+    prompt = prune_prompt(root, candidates, head)
+    (root / WATCHDOG_DIR_REL / "docs").mkdir(parents=True, exist_ok=True)
+    with (root / WATCHDOG_DIR_REL / "docs" / "last-prune-prompt.md").open(
+            "w", encoding="utf-8", newline="") as fh:
+        fh.write(prompt)
+    receipt = root / PRUNE_RECEIPT_REL
+    if not dry:
+        try:
+            receipt.unlink()
+        except OSError:
+            pass
+
+    run = run_claude(root, prompt, label="watchdog.prune",
+                     allowed_tools="Read,Grep,Glob,Edit,Write,Bash",
+                     max_turns=PRUNE_MAX_TURNS, model=MODEL_PRUNE,
+                     dry=dry, timeout_s=PRUNE_TIMEOUT_S)
+    result["model"] = asdict(run)
+    if dry:
+        result["outcome"] = "dry run: prune would run"
+        return result
+
+    mstate = load_json(root / STATE_REL)
+    _count_model_run(mstate)
+    _record_spend(mstate, run.cost_usd)
+
+    reviewed: list[str] = []
+    try:
+        data = json.loads(receipt.read_text(encoding="utf-8"))
+        reviewed = [str(x) for x in (data.get("reviewed") or [])]
+        result["receipt"] = data.get("notes") or "read"
+    except (OSError, ValueError):
+        # The receipt is the model's own claim, so it can be absent or wrong.
+        # Observation below is what actually advances the queue.
+        result["receipt"] = "missing: resume relies on observed changes only"
+
+    changed, removed = prune_commit_effect(root, head)
+    result["changed"] = changed
+    result["lines_removed"] = removed
+    result["reviewed_claimed"] = len(reviewed)
+
+    # A file is marked cleaned only on evidence the PRUNER handled it: it
+    # named the file in its receipt, or the file rode one of its own commits.
+    # A bare content change is not evidence -- other lanes edit this checkout,
+    # and crediting their edits silently drops files out of the queue unpruned.
+    for rel in set(reviewed) | set(changed):
+        path = root / rel
+        if rel in queued and path.is_file():
+            cleaned[rel] = _digest(path)[0]
+    pstate["cleaned"] = cleaned
+    pstate["last_pass"] = result["ts"]
+    save_json(root / PRUNE_STATE_REL, pstate)
+
+    new_head = git(root, "rev-parse", "--short=8", "HEAD")
+    result["committed"] = bool(changed)
+    result["outcome"] = "prune ran" if run.ok else f"prune failed: {run.reason}"
+    mstate["last_prune"] = result
+    save_json(root / STATE_REL, mstate)
+    try:
+        with (root / PRUNES_LOG_REL).open("a", encoding="utf-8", newline="") as fh:
+            fh.write(f"{result['ts']} HEAD={new_head} queued={len(candidates)} "
+                     f"reviewed={len(reviewed)} changed={len(changed)} "
+                     f"lines_removed={removed} "
+                     f"commit={'yes' if result['committed'] else 'none'} "
+                     f"cost={run.cost_usd} turns={run.turns}{NL}")
+    except OSError:
+        pass
+    log(root, f"prune {result['outcome']} queued={len(candidates)} "
+              f"changed={len(changed)} -{removed} lines")
+    return result
 
 
 def docs_pass(root: Path, *, dry: bool = False, env: dict | None = None) -> dict:
@@ -835,6 +1071,123 @@ def _pythonw() -> str:
     return str(cand if cand.exists() else exe)
 
 
+def _option_value(argv: list[str], option: str) -> str | None:
+    """Return one explicit CLI option value; duplicates/missing values fail."""
+    positions = [i for i, value in enumerate(argv) if value == option]
+    if len(positions) > 1:
+        raise ValueError(f"{option} may be supplied only once")
+    if not positions:
+        return None
+    index = positions[0]
+    if index + 1 >= len(argv) or argv[index + 1].startswith("--"):
+        raise ValueError(f"{option} requires a value")
+    return argv[index + 1]
+
+
+def fleet_config_path(root: Path, argv: list[str]) -> Path:
+    """Resolve a fleet config relative to the canonical watchdog checkout."""
+    raw = _option_value(argv, "--config")
+    path = Path(raw) if raw else root / FLEET_CONFIG_REL
+    if not path.is_absolute():
+        path = root / path
+    return path.resolve(strict=False)
+
+
+def _fleet_scheduler_paths(root: Path, config: Path):
+    from experiments.opus_fleet_watchdog.scheduler import SchedulerPaths
+
+    return SchedulerPaths.validated(
+        pythonw=_pythonw(),
+        watchdog=root / "tools" / "watchdog.py",
+        config=config,
+        working_directory=root,
+    )
+
+
+def _fleet_status_dict(value) -> dict:
+    data = asdict(value)
+    data["degraded"] = bool(value.degraded)
+    return data
+
+
+def fleet_command(root: Path, mode: str, *, config: Path, dry: bool = False) -> int:
+    """Thin canonical door for the isolated advisory-fleet experiment."""
+    from experiments.opus_fleet_watchdog import campaign_status, dry_plan, run_campaign
+    from experiments.opus_fleet_watchdog import scheduler as fleet_scheduler
+
+    if mode == "fleet":
+        if dry:
+            result = dry_plan(config)
+        else:
+            from experiments.opus_fleet_watchdog.session_probe import fleet_session_probe
+
+            result = run_campaign(config, session_probe=fleet_session_probe)
+        print(json.dumps(result, indent=1, sort_keys=True, default=str))
+        status_name = str(result.get("status") or "")
+        reason = str(result.get("reason") or "")
+        if status_name == "degraded":
+            return 1
+        if status_name == "waiting" and reason.startswith("session_probe_error:"):
+            return 3
+        return 0
+
+    if mode == "fleet-uninstall":
+        if dry:
+            result = {
+                "action": "would_uninstall",
+                "task": fleet_scheduler.TASK_FULL_NAME,
+            }
+        else:
+            fleet_scheduler.uninstall()
+            result = {
+                "action": "uninstalled",
+                "task": fleet_scheduler.TASK_FULL_NAME,
+            }
+        print(json.dumps(result, indent=1, sort_keys=True))
+        return 0
+
+    paths = _fleet_scheduler_paths(root, config)
+    if mode == "fleet-install":
+        # Refuse to register a timer around a malformed or unavailable plan.
+        plan = dry_plan(config)
+        if dry:
+            result = {
+                "action": "would_install",
+                "task": fleet_scheduler.TASK_FULL_NAME,
+                "arguments": paths.action_arguments,
+                "working_directory": str(paths.working_directory),
+                "plan_digest": plan["plan_digest"],
+            }
+        else:
+            fleet_scheduler.install(
+                pythonw=paths.pythonw,
+                watchdog=paths.watchdog,
+                config=paths.config,
+                working_directory=paths.working_directory,
+            )
+            current = fleet_scheduler.status(expected_paths=paths)
+            result = {
+                "action": "installed",
+                "task": fleet_scheduler.TASK_FULL_NAME,
+                "scheduler": _fleet_status_dict(current),
+                "plan_digest": plan["plan_digest"],
+            }
+        print(json.dumps(result, indent=1, sort_keys=True, default=str))
+        return 0
+
+    if mode == "fleet-status":
+        current = fleet_scheduler.status(expected_paths=paths)
+        result = {
+            "task": fleet_scheduler.TASK_FULL_NAME,
+            "scheduler": _fleet_status_dict(current),
+            "campaign": campaign_status(config),
+        }
+        print(json.dumps(result, indent=1, sort_keys=True, default=str))
+        return 1 if current.degraded else 0
+
+    raise ValueError(f"unknown fleet mode {mode!r}")
+
+
 def task_commands(root: Path, action: str) -> list[list[str]]:
     """The schtasks argv lists for install/uninstall (pure; tests check them)."""
     script = root / "tools" / "watchdog.py"
@@ -867,8 +1220,12 @@ def status(root: Path) -> str:
     lines = []
     if os.name == "nt":
         for name in TASKS:
+            # schtasks writes OEM-codepage bytes, not UTF-8. Decoding them as
+            # UTF-8 turned every umlaut into U+FFFD, which a cp1252 stdout then
+            # refused to encode -- `status` crashed on this box (MEASURED
+            # 2026-08-25, reproduced on the unmodified file).
             proc = subprocess.run(["schtasks", "/Query", "/TN", name, "/FO", "LIST", "/V"],
-                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
+                                  capture_output=True, text=True, encoding="oem", errors="replace")
             if proc.returncode == 0:
                 # schtasks localises its labels (German box: "Aufgabenname",
                 # "Nächste Laufzeit"); match on the English or German stems.
@@ -881,6 +1238,18 @@ def status(root: Path) -> str:
     lines.append(f"spend today: ${spend_today(state):.2f} (measured, own ledger, no cap)")
     lines.append(f"last docs: {json.dumps(state.get('last_docs', {}).get('outcome') or state.get('last_docs', {}).get('skipped'))}")
     lines.append(f"last work anomalies: {[a['id'] for a in (state.get('last_work') or {}).get('anomalies', [])]}")
+    # the pruner's own picture, so one command answers "is it working" without
+    # anyone having to remember three more
+    cleaned = (load_json(root / PRUNE_STATE_REL).get("cleaned") or {})
+    total = len(_prune_docs(root))
+    open_docs = len(prune_candidates(root, cleaned))
+    lines.append(f"prune queue: {total - open_docs}/{total} docs cleaned, {open_docs} open")
+    lp = state.get("last_prune") or {}
+    lines.append(f"last prune: {json.dumps(lp.get('outcome') or lp.get('skipped'))}"
+                 f" changed={len(lp.get('changed') or [])} lines_removed={lp.get('lines_removed', 0)}")
+    stamped = [c for c in git(root, "log", "--grep=Watchdog-Prune", "--format=%h").splitlines() if c]
+    lines.append(f"prune commits: {len(stamped)}{' (' + ', '.join(stamped[:5]) + ')' if stamped else ''}")
+    lines.append(f"pass running now: {'yes' if (root / LOCK_REL_TEMPLATE.format(mode='docs')).exists() else 'no'}")
     lines.append(f"paused: {paused(root) or 'no'}")
     return NL.join(lines)
 
@@ -908,20 +1277,44 @@ def main(argv: list[str] | None = None) -> int:
     except EffectBoundaryError as exc:
         print(f"[watchdog] effect boundary refused: {exc}", file=sys.stderr)
         return 2
+    if mode in ("fleet", "fleet-install", "fleet-uninstall", "fleet-status"):
+        try:
+            config = fleet_config_path(root, argv)
+            return fleet_command(root, mode, config=config, dry=dry)
+        except Exception as exc:  # scheduled tasks need a loud, non-zero result
+            print(
+                f"[watchdog] {mode} refused: {type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
     if mode == "status":
-        print(status(root))
+        text = status(root)
+        try:
+            print(text)
+        except UnicodeEncodeError:
+            # a console narrower than the text is not a reason to report nothing
+            enc = sys.stdout.encoding or "ascii"
+            print(text.encode(enc, "replace").decode(enc, "replace"))
         return 0
     if mode in ("install", "uninstall"):
         return schedule(root, mode, dry=dry)
-    if mode not in ("docs", "work"):
+    if mode not in ("docs", "work", "prune"):
         print(__doc__)
         return 2
-    with PassLock(root, mode) as acquired:
+    with PassLock(root, "docs" if mode == "prune" else mode) as acquired:
         if not acquired:
             log(root, f"{mode} skipped: another {mode} pass is already running")
             print(f"skipped: another {mode} pass is running")
             return 0
-        result = docs_pass(root, dry=dry) if mode == "docs" else work_pass(root, dry=dry)
+        if mode == "docs":
+            result = docs_pass(root, dry=dry)
+            # The pruner rides the same 30-minute tick and the same lock;
+            # a second scheduled task would only fight this one for it.
+            result["prune"] = prune_pass(root, dry=dry)
+        elif mode == "prune":
+            result = prune_pass(root, dry=dry)
+        else:
+            result = work_pass(root, dry=dry)
     print(json.dumps({k: v for k, v in result.items() if k != "facts"}, indent=1, default=str))
     return 0
 

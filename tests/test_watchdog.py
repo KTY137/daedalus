@@ -427,3 +427,165 @@ def test_run_claude_refuses_without_the_cli_and_dry_runs_without_spawning(repo: 
     monkeypatch.setattr(wd.shutil, "which", lambda name: "C:/fake/claude")
     monkeypatch.setattr(wd.subprocess, "run", lambda *a, **k: pytest.fail("dry run must not spawn"))
     assert wd.run_claude(repo, "x", label="t", allowed_tools="", max_turns=1, dry=True).reason == "dry"
+
+
+def _seed_docs_tree(repo: Path) -> None:
+    (repo / "docs" / "wiki").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "wiki" / "deep.md").write_text("# deep\nbloat\nbloat\n", encoding="utf-8")
+    (repo / "docs" / "IKARUS_ARIADNE_MASTER_PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (repo / "docs" / "IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl").write_text("{}\n", encoding="utf-8")
+    (repo / "AGENTS.md").write_text("# constitution\n", encoding="utf-8")
+    (repo / "CLAUDE.md").write_text("# constitution\n", encoding="utf-8")
+
+
+def test_pruner_reaches_subdirectories_the_drift_sweep_cannot_see(repo: Path) -> None:
+    _seed_docs_tree(repo)
+    drift_seen = {p.relative_to(repo).as_posix() for p in wd._doc_files(repo)}
+    prune_seen = {p.relative_to(repo).as_posix() for p in wd._prune_docs(repo)}
+    # the sweep's globs are non-recursive; the pruner's are the point of it
+    assert "docs/wiki/deep.md" not in drift_seen
+    assert "docs/wiki/deep.md" in prune_seen
+    assert "README.md" in prune_seen
+
+
+def test_pruner_never_sees_the_constitution(repo: Path) -> None:
+    _seed_docs_tree(repo)
+    seen = {p.relative_to(repo).as_posix() for p in wd._prune_docs(repo)}
+    for forbidden in ("AGENTS.md", "CLAUDE.md",
+                      "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+                      "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"):
+        assert forbidden not in seen, forbidden
+
+
+def test_prune_queue_drops_cleaned_files_and_requeues_them_when_they_change(repo: Path) -> None:
+    _seed_docs_tree(repo)
+    target = repo / "docs" / "wiki" / "deep.md"
+    rel = "docs/wiki/deep.md"
+    assert target in wd.prune_candidates(repo, {})
+    cleaned = {rel: wd._digest(target)[0]}
+    assert target not in wd.prune_candidates(repo, cleaned)
+    target.write_text("# deep\nchanged\n", encoding="utf-8")
+    assert target in wd.prune_candidates(repo, cleaned)
+
+
+def test_prune_pass_credits_only_what_its_own_commit_carried(repo: Path, monkeypatch) -> None:
+    _seed_docs_tree(repo)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "seed")
+    monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
+
+    def fake_run(root, prompt, **kw):
+        head = _git(root, "rev-parse", "--short=8", "HEAD")
+        (root / "docs" / "wiki" / "deep.md").write_text("# deep\n", encoding="utf-8")
+        (root / wd.PRUNE_RECEIPT_REL).parent.mkdir(parents=True, exist_ok=True)
+        (root / wd.PRUNE_RECEIPT_REL).write_text(
+            json.dumps({"reviewed": ["docs/spec.md"], "changed": ["docs/wiki/deep.md"],
+                        "notes": "cut bloat"}), encoding="utf-8")
+        msg = "docs: cut bloat\n\nWatchdog-Prune: %s\n" % head
+        (root / "msg.txt").write_text(msg, encoding="utf-8")
+        _git(root, "commit", "-q", "-F", "msg.txt", "--", "docs/wiki/deep.md")
+        return wd.ModelRun(True, "done", 0.02, 5, 1.0)
+
+    monkeypatch.setattr(wd, "run_claude", fake_run)
+    res = wd.prune_pass(repo, env={})
+
+    assert res["outcome"] == "prune ran"
+    assert res["changed"] == ["docs/wiki/deep.md"]
+    assert res["lines_removed"] == 2
+    assert res["committed"] is True
+    assert res["receipt"] == "cut bloat"
+
+    cleaned = wd.load_json(repo / wd.PRUNE_STATE_REL)["cleaned"]
+    assert "docs/wiki/deep.md" in cleaned  # rode the pruner's own commit
+    assert "docs/spec.md" in cleaned       # named in the receipt
+    assert "docs/guide.md" not in cleaned  # no evidence either way: stays queued
+
+
+def test_another_lanes_edit_is_never_credited_to_the_pruner(repo: Path, monkeypatch) -> None:
+    """The failure this guards against was MEASURED on the second live pass.
+
+    Eight sessions commit into this checkout. Reading "the file changed" as
+    "the pruner cleaned it" marked untouched files clean and dropped them from
+    the queue for good -- coverage lost silently, which is the worst way.
+    """
+    _seed_docs_tree(repo)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "seed")
+    monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
+
+    def fake_run(root, prompt, **kw):
+        # somebody else edits a queued doc while the pruner is running, and the
+        # pruner itself neither edits nor commits anything
+        (root / "docs" / "wiki" / "deep.md").write_text("# deep\nfrom another lane\n", encoding="utf-8")
+        return wd.ModelRun(True, "nothing to cut", 0.01, 2, 1.0)
+
+    monkeypatch.setattr(wd, "run_claude", fake_run)
+    res = wd.prune_pass(repo, env={})
+
+    assert res["changed"] == []
+    assert res["lines_removed"] == 0
+    assert res["committed"] is False
+    assert wd.load_json(repo / wd.PRUNE_STATE_REL)["cleaned"] == {}
+
+
+def test_a_cleanup_hook_failing_after_the_work_does_not_lose_the_run(repo: Path, monkeypatch) -> None:
+    """MEASURED 2026-08-25: `claude -p` exited 1 because the vercel plugin's
+    SessionEnd hook failed AFTER the result JSON was already on stdout."""
+    monkeypatch.setattr(wd.shutil, "which", lambda name: "claude")
+
+    class Proc:
+        returncode = 1
+        stdout = json.dumps({"result": "cut 300 lines", "total_cost_usd": 2.9, "num_turns": 61})
+        stderr = "SessionEnd hook [session-end-cleanup.mjs] failed: Hook cancelled"
+
+    monkeypatch.setattr(wd.subprocess, "run", lambda *a, **k: Proc())
+    run = wd.run_claude(repo, "p", label="watchdog.prune", allowed_tools="Read", max_turns=3)
+    assert run.ok is True
+    assert run.text == "cut 300 lines"
+    assert run.turns == 61          # the turn count used to be thrown away here
+    assert "SessionEnd" in run.reason  # kept as a warning, not swallowed
+
+
+def test_prune_pass_uses_sonnet_and_the_longer_timeout(repo: Path, monkeypatch) -> None:
+    _seed_docs_tree(repo)
+    monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
+    seen: dict = {}
+
+    def fake_run(root, prompt, **kw):
+        seen.update(kw)
+        seen["prompt"] = prompt
+        return wd.ModelRun(True, "done", 0.0, 1, 1.0)
+
+    monkeypatch.setattr(wd, "run_claude", fake_run)
+    wd.prune_pass(repo, env={})
+    assert seen["model"] == wd.MODEL_PRUNE == "claude-sonnet-5"
+    assert seen["timeout_s"] == wd.PRUNE_TIMEOUT_S > wd.MODEL_TIMEOUT_S
+    assert seen["label"] == "watchdog.prune"
+    # the commit discipline the tree depends on must be in the prompt
+    assert "git commit -F runs/watchdog/prune-commitmsg.txt --" in seen["prompt"]
+    assert "Never `git add -A`" in seen["prompt"]
+    assert "never `git push`" in seen["prompt"]
+
+
+def test_prune_pass_respects_pause_and_a_busy_head(repo: Path, monkeypatch) -> None:
+    _seed_docs_tree(repo)
+    calls = []
+    monkeypatch.setattr(wd, "run_claude", lambda *a, **k: calls.append(1) or wd.ModelRun(True, "", 0.0, 1, 1.0))
+    monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (False, "head busy"))
+    assert wd.prune_pass(repo, env={})["skipped"] == "head busy"
+    monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
+    (repo / wd.PAUSE_REL).parent.mkdir(parents=True, exist_ok=True)
+    (repo / wd.PAUSE_REL).write_text("", encoding="utf-8")
+    assert "PAUSE" in wd.prune_pass(repo, env={})["skipped"]
+    assert calls == []
+
+
+def test_the_pass_lock_outlives_the_longest_pass_it_guards(repo: Path, monkeypatch) -> None:
+    """A prune may run for PRUNE_TIMEOUT_S; the lock must not expire under it."""
+    lock = wd.PassLock(repo, "docs")
+    with lock as acquired:
+        assert acquired
+        # age the lock to just inside the prune window
+        old = time.time() - (wd.PRUNE_TIMEOUT_S - 60)
+        os.utime(lock.path, (old, old))
+        assert wd.PassLock(repo, "docs").__enter__() is False
