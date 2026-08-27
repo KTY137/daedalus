@@ -179,3 +179,157 @@ def test_nothing_imports_langgraph_at_module_scope():
                    for n in names):
                 offenders.append(path.name)
     assert offenders == [], offenders
+
+
+# ---------------------------------------------------- advisory fleet planning
+
+@needs_langgraph
+def test_advisory_fleet_capacity_is_one_global_ceiling():
+    """Twenty means twenty total, never twenty per project or provider."""
+    projects = [
+        {"name": "alpha", "objective": "review alpha", "provider": "claude"},
+        {"name": "beta", "objective": "review beta", "provider": "codex"},
+        {"name": "gamma", "objective": "review gamma", "provider": "claude"},
+    ]
+    plan = langgraph_adapter.plan_advisory_fleet(
+        projects, ["architecture", "tests", "security"], capacity=20
+    )
+
+    assert plan["scope"] == "global"
+    assert plan["capacity"] == 20
+    assert len(plan["slots"]) == 20
+    counts = {
+        project["name"]: sum(
+            slot["project"] == project["name"] for slot in plan["slots"]
+        )
+        for project in projects
+    }
+    assert max(counts.values()) - min(counts.values()) <= 1
+
+
+@needs_langgraph
+def test_advisory_fleet_is_deterministic_fair_round_robin():
+    projects = [
+        {"name": "alpha", "objective": "objective A"},
+        {"name": "beta", "objective": "objective B"},
+        {"name": "gamma", "objective": "objective C"},
+    ]
+    roles = ["architect", "tester"]
+
+    first = langgraph_adapter.plan_advisory_fleet(projects, roles, capacity=7)
+    second = langgraph_adapter.plan_advisory_fleet(projects, roles, capacity=7)
+
+    assert first == second
+    assert [slot["project"] for slot in first["slots"]] == [
+        "alpha", "beta", "gamma", "alpha", "beta", "gamma", "alpha"
+    ]
+    assert [slot["objective"] for slot in first["slots"]] == [
+        "objective A", "objective B", "objective C", "objective A",
+        "objective B", "objective C", "objective A",
+    ]
+    assert [slot["role"] for slot in first["slots"]] == [
+        "architect", "tester", "architect", "tester", "architect", "tester",
+        "architect",
+    ]
+
+
+@needs_langgraph
+def test_advisory_fleet_has_unique_slots_and_only_slot_one_is_probe():
+    plan = langgraph_adapter.plan_advisory_fleet(
+        [{"name": "alpha", "objective": "review"}],
+        ["architecture"],
+        capacity=20,
+    )
+    slots = plan["slots"]
+    assert [slot["ordinal"] for slot in slots] == list(range(1, 21))
+    assert len({slot["slot_id"] for slot in slots}) == 20
+    assert [slot["ordinal"] for slot in slots if slot["probe"]] == [1]
+    assert all(slot["probe"] is (slot["ordinal"] == 1) for slot in slots)
+
+
+@needs_langgraph
+@pytest.mark.parametrize("capacity", [None, False, True, "20", 1.5, -1, 0, 21])
+def test_advisory_fleet_refuses_invalid_capacity(capacity):
+    with pytest.raises(ValueError, match="capacity"):
+        langgraph_adapter.plan_advisory_fleet(
+            [{"name": "alpha", "objective": "review"}],
+            ["architecture"],
+            capacity=capacity,
+        )
+
+
+@needs_langgraph
+@pytest.mark.parametrize("projects", [None, []])
+def test_advisory_fleet_refuses_missing_or_empty_projects(projects):
+    with pytest.raises(ValueError, match="projects"):
+        langgraph_adapter.plan_advisory_fleet(projects, ["architecture"])
+
+
+@needs_langgraph
+@pytest.mark.parametrize("roles", [None, [], [""], [42]])
+def test_advisory_fleet_refuses_missing_or_invalid_roles(roles):
+    with pytest.raises(ValueError, match="role"):
+        langgraph_adapter.plan_advisory_fleet(
+            [{"name": "alpha", "objective": "review"}], roles
+        )
+
+
+@needs_langgraph
+def test_advisory_fleet_refuses_duplicate_project_names():
+    projects = [
+        {"name": "Alpha", "objective": "first"},
+        {"name": " alpha ", "objective": "second"},
+    ]
+    with pytest.raises(ValueError, match="duplicate project name"):
+        langgraph_adapter.plan_advisory_fleet(projects, ["architecture"])
+
+
+@needs_langgraph
+def test_advisory_fleet_refuses_duplicate_roles():
+    with pytest.raises(ValueError, match="duplicate role"):
+        langgraph_adapter.plan_advisory_fleet(
+            [{"name": "alpha", "objective": "review"}],
+            ["Architecture", " architecture "],
+        )
+
+
+@needs_langgraph
+@pytest.mark.parametrize(
+    "projects",
+    [
+        ["alpha"],
+        [{"objective": "review"}],
+        [{"name": "alpha"}],
+        [{"name": " ", "objective": "review"}],
+        [{"name": "alpha", "objective": " "}],
+    ],
+)
+def test_advisory_fleet_refuses_malformed_project_entries(projects):
+    with pytest.raises(ValueError, match="project"):
+        langgraph_adapter.plan_advisory_fleet(projects, ["architecture"])
+
+
+@needs_langgraph
+def test_advisory_fleet_is_pure_and_does_not_mutate_inputs(tmp_path):
+    projects = [{"name": "alpha", "objective": "review"}]
+    roles = ["architecture", "tests"]
+    before_projects = copy.deepcopy(projects)
+    before_roles = list(roles)
+    before_files = list(tmp_path.iterdir())
+
+    plan = langgraph_adapter.plan_advisory_fleet(projects, roles, capacity=2)
+
+    assert projects == before_projects
+    assert roles == before_roles
+    assert list(tmp_path.iterdir()) == before_files
+    plan["slots"][0]["role"] = "mutated by caller"
+    replay = langgraph_adapter.plan_advisory_fleet(projects, roles, capacity=2)
+    assert replay["slots"][0]["role"] == "architecture"
+
+
+def test_advisory_fleet_refuses_when_optional_library_is_absent(monkeypatch):
+    monkeypatch.setattr(langgraph_adapter, "langgraph_available", lambda: False)
+    with pytest.raises(langgraph_adapter.LangGraphUnavailable):
+        langgraph_adapter.plan_advisory_fleet(
+            [{"name": "alpha", "objective": "review"}], ["architecture"]
+        )

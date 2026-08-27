@@ -29,6 +29,14 @@ equal to the stdlib one, except for the two fields that read a clock
 ``tests/test_langgraph_adapter.py`` asserts exactly that, and asserts it over
 the real router rather than a stub.
 
+ADVISORY FLEET PLANNING. ``plan_advisory_fleet`` uses a second pure graph in
+this same adapter to assign a caller-supplied set of roles to caller-supplied
+project objectives.  It plans; it does not start a provider, reserve a budget,
+touch a workspace, or remember a previous cycle.  Capacity is one global
+number with a hard ceiling of twenty -- never twenty per project or provider --
+and the first slot is the sole availability probe.  Execution remains a job
+for the canonical runtime boundary.
+
 FAILURE MODE. LangGraph absent -> :class:`LangGraphUnavailable`, and the stdlib
 path is untouched and still correct; a caller that did not ask for the graph
 never learns the library is missing. The graph raising mid-run cannot leave a
@@ -68,6 +76,13 @@ _TRACING_OFF = {
 
 class LangGraphUnavailable(RuntimeError):
     """LangGraph was asked for and is not installed."""
+
+
+#: A fleet plan is global across every supplied project.  This is deliberately
+#: not configurable through environment or project metadata: a per-project
+#: interpretation would multiply the requested fan-out before an effect
+#: boundary had a chance to enforce it.
+MAX_ADVISORY_FLEET_CAPACITY = 20
 
 
 def _pin_tracing_off() -> None:
@@ -111,6 +126,23 @@ class BriefState(TypedDict, total=False):
     active_agent: str
     task: dict
     state: dict
+
+
+class AdvisoryFleetState(TypedDict, total=False):
+    """Ephemeral state for a pure advisory-fleet allocation.
+
+    All inputs and outputs are plain values supplied to or returned from one
+    invocation.  No checkpoint, clock, UUID, provider, or filesystem path is
+    part of the schema.
+    """
+
+    # inputs, then their validated copies
+    projects: list[dict[str, str]]
+    roles: list[str]
+    capacity: int
+    # derived
+    slots: list[dict[str, Any]]
+    plan: dict[str, Any]
 
 
 def _node_route(state: BriefState) -> dict:
@@ -165,6 +197,104 @@ def _node_open_state(state: BriefState) -> dict:
     return {"state": run_state.to_dict()}
 
 
+def _node_validate_advisory_fleet(state: AdvisoryFleetState) -> dict:
+    """Validate and copy fleet inputs before computing any allocation.
+
+    Project names are compared after whitespace trimming and case-folding so
+    names that would be operationally indistinguishable cannot receive two
+    shares of the global capacity.
+    """
+    capacity = state.get("capacity")
+    if type(capacity) is not int or not 1 <= capacity <= MAX_ADVISORY_FLEET_CAPACITY:
+        raise ValueError(
+            "capacity must be an integer from 1 through "
+            f"{MAX_ADVISORY_FLEET_CAPACITY} (global, not per project)"
+        )
+
+    raw_projects = state.get("projects")
+    if not isinstance(raw_projects, (list, tuple)) or not raw_projects:
+        raise ValueError("projects must be a non-empty sequence")
+
+    projects: list[dict[str, str]] = []
+    seen_names: set[str] = set()
+    for ordinal, entry in enumerate(raw_projects, start=1):
+        if not isinstance(entry, dict):
+            raise ValueError(f"project {ordinal} must be a mapping")
+        name = entry.get("name")
+        objective = entry.get("objective")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"project {ordinal} requires a non-empty name")
+        if not isinstance(objective, str) or not objective.strip():
+            raise ValueError(f"project {name!r} requires a non-empty objective")
+        normalised_name = name.strip()
+        identity = normalised_name.casefold()
+        if identity in seen_names:
+            raise ValueError(f"duplicate project name: {normalised_name!r}")
+        seen_names.add(identity)
+        projects.append(
+            {"name": normalised_name, "objective": objective.strip()}
+        )
+
+    raw_roles = state.get("roles")
+    if not isinstance(raw_roles, (list, tuple)) or not raw_roles:
+        raise ValueError("roles must be a non-empty sequence of explicit roles")
+    roles: list[str] = []
+    seen_roles: set[str] = set()
+    for ordinal, role in enumerate(raw_roles, start=1):
+        if not isinstance(role, str) or not role.strip():
+            raise ValueError(f"role {ordinal} must be a non-empty string")
+        normalised_role = role.strip()
+        identity = normalised_role.casefold()
+        if identity in seen_roles:
+            raise ValueError(f"duplicate role: {normalised_role!r}")
+        seen_roles.add(identity)
+        roles.append(normalised_role)
+
+    return {"projects": projects, "roles": roles, "capacity": capacity}
+
+
+def _node_allocate_advisory_fleet(state: AdvisoryFleetState) -> dict:
+    """Allocate one global capacity by deterministic project round-robin."""
+    projects = state["projects"]
+    roles = state["roles"]
+    slots: list[dict[str, Any]] = []
+    for index in range(state["capacity"]):
+        ordinal = index + 1
+        project = projects[index % len(projects)]
+        slots.append(
+            {
+                "ordinal": ordinal,
+                "slot_id": f"advisory-slot-{ordinal:02d}",
+                "project": project["name"],
+                "objective": project["objective"],
+                "role": roles[index % len(roles)],
+                "probe": ordinal == 1,
+            }
+        )
+    return {"slots": slots}
+
+
+def _node_seal_advisory_fleet(state: AdvisoryFleetState) -> dict:
+    """Fail closed if a future allocation change breaks fleet invariants."""
+    slots = state["slots"]
+    capacity = state["capacity"]
+    slot_ids = [slot["slot_id"] for slot in slots]
+    probe_ordinals = [slot["ordinal"] for slot in slots if slot["probe"] is True]
+    if len(slots) != capacity or len(slots) > MAX_ADVISORY_FLEET_CAPACITY:
+        raise RuntimeError("advisory fleet exceeded its global capacity")
+    if len(slot_ids) != len(set(slot_ids)):
+        raise RuntimeError("advisory fleet produced duplicate slot IDs")
+    if probe_ordinals != [1]:
+        raise RuntimeError("advisory fleet must have exactly slot 1 as its probe")
+    return {
+        "plan": {
+            "scope": "global",
+            "capacity": capacity,
+            "slots": [dict(slot) for slot in slots],
+        }
+    }
+
+
 def build_graph() -> Any:
     """Compile the three-node graph. Raises :class:`LangGraphUnavailable`."""
     if not langgraph_available():
@@ -186,6 +316,27 @@ def build_graph() -> Any:
     return graph.compile()
 
 
+def build_advisory_fleet_graph() -> Any:
+    """Compile the pure fleet planner. Raises :class:`LangGraphUnavailable`."""
+    if not langgraph_available():
+        raise LangGraphUnavailable(
+            "LangGraph is not installed. `pip install -e .[orchestration]` "
+            "before asking for an advisory fleet plan."
+        )
+    _pin_tracing_off()
+    from langgraph.graph import END, START, StateGraph
+
+    graph = StateGraph(AdvisoryFleetState)
+    graph.add_node("validate", _node_validate_advisory_fleet)
+    graph.add_node("allocate", _node_allocate_advisory_fleet)
+    graph.add_node("seal", _node_seal_advisory_fleet)
+    graph.add_edge(START, "validate")
+    graph.add_edge("validate", "allocate")
+    graph.add_edge("allocate", "seal")
+    graph.add_edge("seal", END)
+    return graph.compile()
+
+
 def run_brief(objective: str, paths: list, repo_root: str, run_id: str) -> dict:
     """The payload ``create_run`` would build, computed by the graph.
 
@@ -203,3 +354,22 @@ def run_brief(objective: str, paths: list, repo_root: str, run_id: str) -> dict:
         }
     )
     return {"state": final["state"], "task": final["task"]}
+
+
+def plan_advisory_fleet(
+    projects: list[dict[str, str]],
+    roles: list[str],
+    capacity: int = MAX_ADVISORY_FLEET_CAPACITY,
+) -> dict[str, Any]:
+    """Return a deterministic, global advisory-fleet plan and write nothing.
+
+    Each project entry must contain a unique ``name`` and an ``objective``.
+    Roles are supplied by the caller and cycle independently while projects
+    receive slots in fair round-robin order.  The returned plan is ephemeral;
+    this adapter does not schedule, execute, checkpoint, or persist it.
+    """
+    app = build_advisory_fleet_graph()
+    final = app.invoke(
+        {"projects": projects, "roles": roles, "capacity": capacity}
+    )
+    return final["plan"]
