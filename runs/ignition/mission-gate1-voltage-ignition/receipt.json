@@ -1,9 +1,9 @@
 {
   "attempts": [
     {
-      "attempt_contract_sha256": "cdcf7d5075fb10abaafb9b0314b5952c764193e8804eff2ccd4b3f1356deffe6",
-      "attempt_id": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-da2e09",
-      "attempt_receipt_sha256": "632ead9d8297524ba934c1181f11d76fabe701d007548fbbd4c6fdb5b71a6ded",
+      "attempt_contract_sha256": "c0e33f73ff45e1e08cfa3c594dd64513b0bd7bae8c0ba9750c1044c3403f3e93",
+      "attempt_id": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-566a50",
+      "attempt_receipt_sha256": "b189313a6d0210c007a7113596d592d11d4ef6206588644597f27da3ea950f41",
       "changed_paths": [
         "src/ignition_app/models.py",
         "src/ignition_app/repository.py"
@@ -12,7 +12,7 @@
       "evidence_assurance": [
         "deterministic"
       ],
-      "evidence_packet_sha256": "d4054702b2216297dad4e3f78b514f6e3ec054dc5dfaa6cd72ed53af6f5cfc84",
+      "evidence_packet_sha256": "10e659701141fbf0549879d551fcc4e8b5ffefbac6dd9ac32cb9f498661bfd41",
       "evidence_status": "passed",
       "gate_command": [
         "-m",
@@ -27,11 +27,14 @@
         "tests/test_event_field.py"
       ],
       "gate_name": "ignition-code-type",
-      "gate_output_sha256": "8a5d3f8c1b452931de963c4bdff9775f7404361fdf3f79b4d740fb5a4f7e6e92",
+      "gate_output_sha256": "715350d922d91d1576f4ff287fdba6b0fe276c6f2c553d54b8408148cde0c83e",
       "gate_passed": true,
-      "patch_locator": "artifact-locator:sha256:adf9c6f76a449b4648cb36e840a44fb5a1ffd9fbf18bc1dec6a09a7321621cdf",
+      "lease_error": null,
+      "lease_id": "mission-gate1-voltage-ignition-python.attempt-daedalus-attempt-wi-000-c41495030c8f-b26ca597-566a50-29cb86e9",
+      "lease_outcome": "COMPLETED",
+      "patch_locator": "artifact-locator:sha256:a8c90c0755cbc993de78370c5ebcb25b3970f81eea4dd83a170da2c691f372af",
       "patch_sha256": "cc040292b7ec9834adab83b9aa8423a19bde38338246106f58ff2a07e85b075d",
-      "policy_decision_sha256": "df926c2a2f5f8be6ced29e790104fe62c9a08521b0caa6a02f0b3afa2779b19f",
+      "policy_decision_sha256": "c69cbb5ed77468f5d6a8145c4cf2697fe8a3555cf7847b5a2d1df084dd413b00",
       "policy_verdict": "allow",
       "state": "clean",
       "target_paths": [
@@ -41,9 +44,9 @@
       "work_item_id": "wi-000-c41495030c8f"
     },
     {
-      "attempt_contract_sha256": "e1135a5c3f7f1c4962ec44444bb41d9c17ce19f34ca46e9de696438a7ad4df91",
-      "attempt_id": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-f57558",
-      "attempt_receipt_sha256": "ae5b21e7eb2b991d57c44ce8f956b1d5f28c3a3385cc555db09193e2dc03ea11",
+      "attempt_contract_sha256": "3a520ac100aef13118b039942b5cbdab39ec7e8f4fe78c6da82f4e313525a13f",
+      "attempt_id": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-67cf34",
+      "attempt_receipt_sha256": "06c5bdc894a24a1a680e3363f3720cc106c8233a3415b60dc1ad4e8327a71f14",
       "changed_paths": [
         "data/events.csv",
         "fourfold.json",
@@ -54,7 +57,7 @@
       "evidence_assurance": [
         "deterministic"
       ],
-      "evidence_packet_sha256": "ce0ea271750000d9411a3c9fa2fe5be34f45db2324630d083022633c60dc7ee3",
+      "evidence_packet_sha256": "f049fa5498847bf3b8aa4d8ac2dc50c17b3eca6cfd1d6a56d19a1425e9147f58",
       "evidence_status": "passed",
       "gate_command": [
         "-m",
@@ -73,11 +76,14 @@
         "tests/test_event_field.py"
       ],
       "gate_name": "ignition-data-knowledge",
-      "gate_output_sha256": "77725b740c9ba92d7e2cad67252b5759cf60b77f6506a9ffbc113981632f0d13",
+      "gate_output_sha256": "d868f42a9bab9d4c34e4d801e57b95ed47516d6931e668b51911c139c27f748f",
       "gate_passed": true,
-      "patch_locator": "artifact-locator:sha256:5fa1ca60a99a04f515d1230961ff970b1751b09e5dd72764d54445b7ee6ab4a2",
+      "lease_error": null,
+      "lease_id": "mission-gate1-voltage-ignition-python.attempt-daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-67cf34-b7662c63",
+      "lease_outcome": "COMPLETED",
+      "patch_locator": "artifact-locator:sha256:bef9d4394ca38f8612298646edd4dadbf2eb3cb32bdb01c4b680e10ac297386c",
       "patch_sha256": "85fad7cf86a3bf32099eb0eb65e38ae041ce531b06e25de540d28dd2d497bbc0",
-      "policy_decision_sha256": "6b1909ee28e12dc5aac9755642a56aa7225c41d044f9929026c91a00abced7de",
+      "policy_decision_sha256": "9f1f666f6c9f89c500fd38d6203fbf2817e2aa6f5d1209bbe4041e93207d1db3",
       "policy_verdict": "allow",
       "state": "clean",
       "target_paths": [
@@ -105,7 +111,7 @@
     },
     "pytest": {
       "evaluator": "ignition-pytest-composed",
-      "output_sha256": "f8346391dae3fd31b4f603b1e1c7640f1aac6b3570b9ed041b1cde4285cbf6a5",
+      "output_sha256": "6149f77691adbb83ea978ea83ee7cf59c8fd3ef770118de4224682c76200cb7f",
       "passed": true,
       "report_sha256": "403dd80170df191e22701e472dd1ef57f83579fc8038fe682e06cb3deee5b8ca"
     },
@@ -116,12 +122,12 @@
       "report_sha256": "f487bdb1b2073fe8e4b38623b34fa6d8306bb0ba3ba4409f234179f0fdc45804"
     }
   },
-  "collected_at": "2026-08-26T08:16:02Z",
+  "collected_at": "2026-08-27T09:36:32Z",
   "cost": {
     "anchored_node_measurements": 4,
     "negative_controls": 3,
     "subject_coverage_measurements": 4,
-    "wall_clock_s": 67.6
+    "wall_clock_s": 106.8
   },
   "discrimination": {
     "anchored_nodes": {
@@ -236,7 +242,7 @@
   "evaluator_bundle": {
     "closure": {
       "count": 127,
-      "digest": "f38474c0c0392fd6f94328b2a6034bb06b6c408cabace382ca03c280c1013d53",
+      "digest": "588e73d393ed308471db6f9e3a645daa69170b14fd9f2f7313d44a8b9a106cc5",
       "modules": {
         "daedalus/__init__.py": "e8833a427b5a50e06246c7c9e57b01a50274579c",
         "daedalus/adapters/events.py": "c11ec9747624d84be6c8f1dcfac2567f6ffc0d47",
@@ -264,10 +270,10 @@
         "daedalus/ignition/__init__.py": "3270894bfd4f797e94340aba66f443c591c06675",
         "daedalus/ignition/bundle.py": "a974343878d0d2b5b82c813efe9a249489a05663",
         "daedalus/ignition/checks.py": "6889e94cdde1c76667c29ae10194e852f595cd4e",
-        "daedalus/ignition/gate1.py": "05db8aee49c019c8f4d1033ddc28d7b0eace644e",
+        "daedalus/ignition/gate1.py": "4eafd05b292c5a812de179e863bd2a8943d55460",
         "daedalus/ignition/runner.py": "3f282a594f42de48661c4d87cc7d6b789f65e742",
         "daedalus/kairos/decompose.py": "2c1091f3c5cf972d7c62a8cedded2fd03ec6d20b",
-        "daedalus/kairos/drafts.py": "8ebcccc38e4f536690a85dd6179cf5931e0b32d3",
+        "daedalus/kairos/drafts.py": "4618c2655e7b7fb5089d7186aa617780e25b081c",
         "daedalus/kairos/gated_writes.py": "61ad3dccfac4c255873d9b127b348bd4e0ddf20e",
         "daedalus/kairos/scheduler.py": "e22578c4e377eac0d2126a228b4f9b2b697d66a9",
         "daedalus/kairos/worktree.py": "9de27046afee06d3394438ac6a7cf5b7b8433ec7",
@@ -374,7 +380,7 @@
       "path": "tests/test_event_field.py",
       "sha256": "811c95fdadbf2d02ab30a4e49beb9a4923b99eeb8feb30bcbf8816f8e05f0c1e"
     },
-    "digest": "e55b8756bf840bf155a510d93d2a0dd99e67b501581d013918112ca28aa44ac3",
+    "digest": "01c8b0c40d2fc73ec891e0ffccba42b887e4ae37ba7e4a858f38dc660ea16902",
     "environment_fingerprint": {
       "conftest_chain": {
         "candidates": [
@@ -435,10 +441,10 @@
         "unreadable": false
       },
       "daedalus/ignition/gate1.py": {
-        "blob_sha1": "05db8aee49c019c8f4d1033ddc28d7b0eace644e",
-        "committed_blob_sha1": "05db8aee49c019c8f4d1033ddc28d7b0eace644e",
+        "blob_sha1": "4eafd05b292c5a812de179e863bd2a8943d55460",
+        "committed_blob_sha1": "4eafd05b292c5a812de179e863bd2a8943d55460",
         "platform_dependent": true,
-        "running_bytes_sha256": "bd513c253cf29e359043d739276ee3958c5e4d61ccc149f06f9ec0340b8516cb",
+        "running_bytes_sha256": "3f1e262065ec81f753d26d0bd66897a60e3c7a317c47b429f345a1f0d646210b",
         "uncommitted": false,
         "unreadable": false
       },
@@ -486,11 +492,11 @@
     }
   },
   "evaluator_bundle_artifact": {
-    "digest": "e55b8756bf840bf155a510d93d2a0dd99e67b501581d013918112ca28aa44ac3",
-    "path": "bundle/evaluator-bundle-e55b8756bf840bf155a510d93d2a0dd99e67b501581d013918112ca28aa44ac3.json"
+    "digest": "01c8b0c40d2fc73ec891e0ffccba42b887e4ae37ba7e4a858f38dc660ea16902",
+    "path": "bundle/evaluator-bundle-01c8b0c40d2fc73ec891e0ffccba42b887e4ae37ba7e4a858f38dc660ea16902.json"
   },
   "evidence_packet": {
-    "attempt_id": "gate1-voltage-composed-fca00999314e",
+    "attempt_id": "gate1-voltage-composed-89ff09946b55",
     "candidate_artifact_sha256": "97c61fa3e919f0d9126324c77ad4828a273b97cfd5b5ab9541293676e490e8a3",
     "error": null,
     "evaluation_status": "passed",
@@ -499,15 +505,15 @@
         "assurance": "deterministic",
         "evaluator": "ignition-attempt-binding",
         "evidence_id": "gate1-attempt-binding",
-        "evidence_locator": "artifact-locator:sha256:6518ea237868b609f3c63bd42ed2816077b12d47a477882e74b5437f581e790c",
-        "output_sha256": "55d177be67e6264527a6edde97d7f89726a8cf3a7e4ceb038885bb2b04bdff9f",
+        "evidence_locator": "artifact-locator:sha256:039c0cab4f017abae0f78f3fa3ead8443cacad2ce80b858764e5d8713f78494c",
+        "output_sha256": "b59b0e9baa34d9de0e8650f40e4a9812fd636e8f697992a345abcc15838c9d49",
         "verdict": "passed"
       },
       {
         "assurance": "deterministic",
         "evaluator": "ignition-behavior",
         "evidence_id": "gate1-behavior",
-        "evidence_locator": "artifact-locator:sha256:c8d4afeb4a1143a7da40b9259dccf8e3e147b91e4165681e52e08043fae65fff",
+        "evidence_locator": "artifact-locator:sha256:e4ab1a97504bdd2b80d5c367b752c35f443108a8ef2c487314217b0806b97327",
         "output_sha256": "0525e55aede160f1031bb068665cf8df1ffe565f17ba13e8f97ecec38db3b53b",
         "verdict": "passed"
       },
@@ -515,7 +521,7 @@
         "assurance": "deterministic",
         "evaluator": "ignition-link-check",
         "evidence_id": "gate1-check-links",
-        "evidence_locator": "artifact-locator:sha256:2e888fc7ca29802cf03197f7011a5a96aad5100110ebb6f52528439fab725957",
+        "evidence_locator": "artifact-locator:sha256:4fa1cd8d56214764ccce59b7969c820f6f70a685577d34f51f97bbe0959624bf",
         "output_sha256": "641ce025fd271ad0bc6b53e2d0ec9626424442e7456ac126c691169791b171e5",
         "verdict": "passed"
       },
@@ -523,15 +529,15 @@
         "assurance": "deterministic",
         "evaluator": "ignition-pytest-composed",
         "evidence_id": "gate1-check-pytest",
-        "evidence_locator": "artifact-locator:sha256:2b09d1dcdd5ba2520f99be5c3306accacdd4e06e1d023030a39dca2f2c87b417",
-        "output_sha256": "f8346391dae3fd31b4f603b1e1c7640f1aac6b3570b9ed041b1cde4285cbf6a5",
+        "evidence_locator": "artifact-locator:sha256:379726fd4676e44b1c1c3a4067019d374792ebd43f7bace94391e0389bf80d6a",
+        "output_sha256": "6149f77691adbb83ea978ea83ee7cf59c8fd3ef770118de4224682c76200cb7f",
         "verdict": "passed"
       },
       {
         "assurance": "deterministic",
         "evaluator": "ignition-schema-check",
         "evidence_id": "gate1-check-schema",
-        "evidence_locator": "artifact-locator:sha256:39ed32bbd6c9aee4cf0394d33ba56187888bfd3f0e4dfed1617b20c3ca70339d",
+        "evidence_locator": "artifact-locator:sha256:e33c49e3a1170ea775a2fca5ec73bac77b4068d7ec7b9c82bdfa2c457e193bae",
         "output_sha256": "8eaa6eb6fbcbb434c210d9f8da13534860627dc621828a3b7f77d8e8dac4b8da",
         "verdict": "passed"
       },
@@ -539,27 +545,27 @@
         "assurance": "deterministic",
         "evaluator": "ignition-graph-delta",
         "evidence_id": "gate1-graph-delta",
-        "evidence_locator": "artifact-locator:sha256:d6e387e1fc89b45005243ea5cbe072e38700446aa139f2a739b1be2fe100f149",
+        "evidence_locator": "artifact-locator:sha256:f5e849819745ba0119f7124e3f9289ac26bdb934aa7e0cf91fc3ed749ad79143",
         "output_sha256": "54a0735ada74f295ff05d4d16cab598dad7896e7d5d01e3aed18cad7ae14e3cc",
         "verdict": "passed"
       },
       {
         "assurance": "deterministic",
         "evaluator": "fourfold.snapshot-binding",
-        "evidence_id": "gate1-voltage-composed-fca00999314e:fourfold",
-        "evidence_locator": "artifact-locator:sha256:3bef528d5db17fe47498bf95c4816b46bf51b4c8c83e134d93144589ab0e33c2",
-        "output_sha256": "0f005e4447b69bd0b29391b34434fb9dfa1d51ef217363ee2dd5263d1d3c7fef",
+        "evidence_id": "gate1-voltage-composed-89ff09946b55:fourfold",
+        "evidence_locator": "artifact-locator:sha256:477eab3517ed0a1d85e32aace9e08f3c442d468e66db0b2dfa8070aeb50da326",
+        "output_sha256": "3427cdc6fd32bd4eeceb6984fcf7a9318524c801dc7e8c54d8348c49f06387eb",
         "verdict": "passed"
       }
     ],
     "packet_id": "gate1-voltage-evidence",
-    "packet_sha256": "216f946c704ba7b69a706a78d71fafc224b73be22824dad3d27af9f970af764b",
+    "packet_sha256": "49545215044e73765a4a43370eafba06eb3a58c942543f559f3717033e1c209e",
     "source_revision": "143b03596f0d77eddcf115089918e431b0d051f3a087a6d0def5f891315b02b1"
   },
   "fourfold": {
-    "base_snapshot_sha256": "58069ee52be29c44b75538cea514c65a902b4c888e0205a160ab57953a06ef6a",
+    "base_snapshot_sha256": "4bc835d40ecd2d60c9a8b1678cfa9135db7d5de4f1df5bdaff25e4c1493d8ac3",
     "base_source_bundle_sha256": "bc77ee15665ce2784757bfdf3f52217982d6bf3a194f547bd592e75ad2e50536",
-    "candidate_snapshot_sha256": "0f005e4447b69bd0b29391b34434fb9dfa1d51ef217363ee2dd5263d1d3c7fef",
+    "candidate_snapshot_sha256": "3427cdc6fd32bd4eeceb6984fcf7a9318524c801dc7e8c54d8348c49f06387eb",
     "candidate_source_bundle_sha256": "97c61fa3e919f0d9126324c77ad4828a273b97cfd5b5ab9541293676e490e8a3",
     "graph_delta": {
       "added_bindings": [
@@ -603,7 +609,7 @@
   "iron_plan": "ALIGNED",
   "mission_id": "mission-gate1-voltage-ignition",
   "mission_objective": "propagate the Event.voltage -> Event.bias_voltage rename across the code, type, data and knowledge planes of the ignition target project",
-  "mission_sha256": "0b29cddca299f0b95f3dae5c94ef7bffba3d2c740aaa27ddc7afd02f50c3c001",
+  "mission_sha256": "ee80cd2f2909011f98e9639eef95f0413138f2f0756b10b15d4e62e3b9e59d51",
   "mission_source_revision": "ebd198e90563554297ec644d2318496b52977ed5",
   "promotion": {
     "auto_merge": false,
@@ -625,13 +631,13 @@
     "mission_sha256_stable": null,
     "note": "mission_id, work_item_ids, base_revision and candidate_revision are functions of the fixture tree and the frozen git identity; attempt ids carry a per-run nonce by construction (the branch name IS the effect key) and are expected to differ between runs",
     "packet_sha256_stable": false,
-    "previous_collected_at": "2026-08-26T08:13:57Z",
+    "previous_collected_at": "2026-08-27T09:34:35Z",
     "previous_conformance_test_sha256": "d2c96a9858c12a1ce4d16ef4b95fa190df2c7911c8e39c20f3c78bf6bc659dbb",
-    "previous_evaluator_bundle_digest": "e55b8756bf840bf155a510d93d2a0dd99e67b501581d013918112ca28aa44ac3",
+    "previous_evaluator_bundle_digest": "01c8b0c40d2fc73ec891e0ffccba42b887e4ae37ba7e4a858f38dc660ea16902",
     "previous_fixture_tree_sha256": "33460ac359217c6a0fb97890a8a3dba75d7edb7b1223c05e80259a3b0c514cb9",
     "previous_graph_delta_sha256": "1bef5f55a1acfdfceb8a48b9fb1c80d2b4f2e17aa1102e14200e9bf492fb01a5",
-    "previous_mission_sha256": "3f728ac737dc752f80a027c253a1864cdce8f28a18ef9a7c24de489ac737e2f5",
-    "previous_packet_sha256": "4825f8fd6a9ed568c75eca177985608e3f99927bd1de6b7f19101f49d96362ec",
+    "previous_mission_sha256": "9b5cc8504a631d26eb84ccd2ff160dde1d96ed5bc6fad18c53441194ac39cb84",
+    "previous_packet_sha256": "a4e83620c415cc065c177a6d22761ae7b703508bc4dcd7ad07f0df86310a1037",
     "previous_run_complete": true,
     "replay_demonstrated": true,
     "same_collected_at": false,
