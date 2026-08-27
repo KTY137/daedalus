@@ -127,6 +127,9 @@
 .reach-state.ok { color: var(--ok); }
 .reach-state.warn { color: var(--live); }
 .reach-state.bad { color: var(--bad); }
+/* When the cached reading was measured. Muted on purpose: it qualifies the
+   state, it does not compete with it. */
+.reach-age { font-size: var(--fs-xs); color: var(--ink3); white-space: nowrap; }
 .reach-row button {
   min-height: 44px;
   padding: 0 var(--u2);

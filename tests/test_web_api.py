@@ -116,6 +116,59 @@ class RuntimeRegistryTest(unittest.TestCase):
         self.assertTrue(payload["available"])
         self.assertNotIn("sk-secret-test", encoded)
 
+    def test_uncached_status_carries_no_measured_at(self) -> None:
+        # The direct path must be byte-identical to before the cache landed:
+        # measured_at appears only when a caller opts into the cache.
+        rows = runtime_registry.all_status()["runtimes"]
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertNotIn("measured_at", row)
+
+    def test_cached_status_stamps_when_it_measured_and_serves_the_cache(self) -> None:
+        # Owner decision 2026-08-27: cache the slow probe, but every cached row
+        # says WHEN it was probed so a stale "erreichbar" cannot lie. A probe
+        # runs at most once here; the second call is served from the cache and
+        # ages the reading rather than re-launching a CLI.
+        probes: dict[str, int] = {}
+
+        def _counting(runtime_id: str) -> dict:
+            probes[runtime_id] = probes.get(runtime_id, 0) + 1
+            return {"id": runtime_id, "available": True, "auth_status": "cli_detected"}
+
+        runtime_registry.reset_status_cache()
+        try:
+            with mock.patch.object(runtime_registry, "runtime_status", _counting):
+                first = runtime_registry.all_status(use_cache=True)["runtimes"]
+                second = runtime_registry.all_status(use_cache=True)["runtimes"]
+        finally:
+            runtime_registry.reset_status_cache()
+
+        self.assertTrue(all(count == 1 for count in probes.values()), probes)
+        for row in first:
+            self.assertIn("measured_at", row)
+            self.assertEqual(row["measured_age_s"], 0.0)
+        for row in second:
+            self.assertIn("measured_at", row)
+            self.assertGreaterEqual(row["measured_age_s"], 0.0)
+
+    def test_cache_expiry_reprobes(self) -> None:
+        # A zero TTL is always expired, so every call re-probes -- the freshness
+        # bound is real, not decorative.
+        probes = {"n": 0}
+
+        def _counting(runtime_id: str) -> dict:
+            probes["n"] += 1
+            return {"id": runtime_id, "available": True}
+
+        runtime_registry.reset_status_cache()
+        try:
+            with mock.patch.object(runtime_registry, "runtime_status", _counting):
+                runtime_registry.cached_runtime_status("claude_code_cli", ttl_s=0.0)
+                runtime_registry.cached_runtime_status("claude_code_cli", ttl_s=0.0)
+        finally:
+            runtime_registry.reset_status_cache()
+        self.assertEqual(probes["n"], 2)
+
 
 class InspectorEditRoundTripTest(unittest.TestCase):
     """The webapp inspector's PUT endpoints persist for real (coffee-retro
