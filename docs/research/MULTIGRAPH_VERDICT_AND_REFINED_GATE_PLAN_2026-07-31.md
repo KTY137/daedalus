@@ -139,28 +139,14 @@ permitted claim is budget-equal public-artifact scores or an explicitly
 narrower proxy result. The flex the owner wants is Gate 5's receipts, not a
 marketing sentence.
 
-## 3. Current position, measured today (2026-07-31)
+## 3. Position at the time of writing (2026-07-31) — superseded, kept for the arithmetic in §1 only
 
-- **Gate 0 ACTIVE.** HEAD 51fe781, branch checkpoint/2026-07-20-session.
-- **Ignition blocker measured:** `gate_discrimination --head-only` refused with
-  `COULD NOT MEASURE: baseline_red -- baseline pytest exit 1` [MEASURED
-  overnight]. That is correct fail-closed behavior; the red test's identity is
-  being re-measured now.
-- **Funnel lane repaired today:** the claims123 run (123 agents) died upward —
-  scan 5/100, research 8/15, review 6/6 blocked on `Invalid \escape`
-  [MEASURED]: models quoting backslash-bearing source emit invalid JSON
-  escapes and `extract_json` destroyed the whole answer. Fixed losslessly with
-  a lookbehind-guarded escape repair recorded as `handoff.harness_repairs`;
-  plus `coerce_report` no longer refuses an evidence-bearing answer for a
-  missing summary (recorded as `summary_was_defaulted`). 13 new regression
-  tests; 126 provider-suite tests green [MEASURED].
-- **Two funnel defects still open:** the fan-out counts a blocked unit as
-  `ok`, and resume serves a persisted blocked answer forever (never retried).
-  Recon in flight; fix belongs in the fan-out lane before the next paid run.
-- **Sealed promotion:** owner decided the trust root — signed tag
-  (`git tag -s promote/<candidate_sha>`, verified via `git verify-tag` +
-  committed allowed-signers file), regeneration VOIDS an approval. Not yet
-  implemented; steps in docs/GATE0_SEALED_OWNER_APPROVAL.md §6.
+Gate 0 was active with an ignition blocker and an unimplemented sealed-promotion
+step; both have since moved. Gate 0 closed 2026-08-26 as a scoped owner
+decision (`docs/GATE0_CLOSURE_DECISION_20260826.md`; master plan revision 8),
+and sealed promotion is implemented per `docs/GATE0_SEALED_OWNER_APPROVAL.md`.
+Do not read this section as current status; the day-of-writing snapshot is not
+reproduced here.
 
 ## 4. The refined path — strictly inside the gates, in order
 
