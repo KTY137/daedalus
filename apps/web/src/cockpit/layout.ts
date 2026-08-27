@@ -45,6 +45,15 @@ export interface Placed {
   boxH?: number;
   node?: StructureGraphNode;
   via?: 'in' | 'out' | 'mixed';
+  /**
+   * Where this node's heat sits among the nodes actually drawn, 0 = coolest,
+   * 1 = hottest. A rank rather than the raw score: `score` spans 134…256 on
+   * this repository's hot list and 0…3 on a quiet one, so an absolute ramp
+   * would be flat on one map and saturated on the other.
+   */
+  heat: number;
+  /** the same rank as three steps: 0 quiet, 1 mid, 2 lead */
+  tier: 0 | 1 | 2;
 }
 
 export interface Line {
@@ -55,10 +64,25 @@ export interface Line {
   via: 'in' | 'out';
 }
 
+/**
+ * A labelled column in the ordered representation. The header is drawn from
+ * this, so a column can never carry a count it does not hold.
+ */
+export interface Column {
+  x: number;
+  y: number;
+  label: string;
+  count: number;
+  /** how many of that group the budget left undrawn */
+  hidden: number;
+}
+
 export interface StageLayout {
   placed: Placed[];
   byId: Map<string, Placed>;
   lines: Line[];
+  /** the ordered representation labels its columns; the spatial ones do not */
+  columns?: Column[];
   width: number;
   height: number;
   /** direct neighbours the aggregate glyph stands for */
@@ -127,7 +151,13 @@ function trim(label: string): string {
  * layout separates boxes that are not the boxes being drawn — so both read
  * this one table.
  */
-export const LABEL_PX = { focus: 19, near: 14.5, far: 12.5 } as const;
+export const LABEL_PX = {
+  focus: 19,
+  near: 14.5,
+  far: 12.5,
+  /** the figure printed inside a card, and the ordered view's column headers */
+  figure: 11
+} as const;
 
 export function labelSizeFor(level: 0 | 1 | 2): number {
   return level === 0 ? LABEL_PX.focus : level === 1 ? LABEL_PX.near : LABEL_PX.far;
@@ -226,8 +256,46 @@ function place(
     anchor,
     labelDy: level === 0 ? r + 24 : 4,
     node: n?.node,
-    via: n?.via
+    via: n?.via,
+    heat: 0,
+    tier: 1
   };
+}
+
+/**
+ * Rank the drawn nodes by heat and cut the ranking into three steps.
+ *
+ * The renderer spends the step on weight, not on colour: the one accent family
+ * belongs to selection, and a second hue for "hot" would make two different
+ * things look equally loud. Three steps because the reader is being asked
+ * "which of these carries weight", not "what is the exact score" — the exact
+ * score is printed on the lead tier and in the tooltip.
+ */
+function rankHeat(placed: Placed[]): void {
+  const nodes = placed.filter((p) => p.kind !== 'more');
+  const scored = nodes.filter((p) => p.node);
+  if (scored.length < 4) {
+    nodes.forEach((p) => {
+      p.heat = p.level === 0 ? 1 : 0.5;
+      p.tier = p.level === 0 ? 2 : 1;
+    });
+    return;
+  }
+  const order = [...scored].sort((a, b) => (b.node!.score ?? 0) - (a.node!.score ?? 0));
+  const lead = Math.max(1, Math.round(order.length * 0.22));
+  const mid = lead + Math.max(1, Math.round(order.length * 0.4));
+  order.forEach((p, i) => {
+    p.heat = order.length === 1 ? 1 : 1 - i / (order.length - 1);
+    p.tier = i < lead ? 2 : i < mid ? 1 : 0;
+  });
+  // A node the backend never scored is context, not a cold module: saying
+  // "quiet" about something unmeasured is the instrument lying about coverage.
+  nodes.filter((p) => !p.node).forEach((p) => {
+    p.heat = 0;
+    p.tier = 0;
+  });
+  const focus = nodes.find((p) => p.level === 0);
+  if (focus) focus.tier = 2;
 }
 
 /** The pixel box a placed node's label occupies, at the size the stage draws it. */
@@ -507,8 +575,40 @@ function moreGlyph(count: number, x: number, y: number): Placed {
     label,
     full: `${count} weitere direkte Nachbarn — anklicken zum Auflisten`,
     anchor: 'middle',
-    labelDy: 27
+    labelDy: 27,
+    heat: 0,
+    tier: 0
   };
+}
+
+/**
+ * A card's box, and it grows with fan-in when the theme asks for it.
+ *
+ * `sizeByFanIn: 0` is a real choice — Leitstand and Werkstatt draw every
+ * symbol at one size on purpose — so the growth term is multiplied by the
+ * knob rather than applied behind its back. Where size carries nothing, the
+ * renderer prints the number instead; that trade is the theme's, not a bug.
+ */
+function cardBox(p: Placed, sizeByFanIn: number): void {
+  const fan = p.node?.fan_in ?? 0;
+  const grow = Math.min(1, Math.log2(1 + Math.max(0, fan)) / 7) * sizeByFanIn;
+  p.anchor = 'middle';
+  p.labelDy = 0;
+  /**
+   * The far plane is a SMALLER card, not only a paler one.
+   *
+   * Measured on Leitstand at 1440×900: a level-1 card was 111×34 and a level-2
+   * card 104×34 — the same object, drawn twice, at two opacities 0.89 apart.
+   * That is why "Räumlich" read as flat in a still: the theme's atmospheric
+   * knobs (`depthFog` 0.2, `depthBlur` 1px, `parallax` 0.1) are near zero by
+   * its own Schaltplan concept, and the ONE depth cue a flat technical drawing
+   * still carries is scale. So the box follows the label size the renderer
+   * actually uses there — 12.5px against 14.5px — instead of being the near
+   * card wearing a lighter fill.
+   */
+  const far = p.level === 2;
+  p.boxH = p.level === 0 ? 48 : far ? 28 : Math.round(34 + grow * 12);
+  p.boxW = Math.max(far ? 82 : 96, p.label.length * (far ? 6.4 : 7.4) + (far ? 24 : 30) + Math.round(grow * 16));
 }
 
 /**
@@ -622,6 +722,7 @@ export function radialLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayou
   relaxLabels(placed, width, height);
   avoidBoxes(placed, boxes, width, height);
   centreInFrame(placed, width, height, boxes);
+  rankHeat(placed);
 
   return {
     placed,
@@ -655,11 +756,20 @@ export function cardLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayout 
   const capL = Math.max(2, Math.floor((bandL.bottom - bandL.top) / PITCH));
   const capR = Math.max(2, Math.floor((bandR.bottom - bandR.top) / PITCH));
 
-  // Cards are wide; a smaller budget is the honest trade, and the aggregate
-  // glyph carries the rest.
+  /**
+   * Cards are wide; a smaller budget is the honest trade, and the aggregate
+   * glyph carries the rest. Below about 940px of field the second level is the
+   * part that goes: five columns of ~110px cards leave 57px gutters, and the
+   * elbows crossing them measured 3px apart at 1024px — a bus. Three columns
+   * with 106px gutters is a schematic a reader can trace, and the neighbours
+   * that were dropped are still counted in `hidden2` and still listed by the
+   * rail's "Alle auflisten". A drawing that admits what it left out beats one
+   * that draws everything illegibly.
+   */
+  const farBudget = width >= 940 ? 8 : width >= 860 ? 4 : 0;
   const sel = choose(
     nh,
-    { ...opts, maxLevel1: Math.min(opts.maxLevel1, 10), maxLevel2: Math.min(opts.maxLevel2, 8) },
+    { ...opts, maxLevel1: Math.min(opts.maxLevel1, 10), maxLevel2: Math.min(opts.maxLevel2, farBudget) },
     { left: capL, right: capR }
   );
 
@@ -668,56 +778,89 @@ export function cardLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayout 
   const placed: Placed[] = [];
   const byId = new Map<string, Placed>();
   const focus = place(nh.focus, cx, cy, 0, { id: nh.focus, level: 1, via: 'in', node: nh.focusNode }, sizeByFanIn, cx, name);
-  focus.anchor = 'middle';
-  focus.labelDy = 0;
-  focus.boxW = Math.max(96, focus.label.length * 7.4 + 30);
-  focus.boxH = 46;
+  cardBox(focus, sizeByFanIn);
   placed.push(focus);
   byId.set(focus.id, focus);
 
-  const asCard = (p: Placed) => {
-    p.anchor = 'middle';
-    p.labelDy = 0;
-    p.boxW = Math.max(96, p.label.length * 7.4 + 30);
-    p.boxH = p.level === 0 ? 46 : 34;
-    return p;
-  };
-
-  const column = (
-    list: Neighbour[],
-    dir: -1 | 1,
-    ring: 1 | 2,
-    innerEdge: number,
-    band: { top: number; bottom: number }
-  ): number => {
-    if (!list.length) return innerEdge;
-    const built = list.map((n) => asCard(place(n.id, 0, 0, ring, n, sizeByFanIn, cx, name)));
-    const widest = Math.max(...built.map((p) => p.boxW || 96));
-    const centreLine = innerEdge + dir * (widest / 2 + 46);
-    const span = band.bottom - band.top;
-    const gap = Math.min(PITCH + 12, Math.max(46, span / Math.max(1, built.length)));
-    const stack = (built.length - 1) * gap;
-    // Centre the column in the band, then clamp so it cannot run out of it.
-    const top = Math.max(band.top + 24, Math.min(cy - stack / 2, band.bottom - stack - 24));
-    built.forEach((p, i) => {
-      p.x = centreLine;
-      p.y = top + i * gap;
-      placed.push(p);
-      byId.set(p.id, p);
+  const build = (list: Neighbour[], ring: 1 | 2) =>
+    list.map((n) => {
+      const p = place(n.id, 0, 0, ring, n, sizeByFanIn, cx, name);
+      cardBox(p, sizeByFanIn);
+      return p;
     });
-    return centreLine + dir * (widest / 2);
-  };
 
-  const focusHalf = (focus.boxW || 96) / 2;
   const oneSided = sel.outs.length === 0 && sel.ins.length > 0;
-  const leftFirst = oneSided ? sel.ins.filter((_, i) => i % 2 === 0) : sel.ins;
-  const rightFirst = oneSided ? sel.ins.filter((_, i) => i % 2 === 1) : sel.outs;
-  const leftEdge = column(leftFirst, -1, 1, cx - focusHalf, bandL);
-  const rightEdge = column(rightFirst, 1, 1, cx + focusHalf, bandR);
-
   const half = Math.ceil(sel.level2.length / 2);
-  column(sel.level2.slice(0, half), -1, 2, leftEdge, bandL);
-  column(sel.level2.slice(half), 1, 2, rightEdge, bandR);
+  const columns = [
+    { cards: build(oneSided ? sel.ins.filter((_, i) => i % 2 === 0) : sel.ins, 1), dir: -1 as const, rank: 0, band: bandL },
+    { cards: build(oneSided ? sel.ins.filter((_, i) => i % 2 === 1) : sel.outs, 1), dir: 1 as const, rank: 0, band: bandR },
+    { cards: build(sel.level2.slice(0, half), 2), dir: -1 as const, rank: 1, band: bandL },
+    { cards: build(sel.level2.slice(half), 2), dir: 1 as const, rank: 1, band: bandR }
+  ].filter((c) => c.cards.length > 0);
+
+  /**
+   * Space the columns from the room that is actually left over.
+   *
+   * The old gutter was the constant 46 and the row pitch was capped at 68, so
+   * the figure was the same size on a 1109×746 field as on a 700×500 one:
+   * measured at 1440×900 it drew 882×490 into 1109×746 — 79.5 % of the width,
+   * 65.6 % of the height, 52.2 % of the area, with 110–132px of nothing on all
+   * four sides. Every column is built before any of it is placed, so the
+   * leftover width can be divided between the gutters and the leftover height
+   * between the rows. Both spreads are clamped: a gutter wider than ~150px
+   * stops reading as a relation and a row pitch past ~92px stops reading as a
+   * column.
+   */
+  const widthOf = (c: { cards: Placed[] }) => Math.max(...c.cards.map((p) => p.boxW || 96));
+  const focusHalf = (focus.boxW || 96) / 2;
+  const used = (focus.boxW || 96) + columns.reduce((a, c) => a + widthOf(c), 0);
+  const slack = Math.max(0, width - 48 - used);
+  const gut = Math.max(46, Math.min(150, slack / Math.max(1, columns.length)));
+  // 100px between 34px cards leaves ~56px of top and bottom margin on a
+  // 746px band with seven rows in it — measured, and the point where the
+  // column stops being a column and starts being a scattered list.
+  const MAX_PITCH = 100;
+  /**
+   * A short column stretches towards the tall one, but only so far.
+   *
+   * The neighbourhood is honestly lopsided — six importers against fourteen
+   * imports at this focus — so the left side draws three cards where the right
+   * draws seven. Pitching both at 100 left the tall column running the full
+   * band and the short one huddled around the centre line, which reads as a
+   * wedge with two empty corners rather than as a plate. Reaching for the tall
+   * column's own extent evens the picture out; the ceiling is what stops two
+   * cards from being pinned to opposite edges with nothing between them.
+   */
+  const MAX_PITCH_SHORT = 150;
+  const rowsMax = Math.max(...columns.map((c) => c.cards.length), 1);
+  const refUsable = Math.max(0, Math.min(bandL.bottom - bandL.top, bandR.bottom - bandR.top) - 48);
+  const refStack = rowsMax > 1 ? Math.min(refUsable, (rowsMax - 1) * MAX_PITCH) : 0;
+
+  ([-1, 1] as const).forEach((dir) => {
+    let edge = cx + dir * focusHalf;
+    columns
+      .filter((c) => c.dir === dir)
+      .sort((a, b) => a.rank - b.rank)
+      .forEach((c) => {
+        const w = widthOf(c);
+        const centreLine = edge + dir * (gut + w / 2);
+        edge = centreLine + dir * (w / 2);
+        const n = c.cards.length;
+        const usable = Math.max(0, c.band.bottom - c.band.top - 48);
+        const ceiling = n === rowsMax ? MAX_PITCH : MAX_PITCH_SHORT;
+        const reach = n > 1 ? Math.max(refStack / (n - 1), PITCH) : 0;
+        const gap = n > 1 ? Math.max(PITCH, Math.min(ceiling, usable / (n - 1), reach)) : 0;
+        const stack = (n - 1) * gap;
+        // Centre the column in the band, then clamp so it cannot run out of it.
+        const top = Math.max(c.band.top + 24, Math.min(cy - stack / 2, c.band.bottom - stack - 24));
+        c.cards.forEach((p, i) => {
+          p.x = centreLine;
+          p.y = top + i * gap;
+          placed.push(p);
+          byId.set(p.id, p);
+        });
+      });
+  });
 
   if (sel.hidden1 > 0) {
     const g = moreGlyph(sel.hidden1, cx, Math.min(height - 40, cy + Math.min(height * 0.34, 260)));
@@ -729,6 +872,7 @@ export function cardLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayout 
   relaxLabels(placed, width, height);
   avoidBoxes(placed, boxes, width, height);
   centreInFrame(placed, width, height, boxes);
+  rankHeat(placed);
 
   return {
     placed,
@@ -813,6 +957,8 @@ export function arcLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayout {
     byId.set(g.id, g);
   }
 
+  rankHeat(placed);
+
   return {
     placed,
     byId,
@@ -825,11 +971,157 @@ export function arcLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayout {
   };
 }
 
+/**
+ * The ordered representation: the same nodes, sorted, in four labelled columns.
+ *
+ * This is not a second map. It is the same neighbourhood answering a different
+ * question — the spatial view answers "what does this sit among", the ordered
+ * one answers "what is here, in what order, and how much of it". Reading a
+ * ranking off a force layout is guesswork; reading adjacency off a table is
+ * guesswork; so the stage carries both and the reader picks.
+ *
+ * The four columns are the four relations the data actually distinguishes:
+ * what imports the focus, the focus, what the focus imports, and everything
+ * one step further out. They are NOT the four Project-Twin planes — this graph
+ * is one plane (code), and labelling a code-only graph with four plane names
+ * would be a caption claiming coverage the payload does not have.
+ */
+export function orderedLayout(nh: Neighbourhood, opts: LayoutOptions): StageLayout {
+  const { width, height, sizeByFanIn } = opts;
+  const boxes = opts.avoid ?? [];
+
+  // 44px rows with 10px of air. The spatial view's glyphs cannot reach a 44px
+  // target without swallowing their neighbours; the ordered view can, and it
+  // is one half of the larger equivalent path the audit's node exception names.
+  const HEAD = 56;
+  const ROW = 54;
+  let top = 24 + HEAD;
+  let bottom = height - 24;
+  boxes.forEach((b) => {
+    if (b.y1 <= 2) top = Math.max(top, b.y2 + 16 + HEAD);
+    else if (b.y2 >= height - 2) bottom = Math.min(bottom, b.y1 - 16);
+  });
+  if (bottom - top < 3 * ROW) {
+    top = 24 + HEAD;
+    bottom = height - 24;
+  }
+  // `top` is the CENTRE of the first row, so the last row needs half a card of
+  // clearance under it before the frame edge.
+  const rows = Math.max(2, Math.floor((bottom - top - 22) / ROW) + 1);
+
+  const allIns = nh.level1.filter((n) => n.via !== 'out');
+  const allOuts = nh.level1.filter((n) => n.via === 'out');
+  const ins = allIns.slice(0, rows);
+  const outs = allOuts.slice(0, rows);
+  const shown = new Set([...ins, ...outs].map((n) => n.id));
+  const reachable = new Set<string>();
+  nh.edges.forEach((e) => {
+    if (shown.has(e.source)) reachable.add(e.target);
+    if (shown.has(e.target)) reachable.add(e.source);
+  });
+  const near = nh.level2.filter((n) => reachable.has(n.id));
+  const level2 = near.slice(0, rows);
+  const hiddenIds = [...allIns.slice(ins.length).map((n) => n.id), ...allOuts.slice(outs.length).map((n) => n.id)];
+
+  const name = labeller([nh.focus, ...ins.map((n) => n.id), ...outs.map((n) => n.id), ...level2.map((n) => n.id)]);
+  const placed: Placed[] = [];
+  const byId = new Map<string, Placed>();
+
+  const groups: Array<{ label: string; list: Neighbour[]; level: 0 | 1 | 2; total: number }> = [
+    { label: 'Importeure', list: ins, level: 1, total: allIns.length },
+    {
+      label: 'Fokus',
+      list: [{ id: nh.focus, level: 1, via: 'in', node: nh.focusNode }],
+      level: 0,
+      total: 1
+    },
+    { label: 'Importe', list: outs, level: 1, total: allOuts.length },
+    { label: 'Zweite Ebene', list: level2, level: 2, total: nh.level2.length }
+  ];
+
+  // Column x from the widest card each column actually holds, so a long file
+  // name widens its own column instead of running under the next one.
+  const built = groups.map((g) =>
+    g.list.map((n) => {
+      const p = place(n.id, 0, 0, g.level, n, sizeByFanIn, width / 2, name);
+      cardBox(p, sizeByFanIn);
+      // A row in a table is a row: one height, one target, and wide enough for
+      // the figure printed under the name.
+      p.boxH = 44;
+      p.boxW = Math.max(p.boxW ?? 96, 178);
+      return p;
+    })
+  );
+  const widths = built.map((col) => (col.length ? Math.max(...col.map((p) => p.boxW || 96)) : 120));
+  const avail = Math.max(240, width - 40);
+  const sum = widths.reduce((a, b) => a + b, 0);
+  // Give the gutter up before the cards: a narrower gap between columns still
+  // reads as four columns, whereas a card narrower than its own label does not.
+  const gut = Math.max(14, Math.min(36, (avail - sum) / (widths.length - 1)));
+  const scale = Math.min(1, (avail - gut * (widths.length - 1)) / Math.max(1, sum));
+  const spread = sum * scale + gut * (widths.length - 1);
+  let cursorX = (width - spread) / 2;
+  const columns: Column[] = [];
+  const tallest = Math.max(...built.map((c) => Math.max(0, (c.length - 1) * ROW)));
+
+  built.forEach((col, i) => {
+    const w = widths[i] * scale;
+    const centre = cursorX + w / 2;
+    cursorX += w + gut;
+    const stack = Math.max(0, (col.length - 1) * ROW);
+    // A one-row column (the focus) sits at the eye line of the tallest column;
+    // centring each column on its own stack made the focus float unmoored.
+    const start = top + (tallest - stack) / 2;
+    col.forEach((p, r) => {
+      if (scale < 1) p.boxW = (p.boxW || 96) * scale;
+      p.x = centre;
+      p.y = start + r * ROW;
+      placed.push(p);
+      byId.set(p.id, p);
+    });
+    columns.push({
+      x: centre,
+      // The header block sits clear ABOVE the first card: label, then count,
+      // then air. `top` is the centre of the first row, so the card's own top
+      // edge is `top - 22` and the count has to finish before it.
+      y: top - 44,
+      label: groups[i].label,
+      count: groups[i].total,
+      hidden: Math.max(0, groups[i].total - col.length)
+    });
+  });
+
+  if (hiddenIds.length > 0) {
+    // Under the stack, not at the frame edge: it belongs to the columns it
+    // stands for, and pinning it to the bottom left it floating in the air of
+    // a short neighbourhood.
+    const g = moreGlyph(hiddenIds.length, width / 2, Math.min(height - 26, top + tallest + 52));
+    g.labelDy = 0;
+    placed.push(g);
+    byId.set(g.id, g);
+  }
+
+  rankHeat(placed);
+
+  return {
+    placed,
+    byId,
+    lines: linesFor(nh, byId),
+    columns,
+    width,
+    height,
+    hidden1: hiddenIds.length,
+    hidden2: nh.level2.length - level2.length,
+    hiddenIds
+  };
+}
+
 export function layoutFor(
-  kind: 'forest' | 'stars' | 'cards' | 'arcs',
+  kind: 'forest' | 'stars' | 'cards' | 'arcs' | 'ordered',
   nh: Neighbourhood,
   opts: LayoutOptions
 ): StageLayout {
+  if (kind === 'ordered') return orderedLayout(nh, opts);
   if (kind === 'cards') return cardLayout(nh, opts);
   if (kind === 'arcs') return arcLayout(nh, opts);
   return radialLayout(nh, opts);

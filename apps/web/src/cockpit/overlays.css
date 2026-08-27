@@ -1,0 +1,96 @@
+/*
+ * The overlays: the hot list and the command palette.
+ *
+ * Neither is part of the page underneath it. The palette is modal and takes
+ * the keyboard; the hot list is a standing index of the heaviest modules.
+ */
+
+/* --------------------------------------------------------------- hotlist */
+
+.hotlist { padding: var(--u2) var(--u3); }
+.hotlist-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--u2); }
+.hotlist-title { font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); }
+/* The right column is a heat score — fan-in weighted against code size — and
+   used to print as a bare number with nothing next to it saying so. One
+   small caption over the column, not a legend on every row. */
+.hotlist-col { font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); cursor: help; }
+.hotlist ul { list-style: none; margin: var(--u1) 0 0; padding: 0; }
+.hotlist button {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--u2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  text-align: left;
+}
+.hotlist button:hover { color: var(--ink); }
+.hotlist button.on { color: var(--accent); }
+.hotlist button span:first-child { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --------------------------------------------------------------- palette */
+
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--room2) 72%, transparent);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  z-index: 40;
+}
+/* Same reasoning as the studio: a list of file paths read over a lit stage
+   needs an opaque ground under the material, not the material alone. */
+.palette {
+  width: min(680px, 92vw);
+  padding: var(--u3);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u2);
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface), var(--surface));
+}
+.palette > input {
+  min-height: 46px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-lg);
+}
+.palette ul { list-style: none; margin: 0; padding: 0; overflow: auto; }
+.palette li button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'name meta' 'path meta';
+  gap: 0 var(--u3);
+  width: 100%;
+  padding: var(--u2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.palette li button:hover,
+.palette li button.active { background: var(--surface2); box-shadow: inset 2px 0 0 var(--accent); }
+.palette-name { grid-area: name; font-family: var(--font-mono); }
+.palette-path { grid-area: path; font-size: var(--fs-xs); color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-meta { grid-area: meta; font-size: var(--fs-xs); color: var(--ink3); align-self: center; }
+/* Shared with the project switcher's menu below — same empty-result copy
+   treatment, one list, one empty state. */
+.list-empty { padding: var(--u3); color: var(--ink2); }
+.palette-foot { font-size: var(--fs-xs); color: var(--ink3); border-top: var(--border) solid var(--line2); padding-top: var(--u2); }
+

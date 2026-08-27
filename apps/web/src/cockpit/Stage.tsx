@@ -1,20 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ThemeSpec } from '../theme/types';
-import type { Neighbourhood } from './graph';
-import { DEFAULT_BUDGET, MORE_ID, labelSizeFor, layoutFor, type Box, type Line, type Placed } from './layout';
+import { shortLabel, type Neighbourhood } from './graph';
+import { DEFAULT_BUDGET, LABEL_PX, MORE_ID, labelSizeFor, layoutFor, type Line, type Placed } from './layout';
+import { HOME, planeShift, useCamera } from './stage/camera';
+import { Glyph, tierWeight } from './stage/Glyph';
+import { Legend } from './stage/Legend';
+import { edgeKey, edgeLanes, routeEdge, type Routing } from './stage/paths';
+import { Reading } from './stage/Reading';
+import { Tools, type StageMode } from './stage/Tools';
 
 /**
- * The stage: one module and what actually reaches it, drawn as SVG.
+ * The stage: one module and what actually reaches it.
+ *
+ * The page is a COMPOSITION, not a drawing dropped under a caption. A reading
+ * rail on the left carries the name, the counts, what was left out, the legend
+ * for the encodings, and the controls; the field to its right is the drawing
+ * and nothing else. The previous version put a 40ch header block in the
+ * top-left corner of the canvas and let the force layout dodge it, which is
+ * how a 1440×900 page ended up with an empty upper-left third.
  *
  * Design rules this component is built to keep, all of them earned from
  * previous review rounds:
  *
- *  - it is operable. Wheel zooms at the cursor, drag pans, the keyboard moves
- *    the selection between real neighbours, and clicking a node re-centres on
- *    it. Nothing here is a picture of an interaction.
- *  - the backbone is the resting state. With `backboneOnly` the second level's
- *    edges appear on hover/selection, so at rest the reader sees structure
- *    rather than a hairball.
+ *  - it is operable. Wheel zooms at the cursor, drag pans, the arrow keys walk
+ *    the neighbourhood IN THE DIRECTION PRESSED, and clicking a node re-centres
+ *    on it. Nothing here is a picture of an interaction.
+ *  - the drawing carries the data. Size is fan-in, the arrowhead is the
+ *    direction of the import, the neutral rule is the heat rank, and the plane
+ *    is the distance. What an encoding means is in the legend beside it.
+ *  - the backbone is the resting state. The second level's own edges appear on
+ *    hover or selection, so at rest the reader sees structure, not a hairball.
+ *  - depth is real: three planes, each occluding the one behind it, each moving
+ *    at its own rate under the camera. Off entirely under prefers-reduced-motion.
  *  - labels are never below 11px and never sit on top of a glyph.
  *  - what is not drawn is said out loud, by the caller, from the counts this
  *    component returns via `onBudget`.
@@ -24,7 +41,7 @@ export interface StageProps {
   neighbourhood: Neighbourhood;
   theme: ThemeSpec;
   onFocus: (module: string) => void;
-  /** rendered inside the stage frame, top-left — the caller owns the copy */
+  /** rendered at the top of the reading rail — the caller owns the copy */
   header?: React.ReactNode;
   /** rendered over the stage, top-right (the decision card in 'float' themes) */
   overlay?: React.ReactNode;
@@ -35,184 +52,80 @@ export interface StageProps {
   onShowHidden?: (ids: string[]) => void;
 }
 
-const MIN_ZOOM = 0.45;
-const MAX_ZOOM = 3.2;
-
 /** Separator for the hidden-neighbour dependency key. Module paths never
  *  contain a unit separator, so two different sets cannot share a key. */
 const SEP = String.fromCharCode(31);
 
-interface View {
-  x: number;
-  y: number;
-  k: number;
+/**
+ * A theme knob, read defensively.
+ *
+ * `parallax`, `depthFog` and `depthBlur` arrive from the theme layer, and a
+ * stored theme written before they existed simply does not carry them. A
+ * missing knob must fall back to a sane default, not to `NaN` — a `NaN` in a
+ * transform silently blanks the whole drawing.
+ */
+function knob(v: number | undefined, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+type EdgeWeight = 'focus' | 'backbone' | 'context';
+
+function edgeWeight(l: Line): EdgeWeight {
+  if (l.from.level === 0 || l.to.level === 0) return 'focus';
+  if (l.backbone) return 'backbone';
+  return 'context';
 }
 
 /**
- * An elbow, the way a wiring diagram draws one.
+ * Spatial keyboard navigation: the arrow key means the DIRECTION on screen.
  *
- * Straight centre-to-centre lines through a field of boxes are the "chaos" the
- * owner named: they cross every card on the way and none of them says which
- * way the dependency runs. An orthogonal route leaves the source's SIDE, turns
- * once, and arrives at the target's side — so the picture reads as a diagram
- * rather than as a spider.
+ * The old ring walked an array, so ArrowRight moved to whatever happened to be
+ * next in the list — usually across the stage and back. Scoring candidates by
+ * distance along the pressed axis plus a penalty on the perpendicular offset
+ * is what makes "right" mean right in both representations, the four-column
+ * one included.
  */
-function elbowPath(from: Placed, to: Placed): string {
-  const fw = (from.boxW ?? from.r * 2) / 2;
-  const tw = (to.boxW ?? to.r * 2) / 2;
-  const rightward = to.x >= from.x;
-  const sx = from.x + (rightward ? fw : -fw);
-  const ex = to.x + (rightward ? -tw : tw);
-  const sy = from.y;
-  const ey = to.y;
-  if (Math.abs(ey - sy) < 1.5) return `M ${sx} ${sy} L ${ex} ${ey}`;
-  const mx = (sx + ex) / 2;
-  const r = Math.min(10, Math.abs(ex - sx) / 3, Math.abs(ey - sy) / 2);
-  const dirX = ex >= sx ? 1 : -1;
-  const dirY = ey >= sy ? 1 : -1;
-  return [
-    `M ${sx} ${sy}`,
-    `L ${mx - r * dirX} ${sy}`,
-    `Q ${mx} ${sy} ${mx} ${sy + r * dirY}`,
-    `L ${mx} ${ey - r * dirY}`,
-    `Q ${mx} ${ey} ${mx + r * dirX} ${ey}`,
-    `L ${ex} ${ey}`
-  ].join(' ');
-}
-
-function edgePath(line: Line, curve: number, arcs: boolean): string {
-  const { from, to } = line;
-  if (arcs) {
-    // A half-ellipse above the axis; height follows distance so long
-    // relations arch higher and short ones stay readable.
-    const dx = to.x - from.x;
-    const rx = Math.abs(dx) / 2;
-    const ry = Math.min(220, Math.max(24, Math.abs(dx) * 0.42));
-    const sweep = dx > 0 ? 1 : 0;
-    return `M ${from.x} ${from.y} A ${rx} ${ry} 0 0 ${sweep} ${to.x} ${to.y}`;
-  }
-  if (!curve) return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
-  const mx = (from.x + to.x) / 2;
-  const my = (from.y + to.y) / 2;
-  const nx = -(to.y - from.y);
-  const ny = to.x - from.x;
-  const len = Math.hypot(nx, ny) || 1;
-  const bow = Math.min(120, len * 0.18) * curve;
-  return `M ${from.x} ${from.y} Q ${mx + (nx / len) * bow} ${my + (ny / len) * bow} ${to.x} ${to.y}`;
-}
-
-/** Width of a card glyph, kept in step with layout.ts's cardWidth(). */
-function cardWidth(p: Placed): number {
-  return Math.max(96, p.label.length * 7.4 + 30);
-}
-
-function Glyph({ p, kind, selected, dimmed }: { p: Placed; kind: ThemeSpec['stage']['glyph']; selected: boolean; dimmed: boolean }) {
-  const fill = p.level === 2 ? 'var(--node2)' : 'var(--node)';
-  const opacity = dimmed ? 0.32 : 1;
-
-  // The aggregate glyph is deliberately not a node: it is a pill that says how
-  // many neighbours it stands for, in every theme, so it can never be mistaken
-  // for one module with a strange name.
-  if (p.kind === 'more') {
-    const w = p.label.length * 7.6 + 26;
-    return (
-      <g opacity={opacity}>
-        <rect
-          x={p.x - w / 2}
-          y={p.y - 15}
-          width={w}
-          height={30}
-          rx={15}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth={1.2}
-          strokeDasharray="4 3"
-        />
-      </g>
-    );
-  }
-
-  if (kind === 'card') {
-    const w = cardWidth(p);
-    const h = p.level === 0 ? 48 : 36;
-    /**
-     * A panel, not a swatch. This used to fill with `--node` — the colour of a
-     * graph DOT — which on a dark theme painted a white box on black for every
-     * neighbour. A card is a surface: the theme's own panel fill, a hairline,
-     * and the theme's own radius.
-     */
-    return (
-      <g opacity={opacity}>
-        <rect
-          x={p.x - w / 2}
-          y={p.y - h / 2}
-          width={w}
-          height={h}
-          rx={Math.min(10, Math.max(2, p.r))}
-          fill={p.level === 0 ? 'var(--surface2)' : 'var(--surface)'}
-          stroke={selected || p.level === 0 ? 'var(--accent)' : 'var(--line)'}
-          strokeWidth={selected || p.level === 0 ? 1.5 : 1}
-        />
-      </g>
-    );
-  }
-
-  if (kind === 'star') {
-    // A star chart whose stars are two pixels across is a dark rectangle. The
-    // floor is what keeps a level-2 node visible at 100%.
-    const r = Math.max(p.level === 2 ? 5 : 8, p.r);
-    const spikes = `M ${p.x - r * 1.5} ${p.y} L ${p.x + r * 1.5} ${p.y} M ${p.x} ${p.y - r * 1.5} L ${p.x} ${p.y + r * 1.5}`;
-    return (
-      <g opacity={opacity}>
-        {p.level === 0 && <path d={spikes} stroke="var(--accent)" strokeWidth={1} opacity={0.7} />}
-        <circle cx={p.x} cy={p.y} r={r * 0.42} fill={p.level === 0 ? 'var(--accent)' : fill} />
-        {p.level !== 2 && <circle cx={p.x} cy={p.y} r={r * 0.9} fill="none" stroke={fill} strokeWidth={0.6} opacity={0.4} />}
-      </g>
-    );
-  }
-
-  if (kind === 'pearl') {
-    return (
-      <g opacity={opacity}>
-        {p.level === 0 && <circle cx={p.x} cy={p.y} r={p.r * 2.6} fill="url(#stage-halo)" />}
-        <circle cx={p.x} cy={p.y} r={p.r} fill={p.level === 2 ? 'var(--node2)' : 'url(#stage-pearl)'} />
-        {(selected || p.level === 0) && (
-          <circle cx={p.x} cy={p.y} r={p.r + 7} fill="none" stroke="var(--accent)" strokeWidth={1.4} opacity={0.85} />
-        )}
-      </g>
-    );
-  }
-
-  // 'disc': flat fill, hairline ring, no gloss. The pearl gradient read as a
-  // toy; a shipped interface draws a shape and lets the size carry the number.
-  return (
-    <g opacity={opacity}>
-      {p.level === 0 && <circle cx={p.x} cy={p.y} r={p.r * 2.1} fill="url(#stage-halo)" />}
-      <circle
-        cx={p.x}
-        cy={p.y}
-        r={p.r}
-        fill={p.level === 0 ? 'var(--accent)' : fill}
-        stroke={p.level === 0 ? 'var(--accent)' : 'var(--line)'}
-        strokeWidth={1}
-      />
-      {selected && p.level !== 0 && (
-        <circle cx={p.x} cy={p.y} r={p.r + 5} fill="none" stroke="var(--accent)" strokeWidth={1.5} />
-      )}
-    </g>
-  );
+function stepTo(from: { x: number; y: number }, all: Placed[], dir: 'left' | 'right' | 'up' | 'down'): Placed | undefined {
+  const ax = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
+  const ay = dir === 'up' ? -1 : dir === 'down' ? 1 : 0;
+  let best: Placed | undefined;
+  let bestScore = Infinity;
+  let wrap: Placed | undefined;
+  let wrapScore = -Infinity;
+  all.forEach((p) => {
+    const dx = p.x - from.x;
+    const dy = p.y - from.y;
+    const along = dx * ax + dy * ay;
+    const across = Math.abs(dx * ay + dy * ax);
+    if (along > 4) {
+      const score = along + across * 2.2;
+      if (score < bestScore) {
+        bestScore = score;
+        best = p;
+      }
+      return;
+    }
+    // the furthest thing behind us, so the walk cycles instead of dead-ending
+    const back = -along + across * 2.2;
+    if (back > wrapScore) {
+      wrapScore = back;
+      wrap = p;
+    }
+  });
+  return best ?? wrap;
 }
 
 export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, onBudget, onShowHidden }: StageProps) {
-  const frame = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 1200, h: 720 });
-  const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
+  const field = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 900, h: 720 });
+  const [mode, setMode] = useState<StageMode>('spatial');
   const [hover, setHover] = useState<string>('');
   const [cursor, setCursor] = useState<string>('');
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  const { view, reduced, set, glide, zoomAt } = useCamera(neighbourhood.focus);
 
   useEffect(() => {
-    const el = frame.current;
+    const el = field.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
@@ -222,47 +135,34 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
     return () => ro.disconnect();
   }, []);
 
-  const isArcs = theme.stage.layout === 'arcs';
-  // Columns get orthogonal routing; a spoke through a card is not a relation.
-  const isColumns = theme.stage.layout === 'cards';
+  const ordered = mode === 'ordered';
+  const kind = ordered ? 'ordered' : theme.stage.layout;
+  const glyph = ordered ? 'card' : theme.stage.glyph;
+  const routing: Routing = ordered ? 'flow' : theme.stage.layout === 'cards' ? 'elbow' : theme.stage.layout === 'arcs' ? 'arc' : 'line';
+  const isArcs = !ordered && theme.stage.layout === 'arcs';
+  const asCard = glyph === 'card';
+  const parallax = knob(theme.stage.parallax, 1);
+  const fog = knob(theme.stage.depthFog, 0.35);
+  const dof = knob(theme.stage.depthBlur, 0);
 
   /**
-   * The regions the interface covers, as constants rather than measurements.
+   * The field is the drawing's whole room.
    *
-   * Measuring the real boxes would be more exact and would also form a loop:
-   * the header's height depends on how many neighbours the layout hid, which
-   * depends on the header's height. These match the CSS (`.stage-header`,
-   * `.stage-overlay`, `.stage-panel`) with room to spare, and erring generous
-   * costs a little space while erring exact costs readability.
+   * The rail is a sibling element rather than a keep-out box over the canvas,
+   * so the layout centres in the space it actually has instead of laying out
+   * across the full width and then shoving nodes out from under a header.
+   * Nothing is drawn over the field any more, so there is nothing to avoid.
    */
-  // Presence, not identity: `header`/`overlay`/`panel` are fresh React elements
-  // on every render of the caller, so depending on them would rebuild the
-  // layout every frame and feed the budget effect back into itself.
-  const hasHeader = Boolean(header);
-  const hasOverlay = Boolean(overlay);
-  const hasPanel = Boolean(panel);
-
-  const avoid = useMemo<Box[]>(() => {
-    if (size.w < 900) return [];
-    const boxes: Box[] = [];
-    if (hasHeader) boxes.push({ x1: 0, y1: 0, x2: 430, y2: 240 });
-    if (hasOverlay) boxes.push({ x1: size.w - 400, y1: 0, x2: size.w, y2: 250 });
-    if (hasPanel) boxes.push({ x1: 0, y1: size.h - 340, x2: 480, y2: size.h });
-    // the zoom controls, bottom right
-    boxes.push({ x1: size.w - 210, y1: size.h - 70, x2: size.w, y2: size.h });
-    return boxes;
-  }, [hasHeader, hasOverlay, hasPanel, size.w, size.h]);
-
   const layout = useMemo(
     () =>
-      layoutFor(theme.stage.layout, neighbourhood, {
+      layoutFor(kind, neighbourhood, {
         width: size.w,
         height: size.h,
         sizeByFanIn: theme.stage.sizeByFanIn,
-        avoid,
+        avoid: [],
         ...DEFAULT_BUDGET
       }),
-    [avoid, neighbourhood, size.w, size.h, theme.stage.layout, theme.stage.sizeByFanIn]
+    [kind, neighbourhood, size.w, size.h, theme.stage.sizeByFanIn]
   );
 
   // `hiddenIds` is a new array on every layout; keying the effect on its
@@ -272,10 +172,7 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
     onBudget?.(layout.hidden1, layout.hidden2, hiddenKey ? hiddenKey.split(SEP) : []);
   }, [layout.hidden1, layout.hidden2, hiddenKey, onBudget]);
 
-  // A new focus is a new picture: reset the camera so the reader is never left
-  // looking at empty space where the old neighbourhood used to be.
   useEffect(() => {
-    setView({ x: 0, y: 0, k: 1 });
     setCursor('');
   }, [neighbourhood.focus]);
 
@@ -283,28 +180,35 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
 
   const litIds = useMemo(() => {
     if (!active) return null;
-    const set = new Set<string>([active]);
+    const set2 = new Set<string>([active]);
     layout.lines.forEach((l) => {
-      if (l.from.id === active) set.add(l.to.id);
-      if (l.to.id === active) set.add(l.from.id);
+      if (l.from.id === active) set2.add(l.to.id);
+      if (l.to.id === active) set2.add(l.from.id);
     });
-    return set;
+    return set2;
   }, [active, layout.lines]);
 
-  const zoomAt = useCallback((factor: number, px: number, py: number) => {
-    setView((v) => {
-      const k = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.k * factor));
-      if (k === v.k) return v;
-      // keep the point under the cursor fixed
-      const scale = k / v.k;
-      return { k, x: px - (px - v.x) * scale, y: py - (py - v.y) * scale };
-    });
-  }, []);
+  /**
+   * Parallax, applied to POSITIONS rather than to layers.
+   *
+   * Transforming three `<g>` elements by different amounts would move the
+   * glyphs and leave every edge behind, because an edge's two endpoints live
+   * on two different planes. Shifting the coordinates instead means a line
+   * still touches both of its nodes at every point of the pan — the depth is
+   * in the scene, not in a stack of sliding pictures.
+   */
+  const at = useCallback(
+    (p: Placed): Placed => {
+      const { dx, dy } = planeShift(view, p.level, reduced || ordered, parallax);
+      return dx || dy ? { ...p, x: p.x + dx, y: p.y + dy } : p;
+    },
+    [view, reduced, ordered, parallax]
+  );
 
   const onWheel = useCallback(
     (e: React.WheelEvent) => {
       e.preventDefault();
-      const rect = frame.current?.getBoundingClientRect();
+      const rect = field.current?.getBoundingClientRect();
       if (!rect) return;
       zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX - rect.left, e.clientY - rect.top);
     },
@@ -319,29 +223,28 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) return;
-    setView((v) => ({ ...v, x: d.vx + (e.clientX - d.x), y: d.vy + (e.clientY - d.y) }));
+    set((v) => ({ ...v, x: d.vx + (e.clientX - d.x), y: d.vy + (e.clientY - d.y) }));
   };
   const endDrag = () => {
     drag.current = null;
   };
 
-  /** Arrow keys walk the real neighbour ring; Enter re-centres on the cursor. */
   const onKeyDown = (e: React.KeyboardEvent) => {
     const ring = layout.placed.filter((p) => p.level !== 0);
     if (!ring.length) return;
     if (e.key === '+' || e.key === '=') {
       e.preventDefault();
-      zoomAt(1.15, size.w / 2, size.h / 2);
+      zoomAt(1.25, size.w / 2, size.h / 2, true);
       return;
     }
     if (e.key === '-' || e.key === '_') {
       e.preventDefault();
-      zoomAt(1 / 1.15, size.w / 2, size.h / 2);
+      zoomAt(1 / 1.25, size.w / 2, size.h / 2, true);
       return;
     }
     if (e.key === '0') {
       e.preventDefault();
-      setView({ x: 0, y: 0, k: 1 });
+      glide(HOME);
       return;
     }
     if (e.key === 'Enter' || e.key === ' ') {
@@ -352,184 +255,366 @@ export function Stage({ neighbourhood, theme, onFocus, header, overlay, panel, o
       }
       return;
     }
-    const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    const dir =
+      e.key === 'ArrowRight' ? 'right' : e.key === 'ArrowLeft' ? 'left' : e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : null;
     if (!dir) return;
     e.preventDefault();
-    const at = ring.findIndex((p) => p.id === cursor);
-    const next = ring[(at + dir + ring.length) % ring.length];
-    setCursor(next.id);
+    const here = layout.byId.get(cursor) ?? layout.placed.find((p) => p.level === 0) ?? ring[0];
+    const next = stepTo(here, ring.filter((p) => p.id !== cursor), dir);
+    if (next) setCursor(next.id);
   };
 
   const showEdge = (l: Line) => {
-    if (!theme.stage.backboneOnly) return true;
-    if (l.backbone) return true;
-    return Boolean(litIds && (litIds.has(l.from.id) || litIds.has(l.to.id)));
+    const w = edgeWeight(l);
+    if (ordered && Math.abs(l.from.x - l.to.x) < 1) return false;
+    if (w !== 'context') return true;
+    if (litIds && (litIds.has(l.from.id) || litIds.has(l.to.id))) return true;
+    return !ordered && !theme.stage.backboneOnly;
   };
 
-  const labelSize = (p: Placed) => labelSizeFor(p.level);
+  const focusNode = layout.placed.find((p) => p.level === 0);
+  const hasFar = layout.placed.some((p) => p.level === 2);
+
+  /**
+   * Lanes are decided once for the whole edge set, not per edge, because the
+   * question "is this trace on its own" cannot be answered one trace at a time.
+   */
+  const lanes = useMemo(() => edgeLanes(layout.lines, routing), [layout.lines, routing]);
+
+  /**
+   * What the rail reads out, and how the reader got there.
+   *
+   * `hover` wins over `cursor` for the same reason it wins in `active`: the
+   * pointer is the more recent intent. With neither, the focus — which always
+   * exists — keeps the block from being an empty panel.
+   */
+  const readingSource = hover ? 'pointer' : cursor ? 'keyboard' : 'focus';
+  const reading = layout.byId.get(hover || cursor || neighbourhood.focus) ?? focusNode;
+  const focusLabel = focusNode?.label ?? shortLabel(neighbourhood.focus);
+
+  /**
+   * What the drawing put on the stage, counted from the layout rather than
+   * from the neighbourhood: the budget drops nodes, and a caption taken from
+   * the payload would name relations that are not on screen.
+   *
+   * `sided` is the honest gate on "Importeure links, Importe rechts". Where a
+   * module's neighbours all point the same way the layout deliberately fills
+   * both halves with them, and the sentence would then be false.
+   */
+  const counts = useMemo(() => {
+    let ins = 0;
+    let outs = 0;
+    let far = 0;
+    const tiers: [number, number, number] = [0, 0, 0];
+    layout.placed.forEach((p) => {
+      if (p.kind !== 'node') return;
+      tiers[p.tier] += 1;
+      if (p.level === 2) far += 1;
+      else if (p.level === 1) {
+        if (p.via === 'out') outs += 1;
+        else ins += 1;
+      }
+    });
+    return { ins, outs, far, tiers, sided: !ordered && ins > 0 && outs > 0, ordered };
+  }, [layout.placed, ordered]);
+
+  /**
+   * Elevation as depth, from the theme's own four-step scale.
+   *
+   * `--shadow-pane` and its siblings are CSS box-shadows — several layers,
+   * some of them `inset` — and none of that can be applied to an SVG mark. The
+   * NUMBER behind them can: `form.elevationPane` is the same 0…4 step the
+   * shadow string is generated from, so a theme that declares itself flat
+   * (Depesche, 0) draws no filter at all and pays for none.
+   */
+  const lift = knob(theme.form.elevationPane, theme.form.elevation);
+
+  /** Edges live on the plane of their DEEPER end, so a near node occludes them. */
+  const renderEdges = (plane: 1 | 2) =>
+    layout.lines.map((l, i) => {
+      const deep = l.from.level === 2 && l.to.level === 2 ? 2 : 1;
+      if (deep !== plane || !showEdge(l)) return null;
+      const w = edgeWeight(l);
+      /**
+       * Lit means INCIDENT to the selection, not "both ends happen to be lit".
+       * The old test lit every edge between two neighbours of the selected
+       * node as well — selecting `containment.py` drew a hot line from the
+       * focus to `cancel.py`, which is a relation the reader did not ask about
+       * and the drawing had no business claiming.
+       */
+      const lit = Boolean(active) && (l.from.id === active || l.to.id === active);
+      const muted = Boolean(litIds && !lit);
+      /**
+       * The focus's own relations are the subject of the picture and everything
+       * else is context. At the old spread (1.5 / 1.2 / 0.8 at near-equal
+       * opacity) a schematic theme's elbows read as one wiring loom with the
+       * subject lost inside it, so the range is widened until the star around
+       * the focus survives a squint.
+       */
+      const width = lit ? 2.2 : w === 'focus' ? 1.7 : w === 'backbone' ? 0.9 : 0.6;
+      return (
+        <path
+          key={`${l.from.id}->${l.to.id}-${i}`}
+          d={routeEdge(l, routing, theme.stage.curve, at, lanes.get(edgeKey(l)))}
+          fill="none"
+          stroke={lit ? 'var(--edge-hot)' : 'var(--edge)'}
+          strokeWidth={width}
+          strokeLinecap="round"
+          opacity={lit ? 1 : muted ? 0.14 : w === 'focus' ? 1 : w === 'backbone' ? 0.38 : 0.14}
+          markerEnd={w === 'context' && !lit ? undefined : lit ? 'url(#stage-arrow-hot)' : 'url(#stage-arrow)'}
+        />
+      );
+    });
+
+  const renderNodes = (plane: 0 | 1 | 2) =>
+    layout.placed.map((p) => {
+      const node = at(p);
+      const isMore = p.kind === 'more';
+      if ((isMore ? 1 : p.level) !== plane) return null;
+      const dimmed = Boolean(litIds && !litIds.has(p.id));
+      const selected = p.id === active;
+      const centred = (asCard && !isMore) || isMore || p.anchor === 'middle';
+      const sub = asCard && !isMore && p.node && (ordered || p.level !== 2)
+        ? ordered
+          ? `${p.node.fan_in} Importeure · Hitze ${Math.round(p.node.score)}`
+          : `${p.node.fan_in} Importeure`
+        : null;
+      /**
+       * A centred label belongs INSIDE a card and BELOW anything else. The
+       * card layout centres every label because that is where a card wants
+       * it; pairing that layout with the pearl glyph — which the Studio lets
+       * you do — then printed the name across the sphere. The glyph decides.
+       */
+      const labelY = isMore
+        ? node.y + 4
+        : isArcs && p.level === 0
+          ? node.y - (p.r + 32)
+          : asCard
+            ? node.y + (sub ? -2 : 5)
+            : p.anchor === 'middle'
+              ? node.y + p.r + 16
+              : node.y + p.labelDy;
+      const activate = () => {
+        if (isMore) onShowHidden?.(layout.hiddenIds);
+        else if (p.level !== 0) onFocus(p.id);
+      };
+      return (
+        <g
+          key={p.id}
+          className="stage-node"
+          data-tier={p.tier}
+          data-plane={isMore ? undefined : p.level}
+          role={p.level === 0 ? undefined : 'button'}
+          tabIndex={-1}
+          aria-label={isMore ? p.full : undefined}
+          onPointerEnter={() => setHover(p.id)}
+          onPointerLeave={() => setHover('')}
+          onClick={activate}
+          style={{ cursor: p.level === 0 ? 'default' : 'pointer' }}
+        >
+          <title>
+            {isMore
+              ? p.full
+              : `${p.id}${p.node ? ` — ${p.node.fan_in} Importeure, ${p.node.loc} Zeilen, Hitze ${p.node.score.toFixed(1)}` : ''}`}
+          </title>
+          {/* A pointer target, not a dot. A level-2 glyph is 10px across and
+              nobody hits a 10px circle; this invisible circle makes the hit
+              area at least 36px while the drawing stays the size the data
+              says it is. It cannot reach 44 without swallowing its neighbours
+              — the ring relaxes to roughly 32px spacing — so the palette, the
+              arrow keys and the ordered view stay the larger equivalent path,
+              and tools/audit.mjs reports that exception out loud rather than
+              excluding SVG from the count. */}
+          {!isMore && !asCard && <circle cx={node.x} cy={node.y} r={Math.max(18, p.r + 10)} fill="transparent" />}
+          <Glyph
+            p={node}
+            kind={glyph}
+            radius={theme.form.radius}
+            glow={theme.stage.glow}
+            fog={ordered ? 0 : fog}
+            selected={selected}
+            dimmed={dimmed}
+          />
+          {/* On the axis, names hang BELOW it at 45 degrees, reading
+              down-and-right, so they never cross the arcs above. The focus
+              keeps a horizontal name: it is the caption of the figure, not one
+              more entry on the axis. */}
+          {isArcs && !isMore && p.level !== 0 ? (
+            <text
+              className="stage-label"
+              x={node.x}
+              y={node.y + 16}
+              textAnchor="start"
+              fontSize={labelSizeFor(p.level)}
+              fontWeight={tierWeight(p.tier)}
+              opacity={dimmed ? 0.4 : 1}
+              transform={`rotate(45 ${node.x} ${node.y + 16})`}
+            >
+              {p.label}
+            </text>
+          ) : (
+            <text
+              className={p.level === 0 ? 'stage-label focus' : isMore ? 'stage-label more' : 'stage-label'}
+              x={node.x + (centred ? 0 : p.anchor === 'end' ? -(p.r + 10) : p.r + 10)}
+              y={labelY}
+              textAnchor={centred || (isArcs && p.level === 0) ? 'middle' : p.anchor}
+              fontSize={isMore ? 12 : labelSizeFor(p.level)}
+              fontWeight={p.level === 0 ? undefined : tierWeight(p.tier)}
+              opacity={dimmed ? 0.4 : 1}
+            >
+              {p.label}
+            </text>
+          )}
+          {sub && (
+            <text
+              className="stage-sub"
+              x={node.x}
+              y={node.y + (p.level === 0 ? 15 : 12)}
+              textAnchor="middle"
+              fontSize={LABEL_PX.figure}
+              opacity={dimmed ? 0.4 : 1}
+            >
+              {sub}
+            </text>
+          )}
+        </g>
+      );
+    });
 
   return (
-    <div className="stage" ref={frame}>
-      <svg
-        className="stage-svg"
-        width={size.w}
-        height={size.h}
-        role="application"
-        aria-label={`Nachbarschaft von ${neighbourhood.focus}. Pfeiltasten wählen einen Nachbarn, Eingabetaste rückt ihn in die Mitte.`}
-        tabIndex={0}
-        onWheel={onWheel}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onKeyDown={onKeyDown}
-      >
-        <defs>
-          <radialGradient id="stage-pearl" cx="35%" cy="30%">
-            <stop offset="0%" stopColor="var(--node)" />
-            <stop offset="70%" stopColor="var(--node)" stopOpacity="0.82" />
-            <stop offset="100%" stopColor="var(--node2)" />
-          </radialGradient>
-          <radialGradient id="stage-halo">
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.34 * theme.stage.glow} />
-            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-          </radialGradient>
-        </defs>
+    /* `data-dof` gates the depth-of-field filter: `blur(0px)` still promotes
+       every glyph to its own filter layer, so a theme that asked for no depth
+       of field must not pay for one. */
+    <div
+      className="stage"
+      data-mode={mode}
+      data-dof={!ordered && dof > 0 ? 'on' : undefined}
+      data-lift={lift > 0 ? 'on' : undefined}
+    >
+      <aside className="stage-rail">
+        {header && <div className="stage-header">{header}</div>}
+        <Legend stage={theme.stage} radius={theme.form.radius} hasFar={hasFar} ordered={ordered} />
+        <Reading p={reading} focusLabel={focusLabel} source={readingSource} counts={counts} />
+        <Tools
+          mode={mode}
+          onMode={(m) => {
+            setMode(m);
+            glide(HOME);
+          }}
+          zoom={view.k}
+          onZoom={(f) => zoomAt(f, size.w / 2, size.h / 2, true)}
+          onHome={() => glide(HOME)}
+        />
+      </aside>
 
-        <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
-          {isArcs && (
-            <line
-              x1={40}
-              y1={layout.placed[0]?.y ?? size.h * 0.68}
-              x2={size.w - 40}
-              y2={layout.placed[0]?.y ?? size.h * 0.68}
-              stroke="var(--line2)"
-              strokeWidth={1}
-            />
-          )}
-
-          <g className="stage-edges">
-            {layout.lines.map((l, i) => {
-              if (!showEdge(l)) return null;
-              const lit = Boolean(litIds && litIds.has(l.from.id) && litIds.has(l.to.id));
-              const touchesFocus = l.from.level === 0 || l.to.level === 0;
-              return (
-                <path
-                  key={`${l.from.id}->${l.to.id}-${i}`}
-                  d={isColumns ? elbowPath(l.from, l.to) : edgePath(l, theme.stage.curve, isArcs)}
-                  fill="none"
-                  stroke={lit ? 'var(--edge-hot)' : 'var(--edge)'}
-                  strokeWidth={lit ? 1.8 : touchesFocus ? 1.2 : 0.8}
-                  opacity={lit ? 1 : touchesFocus ? 0.85 : 0.4}
+      <div className="stage-field" ref={field}>
+        <svg
+          className="stage-svg"
+          width={size.w}
+          height={size.h}
+          role="application"
+          aria-label={`Nachbarschaft von ${neighbourhood.focus}, ${ordered ? 'geordnet in vier Spalten' : 'räumlich'}. Pfeiltasten wählen einen Nachbarn, Eingabetaste rückt ihn in die Mitte.`}
+          tabIndex={0}
+          onWheel={onWheel}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onKeyDown={onKeyDown}
+        >
+          <defs>
+            <radialGradient id="stage-pearl" cx="35%" cy="30%">
+              <stop offset="0%" stopColor="var(--node)" />
+              <stop offset="70%" stopColor="var(--node)" stopOpacity="0.82" />
+              <stop offset="100%" stopColor="var(--node2)" />
+            </radialGradient>
+            <radialGradient id="stage-halo">
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.34 * theme.stage.glow} />
+              <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+            </radialGradient>
+            {/* The floor the scene stands on. Keyed to the theme's own glow, so
+                the three themes that set it to zero get no wash at all and
+                their depth comes from occlusion and weight instead. */}
+            <radialGradient id="stage-floor">
+              <stop offset="0%" stopColor="var(--surface)" stopOpacity={0.42 * theme.stage.glow} />
+              <stop offset="60%" stopColor="var(--surface)" stopOpacity={0.16 * theme.stage.glow} />
+              <stop offset="100%" stopColor="var(--surface)" stopOpacity="0" />
+            </radialGradient>
+            {/* The near planes cast onto the field; the far plane does not.
+                A still cannot show parallax, so the depth a screenshot can
+                carry is scale (the layout's) and elevation (this). */}
+            {lift > 0 && (
+              <filter id="stage-lift" x="-40%" y="-40%" width="180%" height="180%">
+                <feDropShadow
+                  dx="0"
+                  dy={1 + lift * 1.4}
+                  stdDeviation={1.2 + lift * 1.8}
+                  floodColor="#000"
+                  floodOpacity={0.07 + lift * 0.055}
                 />
-              );
-            })}
+              </filter>
+            )}
+            <marker id="stage-arrow" markerUnits="userSpaceOnUse" markerWidth={9} markerHeight={7} refX={8.4} refY={3.5} orient="auto">
+              <path d="M 0 0 L 9 3.5 L 0 7 z" fill="var(--edge)" />
+            </marker>
+            <marker id="stage-arrow-hot" markerUnits="userSpaceOnUse" markerWidth={9} markerHeight={7} refX={8.4} refY={3.5} orient="auto">
+              <path d="M 0 0 L 9 3.5 L 0 7 z" fill="var(--edge-hot)" />
+            </marker>
+          </defs>
+
+          <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+            {theme.stage.glow > 0 && focusNode && !ordered && (
+              <ellipse
+                cx={focusNode.x}
+                cy={focusNode.y}
+                rx={Math.max(240, size.w * 0.44)}
+                ry={Math.max(180, size.h * 0.42)}
+                fill="url(#stage-floor)"
+              />
+            )}
+
+            {isArcs && (
+              <line
+                x1={40}
+                y1={layout.placed[0]?.y ?? size.h * 0.68}
+                x2={size.w - 40}
+                y2={layout.placed[0]?.y ?? size.h * 0.68}
+                stroke="var(--line2)"
+                strokeWidth={1}
+              />
+            )}
+
+            {/* The column headers are drawn from the layout's own counts, so a
+                header can never claim a number the column does not hold. */}
+            {layout.columns?.map((c) => (
+              <g key={c.label}>
+                <text className="stage-column" x={c.x} y={c.y} textAnchor="middle" fontSize={LABEL_PX.figure}>
+                  {c.label.toUpperCase()}
+                </text>
+                {/* The focus column holds exactly one card and always will;
+                    printing "1" under it is a figure with no reader. */}
+                {c.count > 1 && (
+                  <text className="stage-column-count" x={c.x} y={c.y + 16} textAnchor="middle" fontSize={LABEL_PX.figure}>
+                    {c.hidden > 0 ? `${c.count - c.hidden} von ${c.count}` : String(c.count)}
+                  </text>
+                )}
+              </g>
+            ))}
+
+            <g className="stage-plane far">
+              {renderEdges(2)}
+              {renderNodes(2)}
+            </g>
+            <g className="stage-plane mid">
+              {renderEdges(1)}
+              {renderNodes(1)}
+            </g>
+            <g className="stage-plane near">{renderNodes(0)}</g>
           </g>
+        </svg>
 
-          <g className="stage-nodes">
-            {layout.placed.map((p) => {
-              const dimmed = Boolean(litIds && !litIds.has(p.id));
-              const selected = p.id === active;
-              const isMore = p.kind === 'more';
-              const asCard = theme.stage.glyph === 'card' && !isMore;
-              const centred = asCard || isMore || p.anchor === 'middle';
-              /**
-               * A centred label belongs INSIDE a card and BELOW anything else.
-               * The card layout centres every label because that is where a
-               * card wants it; pairing that layout with the pearl glyph — which
-               * the Studio lets you do — then printed the name across the
-               * sphere. The glyph decides, not the layout.
-               */
-              const labelY = isMore
-                ? p.y + 4
-                : isArcs && p.level === 0
-                  ? p.y - (p.r + 32)
-                  : asCard
-                    ? p.y + p.labelDy
-                    : p.anchor === 'middle'
-                      ? p.y + p.r + 16
-                      : p.y + p.labelDy;
-              const activate = () => {
-                if (isMore) onShowHidden?.(layout.hiddenIds);
-                else if (p.level !== 0) onFocus(p.id);
-              };
-              return (
-                <g
-                  key={p.id}
-                  className="stage-node"
-                  role={p.level === 0 ? undefined : 'button'}
-                  tabIndex={-1}
-                  aria-label={isMore ? p.full : undefined}
-                  onPointerEnter={() => setHover(p.id)}
-                  onPointerLeave={() => setHover('')}
-                  onClick={activate}
-                  style={{ cursor: p.level === 0 ? 'default' : 'pointer' }}
-                >
-                  <title>
-                    {isMore ? p.full : `${p.id}${p.node ? ` — ${p.node.fan_in} Importeure, ${p.node.loc} Zeilen` : ''}`}
-                  </title>
-                  {/* A pointer target, not a dot. A level-2 glyph is 10px
-                      across and nobody hits a 10px circle; this invisible
-                      circle makes the hit area at least 36px while the
-                      drawing stays the size the data says it is. It cannot
-                      reach 44 without swallowing its neighbours — the ring
-                      relaxes to roughly 32px spacing — so the palette and the
-                      arrow keys stay the larger equivalent path, and
-                      tools/audit.mjs reports that exception out loud rather
-                      than excluding SVG from the count. */}
-                  {!isMore && (
-                    <circle cx={p.x} cy={p.y} r={Math.max(18, p.r + 10)} fill="transparent" />
-                  )}
-                  <Glyph p={p} kind={theme.stage.glyph} selected={selected} dimmed={dimmed} />
-                  {/* On the axis, names hang BELOW it at 45 degrees, reading
-                      down-and-right, so they never cross the arcs above. The
-                      focus keeps a horizontal name: it is the caption of the
-                      figure, not one more entry on the axis. */}
-                  {isArcs && !isMore && p.level !== 0 ? (
-                    <text
-                      className="stage-label"
-                      x={p.x}
-                      y={p.y + 16}
-                      textAnchor="start"
-                      fontSize={labelSize(p)}
-                      opacity={dimmed ? 0.4 : 1}
-                      transform={`rotate(45 ${p.x} ${p.y + 16})`}
-                    >
-                      {p.label}
-                    </text>
-                  ) : (
-                    <text
-                      className={p.level === 0 ? 'stage-label focus' : isMore ? 'stage-label more' : 'stage-label'}
-                      x={p.x + (centred ? 0 : p.anchor === 'end' ? -(p.r + 10) : p.r + 10)}
-                      y={labelY}
-                      textAnchor={centred || (isArcs && p.level === 0) ? 'middle' : p.anchor}
-                      fontSize={isMore ? 12 : labelSize(p)}
-                      opacity={dimmed ? 0.4 : 1}
-                    >
-                      {p.label}
-                    </text>
-                  )}
-                  {asCard && p.node && (
-                    <text className="stage-sub" x={p.x} y={p.y + 14} textAnchor="middle" fontSize={11} opacity={dimmed ? 0.4 : 0.9}>
-                      {p.node.fan_in} Importeure
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </g>
-        </g>
-      </svg>
-
-      {header && <div className="stage-header">{header}</div>}
-      {overlay && <div className="stage-overlay">{overlay}</div>}
-      {panel && <div className="stage-panel">{panel}</div>}
-
-      <div className="stage-tools" role="group" aria-label="Ansicht">
-        <button type="button" onClick={() => zoomAt(1.2, size.w / 2, size.h / 2)} aria-label="Näher">+</button>
-        <button type="button" onClick={() => zoomAt(1 / 1.2, size.w / 2, size.h / 2)} aria-label="Weiter weg">−</button>
-        <button type="button" onClick={() => setView({ x: 0, y: 0, k: 1 })} aria-label="Ansicht zurücksetzen">⟳</button>
-        <span className="stage-zoom">{Math.round(view.k * 100)}%</span>
+        {overlay && <div className="stage-overlay">{overlay}</div>}
+        {panel && <div className="stage-panel">{panel}</div>}
       </div>
     </div>
   );

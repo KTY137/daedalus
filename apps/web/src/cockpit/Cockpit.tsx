@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   getGovernance,
   getHealth,
@@ -13,6 +15,15 @@ import { useThemes } from '../theme/ThemeProvider';
 import { ThemeStudio } from '../theme/ThemeStudio';
 import type { GovernancePayload, ProjectRow, StructurePayload, TopologyPayload } from '../types';
 import GlassSurface from '../components/GlassSurface';
+import {
+  listItemVariants,
+  listVariants,
+  revealVariants,
+  scrimVariants,
+  surfaceVariants,
+  transitionFor,
+  useReducedMotionPref
+} from '../motion';
 import { loadAutonomy, saveAutonomy, type AutonomyLevel } from './autonomy';
 import { Conversation } from './Conversation';
 import { Settings } from './Settings';
@@ -21,6 +32,19 @@ import { buildIndex, defaultFocus, neighbourhood, rankModules, searchModules, sh
 import { Stage } from './Stage';
 import { StatusLine } from './StatusLine';
 import './cockpit.css';
+
+/**
+ * True while the keyboard event's target is somewhere a person is typing —
+ * any text field, including the palette's own search input. The bare-letter
+ * shortcuts (`1`, `2`, `r`) must never fire there; a module name containing
+ * "r" is not a request to refresh the index. Chorded shortcuts (Strg+K,
+ * Strg+,) are exempt — nobody produces those by accident while composing text.
+ */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
 
 /**
  * The cockpit: one project, one module in the middle of it, one conversation
@@ -36,6 +60,7 @@ const LAST_FOCUS_KEY = 'daedalus-cockpit-focus';
 
 export function Cockpit() {
   const { theme } = useThemes();
+  const reducedMotion = useReducedMotionPref();
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [project, setProject] = useState('');
@@ -84,6 +109,7 @@ export function Cockpit() {
   const [autonomy, setAutonomy] = useState<AutonomyLevel>(loadAutonomy);
   const [autoLog, setAutoLog] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteActive, setPaletteActive] = useState(0);
   const [query, setQuery] = useState('');
   const [live, setLive] = useState<{ inFlight?: number; queued?: number }>({});
   const [streamLive, setStreamLive] = useState(false);
@@ -312,22 +338,49 @@ export function Cockpit() {
     return hottest;
   }, [budget.ids, hits, hottest, index, paletteScope, query]);
 
-  /* ---- keyboard: the palette ---- */
+  // The highlighted row always starts at the top of whatever the list
+  // currently is — reopening, typing, or switching scope all count as a new
+  // list, and a highlight left over from the last one points at the wrong row.
+  useEffect(() => {
+    setPaletteActive(0);
+  }, [paletteList]);
+
+  /**
+   * The shell's whole keyboard surface, in one place so the tier is legible:
+   * chords (Strg+K, Strg+,) work anywhere; Escape always closes whatever is
+   * open; the bare letters (1, 2, r) are accelerators for the mouse-driven
+   * controls next to them and stand down the moment a text field — including
+   * the palette's own search box — has focus, or an overlay already owns the
+   * keyboard.
+   */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      const chord = e.ctrlKey || e.metaKey;
+      if (chord && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setPaletteScope('all');
         setPaletteOpen((v) => !v);
-      } else if (e.key === 'Escape') {
+        return;
+      }
+      if (chord && e.key === ',') {
+        e.preventDefault();
+        setSettingsOpen((v) => !v);
+        return;
+      }
+      if (e.key === 'Escape') {
         setPaletteOpen(false);
         setStudioOpen(false);
         setSettingsOpen(false);
+        return;
       }
+      if (chord || e.altKey || paletteOpen || settingsOpen || studioOpen || isTypingTarget(e.target)) return;
+      if (e.key === '1') goto('map');
+      else if (e.key === '2') goto('chat');
+      else if (e.key.toLowerCase() === 'r') void loadStructure(project, true);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [goto, loadStructure, paletteOpen, project, settingsOpen, studioOpen]);
 
   const onBudget = useCallback(
     (hidden1: number, hidden2: number, ids: string[]) => setBudget({ hidden1, hidden2, ids }),
@@ -349,6 +402,7 @@ export function Cockpit() {
       onFocusModule={chooseFocus}
       contextModule={contextModule}
       provider={brain || undefined}
+      onProvider={chooseBrain}
       autonomy={autonomy}
       onDispatched={() => {
         setDraftSignal((n) => n + 1);
@@ -358,6 +412,7 @@ export function Cockpit() {
   );
   const decision = (
     <Decision
+      project={project}
       signal={draftSignal}
       onChanged={() => setDraftSignal((n) => n + 1)}
       onCount={setPendingCount}
@@ -384,13 +439,26 @@ export function Cockpit() {
       <div className="stage-path">{nh.focus}</div>
       <div className="stage-counts">
         <b>{nh.direct}</b> direkt · <b>{nh.reach}</b> über zwei Ebenen
-        {nh.focusNode ? (
-          <span className="muted">
-            {' '}
-            · {nh.focusNode.fan_in} Importeure · {nh.focusNode.loc} Zeilen · Hitze {nh.focusNode.score.toFixed(1)}
-          </span>
-        ) : null}
       </div>
+      {/* Labelled figures, not a run-on sentence — a number stranded from its
+          unit at the reading rail's width ("2807 / Zeilen") reads as a
+          broken figure. Kartograph styles `.stage-figures` in stage.css. */}
+      {nh.focusNode && (
+        <dl className="stage-figures">
+          <div>
+            <dt>Importeure</dt>
+            <dd>{nh.focusNode.fan_in}</dd>
+          </div>
+          <div>
+            <dt>Zeilen</dt>
+            <dd>{nh.focusNode.loc}</dd>
+          </div>
+          <div>
+            <dt>Hitze</dt>
+            <dd>{nh.focusNode.score.toFixed(1)}</dd>
+          </div>
+        </dl>
+      )}
       {(budget.hidden1 > 0 || budget.hidden2 > 0) && (
         <div className="stage-elision">
           Nicht gezeichnet: {budget.hidden1 > 0 ? `${budget.hidden1} direkte` : ''}
@@ -466,8 +534,9 @@ export function Cockpit() {
         <div className="masthead-rule" />
         <h1 className="masthead-title">Daedalus</h1>
         <div className="masthead-meta">
-          <ProjectPicker projects={projects} project={project} onPick={setProject} />
-          <ViewSwitch view={view} onGo={goto} pending={pendingCount} />
+          <ProjectPicker projects={projects} project={project} onPick={setProject} reduced={reducedMotion} />
+          <span className="chrome-divider" aria-hidden="true" />
+          <ViewSwitch view={view} onGo={goto} pending={pendingCount} reduced={reducedMotion} />
           <ChromeTools
             onStudio={() => setStudioOpen(true)}
             onSettings={() => setSettingsOpen(true)}
@@ -483,8 +552,9 @@ export function Cockpit() {
       </header>
     ) : (
       <header className="chrome bar">
-        <ProjectPicker projects={projects} project={project} onPick={setProject} />
-        <ViewSwitch view={view} onGo={goto} pending={pendingCount} />
+        <ProjectPicker projects={projects} project={project} onPick={setProject} reduced={reducedMotion} />
+        <span className="chrome-divider" aria-hidden="true" />
+        <ViewSwitch view={view} onGo={goto} pending={pendingCount} reduced={reducedMotion} />
         <div className="chrome-spacer" />
         <ChromeTools
           onStudio={() => setStudioOpen(true)}
@@ -561,41 +631,80 @@ export function Cockpit() {
         />
       </footer>
 
-      {paletteOpen && (
-        <div className="palette-scrim" onClick={() => setPaletteOpen(false)}>
-          <div className="palette" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Modul suchen">
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={`Modul in ${project} suchen …`}
-              aria-label="Modulsuche"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && hits[0]) chooseFocus(hits[0].module);
-              }}
-            />
-            <ul>
-              {paletteList.map((n) => (
-                <li key={n.module}>
-                  <button type="button" onClick={() => chooseFocus(n.module)}>
+      <AnimatePresence>
+        {paletteOpen && (
+          <motion.div
+            className="palette-scrim"
+            onClick={() => setPaletteOpen(false)}
+            initial="closed"
+            animate="open"
+            exit="closed"
+            variants={scrimVariants(reducedMotion)}
+          >
+            <motion.div
+              className="palette"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-label="Modul suchen"
+              initial="closed"
+              animate="open"
+              exit="closed"
+              variants={surfaceVariants(reducedMotion)}
+            >
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Modul in ${project} suchen …`}
+                aria-label="Modulsuche"
+                role="combobox"
+                aria-expanded
+                aria-controls="palette-results"
+                aria-activedescendant={paletteList[paletteActive] ? `palette-opt-${paletteList[paletteActive].module}` : undefined}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setPaletteActive((i) => Math.min(i + 1, paletteList.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setPaletteActive((i) => Math.max(i - 1, 0));
+                  } else if (e.key === 'Enter') {
+                    const chosen = paletteList[paletteActive];
+                    if (chosen) chooseFocus(chosen.module);
+                  }
+                }}
+              />
+              <KeyList
+                id="palette-results"
+                items={paletteList}
+                activeIndex={paletteActive}
+                onActiveChange={setPaletteActive}
+                onCommit={(n) => chooseFocus(n.module)}
+                getKey={(n) => n.module}
+                optionId={(n) => `palette-opt-${n.module}`}
+                ariaLabel="Suchergebnisse"
+                reduced={reducedMotion}
+                emptyLabel={query ? `Kein Modul in der Karte passt zu „${query}“.` : undefined}
+                renderItem={(n) => (
+                  <>
                     <span className="palette-name">{shortLabel(n.module)}</span>
                     <span className="palette-path">{n.module}</span>
                     <span className="palette-meta">
                       {n.fan_in} Importeure · {n.loc} Zeilen
                     </span>
-                  </button>
-                </li>
-              ))}
-              {query && hits.length === 0 && <li className="palette-none">Kein Modul in der Karte passt zu „{query}“.</li>}
-            </ul>
-            <p className="palette-foot">
-              {paletteScope === 'hidden' && !query
-                ? `${budget.ids.length} direkte Nachbarn, die auf der Bühne nicht gezeichnet sind. Tippen sucht wieder in allen ${index.nodes.size} Modulen.`
-                : `Die Suche läuft über die ${index.nodes.size} Module der Karte — nicht über das ganze Repository.`}
-            </p>
-          </div>
-        </div>
-      )}
+                  </>
+                )}
+              />
+              <p className="palette-foot">
+                {paletteScope === 'hidden' && !query
+                  ? `${budget.ids.length} direkte Nachbarn, die auf der Bühne nicht gezeichnet sind. Tippen sucht wieder in allen ${index.nodes.size} Modulen.`
+                  : `Die Suche läuft über die ${index.nodes.size} Module der Karte — nicht über das ganze Repository.`}{' '}
+                ↑↓ wählt · Enter öffnet · Esc schließt.
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Settings
         open={settingsOpen}
@@ -613,54 +722,267 @@ export function Cockpit() {
 }
 
 /**
- * Two pages, named for what they are. The badge is the count of decisions
+ * A keyboard-navigable, single-select list: arrow keys move a highlighted
+ * row, Enter (wired by the caller) commits it, hover syncs the highlight to
+ * the pointer so the two input methods never disagree about which row is
+ * "on". The pattern — arrow traversal plus a highlighted active row over a
+ * staggered reveal — is `@react-bits/AnimatedList`'s; it is rebuilt here on
+ * this app's own motion tiers (`listVariants` / `listItemVariants`) instead
+ * of the component's bundled ad-hoc transition, because a second place a
+ * duration can live is how this design system starts to rot (see
+ * src/motion/tokens.ts). File ownership for this round keeps every part of
+ * the shell in Cockpit.tsx, so it lives here rather than as its own
+ * component file — used by both the project switcher and the module palette,
+ * the two places the chrome asks someone to pick one thing out of a list
+ * that can grow.
+ */
+function KeyList<T>({
+  id,
+  items,
+  activeIndex,
+  onActiveChange,
+  onCommit,
+  getKey,
+  optionId,
+  extraClass,
+  renderItem,
+  emptyLabel,
+  ariaLabel,
+  reduced,
+  animate = true
+}: {
+  id?: string;
+  items: T[];
+  activeIndex: number;
+  onActiveChange: (i: number) => void;
+  onCommit: (item: T) => void;
+  getKey: (item: T) => string;
+  optionId?: (item: T) => string;
+  /** an additional class for the row button — e.g. marking the current project */
+  extraClass?: (item: T) => string;
+  renderItem: (item: T, active: boolean) => ReactNode;
+  emptyLabel?: string;
+  ariaLabel: string;
+  reduced: boolean;
+  animate?: boolean;
+}) {
+  const List = animate ? motion.ul : 'ul';
+  const Item = animate ? motion.li : 'li';
+  const listProps = animate
+    ? { initial: 'hidden', animate: 'visible', variants: listVariants(reduced, items.length) }
+    : {};
+  const itemVariants = animate ? listItemVariants(reduced) : undefined;
+  return (
+    <List id={id} role="listbox" aria-label={ariaLabel} {...listProps}>
+      {items.map((item, i) => (
+        <Item key={getKey(item)} variants={itemVariants} role="option" id={optionId?.(item)} aria-selected={i === activeIndex}>
+          <button
+            type="button"
+            className={[i === activeIndex ? 'active' : '', extraClass?.(item) || ''].filter(Boolean).join(' ')}
+            onMouseEnter={() => onActiveChange(i)}
+            onClick={() => onCommit(item)}
+          >
+            {renderItem(item, i === activeIndex)}
+          </button>
+        </Item>
+      ))}
+      {items.length === 0 && emptyLabel && <li className="list-empty">{emptyLabel}</li>}
+    </List>
+  );
+}
+
+/**
+ * Two pages, named for what they are. The active tab rides one shared pill
+ * (`layoutId`) instead of each button drawing its own underline, so choosing
+ * a page reads as the SAME control moving rather than as two independent
+ * buttons toggling — a state change (`src/motion/variants.ts`'s `move`
+ * tier), not two acknowledgements. The badge is the count of decisions
  * actually pending — it is absent when there are none, because a zero on a
  * navigation control is a thing to look at that means nothing.
  */
 function ViewSwitch({
   view,
   onGo,
-  pending
+  pending,
+  reduced
 }: {
   view: 'map' | 'chat';
   onGo: (v: 'map' | 'chat') => void;
   pending: number;
+  reduced: boolean;
 }) {
+  const thumbTransition = transitionFor('move', reduced);
+  // The pill has to be an ANCESTOR of the label it colours, not a sibling
+  // laid on top of it: tools/audit.mjs (and every real contrast checker)
+  // reads a text node's background by walking up `parentElement`, so a
+  // same-level decorative layer is invisible to it even though it is what a
+  // person actually sees painted behind the word. Wrapping the label in the
+  // motion pill on the active tab, instead of floating the pill beside it,
+  // makes the measured contrast match the rendered one.
+  const gespraech = (
+    <>
+      Gespräch
+      {pending > 0 && (
+        <span className="viewswitch-badge" title={`${pending} Entscheidung(en) warten`}>
+          {pending}
+        </span>
+      )}
+    </>
+  );
   return (
     <nav className="viewswitch" aria-label="Ansicht">
-      <button type="button" className={view === 'map' ? 'on' : ''} aria-current={view === 'map'} onClick={() => onGo('map')}>
-        Karte
+      <button type="button" className={view === 'map' ? 'on' : ''} aria-current={view === 'map'} title="Karte (1)" onClick={() => onGo('map')}>
+        {view === 'map' ? (
+          <motion.span layoutId="viewswitch-thumb" className="viewswitch-thumb" transition={thumbTransition}>
+            Karte
+          </motion.span>
+        ) : (
+          'Karte'
+        )}
       </button>
-      <button type="button" className={view === 'chat' ? 'on' : ''} aria-current={view === 'chat'} onClick={() => onGo('chat')}>
-        Gespräch
-        {pending > 0 && (
-          <span className="viewswitch-badge" title={`${pending} Entscheidung(en) warten`}>
-            {pending}
-          </span>
+      <button
+        type="button"
+        className={view === 'chat' ? 'on' : ''}
+        aria-current={view === 'chat'}
+        title="Gespräch (2)"
+        onClick={() => onGo('chat')}
+      >
+        {view === 'chat' ? (
+          <motion.span layoutId="viewswitch-thumb" className="viewswitch-thumb" transition={thumbTransition}>
+            {gespraech}
+          </motion.span>
+        ) : (
+          gespraech
         )}
       </button>
     </nav>
   );
 }
 
+/**
+ * The scope of the whole screen — both pages read only what this picks — so
+ * it is built as an actual control rather than a row of links: one trigger
+ * that names the current project, a listbox underneath it with type-ahead
+ * and arrow-key selection. Four projects today do not need the search field,
+ * so it only mounts past a threshold; twenty projects get exactly the same
+ * control, not a wider row of buttons.
+ */
 function ProjectPicker({
   projects,
   project,
-  onPick
+  onPick,
+  reduced
 }: {
   projects: ProjectRow[];
   project: string;
   onPick: (name: string) => void;
+  reduced: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const filtered = useMemo(() => {
+    if (!query) return projects;
+    const q = query.toLowerCase();
+    return projects.filter((p) => p.name.toLowerCase().includes(q));
+  }, [projects, query]);
+
+  useEffect(() => setActive(0), [filtered]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery('');
+      return;
+    }
+    if (projects.length <= 6) menuRef.current?.focus();
+  }, [open, projects.length]);
+
   if (!projects.length) return <span className="muted">Keine Projekte gemeldet</span>;
+
+  const commit = (name: string) => {
+    onPick(name);
+    setOpen(false);
+  };
+
   return (
-    <nav className="projects" aria-label="Projekte">
-      {projects.map((p) => (
-        <button key={p.name} type="button" className={p.name === project ? 'on' : ''} onClick={() => onPick(p.name)}>
-          {p.name}
-        </button>
-      ))}
-    </nav>
+    <div className="scope" ref={wrapRef}>
+      <button
+        type="button"
+        className="scope-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="scope-eyebrow">Projekt</span>
+        <span className="scope-name">{project}</span>
+        <svg className="scope-chevron" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+          <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            ref={menuRef}
+            className="scope-menu"
+            tabIndex={-1}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            variants={revealVariants(reduced)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActive((i) => Math.min(i + 1, filtered.length - 1));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActive((i) => Math.max(i - 1, 0));
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (filtered[active]) commit(filtered[active].name);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setOpen(false);
+              }
+            }}
+          >
+            {projects.length > 6 && (
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`${projects.length} Projekte durchsuchen …`}
+                aria-label="Projekt suchen"
+              />
+            )}
+            <KeyList
+              items={filtered}
+              activeIndex={active}
+              onActiveChange={setActive}
+              onCommit={(p) => commit(p.name)}
+              getKey={(p) => p.name}
+              extraClass={(p) => (p.name === project ? 'on' : '')}
+              ariaLabel="Projekt wählen"
+              reduced={reduced}
+              animate={false}
+              emptyLabel={`Kein Projekt passt zu „${query}“.`}
+              renderItem={(p) => p.name}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -681,16 +1003,20 @@ function ChromeTools({
     <div className="chrome-tools">
       <button type="button" onClick={onPalette} title="Modul suchen (Strg+K)">
         Suchen
+        <kbd className="chrome-kbd">Strg K</kbd>
       </button>
-      <button type="button" onClick={onRefresh} disabled={loading} title="Index neu bauen">
+      <button type="button" onClick={onRefresh} disabled={loading} title="Index neu bauen (R)">
         {loading ? 'Liest …' : 'Neu lesen'}
+        {!loading && <kbd className="chrome-kbd">R</kbd>}
       </button>
-      <button type="button" onClick={onSettings} title="Brain, Autonomie, Erreichbarkeit">
+      <button type="button" onClick={onSettings} title="Brain, Autonomie, Erreichbarkeit (Strg+,)">
         Einstellungen
+        <kbd className="chrome-kbd">Strg ,</kbd>
       </button>
       <button type="button" onClick={onStudio} title="Themes">
         Themes
       </button>
+      <span className="chrome-divider" aria-hidden="true" />
       <a className="chrome-link" href="?surface=classic" title="Die vorherige Oberfläche — Runtimes, Control Plane, Inbox">
         Alte Oberfläche
       </a>
@@ -710,13 +1036,20 @@ function HotList({
   if (!nodes.length) return null;
   return (
     <div className="hotlist">
-      <span className="hotlist-title">Heißeste Module</span>
+      <div className="hotlist-head">
+        <span className="hotlist-title">Heißeste Module</span>
+        <span className="hotlist-col" title="Hitze: Importeure gewichtet gegen Codegröße">
+          Hitze
+        </span>
+      </div>
       <ul>
         {nodes.map((n) => (
           <li key={n.module}>
             <button type="button" className={n.module === focus ? 'on' : ''} onClick={() => onPick(n.module)}>
               <span>{shortLabel(n.module)}</span>
-              <span className="muted">{n.score.toFixed(0)}</span>
+              <span className="muted" title={`Hitze ${n.score.toFixed(1)}`}>
+                {n.score.toFixed(0)}
+              </span>
             </button>
           </li>
         ))}

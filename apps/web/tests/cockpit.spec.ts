@@ -57,7 +57,7 @@ async function goChat(page: Page): Promise<void> {
 
 /** The selected project, read from the chrome rather than from our own state. */
 async function selectedProject(page: Page): Promise<string> {
-  return (await page.locator('.projects button.on').first().innerText()).trim();
+  return (await page.locator('.scope-name').first().innerText()).trim();
 }
 
 test.describe('cockpit', () => {
@@ -150,7 +150,8 @@ test.describe('cockpit', () => {
     const first = await selectedProject(page);
     const firstModules = new Set(await drawnModules(page));
 
-    const others = await page.locator('.projects button:not(.on)').allInnerTexts();
+    await page.locator('.scope-trigger').click();
+    const others = await page.locator('.scope-menu li button:not(.on)').allInnerTexts();
     test.skip(others.length === 0, 'this machine has only one project registered — nothing to switch to');
 
     const second = others[0].trim();

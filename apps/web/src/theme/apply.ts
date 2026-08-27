@@ -18,16 +18,20 @@ export const THEME_VARS = [
   '--ink', '--ink2', '--ink3',
   '--line', '--line2',
   '--accent', '--accent-ink',
-  '--live', '--bad', '--ok',
+  '--live', '--bad', '--ok', '--warn', '--warn-ink',
   '--node', '--node2', '--edge', '--edge-hot',
-  '--font-display', '--font-body', '--font-mono',
+  '--heat-1', '--heat-2', '--heat-3', '--heat-4', '--heat-5',
+  '--plane-1', '--plane-2', '--plane-3', '--plane-4',
+  '--font-display', '--font-body', '--font-mono', '--font-voice',
   '--fs', '--fs-scale',
   '--fs-xs', '--fs-sm', '--fs-md', '--fs-lg', '--fs-xl', '--fs-2xl',
   '--display-weight', '--display-tracking',
+  '--voice-weight', '--label-weight', '--label-tracking', '--datum-weight', '--datum-tracking',
   '--radius', '--radius-sm', '--border', '--unit',
   '--u1', '--u2', '--u3', '--u4', '--u6', '--u8',
-  '--shadow', '--blur', '--panel-alpha',
-  '--stage-curve', '--stage-glow', '--stage-size-fanin'
+  '--shadow', '--shadow-pane', '--shadow-drawer', '--shadow-modal', '--blur', '--panel-alpha',
+  '--stage-curve', '--stage-glow', '--stage-size-fanin',
+  '--stage-parallax', '--stage-depth-fog', '--stage-depth-blur'
 ] as const;
 
 /**
@@ -47,6 +51,19 @@ function step(base: number, scale: number, n: number): string {
 }
 
 /**
+ * `ThemeColors.heat` and `.plane` are comma-separated hex strings, not
+ * arrays — see the comment on `heat` in types.ts for why. Splits one into
+ * exactly `count` colours, repeating the last one if a hand-edited theme
+ * came up short rather than writing `undefined` into a custom property.
+ */
+function splitRamp(csv: string, count: number): string[] {
+  const parts = csv.split(',').map((s) => s.trim()).filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) out.push(parts[i] ?? parts[parts.length - 1] ?? '#888888');
+  return out;
+}
+
+/**
  * Elevation, read off shipped interfaces rather than invented.
  *
  * MEASURED 2026-08-25 with tools/reference.mjs: Linear's panels carry
@@ -56,17 +73,37 @@ function step(base: number, scale: number, n: number): string {
  * big soft blur that says "card floating over nothing", which is what this
  * function used to emit at both levels.
  */
+/**
+ * Extended 2026-08-26 to a four-step scale (card/pane/drawer/modal — see
+ * ThemeForm.elevationPane/Drawer/Modal). Levels 0, 1 and 2 are the exact
+ * strings this function already emitted; `--shadow` (level 1 or 2 depending
+ * on the theme) is unchanged so nothing already reading it moves. Levels 3
+ * and 4 extrapolate the same measured idiom — a hairline ring plus a near
+ * shadow plus, from level 2 up, a soft far shadow — scaled deeper per level,
+ * never the single big blur the comment above warns against.
+ */
 function shadowFor(elevation: number, base: 'light' | 'dark'): string {
-  if (elevation <= 0) return 'none';
+  const lvl = Math.max(0, Math.min(4, Math.round(elevation)));
+  if (lvl <= 0) return 'none';
   const dark = base === 'dark';
-  if (elevation === 1) {
+  if (lvl === 1) {
     return dark
       ? '0 0 0 1px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.04)'
       : '0 0 0 1px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.05)';
   }
+  if (lvl === 2) {
+    return dark
+      ? '0 0 0 1px rgba(0,0,0,.5), 0 2px 4px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05)'
+      : '0 0 0 1px rgba(0,0,0,.07), 0 2px 6px rgba(0,0,0,.06), 0 10px 28px rgba(0,0,0,.07)';
+  }
+  if (lvl === 3) {
+    return dark
+      ? '0 0 0 1px rgba(0,0,0,.55), 0 4px 8px rgba(0,0,0,.45), 0 24px 56px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06)'
+      : '0 0 0 1px rgba(0,0,0,.08), 0 4px 10px rgba(0,0,0,.07), 0 20px 44px rgba(0,0,0,.09)';
+  }
   return dark
-    ? '0 0 0 1px rgba(0,0,0,.5), 0 2px 4px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05)'
-    : '0 0 0 1px rgba(0,0,0,.07), 0 2px 6px rgba(0,0,0,.06), 0 10px 28px rgba(0,0,0,.07)';
+    ? '0 0 0 1px rgba(0,0,0,.6), 0 8px 16px rgba(0,0,0,.5), 0 36px 80px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.07)'
+    : '0 0 0 1px rgba(0,0,0,.09), 0 6px 14px rgba(0,0,0,.08), 0 30px 64px rgba(0,0,0,.11)';
 }
 
 export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.documentElement): void {
@@ -89,14 +126,31 @@ export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.docume
   s.setProperty('--live', c.live);
   s.setProperty('--bad', c.bad);
   s.setProperty('--ok', c.ok);
+  // warn/heat/plane live on ThemeSpec, not ThemeColors — see the comment on
+  // ThemeSpec.warn in types.ts. Optional: a theme saved before this field
+  // existed falls back to something already guaranteed present, not blank.
+  s.setProperty('--warn', theme.warn ?? c.bad);
+  s.setProperty('--warn-ink', theme.warnInk ?? c.accentInk);
   s.setProperty('--node', c.node);
   s.setProperty('--node2', c.node2);
   s.setProperty('--edge', c.edge);
   s.setProperty('--edge-hot', c.edgeHot);
+  const heat = splitRamp(theme.heat ?? `${c.node2},${c.node2},${c.node2},${c.accent},${c.accent}`, 5);
+  s.setProperty('--heat-1', heat[0]);
+  s.setProperty('--heat-2', heat[1]);
+  s.setProperty('--heat-3', heat[2]);
+  s.setProperty('--heat-4', heat[3]);
+  s.setProperty('--heat-5', heat[4]);
+  const plane = splitRamp(theme.plane ?? `${c.accent},${c.ok},${c.bad},${c.node2}`, 4);
+  s.setProperty('--plane-1', plane[0]);
+  s.setProperty('--plane-2', plane[1]);
+  s.setProperty('--plane-3', plane[2]);
+  s.setProperty('--plane-4', plane[3]);
 
   s.setProperty('--font-display', t.display);
   s.setProperty('--font-body', t.body);
   s.setProperty('--font-mono', t.mono);
+  s.setProperty('--font-voice', t.voice ?? t.body);
   s.setProperty('--fs', `${t.size}px`);
   s.setProperty('--fs-scale', String(t.scale));
   s.setProperty('--fs-xs', step(t.size, t.scale, -2));
@@ -107,6 +161,13 @@ export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.docume
   s.setProperty('--fs-2xl', step(t.size, t.scale, 3));
   s.setProperty('--display-weight', String(t.displayWeight));
   s.setProperty('--display-tracking', `${t.displayTracking}em`);
+  // The six fields below are optional on ThemeType — see the comment on
+  // ThemeType.voice — so a theme saved before they existed still applies.
+  s.setProperty('--voice-weight', String(t.voiceWeight ?? 400));
+  s.setProperty('--label-weight', String(t.labelWeight ?? t.displayWeight));
+  s.setProperty('--label-tracking', `${t.labelTracking ?? 0}em`);
+  s.setProperty('--datum-weight', String(t.datumWeight ?? t.displayWeight));
+  s.setProperty('--datum-tracking', `${t.datumTracking ?? 0}em`);
 
   s.setProperty('--radius', `${f.radius}px`);
   s.setProperty('--radius-sm', `${Math.max(0, Math.round(f.radius * 0.5))}px`);
@@ -119,12 +180,25 @@ export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.docume
   s.setProperty('--u6', `${f.unit * 3}px`);
   s.setProperty('--u8', `${f.unit * 4}px`);
   s.setProperty('--shadow', shadowFor(f.elevation, theme.base));
+  // elevationPane/Drawer/Modal are optional on ThemeForm (see the comment on
+  // ThemeForm.elevationPane) — fall back to the base `elevation` so a theme
+  // saved before the four-step scale existed renders identically at every
+  // height rather than losing its shadow.
+  s.setProperty('--shadow-pane', shadowFor(f.elevationPane ?? f.elevation, theme.base));
+  s.setProperty('--shadow-drawer', shadowFor(f.elevationDrawer ?? f.elevation, theme.base));
+  s.setProperty('--shadow-modal', shadowFor(f.elevationModal ?? f.elevation, theme.base));
   s.setProperty('--blur', f.material === 'glass' ? `${f.blur}px` : '0px');
   s.setProperty('--panel-alpha', String(f.alpha));
 
   s.setProperty('--stage-curve', String(theme.stage.curve));
   s.setProperty('--stage-glow', String(theme.stage.glow));
   s.setProperty('--stage-size-fanin', String(theme.stage.sizeByFanIn));
+  // parallax/depthFog/depthBlur are optional on ThemeStage — fall back to
+  // "off" so a theme saved before spatial depth existed stays flat rather
+  // than erroring.
+  s.setProperty('--stage-parallax', String(theme.stage.parallax ?? 0));
+  s.setProperty('--stage-depth-fog', String(theme.stage.depthFog ?? 0));
+  s.setProperty('--stage-depth-blur', `${theme.stage.depthBlur ?? 0}px`);
 
   root.dataset.theme = theme.base;
   root.dataset.themeId = theme.id;

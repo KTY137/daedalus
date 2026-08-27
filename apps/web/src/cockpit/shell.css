@@ -1,0 +1,391 @@
+/*
+ * The shell: the reset, the cockpit frame, the chrome bar, and the two page
+ * grids the body switches between.
+ *
+ * Loaded first by cockpit.css, which owns the order of all six modules. Every
+ * value comes from a theme token (theme/apply.ts); a hard-coded colour, radius
+ * or type size here is a value one of the six designs cannot reach.
+ */
+
+/* The cockpit ships its own reset: `styles.css` belongs to the classic
+   surface and is no longer loaded here. Kept to the three rules a document
+   actually needs — anything more would be a second opinion about layout. */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3, p, ul, ol, figure { margin: 0; }
+:root { color-scheme: light dark; }
+
+.cockpit {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  background:
+    radial-gradient(130% 120% at 52% 42%, var(--room) 0%, var(--room2) 100%);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+.cockpit :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.cockpit .muted { color: var(--ink3); }
+/* No 0.92em here. The smallest step of the scale is already at the 11px floor
+   (theme/apply.ts), and shrinking `code` inside it produced 8.7px text on the
+   shipped build. Monospace reads larger at the same nominal size anyway. */
+.cockpit code, .cockpit .mono { font-family: var(--font-mono); font-size: inherit; }
+
+/* ---------------------------------------------------------------- chrome */
+
+/*
+ * Three groups share this row and do three different jobs — SCOPE (which
+ * project everything on screen belongs to), NAVIGATION (which page), TOOLS
+ * (actions on the current page) — and used to share one visual weight: flat
+ * text at the same size, same colour, same absence of a container. They now
+ * read as three different kinds of control: the scope is a bordered trigger
+ * with its own eyebrow label, navigation is a filled pill that travels
+ * between two states, tools are quiet icon-less buttons with their
+ * accelerator printed on them. A hairline divider marks the seam between the
+ * first two; the flex spacer already marks the seam before the third.
+ */
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  padding: var(--u3) var(--u6);
+  border-bottom: var(--border) solid var(--line2);
+  min-height: 52px;
+}
+
+.chrome-spacer { flex: 1; }
+
+.chrome-divider {
+  align-self: stretch;
+  width: var(--border);
+  margin: var(--u1) 0;
+  background: var(--line2);
+}
+
+/* ---- navigation: Karte / Gespräch, a filled pill that travels ---- */
+
+.viewswitch { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--radius); background: var(--surface2); }
+.viewswitch button {
+  display: flex;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.viewswitch button:hover { color: var(--ink); }
+/* The pill wraps the label — an ancestor, not a same-level layer — so it
+   fills the whole button and carries its own text colour with it. */
+.viewswitch-thumb {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  padding: 0 var(--u3);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.viewswitch button:not(.on) { padding: 0 var(--u3); }
+.viewswitch-badge {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  text-align: center;
+}
+.viewswitch-thumb .viewswitch-badge { background: color-mix(in srgb, var(--accent-ink) 22%, transparent); color: var(--accent-ink); }
+
+/* ---- scope: the project everything on screen belongs to ---- */
+
+.scope { position: relative; min-width: 0; }
+.scope-trigger {
+  display: flex;
+  align-items: baseline;
+  gap: var(--u1);
+  min-height: 44px;
+  max-width: 220px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.scope-trigger:hover { border-color: var(--accent); }
+.scope-eyebrow {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.scope-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.scope-chevron { flex: none; color: var(--ink3); margin-left: auto; }
+
+.scope-menu {
+  position: absolute;
+  top: calc(100% + var(--u2));
+  left: 0;
+  z-index: 45;
+  width: max(100%, 240px);
+  max-height: min(60vh, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--u1);
+  padding: var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  /* Opaque ground on purpose, same reasoning as the palette below: a list of
+     project names read over a lit stage needs a solid backing, not a glass
+     one — the round's material budget is already spent on the stage header. */
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface), var(--surface));
+}
+.scope-menu > input {
+  min-height: 40px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+.scope-menu ul { list-style: none; margin: 0; padding: 0; overflow: auto; }
+.scope-menu li button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--u2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scope-menu li button:hover,
+.scope-menu li button.active { background: var(--surface2); color: var(--ink); }
+.scope-menu li button.on { color: var(--accent); font-weight: 600; }
+
+/* ---- tools: quiet, labelled, and off to the side ---- */
+
+/* 44px, and it is the TARGET that has to be 44 — not the ink. The visual
+   weight of these controls comes from their type and border, so the height is
+   free to be a pointer target rather than a design statement. */
+.chrome-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u2);
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.chrome-tools button:hover:not(:disabled) { color: var(--ink); border-color: var(--line); }
+.chrome-tools { display: flex; align-items: center; gap: var(--u1); }
+.chrome-tools button:disabled { opacity: 0.55; cursor: default; }
+.chrome-kbd {
+  padding: 1px 5px;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+.chrome-tools button:hover:not(:disabled) .chrome-kbd { border-color: var(--accent); color: var(--ink2); }
+
+/* "Alte Oberfläche" is an escape hatch to the retired surface, not a peer of
+   Einstellungen/Themes — smaller, dimmer, and set off by the divider above
+   rather than sitting in the same button row at the same weight. */
+.chrome-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  text-decoration: none;
+}
+.chrome-link:hover { color: var(--ink2); border-color: var(--line); }
+
+.masthead {
+  flex-direction: column;
+  gap: var(--u2);
+  padding: var(--u4) var(--u8) var(--u3);
+  border-bottom: none;
+}
+.masthead-rule { width: 100%; border-top: 2px solid var(--line); }
+.masthead-title {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: 0.24em;
+  font-size: var(--fs-2xl);
+  text-transform: uppercase;
+  margin: var(--u1) 0;
+}
+.masthead-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--u4);
+  width: 100%;
+  justify-content: space-between;
+  font-size: var(--fs-sm);
+  color: var(--ink2);
+  padding-bottom: var(--u2);
+}
+
+/* ------------------------------------------------------------------ body */
+
+.cockpit-body {
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* --- the map page: the graph gets the whole canvas, nothing on top of it - */
+
+.cockpit-body.map { grid-template-columns: minmax(0, 1fr); }
+.cockpit-stage { position: relative; min-height: 0; min-width: 0; }
+
+/* --- the talk page: the conversation is the hero, not a card in a corner - */
+
+.cockpit-body.talk {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 23vw);
+  gap: var(--u8);
+  padding: var(--u6) var(--u8);
+  overflow: auto;
+  /* `start` sized the one grid row to its content and left whatever the
+     viewport had left over as a dead band under it — measured 131px at
+     1440×900 on an empty thread. `stretch` hands the row the full height, and
+     `.convo`'s own `flex: 1 1 auto` (conversation.css) fills it exactly, at
+     any viewport height and with or without a decision card above it. */
+  align-content: stretch;
+}
+:root[data-chat='flow'] .cockpit-body.talk {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--u6);
+}
+
+.talk-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u4);
+  width: 100%;
+  max-width: 78ch;
+  margin: 0 auto;
+  min-width: 0;
+}
+/* The quiet decision state (Instrumente's `.decision.quiet`, a single
+   borderless line) still mounts in this slot — a real row, plus a reserved
+   `gap` below it, for however long there happen to be zero pending drafts.
+   Collapse that specific gap; a status line one text-row tall does not need
+   a full unit of air under it the way the hero card does. */
+.talk-main:has(> .decision.quiet) { gap: var(--u1); }
+.talk-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  min-width: 0;
+}
+:root[data-chat='flow'] .talk-side {
+  max-width: 78ch;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* On its own page the conversation is not a panel — it is the page. The
+   backdrop filter has to go too: a transparent element that still blurs what
+   is behind it renders as a visible pane with no edges. */
+/* `:root` on the front for specificity: the glass material rule further down
+   is `:root[data-material='glass'] .convo`, an exact tie, and a tie is decided
+   by source order — which put a blurred pane behind a transparent element. */
+:root .cockpit-body.talk .convo {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  gap: var(--u4);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.cockpit-body.talk .convo-scroll { max-height: none; overflow: visible; }
+.cockpit-body.talk .convo-empty { font-size: var(--fs-lg); max-width: 60ch; }
+.cockpit-body.talk .turn-text { font-size: var(--fs-lg); line-height: 1.5; }
+.cockpit-body.talk .composer textarea { min-height: 52px; padding: 15px var(--u3); font-size: var(--fs-lg); }
+.cockpit-body.talk .composer button { min-width: 52px; min-height: 52px; }
+
+.focuscard {
+  display: grid;
+  gap: 2px;
+  padding: var(--u3);
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+}
+.focuscard-eyebrow {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.focuscard-name { font-family: var(--font-mono); font-size: var(--fs-lg); }
+.focuscard-path { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink3); word-break: break-all; }
+.focuscard-counts { font-size: var(--fs-xs); color: var(--ink2); margin-top: var(--u1); }
+.focuscard button {
+  justify-self: start;
+  margin-top: var(--u2);
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.focuscard button:hover { color: var(--accent); border-color: var(--accent); }
+
+.cockpit-foot {
+  border-top: var(--border) solid var(--line2);
+  padding: var(--u2) var(--u6);
+}
+

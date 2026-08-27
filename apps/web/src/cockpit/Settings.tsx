@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { getEnvStatus, getRuntimeStatus, testRuntime, type EnvStatusPayload } from '../api';
 import type { RuntimeRow } from '../types';
+import { drawerVariants, useReducedMotionPref } from '../motion';
 import {
   AUTONOMY_LEVELS,
   readAutonomyLog,
@@ -93,8 +95,19 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
 
   const reachable = runtimes.filter((r) => r.available);
 
+  const reduced = useReducedMotionPref();
+  const drawer = useMemo(() => drawerVariants(reduced), [reduced]);
+
   return (
-    <aside className={open ? 'settings open' : 'settings'} aria-hidden={!open} aria-label="Einstellungen">
+    <motion.aside
+      className={open ? 'settings open' : 'settings'}
+      data-motion="drawer"
+      variants={drawer}
+      initial={false}
+      animate={open ? 'open' : 'closed'}
+      aria-hidden={!open}
+      aria-label="Einstellungen"
+    >
       <header className="settings-head">
         <h2>Einstellungen</h2>
         <button type="button" className="settings-close" onClick={onClose} aria-label="Einstellungen schließen">
@@ -229,6 +242,6 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
           )}
         </section>
       </div>
-    </aside>
+    </motion.aside>
   );
 }

@@ -1,0 +1,32 @@
+/*
+ * Narrow: the one breakpoint the cockpit has, kept last so it can override
+ * anything above it without raising a single selector's specificity.
+ */
+
+/* --------------------------------------------------------------- narrow */
+
+@media (max-width: 900px) {
+  :root[data-chat='column'] .cockpit-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .cockpit-column { border-left: 0; border-top: var(--border) solid var(--line2); max-height: 44vh; }
+  .stage-panel, .stage-overlay { position: static; width: auto; margin: var(--u2) var(--u3); }
+  .stage-header { position: static; padding: var(--u3) var(--u3) 0; }
+
+  /* The chrome's three groups start competing for one row before the stage
+     does. The accelerator badges are the first thing to give — the shortcut
+     still works, it just stops being printed on the button — and the scope
+     trigger's own name column narrows before the row is allowed to wrap. */
+  .chrome-kbd { display: none; }
+  .chrome-tools button { padding: 0 var(--u2); }
+  .scope-trigger { max-width: 152px; }
+}
+
+/* Both compositions can end up with more chrome than a phone-width row can
+   hold even once the accelerators are gone: the projects/palette scope
+   still needs typing room, and Karte/Gespräch still needs to read as a
+   sentence rather than an abbreviation. Below 640px the row wraps onto a
+   second line instead of forcing an overflow scrollbar into the chrome. */
+@media (max-width: 640px) {
+  .chrome.bar { flex-wrap: wrap; row-gap: var(--u2); }
+  .chrome.bar .chrome-spacer { flex-basis: 100%; height: 0; }
+  .masthead-meta { flex-wrap: wrap; row-gap: var(--u2); justify-content: flex-start; }
+}
