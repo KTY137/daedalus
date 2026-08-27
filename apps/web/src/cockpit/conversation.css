@@ -1,0 +1,897 @@
+/*
+ * The conversation: Ikarus's page — the thread bar, the transcript, and the
+ * composer well that carries its own context.
+ *
+ * THE RHYTHM. The stacked blocks used to sit 30, 40, 25 and 30px apart: four
+ * values and no scale. Everything below steps on the theme's own unit —
+ * u2 (8) inside a group, u4 (16) between the page's three blocks, u6 (24)
+ * between two turns. Three steps, one scale, and a theme that changes `unit`
+ * moves all of them together.
+ *
+ * NO CSS TRANSITIONS AGAINST `--dur-*` / `--ease` IN HERE. Those custom
+ * properties live in `styles.css`, which the cockpit surface deliberately
+ * never loads (main.tsx), so on this surface they are undefined and a
+ * transition written against them silently does not run. Motion that matters
+ * goes through `src/motion` and framer-motion instead; see Conversation.tsx.
+ */
+
+/* ---------------------------------------------------------- conversation */
+
+.convo {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--u3);
+  gap: var(--u4);
+}
+/* Every control on this surface is a tap target before it is a click target;
+   without this the browser holds each press for 300ms waiting for a
+   double-tap that this page has no use for. */
+.convo button,
+.composer button,
+.brain-menu [role='option'] { touch-action: manipulation; }
+
+/*
+ * THE PAGE, NOT A STACK OF BLOCKS AT THE TOP.
+ *
+ * The conversation used to size to its content and leave roughly 60% of the
+ * page as empty room below the send button. Two halves fix it: the shell's
+ * talk grid stretches its row to the full body height (Rahmen, this round),
+ * and the conversation claims what is left of `.talk-main` after whatever
+ * sits above it. `min-height: 0` is the half that matters — without it the
+ * flex item refuses to shrink below its content and the transcript pushes
+ * the composer off the bottom instead of scrolling inside itself.
+ *
+ * `:root` on the front only to tie the shell's own
+ * `:root .cockpit-body.talk .convo` rule, which this file follows in the
+ * cascade; the properties it sets (padding, gap, background) are untouched.
+ */
+:root .cockpit-body.talk .convo {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/*
+ * THE ONE RULE IN HERE THAT REACHES INTO SHELL.CSS'S GRID, and it is declared
+ * in docs/design/handoffs-2026-08-26/ikarus.md rather than left to be found.
+ *
+ * `align-content: stretch` (Rahmen, this round) fixed the EMPTY page: a short
+ * row now grows to the full body height. It cannot fix the opposite case,
+ * because `stretch` only ever grows a track — with a transcript taller than
+ * the viewport the auto row sizes to its content and nothing below it can
+ * scroll inside itself. Measured at 1440x900 on a four-exchange thread:
+ * `.talk-main` 1275px tall inside a 741px scrollport, `.convo-scroll`
+ * scrollHeight === clientHeight === 1023 (so `overflow: auto` never engaged
+ * and the follow-the-stream pinning in Conversation.tsx was inert), and 448px
+ * of the last answer printed BEHIND and BELOW the sticky composer.
+ *
+ * `minmax(0, 1fr)` is the same thing `stretch` was reaching for, in the form
+ * that also shrinks: the row takes the body's height in both directions, and
+ * `min-height: 0` lets the flex chain below it hand the overflow to
+ * `.convo-scroll`, which is where every rule in this file already assumed it
+ * would land.
+ */
+.cockpit-body.talk { grid-auto-rows: minmax(0, 1fr); }
+.cockpit-body.talk .talk-main { min-height: 0; }
+
+:root[data-chat='column'] .ctxplan-body { max-height: 34vh; }
+.convo.compact { max-height: min(42vh, 420px); }
+
+.convo-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--u3);
+  min-height: 0;
+  padding-right: var(--u2);
+}
+/* Now that the transcript really does scroll inside itself, the browser's
+   default bar is the loudest vertical element on the page and the only one
+   drawn in a colour no theme chose. Thin, and in the theme's own rule
+   colour. */
+.convo-scroll,
+.ctxplan-body,
+.brain-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  /* Reaching the end of the transcript must not start scrolling the page
+     behind it. Only relevant since these regions actually scroll. */
+  overscroll-behavior: contain;
+}
+/* A question and its answer are one exchange, so they sit closer to each other
+   than to the next one. One scale: u3 inside an exchange, u3 + u4 between. */
+.turn.you { margin-top: var(--u4); }
+.turn.you:first-child { margin-top: 0; }
+/* The transcript scrolls inside itself so the composer stays put. The shell
+   sets `overflow: visible` here, which on a page-length transcript walks the
+   box you are typing in off the bottom of the screen — and it also makes the
+   follow-the-stream pinning in Conversation.tsx inert, because the element it
+   scrolls has nothing to scroll. */
+.cockpit-body.talk .convo-scroll { max-height: none; overflow: auto; }
+
+/* A short transcript sits just above the composer rather than clinging to the
+   top of a mostly empty column. `margin-top: auto` on the first turn rather
+   than `justify-content: flex-end`, which in flexbox pushes overflowing
+   content above the scroll origin where it cannot be reached. */
+.convo-scroll > .turn:first-child { margin-top: auto; }
+
+/*
+ * AT REST the page is an invitation, not a form: the sentence and the box you
+ * answer it in are ONE object, and that object is centred in the column.
+ *
+ * It used to be pinned to the bottom of a full-height scroll area with 24vh of
+ * padding pushing it back up — a number that happened to land near the middle
+ * at 900px tall and drifted everywhere else, and which left a 235px dead band
+ * under the composer at 1440x900. The group is now a group: `justify-content`
+ * centres it, `flex: 0 1 auto` stops the empty transcript from claiming the
+ * room the centring needs, and the small optical lift is the one ratio here,
+ * because true centre reads low.
+ */
+.convo-scroll.empty {
+  display: grid;
+  align-content: end;
+  justify-items: start;
+  flex: 0 1 auto;
+  padding-bottom: var(--u4);
+}
+.cockpit-body.talk .convo.at-rest { justify-content: center; padding-bottom: 6vh; }
+
+.convo-reading { color: var(--ink3); font-size: var(--fs-sm); }
+
+/* ------------------------------------------------------- the invitation */
+
+.convo-open { display: grid; gap: var(--u3); }
+.convo-open-line {
+  margin: 0;
+  max-width: 24ch;
+  text-wrap: balance;
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: var(--fs-2xl);
+  line-height: 1.16;
+  color: var(--ink);
+}
+/* The project is an identifier, so it is set as one — inside the sentence,
+   at the same weight, optically matched down because mono runs large. */
+.convo-open-line b {
+  font-family: var(--font-mono);
+  font-weight: inherit;
+  font-size: 0.84em;
+  letter-spacing: 0;
+}
+.convo-open-note {
+  margin: 0;
+  max-width: 48ch;
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  color: var(--ink2);
+}
+
+/* ------------------------------------------------------------ the turns */
+
+.turn { display: grid; }
+.turn-body { display: grid; gap: var(--u2); justify-items: start; }
+.turn-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
+/* An answer is one or more paragraphs, and a blank line between them is a
+   blank line — `pre-wrap` alone rendered it as two dead rows of leading. */
+.turn-text > p { margin: 0; white-space: pre-wrap; }
+.turn-text > p + p { margin-top: 0.7em; }
+
+/* The question is the reader's own words: quieter, and carried by a rule so
+   it needs no label to be read as theirs. */
+.turn.you .turn-body {
+  border-left: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  padding-left: var(--u3);
+}
+.turn.you .turn-text { color: var(--ink2); }
+.cockpit-body.talk .turn.you .turn-text { font-size: var(--fs-md); line-height: 1.5; }
+
+/*
+ * COLD GLASS, WARM VOICE — and this is the one place in the product where the
+ * warm half is spent.
+ *
+ * Every other face on this page is an instrument face: the display face on the
+ * invitation is the app addressing you, the mono is identifiers, the body face
+ * is chrome. `--font-voice` (Material, this round) is a humanist face that
+ * appears nowhere else, so the first time the reader meets it is the first
+ * time IKARUS speaks rather than the interface. The distinction the whole page
+ * is built around — measured index versus a model's words — is carried by the
+ * typography before the stamp underneath has been read.
+ */
+.turn.ikarus .turn-text {
+  color: var(--ink);
+  font-family: var(--font-voice);
+  font-weight: var(--voice-weight);
+}
+.cockpit-body.talk .turn.ikarus .turn-text { font-size: var(--fs-lg); line-height: 1.6; max-width: 68ch; }
+/* An identifier inside a sentence stays an identifier: mono, optically matched
+   down because mono runs large next to a humanist face. */
+.turn.ikarus .turn-text code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  color: var(--ink2);
+}
+.turn.ikarus .turn-text b { font-weight: var(--display-weight); }
+
+:root[data-chat='flow'] .turn.you .turn-text {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.18em;
+  background: var(--accent);
+  animation: blink 1.05s steps(2, start) infinite;
+}
+@keyframes blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+
+/* ---- the receipt: what produced this answer, and what it named ---- */
+
+.turn-receipt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u2);
+  margin-top: var(--u1);
+}
+/*
+ * THE STAMP, WITHOUT THE BADGE.
+ *
+ * It was an outlined box, and every answer carried one, so a four-exchange
+ * thread drew four identical boxes down the left edge — a metric strip in
+ * disguise, and the one element on this page that must never read as
+ * decoration. The box is gone; what distinguishes the three states is now a
+ * MARK, drawn in the stamp's own colour: a filled square where the answer was
+ * measured or where it failed (both are facts about a run that happened), a
+ * hollow one where a model wrote it (a claim, not a measurement). Same words,
+ * same colours, one idea per element.
+ */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u2);
+  font-size: var(--fs-xs);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+}
+.stamp::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentColor;
+}
+.stamp.measured::before,
+.stamp.failed::before { background: currentColor; }
+.stamp.measured { color: var(--ok); }
+.stamp.model { color: var(--ink3); }
+.stamp.failed { color: var(--bad); }
+
+/* THREE SLOTS, THREE TYPE ROLES, one middot between them written once here
+   rather than baked into the string. The word is the stamp; the origin is a
+   name; the wait is a number. Concatenating them into one string is what made
+   an internal id indistinguishable from a product name. */
+.stamp > * + *::before {
+  content: '·';
+  margin-right: var(--u2);
+  color: var(--ink3);
+  letter-spacing: 0;
+}
+.stamp-word { flex: none; text-transform: uppercase; }
+/* The runtime's own name, in its own case, one step quieter than the word. */
+.stamp-origin {
+  font-weight: var(--datum-weight);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink2);
+}
+/* The runtime list is a separate 16.6s request that regularly times out here.
+   Until it lands there is no name — only the id — so the id is set AS an
+   identifier instead of being typeset as if it were a name. */
+.stamp-id {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+  font-weight: var(--datum-weight);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink3);
+}
+
+/* What this answer cost, where the answer's origin is already named. Absent
+   on a resumed turn, because nothing timed it — see Turn.seconds. */
+.stamp-wait {
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  color: var(--ink3);
+}
+
+/* A cited identifier is a link in a receipt line, not a chip. The box stays
+   44px for the pointer; only the type is visible. */
+.cite {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.cite:hover { color: var(--accent); text-decoration-color: var(--accent); }
+/* Colour alone is not a focus state on a borderless control: it is invisible
+   to anyone who cannot separate the two hues. The ring is the replacement for
+   the outline this rule removes. */
+.cite:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* ---- the answer came out of the index, with no model in it ---- */
+
+.turn-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u2);
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.turn-nudge button {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.turn-nudge button:hover,
+.turn-nudge button:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+
+.convo-error {
+  margin: 0;
+  padding-left: var(--u3);
+  border-left: 2px solid var(--bad);
+  color: var(--bad);
+  font-size: var(--fs-sm);
+}
+
+/* --------------------------------------------------------- thread bar */
+
+/*
+ * THE THREAD'S HEADER. It is drawn only when there is a thread (see
+ * Conversation.tsx), so it never says "Neuer Verlauf" beside a greyed-out
+ * button whose only message is that there is nothing here yet.
+ *
+ * The rule runs THROUGH the bar rather than under it. Two ends of one line —
+ * the thread's name and the way out of it — is a composition; the same two
+ * ends with 340px of nothing between them was the void this bar was rejected
+ * for. The border-bottom is gone with it: two rules stacked 20px apart said
+ * the same thing twice.
+ */
+.convo-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--u3);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+  padding-bottom: var(--u1);
+}
+.convo-bar-rule {
+  flex: 1 1 auto;
+  min-width: var(--u4);
+  height: 0;
+  border-top: var(--border) solid var(--line2);
+}
+.convo-thread {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--u2);
+  min-width: 0;
+  flex: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.convo-thread-role {
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+/* The middot lives in CSS, once, between the two facts — not written into the
+   markup where the flex gap would space it a second time. */
+.convo-thread > * + *::before { content: '·'; margin-right: var(--u2); color: var(--ink3); }
+.convo-thread-role + *::before { content: none; }
+.convo-thread code {
+  font-family: var(--font-mono);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  color: var(--ink2);
+}
+.convo-elapsed {
+  flex: none;
+  color: var(--live);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+}
+
+.convo-bar button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.convo-bar button:hover,
+.convo-bar button:focus-visible { color: var(--ink); border-color: var(--accent); outline: none; }
+
+/* ---- who answers ---- */
+
+/* First on the composer's pre-flight rail. The menu opens UPWARD, because the
+   well it hangs from sits at the bottom of the page. */
+.brain { grid-area: brain; position: relative; justify-self: start; min-width: 0; }
+.brain-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--u2);
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.brain-btn:hover:not(:disabled),
+.brain-btn:focus-visible:not(:disabled) { color: var(--ink); border-color: var(--accent); outline: none; }
+.brain-btn[aria-expanded='true'] { color: var(--ink); border-color: var(--accent); }
+.brain-btn:disabled { color: var(--ink3); cursor: default; }
+/* The role, so the control reads as a control and not as a status word sitting
+   on its own at the end of a rail. */
+.brain-btn-role {
+  flex: none;
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.brain-btn-name { white-space: nowrap; color: inherit; }
+.brain-btn-wait {
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink3);
+}
+.brain-caret { flex: none; opacity: 0.65; margin-left: calc(var(--u1) * -1); }
+
+.brain-menu {
+  position: absolute;
+  bottom: calc(100% + var(--u1));
+  left: 0;
+  z-index: 5;
+  min-width: 340px;
+  padding: var(--u1);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface), var(--surface));
+  box-shadow: var(--shadow-drawer);
+}
+.brain-list { list-style: none; margin: 0; padding: 0; }
+/* Name, what it is, what it cost. The third column is the whole reason this
+   control was rebuilt, so it gets its own track rather than being appended to
+   the note — a route with no measurement leaves the cell empty and the two
+   columns beside it stay in line. */
+.brain-opt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--u3);
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.brain-opt:hover { background: var(--surface2); }
+.brain-opt:focus-visible { outline: none; background: var(--surface2); box-shadow: inset 0 0 0 2px var(--accent); }
+.brain-opt-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+.brain-opt.on .brain-opt-name { color: var(--accent); }
+.brain-opt-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.brain-opt-wait {
+  min-width: 5.5ch;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--datum-weight);
+  letter-spacing: var(--datum-tracking);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.brain-legend {
+  margin: var(--u1) 0 0;
+  padding: 0 var(--u2);
+  font-size: var(--fs-xs);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  color: var(--ink3);
+}
+
+/* Runtimes that cannot answer. Named, with the reason, and deliberately not
+   clickable — a row you cannot pick is information, never an affordance. */
+.brain-off {
+  margin-top: var(--u1);
+  padding: var(--u2);
+  border-top: var(--border) solid var(--line2);
+}
+.brain-off-head {
+  margin: 0 0 var(--u1);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.brain-off-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--u3);
+  margin: 0;
+  padding: 2px 0;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.brain-off-row span:last-child { font-family: var(--font-mono); }
+.brain-off-note { margin: 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--ink3); }
+/* The failure state is not terminal: this asks the backend again, and it is a
+   real request, not a reassurance. It only exists when the list could not be
+   read — there is nothing for it to do while the list is good. */
+.brain-recheck {
+  min-height: 44px;
+  margin-top: var(--u1);
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.brain-recheck:hover,
+.brain-recheck:focus-visible { color: var(--ink); border-color: var(--accent); outline: none; }
+
+/* ----------------------------------------------------- the composer well */
+
+/*
+ * ONE CONTROL. The box, what will be read with it, and send share a border, a
+ * radius and a focus ring. The rail under the input reads in the order the
+ * three facts matter: WHO ANSWERS, what is on the stage, and what would be
+ * read. The plan opens beneath all three, inside the well, because it is the
+ * answer to the question the rail asks.
+ *
+ * The route control moved onto this rail this round. It used to sit alone at
+ * the far left of the thread bar, a page away from the wait it decides — and
+ * the wait it decides is between 0.3s and 42.4s, measured. It belongs to the
+ * press, so it belongs to the well the press lives in.
+ */
+.composer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'line line line'
+    'brain stage ask'
+    'plan plan plan';
+  align-items: center;
+  gap: var(--u1) var(--u2);
+  padding: var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface2);
+}
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* The composer stays reachable even when something above the conversation
+   (a decision card) has pushed the block past the bottom of the scrollport.
+   Inert when nothing scrolls, which is the usual case.
+
+   Opaque while it does that: every surface token in this system is
+   deliberately translucent (`--surface2` is `rgba(255,255,255,.06)` in
+   `referenz`), so a sticky element painted with one shows the transcript
+   through itself. Same two-layer idiom the shell already uses for the
+   masthead — the room's own colour underneath, the surface token over it. */
+.cockpit-body.talk .composer {
+  position: sticky;
+  bottom: var(--u1);
+  background-color: var(--room2);
+  background-image: linear-gradient(var(--surface2), var(--surface2));
+}
+
+.composer-line {
+  grid-area: line;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--u2);
+  min-width: 0;
+}
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 200px;
+  padding: 11px var(--u2);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.45;
+  resize: none;
+  overflow-y: auto;
+}
+/* The well carries the ring for the whole control; a second ring on the field
+   inside it would be the same signal twice. */
+.composer textarea:focus { outline: none; }
+.composer textarea::placeholder { color: var(--ink3); }
+.cockpit-body.talk .composer textarea { min-height: 52px; padding: 13px var(--u2); font-size: var(--fs-lg); }
+
+.composer-send {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.composer-send:disabled { cursor: default; }
+.composer-send:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-ink); }
+/* While a turn is out this slot ends it. Quiet, because the loud thing during
+   a wait is the clock in the bar, not the button that cancels it. */
+.composer-send.stopping {
+  background: var(--surface);
+  color: var(--bad);
+  box-shadow: inset 0 0 0 var(--border) var(--bad);
+}
+.cockpit-body.talk .composer-send { min-width: 52px; min-height: 52px; }
+/* The shell sizes every button in the composer to 52px; only send is that
+   button. The rail's controls are 44px text controls. */
+.cockpit-body.talk .composer button { min-width: 0; min-height: 44px; }
+.cockpit-body.talk .composer .composer-send { min-width: 52px; min-height: 52px; }
+
+/* ---- the rail: what is on the stage, and what would be read ---- */
+
+.composer-stage {
+  grid-area: stage;
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+/* The NAME is the payload and never truncates; the prose around it does.
+   The rail carries three tenants now, and at 1440 the well is ~550px wide —
+   truncating the whole phrase turned `Auf der Bühne: picker.py` into
+   `Auf der Bühne: pick…`, which keeps the words and loses the fact. */
+.composer-stage-label {
+  flex: none;
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.composer-stage > code { flex: none; color: var(--ink2); }
+.composer-stage button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.composer-stage button:hover,
+.composer-stage button:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+
+/* --------------------------------------------------------- context plan */
+
+/* `display: contents` so the toggle and the plan it opens can take their own
+   places in the composer's grid: the toggle on the rail, the plan across the
+   bottom of the well. */
+.ctxplan { display: contents; }
+.ctxplan-toggle {
+  grid-area: ask;
+  justify-self: end;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ctxplan-toggle:hover:not(:disabled),
+.ctxplan-toggle:focus-visible:not(:disabled) { color: var(--accent); border-color: var(--accent); outline: none; }
+/* Nothing typed yet, so there is nothing to plan. Quiet, not broken: the
+   control is there to be read before it is there to be pressed. */
+.ctxplan-toggle:disabled { color: var(--ink3); cursor: default; }
+
+.ctxplan-body {
+  grid-area: plan;
+  border-top: var(--border) solid var(--line2);
+  padding: var(--u2) var(--u1) 0;
+  max-height: 34vh;
+  overflow: auto;
+}
+.ctxplan-line { font-size: var(--fs-xs); color: var(--ink2); margin: 0; }
+.ctxplan-line code { margin-right: 6px; }
+.ctxplan-error { font-size: var(--fs-xs); color: var(--bad); margin: 0; }
+.ctxplan-seeds { list-style: none; margin: var(--u1) 0; padding: 0; counter-reset: seed; }
+.ctxplan-seeds li {
+  counter-increment: seed;
+  display: flex;
+  align-items: center;
+  gap: var(--u1);
+}
+.ctxplan-seeds button,
+.ctxplan-off {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-align: left;
+}
+.ctxplan-seeds button { cursor: pointer; }
+.ctxplan-seeds button:hover { color: var(--accent); }
+.ctxplan-seeds button:focus-visible {
+  color: var(--accent);
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.ctxplan-off { color: var(--ink3); }
+.ctxplan-seeds li::before {
+  content: counter(seed) '.';
+  flex: none;
+  width: 1.6em;
+  text-align: right;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.ctxplan-name { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctxplan-score { font-family: var(--font-mono); color: var(--ink3); flex: none; }
+
+/* ------------------------------------------------------------- an offer */
+
+/* Ikarus proposing something is not a chat message and should not read like
+   one. It is a decision with two answers, inline in the thread where it was
+   made — the same grammar as the draft card, one level quieter. */
+.offer {
+  margin-top: var(--u1);
+  padding: var(--u2) var(--u3);
+  border: var(--border) solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  display: grid;
+  gap: 2px;
+}
+.offer-eyebrow {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.offer-what { color: var(--ink); margin: 0; }
+.offer-where { font-size: var(--fs-xs); color: var(--ink3); margin: 0; }
+.offer-acts { display: flex; gap: var(--u2); margin-top: var(--u2); flex-wrap: wrap; }
+.offer-acts button {
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.offer-acts button:focus-visible { outline: none; border-color: var(--accent); }
+.offer-acts button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.offer-outcome {
+  display: inline-block;
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--ink3);
+}
+
+.decision-auto {
+  font-size: var(--fs-xs);
+  color: var(--live);
+  border-left: 2px solid var(--live);
+  padding-left: var(--u2);
+  margin-top: var(--u2);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

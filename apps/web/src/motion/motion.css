@@ -36,6 +36,19 @@
   transition: none;
 }
 
+/* ---- cockpit drawers: settings + theme studio ----
+   Both used to be pure-CSS drawers: a hard-coded `transform: translateX(102%)`
+   plus a hard-coded `transition: transform 220ms cubic-bezier(...)`, each with
+   its OWN local `prefers-reduced-motion` carve-out. That is precisely the drift
+   this file exists to prevent — a duration and an easing curve living a second
+   place, and reduced-motion answered twice. Both drawers now animate through
+   `drawerVariants` (variants.ts) driven by `useReducedMotionPref()`, so this
+   file hands the property off the same way it does for `.sheet`/`.scrim`. */
+.settings[data-motion],
+.studio[data-motion] {
+  transition: none;
+}
+
 /* ---- transcript bubbles: retire the CSS `rise` keyframe ---- */
 .msg[data-motion] {
   animation: none;

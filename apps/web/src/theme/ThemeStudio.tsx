@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useThemes } from './ThemeProvider';
 import type { ThemeColors, ThemeSpec } from './types';
+import { drawerVariants, useReducedMotionPref } from '../motion';
 import './studio.css';
 
 /**
@@ -192,8 +194,20 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
     URL.revokeObjectURL(url);
   };
 
+  const reduced = useReducedMotionPref();
+  const drawer = useMemo(() => drawerVariants(reduced), [reduced]);
+
   return (
-    <aside className={open ? 'studio open' : 'studio'} aria-hidden={!open} ref={panel} aria-label="Theme-Studio">
+    <motion.aside
+      className={open ? 'studio open' : 'studio'}
+      data-motion="drawer"
+      variants={drawer}
+      initial={false}
+      animate={open ? 'open' : 'closed'}
+      aria-hidden={!open}
+      ref={panel}
+      aria-label="Theme-Studio"
+    >
       <header className="studio-head">
         <h2>Themes</h2>
         <button type="button" className="studio-close" onClick={onClose} aria-label="Studio schließen">
@@ -545,6 +559,6 @@ export function ThemeStudio({ open, onClose }: { open: boolean; onClose: () => v
           </section>
         )}
       </div>
-    </aside>
+    </motion.aside>
   );
 }

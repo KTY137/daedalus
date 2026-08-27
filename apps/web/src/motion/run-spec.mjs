@@ -26,18 +26,48 @@ const here = path.dirname(fileURLToPath(import.meta.url));
  * realistic ones — not "the token is wrong" but "someone added a primitive
  * next to the system instead of inside it".
  *
- *   G1  Any glass component that drives framer-motion must consult the
+ *   G1  Any component that drives framer-motion must consult the
  *       reduced-motion preference. This is the rule that rots first: the
  *       global `prefers-reduced-motion` CSS in styles.css has no effect on a
  *       JS animation, so a component that forgets the hook silently ignores
  *       the user's setting and nothing anywhere reports it.
  *   G2  No component may write a duration, easing or spring literal. A magic
  *       number in a component is how a design system dies.
+ *
+ * Scope: originally just `components/glass` (the old surface, fully wired).
+ * `cockpit/` and `theme/` are in scope too now that the cockpit surface has
+ * started consuming framer-motion directly (Settings.tsx, ThemeStudio.tsx,
+ * and — as the other cockpit lanes wire in the primitives documented in
+ * docs/design/handoffs-2026-08-26/bewegung.md — Conversation.tsx, Stage.tsx,
+ * Cockpit.tsx). A guard that only watches the surface the app no longer ships
+ * as the default is a guard watching the wrong door. Walked recursively so a
+ * new subdirectory (e.g. `cockpit/stage/`) is covered without editing this
+ * file again.
  */
+const SCAN_ROOTS = [
+  path.resolve(here, '..', 'components', 'glass'),
+  path.resolve(here, '..', 'cockpit'),
+  path.resolve(here, '..', 'theme')
+];
+
+async function walkTsx(dir) {
+  const out = [];
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return out; // a root that does not exist yet is not a failure
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...(await walkTsx(full)));
+    else if (entry.isFile() && entry.name.endsWith('.tsx')) out.push(full);
+  }
+  return out;
+}
+
 async function sourceGuards() {
   const results = [];
-  const dir = path.resolve(here, '..', 'components', 'glass');
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.tsx'));
 
   const MAGIC = [
     [/\bduration\s*:/, 'duration: literal'],
@@ -48,21 +78,24 @@ async function sourceGuards() {
     [/\bstaggerChildren\s*:/, 'staggerChildren: literal']
   ];
 
-  for (const file of files.sort()) {
-    const source = await readFile(path.join(dir, file), 'utf8');
+  const files = (await Promise.all(SCAN_ROOTS.map(walkTsx))).flat().sort();
+
+  for (const full of files) {
+    const label = path.relative(path.resolve(here, '..'), full).split(path.sep).join('/');
+    const source = await readFile(full, 'utf8');
     const drivesMotion = /from 'framer-motion'/.test(source);
 
     if (drivesMotion) {
       results.push({
-        name: `G1 ${file}: consults the reduced-motion preference`,
+        name: `G1 ${label}: consults the reduced-motion preference`,
         ok: source.includes('useReducedMotionPref'),
         detail: source.includes('useReducedMotionPref') ? '' : 'imports framer-motion but never asks'
       });
     }
 
-    const found = MAGIC.filter(([re]) => re.test(source)).map(([, label]) => label);
+    const found = MAGIC.filter(([re]) => re.test(source)).map(([, magicLabel]) => magicLabel);
     results.push({
-      name: `G2 ${file}: no motion literal outside src/motion`,
+      name: `G2 ${label}: no motion literal outside src/motion`,
       ok: found.length === 0,
       detail: found.join(', ')
     });

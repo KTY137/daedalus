@@ -1,0 +1,48 @@
+/*
+ * Materials: what a surface is MADE of, switched by data-material on <html>.
+ *
+ * Loaded after the stage and before the parts, because several of the rules
+ * below tie on specificity with the per-part rules that follow and are
+ * decided by this position in the cascade.
+ */
+
+/* ------------------------------------------------------------- materials */
+
+.panel,
+.convo,
+.decision,
+.palette,
+.hotlist {
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/*
+ * Glass is a material for at most two surfaces (owner ruling) — the floating
+ * command palette (a true overlay, dialog + scrim) and the decision strip (a
+ * compact status card, not a page of running text). Previously every
+ * surface in this list took the blur; .panel, .convo and .hotlist carry
+ * long-form reading content (the whole graph legend, the conversation
+ * transcript, the hot-module list) where a frosted background costs
+ * legibility and GPU for no gain, so they stay flat fills even when the
+ * theme's material is 'glass' — the base rule above already gives them the
+ * theme's (possibly translucent) surface colour, just without the blur.
+ */
+:root[data-material='glass'] .decision,
+:root[data-material='glass'] .palette {
+  backdrop-filter: blur(var(--blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
+}
+
+:root[data-material='paper'] .convo,
+:root[data-material='paper'] .decision,
+:root[data-material='paper'] .hotlist {
+  border: 0;
+  border-top: var(--border) solid var(--line2);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+

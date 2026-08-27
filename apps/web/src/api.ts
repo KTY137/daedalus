@@ -50,16 +50,29 @@ async function request<T>(url: string, init?: RequestInit, timeoutMs = 20_000): 
     } catch (error) {
       // fetch only rejects on a transport failure or an abort. Anything the
       // server actually answered — including 500 — resolves.
+      // GERMAN, BECAUSE THE COCKPIT IS GERMAN.
+      //
+      // These five strings are the only text this module puts in front of a
+      // person, and they arrive at the worst moment — when something has just
+      // failed. They were written in English while every surface that shows
+      // them says "Die Daedalus-API antwortet nicht." two elements away.
+      // The classic surface at ?surface=classic is English and will now show
+      // these in German; that is the right way round, because it is the
+      // retired surface and this is the shipping one.
+      //
+      // The distinction each one draws is load-bearing and survives the
+      // translation intact: an abandoned request is not a failed one, and
+      // saying so is the difference between an honest error and a guess.
       if (controller.signal.aborted) {
         throw new ApiError(
           'timeout',
-          `No answer within ${Math.round(timeoutMs / 1000)}s from ${url}. The request was abandoned; this says nothing about whether the work succeeded.`,
+          `Keine Antwort binnen ${Math.round(timeoutMs / 1000)}s von ${url}. Die Anfrage wurde abgebrochen; das sagt nichts darüber, ob die Arbeit gelungen ist.`,
           url
         );
       }
       throw new ApiError(
         'network',
-        `Could not reach the Daedalus API at ${location.origin}${url.startsWith('/') ? url : `/${url}`}.`,
+        `Die Daedalus-API unter ${location.origin}${url.startsWith('/') ? url : `/${url}`} ist nicht erreichbar.`,
         url
       );
     }
@@ -71,13 +84,13 @@ async function request<T>(url: string, init?: RequestInit, timeoutMs = 20_000): 
       data = undefined;
     }
     if (res.status === 404) {
-      throw new ApiError('notfound', data?.error || `This backend has no ${url}`, url, 404);
+      throw new ApiError('notfound', data?.error || `Dieses Backend kennt ${url} nicht.`, url, 404);
     }
     if (!res.ok) {
-      throw new ApiError('http', data?.error || `Request failed: HTTP ${res.status}`, url, res.status);
+      throw new ApiError('http', data?.error || `Anfrage fehlgeschlagen: HTTP ${res.status}.`, url, res.status);
     }
     if (data && data.ok === false) {
-      throw new ApiError('app', data.error || 'The endpoint ran and refused.', url, res.status);
+      throw new ApiError('app', data.error || 'Der Endpunkt lief und hat abgelehnt.', url, res.status);
     }
     return data as T;
   } finally {
@@ -428,8 +441,25 @@ export function updateAutonomy(project: string, patch: Record<string, unknown>) 
   });
 }
 
+/**
+ * A CEILING THAT MATCHES THE MEASUREMENT, NOT THE DEFAULT.
+ *
+ * This endpoint probes the installed runtimes — it launches each CLI to ask
+ * its version — so it is slow by construction, not by accident. Measured on
+ * this machine on 2026-08-26: 16.6s with the box under load, 28.0s with the
+ * box quiet. Against `request()`'s 20s default that meant the call aborted
+ * more often than it answered, and two surfaces silently lost their content:
+ * the settings reachability list rendered no rows at all, and the
+ * conversation's runtime picker had nothing to offer and fell back to
+ * printing a raw id where a name belongs.
+ *
+ * 45s is the measured cost plus headroom, not a guess. It is the honest fix
+ * for a wrong constant; making the probe itself cheap is a backend change and
+ * is written up in docs/design/handoffs-2026-08-26/. A caller that cannot
+ * wait this long should say it is still checking — both of these do.
+ */
 export function getRuntimeStatus() {
-  return request<RuntimeStatusPayload>('/api/runtimes/status');
+  return request<RuntimeStatusPayload>('/api/runtimes/status', undefined, 45_000);
 }
 
 export function testRuntime(runtimeId: string) {
@@ -450,10 +480,29 @@ export interface DraftRow {
   objective: string;
   paths: string[];
   status: 'pending' | 'applied' | 'dismissed';
+  /** which repository this draft was written against; '' for one written
+   *  before the store recorded it, which therefore belongs to no project */
+  repo_root: string;
 }
 
-export function getDrafts() {
-  return request<ApiEnvelope & { drafts: DraftRow[]; pending_count: number }>('/api/drafts');
+/**
+ * Drafts, scoped to one project — and the answer says which scope it used.
+ *
+ * The store is a single directory shared by every project. Calling this
+ * without a project returns ALL of them, which is what the cockpit used to
+ * do: measured on this machine on 2026-08-26, the decision card showed 427
+ * pending under `agent_env`, which has none of its own — the count was every
+ * project's drafts wearing the selected project's name.
+ *
+ * `scope` is the repository actually filtered on, or null when the listing
+ * spans every project. A surface that shows the count must read it, so an
+ * unscoped total can never be presented as one project's own.
+ */
+export function getDrafts(project?: string) {
+  const q = project ? `?project=${encodeURIComponent(project)}` : '';
+  return request<ApiEnvelope & { drafts: DraftRow[]; pending_count: number; scope: string | null }>(
+    `/api/drafts${q}`
+  );
 }
 
 /** Full draft content — `daedalus/drafts.py` `save_draft()`'s stored shape.

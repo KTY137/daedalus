@@ -1,0 +1,190 @@
+/*
+ * The instruments: the decision card and the status line.
+ *
+ * Both report what the system currently knows, and both must stay readable
+ * when what they know is "nothing yet" — a loading instrument that looks like
+ * a reading is the defect this file exists to avoid. The two share one
+ * indicator vocabulary: a filled `.dot` is a settled fact (ok/warn/bad/muted),
+ * a ringed, breathing `.dot.pending` is a question still open — see the
+ * status-line section below for the tone rules both parts obey.
+ *
+ * The decision card has two shapes for two different jobs. `.decision.quiet`
+ * is what it is most of the time — nothing pending, or not read yet — and
+ * stays a single quiet line so it does not compete with the page it sits
+ * above. The full card only appears when there is something to actually
+ * decide, and that is where this file spends its weight: hierarchy in the
+ * head, a chip for automatic notes and errors, room for the "Warum" report.
+ */
+
+/* -------------------------------------------------------------- decision */
+
+.decision { padding: var(--u3); display: grid; gap: var(--u1); }
+/* Loading and empty are not a smaller card — they are a status line, exactly
+   like the footer's. One row, no border, no padding to speak of: real estate
+   this card only earns back once there is an actual decision in it. */
+.decision.quiet {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  padding: var(--u1) 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.decision.quiet p { margin: 0; }
+.decision-head { display: flex; align-items: center; justify-content: space-between; gap: var(--u2); }
+.decision-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+/* The one accent placement this card gets: a live dot next to the eyebrow,
+   only when a decision is actually open, saying this the way the nav badge
+   and the status line's blocked-promotion chip already say "needs you". */
+.decision-count {
+  display: inline-flex;
+  align-items: center;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+}
+.decision-title {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: var(--fs-lg);
+}
+.decision-sub, .decision-none { color: var(--ink2); font-size: var(--fs-sm); }
+.decision-acts { display: flex; gap: var(--u2); margin-top: var(--u2); flex-wrap: wrap; }
+.decision-acts button {
+  min-height: 44px;
+  padding: 0 var(--u4);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.decision-acts button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.decision-acts button.quiet { background: transparent; border-color: transparent; color: var(--ink2); text-decoration: underline; }
+.decision-acts button:disabled { opacity: 0.5; cursor: default; }
+/* Automatic-apply notes and refusals used to render as plain body text —
+   indistinguishable from the paragraph above them, for a sentence that is
+   actually reporting an autonomous action or its refusal. Both now carry a
+   dot and their tone, the same grammar the status line uses for a finding
+   that is not a plain fact. */
+.decision-auto, .decision-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+}
+.decision-auto { color: var(--live); }
+.decision-error { color: var(--bad); }
+.decision-why { margin-top: var(--u2); border-top: var(--border) solid var(--line2); padding-top: var(--u2); font-size: var(--fs-sm); }
+.decision-summary { white-space: pre-wrap; }
+.decision-list { margin-top: var(--u2); }
+.decision-list > span { font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink3); }
+.decision-list ul { margin: var(--u1) 0 0 var(--u3); }
+.decision-list.risk ul { color: var(--bad); }
+
+/* ------------------------------------------------------------ statusline */
+
+.statusline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u1);
+  font-size: var(--fs-xs);
+  color: var(--ink2);
+}
+/* Two deliberate rows, not an accidental wrap: scope+trust first, index and
+   liveness second. Each row wraps on its own if it must — a wrapped SECOND
+   row then reads as "more detail below", not as a fact orphaned mid-sentence. */
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u1) var(--u3);
+}
+.status-row.secondary { color: var(--ink3); }
+.status-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u1) var(--u4);
+}
+/* The group boundary — the only rule stronger than the " · " already inside a
+   group. Height comes from the line box, not a fixed number, so it sits right
+   at any type size a theme picks. */
+.status-sep {
+  align-self: stretch;
+  width: var(--border);
+  min-height: 1em;
+  background: var(--line2);
+}
+.status-item { display: inline-flex; align-items: center; gap: 6px; }
+/* The health item is a control, so it is a control-sized target. The rest of
+   the bar is text and stays text. */
+.status-item.link {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0 var(--u1);
+  min-height: 44px;
+  text-align: left;
+}
+.status-item.ok { color: var(--ok); }
+.status-item.warn { color: var(--live); }
+.status-item.bad { color: var(--bad); }
+.status-item.muted { color: var(--ink3); }
+/* Unknown is its own tone, never "muted" — muted is a known, settled fact
+   (kein tree-sitter, kein Ereignisstrom); pending is a question still open. */
+.status-item.pending { color: var(--ink3); }
+
+/* A real finding gets weight a plain count never does: a tinted, bordered
+   chip, colour drawn from the tone already set above via currentColor so it
+   never needs its own token. Pending stays plain text — an open question is
+   not yet a problem and should not shout like one. */
+.status-item.bad,
+.status-item.warn {
+  padding: 1px var(--u2);
+  border-radius: var(--radius-sm);
+  border: var(--border) solid color-mix(in oklab, currentColor 40%, transparent);
+  background: color-mix(in oklab, currentColor 14%, transparent);
+}
+
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+.dot.muted { background: var(--ink3); }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--live); }
+.dot.bad { background: var(--bad); }
+/* A ring, not a fill — "we have not read this yet" is a different shape from
+   "we read it and it is quiet", not just a different word next to it. */
+.dot.pending {
+  box-sizing: border-box;
+  background: transparent;
+  border: 1.5px solid var(--ink3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .status-item.pending,
+  .dot.pending {
+    animation: status-pending-breathe 1.8s ease-in-out infinite;
+  }
+}
+@keyframes status-pending-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
