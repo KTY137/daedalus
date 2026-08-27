@@ -1,7 +1,10 @@
 """``python -m daedalus.ignition`` -- run the Gate-1 slice once, print the receipt head.
 
-Read-only with respect to the repository except for the receipt directory and
-its content-addressed store. It promotes nothing: the exit code reports whether
+The repository checkout is never written; the run writes the receipt directory,
+its content-addressed store, and -- since G1-LEASE-01 (owner decision
+2026-08-27, Option A) -- the operator's effect-lease ledger and write-evidence
+store under the installation's control root, where every attempt's lease and
+terminal record now land. It promotes nothing: the exit code reports whether
 the slice reached a clean, packet-bearing result, not whether anything may be
 merged.
 """
