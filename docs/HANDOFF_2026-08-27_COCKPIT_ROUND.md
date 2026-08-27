@@ -114,20 +114,16 @@ To reproduce anything above:
 
 ## 4. Open blockers, measured and deliberately not fixed
 
-**`/api/runtimes/status` costs more than its client ceiling, and degrades.**
-[MEASURED 2026-08-26] 16.6 s under load, **28.0 s on a quiet box**, and **36.1 s
-after the Playwright suite had run** — while `/api/projects` stayed at 1.1 s
-throughout. It launches each CLI to ask its version, so it is slow by
-construction and grows with use. Two surfaces silently lost content (the
-settings reachability list rendered zero rows; the runtime picker had nothing to
-offer). Mitigated client-side by giving that one call a 45 s ceiling that matches
-the measurement. **This is the cause of both Playwright failures** — "the thread
-survives a reload" clears its 60 s timeout by about one second when run alone.
-Raising the ceiling again would be chasing a moving number with a constant, and
-caching the probe is not obviously correct: a cached reading that reports
-"erreichbar" for a CLI that broke a minute ago is the exact lie this codebase
-forbids. If it is cached it must carry when it was measured, and the surface
-must show that. **That is a design decision for the owner, not a patch.**
+**`/api/runtimes/status` cost — RESOLVED 2026-08-27 (owner decision: cache with a
+visible measured-at).** [MEASURED 2026-08-26] the probe was 16.6 s under load,
+28.0 s on a quiet box, 36.1 s after the Playwright suite, because it launches
+each CLI to ask its version. The owner ruled: cache the probe, and every cached
+row carries when it was measured so a stale "erreichbar" cannot lie. Shipped in
+`768a9e4d` — a per-runtime TTL cache (`DAEDALUS_RUNTIME_STATUS_TTL_S`, default
+30 s) with `measured_at`/`measured_age_s` on every cached row, the settings
+reachability list showing the age, and the 45 s client ceiling kept as the net
+for the first cold probe (MEASURED cold 12.0 s, warm 0.0 s). The two Playwright
+failures this caused should now clear with servers up; re-run to confirm (§6.3).
 
 **`/api/structure` emits one plane, so the four-plane view cannot be built.**
 `StructureGraphNode` carries `id`, `fan_in`, `loc`, `score` — nothing says which
@@ -171,13 +167,12 @@ covered 50 of 56 sites and could have hidden a fifth missing rule.
 
 ## 6. What to do next, in order
 
-1. **Commit the round by pathspec** — `apps/web/src`, `apps/web/tests/cockpit.spec.ts`,
-   `docs/design/COCKPIT_ROUND_2026-08-26.md`, `docs/design/handoffs-2026-08-26/`,
-   `docs/design/prototypes/cockpit-2026-08-26/`. Nothing else in the tree.
-2. Rebuild and commit `apps/web/dist` separately.
+1. ~~Commit the round by pathspec~~ — done, `0d3ea5d1`. [MEASURED 2026-08-27, Mnemosyne: `git log --oneline -- apps/web/tests/cockpit.spec.ts`]
+2. ~~Rebuild and commit `apps/web/dist`~~ — done, `3ee17d73`. [MEASURED 2026-08-27, Mnemosyne: `git log --oneline -- apps/web/dist`]
 3. Re-run the Playwright suite with servers up and confirm the failure count is
    still 2 and still those two. If a third appears, it is new.
 4. Take the owner decision on the runtime probe (§4) — it is the one thing
    blocking a green suite and it is a correctness question, not a perf one.
 5. The six lane handoffs in `docs/design/handoffs-2026-08-26/` carry each lane's
-   own leftovers and cross-lane requests. They have not been triaged.
+   own leftovers and cross-lane requests. Not verified this pass whether they
+   have been triaged since.
