@@ -31,9 +31,10 @@ not invent a benchmark win or Gate transition.
 ## Operator-state location
 
 The guard does not create `runs/gardener` or any other campaign-specific file
-inside the Primary Checkout. Bounded stdout/stderr, waiting status, and the
-final diagnostic report are operator state rather than Gate evidence and live
-under:
+inside the Primary Checkout. Only the waiting status and final diagnostic
+report are operator state rather than Gate evidence. Normal-run output and
+evidence remain exclusively in the existing canonical Daedalus ledgers; the
+guard creates no parallel activation receipt. Operator diagnostics live under:
 
 ```text
 Windows: %LOCALAPPDATA%\Daedalus\gardener\fourfold-tensor-gardener-20260929\
