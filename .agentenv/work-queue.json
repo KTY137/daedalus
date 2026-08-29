@@ -72,13 +72,14 @@
     },
     {
       "id": "g1-tensor-fourfold-projection",
-      "state": "ready",
-      "instruction": "Build a bounded conversion layer between the canonical Fourfold/Forest contracts and the internal tensor representation from G1-TENSOR-01. Do not duplicate either contract family. A conversion must bind exact source revision, Forest/Fourfold digest, tensor schema and provenance. Preserve partial/absent reasons and refuse a tensor that cannot reconstruct the represented source identity. Add deterministic sparse slicing, a minimal incremental delta application path, and a round-trip report that distinguishes exact, partial, unsupported and refused cases. Benchmark only local fixture construction/query/delta cost; do not claim production speed or correctness from microbenchmarks. Add malformed, stale-revision, dropped-edge, duplicate-coordinate and non-deterministic-order tests. Keep all changes inside the declared files and record residual semantic dimensions that a tensor view cannot encode.",
+      "state": "blocked",
+      "instruction": "DEPENDENCY: activate only after G1-TENSOR-01 is owner-integrated and repo_state.head is rebound. Build a bounded conversion layer between the canonical Fourfold/Forest contracts and the integrated internal tensor representation. Do not duplicate either contract family. A conversion must bind exact source revision, Forest/Fourfold digest, tensor schema and provenance. Preserve partial/absent reasons and refuse a tensor that cannot reconstruct the represented source identity. Add deterministic sparse slicing, a minimal incremental delta application path, and a round-trip report that distinguishes exact, partial, unsupported and refused cases. Benchmark only local fixture construction/query/delta cost; do not claim production speed or correctness from microbenchmarks. Add malformed, stale-revision, dropped-edge, duplicate-coordinate and non-deterministic-order tests.",
       "authority_refs": [
         "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
         "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
         "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
         "docs/work-packets/G1-OPS-GARDENER-20260929.json",
+        "dependency:G1-TENSOR-01 owner-integrated",
         "https://github.com/KTY137/daedalus/issues/239"
       ],
       "target_paths": [
@@ -133,13 +134,14 @@
     },
     {
       "id": "g1-architecture-gardening-metrics",
-      "state": "ready",
-      "instruction": "Implement a read-only architecture-gardening measurement projection under daedalus.evolution. Reuse the existing generated architecture map and inventory contracts; do not create a second scanner or dependency graph. Report exact revision and source digests plus module count, public exported symbols, dependency cycles, islands, shims, unreachable modules, documentation drift, compatibility adapters and candidate duplicate contract/registry families. Every metric must distinguish measured, inherited, unavailable and stale. Define before/after comparison without declaring that fewer modules is automatically better. Add fixtures proving stale/foreign maps, malformed counts, metric omission and apparent improvement through denominator deletion are refused or visibly partial. The module must have no write, Git mutation, branch deletion, merge or promotion authority.",
+      "state": "blocked",
+      "instruction": "DEPENDENCY: activate only after G1-EVOLVE-BENCH-01 establishes the canonical daedalus.evolution package and the queue is rebound to its integrated head. Implement a read-only architecture-gardening measurement projection. Reuse the existing generated architecture map and inventory contracts; do not create a second scanner or dependency graph. Report exact revision and source digests plus module count, public exported symbols, dependency cycles, islands, shims, unreachable modules, documentation drift, compatibility adapters and candidate duplicate contract/registry families. Every metric must distinguish measured, inherited, unavailable and stale. Define before/after comparison without declaring that fewer modules is automatically better. Add fixtures proving stale/foreign maps, malformed counts, metric omission and apparent improvement through denominator deletion are refused or visibly partial. The module must have no write, Git mutation, branch deletion, merge or promotion authority.",
       "authority_refs": [
         "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
         "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
         "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
         "docs/work-packets/G1-OPS-GARDENER-20260929.json",
+        "dependency:G1-EVOLVE-BENCH-01 owner-integrated",
         "https://github.com/KTY137/daedalus/issues/239"
       ],
       "target_paths": [
