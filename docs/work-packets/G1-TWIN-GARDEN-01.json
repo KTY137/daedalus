@@ -1,0 +1,92 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TWIN-GARDEN-01",
+  "title": "Consolidate Fourfold projection identity",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "owner_direction_issue": 239,
+  "base_revision": "231e5de8a9c1ae8bb56e44e49922d2d57989c261",
+  "branch": "g1/fourfold-contract-garden-01",
+  "primary_claim": "The Forest-to-Fourfold projection verifier now consumes the canonical FOURFOLD_PLANES order and CrossPlaneBinding.semantic_key instead of maintaining a second plane enumeration and a second binding-key function, while preserving the existing projection behavior and Fourfold wire contracts.",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "master_plan_revision": 8,
+    "active_gate": "Gate 1 — Renovation ignition slice",
+    "campaign_issue": 239,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval_issuance": false,
+    "gate_transition": false
+  },
+  "baseline_review": {
+    "inspected": [
+      "daedalus/twin/contracts.py",
+      "daedalus/twin/reference_compiler.py",
+      "daedalus/twin/projection_verifier.py",
+      "daedalus/twin/legacy_forest.py",
+      "daedalus/twin/_reference_claims.py",
+      "daedalus/twin/_reference_inventory.py",
+      "tests/twin/test_fourfold_contracts.py",
+      "tests/twin/test_projection_verifier.py",
+      "tests/twin/test_reference_hardening.py"
+    ],
+    "finding": "projection_verifier.py duplicated the constitutional four-plane tuple in two buckets and reconstructed a five-field snapshot binding key even though CrossPlaneBinding already owns the canonical semantic_key including source_revision",
+    "unchanged_deliberately": [
+      "daedalus/twin/contracts.py: existing PlaneSnapshot and CrossPlaneBinding validation already provide the needed canonical identities",
+      "daedalus/twin/reference_compiler.py: already iterates FOURFOLD_PLANES and its verified claim evidence is required by the projection verifier",
+      "daedalus/twin/legacy_forest.py: outside the packet target paths and intentionally conservative; no compatibility expansion in this packet"
+    ]
+  },
+  "scope": {
+    "changes": [
+      "daedalus/twin/projection_verifier.py"
+    ],
+    "adds": [
+      "tests/twin/test_fourfold_gardening.py",
+      "docs/work-packets/G1-TWIN-GARDEN-01.json"
+    ],
+    "deletes": [
+      "projection_verifier._binding_key duplicate helper"
+    ],
+    "public_api_added": [],
+    "wire_schema_changed": false,
+    "compatibility_adapter_added": false,
+    "new_registry_or_store": false,
+    "new_semantic_plane": false
+  },
+  "acceptance": [
+    "projection verifier uses FOURFOLD_PLANES for all per-plane buckets",
+    "snapshot-side cross-plane identity is taken from CrossPlaneBinding.semantic_key",
+    "Forest-side binding keys include the exact Fourfold source revision and therefore have the same six-field identity shape",
+    "the duplicate _binding_key helper is absent",
+    "the bounded reference fixture compiles deterministically and remains an exact Forest projection",
+    "existing Fourfold contract, projection and reference-hardening suites remain requested without weakening assertions"
+  ],
+  "verification": {
+    "prepared": [
+      "python -m pytest -q tests/twin/test_fourfold_contracts.py tests/twin/test_projection_verifier.py tests/twin/test_reference_hardening.py tests/twin/test_fourfold_gardening.py",
+      "python -m py_compile daedalus/twin/projection_verifier.py tests/twin/test_fourfold_gardening.py"
+    ],
+    "executed_in_connector_session": [],
+    "hosted_ci": "blocked by issue #67; jobs that fail before Step 1 are infrastructure observations, not product evidence",
+    "claim": "source-level consolidation and adversarial regression preparation only; no exact-head green, package, wheel, platform, Gate or promotion claim"
+  },
+  "gardening_metrics": {
+    "duplicate_plane_enumerations_removed": 2,
+    "duplicate_binding_key_helpers_removed": 1,
+    "new_production_modules": 0,
+    "new_public_symbols": 0,
+    "new_compatibility_shims": 0
+  },
+  "rollback": [
+    "revert the projection_verifier change and the focused gardening test together",
+    "retain this Work Packet and any negative review evidence"
+  ],
+  "non_goals": [
+    "changing Fourfold wire schemas or trust semantics",
+    "expanding legacy Forest node-kind support",
+    "implementing the tensor kernel",
+    "activating Gate 2",
+    "merging or promoting this candidate"
+  ]
+}
