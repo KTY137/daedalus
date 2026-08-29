@@ -1,0 +1,73 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-GR-28",
+  "title": "Repository-Write Chain ArtifactStore Resolution and Atomic Admission",
+  "gate": 0,
+  "parent_revision": "ed5e3b65a929efedc535393b02013b9d9d93ad73",
+  "parent_branch": "g0/chain-result-collector-replay-attestation",
+  "branch": "g0/chain-artifact-store-resolution",
+  "change_class": "artifact-store-resolution-and-atomic-authenticated-admission",
+  "authority": "authenticated-evidence-only",
+  "dependencies": [
+    "G0-GR-26",
+    "G0-GR-27"
+  ],
+  "tracked_issues": [234, 235],
+  "primary_claim": "A repository-write chain result becomes admissible only after its declared canonical ArtifactStore locator manifest is resolved from a checkout-disjoint store, the exact resolved blob bytes reproduce the retained mechanical verifier receipt, and the separately authenticated collector replay attestation binds that same verification, artifact, report, chain and source subject.",
+  "scope": {
+    "corrects_locator_manifest_vs_blob_digest_semantics": true,
+    "artifact_content_sha256_names_blob_bytes": true,
+    "artifact_locator_sha256_names_locator_manifest_bytes": true,
+    "uses_canonical_artifact_store": true,
+    "requires_checkout_disjoint_store": true,
+    "uses_descriptor_stable_bounded_reads": true,
+    "rejects_symlink_or_non_regular_leaf_objects": true,
+    "rechecks_locator_after_blob_read": true,
+    "requires_exact_chain_media_type": true,
+    "requires_exact_chain_metadata": true,
+    "requires_exact_locator_provenance_subject": true,
+    "public_admission_accepts_raw_artifact_bytes": false,
+    "replays_retained_byte_verification_over_resolved_bytes": true,
+    "requires_exact_retained_verification_equality": true,
+    "authenticates_collector_replay_attestation": true,
+    "cross_binds_resolution_verification_and_attestation": true,
+    "admits_authenticated_failure_evidence": true,
+    "changes_gate_report_v4": false,
+    "changes_release_verifier": false,
+    "issues_owner_approval": false,
+    "closes_gate_0": false,
+    "activates_gate_1": false,
+    "activates_gate_2": false
+  },
+  "acceptance": [
+    "a real ArtifactStore locator digest is distinct from the blob digest and resolves successfully only when its manifest binds the exact retained artifact subject",
+    "legacy evidence that merely places the blob digest in artifact-locator:sha256 form cannot qualify as ArtifactStore resolution evidence",
+    "the store root and primary checkout must be existing non-symlink directories and must not contain one another",
+    "locator and blob reads are bounded regular-file descriptor reads with before/open/after identity checks and exact SHA-256 verification",
+    "wrong locator media type, metadata, provenance, path identity, locator digest, blob digest or byte length is refused",
+    "the public admission function has no raw artifact byte parameter",
+    "the retained mechanical verification receipt must reproduce exactly from bytes obtained through the resolver",
+    "the collector replay attestation must bind the same artifact verification digest, artifact evidence digest, report digest, chain digest, source revision and source-tree revision",
+    "collector authentication refusal prevents creation of an admission receipt",
+    "the admission receipt binds the exact store-resolution, mechanical-verification and collector-attestation digests while preserving evidence_authenticated rather than converting failure evidence into success"
+  ],
+  "verification": {
+    "focused_tests_prepared": 15,
+    "bounded_mutations_prepared": 7,
+    "python_ast_parse": "not executed in this connector session",
+    "exact_repository_focused_tests": "not executed in this connector session",
+    "bounded_mutation_execution": "not executed in this connector session",
+    "full_suite": "not executed",
+    "packaging": "not executed",
+    "hosted_ci": "issue #67 remains open; absent or zero-step runs are not product evidence",
+    "evidence_class": "author-side source construction and contract review only; no exact-repository or exact-head green claim"
+  },
+  "non_goals": [
+    "changing the six repository-write verifier algorithms",
+    "making the repository candidate its own trusted collector",
+    "treating admission as proof that the Gate is clean",
+    "wiring the admission receipt into the release verifier",
+    "OwnerApproval, merge, promotion or Gate transition"
+  ],
+  "next_packet": "After the shared inventory/classification snapshot and signed non-runtime binding repair lanes are reconciled, make the release verifier consume one exact G0-GR-28 admission receipt instead of independently trusting chain bytes, mechanical verification or collector claims."
+}
