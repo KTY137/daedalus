@@ -89,7 +89,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "scan":
-        rows = [s.to_dict() for s in discover_sources(args.root, max_files=args.max_files)]
+        try:
+            rows = [s.to_dict() for s in discover_sources(args.root, max_files=args.max_files)]
+        except ValueError as exc:
+            parser.error(str(exc))
         if args.json:
             print(json.dumps(rows, indent=2))
         else:
