@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""Operate the bounded Fourfold/Tensor gardener campaign.
+"""Run the bounded Fourfold/Tensor gardener through 2026-09-29.
 
-The runner is deliberately thin. It schedules and invokes the existing
-``python -m daedalus.loop`` entrypoint; it does not introduce another picker,
-worker protocol, evaluator, budget ledger, kill switch, merge path, promotion
-path, or source of repository truth.
-
-Before 2026-09-29 Europe/Berlin one bounded loop activation is allowed. On or
-after that date no candidate is executed: the canonical kill switch is stopped,
-a final repository/branch/worktree inventory is retained, and the scheduled
-task is disabled.
+This is a thin operator wrapper around the existing ``daedalus.loop``. It adds
+no picker, worker protocol, evaluator, budget ledger, kill switch, merge path,
+promotion path, or repository truth. Before the Europe/Berlin cutoff it may
+launch one bounded canonical loop process. At or after the cutoff it launches
+no candidate, stops the canonical kill switch, disables its Windows task, and
+retains a final repository topology report.
 """
 from __future__ import annotations
 
@@ -29,7 +26,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CAMPAIGN = ROOT / "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json"
-TASK_PATH = r"\Daedalus\"
+TASK_PATH = "\\Daedalus\\"
 TASK_NAME = "FourfoldTensorGardener20260929"
 FULL_TASK_NAME = TASK_PATH + TASK_NAME
 CAMPAIGN_SCHEMA = "daedalus-gardener-campaign/1"
@@ -58,24 +55,21 @@ def _constant(value: str) -> None:
 def _read_json(path: Path) -> Mapping[str, Any]:
     try:
         raw = path.read_bytes()
-    except OSError as exc:
-        raise CampaignError(f"cannot read campaign file: {path}") from exc
-    if not raw or len(raw) > 2 * 1024 * 1024:
-        raise CampaignError("campaign file size is invalid")
-    try:
         value = json.loads(
             raw.decode("utf-8"),
             object_pairs_hook=_pairs,
             parse_constant=_constant,
         )
+    except OSError as exc:
+        raise CampaignError(f"cannot read campaign file: {path}") from exc
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CampaignError("campaign file is not canonical UTF-8 JSON") from exc
-    if not isinstance(value, Mapping):
-        raise CampaignError("campaign root must be an object")
+        raise CampaignError("campaign file is not UTF-8 JSON") from exc
+    if not raw or len(raw) > 2 * 1024 * 1024 or not isinstance(value, Mapping):
+        raise CampaignError("campaign document shape or size is invalid")
     return value
 
 
-def _date(value: object, name: str) -> date:
+def _iso_date(value: object, name: str) -> date:
     if not isinstance(value, str):
         raise CampaignError(f"{name} must be an ISO date")
     try:
@@ -84,19 +78,19 @@ def _date(value: object, name: str) -> date:
         raise CampaignError(f"{name} must be an ISO date") from exc
 
 
-def _bounded_int(value: object, name: str, high: int) -> int:
+def _integer(value: object, name: str, high: int) -> int:
     if type(value) is not int or not 1 <= value <= high:
         raise CampaignError(f"{name} must be in 1..{high}")
     return value
 
 
-def _bounded_float(value: object, name: str, high: float) -> float:
+def _number(value: object, name: str, high: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise CampaignError(f"{name} must be numeric")
-    number = float(value)
-    if not 0.0 < number <= high:
+    result = float(value)
+    if not 0.0 < result <= high:
         raise CampaignError(f"{name} must be in (0, {high}]")
-    return number
+    return result
 
 
 @dataclass(frozen=True)
@@ -130,28 +124,28 @@ class Campaign:
             raise CampaignError("invalid campaign_id")
         if raw.get("timezone") != "Europe/Berlin":
             raise CampaignError("campaign timezone must be Europe/Berlin")
-        cutoff = _date(raw.get("work_until_date_exclusive"), "cutoff")
-        if _date(raw.get("final_report_date"), "final_report_date") != cutoff:
-            raise CampaignError("final report date must equal the cutoff date")
+        cutoff = _iso_date(raw.get("work_until_date_exclusive"), "cutoff")
+        if _iso_date(raw.get("final_report_date"), "final_report_date") != cutoff:
+            raise CampaignError("final report date must equal the cutoff")
 
         authority = raw.get("authority")
         schedule = raw.get("schedule")
         bounds = raw.get("activation_bounds")
         if not all(isinstance(item, Mapping) for item in (authority, schedule, bounds)):
-            raise CampaignError("authority, schedule, and activation_bounds are required")
+            raise CampaignError("authority, schedule and activation_bounds are required")
         assert isinstance(authority, Mapping)
         assert isinstance(schedule, Mapping)
         assert isinstance(bounds, Mapping)
         if authority.get("classification") != "ALIGNED":
             raise CampaignError("campaign must be ALIGNED")
-        for name in (
+        for field in (
             "automatic_merge",
             "automatic_promotion",
             "may_mint_owner_approval",
             "may_change_gate_state",
         ):
-            if authority.get(name) is not False:
-                raise CampaignError(f"authority.{name} must be false")
+            if authority.get(field) is not False:
+                raise CampaignError(f"authority.{field} must be false")
         if schedule.get("multiple_instances") != "IgnoreNew":
             raise CampaignError("overlap policy must be IgnoreNew")
         if schedule.get("interactive_user_only") is not True:
@@ -166,28 +160,26 @@ class Campaign:
             campaign_id=campaign_id,
             timezone_name="Europe/Berlin",
             cutoff=cutoff,
-            interval_minutes=_bounded_int(
+            interval_minutes=_integer(
                 schedule.get("interval_minutes"), "interval_minutes", 1440
             ),
             master_plan=master,
             execution_plan=execution,
             bounds=Bounds(
-                iterations=_bounded_int(bounds.get("max_iterations"), "max_iterations", 20),
-                wall_s=_bounded_int(bounds.get("max_wall_clock_s"), "max_wall_clock_s", 7200),
-                spend_usd=_bounded_float(bounds.get("max_spend_usd"), "max_spend_usd", 100.0),
-                attempts=_bounded_int(
+                iterations=_integer(bounds.get("max_iterations"), "max_iterations", 20),
+                wall_s=_integer(bounds.get("max_wall_clock_s"), "max_wall_clock_s", 7200),
+                spend_usd=_number(bounds.get("max_spend_usd"), "max_spend_usd", 100.0),
+                attempts=_integer(
                     bounds.get("max_attempts_per_candidate"),
                     "max_attempts_per_candidate",
                     10,
                 ),
-                queue_limit=_bounded_int(bounds.get("queue_limit"), "queue_limit", 100),
+                queue_limit=_integer(bounds.get("queue_limit"), "queue_limit", 100),
             ),
         )
 
 
 def berlin_now() -> tuple[datetime, str]:
-    """Use IANA Berlin time; accept Windows local time only as a bounded fallback."""
-
     try:
         return datetime.now(ZoneInfo("Europe/Berlin")), "zoneinfo"
     except ZoneInfoNotFoundError:
@@ -230,9 +222,7 @@ def _run(
 
 def _git(repo_root: Path, *args: str) -> str:
     return _run(
-        ("git", "-C", str(repo_root), *args),
-        repo_root,
-        check=True,
+        ("git", "-C", str(repo_root), *args), repo_root, check=True
     ).stdout.strip()
 
 
@@ -266,12 +256,12 @@ def _repo_file(repo_root: Path, relative: str, label: str) -> Path:
     if supplied.is_absolute() or any(part in {".", ".."} for part in supplied.parts):
         raise CampaignError(f"{label} must be a canonical repo-relative path")
     root = repo_root.resolve()
-    resolved = (root / supplied).resolve(strict=False)
+    result = (root / supplied).resolve(strict=False)
     try:
-        resolved.relative_to(root)
+        result.relative_to(root)
     except ValueError as exc:
         raise CampaignError(f"{label} escapes the repository") from exc
-    return resolved
+    return result
 
 
 def plan_state(repo_root: Path, campaign: Campaign) -> dict[str, Any]:
@@ -280,7 +270,7 @@ def plan_state(repo_root: Path, campaign: Campaign) -> dict[str, Any]:
     try:
         master_bytes = master.read_bytes()
         execution_bytes = execution.read_bytes()
-        master_text = master_bytes.decode("utf-8")
+        text = master_bytes.decode("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise CampaignError("authority documents cannot be read as UTF-8") from exc
     for marker in (
@@ -289,13 +279,11 @@ def plan_state(repo_root: Path, campaign: Campaign) -> dict[str, Any]:
         "## 5. The Project Twin",
         "## 10. Mandatory build and review chain",
     ):
-        if marker not in master_text:
+        if marker not in text:
             raise CampaignError(f"Master Plan authority marker is missing: {marker}")
-    revision = re.search(r"^Revision:\s*(\d+)\s*$", master_text, re.MULTILINE)
-    version = re.search(r"^Version:\s*(\S+)\s*$", master_text, re.MULTILINE)
-    gate = re.search(
-        r"^Active delivery gate:\s*(.+?)\s*$", master_text, re.MULTILINE
-    )
+    revision = re.search(r"^Revision:\s*(\d+)\s*$", text, re.MULTILINE)
+    version = re.search(r"^Version:\s*(\S+)\s*$", text, re.MULTILINE)
+    gate = re.search(r"^Active delivery gate:\s*(.+?)\s*$", text, re.MULTILINE)
     if revision is None or version is None or gate is None:
         raise CampaignError("Master Plan identity fields are incomplete")
     return {
@@ -311,8 +299,8 @@ def plan_state(repo_root: Path, campaign: Campaign) -> dict[str, Any]:
 
 def _atomic_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(name)
     try:
         with os.fdopen(fd, "wb") as handle:
             handle.write(data)
@@ -403,7 +391,7 @@ def _disable_windows_task(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def finalize(repo_root: Path, campaign: Campaign, now: datetime, tz_source: str) -> int:
+def finalize(repo_root: Path, campaign: Campaign, now: datetime, source: str) -> int:
     stop_code = _killswitch(
         repo_root,
         "stop",
@@ -414,7 +402,7 @@ def finalize(repo_root: Path, campaign: Campaign, now: datetime, tz_source: str)
         "campaign_id": campaign.campaign_id,
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
         "berlin_time": now.isoformat(timespec="seconds"),
-        "timezone_source": tz_source,
+        "timezone_source": source,
         "cutoff": campaign.cutoff.isoformat(),
         "candidate_execution_performed": False,
         "kill_switch_stop_returncode": stop_code,
@@ -435,9 +423,9 @@ def finalize(repo_root: Path, campaign: Campaign, now: datetime, tz_source: str)
 
 def activate(repo_root: Path, campaign_path: Path) -> int:
     campaign = Campaign.load(campaign_path)
-    now, tz_source = berlin_now()
+    now, source = berlin_now()
     if now.date() >= campaign.cutoff:
-        return finalize(repo_root, campaign, now, tz_source)
+        return finalize(repo_root, campaign, now, source)
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     activation = _campaign_root(repo_root, campaign) / "activations" / stamp
@@ -449,15 +437,13 @@ def activate(repo_root: Path, campaign_path: Path) -> int:
         repo_root,
         timeout=float(campaign.bounds.wall_s + 600),
     )
-    stdout = _write_log(activation / "stdout.log", result.stdout)
-    stderr = _write_log(activation / "stderr.log", result.stderr)
     receipt = {
         "schema": ACTIVATION_SCHEMA,
         "campaign_id": campaign.campaign_id,
         "started_at": started,
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
         "berlin_time_at_start": now.isoformat(timespec="seconds"),
-        "timezone_source": tz_source,
+        "timezone_source": source,
         "cutoff": campaign.cutoff.isoformat(),
         "candidate_execution_performed": True,
         "loop_returncode": result.returncode,
@@ -465,8 +451,8 @@ def activate(repo_root: Path, campaign_path: Path) -> int:
         "plan": plan_state(repo_root, campaign),
         "repository_before": before,
         "repository_after": repo_state(repo_root),
-        "stdout": stdout,
-        "stderr": stderr,
+        "stdout": _write_log(activation / "stdout.log", result.stdout),
+        "stderr": _write_log(activation / "stderr.log", result.stderr),
         "authority": {
             "automatic_merge": False,
             "automatic_promotion": False,
@@ -500,25 +486,26 @@ def install(repo_root: Path, campaign_path: Path, *, force_rearm: bool) -> int:
 
     start = now + timedelta(minutes=2)
     cutoff = datetime.combine(campaign.cutoff, datetime.min.time(), tzinfo=now.tzinfo)
-    duration_minutes = max(1, int((cutoff - start).total_seconds() // 60))
-    execution_limit = campaign.bounds.wall_s + 600
+    duration = max(1, int((cutoff - start).total_seconds() // 60))
     arguments = (
         f'"{Path(__file__).resolve()}" run '
         f'--repo-root "{repo_root.resolve()}" '
         f'--campaign "{campaign_path.resolve()}"'
     )
+    # PowerShell uses one action and two triggers. The second trigger guarantees
+    # finalization even when the repetition horizon ends before another poll.
     script = f"""
 $ErrorActionPreference = 'Stop'
 $action = New-ScheduledTaskAction -Execute {_ps_literal(str(Path(sys.executable).resolve()))} -Argument {_ps_literal(arguments)} -WorkingDirectory {_ps_literal(str(repo_root.resolve()))}
-$repeat = New-ScheduledTaskTrigger -Once -At ([datetimeoffset]{_ps_literal(start.isoformat(timespec='seconds'))}) -RepetitionInterval (New-TimeSpan -Minutes {campaign.interval_minutes}) -RepetitionDuration (New-TimeSpan -Minutes {duration_minutes})
+$repeat = New-ScheduledTaskTrigger -Once -At ([datetimeoffset]{_ps_literal(start.isoformat(timespec='seconds'))}) -RepetitionInterval (New-TimeSpan -Minutes {campaign.interval_minutes}) -RepetitionDuration (New-TimeSpan -Minutes {duration})
 $final = New-ScheduledTaskTrigger -Once -At ([datetimeoffset]{_ps_literal(cutoff.isoformat(timespec='seconds'))})
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Seconds {execution_limit}) -MultipleInstances IgnoreNew
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Seconds {campaign.bounds.wall_s + 600}) -MultipleInstances IgnoreNew
 $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $principal = New-ScheduledTaskPrincipal -UserId $identity -LogonType Interactive -RunLevel Limited
 Register-ScheduledTask -TaskPath {_ps_literal(TASK_PATH)} -TaskName {_ps_literal(TASK_NAME)} -Action $action -Trigger @($repeat, $final) -Settings $settings -Principal $principal -Description 'Bounded Fourfold/Tensor gardener campaign; nomination only, never automatic merge or promotion.' -Force | Out-Null
 """.strip()
-    fd, temporary_name = tempfile.mkstemp(suffix=".ps1", prefix="daedalus-gardener-")
-    temporary = Path(temporary_name)
+    fd, name = tempfile.mkstemp(suffix=".ps1", prefix="daedalus-gardener-")
+    temporary = Path(name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(script)
@@ -553,13 +540,21 @@ Register-ScheduledTask -TaskPath {_ps_literal(TASK_PATH)} -TaskName {_ps_literal
 def task_command(repo_root: Path, action: str) -> int:
     if os.name != "nt":
         raise CampaignError("Task Scheduler operation requires Windows")
-    mapping = {
+    commands = {
         "start": ("schtasks.exe", "/Run", "/TN", FULL_TASK_NAME),
         "disable": ("schtasks.exe", "/Change", "/TN", FULL_TASK_NAME, "/Disable"),
         "delete": ("schtasks.exe", "/Delete", "/TN", FULL_TASK_NAME, "/F"),
-        "status": ("schtasks.exe", "/Query", "/TN", FULL_TASK_NAME, "/V", "/FO", "LIST"),
+        "status": (
+            "schtasks.exe",
+            "/Query",
+            "/TN",
+            FULL_TASK_NAME,
+            "/V",
+            "/FO",
+            "LIST",
+        ),
     }
-    result = _run(mapping[action], repo_root)
+    result = _run(commands[action], repo_root)
     if result.stdout:
         print(result.stdout, end="")
     if result.stderr:
@@ -569,7 +564,7 @@ def task_command(repo_root: Path, action: str) -> int:
 
 def repo_root(raw: str | None) -> Path:
     root = Path(raw).expanduser().resolve() if raw else ROOT
-    if not (root / ".git").exists() or not (root / "daedalus" / "loop.py").is_file():
+    if not (root / ".git").exists() or not (root / "daedalus/loop.py").is_file():
         raise CampaignError(f"not a Daedalus Git checkout: {root}")
     return root
 
@@ -625,13 +620,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.action == "start":
             return task_command(root, "start")
         if args.action == "stop":
-            stop_code = _killswitch(root, "stop", "operator stop via gardener campaign")
-            task_code = task_command(root, "disable") if os.name == "nt" else 0
-            return 0 if stop_code == 0 and task_code == 0 else 2
+            stop = _killswitch(root, "stop", "operator stop via gardener campaign")
+            task = task_command(root, "disable") if os.name == "nt" else 0
+            return 0 if stop == 0 and task == 0 else 2
         if args.action == "uninstall":
-            stop_code = _killswitch(root, "stop", "gardener campaign uninstalled")
-            task_code = task_command(root, "delete") if os.name == "nt" else 0
-            return 0 if stop_code == 0 and task_code == 0 else 2
+            stop = _killswitch(root, "stop", "gardener campaign uninstalled")
+            task = task_command(root, "delete") if os.name == "nt" else 0
+            return 0 if stop == 0 and task == 0 else 2
         if args.action == "arm":
             return _killswitch(
                 root,
