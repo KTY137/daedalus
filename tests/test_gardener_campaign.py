@@ -234,7 +234,7 @@ def test_cutoff_never_reads_queue_or_invokes_loop(
         "curated_queue_state",
         lambda root: pytest.fail("queue must not be read at cutoff"),
     )
-    monkeypatch.setattr(GARDENER, "_stop", lambda root, reason: 0)
+    monkeypatch.setattr(GARDENER, "_stop", lambda root: 0)
     monkeypatch.setattr(
         GARDENER,
         "_run",
@@ -251,35 +251,34 @@ def test_cutoff_never_reads_queue_or_invokes_loop(
     assert receipt["claim_boundary"]["automatic_promotion"] is False
 
 
-def test_pre_cutoff_activation_invokes_one_bounded_loop(
+def test_pre_cutoff_execution_delegates_once_without_parallel_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     observed = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc)
     _patch_common(monkeypatch, tmp_path, observed=observed)
-    queue = _queue_state()
-    monkeypatch.setattr(GARDENER, "curated_queue_state", lambda root: queue)
+    monkeypatch.setattr(
+        GARDENER,
+        "curated_queue_state",
+        lambda root: _queue_state(),
+    )
     seen: list[tuple[str, ...]] = []
 
     def run(command, root, **kwargs):
         seen.append(tuple(command))
-        return subprocess.CompletedProcess(command, 0, stdout='{"ok":true}\n', stderr="")
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout='{"canonical_loop":true}\n',
+            stderr="",
+        )
 
     monkeypatch.setattr(GARDENER, "_run", run)
     assert GARDENER.run_campaign(ROOT, CAMPAIGN_PATH) == 0
     assert seen == [GARDENER.loop_argv(ROOT, _campaign(), pending_count=3)]
-    receipts = list(tmp_path.rglob("activations/*/receipt.json"))
-    assert len(receipts) == 1
-    receipt = json.loads(receipts[0].read_text(encoding="ascii"))
-    assert receipt["schema"] == GARDENER.ACTIVATION_SCHEMA
-    assert receipt["candidate_execution_performed"] is True
-    assert receipt["queue_before"] == queue
-    assert receipt["authority"] == {
-        "automatic_merge": False,
-        "automatic_promotion": False,
-        "gate_state_changed": False,
-        "owner_approval_minted": False,
-    }
+    assert "canonical_loop" in capsys.readouterr().out
+    assert not tmp_path.exists() or not list(tmp_path.rglob("receipt.json"))
 
 
 def test_iterations_are_capped_by_remaining_pending_definitions(
@@ -338,6 +337,7 @@ def test_converged_queue_waits_for_owner_without_candidate_process(
     receipt = json.loads(waiting.read_text(encoding="ascii"))
     assert receipt["schema"] == GARDENER.WAITING_SCHEMA
     assert receipt["candidate_execution_performed"] is False
+    assert receipt["operator_state_is_gate_evidence"] is False
     assert "waiting for owner integration" in receipt["reason"]
 
 
@@ -413,6 +413,7 @@ def test_plan_state_requires_adopted_master_plan_markers(tmp_path: Path) -> None
 def test_python_guard_does_not_own_scheduler_or_repository_promotion() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert '"runs" / "gardener"' not in source
+    assert "ACTIVATION_SCHEMA" not in source
     for forbidden in (
         "New-ScheduledTask",
         "Register-ScheduledTask",
