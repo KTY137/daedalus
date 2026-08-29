@@ -24,6 +24,22 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
+      - name: Repair migration script
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tools/_automation_ikarus_chat_frontend.py')
+          s = p.read_text(encoding='utf-8')
+          old = '''replace_once("daedalus/ikarus_os.py", '            timeout_s=120, extra={"max_tokens": _effort_cap(effort)},\\n', '            timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},\\n')'''
+          new = '''text = read("daedalus/ikarus_os.py")
+          old = '            timeout_s=120, extra={"max_tokens": _effort_cap(effort)},\\n'
+          if old not in text:
+              raise RuntimeError("ollama blocking timeout occurrence missing")
+          write("daedalus/ikarus_os.py", text.replace(old, '            timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},\\n', 1))'''
+          if old not in s:
+              raise SystemExit('migration repair target not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Apply migration
         run: python tools/_automation_ikarus_chat_frontend.py
       - name: Python syntax
