@@ -8,9 +8,9 @@
       "docs-dev": "qwen2.5-coder:14b"
     }
   },
-  "_comment_gardener_queue": "Owner direction 2026-08-29: the deadline-bounded Fourfold/Tensor campaign consumes only the revision-bound repo-local work queue. Inferred map, inventory, evaluation and hotspot sources stay disabled for this campaign so a stale or unrelated metric cannot steer the scheduled writer away from the adopted Work Packets.",
+  "_comment_gardener_queue": "Candidate-base freeze for the 2026-09-29 gardener campaign. The narrow write policy and disabled inferred picker sources are present in this revision, but the repo-local queue is deliberately disabled so a candidate worktree cannot recursively pick campaign tasks. A later control commit activates the queue and binds its repo_state.head to this exact revision.",
   "work_queue": {
-    "enabled": true,
+    "enabled": false,
     "path": ".agentenv/work-queue.json"
   },
   "picker_sources": {
