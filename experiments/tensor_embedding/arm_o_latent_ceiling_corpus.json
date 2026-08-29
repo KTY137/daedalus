@@ -1,0 +1,87 @@
+{
+  "schema": "daedalus-tensor-latent-ceiling-corpus/1",
+  "source_revision": "68721e3208194391d71b0ae64d24157fd1876207",
+  "expected_total": 1383,
+  "items": [
+    {
+      "id": "prediction-invented-import-1",
+      "source": "invented-first-party-imports",
+      "bucket": "already_covered",
+      "status": "prediction",
+      "reason": "Pre-registered plan predicts deterministic graph_brief evidence already names the real nearby capability; retain as prediction until source evidence is independently replayed.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-invented-import-2",
+      "source": "invented-first-party-imports",
+      "bucket": "already_covered",
+      "status": "prediction",
+      "reason": "Pre-registered plan predicts deterministic graph_brief evidence already names the real nearby capability; retain as prediction until source evidence is independently replayed.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-invented-import-3",
+      "source": "invented-first-party-imports",
+      "bucket": "already_covered",
+      "status": "prediction",
+      "reason": "Pre-registered plan predicts deterministic graph_brief evidence already names the real nearby capability; retain as prediction until source evidence is independently replayed.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-substitution-1",
+      "source": "write-lane-substitutions",
+      "bucket": "already_covered",
+      "status": "prediction",
+      "reason": "Pre-registered plan says deterministic checking caught all substitutions; classification remains a prediction until the retained failure is replayed against the brief.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-substitution-2",
+      "source": "write-lane-substitutions",
+      "bucket": "already_covered",
+      "status": "prediction",
+      "reason": "Pre-registered plan says deterministic checking caught all substitutions; classification remains a prediction until the retained failure is replayed against the brief.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-substitution-3",
+      "source": "write-lane-substitutions",
+      "bucket": "already_covered",
+      "status": "prediction",
+      "reason": "Pre-registered plan says deterministic checking caught all substitutions; classification remains a prediction until the retained failure is replayed against the brief.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-wrong-assumption-1",
+      "source": "wrong-assumption-test-failures",
+      "bucket": "absent",
+      "status": "prediction",
+      "reason": "Pre-registered plan predicts only execution can establish the missing runtime fact; retain as prediction until the retained failing test and repository evidence are replayed.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-wrong-assumption-2",
+      "source": "wrong-assumption-test-failures",
+      "bucket": "absent",
+      "status": "prediction",
+      "reason": "Pre-registered plan predicts only execution can establish the missing runtime fact; retain as prediction until the retained failing test and repository evidence are replayed.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-wrong-assumption-3",
+      "source": "wrong-assumption-test-failures",
+      "bucket": "absent",
+      "status": "prediction",
+      "reason": "Pre-registered plan predicts only execution can establish the missing runtime fact; retain as prediction until the retained failing test and repository evidence are replayed.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    },
+    {
+      "id": "prediction-wrong-assumption-4",
+      "source": "wrong-assumption-test-failures",
+      "bucket": "absent",
+      "status": "prediction",
+      "reason": "Pre-registered plan predicts only execution can establish the missing runtime fact; retain as prediction until the retained failing test and repository evidence are replayed.",
+      "evidence_refs": ["docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md#4-predicted-result-recorded-before-the-run"]
+    }
+  ]
+}
