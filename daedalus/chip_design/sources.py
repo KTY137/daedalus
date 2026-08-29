@@ -74,8 +74,21 @@ def discover_sources(
     max_files: int = 20_000,
     ignored_dirs: Iterable[str] = (),
 ) -> list[SourceSpec]:
-    """Walk ``root`` and return recognized chip-design files in stable order."""
+    """Walk ``root`` and return recognized chip-design files in stable order.
+
+    ``max_files`` is an exact output bound. Zero therefore means "return no
+    files"; negative values are refused rather than accidentally returning one
+    file after the first append. A missing/non-directory root is also refused
+    rather than being misreported as an empty design.
+    """
+    if max_files < 0:
+        raise ValueError("max_files must be >= 0")
+    if max_files == 0:
+        return []
+
     base = Path(root).resolve()
+    if not base.is_dir():
+        raise ValueError(f"scan root is not a directory: {base}")
     ignored = _IGNORED_DIRS | {str(x) for x in ignored_dirs}
     out: list[SourceSpec] = []
     for dirpath, dirnames, filenames in os.walk(base):

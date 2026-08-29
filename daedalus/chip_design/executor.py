@@ -11,6 +11,7 @@ from typing import Mapping, Sequence
 
 
 _MAX_CAPTURE_CHARS = 128_000
+_TRUNCATION_MARKER = "\n\n... [Daedalus truncated EDA output] ...\n\n"
 
 
 @dataclass(frozen=True)
@@ -33,13 +34,14 @@ def _bounded(text: str | bytes) -> tuple[str, bool]:
         text = text.decode("utf-8", errors="replace")
     if len(text) <= _MAX_CAPTURE_CHARS:
         return text, False
-    keep = _MAX_CAPTURE_CHARS // 2
-    return (
-        text[:keep]
-        + "\n\n... [Daedalus truncated EDA output] ...\n\n"
-        + text[-keep:],
-        True,
-    )
+
+    payload_chars = _MAX_CAPTURE_CHARS - len(_TRUNCATION_MARKER)
+    if payload_chars < 0:  # defensive if the constants are changed later
+        return _TRUNCATION_MARKER[:_MAX_CAPTURE_CHARS], True
+    head_chars = payload_chars // 2
+    tail_chars = payload_chars - head_chars
+    tail = text[-tail_chars:] if tail_chars else ""
+    return text[:head_chars] + _TRUNCATION_MARKER + tail, True
 
 
 def execute_argv(
