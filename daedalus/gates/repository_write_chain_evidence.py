@@ -1,8 +1,11 @@
 """Exact artifact evidence for one retained repository-write verifier chain.
 
 The contract binds canonical chain-result bytes to their logical chain identity
-and one exact GateReport-v4.  It does not resolve a locator, verify artifact
-bytes, authenticate a signer, issue OwnerApproval, or authorize release.
+and one exact GateReport-v4. ``artifact_content_sha256`` names the immutable
+blob bytes. ``locator`` names the canonical ArtifactStore locator manifest and
+therefore has an independent SHA-256 identity. This module does not resolve the
+locator, verify artifact bytes, authenticate a signer, issue OwnerApproval, or
+authorize release.
 """
 from __future__ import annotations
 
@@ -14,7 +17,6 @@ from daedalus.schemas import (
     ContractProvenance,
     _artifact_locator,
     _identifier,
-    _locator_sha256,
     _non_empty,
     _require_provenance_inputs,
     _revision,
@@ -44,7 +46,12 @@ def _non_negative_int(value: Any, name: str) -> int:
 
 @dataclass(frozen=True)
 class RepositoryWriteChainArtifactEvidence(CanonicalContract):
-    """Content and logical identity for one canonical chain-result artifact."""
+    """Content and logical identity for one canonical chain-result artifact.
+
+    Blob identity and locator-manifest identity are deliberately distinct.  A
+    caller must not infer the blob digest from the locator digest or vice versa;
+    the store-resolution boundary verifies the relationship mechanically.
+    """
 
     CONTRACT_TYPE: ClassVar[str] = _CONTRACT_TYPE
 
@@ -176,10 +183,6 @@ class RepositoryWriteChainArtifactEvidence(CanonicalContract):
         if self.evidence_authenticated != derived_authenticated:
             raise RepositoryWriteChainArtifactEvidenceError(
                 "evidence_authenticated is not derived from retained counts"
-            )
-        if _locator_sha256(self.locator) != self.artifact_content_sha256:
-            raise RepositoryWriteChainArtifactEvidenceError(
-                "artifact locator digest contradicts artifact content digest"
             )
         if type(self.provenance) is not ContractProvenance:
             raise RepositoryWriteChainArtifactEvidenceError(
