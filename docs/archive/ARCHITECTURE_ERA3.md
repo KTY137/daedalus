@@ -1,10 +1,13 @@
 # Archived: Daedalus Architecture — Era 3
 
-> **Archived 2026-08-30.** This is the full historical body formerly kept in
-> `docs/ARCHITECTURE.md`. It describes Era 3 (`feat/api-webapp-agent-os`, 230
-> tests green) and is retained as evidence, not as current architecture. The live
-> architecture is [`../architecture-narrative.md`](../architecture-narrative.md)
-> plus [`../architecture-state.json`](../architecture-state.json), under the
+> **Archived 2026-08-30.** This is a condensed archival record of the Era-3
+> architecture formerly described at `docs/ARCHITECTURE.md`. It preserves the
+> design intent, contracts and historical capability claims while removing
+> obsolete operational detail. It describes `feat/api-webapp-agent-os` at the
+> point where the old page reported 230 green tests; that claim is historical,
+> not current evidence. The live architecture is
+> [`../architecture-narrative.md`](../architecture-narrative.md) plus
+> [`../architecture-state.json`](../architecture-state.json), under the
 > [`Ikarus/Ariadne master plan`](../IKARUS_ARIADNE_MASTER_PLAN.md).
 
 ## 1. What Daedalus was in this snapshot
