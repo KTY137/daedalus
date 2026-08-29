@@ -30,6 +30,47 @@ def _load_module():
 GARDENER = _load_module()
 
 
+def _queue_state(*, unattempted=("task.1", "task.2", "task.3")) -> dict:
+    rows = [
+        {
+            "task_id": task_id,
+            "score": 900.0,
+            "prior_attempts_same_definition": 0,
+            "attempted": False,
+            "target_paths": [f"docs/{task_id}.md"],
+        }
+        for task_id in unattempted
+    ]
+    return {
+        "source": {"state": "valid"},
+        "candidate_count": len(rows),
+        "candidates": rows,
+        "unattempted_task_ids": list(unattempted),
+        "all_current_definitions_attempted": False,
+        "no_ready_candidates": not rows,
+    }
+
+
+def _repo_snapshot() -> dict:
+    return {
+        "head": "a" * 40,
+        "branch": "campaign",
+        "dirty": False,
+        "dirty_paths": [],
+        "branch_count": 1,
+        "branches": [{"name": "campaign", "sha": "a" * 40}],
+        "worktrees": [],
+    }
+
+
+def _plan_snapshot() -> dict:
+    return {
+        "master_plan_sha256": "b" * 64,
+        "master_plan_revision": 8,
+        "active_delivery_gate": "Gate 1",
+    }
+
+
 def test_campaign_contract_is_bounded_and_non_promoting() -> None:
     campaign = GARDENER.Campaign.load(CAMPAIGN_PATH)
     assert campaign.campaign_id == "fourfold-tensor-gardener-20260929"
@@ -67,13 +108,17 @@ def test_loop_command_reuses_canonical_loop_with_every_bound() -> None:
     assert "push" not in command
     assert "promote" not in command
 
+    bounded = GARDENER.loop_argv(ROOT, campaign, max_iterations=2)
+    assert "--max-iterations 2" in " ".join(bounded)
+    with pytest.raises(GARDENER.CampaignError):
+        GARDENER.loop_argv(ROOT, campaign, max_iterations=0)
+
 
 def test_cutoff_routes_directly_to_finalization_without_candidate_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cutoff = datetime(2026, 9, 29, 0, 0, tzinfo=timezone.utc)
     calls: list[tuple[Path, str]] = []
-
     monkeypatch.setattr(GARDENER, "berlin_now", lambda: (cutoff, "test"))
 
     def final(repo_root, campaign, now, source):
@@ -85,10 +130,14 @@ def test_cutoff_routes_directly_to_finalization_without_candidate_execution(
     monkeypatch.setattr(GARDENER, "finalize", final)
     monkeypatch.setattr(
         GARDENER,
-        "_run",
-        lambda *args, **kwargs: pytest.fail("loop/command execution is forbidden at cutoff"),
+        "curated_queue_state",
+        lambda root: pytest.fail("queue must not be read at cutoff"),
     )
-
+    monkeypatch.setattr(
+        GARDENER,
+        "_run",
+        lambda *args, **kwargs: pytest.fail("command execution is forbidden at cutoff"),
+    )
     assert GARDENER.activate(ROOT, CAMPAIGN_PATH) == 17
     assert calls == [(ROOT, "fourfold-tensor-gardener-20260929")]
 
@@ -100,30 +149,12 @@ def test_pre_cutoff_activation_invokes_one_loop_and_retains_authority_receipt(
     campaign = GARDENER.Campaign.load(CAMPAIGN_PATH)
     before = datetime(2026, 9, 28, 23, 0, tzinfo=timezone.utc)
     command_seen: list[tuple[str, ...]] = []
+    queue = _queue_state()
 
     monkeypatch.setattr(GARDENER, "berlin_now", lambda: (before, "test"))
-    monkeypatch.setattr(
-        GARDENER,
-        "repo_state",
-        lambda root: {
-            "head": "a" * 40,
-            "branch": "campaign",
-            "dirty": False,
-            "dirty_paths": [],
-            "branch_count": 1,
-            "branches": [{"name": "campaign", "sha": "a" * 40}],
-            "worktrees": [],
-        },
-    )
-    monkeypatch.setattr(
-        GARDENER,
-        "plan_state",
-        lambda root, selected: {
-            "master_plan_sha256": "b" * 64,
-            "master_plan_revision": 8,
-            "active_delivery_gate": "Gate 1",
-        },
-    )
+    monkeypatch.setattr(GARDENER, "curated_queue_state", lambda root: queue)
+    monkeypatch.setattr(GARDENER, "repo_state", lambda root: _repo_snapshot())
+    monkeypatch.setattr(GARDENER, "plan_state", lambda root, selected: _plan_snapshot())
     monkeypatch.setattr(
         GARDENER,
         "_campaign_root",
@@ -143,12 +174,133 @@ def test_pre_cutoff_activation_invokes_one_loop_and_retains_authority_receipt(
     receipt = json.loads(receipts[0].read_text(encoding="ascii"))
     assert receipt["schema"] == GARDENER.ACTIVATION_SCHEMA
     assert receipt["candidate_execution_performed"] is True
+    assert receipt["queue_before"] == queue
     assert receipt["authority"] == {
         "automatic_merge": False,
         "automatic_promotion": False,
         "gate_state_changed": False,
         "owner_approval_minted": False,
     }
+
+
+def test_activation_caps_iterations_to_remaining_unattempted_definitions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    campaign = GARDENER.Campaign.load(CAMPAIGN_PATH)
+    command_seen = []
+    monkeypatch.setattr(
+        GARDENER,
+        "berlin_now",
+        lambda: (datetime(2026, 9, 1, tzinfo=timezone.utc), "test"),
+    )
+    monkeypatch.setattr(
+        GARDENER,
+        "curated_queue_state",
+        lambda root: _queue_state(unattempted=("only-one",)),
+    )
+    monkeypatch.setattr(GARDENER, "repo_state", lambda root: _repo_snapshot())
+    monkeypatch.setattr(GARDENER, "plan_state", lambda root, selected: _plan_snapshot())
+    monkeypatch.setattr(
+        GARDENER,
+        "_campaign_root",
+        lambda root, selected: tmp_path / selected.campaign_id,
+    )
+
+    def run(command, repo_root, **kwargs):
+        command_seen.append(tuple(command))
+        return subprocess.CompletedProcess(command, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(GARDENER, "_run", run)
+    assert GARDENER.activate(ROOT, CAMPAIGN_PATH) == 0
+    assert "--max-iterations 1" in " ".join(command_seen[0])
+    assert "--max-iterations 3" not in " ".join(command_seen[0])
+    assert campaign.bounds.iterations == 3
+
+
+def test_all_attempted_definitions_wait_without_invoking_loop(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed = datetime(2026, 9, 10, tzinfo=timezone.utc)
+    queue = _queue_state(unattempted=())
+    queue.update(
+        candidate_count=2,
+        candidates=[
+            {
+                "task_id": "done.1",
+                "score": 900.0,
+                "prior_attempts_same_definition": 1,
+                "attempted": True,
+                "target_paths": ["docs/a.md"],
+            },
+            {
+                "task_id": "done.2",
+                "score": 899.0,
+                "prior_attempts_same_definition": 2,
+                "attempted": True,
+                "target_paths": ["docs/b.md"],
+            },
+        ],
+        all_current_definitions_attempted=True,
+        no_ready_candidates=False,
+    )
+    monkeypatch.setattr(GARDENER, "berlin_now", lambda: (observed, "test"))
+    monkeypatch.setattr(GARDENER, "curated_queue_state", lambda root: queue)
+    monkeypatch.setattr(GARDENER, "repo_state", lambda root: _repo_snapshot())
+    monkeypatch.setattr(GARDENER, "plan_state", lambda root, selected: _plan_snapshot())
+    monkeypatch.setattr(
+        GARDENER,
+        "_campaign_root",
+        lambda root, selected: tmp_path / selected.campaign_id,
+    )
+    monkeypatch.setattr(
+        GARDENER,
+        "_run",
+        lambda *args, **kwargs: pytest.fail("loop must not run after convergence"),
+    )
+
+    assert GARDENER.activate(ROOT, CAMPAIGN_PATH) == 0
+    waiting = tmp_path / "fourfold-tensor-gardener-20260929" / "waiting-owner.json"
+    receipt = json.loads(waiting.read_text(encoding="ascii"))
+    assert receipt["schema"] == GARDENER.WAITING_SCHEMA
+    assert receipt["candidate_execution_performed"] is False
+    assert "waiting for owner integration" in receipt["reason"]
+
+
+def test_curated_queue_state_uses_exact_definition_attempt_memory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import daedalus.spine.picker as picker
+
+    candidates = (
+        SimpleNamespace(
+            source="work_queue",
+            task_id="new",
+            score=950.0,
+            evidence={"prior_attempts_same_definition": 0},
+            target_paths=("docs/new.md",),
+        ),
+        SimpleNamespace(
+            source="work_queue",
+            task_id="old",
+            score=900.0,
+            evidence={"prior_attempts_same_definition": 1},
+            target_paths=("docs/old.md",),
+        ),
+    )
+    monkeypatch.setattr(
+        picker,
+        "build_queue",
+        lambda root, limit=None: SimpleNamespace(
+            candidates=candidates,
+            sources={"work_queue": {"state": "valid", "policy_blocked": 0}},
+        ),
+    )
+    state = GARDENER.curated_queue_state(ROOT)
+    assert state["unattempted_task_ids"] == ["new"]
+    assert state["all_current_definitions_attempted"] is False
+    assert state["candidates"][1]["attempted"] is True
 
 
 def test_plan_state_requires_the_adopted_master_plan_markers(tmp_path: Path) -> None:
@@ -172,7 +324,6 @@ def test_plan_state_requires_the_adopted_master_plan_markers(tmp_path: Path) -> 
     )
     execution.write_text("derived", encoding="utf-8")
     campaign = SimpleNamespace(master_plan="docs/MASTER.md", execution_plan="docs/EXECUTION.md")
-
     state = GARDENER.plan_state(tmp_path, campaign)
     assert state["master_plan_revision"] == 8
     assert state["master_plan_version"] == "1.3.0"
@@ -192,8 +343,10 @@ def test_campaign_refuses_authority_escalation(tmp_path: Path) -> None:
         GARDENER.Campaign.load(path)
 
 
-def test_installer_is_ignore_new_interactive_limited_and_has_final_trigger() -> None:
+def test_windows_task_identity_and_installer_are_bounded() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
+    assert GARDENER.TASK_PATH == "\\Daedalus\\"
+    assert GARDENER.FULL_TASK_NAME == "\\Daedalus\\FourfoldTensorGardener20260929"
     assert "-MultipleInstances IgnoreNew" in source
     assert "-LogonType Interactive" in source
     assert "-RunLevel Limited" in source
@@ -204,13 +357,12 @@ def test_installer_is_ignore_new_interactive_limited_and_has_final_trigger() -> 
 
 def test_scheduler_source_contains_no_repository_merge_or_promotion_command() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
-    forbidden = (
+    for needle in (
         '"git", "merge"',
         '"git", "push"',
         '"git", "reset"',
         "promote_candidates(",
         "OwnerApproval(",
         "PromotionReceipt(",
-    )
-    for needle in forbidden:
+    ):
         assert needle not in source
