@@ -302,7 +302,7 @@ export function chatIkarus(project: string, message: string, apply = false) {
 
 /**
  * General Ikarus brain. `provider` is a runtime `id` (e.g. `ollama_http`,
- * `claude_code_cli`) or `deterministic`/omitted for the no-LLM default. BYOK —
+ * `claude_code_cli`) or `deterministic`; omitted means automatic LLM selection. BYOK —
  * no keys involved. Distinct from `chatIkarus`, which stays the network-designer.
  *
  * `model` optionally overrides the provider's default model (blank = default);
