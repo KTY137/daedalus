@@ -30,15 +30,24 @@ jobs:
           from pathlib import Path
           p = Path('tools/_automation_ikarus_chat_frontend.py')
           s = p.read_text(encoding='utf-8')
-          old = '''replace_once("daedalus/ikarus_os.py", '            timeout_s=120, extra={"max_tokens": _effort_cap(effort)},\\n', '            timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},\\n')'''
-          new = '''text = read("daedalus/ikarus_os.py")
+
+          timeout_old = '''replace_once("daedalus/ikarus_os.py", '            timeout_s=120, extra={"max_tokens": _effort_cap(effort)},\\n', '            timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},\\n')'''
+          timeout_new = '''text = read("daedalus/ikarus_os.py")
           old = '            timeout_s=120, extra={"max_tokens": _effort_cap(effort)},\\n'
           if old not in text:
               raise RuntimeError("ollama blocking timeout occurrence missing")
           write("daedalus/ikarus_os.py", text.replace(old, '            timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},\\n', 1))'''
-          if old not in s:
-              raise SystemExit('migration repair target not found')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          if timeout_old not in s:
+              raise SystemExit('timeout migration repair target not found')
+          s = s.replace(timeout_old, timeout_new, 1)
+
+          help_old = '''replace_once("daedalus/ikarus_os.py",
+                       '            "Choose a runtime to give me a language brain (local Ollama is free)."\\n',
+                       '            "Automatic chat selects an available language model; the local index remains available for measured answers."\\n')'''
+          if help_old not in s:
+              raise SystemExit('help-text migration repair target not found')
+          s = s.replace(help_old, '# Optional help-text copy change skipped: routing semantics are implemented above.', 1)
+          p.write_text(s, encoding='utf-8')
           PY
       - name: Apply migration
         run: python tools/_automation_ikarus_chat_frontend.py
@@ -55,7 +64,7 @@ jobs:
           npm run build
       - name: Commit verified migration
         run: |
-          rm -f tools/_automation_ikarus_chat_frontend.py .github/workflows/ikarus-chat-frontend-bootstrap.yml .automation-trigger
+          rm -f tools/_automation_ikarus_chat_frontend.py .github/workflows/ikarus-chat-frontend-bootstrap.yml .automation-trigger*
           git config user.name 'Daedalus Automation'
           git config user.email 'actions@users.noreply.github.com'
           git add -A
