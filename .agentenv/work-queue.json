@@ -1,0 +1,194 @@
+{
+  "schema": "daedalus-work-queue/1",
+  "repo_state": {
+    "head": "fefb62a2c5bdf8993b56c7165d6efee5aaab7df1",
+    "meaning": "candidate_base_revision",
+    "campaign": "fourfold-tensor-gardener-20260929"
+  },
+  "tasks": [
+    {
+      "id": "g1-garden-fourfold-contracts",
+      "state": "ready",
+      "instruction": "Execute one bounded gardener Work Packet over the existing Fourfold/Forest contracts. Read the adopted Masterplan and derived execution plan first. Inspect daedalus/twin/contracts.py, reference_compiler.py, projection_verifier.py and their tests for duplicated identity, canonicalization, status, provenance, validation or projection predicates. Prefer deleting or consolidating duplicate logic over adding an abstraction. Preserve existing public imports with at most one thin compatibility adapter that names an explicit removal condition. Strengthen explicit complete/partial/absent semantics and deterministic round-trip identity only where the existing code does not already provide them. Do not add a new graph authority, registry, ledger, store, scheduler, semantic plane or mythological subsystem. Modify only the declared target paths. Add focused adversarial tests and a concise Work-Packet record stating deletions, retained compatibility and residual limits.",
+      "authority_refs": [
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+        "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
+        "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
+        "docs/work-packets/G1-OPS-GARDENER-20260929.json",
+        "https://github.com/KTY137/daedalus/issues/239"
+      ],
+      "target_paths": [
+        "daedalus/twin/contracts.py",
+        "daedalus/twin/reference_compiler.py",
+        "daedalus/twin/projection_verifier.py",
+        "tests/twin/test_fourfold_gardening.py",
+        "docs/work-packets/G1-TWIN-GARDEN-01.json"
+      ],
+      "priority": 50,
+      "gate": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/twin/test_fourfold_contracts.py",
+          "tests/twin/test_projection_verifier.py",
+          "tests/twin/test_reference_hardening.py",
+          "tests/twin/test_fourfold_gardening.py"
+        ],
+        "cwd": ".",
+        "timeout_s": 1200
+      }
+    },
+    {
+      "id": "g1-tensor-kernel-contract",
+      "state": "ready",
+      "instruction": "Implement the smallest useful typed tensor kernel as an INTERNAL computational view over the canonical Fourfold Forest/Project Twin. It is not a fifth semantic plane, public product, graph authority or replacement contract. First inspect existing twin contracts and reuse their revision, provenance, status and digest vocabulary. Define immutable named axes, typed sparse coordinates/relations, masks and canonical deterministic serialization. Unsupported or lossy conversions must return explicit partial/absent results with reasons, never silent success. Keep dependencies minimal and standard-library-first; do not introduce NumPy/PyTorch unless a measured need and optional adapter boundary are proven. Add tests for canonical ordering, duplicate/conflicting coordinates, malformed axes, digest stability across hash seeds, empty/non-empty semantics and bounded construction. Record why no existing contract could carry the representation and list the conditions under which this module should be deleted or folded into an existing one.",
+      "authority_refs": [
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+        "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
+        "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
+        "docs/work-packets/G1-OPS-GARDENER-20260929.json",
+        "https://github.com/KTY137/daedalus/issues/239"
+      ],
+      "target_paths": [
+        "daedalus/twin/tensor.py",
+        "tests/twin/test_tensor_kernel.py",
+        "docs/work-packets/G1-TENSOR-01.json"
+      ],
+      "priority": 45,
+      "gate": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/twin/test_tensor_kernel.py",
+          "tests/twin/test_fourfold_contracts.py"
+        ],
+        "cwd": ".",
+        "timeout_s": 900
+      }
+    },
+    {
+      "id": "g1-tensor-fourfold-projection",
+      "state": "ready",
+      "instruction": "Build a bounded conversion layer between the canonical Fourfold/Forest contracts and the internal tensor representation from G1-TENSOR-01. Do not duplicate either contract family. A conversion must bind exact source revision, Forest/Fourfold digest, tensor schema and provenance. Preserve partial/absent reasons and refuse a tensor that cannot reconstruct the represented source identity. Add deterministic sparse slicing, a minimal incremental delta application path, and a round-trip report that distinguishes exact, partial, unsupported and refused cases. Benchmark only local fixture construction/query/delta cost; do not claim production speed or correctness from microbenchmarks. Add malformed, stale-revision, dropped-edge, duplicate-coordinate and non-deterministic-order tests. Keep all changes inside the declared files and record residual semantic dimensions that a tensor view cannot encode.",
+      "authority_refs": [
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+        "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
+        "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
+        "docs/work-packets/G1-OPS-GARDENER-20260929.json",
+        "https://github.com/KTY137/daedalus/issues/239"
+      ],
+      "target_paths": [
+        "daedalus/twin/tensor_projection.py",
+        "tests/twin/test_tensor_projection.py",
+        "docs/work-packets/G1-TENSOR-02.json"
+      ],
+      "priority": 40,
+      "gate": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/twin/test_tensor_kernel.py",
+          "tests/twin/test_tensor_projection.py",
+          "tests/twin/test_projection_verifier.py"
+        ],
+        "cwd": ".",
+        "timeout_s": 1200
+      }
+    },
+    {
+      "id": "g1-evolution-benchmark-contract",
+      "state": "ready",
+      "instruction": "Create a minimal non-promoting benchmark contract for honest comparison with CrewAI and a transparent AlphaEvolve-like proxy. Do not implement another evolution engine: reuse existing Daedalus attempts, receipts, evaluator outputs and budget identity. Freeze task/evaluator/model/hardware/seed/budget identities; retain every attempt, failure, cost, token count, wall time, human intervention, best-so-far trajectory and held-out result. Separate direct public comparison, proxy reproduction and architectural discussion as different evidence classes. A broad win claim must be mechanically ineligible unless repeated equal-budget evidence and uncertainty are present. Add tests for task leakage, evaluator mutation, missing negative results, budget mismatch, cherry-picked seeds, incompatible evidence classes and false superiority. Keep the API small and mark any adapter with a deletion condition.",
+      "authority_refs": [
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+        "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
+        "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
+        "docs/work-packets/G1-OPS-GARDENER-20260929.json",
+        "https://github.com/KTY137/daedalus/issues/239"
+      ],
+      "target_paths": [
+        "daedalus/evolution/__init__.py",
+        "daedalus/evolution/benchmark_contract.py",
+        "tests/evolution/test_benchmark_contract.py",
+        "docs/work-packets/G1-EVOLVE-BENCH-01.json"
+      ],
+      "priority": 35,
+      "gate": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/evolution/test_benchmark_contract.py"
+        ],
+        "cwd": ".",
+        "timeout_s": 900
+      }
+    },
+    {
+      "id": "g1-architecture-gardening-metrics",
+      "state": "ready",
+      "instruction": "Implement a read-only architecture-gardening measurement projection under daedalus.evolution. Reuse the existing generated architecture map and inventory contracts; do not create a second scanner or dependency graph. Report exact revision and source digests plus module count, public exported symbols, dependency cycles, islands, shims, unreachable modules, documentation drift, compatibility adapters and candidate duplicate contract/registry families. Every metric must distinguish measured, inherited, unavailable and stale. Define before/after comparison without declaring that fewer modules is automatically better. Add fixtures proving stale/foreign maps, malformed counts, metric omission and apparent improvement through denominator deletion are refused or visibly partial. The module must have no write, Git mutation, branch deletion, merge or promotion authority.",
+      "authority_refs": [
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+        "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
+        "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
+        "docs/work-packets/G1-OPS-GARDENER-20260929.json",
+        "https://github.com/KTY137/daedalus/issues/239"
+      ],
+      "target_paths": [
+        "daedalus/evolution/gardening_metrics.py",
+        "tests/evolution/test_gardening_metrics.py",
+        "docs/work-packets/G1-GARDEN-METRICS-01.json"
+      ],
+      "priority": 30,
+      "gate": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/evolution/test_gardening_metrics.py",
+          "tests/test_generated_inventory.py"
+        ],
+        "cwd": ".",
+        "timeout_s": 900
+      }
+    },
+    {
+      "id": "g1-branch-worktree-reintegration-plan",
+      "state": "ready",
+      "instruction": "Produce a machine-readable branch/PR/worktree reintegration plan without changing any ref. Inventory every visible local and origin branch, open PR and linked worktree. Classify each exactly once as active integration candidate, required dependency, contained evidence, historical evidence, experiment, superseded or unknown. For any proposed supersession, retain merge-base, ahead/behind counts, unique commits and unique changed paths; unknown or inaccessible evidence stays unknown. Identify exactly one proposed canonical integration line per delivery area and small selective-port packets for unique value. Do not merge, rebase, force-update, delete, close, promote or alter the primary checkout. The result must explicitly state which conclusions are API observations versus locally measured Git containment and which checks remain owner-only.",
+      "authority_refs": [
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+        "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
+        "docs/GARDENER_CAMPAIGN_20260929.md",
+        "docs/work-packets/G1-OPS-GARDENER-20260929.json",
+        "https://github.com/KTY137/daedalus/issues/239"
+      ],
+      "target_paths": [
+        "docs/recovery/GARDENER_BRANCH_TOPOLOGY_20260929.json",
+        "docs/work-packets/G1-GARDEN-BRANCHES-01.json",
+        "tests/test_gardener_branch_topology.py"
+      ],
+      "priority": 25,
+      "gate": {
+        "argv": [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_gardener_branch_topology.py"
+        ],
+        "cwd": ".",
+        "timeout_s": 900
+      }
+    }
+  ]
+}
