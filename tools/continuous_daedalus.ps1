@@ -3,11 +3,11 @@
 Install and operate the bounded Daedalus nomination loop as a per-user Windows task.
 
 .DESCRIPTION
-This script owns Windows Task Scheduler registration. Without -CampaignFile it
-schedules the existing `python -m daedalus.loop` entrypoint exactly as before.
-With -CampaignFile it schedules the small `tools/gardener_campaign.py` guard,
-which checks Europe/Berlin time and curated-queue convergence before invoking
-that same canonical loop.
+This script remains the sole Windows Task Scheduler owner. Without
+-CampaignFile it schedules the existing `python -m daedalus.loop` entrypoint.
+With -CampaignFile it schedules `tools/gardener_campaign.py`, a small guard that
+checks Europe/Berlin time and curated-queue convergence before invoking the same
+canonical loop.
 
 The task runs in the current interactive session at LIMITED run level with
 IgnoreNew overlap policy. A human stop is sticky. Nothing here merges, pushes,
@@ -54,6 +54,7 @@ $ErrorActionPreference = 'Stop'
 $TaskPath = '\Daedalus\'
 $TaskName = $ScheduledTaskName
 $FullTaskName = "${TaskPath}${TaskName}"
+$BerlinTimeZoneId = 'W. Europe Standard Time'
 
 function Resolve-RepoRoot {
     param([string]$Value)
@@ -89,14 +90,28 @@ function Resolve-Python {
     return $candidate
 }
 
+function Convert-BerlinDateToLocalTime {
+    param([datetime]$BerlinDate)
+    $berlin = [System.TimeZoneInfo]::FindSystemTimeZoneById($BerlinTimeZoneId)
+    $unspecified = [datetime]::SpecifyKind($BerlinDate.Date, [System.DateTimeKind]::Unspecified)
+    $utc = [System.TimeZoneInfo]::ConvertTimeToUtc($unspecified, $berlin)
+    return $utc.ToLocalTime()
+}
+
 function Resolve-Campaign {
     param([string]$Root, [string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    $path = (Resolve-Path -LiteralPath $Value).Path
+
+    $candidate = $Value
+    if (-not [System.IO.Path]::IsPathRooted($candidate)) {
+        $candidate = Join-Path $Root $candidate
+    }
+    $path = (Resolve-Path -LiteralPath $candidate).Path
     $rootPrefix = $Root.TrimEnd('\') + '\'
     if (-not $path.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "CampaignFile must remain inside RepoRoot: $path"
     }
+
     $document = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($document.schema -ne 'daedalus-gardener-campaign/1') {
         throw "Unsupported campaign schema: $($document.schema)"
@@ -107,22 +122,28 @@ function Resolve-Campaign {
     if ($document.work_until_date_exclusive -ne $document.final_report_date) {
         throw 'Campaign final date must equal the first non-working date.'
     }
-    $cutoff = [datetime]::ParseExact(
+
+    $berlinDate = [datetime]::ParseExact(
         [string]$document.work_until_date_exclusive,
         'yyyy-MM-dd',
         [System.Globalization.CultureInfo]::InvariantCulture
     )
-    if ($cutoff -le (Get-Date)) { throw "Campaign cutoff has passed: $cutoff" }
+    $cutoffLocal = Convert-BerlinDateToLocalTime $berlinDate
     $interval = [int]$document.schedule.interval_minutes
     if ($interval -lt 15 -or $interval -gt 1440) {
         throw "Campaign interval is outside 15..1440 minutes: $interval"
     }
+    $wallSeconds = [int]$document.activation_bounds.max_wall_clock_s
+    if ($wallSeconds -lt 60 -or $wallSeconds -gt 7200) {
+        throw "Campaign wall-clock bound is outside 60..7200 seconds: $wallSeconds"
+    }
     return [pscustomobject]@{
         Path = $path
         Document = $document
-        Cutoff = $cutoff
+        BerlinCutoffDate = $berlinDate.Date
+        CutoffLocal = $cutoffLocal
         IntervalMinutes = $interval
-        WallSeconds = [int]$document.activation_bounds.max_wall_clock_s
+        WallSeconds = $wallSeconds
     }
 }
 
@@ -186,6 +207,19 @@ $LoopArguments = New-LoopArgumentString $ResolvedRepoRoot $ResolvedCampaign
 switch ($Action) {
     'Install' {
         Import-Module ScheduledTasks -ErrorAction Stop
+        if ($null -ne $ResolvedCampaign) {
+            if ($ResolvedCampaign.CutoffLocal -le (Get-Date)) {
+                throw "Campaign cutoff has passed: $($ResolvedCampaign.BerlinCutoffDate.ToString('yyyy-MM-dd')) Europe/Berlin"
+            }
+            $guardExit = Invoke-DaedalusModule $ResolvedPython $ResolvedRepoRoot @(
+                (Join-Path $ResolvedRepoRoot 'tools\gardener_campaign.py'),
+                'status', '--repo-root', $ResolvedRepoRoot,
+                '--campaign', $ResolvedCampaign.Path
+            )
+            if ($guardExit -ne 0) {
+                throw "Campaign guard refused installation (exit $guardExit)."
+            }
+        }
 
         $armArgs = @('-m', 'daedalus.spine.killswitch', 'arm')
         if ($ForceRearm) { $armArgs += '--force' }
@@ -210,12 +244,12 @@ switch ($Action) {
             $executionLimit = $MaxWallClockSeconds + 300
         }
         else {
-            $minutes = [math]::Max(1, [int](($ResolvedCampaign.Cutoff - $start).TotalMinutes))
+            $minutes = [math]::Max(1, [int](($ResolvedCampaign.CutoffLocal - $start).TotalMinutes))
             $repeat = New-ScheduledTaskTrigger `
                 -Once -At $start `
                 -RepetitionInterval (New-TimeSpan -Minutes $ResolvedCampaign.IntervalMinutes) `
                 -RepetitionDuration (New-TimeSpan -Minutes $minutes)
-            $final = New-ScheduledTaskTrigger -Once -At $ResolvedCampaign.Cutoff
+            $final = New-ScheduledTaskTrigger -Once -At $ResolvedCampaign.CutoffLocal
             $triggers = @($repeat, $final)
             $executionLimit = $ResolvedCampaign.WallSeconds + 600
         }
@@ -249,7 +283,8 @@ switch ($Action) {
         Write-Host "Installed $FullTaskName"
         Write-Host "Arguments: $LoopArguments"
         if ($null -ne $ResolvedCampaign) {
-            Write-Host "Campaign cutoff: $($ResolvedCampaign.Cutoff.ToString('yyyy-MM-dd HH:mm:ss'))"
+            Write-Host "Campaign cutoff: $($ResolvedCampaign.BerlinCutoffDate.ToString('yyyy-MM-dd')) 00:00 Europe/Berlin"
+            Write-Host "Local trigger: $($ResolvedCampaign.CutoffLocal.ToString('yyyy-MM-dd HH:mm:ss zzz'))"
             Write-Host "Interval: $($ResolvedCampaign.IntervalMinutes) minute(s); final trigger installed"
         }
         else {
