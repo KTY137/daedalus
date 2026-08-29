@@ -13,10 +13,10 @@ product identity.
 
 ## Invariants
 
-- A central router selects work; there is no uncontrolled agent-to-agent chat.
-- Subagent invocations are stateless unless state is explicitly supplied.
-- Downstream agents receive pruned context, not an entire transcript by default.
-- Reports are bounded and structured.
+- A central router picks one agent. There is no free agent-to-agent chat.
+- Every subagent invocation is stateless.
+- Downstream agents receive pruned state, never the full transcript.
+- Reports are short and structured, or they are rejected.
 - A number without provenance is not a result. Use `MEASURED`, `INHERITED`, or
   `ASSUMED` and retain the command/receipt that produced the claim.
 - Presence is not proof. Health and gate surfaces distinguish working,
@@ -113,24 +113,25 @@ For local write paths, disk state is authoritative. A model saying that it
 changed a file is not evidence that a file changed. The verifier compares real
 state and applies syntax/format/project gates before acceptance.
 
-### Three distinct policy questions
+### Three distinct policy gates
 
-Do not collapse these into one generic “safety” switch:
+Do not collapse these into one generic “safety” switch; they read different
+policy fields and have different defaults.
 
-| Gate | Question |
-|---|---|
-| **Data egress** | May these bytes leave the trusted/local boundary? |
-| **Write confinement** | May this lane write this repository path? |
-| **Change risk** | Is this change safe for the selected lane to perform rather than only review? |
+| Gate | Question | Predicate / default |
+|---|---|---|
+| **Data egress** | May these bytes leave for an untrusted API? | `classify_data`; fail-closed — content not allow-listed for egress is sensitive. |
+| **Write confinement** | May a local writer put bytes on this path? | `path_write_blocked`; an empty `write_allow` is not an allow-list denial — configured denylists/high-risk rules still apply. |
+| **Change risk** | Is this high-blast-radius work? | Risk classification decides whether a lower-trust/free lane may write or only review. |
 
-Their predicates and defaults are intentionally distinct. Per-project policy is
-loaded from project configuration and `.agentenv`; high-risk and protected paths
-remain explicit policy rather than prose conventions.
+Per-project policy is loaded from project configuration and `.agentenv` rather
+than being inferred from documentation. High-risk and protected paths remain
+explicit policy.
 
 ## Provider model
 
 Daedalus can use local and frontier providers with different trust, cost and
-write capabilities. The exact provider registry is code/config, not this table;
+write capabilities. The exact provider registry is code/config, not this page;
 conceptually:
 
 - **Local/Ollama** — no network egress, suited to cheap bounded work and review;
@@ -146,7 +147,8 @@ than inferring availability from documentation.
 ## File bridge and durable handoff
 
 The compatibility backbone is the request/report file bus documented in
-[`docs/COMMS_PROTOCOL.md`](docs/COMMS_PROTOCOL.md).
+[`docs/COMMS_PROTOCOL.md`](docs/COMMS_PROTOCOL.md). Its `outbox/*.json` request
+and `inbox/*.report.json` report contracts are preserved across refactors.
 
 ```powershell
 python -m daedalus.file_bridge watch --repo-root <your-repo>
