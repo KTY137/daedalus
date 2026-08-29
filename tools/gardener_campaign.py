@@ -7,6 +7,13 @@ promotion path, or repository truth. Before the Europe/Berlin cutoff it may
 launch one bounded canonical loop process. At or after the cutoff it launches
 no candidate, stops the canonical kill switch, disables its Windows task, and
 retains a final repository topology report.
+
+The repo-local work queue is also the convergence boundary across activations:
+a task definition is attempted at most once. Once every current definition has
+an attempt in the canonical Spine ledger, later polls retain a waiting-for-owner
+receipt rather than producing competing patches. A changed task definition or
+candidate-base revision becomes eligible again through the existing picker
+memory semantics.
 """
 from __future__ import annotations
 
@@ -31,6 +38,7 @@ TASK_NAME = "FourfoldTensorGardener20260929"
 FULL_TASK_NAME = TASK_PATH + TASK_NAME
 CAMPAIGN_SCHEMA = "daedalus-gardener-campaign/1"
 ACTIVATION_SCHEMA = "daedalus-gardener-activation/1"
+WAITING_SCHEMA = "daedalus-gardener-waiting-owner/1"
 FINAL_SCHEMA = "daedalus-gardener-final-report/1"
 MAX_LOG_BYTES = 8 * 1024 * 1024
 
@@ -297,6 +305,47 @@ def plan_state(repo_root: Path, campaign: Campaign) -> dict[str, Any]:
     }
 
 
+def curated_queue_state(repo_root: Path) -> dict[str, Any]:
+    """Describe current curated definitions and cross-run attempt convergence."""
+
+    from daedalus.spine.picker import build_queue
+
+    queue = build_queue(repo_root, limit=None)
+    source = queue.sources.get("work_queue")
+    if not isinstance(source, Mapping) or source.get("state") != "valid":
+        raise CampaignError("curated work queue is unavailable or invalid")
+    if source.get("policy_blocked"):
+        raise CampaignError("curated work queue contains policy-blocked ready tasks")
+
+    rows = []
+    for candidate in queue.candidates:
+        if candidate.source != "work_queue":
+            continue
+        raw_prior = candidate.evidence.get("prior_attempts_same_definition", 0)
+        if type(raw_prior) is not int or raw_prior < 0:
+            raise CampaignError(
+                f"candidate {candidate.task_id} has invalid attempt-memory evidence"
+            )
+        rows.append(
+            {
+                "task_id": candidate.task_id,
+                "score": candidate.score,
+                "prior_attempts_same_definition": raw_prior,
+                "attempted": raw_prior > 0,
+                "target_paths": list(candidate.target_paths),
+            }
+        )
+    unattempted = [row["task_id"] for row in rows if not row["attempted"]]
+    return {
+        "source": dict(source),
+        "candidate_count": len(rows),
+        "candidates": rows,
+        "unattempted_task_ids": unattempted,
+        "all_current_definitions_attempted": bool(rows) and not unattempted,
+        "no_ready_candidates": not rows,
+    }
+
+
 def _atomic_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -353,8 +402,18 @@ def _killswitch(
     return _run(argv, repo_root).returncode
 
 
-def loop_argv(repo_root: Path, campaign: Campaign) -> tuple[str, ...]:
+def loop_argv(
+    repo_root: Path,
+    campaign: Campaign,
+    *,
+    max_iterations: int | None = None,
+) -> tuple[str, ...]:
     bounds = campaign.bounds
+    iterations = bounds.iterations
+    if max_iterations is not None:
+        if type(max_iterations) is not int or max_iterations < 1:
+            raise CampaignError("max_iterations override must be a positive integer")
+        iterations = min(iterations, max_iterations)
     return (
         sys.executable,
         "-m",
@@ -362,7 +421,7 @@ def loop_argv(repo_root: Path, campaign: Campaign) -> tuple[str, ...]:
         "--repo-root",
         str(repo_root),
         "--max-iterations",
-        str(bounds.iterations),
+        str(iterations),
         "--max-wall-clock-s",
         str(bounds.wall_s),
         "--max-spend-usd",
@@ -421,15 +480,62 @@ def finalize(repo_root: Path, campaign: Campaign, now: datetime, source: str) ->
     return 0 if stop_code == 0 else 2
 
 
+def retain_waiting_owner(
+    repo_root: Path,
+    campaign: Campaign,
+    now: datetime,
+    source: str,
+    queue_state: Mapping[str, Any],
+) -> int:
+    report = {
+        "schema": WAITING_SCHEMA,
+        "campaign_id": campaign.campaign_id,
+        "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+        "berlin_time": now.isoformat(timespec="seconds"),
+        "timezone_source": source,
+        "cutoff": campaign.cutoff.isoformat(),
+        "candidate_execution_performed": False,
+        "reason": (
+            "all current task definitions have one retained attempt; waiting for "
+            "owner integration or a revision-bound queue update"
+            if queue_state.get("all_current_definitions_attempted")
+            else "curated queue contains no ready candidates"
+        ),
+        "queue": dict(queue_state),
+        "plan": plan_state(repo_root, campaign),
+        "repository": repo_state(repo_root),
+        "authority": {
+            "automatic_merge": False,
+            "automatic_promotion": False,
+            "owner_approval_minted": False,
+            "gate_state_changed": False,
+        },
+    }
+    digest = _write_json(
+        _campaign_root(repo_root, campaign) / "waiting-owner.json", report
+    )
+    print(json.dumps({**report, "receipt_sha256": digest}, indent=2))
+    return 0
+
+
 def activate(repo_root: Path, campaign_path: Path) -> int:
     campaign = Campaign.load(campaign_path)
     now, source = berlin_now()
     if now.date() >= campaign.cutoff:
         return finalize(repo_root, campaign, now, source)
 
+    queue_state = curated_queue_state(repo_root)
+    unattempted = list(queue_state["unattempted_task_ids"])
+    if queue_state["all_current_definitions_attempted"] or queue_state["no_ready_candidates"]:
+        return retain_waiting_owner(repo_root, campaign, now, source, queue_state)
+
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     activation = _campaign_root(repo_root, campaign) / "activations" / stamp
-    command = loop_argv(repo_root, campaign)
+    command = loop_argv(
+        repo_root,
+        campaign,
+        max_iterations=min(campaign.bounds.iterations, len(unattempted)),
+    )
     before = repo_state(repo_root)
     started = datetime.now(timezone.utc).isoformat(timespec="microseconds")
     result = _run(
@@ -448,6 +554,7 @@ def activate(repo_root: Path, campaign_path: Path) -> int:
         "candidate_execution_performed": True,
         "loop_returncode": result.returncode,
         "loop_arguments": list(command[1:]),
+        "queue_before": queue_state,
         "plan": plan_state(repo_root, campaign),
         "repository_before": before,
         "repository_after": repo_state(repo_root),
@@ -492,8 +599,6 @@ def install(repo_root: Path, campaign_path: Path, *, force_rearm: bool) -> int:
         f'--repo-root "{repo_root.resolve()}" '
         f'--campaign "{campaign_path.resolve()}"'
     )
-    # PowerShell uses one action and two triggers. The second trigger guarantees
-    # finalization even when the repetition horizon ends before another poll.
     script = f"""
 $ErrorActionPreference = 'Stop'
 $action = New-ScheduledTaskAction -Execute {_ps_literal(str(Path(sys.executable).resolve()))} -Argument {_ps_literal(arguments)} -WorkingDirectory {_ps_literal(str(repo_root.resolve()))}
@@ -610,6 +715,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "timezone_source": source,
                         "cutoff": campaign.cutoff.isoformat(),
                         "work_allowed_now": now.date() < campaign.cutoff,
+                        "queue": curated_queue_state(root),
                         "plan": plan_state(root, campaign),
                         "repository": repo_state(root),
                     },
