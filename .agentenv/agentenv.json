@@ -8,9 +8,9 @@
       "docs-dev": "qwen2.5-coder:14b"
     }
   },
-  "_comment_gardener_queue": "Owner direction 2026-08-29: activate only the revision-bound Fourfold/Tensor queue. Its repo_state.head names the immediately prior candidate-base freeze where this same narrow write policy exists but work_queue.enabled is false, so candidate worktrees cannot recursively schedule the campaign. Inferred map, inventory, evaluation and hotspot sources remain disabled.",
+  "_comment_gardener_queue": "Final candidate-base freeze for the 2026-09-29 gardener campaign. The complete campaign guard, tests, documentation and narrow write policy are present, but the repo-local queue is disabled so a candidate worktree cannot recursively schedule campaign tasks. A later control commit activates the queue and binds repo_state.head to this exact revision.",
   "work_queue": {
-    "enabled": true,
+    "enabled": false,
     "path": ".agentenv/work-queue.json"
   },
   "picker_sources": {
@@ -61,6 +61,7 @@
       "CLAUDE.md",
       "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
       "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
+      "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
       "docs/adrs/",
       "tests/test_iron_plan_guard.py",
       ".claude/settings.json",
