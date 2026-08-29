@@ -4,7 +4,8 @@
 Windows task registration remains in ``tools/continuous_daedalus.ps1``. This
 module only decides whether one bounded canonical ``daedalus.loop`` activation
 is still admissible. It never merges, promotes, deletes refs, installs tasks, or
-creates a second picker/evaluator/ledger.
+creates a second picker/evaluator/ledger. Its own operator diagnostics live in
+a checkout-disjoint user state directory and are not Gate evidence.
 """
 from __future__ import annotations
 
@@ -43,10 +44,18 @@ def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _constant(value: str) -> None:
+    raise CampaignError(f"forbidden JSON constant: {value}")
+
+
 def load_campaign(path: Path) -> dict[str, Any]:
     try:
         raw = path.read_bytes()
-        value = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs)
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_pairs,
+            parse_constant=_constant,
+        )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CampaignError(f"campaign cannot be read: {path}") from exc
     if not raw or len(raw) > 2 * 1024 * 1024 or not isinstance(value, dict):
@@ -64,10 +73,15 @@ def load_campaign(path: Path) -> dict[str, Any]:
         raise CampaignError("campaign cutoff dates are invalid") from exc
     if cutoff != final:
         raise CampaignError("final report date must equal the first non-working date")
+
     authority = value.get("authority")
+    schedule = value.get("schedule")
     bounds = value.get("activation_bounds")
-    if not isinstance(authority, Mapping) or not isinstance(bounds, Mapping):
-        raise CampaignError("campaign authority and bounds are required")
+    if not all(isinstance(item, Mapping) for item in (authority, schedule, bounds)):
+        raise CampaignError("campaign authority, schedule and bounds are required")
+    assert isinstance(authority, Mapping)
+    assert isinstance(schedule, Mapping)
+    assert isinstance(bounds, Mapping)
     if authority.get("classification") != "ALIGNED":
         raise CampaignError("campaign must be ALIGNED")
     for field in (
@@ -78,6 +92,16 @@ def load_campaign(path: Path) -> dict[str, Any]:
     ):
         if authority.get(field) is not False:
             raise CampaignError(f"authority.{field} must be false")
+    if schedule.get("multiple_instances") != "IgnoreNew":
+        raise CampaignError("campaign overlap policy must be IgnoreNew")
+    if schedule.get("interactive_user_only") is not True:
+        raise CampaignError("campaign must be interactive-user only")
+    if schedule.get("least_privilege") is not True:
+        raise CampaignError("campaign must use least privilege")
+    interval = schedule.get("interval_minutes")
+    if type(interval) is not int or not 15 <= interval <= 1440:
+        raise CampaignError("campaign interval must be in 15..1440 minutes")
+
     limits = {
         "max_iterations": (1, 20),
         "max_wall_clock_s": (60, 7200),
@@ -233,14 +257,37 @@ def curated_queue_state(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def _atomic_json(path: Path, value: Mapping[str, Any]) -> str:
-    data = json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ).encode("ascii")
+def _overlaps(left: Path, right: Path) -> bool:
+    try:
+        common = Path(os.path.commonpath((str(left.resolve()), str(right.resolve()))))
+    except ValueError:
+        return False
+    return common == left.resolve() or common == right.resolve()
+
+
+def _campaign_root(repo_root: Path, campaign: Mapping[str, Any]) -> Path:
+    override = os.environ.get("DAEDALUS_GARDENER_STATE_ROOT", "").strip()
+    if override:
+        base = Path(override).expanduser().resolve(strict=False)
+    elif os.name == "nt":
+        local = os.environ.get("LOCALAPPDATA", "").strip()
+        if not local:
+            raise CampaignError("LOCALAPPDATA is required for gardener state")
+        base = Path(local).resolve(strict=False) / "Daedalus" / "gardener"
+    else:
+        xdg = os.environ.get("XDG_STATE_HOME", "").strip()
+        base = (
+            Path(xdg).expanduser().resolve(strict=False)
+            if xdg
+            else Path.home().resolve() / ".local" / "state"
+        ) / "daedalus" / "gardener"
+    root = base / str(campaign["campaign_id"])
+    if _overlaps(root, repo_root):
+        raise CampaignError("gardener state root must be checkout-disjoint")
+    return root
+
+
+def _atomic_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(name)
@@ -255,11 +302,18 @@ def _atomic_json(path: Path, value: Mapping[str, Any]) -> str:
             temporary.unlink()
         except FileNotFoundError:
             pass
+
+
+def _atomic_json(path: Path, value: Mapping[str, Any]) -> str:
+    data = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii")
+    _atomic_bytes(path, data)
     return hashlib.sha256(data).hexdigest()
-
-
-def _campaign_root(repo_root: Path, campaign: Mapping[str, Any]) -> Path:
-    return repo_root / "runs" / "gardener" / str(campaign["campaign_id"])
 
 
 def _stop(repo_root: Path, reason: str) -> int:
@@ -300,24 +354,25 @@ def loop_argv(
 def run_campaign(repo_root: Path, campaign_path: Path) -> int:
     campaign = load_campaign(campaign_path)
     now, timezone_source = berlin_now()
+    state_root = _campaign_root(repo_root, campaign)
     common = {
         "campaign_id": campaign["campaign_id"],
         "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
         "berlin_time": now.isoformat(timespec="seconds"),
         "timezone_source": timezone_source,
         "cutoff": campaign["work_until_date_exclusive"],
+        "operator_state_root": str(state_root),
+        "operator_state_is_gate_evidence": False,
         "plan": plan_state(repo_root, campaign),
         "repository": repository_state(repo_root),
     }
-    root = _campaign_root(repo_root, campaign)
     if now.date() >= campaign["_cutoff"]:
+        stop_code = _stop(repo_root, "Fourfold/Tensor gardener deadline reached")
         receipt = {
             **common,
             "schema": FINAL_SCHEMA,
             "candidate_execution_performed": False,
-            "kill_switch_stop_returncode": _stop(
-                repo_root, "Fourfold/Tensor gardener deadline reached"
-            ),
+            "kill_switch_stop_returncode": stop_code,
             "claim_boundary": {
                 "crewai_beaten": "unassessed_without_comparable_benchmark",
                 "alphaevolve_beaten": "unassessed_without_comparable_public_evidence",
@@ -325,9 +380,9 @@ def run_campaign(repo_root: Path, campaign_path: Path) -> int:
                 "automatic_promotion": False,
             },
         }
-        digest = _atomic_json(root / "final.json", receipt)
+        digest = _atomic_json(state_root / "final.json", receipt)
         print(json.dumps({**receipt, "receipt_sha256": digest}, indent=2))
-        return 0
+        return 0 if stop_code == 0 else 2
 
     queue = curated_queue_state(repo_root)
     if queue["converged"] or queue["no_ready_candidates"]:
@@ -343,7 +398,7 @@ def run_campaign(repo_root: Path, campaign_path: Path) -> int:
                 else "curated queue contains no ready candidate"
             ),
         }
-        digest = _atomic_json(root / "waiting-owner.json", receipt)
+        digest = _atomic_json(state_root / "waiting-owner.json", receipt)
         print(json.dumps({**receipt, "receipt_sha256": digest}, indent=2))
         return 0
 
@@ -354,12 +409,11 @@ def run_campaign(repo_root: Path, campaign_path: Path) -> int:
         timeout=float(campaign["activation_bounds"]["max_wall_clock_s"] + 600),
     )
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-    activation = root / "activations" / stamp
+    activation = state_root / "activations" / stamp
     stdout = result.stdout.encode("utf-8", "replace")[:MAX_LOG_BYTES]
     stderr = result.stderr.encode("utf-8", "replace")[:MAX_LOG_BYTES]
-    activation.mkdir(parents=True, exist_ok=True)
-    (activation / "stdout.log").write_bytes(stdout)
-    (activation / "stderr.log").write_bytes(stderr)
+    _atomic_bytes(activation / "stdout.log", stdout)
+    _atomic_bytes(activation / "stderr.log", stderr)
     receipt = {
         **common,
         "schema": ACTIVATION_SCHEMA,
@@ -388,6 +442,17 @@ def _root(value: str | None) -> Path:
     return root
 
 
+def _campaign_path(root: Path, raw: str) -> Path:
+    supplied = Path(raw).expanduser()
+    candidate = supplied if supplied.is_absolute() else root / supplied
+    resolved = candidate.resolve()
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as exc:
+        raise CampaignError("campaign file must remain inside the repository") from exc
+    return _confined(root, relative.as_posix())
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("run", "status"))
@@ -396,10 +461,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         root = _root(args.repo_root)
-        campaign_path = _confined(root, str(Path(args.campaign).resolve().relative_to(root)))
+        campaign_path = _campaign_path(root, args.campaign)
+        campaign = load_campaign(campaign_path)
         if args.action == "run":
             return run_campaign(root, campaign_path)
-        campaign = load_campaign(campaign_path)
         now, source = berlin_now()
         print(
             json.dumps(
@@ -408,6 +473,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "berlin_time": now.isoformat(timespec="seconds"),
                     "timezone_source": source,
                     "work_allowed": now.date() < campaign["_cutoff"],
+                    "operator_state_root": str(_campaign_root(root, campaign)),
                     "queue": curated_queue_state(root),
                     "plan": plan_state(root, campaign),
                     "repository": repository_state(root),
@@ -416,7 +482,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         return 0
-    except (CampaignError, ValueError) as exc:
+    except CampaignError as exc:
         print(f"[gardener] REFUSED: {exc}", file=sys.stderr)
         return 2
 
