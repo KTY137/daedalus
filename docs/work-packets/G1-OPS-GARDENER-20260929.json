@@ -1,0 +1,121 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-OPS-GARDENER-20260929",
+  "title": "Deadline-Bounded Fourfold/Tensor Gardener Campaign",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "owner_direction_issue": 239,
+  "base_branch": "ops/continuous-daedalus-loop",
+  "branch": "ops/gardener-campaign-20260929",
+  "dependencies": [
+    "G0-OPS-CONTINUOUS-LOOP-20260825"
+  ],
+  "primary_claim": "One per-user Windows task may invoke the existing bounded daedalus.loop against a revision-bound curated queue before 2026-09-29 Europe/Berlin, while a separate cutoff trigger performs no candidate execution, stops the kill switch, disables the task, and retains a final repository topology report.",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "derived_execution_plan": "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval_issuance": false,
+    "gate_transition": false,
+    "primary_checkout_mutation_by_scheduler": false
+  },
+  "scope": {
+    "adds": [
+      "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json",
+      "tools/gardener_campaign.py",
+      "tests/test_gardener_campaign.py",
+      "docs/GARDENER_CAMPAIGN_20260929.md",
+      ".agentenv/work-queue.json"
+    ],
+    "changes": [
+      ".agentenv/agentenv.json"
+    ],
+    "reuses_existing_loop": true,
+    "reuses_existing_picker": true,
+    "reuses_existing_attempt_and_gate_path": true,
+    "reuses_existing_budget_and_kill_switch": true,
+    "introduces_second_scheduler_or_worker_protocol": false,
+    "writes_allowed_only": [
+      "daedalus/twin/",
+      "daedalus/evolution/",
+      "tests/",
+      "docs/",
+      "README.md"
+    ],
+    "external_write_lanes": [],
+    "write_wave_policy": "never"
+  },
+  "date_contract": {
+    "timezone": "Europe/Berlin",
+    "candidate_execution_before": "2026-09-29",
+    "candidate_execution_on_or_after_cutoff": false,
+    "finalization_date": "2026-09-29",
+    "finalization_actions": [
+      "stop canonical kill switch",
+      "disable scheduled task",
+      "retain Masterplan identity",
+      "retain checkout/branch/worktree inventory",
+      "retain bounded comparative-claim status"
+    ]
+  },
+  "activation_bounds": {
+    "interval_minutes": 360,
+    "multiple_instances": "IgnoreNew",
+    "max_iterations": 3,
+    "max_wall_clock_s": 1500,
+    "max_spend_usd": 1.0,
+    "max_attempts_per_candidate": 1,
+    "queue_limit": 25,
+    "principal": "current interactive user",
+    "run_level": "Limited"
+  },
+  "gardener_invariants": [
+    "prefer deletion, consolidation, movement, or wiring before new abstraction",
+    "tensor representation remains an internal typed view and never a fifth semantic plane",
+    "one responsibility moves at a time toward kernel, runtimes, orchestration, twin, or evolution",
+    "compatibility adapters are thin and carry an explicit removal condition",
+    "no branch is merged, force-updated, or deleted without containment and owner review",
+    "benchmark losses, ablations, costs, failures, and uncertainty remain inspectable",
+    "CrewAI or AlphaEvolve superiority is never inferred from architecture or an incomparable proxy"
+  ],
+  "acceptance": [
+    "campaign JSON rejects authority escalation, unbounded values, overlap, non-Berlin timezone, and inconsistent cutoff dates",
+    "pre-cutoff activation invokes exactly one existing daedalus.loop process with every configured bound",
+    "cutoff activation reaches finalization without invoking the loop or any candidate runner",
+    "scheduled-task installation uses IgnoreNew, Interactive logon and Limited run level and includes a distinct final trigger",
+    "a sticky operator stop cannot be silently overridden; scheduled commands never contain --force",
+    "activation and final receipts retain exact Masterplan digest/revision, repository HEAD, branch refs and worktrees",
+    "work queue is the only enabled picker source and is bound to one exact candidate base revision",
+    "policy blocks all code writes outside daedalus/twin and daedalus/evolution",
+    "external provider lanes remain advisory-only",
+    "scheduler source contains no merge, push, reset, promotion, OwnerApproval or PromotionReceipt operation"
+  ],
+  "verification": {
+    "prepared": [
+      "Python compile checks for runner and focused tests",
+      "focused campaign contract/deadline tests",
+      "curated picker work-queue regression suite",
+      "Windows install/status/start/overlap/stop/re-arm/uninstall drill",
+      "affected and full test suite",
+      "package and isolated-wheel checks"
+    ],
+    "executed_in_connector_session": [],
+    "hosted_ci": "blocked by issue #67; zero-step jobs are not evidence",
+    "claim": "source and test preparation only; no exact-head green result"
+  },
+  "rollback": [
+    "run python tools/gardener_campaign.py uninstall on the owner machine",
+    "restore the previous .agentenv/agentenv.json policy",
+    "remove the repo-local work queue",
+    "retain activation/final receipts and negative evidence"
+  ],
+  "non_goals": [
+    "automatic implementation of every queued item",
+    "automatic branch or worktree reintegration",
+    "automatic merge or promotion",
+    "formal Gate-2 activation",
+    "a claim that Daedalus already beats CrewAI or AlphaEvolve",
+    "changing the adopted Masterplan or amendment chain"
+  ]
+}
