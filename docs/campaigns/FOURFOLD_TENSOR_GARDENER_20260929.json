@@ -1,0 +1,80 @@
+{
+  "schema": "daedalus-gardener-campaign/1",
+  "campaign_id": "fourfold-tensor-gardener-20260929",
+  "issue": 239,
+  "timezone": "Europe/Berlin",
+  "work_until_date_exclusive": "2026-09-29",
+  "final_report_date": "2026-09-29",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "derived_execution_plan": "docs/FOURFOLD_V2_EXECUTION_PLAN.md",
+    "active_gate": 1,
+    "classification": "ALIGNED",
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "may_mint_owner_approval": false,
+    "may_change_gate_state": false
+  },
+  "schedule": {
+    "interval_minutes": 360,
+    "multiple_instances": "IgnoreNew",
+    "interactive_user_only": true,
+    "least_privilege": true
+  },
+  "activation_bounds": {
+    "max_iterations": 3,
+    "max_wall_clock_s": 1500,
+    "max_spend_usd": 1.0,
+    "max_attempts_per_candidate": 1,
+    "queue_limit": 25
+  },
+  "focus": {
+    "fourfold": [
+      "revision-atomic Code, Type, Data, and Knowledge planes",
+      "immutable Forest IR with explicit complete, partial, and absent semantics",
+      "typed Proposal -> Verification -> Trusted lifecycle",
+      "deterministic compilation, delta, materialization, and round-trip reports",
+      "corpus and motif provenance with leakage controls",
+      "ablation against code-only, BM25, embeddings, and separate-plane indices"
+    ],
+    "tensor_kernel": [
+      "internal typed computational view over Forest and Project Twin artifacts",
+      "named axes, typed relations, masks, sparsity, provenance, and revision identity",
+      "deterministic canonicalization, slicing, composition, reduction, and delta application",
+      "sparse and incremental execution with bounded memory",
+      "lossless conversions where representable and explicit unsupported states otherwise",
+      "no fifth semantic plane and no competing graph authority"
+    ],
+    "gardening": [
+      "prefer deletion, consolidation, movement, or wiring over a new subsystem",
+      "migrate one responsibility at a time into kernel, runtimes, orchestration, twin, or evolution",
+      "preserve compatibility through thin removal-tracked shims only",
+      "measure modules, public symbols, cycles, islands, shims, doc drift, and duplicate contracts",
+      "classify and selectively reintegrate branches, PRs, and worktrees only after containment checks"
+    ],
+    "benchmarks": [
+      "freeze tasks, evaluators, budgets, models, hardware, and seeds",
+      "compare CrewAI orchestration, recovery, state, tools, observability, cost, and trust boundaries",
+      "compare a transparent AlphaEvolve-like proxy on improvement rate, AUC, efficiency, diversity, and generalization",
+      "retain failures, uncertainty, ablations, and negative results",
+      "never claim broad superiority without directly comparable public evidence"
+    ]
+  },
+  "responsibility_destinations": [
+    "daedalus/kernel",
+    "daedalus/runtimes",
+    "daedalus/orchestration",
+    "daedalus/twin",
+    "daedalus/evolution"
+  ],
+  "forbidden": [
+    "new public mythological subsystem",
+    "second event store or artifact store",
+    "parallel graph or tensor source of truth",
+    "unbounded autonomous loop",
+    "automatic merge or promotion",
+    "candidate access to evaluator or hidden tests",
+    "benchmark win claim without budget-equal repeated evidence",
+    "force-push or branch deletion without containment evidence"
+  ]
+}
