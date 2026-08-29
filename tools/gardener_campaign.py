@@ -3,9 +3,10 @@
 
 Windows task registration remains in ``tools/continuous_daedalus.ps1``. This
 module only decides whether one bounded canonical ``daedalus.loop`` activation
-is still admissible. It never merges, promotes, deletes refs, installs tasks, or
-creates a second picker/evaluator/ledger. Its own operator diagnostics live in
-a checkout-disjoint user state directory and are not Gate evidence.
+is still admissible. Normal executions retain evidence through the existing
+Daedalus ledgers; this guard creates no parallel activation receipt family.
+Only checkout-disjoint operator diagnostics are retained for waiting/final
+states, and those diagnostics are explicitly not Gate evidence.
 """
 from __future__ import annotations
 
@@ -25,10 +26,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CAMPAIGN = ROOT / "docs/campaigns/FOURFOLD_TENSOR_GARDENER_20260929.json"
 CAMPAIGN_SCHEMA = "daedalus-gardener-campaign/1"
-ACTIVATION_SCHEMA = "daedalus-gardener-activation/1"
 WAITING_SCHEMA = "daedalus-gardener-waiting-owner/1"
 FINAL_SCHEMA = "daedalus-gardener-final-report/1"
-MAX_LOG_BYTES = 8 * 1024 * 1024
 
 
 class CampaignError(RuntimeError):
@@ -102,13 +101,12 @@ def load_campaign(path: Path) -> dict[str, Any]:
     if type(interval) is not int or not 15 <= interval <= 1440:
         raise CampaignError("campaign interval must be in 15..1440 minutes")
 
-    limits = {
-        "max_iterations": (1, 20),
-        "max_wall_clock_s": (60, 7200),
-        "max_attempts_per_candidate": (1, 10),
-        "queue_limit": (1, 100),
-    }
-    for field, (low, high) in limits.items():
+    for field, low, high in (
+        ("max_iterations", 1, 20),
+        ("max_wall_clock_s", 60, 7200),
+        ("max_attempts_per_candidate", 1, 10),
+        ("queue_limit", 1, 100),
+    ):
         current = bounds.get(field)
         if type(current) is not int or not low <= current <= high:
             raise CampaignError(f"{field} must be in {low}..{high}")
@@ -287,7 +285,14 @@ def _campaign_root(repo_root: Path, campaign: Mapping[str, Any]) -> Path:
     return root
 
 
-def _atomic_bytes(path: Path, data: bytes) -> None:
+def _atomic_json(path: Path, value: Mapping[str, Any]) -> str:
+    data = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii")
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(name)
@@ -302,23 +307,18 @@ def _atomic_bytes(path: Path, data: bytes) -> None:
             temporary.unlink()
         except FileNotFoundError:
             pass
-
-
-def _atomic_json(path: Path, value: Mapping[str, Any]) -> str:
-    data = json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    ).encode("ascii")
-    _atomic_bytes(path, data)
     return hashlib.sha256(data).hexdigest()
 
 
-def _stop(repo_root: Path, reason: str) -> int:
+def _stop(repo_root: Path) -> int:
     return _run(
-        (sys.executable, "-m", "daedalus.spine.killswitch", "stop", reason),
+        (
+            sys.executable,
+            "-m",
+            "daedalus.spine.killswitch",
+            "stop",
+            "Fourfold/Tensor gardener deadline reached",
+        ),
         repo_root,
     ).returncode
 
@@ -354,25 +354,21 @@ def loop_argv(
 def run_campaign(repo_root: Path, campaign_path: Path) -> int:
     campaign = load_campaign(campaign_path)
     now, timezone_source = berlin_now()
+    plan = plan_state(repo_root, campaign)
     state_root = _campaign_root(repo_root, campaign)
-    common = {
-        "campaign_id": campaign["campaign_id"],
-        "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
-        "berlin_time": now.isoformat(timespec="seconds"),
-        "timezone_source": timezone_source,
-        "cutoff": campaign["work_until_date_exclusive"],
-        "operator_state_root": str(state_root),
-        "operator_state_is_gate_evidence": False,
-        "plan": plan_state(repo_root, campaign),
-        "repository": repository_state(repo_root),
-    }
     if now.date() >= campaign["_cutoff"]:
-        stop_code = _stop(repo_root, "Fourfold/Tensor gardener deadline reached")
+        stop_code = _stop(repo_root)
         receipt = {
-            **common,
             "schema": FINAL_SCHEMA,
+            "campaign_id": campaign["campaign_id"],
+            "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+            "berlin_time": now.isoformat(timespec="seconds"),
+            "timezone_source": timezone_source,
             "candidate_execution_performed": False,
             "kill_switch_stop_returncode": stop_code,
+            "operator_state_is_gate_evidence": False,
+            "plan": plan,
+            "repository": repository_state(repo_root),
             "claim_boundary": {
                 "crewai_beaten": "unassessed_without_comparable_benchmark",
                 "alphaevolve_beaten": "unassessed_without_comparable_public_evidence",
@@ -381,16 +377,22 @@ def run_campaign(repo_root: Path, campaign_path: Path) -> int:
             },
         }
         digest = _atomic_json(state_root / "final.json", receipt)
-        print(json.dumps({**receipt, "receipt_sha256": digest}, indent=2))
+        print(json.dumps({**receipt, "diagnostic_sha256": digest}, indent=2))
         return 0 if stop_code == 0 else 2
 
     queue = curated_queue_state(repo_root)
     if queue["converged"] or queue["no_ready_candidates"]:
         receipt = {
-            **common,
             "schema": WAITING_SCHEMA,
+            "campaign_id": campaign["campaign_id"],
+            "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+            "berlin_time": now.isoformat(timespec="seconds"),
+            "timezone_source": timezone_source,
             "candidate_execution_performed": False,
+            "operator_state_is_gate_evidence": False,
             "queue": queue,
+            "plan": plan,
+            "head": _git(repo_root, "rev-parse", "HEAD"),
             "reason": (
                 "current task definitions were attempted; waiting for owner integration "
                 "or a revision-bound queue update"
@@ -399,39 +401,18 @@ def run_campaign(repo_root: Path, campaign_path: Path) -> int:
             ),
         }
         digest = _atomic_json(state_root / "waiting-owner.json", receipt)
-        print(json.dumps({**receipt, "receipt_sha256": digest}, indent=2))
+        print(json.dumps({**receipt, "diagnostic_sha256": digest}, indent=2))
         return 0
 
-    argv = loop_argv(repo_root, campaign, len(queue["pending_task_ids"]))
     result = _run(
-        argv,
+        loop_argv(repo_root, campaign, len(queue["pending_task_ids"])),
         repo_root,
         timeout=float(campaign["activation_bounds"]["max_wall_clock_s"] + 600),
     )
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-    activation = state_root / "activations" / stamp
-    stdout = result.stdout.encode("utf-8", "replace")[:MAX_LOG_BYTES]
-    stderr = result.stderr.encode("utf-8", "replace")[:MAX_LOG_BYTES]
-    _atomic_bytes(activation / "stdout.log", stdout)
-    _atomic_bytes(activation / "stderr.log", stderr)
-    receipt = {
-        **common,
-        "schema": ACTIVATION_SCHEMA,
-        "candidate_execution_performed": True,
-        "queue_before": queue,
-        "loop_returncode": result.returncode,
-        "loop_arguments": list(argv[1:]),
-        "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
-        "stderr_sha256": hashlib.sha256(stderr).hexdigest(),
-        "authority": {
-            "automatic_merge": False,
-            "automatic_promotion": False,
-            "owner_approval_minted": False,
-            "gate_state_changed": False,
-        },
-    }
-    digest = _atomic_json(activation / "receipt.json", receipt)
-    print(json.dumps({**receipt, "receipt_sha256": digest}, indent=2))
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
     return result.returncode
 
 
@@ -445,10 +426,9 @@ def _root(value: str | None) -> Path:
 def _campaign_path(root: Path, raw: str) -> Path:
     supplied = Path(raw).expanduser()
     candidate = supplied if supplied.is_absolute() else root / supplied
-    resolved = candidate.resolve()
     try:
-        relative = resolved.relative_to(root)
-    except ValueError as exc:
+        relative = candidate.resolve().relative_to(root)
+    except (OSError, ValueError) as exc:
         raise CampaignError("campaign file must remain inside the repository") from exc
     return _confined(root, relative.as_posix())
 
@@ -474,6 +454,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "timezone_source": source,
                     "work_allowed": now.date() < campaign["_cutoff"],
                     "operator_state_root": str(_campaign_root(root, campaign)),
+                    "operator_state_is_gate_evidence": False,
                     "queue": curated_queue_state(root),
                     "plan": plan_state(root, campaign),
                     "repository": repository_state(root),
