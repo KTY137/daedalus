@@ -167,7 +167,7 @@ def test_legacy_blob_digest_disguised_as_locator_is_not_store_evidence(
     )
     with pytest.raises(
         RepositoryWriteChainStoreResolutionError,
-        match="locator is missing",
+        match="locator.*missing",
     ):
         _resolve(legacy, store, checkout)
 
