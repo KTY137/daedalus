@@ -1,0 +1,75 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-01",
+  "title": "Evidence-first latent/Tensor headroom ceiling",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "base_revision": "68721e3208194391d71b0ae64d24157fd1876207",
+  "authority_refs": [
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md#14-kill-criteria",
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md#15-alignment-protocol-for-every-change",
+    "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+    "docs/research/TENSOR_EMBEDDING_SURVEY_2026-08-25.md",
+    "https://github.com/KTY137/daedalus/issues/239"
+  ],
+  "primary_claim": "Before adding another tensor or embedding subsystem, Daedalus can mechanically refuse to publish a latent-headroom ceiling until the entire frozen failure corpus is measured; predictions and convenient partial subsets cannot license infrastructure.",
+  "scope": {
+    "adds": [
+      "experiments/tensor_embedding/arm_o_latent_ceiling.py",
+      "experiments/tensor_embedding/arm_o_latent_ceiling_corpus.json",
+      "tests/test_tensor_latent_ceiling.py",
+      "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-01.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_embedding_backend": false,
+    "adds_tensor_backend": false,
+    "adds_graph_authority": false,
+    "adds_store_or_registry": false,
+    "adds_semantic_plane": false
+  },
+  "frozen_experiment": {
+    "question": "What fraction of retained failures have repository evidence that the deterministic Fourfold brief cannot express?",
+    "buckets": {
+      "already_covered": "required information is already expressible by deterministic brief/edges",
+      "present_not_expressible": "required information exists in-repo but needs similarity/analogy beyond deterministic brief",
+      "absent": "required information is not present in the repository and requires execution or requester intent"
+    },
+    "ceiling": "present_not_expressible / total measured frozen corpus",
+    "expected_total": 1383,
+    "decision_thresholds": {
+      "close_at_or_below": 0.03,
+      "license_one_experiment_at_or_above": 0.20,
+      "midrange": "ambiguous; gather evidence/ablation, do not infer a win"
+    },
+    "prediction_rows_retained": 10,
+    "prediction_rows_are_evidence": false,
+    "result_status": "NOT_MEASURED"
+  },
+  "acceptance": [
+    "invalid schema, revision identity, duplicate rows, unsupported buckets/statuses, and evidence-free rows refuse",
+    "only measured rows contribute to bucket counts used for a final ceiling",
+    "a partial corpus never emits a numeric ceiling",
+    "prediction-only committed seed reports incomplete and cannot license infrastructure",
+    "a complete measured corpus computes headroom strictly as bucket-b / total",
+    "threshold decisions distinguish close, ambiguous, and one-experiment license without claiming benchmark superiority"
+  ],
+  "verification": {
+    "commands": [
+      "python -m py_compile experiments/tensor_embedding/arm_o_latent_ceiling.py tests/test_tensor_latent_ceiling.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_tensor_latent_ceiling.py",
+      "python experiments/tensor_embedding/arm_o_latent_ceiling.py experiments/tensor_embedding/arm_o_latent_ceiling_corpus.json"
+    ],
+    "expected_cli_exit_for_prediction_only_seed": 3,
+    "executed_before_push": true,
+    "local_result": "11 passed in 0.06s; py_compile succeeded; prediction-only CLI emitted ceiling=null and exit 3",
+    "hosted_ci": "unclaimed; issue #67 remains an external infrastructure blocker"
+  },
+  "expiry": "Delete this experiment if the complete measured ceiling is <=3%; if >=20%, retain the receipt and license exactly one budget-equal latent-only-variable experiment. Do not promote this arm into production architecture by default.",
+  "authority_boundary": {
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval": false,
+    "gate_transition": false,
+    "benchmark_win_claim": false
+  }
+}
