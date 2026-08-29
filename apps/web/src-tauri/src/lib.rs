@@ -1,7 +1,6 @@
 use std::{
     error::Error,
-    fs,
-    io,
+    fs, io,
     net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -140,9 +139,7 @@ fn start_desktop(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
     if port_is_busy() {
         return Err(io::Error::new(
             io::ErrorKind::AddrInUse,
-            format!(
-                "{BACKEND_ADDR} is already in use; close the other Daedalus instance first"
-            ),
+            format!("{BACKEND_ADDR} is already in use; close the other Daedalus instance first"),
         )
         .into());
     }
