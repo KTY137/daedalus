@@ -14,8 +14,8 @@ launch a candidate.
 - Through **2026-09-28**, one bounded activation may run.
 - At **2026-09-29 00:00 Europe/Berlin**, a distinct final trigger runs.
 - On or after **2026-09-29**, `tools/gardener_campaign.py` never invokes
-  `daedalus.loop`; it stops the canonical kill switch and writes
-  `runs/gardener/fourfold-tensor-gardener-20260929/final.json`.
+  `daedalus.loop`; it stops the canonical kill switch and writes a final
+  operator report outside the checkout.
 - The repetition horizon ends at the same Berlin instant, so the installed task
   has no later work trigger. It may remain registered as inert history until an
   operator runs `Uninstall`.
@@ -27,6 +27,23 @@ checks the date independently using `Europe/Berlin` on every activation.
 The final report inventories the exact Masterplan identity, checkout revision,
 working-tree state, local and remote branch refs, and linked worktrees. It does
 not invent a benchmark win or Gate transition.
+
+## Operator-state location
+
+The guard does not create `runs/gardener` or any other campaign-specific file
+inside the Primary Checkout. Bounded stdout/stderr, waiting status, and the
+final diagnostic report are operator state rather than Gate evidence and live
+under:
+
+```text
+Windows: %LOCALAPPDATA%\Daedalus\gardener\fourfold-tensor-gardener-20260929\
+Linux:   ${XDG_STATE_HOME:-~/.local/state}/daedalus/gardener/fourfold-tensor-gardener-20260929/
+```
+
+`DAEDALUS_GARDENER_STATE_ROOT` may select another existing or creatable operator
+state parent. The guard refuses a selected location that overlaps the checkout.
+The canonical loop continues to retain its own existing ledgers and candidate
+evidence through the normal Daedalus path.
 
 ## What one activation runs
 
@@ -56,17 +73,14 @@ policy is `IgnoreNew`. It runs as the current interactive user at `Limited` run
 level. A sticky human kill-switch stop remains authoritative; scheduled runs
 never use `--force`.
 
-Every executing activation retains bounded stdout/stderr and a machine-readable
-receipt under
-`runs/gardener/fourfold-tensor-gardener-20260929/activations/`.
-
 ## Cross-activation convergence
 
 The repo-local queue is not replayed forever. The guard reads the existing Spine
 attempt memory exposed by the canonical picker. Once a current task definition
 has a retained attempt, that exact definition is no longer dispatched by later
 campaign polls. When every current ready definition has been attempted, the
-guard writes `waiting-owner.json` and performs no candidate execution.
+guard writes `waiting-owner.json` to the checkout-disjoint operator state and
+performs no candidate execution.
 
 Work resumes only after the owner integrates or rejects the candidates and
 updates the revision-bound queue. Changing a task definition or its candidate
@@ -79,7 +93,12 @@ work on its own.
 Map, inventory, evaluation and hotspot inference are disabled so a stale or
 unrelated measurement cannot redirect the scheduled writer.
 
-The current queue is bound to one exact candidate-base revision and contains:
+The current queue is bound to one exact candidate-base revision. That revision
+already contains the narrow write policy but has `work_queue.enabled=false`, so
+candidate worktrees cannot recursively schedule campaign tasks. A later control
+commit enables the queue and points back to that frozen candidate base.
+
+The queue contains:
 
 - four independent ready packets: Fourfold contract gardening, the minimal
   tensor contract, the benchmark evidence contract, and a read-only
