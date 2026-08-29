@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
 
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import ForestEdge, ForestHyperedge, KnowledgeForest
-from .contracts import CrossPlaneBinding, FourfoldSnapshot
+from .contracts import FOURFOLD_PLANES, CrossPlaneBinding, FourfoldSnapshot
 
 
 _KIND_TO_PLANE = {
@@ -42,16 +41,6 @@ class ProjectionVerificationReport:
 
 def _relation_digest(edge: ForestEdge | ForestHyperedge) -> str:
     return canonical_sha(edge.to_dict())
-
-
-def _binding_key(
-    source_plane: str,
-    source: str,
-    target_plane: str,
-    target: str,
-    relation: str,
-) -> tuple[str, str, str, str, str]:
-    return source_plane, source, target_plane, target, relation
 
 
 def _binding_projection_evidence(
@@ -94,7 +83,7 @@ def verify_forest_projection(
         ))
 
     node_plane: dict[str, str] = {}
-    forest_nodes_by_plane = {plane: set() for plane in ("code", "type", "data", "knowledge")}
+    forest_nodes_by_plane = {plane: set() for plane in FOURFOLD_PLANES}
     for node in forest.nodes:
         if node.id in node_plane:
             findings.append(ProjectionFinding(
@@ -128,9 +117,9 @@ def verify_forest_projection(
                 f"{plane.plane} plane contains nodes absent from the Forest: {extra}",
             ))
 
-    relation_digests = {plane: set() for plane in ("code", "type", "data", "knowledge")}
+    relation_digests = {plane: set() for plane in FOURFOLD_PLANES}
     forest_cross_plane: dict[
-        tuple[str, str, str, str, str], ForestEdge
+        tuple[str, str, str, str, str, str], ForestEdge
     ] = {}
 
     for edge in forest.edges:
@@ -145,12 +134,13 @@ def verify_forest_projection(
         if source_plane == target_plane:
             relation_digests[source_plane].add(_relation_digest(edge))
             continue
-        key = _binding_key(
+        key = (
             source_plane,
             edge.source,
             target_plane,
             edge.target,
             edge.relation,
+            snapshot.source_revision,
         )
         if key in forest_cross_plane:
             findings.append(ProjectionFinding(
@@ -194,16 +184,10 @@ def verify_forest_projection(
             ))
 
     snapshot_bindings: dict[
-        tuple[str, str, str, str, str], CrossPlaneBinding
+        tuple[str, str, str, str, str, str], CrossPlaneBinding
     ] = {}
     for binding in snapshot.bindings:
-        key = _binding_key(
-            binding.source_plane,
-            binding.source_node_id,
-            binding.target_plane,
-            binding.target_node_id,
-            binding.relation,
-        )
+        key = binding.semantic_key
         if key in snapshot_bindings:
             findings.append(ProjectionFinding(
                 "duplicate-snapshot-binding",
