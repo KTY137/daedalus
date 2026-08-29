@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -16,6 +17,8 @@ MODULE_PATH = ROOT / "tools" / "gardener_campaign.py"
 CAMPAIGN_PATH = (
     ROOT / "docs" / "campaigns" / "FOURFOLD_TENSOR_GARDENER_20260929.json"
 )
+QUEUE_PATH = ROOT / ".agentenv" / "work-queue.json"
+CONFIG_PATH = ROOT / ".agentenv" / "agentenv.json"
 
 
 def _load_module():
@@ -103,7 +106,12 @@ def test_campaign_contract_is_bounded_and_non_promoting() -> None:
     assert campaign["campaign_id"] == "fourfold-tensor-gardener-20260929"
     assert campaign["timezone"] == "Europe/Berlin"
     assert campaign["_cutoff"].isoformat() == "2026-09-29"
-    assert campaign["schedule"]["interval_minutes"] == 360
+    assert campaign["schedule"] == {
+        "interval_minutes": 360,
+        "multiple_instances": "IgnoreNew",
+        "interactive_user_only": True,
+        "least_privilege": True,
+    }
     assert campaign["activation_bounds"] == {
         "max_iterations": 3,
         "max_wall_clock_s": 1500,
@@ -118,13 +126,69 @@ def test_campaign_contract_is_bounded_and_non_promoting() -> None:
     assert authority["may_change_gate_state"] is False
 
 
-def test_campaign_refuses_authority_escalation(tmp_path: Path) -> None:
+def test_campaign_refuses_authority_or_overlap_escalation(tmp_path: Path) -> None:
     raw = json.loads(CAMPAIGN_PATH.read_text(encoding="utf-8"))
     raw["authority"]["automatic_promotion"] = True
     path = tmp_path / "campaign.json"
     path.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(GARDENER.CampaignError, match="automatic_promotion"):
         GARDENER.load_campaign(path)
+
+    raw = json.loads(CAMPAIGN_PATH.read_text(encoding="utf-8"))
+    raw["schedule"]["multiple_instances"] = "Parallel"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(GARDENER.CampaignError, match="IgnoreNew"):
+        GARDENER.load_campaign(path)
+
+
+def test_queue_is_curated_disjoint_and_dependency_blocked() -> None:
+    queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
+    assert queue["schema"] == "daedalus-work-queue/1"
+    assert re.fullmatch(r"[0-9a-f]{40}", queue["repo_state"]["head"])
+    ready = [task for task in queue["tasks"] if task["state"] == "ready"]
+    blocked = [task for task in queue["tasks"] if task["state"] == "blocked"]
+    assert len(ready) == 4
+    assert len(blocked) == 2
+    assert {task["id"] for task in blocked} == {
+        "g1-tensor-fourfold-projection",
+        "g1-architecture-gardening-metrics",
+    }
+    occupied: set[str] = set()
+    for task in ready:
+        targets = set(task["target_paths"])
+        assert targets
+        assert occupied.isdisjoint(targets), f"ready tasks overlap: {task['id']}"
+        occupied.update(targets)
+        assert task["gate"]["argv"][:4] == ["python", "-m", "pytest", "-q"]
+        assert task["authority_refs"]
+
+
+def test_candidate_base_has_policy_but_recursive_queue_is_disabled() -> None:
+    queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
+    base = queue["repo_state"]["head"]
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", base, "HEAD"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert ancestor.returncode == 0
+    shown = subprocess.run(
+        ["git", "show", f"{base}:.agentenv/agentenv.json"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert shown.returncode == 0, shown.stderr
+    base_config = json.loads(shown.stdout)
+    control_config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    assert base_config["work_queue"]["enabled"] is False
+    assert control_config["work_queue"]["enabled"] is True
+    assert base_config["policy"]["write_allow"] == control_config["policy"]["write_allow"]
+    assert base_config["policy"]["external_write_lanes"] == []
+    assert base_config["write_wave_policy"] == "never"
 
 
 def test_loop_argv_reuses_only_the_bounded_canonical_loop() -> None:
@@ -142,6 +206,21 @@ def test_loop_argv_reuses_only_the_bounded_canonical_loop() -> None:
     assert "--force" not in command
     with pytest.raises(GARDENER.CampaignError, match="pending task"):
         GARDENER.loop_argv(ROOT, campaign, pending_count=0)
+
+
+def test_operator_state_root_is_checkout_disjoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    campaign = _campaign()
+    external = tmp_path / "state"
+    monkeypatch.setenv("DAEDALUS_GARDENER_STATE_ROOT", str(external))
+    root = GARDENER._campaign_root(ROOT, campaign)
+    assert root == external.resolve() / campaign["campaign_id"]
+
+    monkeypatch.setenv("DAEDALUS_GARDENER_STATE_ROOT", str(ROOT / "runs"))
+    with pytest.raises(GARDENER.CampaignError, match="checkout-disjoint"):
+        GARDENER._campaign_root(ROOT, campaign)
 
 
 def test_cutoff_never_reads_queue_or_invokes_loop(
@@ -168,6 +247,7 @@ def test_cutoff_never_reads_queue_or_invokes_loop(
     assert receipt["schema"] == GARDENER.FINAL_SCHEMA
     assert receipt["candidate_execution_performed"] is False
     assert receipt["kill_switch_stop_returncode"] == 0
+    assert receipt["operator_state_is_gate_evidence"] is False
     assert receipt["claim_boundary"]["automatic_promotion"] is False
 
 
@@ -330,8 +410,9 @@ def test_plan_state_requires_adopted_master_plan_markers(tmp_path: Path) -> None
         GARDENER.plan_state(tmp_path, campaign)
 
 
-def test_python_guard_does_not_own_task_scheduler_or_repository_promotion() -> None:
+def test_python_guard_does_not_own_scheduler_or_repository_promotion() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
+    assert '"runs" / "gardener"' not in source
     for forbidden in (
         "New-ScheduledTask",
         "Register-ScheduledTask",
