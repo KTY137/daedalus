@@ -47,6 +47,18 @@ jobs:
           if help_old not in s:
               raise SystemExit('help-text migration repair target not found')
           s = s.replace(help_old, '# Optional help-text copy change skipped: routing semantics are implemented above.', 1)
+
+          heading_old = '''      const Tag = `h${Math.min(4, heading[1].length + 1)}` as keyof JSX.IntrinsicElements;
+                nodes.push(<Tag key={key++}>{inline(heading[2])}</Tag>);'''
+          heading_new = '''      const level = Math.min(4, heading[1].length + 1);
+                const body = inline(heading[2]);
+                if (level === 2) nodes.push(<h2 key={key++}>{body}</h2>);
+                else if (level === 3) nodes.push(<h3 key={key++}>{body}</h3>);
+                else nodes.push(<h4 key={key++}>{body}</h4>);'''
+          if heading_old not in s:
+              raise SystemExit('Markdown heading typing repair target not found')
+          s = s.replace(heading_old, heading_new, 1)
+
           p.write_text(s, encoding='utf-8')
           PY
       - name: Apply migration
