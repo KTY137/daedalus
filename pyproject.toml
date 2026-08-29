@@ -47,6 +47,7 @@ test = ["pytest>=8", "hypothesis>=6.163"]
 
 [project.scripts]
 daedalus = "daedalus.cli:main"
+daedalus-chip = "daedalus.chip_design.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["daedalus*"]
