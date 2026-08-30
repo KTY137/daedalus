@@ -66,8 +66,27 @@ def test_runtime_invocation_binding_has_no_callable_or_dynamic_loader_surface() 
 
 def test_runtime_invocation_binding_reuses_existing_authorities() -> None:
     source = SOURCE.read_text(encoding="utf-8")
-    assert "verify_provider_invocation_abi_contract" in source
+    assert "ProviderObservationBindingLedger.verify_invocation_abi_contract(" in source
+    assert "observation_binding_ledger.verify_invocation_abi_contract(" not in source
+    assert "verify_provider_invocation_abi_contract" not in source
     assert "bind_provider_runtime_executable" in source
     assert "ProviderObservationBindingLedger" in source
     assert "ProviderExecutableObjectRegistry" in source
     assert "ProviderInvocationObservationAuthority" in source
+
+
+def test_runtime_invocation_binding_cannot_read_or_export_ledger_keyrings() -> None:
+    source = SOURCE.read_text(encoding="utf-8")
+    assert "_authority_keyring" not in source
+    assert "_observation_keyring" not in source
+    assert ".observation_keyring" not in source
+    assert "authority_keyring=" not in source
+    assert "observation_keyring=" not in source
+
+    tree = _tree()
+    returned_names = {
+        node.value.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Return) and isinstance(node.value, ast.Name)
+    }
+    assert not any("key" in name.lower() for name in returned_names)

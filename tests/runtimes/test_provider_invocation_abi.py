@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import dataclasses
+import inspect
+from collections.abc import Iterator, Mapping
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -31,9 +33,31 @@ from daedalus.spine.envelope import canonical_sha
 NOW = datetime(2026, 8, 30, 6, 30, tzinfo=timezone.utc)
 REVISION = "a" * 40
 AUTHORITY_SECRET = b"provider-authority-secret-material-at-least-32-bytes"
+FOREIGN_AUTHORITY_SECRET = b"foreign-authority-secret-material-at-least-32-bytes"
 OBSERVATION_SECRET = b"provider-observation-secret-material-at-least-32-bytes"
 AUTHORITY_KEYRING = {"provider-authority-key": AUTHORITY_SECRET}
 OBSERVATION_KEYRING = {"provider-observation-key": OBSERVATION_SECRET}
+
+
+class _SwitchingAuthorityKeyring(Mapping[str, bytes]):
+    """Expose a foreign key after the first read to detect repeat normalization."""
+
+    def __init__(self) -> None:
+        self.read_count = 0
+
+    def __getitem__(self, key: str) -> bytes:
+        if key != "provider-authority-key":
+            raise KeyError(key)
+        self.read_count += 1
+        if self.read_count == 1:
+            return AUTHORITY_SECRET
+        return FOREIGN_AUTHORITY_SECRET
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(("provider-authority-key",))
+
+    def __len__(self) -> int:
+        return 1
 
 
 def _sha(label: str) -> str:
@@ -154,7 +178,6 @@ def _issue(execution: EffectExecutionRequest):
         payload,
         pre_admission,
         authority_id="authority.runtime-provider-observation",
-        authority_secret=AUTHORITY_SECRET,
         authority_keyring=AUTHORITY_KEYRING,
         observation_keyring=OBSERVATION_KEYRING,
         execution=execution,
@@ -194,6 +217,54 @@ def test_authenticated_invocation_abi_round_trips_and_verifies() -> None:
     assert restored.to_dict()["effect_start_authorized"] is False
 
 
+def test_issue_uses_only_the_authenticated_canonical_authority_keyring() -> None:
+    assert "authority_secret" not in inspect.signature(
+        issue_provider_invocation_abi_contract
+    ).parameters
+
+    execution = _execution()
+    authority = _authority(execution)
+    payload = _payload(execution)
+    pre_admission = _pre_admission(authority)
+
+    with pytest.raises(
+        ProviderInvocationABIBindingError,
+        match="parent provider invocation authority did not authenticate",
+    ):
+        issue_provider_invocation_abi_contract(
+            authority,
+            payload,
+            pre_admission,
+            authority_id="authority.runtime-provider-observation",
+            authority_keyring={"provider-authority-key": FOREIGN_AUTHORITY_SECRET},
+            observation_keyring=OBSERVATION_KEYRING,
+            execution=execution,
+            at=NOW,
+        )
+
+
+def test_issue_snapshots_stateful_authority_keyring_before_authentication() -> None:
+    execution = _execution()
+    authority = _authority(execution)
+    payload = _payload(execution)
+    pre_admission = _pre_admission(authority)
+    keyring = _SwitchingAuthorityKeyring()
+
+    contract = issue_provider_invocation_abi_contract(
+        authority,
+        payload,
+        pre_admission,
+        authority_id="authority.runtime-provider-observation",
+        authority_keyring=keyring,
+        observation_keyring=OBSERVATION_KEYRING,
+        execution=execution,
+        at=NOW,
+    )
+
+    assert keyring.read_count == 1
+    _verify(contract, authority, payload, pre_admission, execution)
+
+
 def test_payload_semantics_change_authenticated_abi_identity() -> None:
     execution = _execution()
     contract, authority, payload, pre_admission = _issue(execution)
@@ -219,7 +290,6 @@ def test_payload_for_other_adapter_refuses_before_contract_issue() -> None:
             foreign_payload,
             _pre_admission(authority),
             authority_id="authority.runtime-provider-observation",
-            authority_secret=AUTHORITY_SECRET,
             authority_keyring=AUTHORITY_KEYRING,
             observation_keyring=OBSERVATION_KEYRING,
             execution=execution,

@@ -27,7 +27,6 @@ from daedalus.runtimes.provider_executable_pre_admission import (
 from daedalus.runtimes.provider_invocation_abi import (
     ProviderInvocationABIContract,
     ProviderInvocationABIError,
-    verify_provider_invocation_abi_contract,
 )
 from daedalus.runtimes.provider_invocation_authority import (
     ProviderInvocationObservationAuthority,
@@ -67,27 +66,6 @@ def _require_same(label: str, comparisons: Mapping[str, tuple[Any, Any]]) -> Non
         )
 
 
-def _ledger_authority_keyring(
-    ledger: ProviderObservationBindingLedger,
-) -> Mapping[str, bytes]:
-    """Use the existing ledger trust root without publishing key material."""
-
-    if type(ledger) is not ProviderObservationBindingLedger:
-        raise ProviderRuntimeInvocationBindingShapeError(
-            "observation_binding_ledger must be exact ProviderObservationBindingLedger"
-        )
-    rows = getattr(ledger, "_authority_keyring", None)
-    if type(rows) is not dict or not rows:
-        raise ProviderRuntimeInvocationBindingShapeError(
-            "observation binding ledger has no canonical authority keyring"
-        )
-    if any(type(key) is not str or type(value) is not bytes for key, value in rows.items()):
-        raise ProviderRuntimeInvocationBindingShapeError(
-            "observation binding ledger authority keyring is malformed"
-        )
-    return rows
-
-
 def bind_provider_runtime_invocation(
     entrypoint_id: str,
     *,
@@ -115,20 +93,22 @@ def bind_provider_runtime_invocation(
         raise ProviderRuntimeInvocationBindingShapeError(
             "invocation_abi must be exact ProviderInvocationABIContract"
         )
+    if type(observation_binding_ledger) is not ProviderObservationBindingLedger:
+        raise ProviderRuntimeInvocationBindingShapeError(
+            "observation_binding_ledger must be exact ProviderObservationBindingLedger"
+        )
     if type(at) is not datetime or at.tzinfo is None or at.utcoffset() is None:
         raise ProviderRuntimeInvocationBindingShapeError(
             "at must be an exact timezone-aware datetime"
         )
 
     try:
-        verify_provider_invocation_abi_contract(
+        ProviderObservationBindingLedger.verify_invocation_abi_contract(
+            observation_binding_ledger,
             invocation_abi,
             invocation_authority,
             invocation_payload,
             pre_admission,
-            authority_id=observation_binding_ledger.authority_id,
-            authority_keyring=_ledger_authority_keyring(observation_binding_ledger),
-            observation_keyring=observation_binding_ledger.observation_keyring,
             execution=execution,
             at=at,
         )

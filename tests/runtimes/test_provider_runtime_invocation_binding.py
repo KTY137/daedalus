@@ -30,6 +30,7 @@ from daedalus.runtimes.provider_runtime_executable_binding import (
 )
 from daedalus.runtimes.provider_runtime_invocation_binding import (
     ProviderRuntimeInvocationBindingMismatch,
+    ProviderRuntimeInvocationBindingShapeError,
     bind_provider_runtime_invocation,
 )
 from daedalus.spine.envelope import canonical_sha
@@ -204,7 +205,6 @@ def _bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         payload,
         pre_admission,
         authority_id=AUTHORITY_ID,
-        authority_secret=AUTHORITY_KEY,
         authority_keyring={AUTHORITY_KEY_ID: AUTHORITY_KEY},
         observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
         execution=execution,
@@ -262,6 +262,40 @@ def test_runtime_invocation_binding_authenticates_conjunction_without_effect(
     assert rendered["provider_code_executed"] is False
     assert rendered["provider_execution_allowed"] is False
     assert rendered["callback_seam_removed"] is False
+
+
+def test_ledger_owned_abi_verification_returns_no_key_material(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    _, execution, authority, payload, abi, ledger, _, pre_admission = bundle[:8]
+
+    result = ledger.verify_invocation_abi_contract(
+        abi,
+        authority,
+        payload,
+        pre_admission,
+        execution=execution,
+        at=fixture.NOW,
+    )
+
+    assert result is None
+    assert ledger.load(execution.execution_id) is None
+
+
+def test_runtime_invocation_binding_requires_exact_ledger(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    bundle[5] = object()
+
+    with pytest.raises(
+        ProviderRuntimeInvocationBindingShapeError,
+        match="must be exact ProviderObservationBindingLedger",
+    ):
+        _bind(bundle)
 
 
 def test_semantic_payload_substitution_refuses_before_effect(
@@ -324,6 +358,28 @@ def test_forged_abi_signature_refuses_before_effect(
     ):
         _bind(bundle)
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+
+
+def test_exact_ledger_instance_shadow_cannot_bypass_forged_abi_refusal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution = bundle[:2]
+    ledger = bundle[5]
+    assert type(ledger) is ProviderObservationBindingLedger
+    bundle[4] = dataclasses.replace(bundle[4], signature_sha256="0" * 64)
+    ledger.__dict__["verify_invocation_abi_contract"] = (
+        lambda *args, **kwargs: None
+    )
+
+    with pytest.raises(
+        ProviderRuntimeInvocationBindingMismatch,
+        match="invocation ABI did not authenticate pre-effect",
+    ):
+        _bind(bundle)
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert ledger.load(execution.execution_id) is None
 
 
 def test_repository_source_mutation_after_admission_refuses_before_effect(
