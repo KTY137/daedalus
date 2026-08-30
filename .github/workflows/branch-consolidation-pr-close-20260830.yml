@@ -1,9 +1,8 @@
-name: Arm branch consolidation 2026-08-30
+name: Run branch consolidation 2026-08-30
 
 on:
-  pull_request:
-    branches: [main]
-    types: [closed]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -16,7 +15,7 @@ concurrency:
 
 jobs:
   consolidate:
-    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'ops/branch-consolidation-arm-20260830'
+    if: github.event.issue.number == 42 && github.event.comment.body == '/run-branch-consolidation-20260830'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -24,6 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
+          fetch-depth: 0
           persist-credentials: false
       - name: Execute recovery-first consolidation
         run: python tools/branch_consolidate_20260830.py
