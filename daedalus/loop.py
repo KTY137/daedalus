@@ -73,6 +73,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -154,7 +155,7 @@ STOP_REASONS = (
 
 
 class LoopMisconfigured(ValueError):
-    """A bound is missing or non-positive. Refused at construction."""
+    """A safety bound is invalid. Refused at construction."""
 
 
 @dataclass(frozen=True)
@@ -174,17 +175,32 @@ class LoopBounds:
 
     def __post_init__(self) -> None:
         # NO SENTINEL FOR "UNLIMITED". Not an oversight: an unbounded loop is
-        # the failure this module exists to prevent, and offering `0` or `None`
-        # as "no limit" would make it one keystroke away. An operator who wants
-        # a long run states a large number and can see it in the report.
-        for name in ("max_iterations", "max_wall_clock_s", "max_spend_usd",
-                     "max_attempts_per_candidate"):
+        # the failure this module exists to prevent. Count bounds stay exact
+        # integers; duration/spend bounds must be positive finite numbers so
+        # IEEE-754 NaN/Infinity cannot turn a comparison permanently false.
+        for name in ("max_iterations", "max_attempts_per_candidate"):
             value = getattr(self, name)
-            if value is None or float(value) <= 0:
+            if type(value) is not int or value <= 0:
                 raise LoopMisconfigured(
-                    f"{name}={value!r}: every bound must be positive. This loop "
-                    "has no 'unlimited' setting by design -- state a large "
-                    "number instead, so the report can show what you chose.")
+                    f"{name}={value!r}: count bounds must be positive integers. "
+                    "This loop has no 'unlimited' setting by design.")
+
+        for name in ("max_wall_clock_s", "max_spend_usd"):
+            value = getattr(self, name)
+            if value is None or isinstance(value, bool):
+                raise LoopMisconfigured(
+                    f"{name}={value!r}: numeric bounds must be positive and finite. "
+                    "This loop has no 'unlimited' setting by design.")
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError) as exc:
+                raise LoopMisconfigured(
+                    f"{name}={value!r}: numeric bounds must be positive and finite. "
+                    "This loop has no 'unlimited' setting by design.") from exc
+            if not math.isfinite(numeric) or numeric <= 0:
+                raise LoopMisconfigured(
+                    f"{name}={value!r}: numeric bounds must be positive and finite. "
+                    "This loop has no 'unlimited' setting by design.")
 
     def to_dict(self) -> dict[str, Any]:
         return {
