@@ -6,6 +6,7 @@ from typing import Any, Mapping
 
 import pytest
 
+from daedalus.chip_design.executor import EdaExecutionError
 from daedalus.chip_design.execution_plan import EdaExecutionPlan
 from daedalus.gates.repository_head_revision import (
     RepositoryHeadRevisionBindingError,
@@ -19,6 +20,8 @@ from daedalus.kernel.offload_lease import (
     chip_eda_lease_id,
     issuable_row,
 )
+from daedalus.schemas import ContractProvenance
+from daedalus.storage import ArtifactStore
 from daedalus.spine.effect_boundary import (
     ENTRYPOINTS,
     Effect,
@@ -28,7 +31,7 @@ from daedalus.spine.effect_boundary import (
     Wiring,
     begin_effect,
 )
-from daedalus.spine.envelope import canonical_sha
+from daedalus.spine.envelope import canonical_json, canonical_sha
 from daedalus.spine.killswitch import KillSwitch
 
 
@@ -67,6 +70,7 @@ def _operation_plan(source_root: Path, worktree_root: Path) -> EdaExecutionPlan:
         source_identity_sha256="3" * 64,
         trusted_tcl_sha256="4" * 64,
         launcher_sha256="5" * 64,
+        publication_adapter_sha256="6" * 64,
     )
 
 
@@ -313,6 +317,141 @@ def test_execution_for_indexes_successful_execution_record_by_execution_id(
     assert canonical_sha(body["execution"]) == canonical_sha(execution.to_dict())
     assert body["lease_sha256"] == granted.lease.digest
     assert body["subject_record_sha256"] == granted.evidence_records["lease_subject"]
+
+
+def test_evidence_record_refuses_wrong_preexisting_content_addressed_bytes(
+    tmp_path: Path,
+) -> None:
+    body: dict[str, Any] = {"schema": "test-record/1", "value": "exact"}
+    body["record_sha256"] = canonical_sha(body)
+    target = tmp_path / "records" / "test" / f"{body['record_sha256']}.json"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"{}")
+
+    with pytest.raises(ValueError, match="bytes contradict"):
+        offload_lease._publish_evidence_record(tmp_path / "records", "test", body)
+
+
+def test_terminal_chip_publication_rejects_incomplete_graph_before_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    granted, authority_root, operation_plan = _grant_real_chip_lease(
+        tmp_path,
+        monkeypatch,
+        attempt_id="attempt-terminal-publication",
+    )
+    execution = granted.execution_for(
+        1,
+        (".",),
+        ("vivado",),
+        operation_sha256=operation_plan.digest,
+    )
+    started = granted.authorization.begin_effect(execution)
+    assert started.execute is True
+    store = ArtifactStore(Path(granted.evidence_root) / "artifacts")
+    provenance = ContractProvenance(
+        origin="test.chip-terminal-publication",
+        source_revision="a" * 40,
+        created_at="2026-08-30T10:00:00+00:00",
+        input_digests=(operation_plan.digest,),
+    ).to_dict()
+    incomplete_raw_payload = canonical_json(
+        {
+            "schema": "daedalus.eda-execution-receipt/3",
+            "execution_id": execution.execution_id,
+            "execution_request_sha256": execution.digest,
+            "operation_sha256": execution.operation_sha256,
+            "execution_plan": operation_plan.to_dict(),
+            "effect_start_receipt": started.receipt.to_dict(),
+        }
+    ).encode("ascii")
+    raw = store.put_bytes(
+        incomplete_raw_payload,
+        media_type="application/json",
+        metadata={
+            "kind": "eda_execution_receipt",
+            "execution_id": execution.execution_id,
+        },
+        provenance=provenance,
+    )
+    terminal = granted.authorization.finish_effect(
+        started.receipt,
+        outcome="FAILED",
+        output_digests=(raw.artifact_sha256,),
+    )
+    placeholder = canonical_json(
+        {"schema": "daedalus.test-incomplete-publication/1"}
+    ).encode("ascii")
+    chip = store.put_bytes(
+        placeholder,
+        media_type="application/json",
+        metadata={"kind": "chip_run_receipt", "phase": "inspect"},
+        provenance=provenance,
+    )
+    evidence = store.put_bytes(
+        placeholder,
+        media_type="application/json",
+        metadata={"kind": "chip_evidence_packet", "phase": "inspect"},
+        provenance=provenance,
+    )
+    subject_digest = granted.evidence_records["lease_subject"]
+    subject_path = (
+        Path(granted.evidence_root)
+        / "lease-subject"
+        / f"{subject_digest}.json"
+    )
+    subject = json.loads(subject_path.read_text(encoding="utf-8"))
+    terminal_record = offload_lease.emit_effect_lease_terminal_record(
+        subject,
+        execution,
+        evidence_root=granted.evidence_root,
+        control_root_path=granted.control_root_path,
+        keyring=offload_lease.read_issuer_keyring(authority_root),
+        ledger_path=granted.ledger_path,
+    )
+
+    with pytest.raises(
+        EdaExecutionError,
+        match="retained EDA execution receipt has unexpected fields",
+    ):
+        offload_lease.record_chip_eda_publication(
+            authority_root=authority_root,
+            evidence_root=granted.evidence_root,
+            source_revision="a" * 40,
+            authorization=granted.authorization,
+            execution=execution,
+            terminal_receipt=terminal,
+            artifact_store=store,
+            phase="inspect",
+            publication_adapter_sha256=operation_plan.publication_adapter_sha256,
+            lease_sha256=granted.lease.digest,
+            execution_id=execution.execution_id,
+            execution_request_sha256=execution.digest,
+            terminal_receipt_sha256=terminal.receipt_sha256,
+            raw_execution_receipt_sha256=raw.artifact_sha256,
+            raw_execution_receipt_locator=raw.locator_uri,
+            chip_receipt_sha256=chip.artifact_sha256,
+            chip_receipt_locator=chip.locator_uri,
+            evidence_packet_sha256=evidence.artifact_sha256,
+            evidence_packet_locator=evidence.locator_uri,
+            authority_head_record_sha256=granted.evidence_records["authority_head"],
+            lease_subject_record_sha256=subject_digest,
+            lease_execution_record_sha256=granted.evidence_records[
+                f"lease_execution:{execution.execution_id}"
+            ],
+            lease_terminal_record_sha256=terminal_record["record_sha256"],
+            finished_at=terminal.finished_at,
+        )
+
+    assert (
+        offload_lease.load_chip_eda_publication(
+            granted.evidence_root,
+            source_revision="a" * 40,
+            execution_id=execution.execution_id,
+        )
+        is None
+    )
 
 
 def test_authority_head_publication_failure_stays_visible_on_granted_lease(

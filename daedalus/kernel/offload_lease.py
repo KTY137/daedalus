@@ -82,6 +82,7 @@ from daedalus.kernel.effects import (
     EffectLeaseError,
     EffectLeaseLedger,
     EffectLeaseStateError,
+    EffectTerminalReceipt,
     issue_effect_lease,
 )
 from daedalus.limit_policy import ExecutionLimitPolicy, load_from_env
@@ -355,7 +356,8 @@ LEASE_EXECUTION_RECORD_SCHEMA = "daedalus-effect-lease-execution-record/1"
 
 #: One terminalised execution, replayed out of the ledger.
 LEASE_TERMINAL_RECORD_SCHEMA = "daedalus-effect-lease-terminal-record/1"
-CHIP_EDA_PUBLICATION_RECORD_SCHEMA = "daedalus-chip-eda-publication-record/1"
+CHIP_EDA_PUBLICATION_RECORD_SCHEMA = "daedalus-chip-eda-publication-record/2"
+CHIP_EDA_PUBLICATION_INDEX_SCHEMA = "daedalus-chip-eda-publication-index/1"
 
 #: The chain's own payload id for an ``effect_lease_receipt``. Spelled here
 #: because this module produces the fact that payload is built from; the gates
@@ -474,6 +476,138 @@ def _record_sha256(body: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_json(subject).encode("ascii")).hexdigest()
 
 
+def _stable_regular_bytes(path: Path, *, label: str) -> bytes:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"{label} is not a regular file")
+    with path.open("rb") as handle:
+        before = os.fstat(handle.fileno())
+        observed = handle.read()
+        after = os.fstat(handle.fileno())
+    named = os.stat(path, follow_symlinks=False)
+    identities = (
+        (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns),
+        (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns),
+        (named.st_dev, named.st_ino, named.st_size, named.st_mtime_ns),
+    )
+    if identities[0] != identities[1] or identities[1] != identities[2]:
+        raise ValueError(f"{label} changed during verification")
+    return observed
+
+
+def _publish_exact_bytes_once(path: Path, expected: bytes, *, label: str) -> None:
+    from daedalus.atomic import publish_bytes_once
+
+    publish_bytes_once(path, expected)
+    observed = _stable_regular_bytes(path, label=label)
+    if observed != expected:
+        raise ValueError(f"{label} bytes contradict their immutable identity")
+
+
+def _strict_canonical_record(payload: bytes, *, label: str) -> dict[str, Any]:
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError(f"{label} contains duplicate key {key!r}")
+            value[key] = item
+        return value
+
+    def nonfinite(value: str) -> None:
+        raise ValueError(f"{label} contains non-finite number {value}")
+
+    try:
+        decoded = payload.decode("ascii")
+        value = json.loads(
+            decoded,
+            object_pairs_hook=unique_object,
+            parse_constant=nonfinite,
+        )
+    except (UnicodeError, json.JSONDecodeError, TypeError) as exc:
+        raise ValueError(f"{label} is malformed JSON") from exc
+    if not isinstance(value, dict) or canonical_json(value).encode("ascii") != payload:
+        raise ValueError(f"{label} is not canonical JSON")
+    return value
+
+
+def _chip_publication_index_path(
+    evidence_root: str | Path,
+    *,
+    source_revision: str,
+    execution_id: str,
+) -> tuple[Path, str]:
+    identity = canonical_sha(
+        {
+            "schema": CHIP_EDA_PUBLICATION_INDEX_SCHEMA,
+            "source_revision": str(source_revision),
+            "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+            "execution_id": str(execution_id),
+        }
+    )
+    return Path(evidence_root) / "chip-publication-index" / f"{identity}.json", identity
+
+
+def load_chip_eda_publication(
+    evidence_root: str | Path,
+    *,
+    source_revision: str,
+    execution_id: str,
+) -> dict[str, Any] | None:
+    """Load the unique authenticated completion edge for one EDA execution."""
+
+    if not _REVISION.fullmatch(str(source_revision)):
+        raise ValueError("chip publication source_revision must be lowercase 40-hex")
+    if not str(execution_id).strip():
+        raise ValueError("chip publication execution_id must be non-empty")
+    index_path, identity = _chip_publication_index_path(
+        evidence_root,
+        source_revision=source_revision,
+        execution_id=execution_id,
+    )
+    if index_path.is_symlink():
+        raise ValueError("chip publication index is a symlink")
+    if not index_path.exists():
+        return None
+    index = _strict_canonical_record(
+        _stable_regular_bytes(index_path, label="chip publication index"),
+        label="chip publication index",
+    )
+    if set(index) != {
+        "schema",
+        "source_revision",
+        "entrypoint_id",
+        "execution_id",
+        "publication_record_sha256",
+        "identity_sha256",
+    } or index != {
+        "schema": CHIP_EDA_PUBLICATION_INDEX_SCHEMA,
+        "source_revision": str(source_revision),
+        "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+        "execution_id": str(execution_id),
+        "publication_record_sha256": index.get("publication_record_sha256"),
+        "identity_sha256": identity,
+    }:
+        raise ValueError("chip publication index identity is invalid")
+    record_sha256 = str(index["publication_record_sha256"])
+    if not _SHA256.fullmatch(record_sha256):
+        raise ValueError("chip publication index record digest is invalid")
+    record_path = Path(evidence_root) / "chip-publication" / f"{record_sha256}.json"
+    record = _strict_canonical_record(
+        _stable_regular_bytes(record_path, label="chip publication record"),
+        label="chip publication record",
+    )
+    if (
+        record.get("schema") != CHIP_EDA_PUBLICATION_RECORD_SCHEMA
+        or record.get("source_revision") != str(source_revision)
+        or record.get("entrypoint_id") != CHIP_EDA_ENTRYPOINT_ID
+        or record.get("execution_id") != str(execution_id)
+        or record.get("record_sha256") != record_sha256
+        or _record_sha256(record) != record_sha256
+        or record.get("security_boundary_claimed") is not False
+    ):
+        raise ValueError("chip publication record identity is invalid")
+    return record
+
+
 def _publish_evidence_record(
     evidence_root: str | Path, kind: str, body: Mapping[str, Any]
 ) -> Path:
@@ -485,11 +619,12 @@ def _publish_evidence_record(
     replace an object whose identity was already published.
     """
 
-    from daedalus.atomic import publish_bytes_once
-
     digest = str(body["record_sha256"])
     path = Path(evidence_root) / str(kind) / f"{digest}.json"
-    publish_bytes_once(path, canonical_json(dict(body)).encode("ascii"))
+    expected = canonical_json(dict(body)).encode("ascii")
+    _publish_exact_bytes_once(path, expected, label="published evidence record")
+    if _record_sha256(dict(body)) != digest:
+        raise ValueError("published evidence record digest is invalid")
     return path
 
 
@@ -867,10 +1002,664 @@ def emit_effect_lease_terminal_record(
     return body
 
 
+def _verify_chip_eda_terminal_bookkeeping(
+    *,
+    authority_root: str | Path,
+    source_revision: str,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    terminal_receipt: EffectTerminalReceipt,
+) -> Path:
+    """Authenticate the terminal lifecycle that permits authority bookkeeping.
+
+    Derived CAS objects and the completion index are not a second candidate
+    effect and grant no new authority.  They may nevertheless write only below
+    the kernel-owned evidence root and only after the exact signed execution is
+    durably terminal in the canonical ledger.
+    """
+
+    from daedalus.kernel.effect_replay import inspect_effect_execution
+
+    if type(authorization) is not NonRuntimeEffectAuthorization:
+        raise TypeError("chip terminal bookkeeping requires exact authorization")
+    if type(execution) is not EffectExecutionRequest:
+        raise TypeError("chip terminal bookkeeping requires exact execution")
+    if type(terminal_receipt) is not EffectTerminalReceipt:
+        raise TypeError("chip terminal bookkeeping requires exact terminal receipt")
+    if (
+        authorization.request.entrypoint_id != CHIP_EDA_ENTRYPOINT_ID
+        or authorization.lease.entrypoint_id != CHIP_EDA_ENTRYPOINT_ID
+        or authorization.lease.provenance.source_revision != str(source_revision)
+        or authorization.request.provenance.source_revision != str(source_revision)
+        or execution.operation_sha256 != authorization.request.operation_sha256
+        or terminal_receipt.execution_id != execution.execution_id
+    ):
+        raise ValueError("chip terminal bookkeeping authority binding is invalid")
+    expected_ledger = lease_ledger_path(authority_root).resolve(strict=False)
+    observed_ledger = Path(authorization.effect_ledger.path).resolve(strict=False)
+    if os.path.normcase(str(expected_ledger)) != os.path.normcase(
+        str(observed_ledger)
+    ):
+        raise ValueError("chip terminal bookkeeping authority root is invalid")
+    replay = inspect_effect_execution(authorization, execution)
+    if (
+        replay is None
+        or replay.pending_reconciliation
+        or replay.terminal_receipt is None
+        or replay.terminal_receipt.to_dict() != terminal_receipt.to_dict()
+    ):
+        raise ValueError("chip terminal bookkeeping lacks an exact durable terminal")
+    return write_evidence_root(authority_root, source_revision)
+
+
+def retain_chip_eda_terminal_artifact(
+    *,
+    authority_root: str | Path,
+    source_revision: str,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    terminal_receipt: EffectTerminalReceipt,
+    artifact_store: Any,
+    payload: bytes,
+    expected_sha256: str,
+    media_type: str,
+    metadata: Mapping[str, Any],
+    provenance: Mapping[str, Any],
+) -> Any:
+    """Retain one derived artifact under authenticated terminal authority."""
+
+    from daedalus.storage import ArtifactStore
+
+    evidence_root = _verify_chip_eda_terminal_bookkeeping(
+        authority_root=authority_root,
+        source_revision=source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal_receipt,
+    )
+    if type(artifact_store) is not ArtifactStore:
+        raise TypeError("chip terminal bookkeeping requires canonical ArtifactStore")
+    expected_store = (evidence_root / "artifacts").resolve(strict=False)
+    observed_store = Path(artifact_store.root).resolve(strict=False)
+    if os.path.normcase(str(expected_store)) != os.path.normcase(str(observed_store)):
+        raise ValueError("chip terminal artifact store is outside its authority root")
+    allowed = {
+        "runtime_manifest": "runtime-manifest.json",
+        "execution_plan": "eda-execution-plan.json",
+        "mission_contract": "mission.json",
+        "attempt_contract": "attempt.json",
+        "policy_decision": "policy-decision.json",
+        "chip_run_receipt": None,
+        "chip_evidence_packet": None,
+    }
+    kind = str(metadata.get("kind", ""))
+    filename_hint = str(metadata.get("filename_hint", ""))
+    phase = metadata.get("phase")
+    expected_metadata_fields = (
+        {"kind", "filename_hint", "phase"}
+        if kind in {"chip_run_receipt", "chip_evidence_packet"}
+        else {"kind", "filename_hint"}
+    )
+    if (
+        set(metadata) != expected_metadata_fields
+        or kind not in allowed
+        or not filename_hint
+        or (allowed[kind] is not None and filename_hint != allowed[kind])
+        or (
+            kind in {"chip_run_receipt", "chip_evidence_packet"}
+            and phase not in {"inspect", "synth", "impl"}
+        )
+        or media_type != "application/json"
+    ):
+        raise ValueError("chip terminal artifact role is outside the fixed completion set")
+    _strict_canonical_record(payload, label=f"chip terminal {kind} artifact")
+    return artifact_store.put_bytes(
+        payload,
+        expected_sha256=expected_sha256,
+        media_type=media_type,
+        metadata=dict(metadata),
+        provenance=dict(provenance),
+    )
+
+
+def verify_chip_eda_publication_graph(
+    *,
+    authority_root: str | Path,
+    source_revision: str,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    terminal_receipt: EffectTerminalReceipt,
+    artifact_store: Any,
+    phase: str,
+    publication_adapter_sha256: str,
+    raw_execution_receipt_sha256: str,
+    raw_execution_receipt_locator: str,
+    chip_receipt_sha256: str,
+    chip_receipt_locator: str,
+    evidence_packet_sha256: str,
+    evidence_packet_locator: str,
+) -> dict[str, Any]:
+    """Verify the one non-promoting chip publication graph used by create/replay.
+
+    The producer and restart path deliberately share this verifier.  A graph
+    accepted here must therefore remain acceptable after process restart; an
+    incomplete artifact role set or an inflated Evidence claim is refused
+    before the discoverable publication index can be written.
+    """
+
+    from daedalus.chip_design.contracts import (
+        ChipArtifact,
+        ChipRunReceipt,
+        default_dimensions,
+    )
+    from daedalus.chip_design.execution_plan import EdaExecutionPlan
+    from daedalus.chip_design.executor import recover_retained_execution
+    from daedalus.kernel.effect_replay import inspect_effect_execution
+    from daedalus.schemas import (
+        AttemptContract,
+        EvidencePacket,
+        MissionContract,
+        RuntimeManifest,
+    )
+    from daedalus.storage import ArtifactStore
+
+    evidence_root = _verify_chip_eda_terminal_bookkeeping(
+        authority_root=authority_root,
+        source_revision=source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal_receipt,
+    )
+    if type(artifact_store) is not ArtifactStore:
+        raise TypeError("chip publication verification requires canonical ArtifactStore")
+    expected_store = (evidence_root / "artifacts").resolve(strict=False)
+    observed_store = Path(artifact_store.root).resolve(strict=False)
+    if os.path.normcase(str(expected_store)) != os.path.normcase(str(observed_store)):
+        raise ValueError("chip publication artifact store is outside its authority")
+    if str(phase) not in {"inspect", "synth", "impl"}:
+        raise ValueError("chip publication phase is invalid")
+    if not _SHA256.fullmatch(str(publication_adapter_sha256)):
+        raise ValueError("chip publication adapter identity is invalid")
+
+    replay = inspect_effect_execution(authorization, execution)
+    if replay is None or replay.pending_reconciliation or replay.terminal_receipt is None:
+        raise ValueError("chip publication has no exact durable terminal execution")
+    retained = recover_retained_execution(
+        artifact_store=artifact_store,
+        execution=execution,
+        start_receipt=replay.start_receipt,
+        terminal_receipt=replay.terminal_receipt,
+    )
+    result = retained.result
+    plan = retained.plan
+    if (
+        replay.terminal_receipt.to_dict() != terminal_receipt.to_dict()
+        or result.receipt_sha256 != str(raw_execution_receipt_sha256)
+        or result.receipt_locator != str(raw_execution_receipt_locator)
+        or plan.phase != str(phase)
+        or plan.digest != execution.operation_sha256
+        or plan.publication_adapter_sha256 != str(publication_adapter_sha256)
+    ):
+        raise ValueError("raw EDA receipt is not bound to the publication authority")
+
+    def retained_json(
+        locator_uri: str,
+        digest: str,
+        *,
+        kind: str,
+        label: str,
+    ) -> tuple[dict[str, Any], Any, bytes]:
+        prefix = "artifact-locator:sha256:"
+        if not str(locator_uri).startswith(prefix):
+            raise ValueError(f"{label} locator is invalid")
+        locator = artifact_store.verify(
+            artifact_store.load_locator(str(locator_uri)[len(prefix) :])
+        )
+        if (
+            locator.artifact_sha256 != str(digest)
+            or locator.metadata.get("kind") != kind
+        ):
+            raise ValueError(f"{label} locator binding is invalid")
+        payload = artifact_store.get_bytes(locator.artifact_sha256)
+        return _strict_canonical_record(payload, label=label), locator, payload
+
+    chip_body, chip_locator, chip_payload = retained_json(
+        str(chip_receipt_locator),
+        str(chip_receipt_sha256),
+        kind="chip_run_receipt",
+        label="chip run receipt",
+    )
+    evidence_body, evidence_locator, evidence_payload = retained_json(
+        str(evidence_packet_locator),
+        str(evidence_packet_sha256),
+        kind="chip_evidence_packet",
+        label="chip evidence packet",
+    )
+    if (
+        chip_locator.metadata.get("phase") != str(phase)
+        or evidence_locator.metadata.get("phase") != str(phase)
+    ):
+        raise ValueError("chip publication artifact metadata names another phase")
+
+    receipt_fields = {
+        "schema",
+        "run_id",
+        "mission_id",
+        "attempt_id",
+        "phase",
+        "source_revision",
+        "manifest_sha256",
+        "trusted_tcl_sha256",
+        "tool",
+        "execution",
+        "effect_start",
+        "effect_terminal",
+        "artifacts",
+        "metrics",
+        "dimensions",
+        "verdict",
+        "limitations",
+        "created_at",
+        "security_boundary_claimed",
+    }
+    artifact_fields = {
+        "name",
+        "role",
+        "artifact_sha256",
+        "locator_sha256",
+        "locator_uri",
+        "byte_length",
+        "media_type",
+        "local_path",
+    }
+    raw_artifacts = chip_body.get("artifacts")
+    if (
+        set(chip_body) != receipt_fields
+        or not isinstance(raw_artifacts, list)
+        or not all(
+            isinstance(row, Mapping) and set(row) == artifact_fields
+            for row in raw_artifacts
+        )
+    ):
+        raise ValueError("chip run receipt is structurally invalid")
+    try:
+        receipt = ChipRunReceipt(
+            schema=chip_body["schema"],
+            run_id=chip_body["run_id"],
+            mission_id=chip_body["mission_id"],
+            attempt_id=chip_body["attempt_id"],
+            phase=chip_body["phase"],
+            source_revision=chip_body["source_revision"],
+            manifest_sha256=chip_body["manifest_sha256"],
+            trusted_tcl_sha256=chip_body["trusted_tcl_sha256"],
+            tool=chip_body["tool"],
+            execution=chip_body["execution"],
+            effect_start=chip_body["effect_start"],
+            effect_terminal=chip_body["effect_terminal"],
+            artifacts=tuple(ChipArtifact(**dict(row)) for row in raw_artifacts),
+            metrics=chip_body["metrics"],
+            dimensions=chip_body["dimensions"],
+            verdict=chip_body["verdict"],
+            limitations=tuple(chip_body["limitations"]),
+            created_at=chip_body["created_at"],
+            security_boundary_claimed=chip_body["security_boundary_claimed"],
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("chip run receipt contract is invalid") from exc
+    if (
+        receipt.to_json().encode("ascii") != chip_payload
+        or receipt.digest != str(chip_receipt_sha256)
+        or receipt.run_id != authorization.request.attempt_id
+        or receipt.mission_id != authorization.request.mission_id
+        or receipt.attempt_id != authorization.request.attempt_id
+        or receipt.phase != str(phase)
+        or receipt.source_revision != plan.source_manifest_sha256
+        or receipt.manifest_sha256 != plan.source_manifest_sha256
+        or receipt.trusted_tcl_sha256 != plan.trusted_tcl_sha256
+        or receipt.verdict == "passed"
+        or canonical_json(receipt.execution) != canonical_json(result.to_dict())
+        or canonical_json(receipt.effect_start)
+        != canonical_json(result.start_receipt.to_dict())
+        or canonical_json(receipt.effect_terminal)
+        != canonical_json(terminal_receipt.to_dict())
+        or receipt.created_at != terminal_receipt.finished_at
+    ):
+        raise ValueError("chip run receipt is not bound to the terminal execution")
+
+    if result.status in {"timeout", "cancelled"}:
+        expected_verdicts = {"cancelled"}
+    elif result.status in {"missing", "error"}:
+        expected_verdicts = {"error"}
+    elif result.status != "ok":
+        expected_verdicts = {"failed"}
+    elif str(phase) == "inspect":
+        expected_verdicts = {"inconclusive"}
+    else:
+        expected_verdicts = {"failed", "inconclusive"}
+    baseline_dimensions = default_dimensions(str(phase))
+    measured_dimensions = {
+        "inspect": frozenset(),
+        "synth": frozenset({"synthesis", "timing", "drc", "methodology"}),
+        "impl": frozenset(
+            {"synthesis", "implementation", "timing", "drc", "methodology"}
+        ),
+    }[str(phase)]
+    fixed_dimensions = set(baseline_dimensions) - set(measured_dimensions)
+    if (
+        receipt.verdict not in expected_verdicts
+        or set(receipt.dimensions) != set(baseline_dimensions)
+        or any(
+            receipt.dimensions.get(name) != baseline_dimensions[name]
+            for name in fixed_dimensions
+        )
+        or any(
+            receipt.dimensions.get(name)
+            not in {"passed", "failed", "cancelled", "not_run"}
+            for name in measured_dimensions
+        )
+    ):
+        raise ValueError("chip run receipt inflates unmeasured assurance claims")
+
+    tool = receipt.tool
+    metrics = receipt.metrics
+    expected_metrics = {
+        "source_manifest_sha256": plan.source_manifest_sha256,
+        "workspace_manifest_sha256": plan.workspace_manifest_sha256,
+        "post_authoritative_manifest_sha256": (
+            result.post_authoritative_manifest_sha256
+        ),
+        "post_authoritative_source_identity_sha256": (
+            result.post_authoritative_source_identity_sha256
+        ),
+        "post_workspace_manifest_sha256": result.post_workspace_manifest_sha256,
+        "post_source_identity_sha256": result.post_source_identity_sha256,
+        "execution_plan_sha256": plan.digest,
+        "missing_artifact_paths": list(result.missing_artifact_paths),
+        "unexpected_artifact_paths": list(result.unexpected_artifact_paths),
+        "publication_inputs": "authenticated-ledger-and-cas-only",
+    }
+    if (
+        not isinstance(tool, Mapping)
+        or tool.get("id") != "vivado"
+        or tool.get("selected_command") != plan.argv[0]
+        or tool.get("launcher_sha256") != plan.launcher_sha256
+        or tool.get("ambient_probe_status") != "not_run"
+        or tool.get("security_boundary_claimed") is not False
+        or not isinstance(metrics, Mapping)
+        or not set(expected_metrics) <= set(metrics)
+        or any(metrics.get(name) != expected for name, expected in expected_metrics.items())
+        or canonical_json(metrics.get("execution_plan"))
+        != canonical_json(plan.to_dict())
+    ):
+        raise ValueError("chip run receipt metrics are not plan-bound")
+
+    artifacts_by_role: dict[str, list[Any]] = {}
+    allowed_roles = {
+        "authoritative_manifest",
+        "workspace_manifest",
+        "trusted_tcl",
+        "runtime_manifest",
+        "execution_plan",
+        "mission_contract",
+        "attempt_contract",
+        "policy_decision",
+        "post_authoritative_manifest",
+        "post_workspace_manifest",
+        "vivado_native_output",
+        "vivado_unexpected_output",
+        "console_stdout",
+        "console_stderr",
+        "execution_receipt",
+    }
+    for artifact in receipt.artifacts:
+        if artifact.role not in allowed_roles:
+            raise ValueError(f"chip receipt contains unsupported artifact role {artifact.role!r}")
+        locator = artifact_store.verify(
+            artifact_store.load_locator(artifact.locator_sha256)
+        )
+        locator_manifest = locator.to_dict()
+        if (
+            locator.locator_uri != artifact.locator_uri
+            or locator.artifact_sha256 != artifact.artifact_sha256
+            or locator.byte_length != artifact.byte_length
+            or locator_manifest.get("media_type") != artifact.media_type
+            or (
+                artifact.role
+                not in {"vivado_native_output", "vivado_unexpected_output"}
+                and artifact.local_path
+            )
+        ):
+            raise ValueError("chip receipt artifact locator is invalid")
+        if artifact.role in {
+            "runtime_manifest",
+            "execution_plan",
+            "mission_contract",
+            "attempt_contract",
+            "policy_decision",
+        } and locator.metadata.get("kind") != artifact.role:
+            raise ValueError("chip receipt canonical artifact role is invalid")
+        artifacts_by_role.setdefault(artifact.role, []).append(artifact)
+
+    def one(role: str) -> Any:
+        rows = artifacts_by_role.get(role, [])
+        if len(rows) != 1:
+            raise ValueError(f"chip receipt requires exactly one {role} artifact role")
+        return rows[0]
+
+    fixed_bindings = {
+        "authoritative_manifest": (
+            "source-manifest.json",
+            plan.source_manifest_sha256,
+            result.pre_authoritative_manifest_locator,
+        ),
+        "workspace_manifest": (
+            "workspace-manifest.json",
+            plan.workspace_manifest_sha256,
+            result.pre_workspace_manifest_locator,
+        ),
+        "trusted_tcl": (
+            "vivado_project_flow.tcl",
+            plan.trusted_tcl_sha256,
+            result.trusted_tcl_locator,
+        ),
+        "execution_receipt": (
+            "eda-execution-receipt.json",
+            result.receipt_sha256,
+            result.receipt_locator,
+        ),
+        "console_stdout": (
+            "vivado-stdout.log",
+            result.stdout_sha256,
+            result.stdout_locator,
+        ),
+        "console_stderr": (
+            "vivado-stderr.log",
+            result.stderr_sha256,
+            result.stderr_locator,
+        ),
+    }
+    for role, (name, digest, locator_uri) in fixed_bindings.items():
+        artifact = one(role)
+        if (
+            artifact.name != name
+            or artifact.artifact_sha256 != digest
+            or artifact.locator_uri != locator_uri
+            or artifact.local_path
+        ):
+            raise ValueError(f"chip receipt {role} artifact binding is invalid")
+
+    for role, name, digest, locator_uri in (
+        (
+            "post_authoritative_manifest",
+            "post-source-manifest.json",
+            result.post_authoritative_manifest_sha256,
+            result.post_authoritative_manifest_locator,
+        ),
+        (
+            "post_workspace_manifest",
+            "post-workspace-manifest.json",
+            result.post_workspace_manifest_sha256,
+            result.post_workspace_manifest_locator,
+        ),
+    ):
+        rows = artifacts_by_role.get(role, [])
+        if digest is None and locator_uri is None:
+            if rows:
+                raise ValueError(f"chip receipt has an unbound {role} artifact")
+        else:
+            artifact = one(role)
+            if (
+                artifact.name != name
+                or artifact.artifact_sha256 != digest
+                or artifact.locator_uri != locator_uri
+                or artifact.local_path
+            ):
+                raise ValueError(f"chip receipt {role} artifact binding is invalid")
+
+    expected_native = {
+        (
+            artifact.path,
+            artifact.sha256,
+            artifact.locator,
+            artifact.byte_length,
+            (
+                "vivado_unexpected_output"
+                if artifact.path in set(result.unexpected_artifact_paths)
+                else "vivado_native_output"
+            ),
+        )
+        for artifact in result.artifacts
+    }
+    observed_native = {
+        (
+            artifact.local_path,
+            artifact.artifact_sha256,
+            artifact.locator_uri,
+            artifact.byte_length,
+            artifact.role,
+        )
+        for role in ("vivado_native_output", "vivado_unexpected_output")
+        for artifact in artifacts_by_role.get(role, [])
+    }
+    if expected_native != observed_native or len(expected_native) != len(
+        artifacts_by_role.get("vivado_native_output", [])
+        + artifacts_by_role.get("vivado_unexpected_output", [])
+    ):
+        raise ValueError("chip receipt native artifact inventory is incomplete")
+
+    def typed_artifact(role: str, contract_type: Any) -> Any:
+        artifact = one(role)
+        payload = artifact_store.get_bytes(artifact.artifact_sha256)
+        body = _strict_canonical_record(payload, label=f"chip {role} artifact")
+        value = contract_type.from_dict(body)
+        if value.to_json().encode("ascii") != payload or value.digest != artifact.artifact_sha256:
+            raise ValueError(f"chip receipt {role} contract bytes are invalid")
+        return value
+
+    execution_plan_artifact = one("execution_plan")
+    execution_plan_payload = artifact_store.get_bytes(
+        execution_plan_artifact.artifact_sha256
+    )
+    execution_plan_body = _strict_canonical_record(
+        execution_plan_payload,
+        label="chip execution plan artifact",
+    )
+    retained_plan = EdaExecutionPlan.from_dict(execution_plan_body)
+    if (
+        execution_plan_artifact.name != "eda-execution-plan.json"
+        or retained_plan.to_dict() != plan.to_dict()
+        or retained_plan.digest != execution_plan_artifact.artifact_sha256
+        or canonical_json(retained_plan.to_dict()).encode("ascii")
+        != execution_plan_payload
+    ):
+        raise ValueError("chip receipt execution_plan artifact is invalid")
+
+    policy = typed_artifact("policy_decision", PolicyDecision)
+    runtime = typed_artifact("runtime_manifest", RuntimeManifest)
+    mission = typed_artifact("mission_contract", MissionContract)
+    attempt = typed_artifact("attempt_contract", AttemptContract)
+    if (
+        one("policy_decision").name != "policy-decision.json"
+        or policy.to_dict() != authorization.policy_decision.to_dict()
+        or one("runtime_manifest").name != "runtime-manifest.json"
+        or runtime.source_revision != str(source_revision)
+        or runtime.runtime_id != "amd-vivado-local"
+        or runtime.assurance != "declared"
+        or metrics.get("runtime_manifest_sha256") != runtime.digest
+        or one("mission_contract").name != "mission.json"
+        or mission.mission_id != authorization.request.mission_id
+        or mission.source_revision != plan.source_manifest_sha256
+        or mission.policy_sha256 != authorization.policy_decision.policy_sha256
+        or one("attempt_contract").name != "attempt.json"
+        or attempt.attempt_id != authorization.request.attempt_id
+        or attempt.mission_id != authorization.request.mission_id
+        or attempt.base_revision != plan.source_manifest_sha256
+        or attempt.runtime_manifest_sha256 != runtime.digest
+        or attempt.policy_decision_sha256 != authorization.policy_decision.digest
+    ):
+        raise ValueError("chip receipt canonical contract artifact graph is invalid")
+
+    try:
+        evidence = EvidencePacket.from_dict(evidence_body)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("chip evidence packet contract is invalid") from exc
+    item = evidence.items[0] if len(evidence.items) == 1 else None
+    expected_item_verdict = {
+        "failed": "failed",
+        "cancelled": "cancelled",
+        "error": "error",
+    }.get(receipt.verdict, "passed")
+    if (
+        evidence.to_json().encode("ascii") != evidence_payload
+        or evidence.digest != str(evidence_packet_sha256)
+        or evidence.packet_id != f"{receipt.run_id}-evidence"
+        or evidence.mission_id != authorization.request.mission_id
+        or evidence.attempt_id != authorization.request.attempt_id
+        or evidence.source_revision != receipt.source_revision
+        or evidence.subject_sha256 != receipt.manifest_sha256
+        or evidence.policy_decision_sha256 != authorization.policy_decision.digest
+        or evidence.evaluation_status != "inconclusive"
+        or evidence.attempt_contract_sha256 != attempt.digest
+        or item is None
+        or item.evidence_id != f"{receipt.run_id}-vivado"
+        or item.evaluator != "vivado-project"
+        or item.assurance != "unverified"
+        or item.verdict != expected_item_verdict
+        or item.output_sha256 != receipt.digest
+        or item.evidence_locator != chip_locator.locator_uri
+        or item.collected_at != terminal_receipt.finished_at
+        or evidence.usage.wall_time_ms
+        != max(0, int(round(float(result.duration_s) * 1000)))
+        or dict(item.details)
+        != {
+            "phase": str(phase),
+            "chip_verdict": receipt.verdict,
+            "dimensions": dict(receipt.dimensions),
+            "security_boundary_claimed": False,
+        }
+    ):
+        raise ValueError("chip evidence packet inflates or contradicts its receipt")
+
+    return {
+        "retained_execution": retained,
+        "receipt": receipt,
+        "receipt_locator": chip_locator,
+        "evidence": evidence,
+        "evidence_locator": evidence_locator,
+    }
+
+
 def record_chip_eda_publication(
     *,
+    authority_root: str | Path,
     evidence_root: str | Path,
     source_revision: str,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    terminal_receipt: EffectTerminalReceipt,
+    artifact_store: Any,
+    phase: str,
+    publication_adapter_sha256: str,
     lease_sha256: str,
     execution_id: str,
     execution_request_sha256: str,
@@ -897,8 +1686,28 @@ def record_chip_eda_publication(
 
     if not _REVISION.fullmatch(str(source_revision)):
         raise ValueError("chip publication source_revision must be lowercase 40-hex")
+    expected_evidence_root = _verify_chip_eda_terminal_bookkeeping(
+        authority_root=authority_root,
+        source_revision=source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal_receipt,
+    )
+    if os.path.normcase(str(Path(evidence_root).resolve(strict=False))) != os.path.normcase(
+        str(expected_evidence_root.resolve(strict=False))
+    ):
+        raise ValueError("chip publication evidence root is outside its authority")
+    from daedalus.storage import ArtifactStore
+
+    if type(artifact_store) is not ArtifactStore:
+        raise TypeError("chip publication requires the canonical ArtifactStore")
+    if os.path.normcase(str(Path(artifact_store.root).resolve(strict=False))) != os.path.normcase(
+        str((expected_evidence_root / "artifacts").resolve(strict=False))
+    ):
+        raise ValueError("chip publication artifact store is outside its authority")
     digests = {
         "lease_sha256": lease_sha256,
+        "publication_adapter_sha256": publication_adapter_sha256,
         "execution_request_sha256": execution_request_sha256,
         "terminal_receipt_sha256": terminal_receipt_sha256,
         "raw_execution_receipt_sha256": raw_execution_receipt_sha256,
@@ -929,10 +1738,209 @@ def record_chip_eda_publication(
         raise ValueError("chip publication finished_at must be ISO-8601") from exc
     if not str(execution_id).strip():
         raise ValueError("chip publication execution_id must be non-empty")
+    if str(phase) not in {"inspect", "synth", "impl"}:
+        raise ValueError("chip publication phase is invalid")
+    if (
+        str(lease_sha256) != authorization.lease.digest
+        or str(execution_id) != execution.execution_id
+        or str(execution_request_sha256) != execution.digest
+        or str(terminal_receipt_sha256) != terminal_receipt.receipt_sha256
+        or str(finished_at) != terminal_receipt.finished_at
+    ):
+        raise ValueError("chip publication arguments contradict terminal authority")
+
+    verify_chip_eda_publication_graph(
+        authority_root=authority_root,
+        source_revision=source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal_receipt,
+        artifact_store=artifact_store,
+        phase=phase,
+        publication_adapter_sha256=publication_adapter_sha256,
+        raw_execution_receipt_sha256=raw_execution_receipt_sha256,
+        raw_execution_receipt_locator=raw_execution_receipt_locator,
+        chip_receipt_sha256=chip_receipt_sha256,
+        chip_receipt_locator=chip_receipt_locator,
+        evidence_packet_sha256=evidence_packet_sha256,
+        evidence_packet_locator=evidence_packet_locator,
+    )
+
+    def retained_json(
+        locator_uri: str,
+        digest: str,
+        *,
+        kind: str,
+        label: str,
+    ) -> tuple[dict[str, Any], Any]:
+        locator_digest = str(locator_uri).removeprefix("artifact-locator:sha256:")
+        locator = artifact_store.verify(artifact_store.load_locator(locator_digest))
+        if (
+            locator.artifact_sha256 != str(digest)
+            or locator.metadata.get("kind") != kind
+        ):
+            raise ValueError(f"{label} locator binding is invalid")
+        payload = artifact_store.get_bytes(locator.artifact_sha256)
+        return _strict_canonical_record(payload, label=label), locator
+
+    if str(raw_execution_receipt_sha256) not in terminal_receipt.output_digests:
+        raise ValueError("raw EDA receipt is not bound by the terminal receipt")
+    raw, raw_locator = retained_json(
+        str(raw_execution_receipt_locator),
+        str(raw_execution_receipt_sha256),
+        kind="eda_execution_receipt",
+        label="raw EDA execution receipt",
+    )
+    if raw_locator.metadata.get("execution_id") != execution.execution_id:
+        raise ValueError("raw EDA receipt locator names another execution")
+    from daedalus.chip_design.execution_plan import EdaExecutionPlan
+
+    plan = EdaExecutionPlan.from_dict(raw.get("execution_plan"))
+    raw_start = raw.get("effect_start_receipt")
+    if (
+        raw.get("schema") != "daedalus.eda-execution-receipt/3"
+        or raw.get("execution_id") != execution.execution_id
+        or raw.get("execution_request_sha256") != execution.digest
+        or raw.get("operation_sha256") != execution.operation_sha256
+        or plan.digest != execution.operation_sha256
+        or plan.phase != str(phase)
+        or plan.publication_adapter_sha256 != str(publication_adapter_sha256)
+        or not isinstance(raw_start, Mapping)
+        or raw_start.get("receipt_sha256") != terminal_receipt.start_receipt_sha256
+    ):
+        raise ValueError("raw EDA receipt is not bound to the publication plan")
+
+    chip, chip_locator = retained_json(
+        str(chip_receipt_locator),
+        str(chip_receipt_sha256),
+        kind="chip_run_receipt",
+        label="chip run receipt",
+    )
+    evidence, evidence_locator = retained_json(
+        str(evidence_packet_locator),
+        str(evidence_packet_sha256),
+        kind="chip_evidence_packet",
+        label="chip evidence packet",
+    )
+    chip_execution = chip.get("execution")
+    chip_tool = chip.get("tool")
+    chip_metrics = chip.get("metrics")
+    if (
+        chip_locator.metadata.get("phase") != str(phase)
+        or evidence_locator.metadata.get("phase") != str(phase)
+        or chip.get("schema") != "daedalus-chip-run/1"
+        or chip.get("mission_id") != authorization.request.mission_id
+        or chip.get("attempt_id") != authorization.request.attempt_id
+        or chip.get("phase") != str(phase)
+        or chip.get("source_revision") != plan.source_manifest_sha256
+        or chip.get("manifest_sha256") != plan.source_manifest_sha256
+        or chip.get("trusted_tcl_sha256") != plan.trusted_tcl_sha256
+        or chip.get("effect_start") != raw_start
+        or chip.get("effect_terminal") != terminal_receipt.to_dict()
+        or chip.get("created_at") != terminal_receipt.finished_at
+        or chip.get("security_boundary_claimed") is not False
+        or not isinstance(chip_execution, Mapping)
+        or chip_execution.get("receipt_sha256") != str(raw_execution_receipt_sha256)
+        or chip_execution.get("receipt_locator") != str(raw_execution_receipt_locator)
+        or not isinstance(chip_tool, Mapping)
+        or chip_tool.get("launcher_sha256") != plan.launcher_sha256
+        or chip_tool.get("selected_command") != plan.argv[0]
+        or not isinstance(chip_metrics, Mapping)
+        or chip_metrics.get("execution_plan_sha256") != plan.digest
+        or canonical_json(chip_metrics.get("execution_plan"))
+        != canonical_json(plan.to_dict())
+    ):
+        raise ValueError("chip run receipt is not bound to the terminal execution")
+
+    from daedalus.schemas import EvidencePacket
+
+    typed_evidence = EvidencePacket.from_dict(evidence)
+    items = typed_evidence.items
+    if (
+        typed_evidence.mission_id != authorization.request.mission_id
+        or typed_evidence.attempt_id != authorization.request.attempt_id
+        or typed_evidence.source_revision != plan.source_manifest_sha256
+        or typed_evidence.subject_sha256 != plan.source_manifest_sha256
+        or typed_evidence.policy_decision_sha256 != authorization.policy_decision.digest
+        or len(items) != 1
+        or items[0].output_sha256 != str(chip_receipt_sha256)
+        or items[0].evidence_locator != str(chip_receipt_locator)
+    ):
+        raise ValueError("chip evidence packet is not bound to the chip receipt")
+
+    artifacts = chip.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise ValueError("chip receipt artifact inventory is invalid")
+    artifacts_by_role: dict[str, list[Mapping[str, Any]]] = {}
+    for index, artifact in enumerate(artifacts):
+        if not isinstance(artifact, Mapping):
+            raise ValueError(f"chip receipt artifact {index} is invalid")
+        locator_uri = str(artifact.get("locator_uri", ""))
+        locator_digest = str(artifact.get("locator_sha256", ""))
+        if locator_uri != f"artifact-locator:sha256:{locator_digest}":
+            raise ValueError(f"chip receipt artifact {index} locator is invalid")
+        locator = artifact_store.verify(artifact_store.load_locator(locator_digest))
+        if (
+            locator.artifact_sha256 != artifact.get("artifact_sha256")
+            or locator.byte_length != artifact.get("byte_length")
+        ):
+            raise ValueError(f"chip receipt artifact {index} binding is invalid")
+        artifacts_by_role.setdefault(str(artifact.get("role", "")), []).append(artifact)
+    required_artifacts = {
+        "execution_plan": plan.digest,
+        "policy_decision": authorization.policy_decision.digest,
+        "attempt_contract": typed_evidence.attempt_contract_sha256,
+    }
+    for role, expected_digest in required_artifacts.items():
+        rows = artifacts_by_role.get(role, [])
+        if len(rows) != 1 or rows[0].get("artifact_sha256") != expected_digest:
+            raise ValueError(f"chip receipt {role} artifact is not uniquely bound")
+
+    def authority_record(kind: str, digest: str) -> dict[str, Any]:
+        path = expected_evidence_root / kind / f"{digest}.json"
+        retained = _strict_canonical_record(
+            _stable_regular_bytes(path, label=f"{kind} authority record"),
+            label=f"{kind} authority record",
+        )
+        if retained.get("record_sha256") != digest or _record_sha256(retained) != digest:
+            raise ValueError(f"{kind} authority record digest is invalid")
+        return retained
+
+    head = authority_record("authority-head", str(authority_head_record_sha256))
+    subject = authority_record("lease-subject", str(lease_subject_record_sha256))
+    execution_record = authority_record(
+        "lease-execution", str(lease_execution_record_sha256)
+    )
+    terminal_record = authority_record(
+        "lease-terminal", str(lease_terminal_record_sha256)
+    )
+    repository_head = head.get("repository_head_receipt")
+    if (
+        head.get("entrypoint_id") != CHIP_EDA_ENTRYPOINT_ID
+        or head.get("lease_sha256") != authorization.lease.digest
+        or head.get("operation_sha256") != execution.operation_sha256
+        or not isinstance(repository_head, Mapping)
+        or repository_head.get("expected_revision") != str(source_revision)
+        or subject.get("source_revision") != str(source_revision)
+        or subject.get("lease_sha256") != authorization.lease.digest
+        or execution_record.get("source_revision") != str(source_revision)
+        or execution_record.get("execution_id") != execution.execution_id
+        or execution_record.get("execution_request_sha256") != execution.digest
+        or execution_record.get("subject_record_sha256")
+        != str(lease_subject_record_sha256)
+        or terminal_record.get("source_revision") != str(source_revision)
+        or terminal_record.get("execution_id") != execution.execution_id
+        or terminal_record.get("execution_request_sha256") != execution.digest
+        or terminal_record.get("receipt_sha256")
+        != terminal_receipt.receipt_sha256
+    ):
+        raise ValueError("chip publication authority records are not cross-bound")
     body: dict[str, Any] = {
         "schema": CHIP_EDA_PUBLICATION_RECORD_SCHEMA,
         "source_revision": str(source_revision),
         "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+        "phase": str(phase),
+        "publication_adapter_sha256": str(publication_adapter_sha256),
         "lease_sha256": str(lease_sha256),
         "execution_id": str(execution_id),
         "execution_request_sha256": str(execution_request_sha256),
@@ -951,8 +1959,42 @@ def record_chip_eda_publication(
         "security_boundary_claimed": False,
     }
     body["record_sha256"] = _record_sha256(body)
+    existing = load_chip_eda_publication(
+        evidence_root,
+        source_revision=source_revision,
+        execution_id=execution_id,
+    )
+    if existing is not None:
+        if existing != body:
+            raise ValueError("chip publication identity is already bound differently")
+        return existing
     _publish_evidence_record(evidence_root, "chip-publication", body)
-    return body
+    index_path, identity = _chip_publication_index_path(
+        evidence_root,
+        source_revision=source_revision,
+        execution_id=execution_id,
+    )
+    index = {
+        "schema": CHIP_EDA_PUBLICATION_INDEX_SCHEMA,
+        "source_revision": str(source_revision),
+        "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+        "execution_id": str(execution_id),
+        "publication_record_sha256": body["record_sha256"],
+        "identity_sha256": identity,
+    }
+    _publish_exact_bytes_once(
+        index_path,
+        canonical_json(index).encode("ascii"),
+        label="chip publication identity index",
+    )
+    retained = load_chip_eda_publication(
+        evidence_root,
+        source_revision=source_revision,
+        execution_id=execution_id,
+    )
+    if retained != body:
+        raise ValueError("chip publication identity is already bound differently")
+    return retained
 
 
 def harvest_effect_lease_terminal_records(
@@ -2706,13 +3748,15 @@ def acquire_chip_eda_lease(
     source_revision: str,
     **kwargs: Any,
 ) -> "WaveOffloadLease | WaveLeaseDenied":
-    """Issue the single-position, non-networked ``daedalus-chip`` lease.
+    """Issue the single-position ``daedalus-chip`` lease without egress scope.
 
     The operator's ``repo_root`` remains the authority root. ``project_root``
     is the subject checkout the containment contract measures, while
     ``worktree_root`` is the caller's explicit isolated execution root. The
-    wrapper pins every capability dimension the EDA path must not choose:
-    entrypoint, concurrency, egress, spend and the containment assertion.
+    wrapper pins every kernel capability dimension the EDA path must not
+    choose: entrypoint, concurrency, egress, spend and the containment
+    assertion. Empty egress and secret scopes are not OS-level offline,
+    no-egress, or no-secret-access confinement for the vendor process.
     """
 
     forbidden = {
@@ -2853,6 +3897,7 @@ def acquire_chip_eda_lease(
 
 __all__ = [
     "CALLER_POLICY_ORIGIN",
+    "CHIP_EDA_PUBLICATION_INDEX_SCHEMA",
     "CHIP_EDA_PUBLICATION_RECORD_SCHEMA",
     "CHIP_EDA_ENTRYPOINT_ID",
     "CONTAINMENT_CONTRACTS",
@@ -2888,11 +3933,14 @@ __all__ = [
     "kill_switch_generation",
     "lane_endpoint",
     "lease_ledger_path",
+    "load_chip_eda_publication",
     "rebuild_effect_lease_authorization",
     "record_effect_lease_execution",
     "record_effect_lease_subject",
     "record_effect_lease_subject_parts",
     "record_chip_eda_publication",
+    "retain_chip_eda_terminal_artifact",
+    "verify_chip_eda_publication_graph",
     "record_primary_checkout_disjointness",
     "read_issuer_keyring",
     "resolve_write_policy",

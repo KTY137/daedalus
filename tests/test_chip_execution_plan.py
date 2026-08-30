@@ -156,6 +156,7 @@ def test_execution_plan_binds_every_concrete_process_input(tmp_path: Path) -> No
         source_identity_sha256="3" * 64,
         trusted_tcl_sha256="4" * 64,
         launcher_sha256="5" * 64,
+        publication_adapter_sha256="6" * 64,
         command_interpreter_path=command_interpreter_path,
         command_interpreter_sha256=command_interpreter_sha256,
     )
@@ -180,10 +181,47 @@ def test_execution_plan_binds_every_concrete_process_input(tmp_path: Path) -> No
         source_identity_sha256="3" * 64,
         trusted_tcl_sha256="4" * 64,
         launcher_sha256="5" * 64,
+        publication_adapter_sha256="6" * 64,
         command_interpreter_path=command_interpreter_path,
         command_interpreter_sha256=command_interpreter_sha256,
     )
     assert changed.digest != plan.digest
+
+
+def test_retained_execution_plan_parsing_never_resolves_live_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "workspace"
+    work.mkdir()
+    plan = EdaExecutionPlan.build(
+        phase="inspect",
+        argv=("vivado",),
+        source_root=work,
+        source_project=work / "demo.xpr",
+        cwd=work,
+        artifact_paths=("out/summary.txt",),
+        artifact_store_root=tmp_path / "authority" / "artifacts",
+        timeout_s=60,
+        environment={},
+        source_manifest_sha256="1" * 64,
+        workspace_manifest_sha256="2" * 64,
+        source_identity_sha256="3" * 64,
+        trusted_tcl_sha256="4" * 64,
+        launcher_sha256="5" * 64,
+        publication_adapter_sha256="6" * 64,
+        command_interpreter_path=tmp_path / "cmd.exe",
+        command_interpreter_sha256="7" * 64,
+    )
+    retained = plan.to_dict()
+
+    def forbidden_resolve(*_args, **_kwargs):
+        raise AssertionError("retained plan consulted the live filesystem")
+
+    monkeypatch.setattr(Path, "resolve", forbidden_resolve)
+    recovered = EdaExecutionPlan.from_dict(retained)
+
+    assert recovered.to_dict() == retained
 
 
 @pytest.mark.parametrize("path", ("../escape.rpt", "/absolute.rpt"))
@@ -204,4 +242,5 @@ def test_execution_plan_refuses_artifact_escape(tmp_path: Path, path: str) -> No
             source_identity_sha256="3" * 64,
             trusted_tcl_sha256="4" * 64,
             launcher_sha256="5" * 64,
+            publication_adapter_sha256="6" * 64,
         )

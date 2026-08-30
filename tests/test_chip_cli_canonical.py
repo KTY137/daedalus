@@ -596,7 +596,7 @@ class _SuccessfulInspectProcess:
         return None
 
 
-def test_admitted_inspect_composes_real_lease_artifact_and_evidence_contracts(
+def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -673,11 +673,160 @@ def test_admitted_inspect_composes_real_lease_artifact_and_evidence_contracts(
     assert evidence["contract_type"] == "daedalus.evidence"
     assert evidence["evaluation_status"] == "inconclusive"
 
+    receipt_locator = store.load_locator(step["receipt_locator"].rsplit(":", 1)[-1])
+    receipt = json.loads(store.get_bytes(receipt_locator.artifact_sha256))
+    recovered_phase = chip_cli._recover_phase(
+        authority_root=authority,
+        source_revision=REVISION,
+        mission_id=receipt["mission_id"],
+        attempt_id=receipt["attempt_id"],
+        phase="inspect",
+    )
+    assert recovered_phase is not None
+    terminal = recovered_phase.retained.result.terminal_receipt
+    assert terminal is not None
+
+    strict_graph = {
+        "authority_root": authority,
+        "source_revision": REVISION,
+        "authorization": recovered_phase.authorization,
+        "execution": recovered_phase.execution,
+        "terminal_receipt": terminal,
+        "artifact_store": store,
+        "phase": "inspect",
+        "publication_adapter_sha256": (
+            recovered_phase.retained.plan.publication_adapter_sha256
+        ),
+        "raw_execution_receipt_sha256": (
+            recovered_phase.retained.result.receipt_sha256
+        ),
+        "raw_execution_receipt_locator": (
+            recovered_phase.retained.result.receipt_locator
+        ),
+        "chip_receipt_sha256": receipt_locator.artifact_sha256,
+        "chip_receipt_locator": receipt_locator.locator_uri,
+        "evidence_packet_sha256": evidence_locator.artifact_sha256,
+        "evidence_packet_locator": evidence_locator.locator_uri,
+    }
+    chip_cli.verify_chip_eda_publication_graph(**strict_graph)
+
+    # A schema-valid but conclusive projection of the same unverified Vivado
+    # observation must not turn a clean build into promotion-grade evidence.
+    inflated_evidence = json.loads(json.dumps(evidence))
+    inflated_evidence["evaluation_status"] = "passed"
+    inflated_evidence["items"][0]["assurance"] = "deterministic"
+    inflated_evidence["candidate_artifact_sha256"] = receipt_locator.artifact_sha256
+    inflated_evidence["candidate_artifact_locator"] = receipt_locator.locator_uri
+    inflated_evidence["provenance"]["input_digests"] = sorted(
+        {
+            *inflated_evidence["provenance"]["input_digests"],
+            receipt_locator.artifact_sha256,
+            receipt_locator.locator_sha256,
+        }
+    )
+    inflated_payload = chip_cli.canonical_json(inflated_evidence).encode("ascii")
+    inflated_locator = chip_cli.retain_chip_eda_terminal_artifact(
+        authority_root=authority,
+        source_revision=REVISION,
+        authorization=recovered_phase.authorization,
+        execution=recovered_phase.execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        payload=inflated_payload,
+        expected_sha256=hashlib.sha256(inflated_payload).hexdigest(),
+        media_type="application/json",
+        metadata={
+            "kind": "chip_evidence_packet",
+            "phase": "inspect",
+            "filename_hint": "claim-inflated-evidence.json",
+        },
+        provenance=evidence_locator.provenance,
+    )
+    with pytest.raises(ValueError, match="inflates or contradicts"):
+        chip_cli.verify_chip_eda_publication_graph(
+            **{
+                **strict_graph,
+                "evidence_packet_sha256": inflated_locator.artifact_sha256,
+                "evidence_packet_locator": inflated_locator.locator_uri,
+            }
+        )
+
+    # A receipt cannot omit one of the exact plan/input roles and remain a
+    # complete publication graph merely because all remaining locators verify.
+    incomplete_receipt = json.loads(json.dumps(receipt))
+    incomplete_receipt["artifacts"] = [
+        artifact
+        for artifact in incomplete_receipt["artifacts"]
+        if artifact["role"] != "trusted_tcl"
+    ]
+    incomplete_payload = chip_cli.canonical_json(incomplete_receipt).encode("ascii")
+    incomplete_locator = chip_cli.retain_chip_eda_terminal_artifact(
+        authority_root=authority,
+        source_revision=REVISION,
+        authorization=recovered_phase.authorization,
+        execution=recovered_phase.execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        payload=incomplete_payload,
+        expected_sha256=hashlib.sha256(incomplete_payload).hexdigest(),
+        media_type="application/json",
+        metadata={
+            "kind": "chip_run_receipt",
+            "phase": "inspect",
+            "filename_hint": "incomplete-chip-receipt.json",
+        },
+        provenance=receipt_locator.provenance,
+    )
+    with pytest.raises(ValueError, match="exactly one trusted_tcl artifact role"):
+        chip_cli.verify_chip_eda_publication_graph(
+            **{
+                **strict_graph,
+                "chip_receipt_sha256": incomplete_locator.artifact_sha256,
+                "chip_receipt_locator": incomplete_locator.locator_uri,
+            }
+        )
+
     # A process restart with the same phase attempt cannot mint a fresh lease
     # or silently execute again. The deterministic lease identity reaches the
-    # canonical ledger replay refusal before another ManagedProcess exists.
-    assert chip_cli.main(argv) == 1
+    # retained terminal publication and returns that inert recovery without
+    # constructing another ManagedProcess.
+    assert chip_cli.main(argv) == 0
     replay = _json_stdout(capsys)
-    assert replay["status"] == "error"
-    assert "EffectLeaseReplay" in replay["error"]
+    assert replay["status"] == "recovered"
+    assert replay["steps"][0]["recovered"] is True
+    assert replay["steps"][0]["process_spawned"] is False
+    assert _SuccessfulInspectProcess.constructions == 1
+
+    # Simulate a crash after derived evidence was retained but before the
+    # discoverable publication index became durable. Rebuilding that edge must
+    # use only authenticated authority/CAS facts; source and workspace paths
+    # are retained labels at this point, not live filesystem inputs.
+    evidence_root = write_evidence_root(authority, REVISION)
+    publication_indices = tuple(
+        (evidence_root / "chip-publication-index").glob("*.json")
+    )
+    assert len(publication_indices) == 1
+    publication_indices[0].unlink()
+    live_identity = chip_cli.canonical_path_identity
+    forbidden_roots = tuple(
+        str(root).casefold() for root in (source.parent, workspace.parent)
+    )
+
+    def authority_only_path_identity(value):
+        text = str(value).casefold()
+        if any(text.startswith(root) for root in forbidden_roots):
+            raise AssertionError("terminal publication consulted live project inputs")
+        return live_identity(value)
+
+    monkeypatch.setattr(
+        chip_cli,
+        "canonical_path_identity",
+        authority_only_path_identity,
+    )
+
+    assert chip_cli.main(argv) == 0
+    republished = _json_stdout(capsys)
+    assert republished["status"] == "recovered"
+    assert republished["steps"][0]["publication_status"] == "complete"
+    assert republished["steps"][0]["process_spawned"] is False
     assert _SuccessfulInspectProcess.constructions == 1

@@ -206,8 +206,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "run through run_admitted_eda with an injected non-runtime effect "
             "authorization. One anchor proves the direct CLI delegation and "
             "the second names the durable begin_effect consumption that owns "
-            "the workspace writes. Dry-run inspection is effect-free; the "
-            "live row grants neither network nor secrets."
+            "the workspace writes. Dry-run inspection is effect-free. The "
+            "live row requests and grants no kernel network-egress or secret "
+            "capability; without an OS sandbox this is not proof that Vivado "
+            "has no ambient host network, filesystem, or secret access."
         ),
         migration=(
             "G1-EDA-01 central owner; live execution is mechanically anchored "

@@ -7,10 +7,11 @@ that the executor is about to consume.  It is data only and owns no authority.
 """
 from __future__ import annotations
 
-import math
 import hashlib
+import math
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -18,7 +19,8 @@ from typing import Mapping, Sequence
 from daedalus.spine.envelope import canonical_sha
 
 
-EDA_EXECUTION_PLAN_SCHEMA = "daedalus.chip-eda-execution-plan/4"
+EDA_EXECUTION_PLAN_SCHEMA = "daedalus.chip-eda-execution-plan/5"
+PUBLICATION_ADAPTER_SCHEMA = "daedalus.chip-publication-adapter/1"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _PHASES = frozenset({"inspect", "synth", "impl"})
 _ENV_ALLOW = (
@@ -43,6 +45,18 @@ def _canonical_directory(value: str | Path, label: str) -> str:
     if not path.is_absolute():  # defensive; resolve should always be absolute
         raise ValueError(f"{label} must be absolute")
     return str(path)
+
+
+def _absolute_path_text(value: str | Path, label: str) -> str:
+    """Validate already-canonical retained path text without touching the FS."""
+
+    text = str(value)
+    if not text or "\x00" in text:
+        raise ValueError(f"{label} must be a non-empty non-NUL path")
+    path = Path(text)
+    if not path.is_absolute() or os.path.normpath(text) != text:
+        raise ValueError(f"{label} must be an absolute normalized path")
+    return text
 
 
 def _stable_regular_file_sha256(path: Path) -> str:
@@ -90,6 +104,58 @@ def _has_linklike_component(path: Path) -> bool:
         if parent == candidate:
             return False
         candidate = parent
+
+
+def publication_adapter_sha256() -> str:
+    """Bind a stable on-disk Daedalus Python adapter inventory.
+
+    A terminal Vivado observation can be finalized after a restart.  Hashing
+    the complete package Python inventory into the execution plan makes that
+    projection fail closed when parser, contract, limitation, or kernel files
+    change between STARTED and publication.  This is a stable disk-inventory
+    identity, not proof that concurrently replaced bytes equal already-loaded
+    code, that the checkout is clean, or that its bytes belong to a commit.
+    """
+
+    package_root = Path(__file__).resolve(strict=True).parents[1]
+
+    def inventory() -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                path.relative_to(package_root).as_posix()
+                for path in package_root.rglob("*.py")
+                if "__pycache__" not in path.parts
+            )
+        )
+
+    before = inventory()
+    if not before:
+        raise ValueError("Daedalus publication adapter inventory is empty")
+    files: list[dict[str, str]] = []
+    for relative in before:
+        path = package_root / Path(relative)
+        if _has_linklike_component(path):
+            raise ValueError(
+                "Daedalus publication adapter inventory contains a linked component"
+            )
+        files.append(
+            {
+                "path": relative,
+                "sha256": _stable_regular_file_sha256(path),
+            }
+        )
+    if inventory() != before:
+        raise ValueError("Daedalus publication adapter inventory changed while hashing")
+    return canonical_sha(
+        {
+            "schema": PUBLICATION_ADAPTER_SCHEMA,
+            "python_implementation": sys.implementation.name,
+            "python_cache_tag": str(sys.implementation.cache_tag or ""),
+            "python_version": list(sys.version_info[:3]),
+            "os_name": os.name,
+            "files": files,
+        }
+    )
 
 
 def trusted_windows_command_interpreter() -> tuple[str, str]:
@@ -220,6 +286,7 @@ class EdaExecutionPlan:
     source_identity_sha256: str
     trusted_tcl_sha256: str
     launcher_sha256: str
+    publication_adapter_sha256: str
     command_interpreter_path: str = ""
     command_interpreter_sha256: str = ""
     schema: str = EDA_EXECUTION_PLAN_SCHEMA
@@ -236,11 +303,9 @@ class EdaExecutionPlan:
         object.__setattr__(
             self,
             "source_root",
-            _canonical_directory(self.source_root, "source_root"),
+            _absolute_path_text(self.source_root, "source_root"),
         )
-        source_project = str(
-            Path(self.source_project).expanduser().resolve(strict=False)
-        )
+        source_project = _absolute_path_text(self.source_project, "source_project")
         try:
             common = os.path.commonpath((self.source_root, source_project))
         except ValueError as exc:
@@ -248,11 +313,11 @@ class EdaExecutionPlan:
         if os.path.normcase(common) != os.path.normcase(self.source_root):
             raise ValueError("source_project must be inside source_root")
         object.__setattr__(self, "source_project", source_project)
-        object.__setattr__(self, "cwd", _canonical_directory(self.cwd, "cwd"))
+        object.__setattr__(self, "cwd", _absolute_path_text(self.cwd, "cwd"))
         object.__setattr__(
             self,
             "artifact_store_root",
-            _canonical_directory(self.artifact_store_root, "artifact_store_root"),
+            _absolute_path_text(self.artifact_store_root, "artifact_store_root"),
         )
         paths: list[str] = []
         for raw in self.artifact_paths:
@@ -284,6 +349,7 @@ class EdaExecutionPlan:
             "source_identity_sha256",
             "trusted_tcl_sha256",
             "launcher_sha256",
+            "publication_adapter_sha256",
         ):
             object.__setattr__(self, name, _digest(getattr(self, name), name))
         interpreter_path = str(self.command_interpreter_path)
@@ -293,13 +359,13 @@ class EdaExecutionPlan:
                 "command interpreter path and SHA-256 must be supplied together"
             )
         if interpreter_path:
-            resolved_interpreter = Path(interpreter_path).expanduser().resolve(
-                strict=False
-            )
-            if not resolved_interpreter.is_absolute():
-                raise ValueError("command_interpreter_path must be absolute")
             object.__setattr__(
-                self, "command_interpreter_path", str(resolved_interpreter)
+                self,
+                "command_interpreter_path",
+                _absolute_path_text(
+                    interpreter_path,
+                    "command_interpreter_path",
+                ),
             )
             object.__setattr__(
                 self,
@@ -325,17 +391,32 @@ class EdaExecutionPlan:
         source_identity_sha256: str,
         trusted_tcl_sha256: str,
         launcher_sha256: str,
+        publication_adapter_sha256: str,
         command_interpreter_path: str = "",
         command_interpreter_sha256: str = "",
     ) -> "EdaExecutionPlan":
+        canonical_source_root = _canonical_directory(source_root, "source_root")
+        canonical_source_project = str(
+            Path(source_project).expanduser().resolve(strict=False)
+        )
+        canonical_cwd = _canonical_directory(cwd, "cwd")
+        canonical_artifact_store = _canonical_directory(
+            artifact_store_root,
+            "artifact_store_root",
+        )
+        canonical_interpreter_path = (
+            str(Path(command_interpreter_path).expanduser().resolve(strict=False))
+            if command_interpreter_path
+            else ""
+        )
         return cls(
             phase=phase,
             argv=tuple(str(value) for value in argv),
-            source_root=str(source_root),
-            source_project=str(source_project),
-            cwd=str(cwd),
+            source_root=canonical_source_root,
+            source_project=canonical_source_project,
+            cwd=canonical_cwd,
             artifact_paths=tuple(str(value) for value in artifact_paths),
-            artifact_store_root=str(artifact_store_root),
+            artifact_store_root=canonical_artifact_store,
             timeout_s=timeout_s,
             environment_keys=tuple(str(key) for key in environment),
             environment_sha256=environment_sha256(environment),
@@ -344,7 +425,8 @@ class EdaExecutionPlan:
             source_identity_sha256=source_identity_sha256,
             trusted_tcl_sha256=trusted_tcl_sha256,
             launcher_sha256=launcher_sha256,
-            command_interpreter_path=command_interpreter_path,
+            publication_adapter_sha256=publication_adapter_sha256,
+            command_interpreter_path=canonical_interpreter_path,
             command_interpreter_sha256=command_interpreter_sha256,
         )
 
@@ -366,6 +448,7 @@ class EdaExecutionPlan:
             "source_identity_sha256": self.source_identity_sha256,
             "trusted_tcl_sha256": self.trusted_tcl_sha256,
             "launcher_sha256": self.launcher_sha256,
+            "publication_adapter_sha256": self.publication_adapter_sha256,
             "command_interpreter_path": self.command_interpreter_path,
             "command_interpreter_sha256": self.command_interpreter_sha256,
         }
@@ -393,6 +476,7 @@ class EdaExecutionPlan:
             "source_identity_sha256",
             "trusted_tcl_sha256",
             "launcher_sha256",
+            "publication_adapter_sha256",
             "command_interpreter_path",
             "command_interpreter_sha256",
         }
@@ -434,6 +518,7 @@ class EdaExecutionPlan:
             source_identity_sha256=str(value["source_identity_sha256"]),
             trusted_tcl_sha256=str(value["trusted_tcl_sha256"]),
             launcher_sha256=str(value["launcher_sha256"]),
+            publication_adapter_sha256=str(value["publication_adapter_sha256"]),
             command_interpreter_path=str(value["command_interpreter_path"]),
             command_interpreter_sha256=str(
                 value["command_interpreter_sha256"]
@@ -447,8 +532,10 @@ class EdaExecutionPlan:
 
 __all__ = [
     "EDA_EXECUTION_PLAN_SCHEMA",
+    "PUBLICATION_ADAPTER_SCHEMA",
     "EdaExecutionPlan",
     "environment_sha256",
+    "publication_adapter_sha256",
     "sanitized_eda_environment",
     "trusted_windows_command_interpreter",
 ]

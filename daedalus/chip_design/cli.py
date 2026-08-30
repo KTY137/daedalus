@@ -30,6 +30,7 @@ from daedalus.kernel.effect_replay import (
 )
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.kernel.offload_lease import (
+    CHIP_EDA_PUBLICATION_RECORD_SCHEMA,
     CHIP_EDA_ENTRYPOINT_ID,
     LEASE_EXECUTION_RECORD_SCHEMA,
     LEASE_SUBJECT_RECORD_SCHEMA,
@@ -41,18 +42,22 @@ from daedalus.kernel.offload_lease import (
     control_root,
     emit_effect_lease_terminal_record,
     lease_ledger_path,
+    load_chip_eda_publication,
     read_issuer_keyring,
     rebuild_effect_lease_authorization,
     record_chip_eda_publication,
+    retain_chip_eda_terminal_artifact,
+    verify_chip_eda_publication_graph,
     write_evidence_root,
     write_root_identity_sha256,
 )
 from daedalus.kernel.effects import EffectLeaseReplay
-from daedalus.schemas import ContractProvenance
+from daedalus.schemas import ContractProvenance, EvidencePacket
 from daedalus.spine.envelope import canonical_json, canonical_sha
 from daedalus.storage import ArtifactStore
 
 from .contracts import (
+    CHIP_RUN_SCHEMA,
     ChipArtifact,
     ChipRunReceipt,
     build_chip_contracts,
@@ -72,6 +77,7 @@ from .executor import (
 )
 from .execution_plan import (
     EdaExecutionPlan,
+    publication_adapter_sha256,
     sanitized_eda_environment,
     trusted_windows_command_interpreter,
 )
@@ -358,7 +364,13 @@ def _recover_phase(
         ledger_path=lease_ledger_path(authority_root),
     )
     if (
-        authorization.request.mission_id != mission_id
+        subject.get("lease_sha256") != authorization.lease.digest
+        or subject.get("issuer_key_id") != authorization.lease.issuer_key_id
+        or subject.get("kill_switch_generation")
+        != authorization.lease.kill_switch_generation
+        or authorization.lease.provenance.source_revision != source_revision
+        or authorization.request.provenance.source_revision != source_revision
+        or authorization.request.mission_id != mission_id
         or authorization.request.attempt_id != attempt_id
         or authorization.lease.lease_id != expected_lease_id
         or authorization.lease.entrypoint_id != CHIP_EDA_ENTRYPOINT_ID
@@ -405,7 +417,11 @@ def _recover_phase(
     ):
         raise ValueError("retained EDA execution evidence binding is invalid")
     execution = _effect_execution_from_dict(execution_record["execution"])
-    if execution.digest != execution_record["execution_request_sha256"]:
+    if (
+        execution_record["execution_id"] != execution_id
+        or execution.execution_id != execution_id
+        or execution.digest != execution_record["execution_request_sha256"]
+    ):
         raise ValueError("retained EDA execution digest is invalid")
 
     replay = inspect_effect_execution(authorization, execution)
@@ -795,6 +811,15 @@ def _expected_outputs(root: Path, output_dir: Path, phase: str) -> tuple[str, ..
     return expected_vivado_output_paths(root, output_dir, phase)
 
 
+def _retained_absolute_path_identity(value: str | Path) -> str:
+    """Compare plan-bound absolute path text without consulting the live FS."""
+
+    text = os.fspath(value)
+    if not text or "\x00" in text or not os.path.isabs(text):
+        raise ValueError("retained path identity must be an absolute non-NUL path")
+    return os.path.normcase(os.path.normpath(text))
+
+
 def _read_summary(
     path: Path,
     *,
@@ -932,9 +957,12 @@ def _read_summary(
     if not _VIVADO_SHORT_VERSION.search(tool):
         return unparseable("flow summary has no parseable Vivado version")
     try:
-        if canonical_path_identity(values.get("project", "")) != (
-            canonical_path_identity(project_file)
-        ):
+        path_identity = (
+            _retained_absolute_path_identity
+            if retained_payload is not None
+            else canonical_path_identity
+        )
+        if path_identity(values.get("project", "")) != path_identity(project_file):
             return unparseable(
                 "flow summary project does not match the execution plan"
             )
@@ -1054,10 +1082,11 @@ def _retained_native_payload(
     result: ExecutionResult,
     filename: str,
 ) -> tuple[bytes | None, str]:
+    unexpected = set(result.unexpected_artifact_paths)
     matches = tuple(
         artifact
         for artifact in result.artifacts
-        if Path(artifact.path).name == filename
+        if artifact.path not in unexpected and Path(artifact.path).name == filename
     )
     missing = tuple(
         path for path in result.missing_artifact_paths if Path(path).name == filename
@@ -1186,9 +1215,16 @@ def _phase_artifact_binding(
     """Prove parsed identities equal the already-retained native bytes."""
 
     by_leaf: dict[str, list[Any]] = {}
+    unexpected = set(result.unexpected_artifact_paths)
     for artifact in result.artifacts:
+        if artifact.path in unexpected:
+            continue
         by_leaf.setdefault(Path(artifact.path).name, []).append(artifact)
     checks: dict[str, Any] = {}
+    checks["unexpected_outputs"] = {
+        "status": "passed" if not unexpected else "failed",
+        "paths": sorted(unexpected),
+    }
 
     def bind(name: str, filename: str, identity: Mapping[str, Any]) -> None:
         retained = by_leaf.get(filename, [])
@@ -1266,11 +1302,21 @@ def _verdict_and_dimensions(
     reports: Mapping[str, VivadoReportResult],
 ) -> tuple[str, dict[str, str]]:
     dimensions = default_dimensions(phase)
-    if result.status == "timeout":
+    pending = tuple(name for name, value in dimensions.items() if value == "pending")
+    if result.status in {"timeout", "cancelled"}:
+        replacement = "cancelled" if result.executed else "not_run"
+        for name in pending:
+            dimensions[name] = replacement
         return "cancelled", dimensions
     if result.status in {"missing", "error"}:
+        replacement = "failed" if result.executed else "not_run"
+        for name in pending:
+            dimensions[name] = replacement
         return "error", dimensions
     if result.status != "ok":
+        replacement = "failed" if result.executed else "not_run"
+        for name in pending:
+            dimensions[name] = replacement
         return "failed", dimensions
     if phase == "inspect":
         return "inconclusive", dimensions
@@ -1325,8 +1371,32 @@ def _stored_artifact(
     expected_sha256: str | None = None,
     local_path: str = "",
 ) -> ChipArtifact:
-    locator = store.put_bytes(
-        payload,
+    raise RuntimeError("legacy unleased artifact publication path is retired")
+
+
+def _terminal_stored_artifact(
+    store: ArtifactStore,
+    payload: bytes,
+    *,
+    authority_root: Path,
+    authority_source_revision: str,
+    authorization: Any,
+    execution: EffectExecutionRequest,
+    terminal: Any,
+    name: str,
+    role: str,
+    media_type: str,
+    provenance: ContractProvenance,
+    expected_sha256: str,
+) -> ChipArtifact:
+    locator = retain_chip_eda_terminal_artifact(
+        authority_root=authority_root,
+        source_revision=authority_source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        payload=payload,
         expected_sha256=expected_sha256,
         media_type=media_type,
         metadata={"kind": role, "filename_hint": name},
@@ -1337,7 +1407,6 @@ def _stored_artifact(
         role=role,
         locator=locator,
         media_type=media_type,
-        local_path=local_path,
     )
 
 
@@ -1522,12 +1591,17 @@ def _retained_artifacts(
                     expected_sha256=manifest.sha256,
                 )
             )
+    unexpected_native = set(result.unexpected_artifact_paths)
     for native in result.artifacts:
         artifacts.append(
             _artifact_from_locator(
                 store,
                 name=Path(native.path).name,
-                role="vivado_native_output",
+                role=(
+                    "vivado_unexpected_output"
+                    if native.path in unexpected_native
+                    else "vivado_native_output"
+                ),
                 locator_uri=native.locator,
                 expected_sha256=native.sha256,
                 local_path=native.path,
@@ -1625,6 +1699,11 @@ def _validate_retained_manifest(
 
 def _retained_publication_artifacts(
     *,
+    authority_root: Path,
+    authority_source_revision: str,
+    authorization: Any,
+    execution: EffectExecutionRequest,
+    terminal: Any,
     store: ArtifactStore,
     source_manifest: _RetainedJsonArtifact,
     workspace_manifest: _RetainedJsonArtifact,
@@ -1688,45 +1767,70 @@ def _retained_publication_artifacts(
             expected_payload=trusted_payload,
             media_type="text/x-tcl",
         ),
-        _stored_artifact(
+        _terminal_stored_artifact(
             store,
             runtime_manifest.to_json().encode("ascii"),
+            authority_root=authority_root,
+            authority_source_revision=authority_source_revision,
+            authorization=authorization,
+            execution=execution,
+            terminal=terminal,
             name="runtime-manifest.json",
             role="runtime_manifest",
             media_type="application/json",
             provenance=runtime_manifest.provenance,
             expected_sha256=runtime_manifest.digest,
         ),
-        _stored_artifact(
+        _terminal_stored_artifact(
             store,
             canonical_json(execution_plan.to_dict()).encode("ascii"),
+            authority_root=authority_root,
+            authority_source_revision=authority_source_revision,
+            authorization=authorization,
+            execution=execution,
+            terminal=terminal,
             name="eda-execution-plan.json",
             role="execution_plan",
             media_type="application/json",
             provenance=common,
             expected_sha256=execution_plan.digest,
         ),
-        _stored_artifact(
+        _terminal_stored_artifact(
             store,
             mission.to_json().encode("ascii"),
+            authority_root=authority_root,
+            authority_source_revision=authority_source_revision,
+            authorization=authorization,
+            execution=execution,
+            terminal=terminal,
             name="mission.json",
             role="mission_contract",
             media_type="application/json",
             provenance=mission.provenance,
             expected_sha256=mission.digest,
         ),
-        _stored_artifact(
+        _terminal_stored_artifact(
             store,
             attempt.to_json().encode("ascii"),
+            authority_root=authority_root,
+            authority_source_revision=authority_source_revision,
+            authorization=authorization,
+            execution=execution,
+            terminal=terminal,
             name="attempt.json",
             role="attempt_contract",
             media_type="application/json",
             provenance=attempt.provenance,
             expected_sha256=attempt.digest,
         ),
-        _stored_artifact(
+        _terminal_stored_artifact(
             store,
             policy_decision.to_json().encode("ascii"),
+            authority_root=authority_root,
+            authority_source_revision=authority_source_revision,
+            authorization=authorization,
+            execution=execution,
+            terminal=terminal,
             name="policy-decision.json",
             role="policy_decision",
             media_type="application/json",
@@ -1758,12 +1862,17 @@ def _retained_publication_artifacts(
                     media_type="application/json",
                 )
             )
+    unexpected_native = set(result.unexpected_artifact_paths)
     for native in result.artifacts:
         artifacts.append(
             _artifact_from_locator(
                 store,
                 name=Path(native.path).name,
-                role="vivado_native_output",
+                role=(
+                    "vivado_unexpected_output"
+                    if native.path in unexpected_native
+                    else "vivado_native_output"
+                ),
                 locator_uri=native.locator,
                 expected_sha256=native.sha256,
                 local_path=native.path,
@@ -1808,6 +1917,331 @@ def _retained_publication_artifacts(
     return artifacts
 
 
+def _recover_completed_phase_publication(
+    *,
+    authority_root: Path,
+    authority_source_revision: str,
+    mission_id: str,
+    attempt_id: str,
+    run_id: str,
+    phase: str,
+    authorization: Any,
+    execution: EffectExecutionRequest,
+    retained: RetainedExecutionObservation,
+    store: ArtifactStore,
+    terminal_record: Mapping[str, Any],
+    authority_head_record_sha256: str,
+    subject_record_sha256: str,
+    execution_record_sha256: str,
+) -> dict[str, Any] | None:
+    """Return one already-published completion without re-running adapters."""
+
+    result = retained.result
+    plan = retained.plan
+    terminal = result.terminal_receipt
+    if terminal is None or result.start_receipt is None:
+        raise EdaExecutionError("publication recovery requires a terminal lifecycle")
+    record = load_chip_eda_publication(
+        write_evidence_root(authority_root, authority_source_revision),
+        source_revision=authority_source_revision,
+        execution_id=execution.execution_id,
+    )
+    if record is None:
+        return None
+    expected_record_fields = {
+        "schema",
+        "source_revision",
+        "entrypoint_id",
+        "phase",
+        "publication_adapter_sha256",
+        "lease_sha256",
+        "execution_id",
+        "execution_request_sha256",
+        "terminal_receipt_sha256",
+        "raw_execution_receipt_sha256",
+        "raw_execution_receipt_locator",
+        "chip_receipt_sha256",
+        "chip_receipt_locator",
+        "evidence_packet_sha256",
+        "evidence_packet_locator",
+        "authority_head_record_sha256",
+        "lease_subject_record_sha256",
+        "lease_execution_record_sha256",
+        "lease_terminal_record_sha256",
+        "finished_at",
+        "security_boundary_claimed",
+        "record_sha256",
+    }
+    expected_bindings = {
+        "schema": CHIP_EDA_PUBLICATION_RECORD_SCHEMA,
+        "source_revision": authority_source_revision,
+        "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
+        "phase": phase,
+        "publication_adapter_sha256": plan.publication_adapter_sha256,
+        "lease_sha256": authorization.lease.digest,
+        "execution_id": execution.execution_id,
+        "execution_request_sha256": execution.digest,
+        "terminal_receipt_sha256": terminal.receipt_sha256,
+        "raw_execution_receipt_sha256": result.receipt_sha256,
+        "raw_execution_receipt_locator": result.receipt_locator,
+        "authority_head_record_sha256": authority_head_record_sha256,
+        "lease_subject_record_sha256": subject_record_sha256,
+        "lease_execution_record_sha256": execution_record_sha256,
+        "lease_terminal_record_sha256": terminal_record.get("record_sha256"),
+        "finished_at": terminal.finished_at,
+        "security_boundary_claimed": False,
+    }
+    if set(record) != expected_record_fields or any(
+        record.get(name) != expected
+        for name, expected in expected_bindings.items()
+    ):
+        raise EdaExecutionError(
+            "retained chip publication contradicts its terminal authority"
+        )
+
+    try:
+        verify_chip_eda_publication_graph(
+            authority_root=authority_root,
+            source_revision=authority_source_revision,
+            authorization=authorization,
+            execution=execution,
+            terminal_receipt=terminal,
+            artifact_store=store,
+            phase=phase,
+            publication_adapter_sha256=str(record["publication_adapter_sha256"]),
+            raw_execution_receipt_sha256=str(
+                record["raw_execution_receipt_sha256"]
+            ),
+            raw_execution_receipt_locator=str(
+                record["raw_execution_receipt_locator"]
+            ),
+            chip_receipt_sha256=str(record["chip_receipt_sha256"]),
+            chip_receipt_locator=str(record["chip_receipt_locator"]),
+            evidence_packet_sha256=str(record["evidence_packet_sha256"]),
+            evidence_packet_locator=str(record["evidence_packet_locator"]),
+        )
+    except (OSError, TypeError, ValueError) as exc:
+        raise EdaExecutionError(
+            "retained chip publication graph is invalid"
+        ) from exc
+
+    receipt_artifact = _retained_json_from_locator(
+        store,
+        locator_uri=str(record["chip_receipt_locator"]),
+        expected_sha256=str(record["chip_receipt_sha256"]),
+        label="retained chip run receipt",
+    )
+    receipt_body = receipt_artifact.body
+    receipt_fields = {
+        "schema",
+        "run_id",
+        "mission_id",
+        "attempt_id",
+        "phase",
+        "source_revision",
+        "manifest_sha256",
+        "trusted_tcl_sha256",
+        "tool",
+        "execution",
+        "effect_start",
+        "effect_terminal",
+        "artifacts",
+        "metrics",
+        "dimensions",
+        "verdict",
+        "limitations",
+        "created_at",
+        "security_boundary_claimed",
+    }
+    artifact_fields = {
+        "name",
+        "role",
+        "artifact_sha256",
+        "locator_sha256",
+        "locator_uri",
+        "byte_length",
+        "media_type",
+        "local_path",
+    }
+    raw_artifacts = receipt_body.get("artifacts")
+    if (
+        set(receipt_body) != receipt_fields
+        or not isinstance(raw_artifacts, list)
+        or not all(isinstance(row, Mapping) and set(row) == artifact_fields for row in raw_artifacts)
+    ):
+        raise EdaExecutionError("retained chip run receipt is structurally invalid")
+    receipt = ChipRunReceipt(
+        schema=receipt_body["schema"],
+        run_id=receipt_body["run_id"],
+        mission_id=receipt_body["mission_id"],
+        attempt_id=receipt_body["attempt_id"],
+        phase=receipt_body["phase"],
+        source_revision=receipt_body["source_revision"],
+        manifest_sha256=receipt_body["manifest_sha256"],
+        trusted_tcl_sha256=receipt_body["trusted_tcl_sha256"],
+        tool=receipt_body["tool"],
+        execution=receipt_body["execution"],
+        effect_start=receipt_body["effect_start"],
+        effect_terminal=receipt_body["effect_terminal"],
+        artifacts=tuple(ChipArtifact(**dict(row)) for row in raw_artifacts),
+        metrics=receipt_body["metrics"],
+        dimensions=receipt_body["dimensions"],
+        verdict=receipt_body["verdict"],
+        limitations=tuple(receipt_body["limitations"]),
+        created_at=receipt_body["created_at"],
+        security_boundary_claimed=receipt_body["security_boundary_claimed"],
+    )
+    receipt_bindings = {
+        "run_id": run_id,
+        "mission_id": mission_id,
+        "attempt_id": attempt_id,
+        "phase": phase,
+        "source_revision": plan.source_manifest_sha256,
+        "manifest_sha256": plan.source_manifest_sha256,
+        "trusted_tcl_sha256": plan.trusted_tcl_sha256,
+        "created_at": terminal.finished_at,
+    }
+    if (
+        receipt.to_json().encode("ascii") != receipt_artifact.payload
+        or receipt.digest != record["chip_receipt_sha256"]
+        or any(getattr(receipt, name) != expected for name, expected in receipt_bindings.items())
+        or canonical_json(receipt.execution) != canonical_json(result.to_dict())
+        or canonical_json(receipt.effect_start) != canonical_json(result.start_receipt.to_dict())
+        or canonical_json(receipt.effect_terminal) != canonical_json(terminal.to_dict())
+    ):
+        raise EdaExecutionError("retained chip run receipt binding is invalid")
+    tool = receipt.tool
+    metrics = receipt.metrics
+    expected_metrics = {
+        "source_manifest_sha256": plan.source_manifest_sha256,
+        "workspace_manifest_sha256": plan.workspace_manifest_sha256,
+        "post_authoritative_manifest_sha256": result.post_authoritative_manifest_sha256,
+        "post_authoritative_source_identity_sha256": (
+            result.post_authoritative_source_identity_sha256
+        ),
+        "post_workspace_manifest_sha256": result.post_workspace_manifest_sha256,
+        "post_source_identity_sha256": result.post_source_identity_sha256,
+        "execution_plan_sha256": plan.digest,
+        "missing_artifact_paths": list(result.missing_artifact_paths),
+        "unexpected_artifact_paths": list(result.unexpected_artifact_paths),
+        "publication_inputs": "authenticated-ledger-and-cas-only",
+    }
+    if (
+        not isinstance(tool, Mapping)
+        or tool.get("id") != "vivado"
+        or tool.get("selected_command") != plan.argv[0]
+        or tool.get("launcher_sha256") != plan.launcher_sha256
+        or tool.get("ambient_probe_status") != "not_run"
+        or tool.get("security_boundary_claimed") is not False
+        or not isinstance(metrics, Mapping)
+        or any(metrics.get(name) != expected for name, expected in expected_metrics.items())
+        or canonical_json(metrics.get("execution_plan"))
+        != canonical_json(plan.to_dict())
+    ):
+        raise EdaExecutionError("retained chip receipt metrics are not plan-bound")
+    artifacts_by_role: dict[str, list[ChipArtifact]] = {}
+    for artifact in receipt.artifacts:
+        locator = store.verify(store.load_locator(artifact.locator_sha256))
+        if (
+            locator.locator_uri != artifact.locator_uri
+            or locator.artifact_sha256 != artifact.artifact_sha256
+            or locator.byte_length != artifact.byte_length
+        ):
+            raise EdaExecutionError("retained chip artifact locator is invalid")
+        artifacts_by_role.setdefault(artifact.role, []).append(artifact)
+    for role, expected_digest, expected_payload in (
+        (
+            "execution_plan",
+            plan.digest,
+            canonical_json(plan.to_dict()).encode("ascii"),
+        ),
+        (
+            "policy_decision",
+            authorization.policy_decision.digest,
+            authorization.policy_decision.to_json().encode("ascii"),
+        ),
+    ):
+        matches = artifacts_by_role.get(role, [])
+        if (
+            len(matches) != 1
+            or matches[0].artifact_sha256 != expected_digest
+            or store.get_bytes(matches[0].artifact_sha256) != expected_payload
+        ):
+            raise EdaExecutionError(f"retained {role} artifact binding is invalid")
+
+    evidence_artifact = _retained_json_from_locator(
+        store,
+        locator_uri=str(record["evidence_packet_locator"]),
+        expected_sha256=str(record["evidence_packet_sha256"]),
+        label="retained chip evidence packet",
+    )
+    evidence = EvidencePacket.from_dict(evidence_artifact.body)
+    attempt_artifacts = artifacts_by_role.get("attempt_contract", [])
+    expected_item_verdict = {
+        "failed": "failed",
+        "cancelled": "cancelled",
+        "error": "error",
+    }.get(receipt.verdict, "passed")
+    item = evidence.items[0] if len(evidence.items) == 1 else None
+    if (
+        evidence.to_json().encode("ascii") != evidence_artifact.payload
+        or evidence.digest != record["evidence_packet_sha256"]
+        or evidence.packet_id != f"{run_id}-evidence"
+        or evidence.mission_id != mission_id
+        or evidence.attempt_id != attempt_id
+        or evidence.source_revision != receipt.source_revision
+        or evidence.subject_sha256 != receipt.manifest_sha256
+        or evidence.policy_decision_sha256 != authorization.policy_decision.digest
+        or evidence.evaluation_status != "inconclusive"
+        or len(attempt_artifacts) != 1
+        or evidence.attempt_contract_sha256
+        != attempt_artifacts[0].artifact_sha256
+        or item is None
+        or item.evidence_id != f"{run_id}-vivado"
+        or item.evaluator != "vivado-project"
+        or item.assurance != "unverified"
+        or item.verdict != expected_item_verdict
+        or item.output_sha256 != receipt.digest
+        or item.evidence_locator != receipt_artifact.locator_uri
+        or item.collected_at != terminal.finished_at
+        or evidence.usage.wall_time_ms
+        != max(0, int(round(float(result.duration_s) * 1000)))
+        or dict(item.details)
+        != {
+            "phase": phase,
+            "chip_verdict": receipt.verdict,
+            "dimensions": dict(receipt.dimensions),
+            "security_boundary_claimed": False,
+        }
+    ):
+        raise EdaExecutionError("retained chip evidence packet binding is invalid")
+
+    return {
+        "phase": phase,
+        "status": result.status,
+        "returncode": result.returncode,
+        "duration_s": result.duration_s,
+        "process_spawned": False,
+        "execution_process_spawned": result.executed,
+        "recovered": True,
+        "publication_status": "complete",
+        "verdict": receipt.verdict,
+        "dimensions": dict(receipt.dimensions),
+        "metrics": dict(receipt.metrics),
+        "manifest_sha256": receipt.manifest_sha256,
+        "source_identity_sha256": plan.source_identity_sha256,
+        "workspace_manifest_sha256": plan.workspace_manifest_sha256,
+        "receipt_sha256": receipt.digest,
+        "receipt_locator": receipt_artifact.locator_uri,
+        "evidence_sha256": evidence.digest,
+        "evidence_locator": evidence_artifact.locator_uri,
+        "evaluation_status": evidence.evaluation_status,
+        "terminal_record": dict(terminal_record),
+        "publication_record_sha256": record["record_sha256"],
+        "limitations": list(receipt.limitations),
+    }
+
+
 def _finalize_phase_publication(
     *,
     authority_root: Path,
@@ -1828,6 +2262,29 @@ def _finalize_phase_publication(
 ) -> dict[str, Any]:
     result = retained.result
     plan = retained.plan
+    completed = _recover_completed_phase_publication(
+        authority_root=authority_root,
+        authority_source_revision=authority_source_revision,
+        mission_id=mission_id,
+        attempt_id=attempt_id,
+        run_id=run_id,
+        phase=phase,
+        authorization=authorization,
+        execution=execution,
+        retained=retained,
+        store=store,
+        terminal_record=terminal_record,
+        authority_head_record_sha256=authority_head_record_sha256,
+        subject_record_sha256=subject_record_sha256,
+        execution_record_sha256=execution_record_sha256,
+    )
+    if completed is not None:
+        return completed
+    current_publication_adapter = publication_adapter_sha256()
+    if plan.publication_adapter_sha256 != current_publication_adapter:
+        raise EdaExecutionError(
+            "retained EDA publication adapter identity differs from its signed plan"
+        )
     terminal = result.terminal_receipt
     if terminal is None or result.start_receipt is None:
         raise EdaExecutionError("publication requires a retained terminal lifecycle")
@@ -1939,7 +2396,10 @@ def _finalize_phase_publication(
         summary=summary,
     )
     verdict, dimensions = _verdict_and_dimensions(phase, result, reports)
-    if artifact_binding["status"] != "passed":
+    if artifact_binding["status"] != "passed" and verdict not in {
+        "error",
+        "cancelled",
+    }:
         verdict = "failed"
 
     runtime_manifest = build_chip_runtime_manifest(
@@ -1962,6 +2422,11 @@ def _finalize_phase_publication(
         created_at=created_at,
     )
     artifacts = _retained_publication_artifacts(
+        authority_root=authority_root,
+        authority_source_revision=authority_source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal=terminal,
         store=store,
         source_manifest=source_manifest,
         workspace_manifest=workspace_manifest,
@@ -2014,6 +2479,7 @@ def _finalize_phase_publication(
         "execution_plan": plan.to_dict(),
         "execution_plan_sha256": plan.digest,
         "missing_artifact_paths": list(result.missing_artifact_paths),
+        "unexpected_artifact_paths": list(result.unexpected_artifact_paths),
         "publication_inputs": "authenticated-ledger-and-cas-only",
     }
     summary_values = summary.get("values", {})
@@ -2060,8 +2526,14 @@ def _finalize_phase_publication(
         authorization.policy_decision.digest,
         *(artifact.artifact_sha256 for artifact in artifacts),
     ]
-    receipt_locator = store.put_bytes(
-        receipt.to_json().encode("ascii"),
+    receipt_locator = retain_chip_eda_terminal_artifact(
+        authority_root=authority_root,
+        source_revision=authority_source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        payload=receipt.to_json().encode("ascii"),
         expected_sha256=receipt.digest,
         media_type="application/json",
         metadata={
@@ -2081,8 +2553,14 @@ def _finalize_phase_publication(
         attempt=attempt,
         policy_decision_sha256=authorization.policy_decision.digest,
     )
-    evidence_locator = store.put_bytes(
-        evidence.to_json().encode("ascii"),
+    evidence_locator = retain_chip_eda_terminal_artifact(
+        authority_root=authority_root,
+        source_revision=authority_source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        payload=evidence.to_json().encode("ascii"),
         expected_sha256=evidence.digest,
         media_type="application/json",
         metadata={
@@ -2092,9 +2570,20 @@ def _finalize_phase_publication(
         },
         provenance=evidence.provenance.to_dict(),
     )
+    if publication_adapter_sha256() != current_publication_adapter:
+        raise EdaExecutionError(
+            "EDA publication adapter changed while evidence was finalized"
+        )
     publication_record = record_chip_eda_publication(
+        authority_root=authority_root,
         evidence_root=write_evidence_root(authority_root, authority_source_revision),
         source_revision=authority_source_revision,
+        authorization=authorization,
+        execution=execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        phase=phase,
+        publication_adapter_sha256=plan.publication_adapter_sha256,
         lease_sha256=authorization.lease.digest,
         execution_id=execution.execution_id,
         execution_request_sha256=execution.digest,
@@ -2571,6 +3060,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         command_interpreter_path, command_interpreter_sha256 = (
             trusted_windows_command_interpreter()
         )
+        publication_adapter_digest = publication_adapter_sha256()
         expected_artifact_store_root = (
             write_evidence_root(authority_root, args.source_revision) / "artifacts"
         )
@@ -2653,6 +3143,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 source_identity_sha256=phase_source_manifest.source_identity_sha256,
                 trusted_tcl_sha256=trusted.sha256,
                 launcher_sha256=launcher_sha256,
+                publication_adapter_sha256=publication_adapter_digest,
                 command_interpreter_path=command_interpreter_path,
                 command_interpreter_sha256=command_interpreter_sha256,
             )

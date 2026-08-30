@@ -16,6 +16,7 @@ cannot prove how far the EDA tool progressed.
 """
 from __future__ import annotations
 
+import codecs
 import hashlib
 import json
 import math
@@ -39,10 +40,11 @@ from daedalus.schemas import ContractProvenance
 from daedalus.spine.cancel import ManagedProcess
 from daedalus.spine.effect_boundary import Effect
 from daedalus.spine.envelope import canonical_json, canonical_sha, current_trace_id
-from daedalus.storage import ArtifactLocator, ArtifactStore
+from daedalus.storage import ArtifactLocator, ArtifactStore, ArtifactStoreError
 
 from .execution_plan import (
     EdaExecutionPlan,
+    publication_adapter_sha256,
     sanitized_eda_environment,
     trusted_windows_command_interpreter,
 )
@@ -63,6 +65,7 @@ from .vivado_tcl import (
 
 
 _MAX_CAPTURE_CHARS = 128_000
+_MAX_RECEIPT_BYTES = 4 * 1024 * 1024
 _TRUNCATION_MARKER = "\n\n... [Daedalus truncated EDA output] ...\n\n"
 _ENTRYPOINT_ID = "cli.daedalus_chip"
 _REQUIRED_EFFECTS = frozenset(
@@ -72,7 +75,7 @@ _REQUIRED_EFFECTS = frozenset(
         Effect.PROCESS_SPAWN.value,
     }
 )
-_RECEIPT_SCHEMA = "daedalus.eda-execution-receipt/2"
+_RECEIPT_SCHEMA = "daedalus.eda-execution-receipt/3"
 _POLL_INTERVAL_S = 0.05
 _UNKNOWN_ABORTS = (KeyboardInterrupt, SystemExit)
 _TERMINAL_EXECUTION_STATES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
@@ -98,6 +101,7 @@ _RECEIPT_FIELDS = frozenset(
         "stderr_locator",
         "artifacts",
         "missing_artifact_paths",
+        "unexpected_artifact_paths",
         "pre_workspace_manifest_sha256",
         "pre_workspace_source_identity_sha256",
         "pre_workspace_manifest_locator",
@@ -214,6 +218,7 @@ class ExecutionResult:
     post_authoritative_manifest_locator: str | None = None
     artifacts: tuple[ExecutionArtifact, ...] = ()
     missing_artifact_paths: tuple[str, ...] = ()
+    unexpected_artifact_paths: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -299,6 +304,86 @@ def _bounded(text: str | bytes) -> tuple[str, bool]:
     return text[:head_chars] + _TRUNCATION_MARKER + tail, True
 
 
+def _bounded_retained_text(locator: ArtifactLocator, *, label: str) -> tuple[str, bool]:
+    """Authenticate a retained text blob while keeping only bounded text."""
+
+    payload_chars = _MAX_CAPTURE_CHARS - len(_TRUNCATION_MARKER)
+    if payload_chars < 0:  # pragma: no cover - defensive constant contract
+        raise EdaExecutionError("EDA capture constants are inconsistent")
+    head_limit = payload_chars // 2
+    tail_limit = payload_chars - head_limit
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    digest = hashlib.sha256()
+    total_bytes = 0
+    total_chars = 0
+    prefix = ""
+    tail = ""
+    whole_parts: list[str] | None = []
+
+    def consume(decoded: str) -> None:
+        nonlocal prefix, tail, total_chars, whole_parts
+        if not decoded:
+            return
+        total_chars += len(decoded)
+        if len(prefix) < head_limit:
+            prefix += decoded[: head_limit - len(prefix)]
+        if tail_limit:
+            tail = (tail + decoded)[-tail_limit:]
+        if whole_parts is not None:
+            whole_parts.append(decoded)
+            if total_chars > _MAX_CAPTURE_CHARS:
+                whole_parts = None
+
+    try:
+        with locator.blob_path.open("rb") as handle:
+            before = os.fstat(handle.fileno())
+            if not stat.S_ISREG(before.st_mode):
+                raise EdaExecutionError(f"{label} is not a regular retained blob")
+            while True:
+                chunk = handle.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+                total_bytes += len(chunk)
+                consume(decoder.decode(chunk))
+            consume(decoder.decode(b"", final=True))
+            after = os.fstat(handle.fileno())
+        path_state = os.lstat(locator.blob_path)
+    except OSError as exc:
+        raise EdaExecutionError(f"{label} cannot be read from retained CAS") from exc
+
+    before_identity = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    )
+    after_identity = (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    )
+    path_identity = (
+        path_state.st_dev,
+        path_state.st_ino,
+        path_state.st_size,
+        path_state.st_mtime_ns,
+    )
+    if (
+        _is_linklike_state(locator.blob_path, path_state)
+        or not stat.S_ISREG(path_state.st_mode)
+        or before_identity != after_identity
+        or before_identity != path_identity
+        or total_bytes != locator.byte_length
+        or digest.hexdigest() != locator.artifact_sha256
+    ):
+        raise EdaExecutionError(f"{label} changed or failed retained CAS identity")
+    if whole_parts is not None:
+        return "".join(whole_parts), False
+    return prefix + _TRUNCATION_MARKER + tail, True
+
+
 def _strict_canonical_json_object(payload: bytes, *, label: str) -> dict[str, Any]:
     """Decode one exact canonical JSON object, rejecting ambiguous JSON."""
 
@@ -345,13 +430,16 @@ def _retained_locator(
     expected_sha256: object,
     *,
     label: str,
+    authenticate_blob: bool = True,
 ) -> ArtifactLocator:
     prefix = "artifact-locator:sha256:"
     if not isinstance(uri, str) or not uri.startswith(prefix):
         raise ValueError(f"{label} has no canonical artifact locator")
     locator_digest = _sha256_value(uri[len(prefix) :], label=f"{label} locator")
     expected = _sha256_value(expected_sha256, label=f"{label} artifact")
-    locator = store.verify(store.load_locator(locator_digest))
+    locator = store.load_locator(locator_digest)
+    if authenticate_blob:
+        locator = store.verify(locator)
     if locator.artifact_sha256 != expected:
         raise ValueError(f"{label} locator does not bind its declared artifact")
     return locator
@@ -361,26 +449,31 @@ def _locator_for_execution_receipt(
     store: ArtifactStore,
     *,
     execution_id: str,
-    receipt_sha256: str,
+    terminal_output_digests: Sequence[str],
 ) -> ArtifactLocator:
     """Find the unique immutable locator for a terminal-bound raw receipt."""
 
+    terminal_outputs = {
+        _sha256_value(digest, label="terminal EDA output")
+        for digest in terminal_output_digests
+    }
     locator_root = store.root / "locators" / "sha256"
     matches: list[ArtifactLocator] = []
     if locator_root.is_dir():
         for path in sorted(locator_root.glob("*/*.json"), key=lambda item: item.as_posix()):
             if path.is_symlink() or not path.is_file():
-                raise EdaExecutionError("artifact locator inventory contains a non-regular file")
+                continue
             digest = path.parent.name + path.stem
             try:
-                locator = store.verify(store.load_locator(digest))
-            except (OSError, TypeError, ValueError) as exc:
-                raise EdaExecutionError(
-                    "artifact locator inventory cannot be authenticated"
-                ) from exc
+                locator = store.load_locator(digest)
+            except (ArtifactStoreError, OSError, TypeError, ValueError):
+                # Unrelated locator damage cannot veto recovery of a terminal-
+                # bound execution.  A damaged matching locator simply leaves
+                # no unique candidate and is refused below.
+                continue
             metadata = locator.metadata
             if (
-                locator.artifact_sha256 == receipt_sha256
+                locator.artifact_sha256 in terminal_outputs
                 and metadata.get("kind") == "eda_execution_receipt"
                 and metadata.get("execution_id") == execution_id
             ):
@@ -389,7 +482,12 @@ def _locator_for_execution_receipt(
         raise EdaExecutionError(
             "terminal EDA execution has no unique raw-receipt locator"
         )
-    return matches[0]
+    if matches[0].byte_length > _MAX_RECEIPT_BYTES:
+        raise EdaExecutionError("terminal EDA raw receipt exceeds the recovery limit")
+    # Only the selected raw receipt locator hashes its blob.  Other global CAS
+    # locators and terminal-bound native outputs are never payload-probed while
+    # locating the receipt.
+    return store.verify(matches[0])
 
 
 def recover_retained_execution(
@@ -415,26 +513,24 @@ def recover_retained_execution(
     ):
         raise EdaExecutionError("retained EDA lifecycle identities disagree")
 
-    terminal_payloads = {
-        digest: artifact_store.get_bytes(digest)
-        for digest in terminal_receipt.output_digests
-    }
-    candidates: list[tuple[str, bytes, dict[str, Any]]] = []
-    for digest, payload in terminal_payloads.items():
-        try:
-            body = _strict_canonical_json_object(
-                payload,
-                label="retained EDA execution receipt",
-            )
-        except (TypeError, ValueError):
-            continue
-        if body.get("schema") == _RECEIPT_SCHEMA:
-            candidates.append((digest, payload, body))
-    if len(candidates) != 1:
-        raise EdaExecutionError(
-            "terminal outputs contain no unique canonical EDA execution receipt"
+    receipt_locator = _locator_for_execution_receipt(
+        artifact_store,
+        execution_id=execution.execution_id,
+        terminal_output_digests=terminal_receipt.output_digests,
+    )
+    receipt_sha256 = receipt_locator.artifact_sha256
+    receipt_payload = artifact_store.get_bytes(receipt_sha256)
+    try:
+        body = _strict_canonical_json_object(
+            receipt_payload,
+            label="retained EDA execution receipt",
         )
-    receipt_sha256, receipt_payload, body = candidates[0]
+    except (TypeError, ValueError) as exc:
+        raise EdaExecutionError(
+            "terminal output is not a canonical EDA execution receipt"
+        ) from exc
+    if body.get("schema") != _RECEIPT_SCHEMA:
+        raise EdaExecutionError("retained EDA execution receipt has unknown schema")
     if set(body) != _RECEIPT_FIELDS:
         raise EdaExecutionError("retained EDA execution receipt has unexpected fields")
     if body["security_boundary_claimed"] is not False:
@@ -501,22 +597,48 @@ def recover_retained_execution(
         body["stdout_locator"],
         body["stdout_sha256"],
         label="retained EDA stdout",
+        authenticate_blob=False,
     )
     stderr_locator = _retained_locator(
         artifact_store,
         body["stderr_locator"],
         body["stderr_sha256"],
         label="retained EDA stderr",
+        authenticate_blob=False,
     )
-    stdout_payload = artifact_store.get_bytes(stdout_locator.artifact_sha256)
-    stderr_payload = artifact_store.get_bytes(stderr_locator.artifact_sha256)
+    stdout, stdout_truncated = _bounded_retained_text(
+        stdout_locator,
+        label="retained EDA stdout",
+    )
+    stderr, stderr_truncated = _bounded_retained_text(
+        stderr_locator,
+        label="retained EDA stderr",
+    )
 
     artifacts_raw = body["artifacts"]
     missing_raw = body["missing_artifact_paths"]
-    if not isinstance(artifacts_raw, list) or not isinstance(missing_raw, list):
+    unexpected_raw = body["unexpected_artifact_paths"]
+    if (
+        not isinstance(artifacts_raw, list)
+        or not isinstance(missing_raw, list)
+        or not isinstance(unexpected_raw, list)
+    ):
         raise EdaExecutionError("retained EDA output partition is malformed")
-    if not all(isinstance(path, str) for path in missing_raw):
-        raise EdaExecutionError("retained EDA missing-output paths are malformed")
+    for label, paths in (
+        ("missing-output", missing_raw),
+        ("unexpected-output", unexpected_raw),
+    ):
+        if not all(
+            isinstance(path, str)
+            and path
+            and not any(character in path for character in "\x00\r\n")
+            and Path(path).as_posix() == path
+            and not Path(path).is_absolute()
+            and not Path(path).drive
+            and ".." not in Path(path).parts
+            for path in paths
+        ):
+            raise EdaExecutionError(f"retained EDA {label} paths are malformed")
     retained_artifacts: list[ExecutionArtifact] = []
     for index, row in enumerate(artifacts_raw):
         if not isinstance(row, Mapping) or set(row) != {
@@ -530,10 +652,19 @@ def recover_retained_execution(
             )
         path = row["path"]
         byte_length = row["byte_length"]
-        if not isinstance(path, str) or (
-            isinstance(byte_length, bool)
-            or not isinstance(byte_length, int)
-            or byte_length < 0
+        if (
+            not isinstance(path, str)
+            or not path
+            or any(character in path for character in "\x00\r\n")
+            or Path(path).as_posix() != path
+            or Path(path).is_absolute()
+            or bool(Path(path).drive)
+            or ".." in Path(path).parts
+            or (
+                isinstance(byte_length, bool)
+                or not isinstance(byte_length, int)
+                or byte_length < 0
+            )
         ):
             raise EdaExecutionError(f"retained EDA artifact {index} is malformed")
         locator = _retained_locator(
@@ -557,16 +688,41 @@ def recover_retained_execution(
 
     retained_paths = tuple(artifact.path for artifact in retained_artifacts)
     missing_paths = tuple(missing_raw)
-    if len(set(retained_paths + missing_paths)) != len(plan.artifact_paths):
+    unexpected_paths = tuple(unexpected_raw)
+    plan_paths = set(plan.artifact_paths)
+    declared_retained = tuple(path for path in retained_paths if path in plan_paths)
+    unexpected_retained = tuple(path for path in retained_paths if path not in plan_paths)
+    if len(set(retained_paths)) != len(retained_paths) or len(set(missing_paths)) != len(
+        missing_paths
+    ):
         raise EdaExecutionError("retained EDA outputs are duplicated or incomplete")
-    if set(retained_paths) | set(missing_paths) != set(plan.artifact_paths):
+    if set(declared_retained) | set(missing_paths) != plan_paths or set(
+        declared_retained
+    ).intersection(missing_paths):
         raise EdaExecutionError("retained EDA outputs do not partition the execution plan")
-    if retained_paths != tuple(
+    if declared_retained != tuple(
         path for path in plan.artifact_paths if path not in set(missing_paths)
     ) or missing_paths != tuple(
-        path for path in plan.artifact_paths if path not in set(retained_paths)
+        path for path in plan.artifact_paths if path not in set(declared_retained)
     ):
         raise EdaExecutionError("retained EDA output partition is not in plan order")
+    if unexpected_paths != tuple(sorted(set(unexpected_paths))):
+        raise EdaExecutionError("retained EDA unexpected-output inventory is not sorted")
+    if unexpected_retained != tuple(sorted(unexpected_retained)) or not set(
+        unexpected_retained
+    ).issubset(unexpected_paths):
+        raise EdaExecutionError(
+            "retained EDA outputs do not partition the execution plan and "
+            "unexpected-output inventory"
+        )
+    if plan_paths.intersection(unexpected_paths) - set(missing_paths):
+        raise EdaExecutionError(
+            "retained EDA unexpected-output inventory contradicts declared outputs"
+        )
+    if status == "ok" and (missing_paths or unexpected_paths):
+        raise EdaExecutionError(
+            "successful retained EDA execution contains incomplete or unexpected outputs"
+        )
 
     expected_terminal_outputs = {
         receipt_sha256,
@@ -661,13 +817,6 @@ def recover_retained_execution(
     ):
         raise EdaExecutionError("retained EDA timestamps are inconsistent")
 
-    receipt_locator = _locator_for_execution_receipt(
-        artifact_store,
-        execution_id=execution.execution_id,
-        receipt_sha256=receipt_sha256,
-    )
-    stdout, stdout_truncated = _bounded(stdout_payload)
-    stderr, stderr_truncated = _bounded(stderr_payload)
     result = ExecutionResult(
         status=status,
         argv=plan.argv,
@@ -697,6 +846,7 @@ def recover_retained_execution(
         post_authoritative_manifest_locator=post_authoritative_uri,
         artifacts=tuple(retained_artifacts),
         missing_artifact_paths=missing_paths,
+        unexpected_artifact_paths=unexpected_paths,
     )
     return RetainedExecutionObservation(
         result=result,
@@ -873,6 +1023,82 @@ def _validate_canonical_vivado_argv(
         raise EdaExecutionAdmissionError(
             "live Vivado argv differs from the package-owned trusted flow"
         )
+
+
+def _validate_publication_adapter(plan: EdaExecutionPlan) -> None:
+    """Require the exact package adapter bytes bound by the execution plan."""
+
+    try:
+        current = publication_adapter_sha256()
+    except (OSError, TypeError, ValueError) as exc:
+        raise EdaExecutionAdmissionError(
+            f"cannot authenticate the EDA publication adapter: {exc}"
+        ) from exc
+    if plan.publication_adapter_sha256 != current:
+        raise EdaExecutionAdmissionError(
+            "EDA publication adapter identity differs from the execution plan"
+        )
+
+
+def _validate_fresh_output_root(
+    clean_argv: tuple[str, ...],
+    *,
+    root: Path,
+) -> Path:
+    """Refuse stale or concurrently-created Vivado output roots.
+
+    The runner never cleans or reuses this path.  ``lstat`` is deliberate: a
+    broken symlink or Windows reparse point is still an existing output-root
+    entry and therefore cannot be attributed to the admitted execution.
+    """
+
+    output_root = Path(clean_argv[12])
+    try:
+        output_identity = canonical_path_identity(output_root)
+        workspace_identity = canonical_path_identity(root)
+        relative = os.path.relpath(output_root, root)
+        common_identity = os.path.commonpath((workspace_identity, output_identity))
+    except (OSError, TypeError, ValueError) as exc:
+        raise EdaExecutionAdmissionError(
+            f"cannot authenticate the Vivado output root: {exc}"
+        ) from exc
+    if (
+        output_identity == workspace_identity
+        or common_identity != workspace_identity
+        or relative == os.pardir
+        or relative.startswith(os.pardir + os.sep)
+    ):
+        raise EdaExecutionAdmissionError(
+            "Vivado output root is outside the admitted working directory"
+        )
+    current = root
+    for component in Path(relative).parts[:-1]:
+        current = current / component
+        try:
+            component_state = os.lstat(current)
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise EdaExecutionAdmissionError(
+                f"cannot authenticate the Vivado output-root ancestry: {exc}"
+            ) from exc
+        if _is_linklike_state(current, component_state) or not stat.S_ISDIR(
+            component_state.st_mode
+        ):
+            raise EdaExecutionAdmissionError(
+                "Vivado output-root ancestry contains a non-directory or linklike entry"
+            )
+    try:
+        os.lstat(output_root)
+    except FileNotFoundError:
+        return output_root
+    except OSError as exc:
+        raise EdaExecutionAdmissionError(
+            f"cannot prove the Vivado output root is absent: {exc}"
+        ) from exc
+    raise EdaExecutionAdmissionError(
+        "Vivado output root already exists; stale or concurrent outputs are refused"
+    )
 
 
 def _validate_workspace_binding(
@@ -1307,6 +1533,8 @@ def _validate_admission(
         )
 
     _validate_canonical_vivado_argv(clean_argv, root=root, plan=plan)
+    _validate_publication_adapter(plan)
+    _validate_fresh_output_root(clean_argv, root=root)
     authoritative_manifest = _validate_authoritative_source(plan)
     workspace_manifest = _validate_workspace_binding(
         clean_argv,
@@ -1337,6 +1565,7 @@ def _validate_admission(
         source_identity_sha256=plan.source_identity_sha256,
         trusted_tcl_sha256=plan.trusted_tcl_sha256,
         launcher_sha256=plan.launcher_sha256,
+        publication_adapter_sha256=plan.publication_adapter_sha256,
         command_interpreter_path=plan.command_interpreter_path,
         command_interpreter_sha256=plan.command_interpreter_sha256,
     )
@@ -1649,82 +1878,278 @@ def _missing_tool_observation(command: str) -> _ProcessObservation:
     )
 
 
+def _is_linklike_state(path: Path, state: os.stat_result) -> bool:
+    """Classify links and Windows reparse points from a no-follow stat."""
+
+    if stat.S_ISLNK(state.st_mode):
+        return True
+    attributes = int(getattr(state, "st_file_attributes", 0))
+    reparse_attribute = int(getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+    if attributes & reparse_attribute:
+        return True
+    if getattr(state, "st_reparse_tag", 0):
+        return True
+    # ``Path.is_junction`` covers Python/Windows combinations whose lstat
+    # surface does not expose one of the attributes above.
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction is not None and is_junction())
+
+
+def _stable_output_bytes(
+    root: Path,
+    path: Path,
+    *,
+    relative: str,
+) -> _NativeArtifactBytes:
+    """Read one regular output while binding its stable filesystem identity."""
+
+    try:
+        initial_state = os.lstat(path)
+    except OSError as exc:
+        raise EdaExecutionAdmissionError(
+            f"output artifact {relative!r} cannot be inspected"
+        ) from exc
+    if _is_linklike_state(path, initial_state) or not stat.S_ISREG(
+        initial_state.st_mode
+    ):
+        raise EdaExecutionAdmissionError(
+            f"output artifact {relative!r} is not a regular non-link file"
+        )
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise EdaExecutionAdmissionError(
+            f"output artifact {relative!r} cannot be resolved"
+        ) from exc
+    if not _inside(root, resolved):
+        raise EdaExecutionAdmissionError(
+            f"output artifact {relative!r} escaped cwd after execution"
+        )
+
+    with resolved.open("rb") as handle:
+        before = os.fstat(handle.fileno())
+        if not stat.S_ISREG(before.st_mode):
+            raise EdaExecutionAdmissionError(
+                f"output artifact {relative!r} is not a regular file"
+            )
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        after = os.fstat(handle.fileno())
+
+    try:
+        path_state = os.lstat(path)
+        resolved_after = path.resolve(strict=True)
+    except OSError as exc:
+        raise EdaExecutionAdmissionError(
+            f"output artifact {relative!r} changed path identity during read"
+        ) from exc
+    if (
+        _is_linklike_state(path, path_state)
+        or not stat.S_ISREG(path_state.st_mode)
+        or canonical_path_identity(resolved_after) != canonical_path_identity(resolved)
+    ):
+        raise EdaExecutionAdmissionError(
+            f"output artifact {relative!r} changed path identity during read"
+        )
+    before_identity = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    )
+    after_identity = (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    )
+    path_identity = (
+        path_state.st_dev,
+        path_state.st_ino,
+        path_state.st_size,
+        path_state.st_mtime_ns,
+    )
+    if (
+        before_identity != after_identity
+        or before_identity != path_identity
+        or total != after.st_size
+    ):
+        raise EdaExecutionAdmissionError(
+            f"output artifact {relative!r} changed while its bytes were read"
+        )
+    payload = b"".join(chunks)
+    return _NativeArtifactBytes(
+        path=relative,
+        payload=payload,
+        sha256=hashlib.sha256(payload).hexdigest(),
+    )
+
+
 def _read_declared_artifacts(
     root: Path,
     declared: tuple[tuple[str, Path], ...],
     observation: _ProcessObservation,
-) -> tuple[_ProcessObservation, tuple[_NativeArtifactBytes, ...], tuple[str, ...]]:
-    artifacts: list[_NativeArtifactBytes] = []
-    missing: list[str] = []
-    for relative, planned_path in declared:
-        if planned_path.is_symlink() or not planned_path.is_file():
-            missing.append(relative)
-            continue
-        resolved = planned_path.resolve(strict=True)
-        if not _inside(root, resolved):
+    *,
+    output_root: Path,
+) -> tuple[
+    _ProcessObservation,
+    tuple[_NativeArtifactBytes, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+]:
+    """Retain the exact declared files and fail-closed unexpected tree state."""
+
+    root = root.resolve(strict=True)
+    output_root = output_root.absolute()
+    try:
+        output_relative_path = output_root.relative_to(root)
+        output_relative = output_relative_path.as_posix()
+    except ValueError as exc:
+        raise EdaExecutionAdmissionError(
+            "Vivado output root escaped cwd after execution"
+        ) from exc
+
+    current = root
+    for component in output_relative_path.parts[:-1]:
+        current = current / component
+        try:
+            component_state = os.lstat(current)
+        except FileNotFoundError:
+            break
+        except OSError as exc:
             raise EdaExecutionAdmissionError(
-                f"declared artifact {relative!r} escaped cwd after execution"
-            )
-        with resolved.open("rb") as handle:
-            before = os.fstat(handle.fileno())
-            if not stat.S_ISREG(before.st_mode):
-                raise EdaExecutionAdmissionError(
-                    f"declared artifact {relative!r} is not a regular file"
-                )
-            chunks: list[bytes] = []
-            total = 0
-            while True:
-                chunk = handle.read(1024 * 1024)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                total += len(chunk)
-            after = os.fstat(handle.fileno())
-        if resolved.is_symlink() or not resolved.is_file():
-            raise EdaExecutionAdmissionError(
-                f"declared artifact {relative!r} changed path identity during read"
-            )
-        path_state = os.stat(resolved, follow_symlinks=False)
-        before_identity = (
-            before.st_dev,
-            before.st_ino,
-            before.st_size,
-            before.st_mtime_ns,
-        )
-        after_identity = (
-            after.st_dev,
-            after.st_ino,
-            after.st_size,
-            after.st_mtime_ns,
-        )
-        path_identity = (
-            path_state.st_dev,
-            path_state.st_ino,
-            path_state.st_size,
-            path_state.st_mtime_ns,
-        )
-        if (
-            before_identity != after_identity
-            or before_identity != path_identity
-            or total != after.st_size
+                "Vivado output-root ancestry cannot be inspected"
+            ) from exc
+        if _is_linklike_state(current, component_state) or not stat.S_ISDIR(
+            component_state.st_mode
         ):
             raise EdaExecutionAdmissionError(
-                f"declared artifact {relative!r} changed while its bytes were read"
+                "Vivado output-root ancestry contains a non-directory or linklike entry"
             )
-        payload = b"".join(chunks)
-        artifacts.append(
-            _NativeArtifactBytes(
-                path=relative,
-                payload=payload,
-                sha256=hashlib.sha256(payload).hexdigest(),
+
+    declared_paths: set[str] = set()
+    for relative, planned_path in declared:
+        try:
+            planned_relative = planned_path.absolute().relative_to(root).as_posix()
+        except ValueError as exc:
+            raise EdaExecutionAdmissionError(
+                f"declared artifact {relative!r} escaped cwd after execution"
+            ) from exc
+        if planned_relative != relative:
+            raise EdaExecutionAdmissionError(
+                f"declared artifact {relative!r} changed lexical identity"
+            )
+        if relative in declared_paths:
+            raise EdaExecutionAdmissionError(
+                f"declared artifact {relative!r} is duplicated"
+            )
+        declared_paths.add(relative)
+
+    retained_declared: dict[str, _NativeArtifactBytes] = {}
+    retained_unexpected: list[_NativeArtifactBytes] = []
+    unexpected: set[str] = set()
+
+    try:
+        root_state = os.lstat(output_root)
+    except FileNotFoundError:
+        root_state = None
+    except OSError as exc:
+        raise EdaExecutionAdmissionError(
+            "Vivado output root cannot be inspected after execution"
+        ) from exc
+
+    if root_state is not None and _is_linklike_state(output_root, root_state):
+        unexpected.add(output_relative)
+    elif root_state is not None and stat.S_ISREG(root_state.st_mode):
+        unexpected.add(output_relative)
+        retained_unexpected.append(
+            _stable_output_bytes(
+                root,
+                output_root,
+                relative=output_relative,
             )
         )
+    elif root_state is not None and not stat.S_ISDIR(root_state.st_mode):
+        unexpected.add(output_relative)
+    elif root_state is not None:
+        pending = [output_root]
+        while pending:
+            directory = pending.pop()
+            try:
+                directory_state = os.lstat(directory)
+                if _is_linklike_state(directory, directory_state) or not stat.S_ISDIR(
+                    directory_state.st_mode
+                ):
+                    raise EdaExecutionAdmissionError(
+                        "Vivado output directory changed identity during inventory"
+                    )
+                with os.scandir(directory) as iterator:
+                    entries = sorted(iterator, key=lambda entry: entry.name)
+            except OSError as exc:
+                raise EdaExecutionAdmissionError(
+                    "Vivado output tree cannot be completely inventoried"
+                ) from exc
+            child_directories: list[Path] = []
+            for entry in entries:
+                path = Path(entry.path)
+                try:
+                    relative = path.absolute().relative_to(root).as_posix()
+                    state = entry.stat(follow_symlinks=False)
+                except (OSError, ValueError) as exc:
+                    raise EdaExecutionAdmissionError(
+                        "Vivado output entry cannot be safely inventoried"
+                    ) from exc
+                if _is_linklike_state(path, state):
+                    unexpected.add(relative)
+                    continue
+                if stat.S_ISDIR(state.st_mode):
+                    unexpected.add(relative)
+                    child_directories.append(path)
+                    continue
+                if not stat.S_ISREG(state.st_mode):
+                    unexpected.add(relative)
+                    continue
+                artifact = _stable_output_bytes(
+                    root,
+                    path,
+                    relative=relative,
+                )
+                if relative in declared_paths:
+                    retained_declared[relative] = artifact
+                else:
+                    unexpected.add(relative)
+                    retained_unexpected.append(artifact)
+            # Reverse push order so the next pop preserves lexical traversal;
+            # the externally bound unexpected inventory is sorted below too.
+            pending.extend(reversed(child_directories))
 
-    if missing and observation.terminal_outcome == "COMPLETED":
-        suffix = (
-            "declared EDA artifacts missing after successful process exit: "
-            + ", ".join(missing)
-        ).encode("utf-8")
+    missing = tuple(
+        relative for relative, _path in declared if relative not in retained_declared
+    )
+    artifacts = tuple(
+        [
+            retained_declared[relative]
+            for relative, _path in declared
+            if relative in retained_declared
+        ]
+        + sorted(retained_unexpected, key=lambda artifact: artifact.path)
+    )
+    unexpected_paths = tuple(sorted(unexpected))
+    problems: list[str] = []
+    if missing:
+        problems.append("declared EDA artifacts missing: " + ", ".join(missing))
+    if unexpected_paths:
+        problems.append(
+            "unexpected EDA output tree entries: " + ", ".join(unexpected_paths)
+        )
+    if problems and observation.terminal_outcome == "COMPLETED":
+        suffix = "; ".join(problems).encode("utf-8")
         separator = b"\n" if observation.stderr else b""
         observation = _ProcessObservation(
             status="failed",
@@ -1735,7 +2160,7 @@ def _read_declared_artifacts(
             terminal_outcome="FAILED",
             process_spawned=observation.process_spawned,
         )
-    return observation, tuple(artifacts), tuple(missing)
+    return observation, artifacts, missing, unexpected_paths
 
 
 def _store_observation(
@@ -1749,6 +2174,7 @@ def _store_observation(
     observation: _ProcessObservation,
     native_artifacts: tuple[_NativeArtifactBytes, ...],
     missing_artifact_paths: tuple[str, ...],
+    unexpected_artifact_paths: tuple[str, ...],
     plan: EdaExecutionPlan,
     pre_workspace_manifest: VivadoProjectManifest,
     pre_authoritative_manifest: VivadoProjectManifest,
@@ -1837,6 +2263,7 @@ def _store_observation(
 
     retained_artifacts: list[ExecutionArtifact] = []
     for artifact in native_artifacts:
+        declared_output = artifact.path in plan.artifact_paths
         locator = artifact_store.put_bytes(
             artifact.payload,
             expected_sha256=artifact.sha256,
@@ -1844,7 +2271,8 @@ def _store_observation(
             metadata={
                 "kind": "eda_native_artifact",
                 "execution_id": execution.execution_id,
-                "declared_path": artifact.path,
+                "output_path": artifact.path,
+                "declared_output": declared_output,
                 "filename_hint": Path(artifact.path).name,
             },
             provenance=ContractProvenance(
@@ -1930,6 +2358,7 @@ def _store_observation(
         "stderr_locator": stderr_locator.locator_uri,
         "artifacts": [asdict(artifact) for artifact in retained_artifacts],
         "missing_artifact_paths": list(missing_artifact_paths),
+        "unexpected_artifact_paths": list(unexpected_artifact_paths),
         "pre_workspace_manifest_sha256": pre_workspace_manifest.sha256,
         "pre_workspace_source_identity_sha256": (
             pre_workspace_manifest.source_identity_sha256
@@ -2192,6 +2621,8 @@ def run_admitted_eda(
                         environment=environment,
                         plan=plan,
                     ),
+                    _validate_publication_adapter(plan),
+                    _validate_fresh_output_root(clean_argv, root=root),
                 ),
             )
         else:
@@ -2265,10 +2696,16 @@ def run_admitted_eda(
             )
 
     try:
-        observation, native_artifacts, missing_artifacts = _read_declared_artifacts(
+        (
+            observation,
+            native_artifacts,
+            missing_artifacts,
+            unexpected_artifacts,
+        ) = _read_declared_artifacts(
             root,
             declared_artifacts,
             observation,
+            output_root=Path(clean_argv[12]),
         )
         stored = _store_observation(
             artifact_store=artifact_store,
@@ -2280,6 +2717,7 @@ def run_admitted_eda(
             observation=observation,
             native_artifacts=native_artifacts,
             missing_artifact_paths=missing_artifacts,
+            unexpected_artifact_paths=unexpected_artifacts,
             plan=plan,
             pre_workspace_manifest=pre_workspace_manifest,
             pre_authoritative_manifest=pre_authoritative_manifest,
@@ -2387,6 +2825,7 @@ def run_admitted_eda(
         ),
         artifacts=stored.artifacts,
         missing_artifact_paths=missing_artifacts,
+        unexpected_artifact_paths=unexpected_artifacts,
     )
 
 

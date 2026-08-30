@@ -259,6 +259,30 @@ formal, Vitis and hardware-in-the-loop evidence.
 - retain every negative result and distinguish builder evidence from independent
   review.
 
+## Contract and recovery verification at 2026-08-30
+
+The final frozen package snapshot passed the complete focused EDA, kernel,
+effect-boundary, CLI and recovery selection with `397 passed, 4 skipped`.
+The package-owned publication-adapter fingerprint was identical before and
+after that run:
+`864c5c2ba74f1d4c1b9be9f7e573c8f1c3f719e4131ef55b3219ae4a85853245`.
+Syntax compilation and the EDA-scoped diff check were also clean.
+
+Create and restart now consume the same strict publication-graph verifier. It
+reconstructs the raw execution receipt from the durable ledger and canonical
+Artifact Store, binds the exact plan, lifecycle, runtime, mission, attempt and
+policy contracts, requires the complete manifest/Tcl/console/native-output
+role inventory, and keeps the Evidence Packet `inconclusive` with an
+`unverified` item. Adversarial tests retain the negative evidence: claim
+inflation, a missing trusted-Tcl role and an incomplete raw receipt are all
+refused before a discoverable publication index is written. The real CLI
+integration test proves create, inert restart and authority/CAS-only index
+rebuild without constructing a second process.
+
+This is contract, recovery and boundary evidence, not a Vivado or FPGA
+signoff. No new live Vivado process, hardware programming action, promotion or
+Gate transition was performed for this verification.
+
 Iron Plan: **ALIGNED**
 Iron Gate: **1**
 Evidence: **required by the acceptance matrix; no promotion requested**

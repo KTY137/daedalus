@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,6 +21,7 @@ from daedalus.chip_design.executor import (
 )
 from daedalus.chip_design.execution_plan import (
     EdaExecutionPlan,
+    publication_adapter_sha256,
     sanitized_eda_environment,
     trusted_windows_command_interpreter,
 )
@@ -330,6 +332,7 @@ def _bound_inputs(
         source_identity_sha256=manifest.source_identity_sha256,
         trusted_tcl_sha256=trusted_vivado_tcl().sha256,
         launcher_sha256=trusted_launcher_sha256(argv[0]),
+        publication_adapter_sha256=publication_adapter_sha256(),
         command_interpreter_path=command_interpreter_path,
         command_interpreter_sha256=command_interpreter_sha256,
     )
@@ -517,6 +520,27 @@ def test_recover_retained_execution_roundtrip_uses_only_authenticated_cas(
     )
     monkeypatch.setattr(executor_module, "trusted_vivado_tcl", forbidden_live_read)
 
+    # A corrupt blob behind an unrelated global locator must not veto this
+    # execution's recovery: candidate discovery authenticates locator metadata
+    # first and verifies only the matching raw-receipt locator.
+    receipt_locator = store.load_locator(result.receipt_locator.rsplit(":", 1)[-1])
+    unrelated = store.put_bytes(
+        b"unrelated global CAS payload\n",
+        media_type="application/octet-stream",
+        metadata={"kind": "unrelated-test-artifact"},
+        provenance=receipt_locator.provenance,
+    )
+    unrelated.blob_path.write_bytes(b"corrupt unrelated blob\n")
+
+    original_get_bytes = store.get_bytes
+    payload_reads: list[str] = []
+
+    def tracked_get_bytes(digest: str) -> bytes:
+        payload_reads.append(digest)
+        return original_get_bytes(digest)
+
+    monkeypatch.setattr(store, "get_bytes", tracked_get_bytes)
+
     recovered = recover_retained_execution(
         artifact_store=store,
         execution=execution,
@@ -526,6 +550,8 @@ def test_recover_retained_execution_roundtrip_uses_only_authenticated_cas(
 
     assert recovered.plan == plan
     assert recovered.result == result
+    assert payload_reads == [result.receipt_sha256]
+    monkeypatch.setattr(store, "get_bytes", original_get_bytes)
     assert recovered.receipt_payload == _artifact_bytes(
         store,
         result.receipt_locator,
@@ -533,6 +559,50 @@ def test_recover_retained_execution_roundtrip_uses_only_authenticated_cas(
     assert recovered.receipt_body == json.loads(recovered.receipt_payload)
     for artifact in recovered.result.artifacts:
         assert _artifact_bytes(store, artifact.locator).startswith(b"retained ")
+
+
+def test_recovery_streams_large_console_without_loading_terminal_payloads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    events: list[str] = []
+    large_stdout = b"a" * (1024 * 1024 - 1) + "€".encode() + b"z" * 200_000
+    _install_fakes(monkeypatch, events, stdout=large_stdout)
+    monkeypatch.setattr(
+        executor_module,
+        "_utc_timestamp",
+        lambda: "2026-08-30T10:00:00.500000+00:00",
+    )
+    authorization = _FakeAuthorization(events)
+    store = _store(tmp_path)
+    bound = _bound_inputs(
+        tmp_path,
+        work,
+        store=store,
+        authorization=authorization,
+    )
+    result = run_admitted_eda(authorization=authorization, **bound)
+    assert result.truncated is True
+
+    original_get_bytes = store.get_bytes
+    payload_reads: list[str] = []
+
+    def tracked_get_bytes(digest: str) -> bytes:
+        payload_reads.append(digest)
+        return original_get_bytes(digest)
+
+    monkeypatch.setattr(store, "get_bytes", tracked_get_bytes)
+    recovered = recover_retained_execution(
+        artifact_store=store,
+        execution=bound["execution"],
+        start_receipt=result.start_receipt,
+        terminal_receipt=result.terminal_receipt,
+    )
+
+    assert recovered.result == result
+    assert payload_reads == [result.receipt_sha256]
 
 
 def test_recover_retained_execution_refuses_raw_receipt_blob_tamper(
@@ -558,10 +628,46 @@ def test_recover_retained_execution_refuses_raw_receipt_blob_tamper(
         )
 
 
+def test_recovery_refuses_oversized_raw_receipt_before_loading_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _work, store, execution, _plan, result = _successful_retained_execution(
+        tmp_path,
+        monkeypatch,
+    )
+    original = store.load_locator(result.receipt_locator.rsplit(":", 1)[-1])
+    oversized = store.put_bytes(
+        b"x" * (executor_module._MAX_RECEIPT_BYTES + 1),
+        media_type="application/json",
+        metadata=original.metadata,
+        provenance=original.provenance,
+    )
+    outputs = set(result.terminal_receipt.output_digests)
+    outputs.remove(result.receipt_sha256)
+    outputs.add(oversized.artifact_sha256)
+    terminal = replace(
+        result.terminal_receipt,
+        output_digests=tuple(sorted(outputs)),
+    )
+
+    def forbidden_payload_load(_digest: str) -> bytes:
+        raise AssertionError("oversized receipt payload was loaded")
+
+    monkeypatch.setattr(store, "get_bytes", forbidden_payload_load)
+    with pytest.raises(EdaExecutionError, match="exceeds the recovery limit"):
+        recover_retained_execution(
+            artifact_store=store,
+            execution=execution,
+            start_receipt=result.start_receipt,
+            terminal_receipt=terminal,
+        )
+
+
 @pytest.mark.parametrize(
     ("missing_member", "error_type", "message"),
     (
-        ("blob", ArtifactNotFound, "artifact blob is missing"),
+        ("blob", ArtifactNotFound, "artifact (?:blob|object) is missing"),
         ("locator", EdaExecutionError, "no unique raw-receipt locator"),
     ),
 )
@@ -618,6 +724,52 @@ def test_recover_retained_execution_refuses_wrong_output_partition(
         EdaExecutionError,
         match="outputs do not partition the execution plan",
     ):
+        recover_retained_execution(
+            artifact_store=store,
+            execution=execution,
+            start_receipt=result.start_receipt,
+            terminal_receipt=terminal,
+        )
+
+
+def test_recover_retained_execution_refuses_unsorted_unexpected_inventory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _work, store, execution, _plan, result = _successful_retained_execution(
+        tmp_path,
+        monkeypatch,
+    )
+
+    def inject_unsorted_inventory(body: dict[str, object]) -> None:
+        body["status"] = "failed"
+        body["intended_effect_terminal_outcome"] = "FAILED"
+        body["unexpected_artifact_paths"] = [
+            ".daedalus-chip/eda-output/z",
+            ".daedalus-chip/eda-output/a",
+        ]
+
+    terminal = _terminal_bound_modified_receipt(
+        store,
+        result,
+        inject_unsorted_inventory,
+    )
+    failed_terminal_body = {
+        "lease_sha256": terminal.lease_sha256,
+        "execution_id": terminal.execution_id,
+        "start_receipt_sha256": terminal.start_receipt_sha256,
+        "outcome": "FAILED",
+        "output_digests": list(terminal.output_digests),
+        "detail_sha256": terminal.detail_sha256,
+        "finished_at": terminal.finished_at,
+    }
+    terminal = replace(
+        terminal,
+        outcome="FAILED",
+        receipt_sha256=executor_module.canonical_sha(failed_terminal_body),
+    )
+
+    with pytest.raises(EdaExecutionError, match="inventory is not sorted"):
         recover_retained_execution(
             artifact_store=store,
             execution=execution,
@@ -1009,10 +1161,11 @@ def test_success_persists_console_receipt_and_declared_artifact_before_terminal(
     )
 
     receipt = json.loads(_artifact_bytes(store, result.receipt_locator or ""))
-    assert receipt["schema"] == "daedalus.eda-execution-receipt/2"
+    assert receipt["schema"] == "daedalus.eda-execution-receipt/3"
     assert receipt["intended_effect_terminal_outcome"] == "COMPLETED"
     assert receipt["effect_start_receipt"]["receipt_sha256"] == "d" * 64
     assert receipt["artifacts"][0]["sha256"] == result.artifacts[0].sha256
+    assert receipt["unexpected_artifact_paths"] == []
     assert result.receipt_sha256 in result.terminal_receipt.output_digests
     assert result.artifacts[0].sha256 in result.terminal_receipt.output_digests
 
@@ -1189,6 +1342,121 @@ def test_pre_spawn_workspace_drift_never_constructs_process(
     assert result.terminal_receipt.outcome == "FAILED"
     assert "spawn" not in events
     assert events == ["grant", "begin", "finish"]
+
+
+def test_preexisting_vivado_output_root_is_refused_before_grant_or_spawn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    events: list[str] = []
+    _install_fakes(monkeypatch, events)
+    authorization = _FakeAuthorization(events)
+    bound = _bound_inputs(tmp_path, work, authorization=authorization)
+    output_root = Path(bound["argv"][12])
+    output_root.mkdir(parents=True)
+    stale = output_root / "inspect_summary.txt"
+    stale.write_bytes(b"stale output must not be reused\n")
+
+    with pytest.raises(EdaExecutionAdmissionError, match="output root already exists"):
+        run_admitted_eda(authorization=authorization, **bound)
+
+    assert events == []
+    assert stale.read_bytes() == b"stale output must not be reused\n"
+
+
+def test_publication_adapter_mismatch_is_refused_before_grant_or_spawn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    events: list[str] = []
+    _install_fakes(monkeypatch, events)
+    authorization = _FakeAuthorization(events)
+    bound = _bound_inputs(tmp_path, work, authorization=authorization)
+    plan = bound["plan"]
+    assert isinstance(plan, EdaExecutionPlan)
+    stale_plan = replace(plan, publication_adapter_sha256="f" * 64)
+    execution = _execution(stale_plan.digest)
+    authorization.request.operation_sha256 = stale_plan.digest
+
+    with pytest.raises(EdaExecutionAdmissionError, match="publication adapter identity"):
+        run_admitted_eda(
+            authorization=authorization,
+            **{**bound, "plan": stale_plan, "execution": execution},
+        )
+
+    assert events == []
+
+
+def test_publication_adapter_drift_after_started_never_constructs_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    events: list[str] = []
+    _install_fakes(monkeypatch, events)
+    authorization = _FakeAuthorization(events)
+    bound = _bound_inputs(tmp_path, work, authorization=authorization)
+    plan = bound["plan"]
+    assert isinstance(plan, EdaExecutionPlan)
+    calls = 0
+
+    def drifting_adapter() -> str:
+        nonlocal calls
+        calls += 1
+        return plan.publication_adapter_sha256 if calls == 1 else "f" * 64
+
+    monkeypatch.setattr(
+        executor_module,
+        "publication_adapter_sha256",
+        drifting_adapter,
+    )
+    result = run_admitted_eda(authorization=authorization, **bound)
+
+    assert calls == 2
+    assert result.status == "error"
+    assert result.executed is False
+    assert result.terminal_receipt is not None
+    assert result.terminal_receipt.outcome == "FAILED"
+    assert "spawn" not in events
+    assert events == ["grant", "begin", "finish"]
+
+
+def test_output_root_created_after_admission_is_retained_failed_without_spawn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    events: list[str] = []
+    _install_fakes(monkeypatch, events)
+    authorization = _FakeAuthorization(events)
+    bound = _bound_inputs(tmp_path, work, authorization=authorization)
+    output_root = Path(bound["argv"][12])
+    unexpected = output_root / "late.txt"
+
+    def create_output_root_during_authority_check() -> None:
+        authorization.verify_calls += 1
+        output_root.mkdir(parents=True)
+        unexpected.write_bytes(b"late concurrent output\n")
+
+    authorization.verify = create_output_root_during_authority_check  # type: ignore[method-assign]
+    result = run_admitted_eda(authorization=authorization, **bound)
+
+    relative = unexpected.relative_to(work).as_posix()
+    assert result.status == "error"
+    assert result.executed is False
+    assert result.unexpected_artifact_paths == (relative,)
+    assert tuple(artifact.path for artifact in result.artifacts) == (relative,)
+    assert result.terminal_receipt is not None
+    assert result.terminal_receipt.outcome == "FAILED"
+    assert "spawn" not in events
+    assert events == ["grant", "begin", "finish"]
+    assert unexpected.read_bytes() == b"late concurrent output\n"
 
 
 def test_pre_spawn_trusted_tcl_drift_never_constructs_process(
@@ -1595,6 +1863,7 @@ def test_declared_artifact_read_refuses_identity_drift(
             root,
             ((".daedalus-chip/eda-output/inspect_summary.txt", artifact),),
             observation,
+            output_root=root / ".daedalus-chip" / "eda-output",
         )
 
 
@@ -1619,6 +1888,102 @@ def test_missing_declared_output_turns_zero_exit_into_failed_receipt(
     )
     assert result.terminal_receipt is not None
     assert result.terminal_receipt.outcome == "FAILED"
+
+
+def test_unexpected_output_tree_is_sorted_retained_and_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    events: list[str] = []
+    output_root = work / ".daedalus-chip" / "eda-output"
+    monkeypatch.setattr(
+        executor_module,
+        "_utc_timestamp",
+        lambda: "2026-08-30T10:00:00.500000+00:00",
+    )
+
+    def add_unexpected_tree() -> None:
+        (output_root / "extra.txt").write_bytes(b"unexpected regular file\n")
+        nested = output_root / "extra-dir" / "nested.bin"
+        nested.parent.mkdir()
+        nested.write_bytes(b"unexpected nested bytes\n")
+
+    _install_fakes(monkeypatch, events, after_spawn=add_unexpected_tree)
+    authorization = _FakeAuthorization(events)
+    bound = _bound_inputs(tmp_path, work, authorization=authorization)
+    result = run_admitted_eda(authorization=authorization, **bound)
+
+    expected_unexpected = (
+        ".daedalus-chip/eda-output/extra-dir",
+        ".daedalus-chip/eda-output/extra-dir/nested.bin",
+        ".daedalus-chip/eda-output/extra.txt",
+    )
+    assert result.status == "failed"
+    assert result.terminal_receipt is not None
+    assert result.terminal_receipt.outcome == "FAILED"
+    assert result.unexpected_artifact_paths == expected_unexpected
+    assert tuple(artifact.path for artifact in result.artifacts) == (
+        ".daedalus-chip/eda-output/inspect_summary.txt",
+        ".daedalus-chip/eda-output/extra-dir/nested.bin",
+        ".daedalus-chip/eda-output/extra.txt",
+    )
+    assert _artifact_bytes(bound["artifact_store"], result.artifacts[1].locator) == (
+        b"unexpected nested bytes\n"
+    )
+    receipt = json.loads(_artifact_bytes(bound["artifact_store"], result.receipt_locator))
+    assert receipt["unexpected_artifact_paths"] == list(expected_unexpected)
+    assert {artifact.sha256 for artifact in result.artifacts}.issubset(
+        result.terminal_receipt.output_digests
+    )
+    recovered = recover_retained_execution(
+        artifact_store=bound["artifact_store"],
+        execution=bound["execution"],
+        start_receipt=result.start_receipt,
+        terminal_receipt=result.terminal_receipt,
+    )
+    assert recovered.result == result
+
+
+def test_linklike_output_entry_is_reported_without_following_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    outside = tmp_path / "outside.bin"
+    outside.write_bytes(b"must never be retained through output link\n")
+    events: list[str] = []
+    output_root = work / ".daedalus-chip" / "eda-output"
+
+    def add_output_link() -> None:
+        try:
+            (output_root / "linked.bin").symlink_to(outside)
+        except OSError as exc:  # pragma: no cover - host privilege dependent
+            pytest.skip(f"host cannot create a test symlink: {exc}")
+
+    _install_fakes(monkeypatch, events, after_spawn=add_output_link)
+    authorization = _FakeAuthorization(events)
+    bound = _bound_inputs(tmp_path, work, authorization=authorization)
+    result = run_admitted_eda(authorization=authorization, **bound)
+
+    linked = ".daedalus-chip/eda-output/linked.bin"
+    assert result.status == "failed"
+    assert result.unexpected_artifact_paths == (linked,)
+    assert linked not in {artifact.path for artifact in result.artifacts}
+    assert all(
+        _artifact_bytes(bound["artifact_store"], artifact.locator)
+        != outside.read_bytes()
+        for artifact in result.artifacts
+    )
+
+
+def test_windows_reparse_attribute_is_linklike_without_following(
+    tmp_path: Path,
+) -> None:
+    state = SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=0x400)
+    assert executor_module._is_linklike_state(tmp_path / "junction", state)
 
 
 def test_artifact_store_fault_after_process_requires_reconciliation(
