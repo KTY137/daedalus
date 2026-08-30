@@ -1,0 +1,133 @@
+{
+  "schema": "daedalus-branch-consolidation-failed-runs/2",
+  "captured_at": "2026-08-30T08:25:00Z",
+  "repository": "KTY137/daedalus",
+  "reviewed_revisions": [
+    {"merge_commit": "990dcee22de262dc32de930f30ddaf6ead0a6be8", "head_commit": "8a2c85ddc9cf4983e7499d666a9bd9640e284fae", "pull_request": 297, "archive_tags": false},
+    {"merge_commit": "1a256e85c08aedf1221d673a154e2bea18b53b60", "head_commit": "a2a7497a44cdef95836f66fdadc68b9ae569a8b3", "pull_request": 299, "archive_tags": false},
+    {"merge_commit": "e1ca9aa43c5d6b84091d0f082962e040c04e0a13", "head_commit": "8eec8a587bb0a54030b08f193deccb52938455b2", "pull_request": 300, "archive_tags": true},
+    {"merge_commit": "ee6fb0258396e95464007c52bdd6af4f0c0565e0", "head_commit": "5c0de8eefff91dc6b6176c4f828675f8955b285a", "pull_request": 301, "archive_tags": true}
+  ],
+  "post_review_reintroduction": {
+    "latest_main_observed": "d8e496e8464a01d6a3eae49a00ef54333b4fb1c2",
+    "closed_unmerged_trigger_pull_request": 302,
+    "closed_unmerged_trigger_head": "79a7efc86cf156aef04e58b60b0ffc993cb966f3",
+    "one_shot_workflow_id": 345762808,
+    "one_shot_workflow_state_before_yaml_removal": "disabled_manually",
+    "one_shot_runs_after_reintroduction": 0,
+    "pr_close_workflow_removed_at": "4aabe8d814e5220c7976e42a41fb2eae87b1856f",
+    "final_trigger_removed_at": "4877561cfb6ca41711e051f8f0f9ef0185d1ef8d",
+    "final_workflow_id": 345773763,
+    "final_workflow_state_before_yaml_removal": "disabled_manually",
+    "final_workflow_runs_before_retirement": 2,
+    "final_runner_revision": "d8e496e8464a01d6a3eae49a00ef54333b4fb1c2"
+  },
+  "outcome": {
+    "manifest_written_by_workflow": false,
+    "direct_recovery_manifest_commit": "dd0cf6e7fbf615d05e03d9035f5b6ce957827885",
+    "pull_requests_closed_by_workflow": 0,
+    "refs_deleted_by_workflow": 0,
+    "workflow_payload_executed": false
+  },
+  "retirement": {
+    "reason": "Historical runs remained privileged re-run surfaces for their original workflow SHAs after YAML deletion.",
+    "run_api_state_after_retirement": "404",
+    "runs_deleted_after_capture": true,
+    "retired_run_ids": [33300990182, 33301119775]
+  },
+  "runs": [
+    {
+      "run_id": 33299777141,
+      "workflow": "One-shot branch consolidation 2026-08-30",
+      "event": "push",
+      "head_sha": "990dcee22de262dc32de930f30ddaf6ead0a6be8",
+      "conclusion": "failure",
+      "url": "https://github.com/KTY137/daedalus/actions/runs/33299777141",
+      "attempts": [
+        {"attempt": 1, "job_id": 99225585755, "runner_id": 0, "runner_name": "", "steps": []}
+      ]
+    },
+    {
+      "run_id": 33299852474,
+      "workflow": "One-shot branch consolidation 2026-08-30",
+      "event": "push",
+      "head_sha": "9c5efb1700982784d5eaf53c934ac34dbf5f52b5",
+      "conclusion": "failure",
+      "url": "https://github.com/KTY137/daedalus/actions/runs/33299852474",
+      "attempts": [
+        {"attempt": 1, "job_id": 99225801627, "runner_id": 0, "runner_name": "", "steps": []}
+      ]
+    },
+    {
+      "run_id": 33300035202,
+      "workflow": "Arm branch consolidation 2026-08-30",
+      "event": "pull_request",
+      "head_sha": "a2a7497a44cdef95836f66fdadc68b9ae569a8b3",
+      "conclusion": "failure",
+      "url": "https://github.com/KTY137/daedalus/actions/runs/33300035202",
+      "attempts": [
+        {"attempt": 1, "job_id": 99226318302, "runner_id": 0, "runner_name": "", "steps": []},
+        {"attempt": 2, "job_id": 99226610838, "runner_id": 0, "runner_name": "", "steps": []},
+        {"attempt": 3, "job_id": 99226643970, "runner_id": 0, "runner_name": "", "steps": []}
+      ]
+    },
+    {
+      "run_id": 33300048422,
+      "workflow": "Arm branch consolidation 2026-08-30",
+      "event": "pull_request",
+      "head_sha": "4d161d873f0fb240b77f7f9465cd12adcbee101e",
+      "conclusion": "skipped",
+      "url": "https://github.com/KTY137/daedalus/actions/runs/33300048422",
+      "attempts": [
+        {"attempt": 1, "job_id": 99226358772, "runner_id": null, "runner_name": null, "steps": []}
+      ]
+    },
+    {
+      "run_id": 33300137212,
+      "workflow": "One-shot branch consolidation 2026-08-30",
+      "event": "push",
+      "head_sha": "e1ca9aa43c5d6b84091d0f082962e040c04e0a13",
+      "conclusion": "failure",
+      "url": "https://github.com/KTY137/daedalus/actions/runs/33300137212",
+      "attempts": [
+        {"attempt": 1, "job_id": 99226602172, "runner_id": 0, "runner_name": "", "steps": []},
+        {"attempt": 2, "job_id": 99226942994, "runner_id": 0, "runner_name": "", "steps": []}
+      ]
+    },
+    {
+      "run_id": 33300137492,
+      "workflow": "Arm branch consolidation 2026-08-30",
+      "event": "pull_request",
+      "head_sha": "8eec8a587bb0a54030b08f193deccb52938455b2",
+      "conclusion": "skipped",
+      "url": "https://github.com/KTY137/daedalus/actions/runs/33300137492",
+      "attempts": [
+        {"attempt": 1, "job_id": 99226608446, "runner_id": null, "runner_name": null, "steps": []}
+      ]
+    },
+    {
+      "run_id": 33300990182,
+      "workflow": "Run branch consolidation 2026-08-30",
+      "event": "push",
+      "head_sha": "985459030a8e2d3f880c2ff9f9c1e9efb165bdf1",
+      "conclusion": "failure",
+      "url": "https://github.com/KTY137/daedalus/actions/runs/33300990182",
+      "attempts": [
+        {"attempt": 1, "job_id": 99228987074, "runner_id": 0, "runner_name": "", "steps": []},
+        {"attempt": 2, "job_id": 99229037396, "runner_id": 0, "runner_name": "", "steps": []}
+      ]
+    },
+    {
+      "run_id": 33301119775,
+      "workflow": "Run branch consolidation 2026-08-30",
+      "event": "push",
+      "head_sha": "a1b9e4b0a120931c5d4506c7089f72ab58d8ae89",
+      "conclusion": "failure",
+      "url": "https://github.com/KTY137/daedalus/actions/runs/33301119775",
+      "attempts": [
+        {"attempt": 1, "job_id": 99229347424, "runner_id": 0, "runner_name": "", "steps": []},
+        {"attempt": 2, "job_id": 99229384597, "runner_id": 0, "runner_name": "", "steps": []}
+      ]
+    }
+  ]
+}

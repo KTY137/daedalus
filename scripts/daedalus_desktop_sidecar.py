@@ -48,7 +48,7 @@ def _desktop_project(root: Path) -> dict[str, Any]:
 def prepare_runtime(root: Path | None = None) -> Path:
     """Create desktop-owned runtime dirs and a self-project seed, without overwrite."""
     runtime = (root or bundled_root()).resolve()
-    for relative in ("projects", "runs", "inbox", "outbox", "memory"):
+    for relative in ("projects", "runs", "inbox", "outbox", "memory", "config"):
         (runtime / relative).mkdir(parents=True, exist_ok=True)
 
     project_file = runtime / "projects" / "daedalus.json"
@@ -64,11 +64,32 @@ def main(argv: list[str] | None = None) -> None:
     runtime = prepare_runtime()
     os.chdir(runtime)
 
-    # Import after the runtime exists. Existing modules derive their canonical
-    # roots from __file__, which PyInstaller places below this writable mirror.
-    from daedalus.web_api import main as web_main
+    # Load the existing desktop .env before connection settings are applied so
+    # operator-owned trust lists and provider secrets remain part of the same
+    # process environment. Desktop connection settings intentionally override
+    # only their managed OLLAMA_* transport/model values afterwards.
+    from daedalus.env import load_env
 
-    web_main(argv)
+    load_env(runtime / ".env")
+
+    # Apply desktop connection settings BEFORE importing the web API. Modules
+    # that read OLLAMA_* at import time then see the same endpoint as Ikarus.
+    from daedalus.desktop_runtime import (
+        DesktopRuntimeManager,
+        install_tunnel_egress_policy,
+        install_web_integration,
+    )
+
+    manager = DesktopRuntimeManager(runtime)
+    install_tunnel_egress_policy()
+
+    # One control plane only: extend the existing authenticated/loopback server
+    # instead of starting a second settings/service server beside it.
+    from daedalus import web_api
+
+    install_web_integration(web_api, manager)
+    manager.bootstrap()
+    web_api.main(argv)
 
 
 if __name__ == "__main__":
