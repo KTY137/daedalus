@@ -1,0 +1,265 @@
+{
+  "schema": "daedalus-gardener-branch-topology/1",
+  "observed_date_europe_berlin": "2026-08-30",
+  "repository": "KTY137/daedalus",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "master_plan_blob": "47ebc2e7c44eac07153ff4b4b30395b85ffe9a42",
+    "master_plan_revision": 8,
+    "master_plan_version": "1.3.0",
+    "active_gate": "Gate 1 — Renovation ignition slice",
+    "main_head": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2"
+  },
+  "scope": {
+    "kind": "active-delivery-and-research-pr-checkpoint",
+    "exhaustive_all_repository_refs": false,
+    "reason": "This bounded packet classifies the currently active Gardener, Fourfold/Tensor, evaluation, loop-safety, benchmark, and Ikarus delivery lines. It does not claim visibility into local linked worktrees or every historical remote ref.",
+    "local_worktrees": {
+      "classification": "unknown",
+      "reason": "The GitHub remote API does not expose linked worktrees on the owner machine. No cleanliness, containment, or deletion claim is made for local worktrees."
+    }
+  },
+  "allowed_classifications": [
+    "active_candidate",
+    "required_dependency",
+    "contained_evidence",
+    "historical_evidence",
+    "experiment",
+    "superseded",
+    "unknown"
+  ],
+  "observations": [
+    {
+      "pr": 229,
+      "branch": "ops/continuous-daedalus-loop",
+      "state": "closed",
+      "classification": "historical_evidence",
+      "head": "2159b72bcdb8bf5d452841e9d34e6b11a4a49a5c",
+      "reason": "Closed scheduler packet retained as the exact Git ancestor of PR #240; do not delete its evidence while #240 still depends on its branch history."
+    },
+    {
+      "pr": 240,
+      "branch": "ops/gardener-campaign-20260929",
+      "state": "open-draft",
+      "classification": "active_candidate",
+      "head": "3c5dd7a0b620716a8028edf34a53f0e428a056a2",
+      "git_vs_main": {
+        "status": "diverged",
+        "ahead": 39,
+        "behind": 107,
+        "merge_base": "ab6ff3ef601089bef0f3c112295f0844e722cd2d"
+      },
+      "git_vs_pr229_head": {
+        "status": "ahead",
+        "ahead": 30,
+        "behind": 0,
+        "merge_base": "2159b72bcdb8bf5d452841e9d34e6b11a4a49a5c"
+      },
+      "reason": "Operational campaign work remains useful, but the branch is too stale for a history merge into current main. Reintegrate by a focused current-main re-port after review; retain #229/#240 as evidence until that port exists."
+    },
+    {
+      "pr": 255,
+      "branch": "exp/tensor-latent-ceiling-01",
+      "state": "open-draft",
+      "classification": "experiment",
+      "head": "6095fc466301451a0dada863f771e97ec9f49efb",
+      "git_vs_main": {
+        "status": "diverged",
+        "ahead": 4,
+        "behind": 1,
+        "merge_base": "68721e3208194391d71b0ae64d24157fd1876207"
+      },
+      "reason": "Evidence-first latent headroom experiment. Keep isolated; it does not authorize latent/tensor infrastructure or a production merge."
+    },
+    {
+      "pr": 257,
+      "branch": "g1/ikarus-oneshot-04",
+      "state": "open-draft",
+      "classification": "required_dependency",
+      "head": "310a93dd09aaf011ca99fc4c5448e37f28c4ed33",
+      "reason": "First Git dependency in the current Ikarus one-shot/tool/effect chain."
+    },
+    {
+      "pr": 258,
+      "branch": "fix/loop-finite-bounds-249",
+      "state": "open-draft",
+      "classification": "active_candidate",
+      "head": "35ec14c09400c85e86b8e177c044c330a9586edd",
+      "git_vs_main": {
+        "status": "ahead",
+        "ahead": 4,
+        "behind": 0,
+        "merge_base": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2"
+      },
+      "reason": "Current-main bounded-effects repair for #249. Issue #250 touches the same renderer module and should stack on this line instead of creating a conflicting sibling loop branch."
+    },
+    {
+      "pr": 259,
+      "branch": "g1/ikarus-tool-scope-05",
+      "state": "open-draft",
+      "classification": "required_dependency",
+      "head": "52fa9b755f8e3977a81a97a2b58ce1c759886775",
+      "base_branch": "g1/ikarus-oneshot-04",
+      "reason": "Second Git dependency in the Ikarus one-shot/tool/effect chain."
+    },
+    {
+      "pr": 260,
+      "branch": "nemesis/20260830-tier2-eval-integrity",
+      "state": "open-draft",
+      "classification": "active_candidate",
+      "head": "d7c1b22d870c82ea2023c39a0529132c0367e8ac",
+      "git_vs_main": {
+        "status": "ahead",
+        "ahead": 5,
+        "behind": 0,
+        "merge_base": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2"
+      },
+      "reason": "Current-main Tier-2 integrity line for #252/#253. Issue #268 concerns tier2.py introduced here, so sanitize that renderer by stacking on #260 rather than opening an unrelated main sibling."
+    },
+    {
+      "pr": 262,
+      "branch": "exp/tensor-kernel-contract-01",
+      "state": "open-draft",
+      "classification": "experiment",
+      "head": "4089e7018a570ff9e20c5f28c076488da356a222",
+      "git_vs_main": {
+        "status": "ahead",
+        "ahead": 4,
+        "behind": 0,
+        "merge_base": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2"
+      },
+      "reason": "Contained internal tensor-view experiment. Keep outside the production Fourfold integration line until equal-budget evidence justifies adoption."
+    },
+    {
+      "pr": 263,
+      "branch": "g1/ikarus-effect-bridge-06",
+      "state": "open-draft",
+      "classification": "active_candidate",
+      "head": "5ffbb1125f55c50b0d4f914efd53ba2dcf4191ac",
+      "base_branch": "g1/ikarus-tool-scope-05",
+      "reason": "Tip of the first Ikarus stack: #257 -> #259 -> #263."
+    },
+    {
+      "pr": 264,
+      "branch": "g1/ikarus-provider-pre-admission-07a",
+      "state": "open-draft",
+      "classification": "required_dependency",
+      "head": "c4b651441b4c12958822721a9ddb218098673735",
+      "base_branch": "main",
+      "split_stack_observation": {
+        "compared_against_pr263_head": "5ffbb1125f55c50b0d4f914efd53ba2dcf4191ac",
+        "status": "diverged",
+        "ahead": 6,
+        "behind": 23,
+        "merge_base": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2"
+      },
+      "reason": "Provider pre-admission starts a second sibling stack from main rather than containing #263. Its useful work must be serialized onto the accepted Ikarus line before production integration."
+    },
+    {
+      "pr": 265,
+      "branch": "g1/fourfold-projection-consolidation-main",
+      "state": "open-draft",
+      "classification": "active_candidate",
+      "head": "c6e81d3528f6b28246391c4bbd6d809079b8811e",
+      "git_vs_main": {
+        "status": "ahead",
+        "ahead": 4,
+        "behind": 0,
+        "merge_base": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2"
+      },
+      "reason": "Current-main Fourfold identity consolidation, already selectively re-ported from stale #244. This is the proposed production Fourfold line."
+    },
+    {
+      "pr": 266,
+      "branch": "g1/ikarus-provider-object-registry-07b",
+      "state": "open-draft",
+      "classification": "active_candidate",
+      "head": "05eecc7cef037e8e1114b17cab75c0be606d752c",
+      "base_branch": "g1/ikarus-provider-pre-admission-07a",
+      "reason": "Tip of the second Ikarus stack: #264 -> #266. Do not merge as a sibling beside #263; port this stack after the earlier Ikarus chain is accepted or explicitly rejected."
+    },
+    {
+      "pr": 267,
+      "branch": "g1/benchmark-authority-consolidation-01",
+      "state": "open-draft",
+      "classification": "active_candidate",
+      "head": "7741b0006b04f3c19109cebda667ccf6ac35054f",
+      "git_vs_main": {
+        "status": "ahead",
+        "ahead": 3,
+        "behind": 0,
+        "merge_base": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2"
+      },
+      "reason": "Current-main gardening packet that removes a parallel live benchmark authority and routes comparative evidence toward canonical eval."
+    }
+  ],
+  "proposed_canonical_lines": [
+    {
+      "area": "loop-safety",
+      "order": ["main", "PR#258", "issue#250-follow-up"],
+      "action": "stack-next-fix",
+      "reason": "#249 and #250 both modify daedalus/loop.py; one serialized safety line avoids conflicting sibling edits."
+    },
+    {
+      "area": "fourfold-production",
+      "order": ["main", "PR#265"],
+      "action": "review-current-main-port",
+      "reason": "#265 is already the current-main selective port and removes duplicate Fourfold identity logic."
+    },
+    {
+      "area": "tensor-research",
+      "order": ["PR#255", "PR#262"],
+      "action": "retain-isolated-evidence",
+      "reason": "These are experiments, not a production chain. No automatic merge is proposed; measured headroom and ablations decide whether the track survives."
+    },
+    {
+      "area": "tier2-evaluation",
+      "order": ["main", "PR#260", "issue#268-follow-up"],
+      "action": "stack-next-fix",
+      "reason": "#268 affects renderer code introduced by #260; stacking preserves one Tier-2 authority and one review line."
+    },
+    {
+      "area": "benchmark-authority",
+      "order": ["main", "PR#267"],
+      "action": "review-current-main-port",
+      "reason": "The packet reduces duplicate evaluator authority instead of adding another benchmark engine."
+    },
+    {
+      "area": "ikarus-runtime",
+      "order": ["main", "PR#257", "PR#259", "PR#263", "selective-port(PR#264)", "PR#266"],
+      "action": "serialize-sibling-stacks-after-review",
+      "reason": "The current Git topology is split: #257->#259->#263 and main->#264->#266. #264 and #263 diverge at current main, so a blind sibling merge would create two simultaneous implementation truths."
+    },
+    {
+      "area": "gardener-operations",
+      "order": ["historical-PR#229", "PR#240", "future-current-main-re-port"],
+      "action": "selective-re-port-required",
+      "reason": "#240 contains #229 but is 107 commits behind current main. Keep evidence, do not history-merge; extract the still-useful scheduler/campaign surface onto current main in a bounded packet."
+    }
+  ],
+  "safe_actions_performed": [
+    "read current Masterplan identity",
+    "read current main HEAD",
+    "inspect selected active PR metadata",
+    "measure main-relative ahead/behind and merge-base for active Gardener lines",
+    "measure the Ikarus split-stack divergence",
+    "record one proposed canonical line per inspected delivery area"
+  ],
+  "actions_not_performed": [
+    "merge",
+    "rebase",
+    "force-update",
+    "branch deletion",
+    "PR closure",
+    "OwnerApproval issuance",
+    "promotion",
+    "Gate transition"
+  ],
+  "next_priorities": [
+    "stack issue #250 on PR #258 rather than creating a sibling loop.py branch",
+    "stack issue #268 on PR #260 rather than duplicating Tier-2 renderer authority",
+    "serialize the two Ikarus stacks into one reviewed integration line",
+    "selectively re-port useful #240 operations work onto current main before closing its stale PR",
+    "keep #255/#262 experimental until reproducible evidence licenses production adoption"
+  ]
+}
