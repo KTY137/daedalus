@@ -1,4 +1,4 @@
-"""G1-IKARUS-04: stateless one-shot request and runtime-evidence binding."""
+"""G1-IKARUS-04/05: stateless request and runtime-evidence binding."""
 from __future__ import annotations
 
 import ast
@@ -221,19 +221,20 @@ def test_stale_or_identity_drifted_runtime_evidence_refuses(tmp_path):
         )
 
 
-def test_tools_and_unmetered_cost_fail_closed_before_live_adapter(tmp_path):
+def test_tool_capability_is_evidence_only_and_unmetered_cost_refuses(tmp_path):
     binding = _binding()
     request = _request(binding)
 
     with_tools = _manifest(tools=("read-file",))
-    with pytest.raises(OneShotRuntimeRefused, match="deny-by-default"):
-        bind_oneshot_runtime_evidence(
-            request,
-            binding,
-            with_tools,
-            _conformance(with_tools, tmp_path / "tools"),
-            now=NOW + timedelta(seconds=2),
-        )
+    evidence = bind_oneshot_runtime_evidence(
+        request,
+        binding,
+        with_tools,
+        _conformance(with_tools, tmp_path / "tools"),
+        now=NOW + timedelta(seconds=2),
+    )
+    assert evidence.runtime_manifest_sha256 == with_tools.digest
+    assert request.subject()["tool_scope"] == []
 
     no_cost = _manifest(cost=False)
     with pytest.raises(OneShotRuntimeRefused, match="cost reporting"):
