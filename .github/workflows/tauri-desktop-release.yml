@@ -1,0 +1,28 @@
+name: Tauri Desktop Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "daedalus/**"
+      - "scripts/daedalus_desktop_sidecar.py"
+      - "tools/build_tauri_sidecar.py"
+      - "tools/smoke_tauri_sidecar.py"
+      - "tests/test_desktop_packaging.py"
+      - "pyproject.toml"
+      - ".github/workflows/tauri-desktop.yml"
+      - ".github/workflows/tauri-desktop-validation.yml"
+      - ".github/workflows/tauri-desktop-release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/tauri-desktop.yml
+    with:
+      publish_release: true
+    secrets: inherit
