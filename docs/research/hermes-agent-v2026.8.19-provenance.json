@@ -74,7 +74,7 @@
     {
       "concept": "stateless one-shot request boundary",
       "daedalus_target": "daedalus/ikarus_oneshot.py",
-      "adaptation": "immutable explicit system/user message vector with no session/history field; one structural iteration; canonical ResourceBudget bounds; exact runtime identity admitted only against current canonical conformance; tools deny by default; no provider effect"
+      "adaptation": "immutable explicit system/user message vector with no session/history field; one structural iteration; canonical ResourceBudget bounds; exact runtime identity joined to current canonical conformance by a non-authorizing evidence projection; tools deny by default; no provider effect"
     }
   ],
   "copied_code": [],
