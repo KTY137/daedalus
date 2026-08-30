@@ -97,6 +97,8 @@ class SparseTensorEntry:
         value = float(self.value)
         if not math.isfinite(value):
             raise ValueError("entry.value must be a finite number")
+        if value == 0.0:
+            value = 0.0
         object.__setattr__(self, "value", value)
         if type(self.masked) is not bool:
             raise ValueError("entry.masked must be boolean")
