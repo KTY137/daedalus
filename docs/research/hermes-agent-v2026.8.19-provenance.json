@@ -74,7 +74,12 @@
     {
       "concept": "stateless one-shot request boundary",
       "daedalus_target": "daedalus/ikarus_oneshot.py",
-      "adaptation": "immutable explicit system/user message vector with no session/history field; one structural iteration; canonical ResourceBudget bounds; exact runtime identity joined to current canonical conformance by a non-authorizing evidence projection; tools deny by default; no provider effect"
+      "adaptation": "immutable explicit system/user message vector with no session/history field; one structural iteration; canonical ResourceBudget bounds; exact runtime identity joined to current canonical conformance by a non-authorizing evidence projection; the request itself exposes no tools; no provider effect"
+    },
+    {
+      "concept": "per-call enabled and disabled tool selection",
+      "daedalus_target": "daedalus/ikarus_tool_scope.py",
+      "adaptation": "explicit caller request intersected with the exact RuntimeManifest and canonical PolicyDecision; no ambient configuration fallback, wildcard all-tools semantics, plugin discovery, global Ikarus registry, or runtime-owned override; explicit disablement can only narrow the requested granted set"
     }
   ],
   "copied_code": [],
