@@ -19,6 +19,16 @@ class FloatLike:
         return 1.0
 
 
+class IntSubclass(int):
+    def __float__(self) -> float:
+        raise AssertionError("numeric subclass coercion must not execute")
+
+
+class FloatSubclass(float):
+    def __float__(self) -> float:
+        raise AssertionError("numeric subclass coercion must not execute")
+
+
 def entry(value: object) -> SparseTensorEntry:
     return SparseTensorEntry(
         coordinates=(("node", "src/a.py"),),
@@ -47,10 +57,19 @@ def view(value: object) -> TensorView:
     )
 
 
-@pytest.mark.parametrize("bad", [True, False, "1.0", FloatLike()])
+@pytest.mark.parametrize(
+    "bad",
+    [True, False, "1.0", FloatLike(), IntSubclass(1), FloatSubclass(1.0)],
+)
 def test_scalar_refuses_implicit_numeric_coercion(bad: object) -> None:
     with pytest.raises(ValueError, match="finite number"):
         entry(bad)
+
+
+def test_numeric_subclass_hooks_are_refused_before_coercion() -> None:
+    for bad in (IntSubclass(1), FloatSubclass(1.0)):
+        with pytest.raises(ValueError, match="finite number"):
+            entry(bad)
 
 
 def test_integer_scalar_is_canonicalized_to_float() -> None:
