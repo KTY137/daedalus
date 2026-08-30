@@ -3,7 +3,7 @@ name: Fourfold v2
 on:
   pull_request:
     branches:
-      - experimental
+      - main
     paths:
       - "daedalus/twin/**"
       - "daedalus/schemas.py"
@@ -14,7 +14,8 @@ on:
       - ".github/workflows/fourfold-v2.yml"
   push:
     branches:
-      - core/fourfold-v2
+      - g1/gardener-post-release-containment-03
+      - exp/tensor-kernel-contract-01
     paths:
       - "daedalus/twin/**"
       - "tests/twin/**"
