@@ -171,7 +171,6 @@ class TensorView(CanonicalContract):
         if any(not isinstance(entry, SparseTensorEntry) for entry in entries):
             raise ValueError("tensor.entries must contain SparseTensorEntry records")
         axis_names = tuple(axis.name for axis in axes)
-        label_sets = {axis.name: frozenset(axis.labels) for axis in axes}
         label_index = {
             axis.name: {label: index for index, label in enumerate(axis.labels)}
             for axis in axes
@@ -182,7 +181,7 @@ class TensorView(CanonicalContract):
             if tuple(sorted(coordinate)) != axis_names:
                 raise ValueError("every sparse entry must bind exactly the TensorView axes")
             for axis, label in entry.coordinates:
-                if label not in label_sets[axis]:
+                if label not in label_index[axis]:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis!r}")
             if entry.semantic_key in seen:
                 raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
