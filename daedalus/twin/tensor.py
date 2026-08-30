@@ -249,8 +249,10 @@ class TensorView(CanonicalContract):
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "TensorView":
         body = cls._contract_payload(payload)
-        body["axes"] = tuple(TensorAxis.from_dict(item) for item in body["axes"])
-        body["entries"] = tuple(SparseTensorEntry.from_dict(item) for item in body["entries"])
+        raw_axes = _bounded_sequence(body["axes"], "tensor.axes", MAX_TENSOR_AXES)
+        raw_entries = _bounded_sequence(body["entries"], "tensor.entries", MAX_TENSOR_ENTRIES)
+        body["axes"] = tuple(TensorAxis.from_dict(item) for item in raw_axes)
+        body["entries"] = tuple(SparseTensorEntry.from_dict(item) for item in raw_entries)
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
 
