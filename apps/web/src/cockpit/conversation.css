@@ -895,3 +895,48 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* ------------------------------------------------ conversational Markdown */
+/* Added 2026-08-30: model output is structured prose, not a pre-wrapped blob. */
+.turn.ikarus .markdown { white-space: normal; width: min(100%, 74ch); }
+.turn.ikarus .markdown > p { margin: 0; white-space: pre-wrap; }
+.turn.ikarus .markdown > p + p,
+.turn.ikarus .markdown > * + p { margin-top: 0.85em; }
+.turn.ikarus .markdown h2,
+.turn.ikarus .markdown h3,
+.turn.ikarus .markdown h4,
+.turn.ikarus .markdown h5 { margin: 1.15em 0 0.45em; line-height: 1.25; font-family: var(--font-display); }
+.turn.ikarus .markdown ul,
+.turn.ikarus .markdown ol { margin: 0.65em 0; padding-left: 1.4em; display: grid; gap: 0.35em; }
+.turn.ikarus .markdown blockquote { margin: 0.85em 0; padding-left: var(--u3); border-left: 2px solid var(--line); color: var(--ink2); }
+.turn.ikarus .markdown blockquote p { margin: 0; }
+.turn.ikarus .markdown a { color: var(--accent); text-underline-offset: 0.18em; }
+.md-codeblock { width: min(100%, 78ch); margin: 0.9em 0; overflow: hidden; border: 1px solid var(--line); border-radius: max(8px, calc(var(--u2) * 1.25)); background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.md-codebar { display: flex; align-items: center; justify-content: space-between; gap: var(--u3); padding: var(--u2) var(--u3); border-bottom: 1px solid var(--line); color: var(--ink3); font-family: var(--font-mono); font-size: var(--fs-xs); }
+.md-codebar button,
+.turn-actions button,
+.convo-suggestions button { border: 0; background: transparent; color: var(--ink2); font: inherit; cursor: pointer; }
+.md-codebar button:hover,
+.turn-actions button:hover,
+.convo-suggestions button:hover { color: var(--ink); }
+.md-codeblock pre { margin: 0; padding: var(--u3); overflow: auto; max-width: 100%; white-space: pre; }
+.md-codeblock pre code { color: var(--ink); font-size: var(--fs-sm); line-height: 1.55; }
+.turn-actions { min-height: 1.5rem; display: flex; align-items: center; gap: var(--u2); opacity: 0.72; }
+.turn-actions button { padding: 0; font-size: var(--fs-xs); }
+.convo-suggestions { display: flex; flex-wrap: wrap; gap: var(--u2); max-width: 62ch; }
+.convo-suggestions button { text-align: left; padding: var(--u2) var(--u3); border: 1px solid var(--line); border-radius: 999px; color: var(--ink2); background: color-mix(in srgb, var(--surface) 72%, transparent); }
+.thinking { display: inline-flex; align-items: center; gap: 0.28em; color: var(--ink3) !important; }
+.thinking i { width: 0.3em; height: 0.3em; border-radius: 50%; background: currentColor; animation: ikarus-thinking 1.1s ease-in-out infinite; opacity: 0.35; }
+.thinking i:nth-of-type(2) { animation-delay: 0.14s; }
+.thinking i:nth-of-type(3) { animation-delay: 0.28s; }
+@keyframes ikarus-thinking { 50% { transform: translateY(-0.18em); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .thinking i { animation: none; opacity: 0.7; } }
+@media (max-width: 760px) {
+  .convo { padding: var(--u2); }
+  .convo-bar { gap: var(--u2); }
+  .convo-thread code { display: none; }
+  .convo-suggestions { display: grid; width: 100%; }
+  .convo-suggestions button { border-radius: max(8px, var(--u2)); }
+  .md-codeblock { max-width: calc(100vw - 2 * var(--u4)); }
+  .brain-menu { max-width: calc(100vw - 2 * var(--u3)); }
+}

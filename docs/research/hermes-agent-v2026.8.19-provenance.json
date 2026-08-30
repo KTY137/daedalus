@@ -70,6 +70,21 @@
       "concept": "session-independent orchestration binding",
       "daedalus_target": "daedalus/ikarus_supervisor.py",
       "adaptation": "runtime identity is plan and attempt metadata; chat/session history is absent; runtime statelessness remains a future conformance requirement"
+    },
+    {
+      "concept": "parallel tool callback correlation and loss-aware cancelled-plan projection",
+      "daedalus_target": "daedalus/ikarus_runtime_events.py",
+      "adaptation": "per-run in-memory projector with exact plan-entry-to-call-id binding; same-name tool calls never correlate by name; cancellation retains unfinished plan rows; terminal observations are SHA-256 digests only; no provider, event-store or scheduler authority"
+    },
+    {
+      "concept": "stateless one-shot request boundary",
+      "daedalus_target": "daedalus/ikarus_oneshot.py",
+      "adaptation": "immutable explicit system/user message vector with no session/history field; one structural iteration; canonical ResourceBudget bounds; exact runtime identity joined to current canonical conformance by a non-authorizing evidence projection; the request itself exposes no tools; no provider effect"
+    },
+    {
+      "concept": "per-call enabled and disabled tool selection",
+      "daedalus_target": "daedalus/ikarus_tool_scope.py",
+      "adaptation": "explicit caller request intersected with the exact RuntimeManifest and canonical PolicyDecision; no ambient configuration fallback, wildcard all-tools semantics, plugin discovery, global Ikarus registry, or runtime-owned override; explicit disablement can only narrow the requested granted set"
     }
   ],
   "copied_code": [],

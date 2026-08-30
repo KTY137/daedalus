@@ -1,0 +1,68 @@
+name: Gate 1 Ikarus Provider Object Registry
+
+on:
+  push:
+    branches:
+      - g1/ikarus-provider-object-registry-07b
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "daedalus/runtimes/provider_executable_pre_admission.py"
+      - "daedalus/runtimes/provider_executable_object_registry.py"
+      - "tests/runtimes/test_provider_executable_pre_admission.py"
+      - "tests/runtimes/test_provider_executable_pre_admission_review.py"
+      - "tests/runtimes/test_provider_executable_object_registry.py"
+      - "tests/runtimes/test_provider_executable_object_registry_review.py"
+      - "docs/work-packets/G1-IKARUS-07A_PROVIDER_EXECUTABLE_PRE_ADMISSION.md"
+      - "docs/work-packets/G1-IKARUS-07B_PROVIDER_EXECUTABLE_OBJECT_REGISTRY.md"
+      - ".github/workflows/g1-ikarus-provider-object-registry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g1-ikarus-provider-object-registry-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: >-
+          python -m py_compile
+          daedalus/runtimes/provider_executable_pre_admission.py
+          daedalus/runtimes/provider_executable_object_registry.py
+          tests/runtimes/test_provider_executable_pre_admission.py
+          tests/runtimes/test_provider_executable_pre_admission_review.py
+          tests/runtimes/test_provider_executable_object_registry.py
+          tests/runtimes/test_provider_executable_object_registry_review.py
+      - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
+      - run: >-
+          python -m pytest -q -p no:cacheprovider
+          tests/runtimes/test_provider_executable_object_registry.py
+          tests/runtimes/test_provider_executable_object_registry_review.py
+          tests/runtimes/test_provider_executable_pre_admission.py
+          tests/runtimes/test_provider_executable_pre_admission_review.py
+          tests/runtimes/test_provider_invocation_resolution.py
+          tests/runtimes/test_provider_executable_structure.py
+          tests/runtimes/test_provider_executable_targets.py
+          tests/runtimes/test_provider_target_verification.py
+          tests/gates/test_repository_head_revision.py

@@ -1,0 +1,83 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TAURI-CI-AUTH-271",
+  "title": "Separate Tauri PR Validation From Release Write Authority",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "issue": 271,
+  "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+  "branch": "fix/tauri-pr-readonly-271",
+  "primary_claim": "Pull-request reachable desktop build and validation code executes with read-only repository permission and no persisted checkout credential; contents-write authority exists only in a push-to-main release job after the cross-platform desktop matrix succeeds.",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "master_plan_revision": 8,
+    "invariants": [
+      "sealed promotion",
+      "bounded effects",
+      "evidence boundary"
+    ],
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval_issuance": false,
+    "gate_transition": false
+  },
+  "scope": {
+    "changed_paths": [
+      ".github/workflows/tauri-desktop.yml",
+      "tests/test_desktop_packaging.py",
+      "docs/work-packets/G1-TAURI-CI-AUTH-271.json"
+    ],
+    "new_scheduler": false,
+    "new_release_authority": false,
+    "new_evaluator": false,
+    "new_store": false,
+    "new_runtime": false
+  },
+  "baseline": {
+    "workflow_permission": "contents: write at workflow scope",
+    "pr_checkout_persisted_credential": true,
+    "pr_build_received_github_token": true,
+    "finding": "same-repository pull-request controlled npm/Python/Rust/Tauri code could execute in a job with repository contents-write authority"
+  },
+  "repair": {
+    "workflow_default_permission": "contents: read",
+    "desktop_matrix_permission": "contents: read",
+    "checkout_persist_credentials": false,
+    "validation_github_token_env": false,
+    "release_job_event": "push to main only",
+    "release_job_dependency": "desktop matrix",
+    "release_job_permission": "contents: write",
+    "release_inputs": "validated workflow artifacts",
+    "release_command": "gh release create",
+    "release_token_exposure": "GH_TOKEN on publish step only"
+  },
+  "acceptance": [
+    "pull_request remains a workflow trigger",
+    "no PR-reachable desktop build section contains contents: write",
+    "no PR-reachable desktop build section receives GITHUB_TOKEN explicitly",
+    "all checkout steps use persist-credentials: false",
+    "write authority is job-scoped to a push-only release job",
+    "release job runs only after the desktop matrix succeeds",
+    "release job downloads validated artifacts and does not rerun repository npm, Python build, smoke, Rust formatting, or Tauri build hooks",
+    "desktop packaging regression tests retain updater-disabled and platform/version invariants"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/test_desktop_packaging.py",
+      "python -m py_compile tests/test_desktop_packaging.py"
+    ],
+    "connector_executed": [],
+    "exact_head_ci_required": true,
+    "zero_step_ci_is_evidence": false
+  },
+  "residual_risks": [
+    "third-party GitHub Actions remain referenced by floating major/stable tags; immutable action-SHA pinning is recommended as a separate supply-chain packet",
+    "release authority still trusts code already merged to main, which is the intended protected release boundary and depends on repository branch governance",
+    "main branch protection/ruleset work remains tracked separately in issue 241"
+  ],
+  "rollback": [
+    "restore the prior tauri-desktop workflow and packaging test blobs",
+    "retain this Work Packet and issue history as negative security evidence"
+  ],
+  "evidence_status": "prepared_source_and_static_contract_tests_only; no green test or workflow claim until exact-head commands execute"
+}

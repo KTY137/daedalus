@@ -12,6 +12,7 @@ import {
 } from '../motion';
 import { recordAutonomy, type AutonomyLevel } from './autonomy';
 import { ContextPlan } from './ContextPlan';
+import { MarkdownMessage } from './MarkdownMessage';
 import { shortLabel } from './graph';
 
 /**
@@ -485,7 +486,7 @@ function BrainPicker({ runtimes, state, value, onChange, waits, lastRoute, label
   /** What `Automatisch` has to say for itself, once it has done something. */
   const autoNote = lastRoute && waits[lastRoute] !== undefined
     ? `zuletzt ${labelOf(lastRoute) || lastRoute}`
-    : 'Ikarus entscheidet';
+    : 'wählt ein verfügbares Modell';
 
   const row = (id: string, name: string, note: string, index: number) => (
     <li
@@ -621,6 +622,7 @@ export function Conversation({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [copiedTurn, setCopiedTurn] = useState<number | null>(null);
   const [thread, setThread] = useState('');
   const [resuming, setResuming] = useState(false);
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
@@ -1118,7 +1120,7 @@ export function Conversation({
         </motion.div>
       )}
 
-      <div className={empty ? 'convo-scroll empty' : 'convo-scroll'} ref={scroller} onScroll={onScroll}>
+      <div className={empty ? 'convo-scroll empty' : 'convo-scroll'} ref={scroller} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
         {resuming && <p className="convo-reading">Verlauf wird gelesen …</p>}
 
         {/* THE INVITATION. An empty conversation is not a form waiting to be
@@ -1130,8 +1132,13 @@ export function Conversation({
               Frag Ikarus etwas über <b>{project || 'dieses Projekt'}</b>.
             </h2>
             <p className="convo-open-note">
-              Antworten aus dem lokalen Index tragen den Stempel GEMESSEN, Antworten eines Modells dessen Namen.
+              Ikarus wählt automatisch ein verfügbares LLM. Gemessene lokale Antworten bleiben klar von Modellantworten getrennt.
             </p>
+            <div className="convo-suggestions" aria-label="Vorschläge">
+              {['Erklär mir die Architektur dieses Projekts.', 'Wo würdest du als Nächstes refactoren?', 'Fass den aktuellen Projektzustand zusammen.'].map((suggestion) => (
+                <button key={suggestion} type="button" onClick={() => setDraft(suggestion)}>{suggestion}</button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1155,17 +1162,22 @@ export function Conversation({
               {t.role === 'you' ? (
                 <p className="turn-text">{t.text}</p>
               ) : (
-                <div className="turn-text">
-                  {t.text.split(/\n{2,}/).map((para, p, all) => (
-                    <p key={p}>
-                      {piecesIn(para).map((piece, k) => {
-                        const body =
-                          piece.kind === 'code' ? <code>{piece.value}</code> : <span>{piece.value}</span>;
-                        return <span key={k}>{piece.strong ? <b>{body}</b> : body}</span>;
-                      })}
-                      {t.streaming && p === all.length - 1 && <span className="caret" aria-hidden="true" />}
-                    </p>
-                  ))}
+                <MarkdownMessage text={t.text} streaming={t.streaming} />
+              )}
+
+              {t.role === 'ikarus' && !t.streaming && t.text && (
+                <div className="turn-actions" aria-label="Antwortaktionen">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(t.text).then(() => {
+                        setCopiedTurn(i);
+                        window.setTimeout(() => setCopiedTurn((current) => (current === i ? null : current)), 1200);
+                      });
+                    }}
+                  >
+                    {copiedTurn === i ? 'Kopiert' : 'Antwort kopieren'}
+                  </button>
                 </div>
               )}
 
@@ -1278,7 +1290,7 @@ export function Conversation({
               void send();
             }
           }}
-          placeholder={busy ? 'Ikarus antwortet …' : 'Frag Ikarus … (Enter sendet, Shift+Enter bricht die Zeile)'}
+          placeholder={busy ? 'Du kannst schon weiterschreiben …' : 'Nachricht an Ikarus …'}
           aria-label="Nachricht an Ikarus"
           autoComplete="off"
           disabled={!project}
