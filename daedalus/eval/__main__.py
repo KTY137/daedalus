@@ -28,10 +28,11 @@ import argparse
 import sys
 
 from . import harness
-from .harness import all_tasks, run_tier1, run_tier2, run_arms
+from .harness import all_tasks, run_tier1, run_arms
 from .mint import add_minted_task, confirm_minted_task, mint_from_commit
 from .report import render, render_gate
 from .tasks import AGENT_ENV_ROOT, task_project_label
+from .tier2 import run_tier2
 
 
 def _select(project: str | None) -> list[dict]:

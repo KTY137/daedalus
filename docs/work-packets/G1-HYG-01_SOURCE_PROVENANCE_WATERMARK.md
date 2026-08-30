@@ -8,7 +8,7 @@
 
 **Owner:** repository owner
 
-**Base revision:** `cfe9f40a4ff421a0441c612315b3ee0ed93469a2`
+**Base revision:** `c773a94dce21f28d5d149fe3e984d4508292d793`
 
 **Plan-Digest:**
 `7cccda0fb75ff60af846b0c7eb697f6f3fd9fdd76ca2f4ae3aa5670ee2f3c704`
@@ -41,7 +41,6 @@ In scope:
 - ausschließlich die in der Policy ausgewählten First-Party-Quellpfade;
 - normale, signierte Commits/PRs auf `main` und danach den live ermittelten
   offenen PR-Heads `g1/ikarus-runtime-invocation-binding-07d3`,
-  `nemesis/20260830-tier2-evidence-hardening-r2`,
   `exp/tensor-kernel-contract-01`, `exp/tensor-latent-ceiling-01`,
   `ops/gardener-campaign-20260929` und
   `g2/knowledge-correlation-bootstrap`.
@@ -77,6 +76,12 @@ Vor der Attestation wurde anschließend auch der normale Merge von PR #306
 vom selben Policy-Census erfasst; der nun gemergte Head scheidet aus der Liste
 der separat zu aktualisierenden Draft-Branches aus.
 
+Nach der ersten Draft-Veröffentlichung mergte PR #291 als `c773a94d` nach
+`main`. Der Feature-Branch integrierte diesen Stand durch einen normalen,
+signierten Merge ohne Rebase oder Force-Push. Die beiden neu hinzugekommenen
+First-Party-Quellen werden in demselben Index-Snapshot erfasst; der nun
+gemergte Nemesis-Head scheidet aus der separaten Propagation aus.
+
 ## Akzeptanzmatrix (eingefroren)
 
 | # | Behauptung | Rot wenn |
@@ -99,18 +104,18 @@ erhalten.
 
 ## Verifikation
 
-- Policy-Census und Arbeitsbaum: `source provenance: ok (1108 files)`.
-- Git-Index-Manifest: 1.108 vollständige, sortierte Pfade; alle SHA-256-Werte
+- Policy-Census und Arbeitsbaum: `source provenance: ok (1110 files)`.
+- Git-Index-Manifest: 1.110 vollständige, sortierte Pfade; alle SHA-256-Werte
   werden gegen die exakten gestagten Git-Blobbytes geprüft. Der Renderer gab
-  auf Windows exakt 169.503 UTF-8-Bytes mit 4.455 LF und null CR aus; Signatur
+  auf Windows exakt 169.809 UTF-8-Bytes mit 4.463 LF und null CR aus; Signatur
   und gestagtes Manifest decken damit dieselben Bytes ab.
-- Diff-Audit: 1.105 bestehende Quelldateien entsprechen bytegenau der reinen
+- Diff-Audit: 1.107 bestehende Quelldateien entsprechen bytegenau der reinen
   Header-Transformation; drei neue Prüfinfrastruktur-Quellen und sieben
-  Nicht-Quellartefakte ergeben insgesamt 1.115 geänderte Pfade. Kein
+  Nicht-Quellartefakte ergeben insgesamt 1.117 geänderte Pfade. Kein
   ausgeschlossener Pfad ist enthalten.
-- Provenienz-Tests plus die auf der finalen Base hinzugekommenen
-  Terminal-Rendering-Tests: 36 bestanden. `compileall` bestand für Checker,
-  Tests und die neuen Base-Dateien;
+- Provenienz-, Terminal-Rendering- und die auf der finalen Base
+  hinzugekommenen Tier-2-Integritätstests: 66 Tests und acht Subtests
+  bestanden. `compileall` bestand für Checker, Tests und die neuen Base-Dateien;
   `git -c core.whitespace=cr-at-eol diff --cached --check` blieb leer. Der
   Default-Check markiert ausschließlich die bewusst bytegleich erhaltenen
   CRLF-Enden der drei per `.gitattributes` als `-text` gepinnten Dateien
@@ -129,6 +134,9 @@ erhalten.
   sauberer Base identisch an bereits vorhandener Kill-Switch-/EvidencePacket-
   Konfiguration; diese negativen Baseline-Ergebnisse bleiben ausdrücklich
   erhalten.
-- Der unabhängige Release-Review endete nach adversarialen Byte-, Scope-,
-  Signatur-, CLI- und Diff-Prüfungen mit `PASS` und ohne offenen
-  release-blockierenden Defekt.
+- Der unabhängige Release-Review der Provenienzmechanik endete nach
+  adversarialen Byte-, Scope-, Signatur-, CLI- und Diff-Prüfungen mit `PASS`
+  und ohne offenen release-blockierenden Defekt. Nach dem Merge von PR #291
+  wurden derselbe vollständige Candidate-Set-, Blob-, Header-, Renderer- und
+  Signatur-Audit sowie die 66 Tests und acht Subtests auf `c773a94d` erneut
+  erfolgreich ausgeführt.

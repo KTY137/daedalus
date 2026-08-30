@@ -289,58 +289,11 @@ def render_arms(result: dict) -> str:
 
 
 def render_tier2(result: dict) -> str:
-    if result.get("skipped"):
-        return "\n".join([
-            "",
-            "TIER 2 -- LLM task-success (distilled slice A vs whole-repo concat B).",
-            f"  SKIPPED: {result['reason']}",
-        ])
+    """Compatibility delegate to the canonical Tier-2 renderer."""
 
-    headers = ["TASK", "PROJECT", "OK_A", "OK_B", "TOK_A", "TOK_B", "TOK_B(true)", "B_TRUNC"]
-    rows = []
-    for t in result["per_task"]:
-        rows.append([
-            t["id"],
-            t["project"],
-            "yes" if t["success_A"] else "no",
-            "yes" if t["success_B"] else "no",
-            f"{t['tokens_A']:,}",
-            f"{t['tokens_B']:,}",
-            f"{t.get('tokens_B_true', t['tokens_B']):,}",
-            "yes" if t["b_truncated"] else "no",
-        ])
-    prov = result["provider"]
-    tok_a, tok_b = result["tokens_A"], result["tokens_B"]
-    ratio = f"{100 * tok_a / tok_b:.1f}%" if tok_b else "n/a"
-    lines = [
-        "",
-        "TIER 2 -- LLM task-success (distilled slice A vs whole-repo concat B).",
-        f"provider: {prov['kind']} model={prov['model']} host={prov['host']}",
-        "  the win: A ~= B success at a fraction of B's tokens.",
-        "  TOK_B is what was actually sent to the model (may be truncated to fit "
-        "the context window); TOK_B(true) is the real, untruncated whole-repo size.",
-        "",
-        _table(headers, rows),
-        "",
-        f"AGGREGATE over {result['n_tasks']} tasks:  "
-        f"success A = {result['success_A']}/{result['n_tasks']}   "
-        f"success B = {result['success_B']}/{result['n_tasks']}",
-        f"  tokens: A = {tok_a:,}   B (sent) = {tok_b:,}   B (true, untruncated) = "
-        f"{result.get('tokens_B_true', tok_b):,}   (A is {ratio} of B-sent)",
-    ]
-    if result.get("b_truncated_any"):
-        lines.append("  WARNING: B was TRUNCATED to fit the model's context window for "
-                     "at least one task -- B (sent) above understates the real whole-repo "
-                     "baseline; a truncated baseline is a WEAKER one, not a fair comparison.")
-    errored = result.get("errored") or []
-    if errored:
-        lines.append("")
-        lines.append(f"*** ERRORED TASKS ({len(errored)}) -- resolution failed before an LLM "
-                     "call was made, SKIPPED (not counted in the aggregate above): ***")
-        for t in sorted(errored, key=lambda r: r["id"]):
-            lines.append(f"  {t['id']} [{t.get('target')}] "
-                         f"({t['label_provenance']}/{t['label_tier']}): {t['error']}")
-    return "\n".join(lines)
+    from .tier2 import render_tier2 as canonical_render_tier2
+
+    return canonical_render_tier2(result)
 
 
 def render_gate(result: dict) -> str:

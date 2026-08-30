@@ -15,38 +15,16 @@ from dataclasses import dataclass
 from typing import Pattern
 
 from . import harness as _legacy
+from ._text_integrity import (
+    TERMINAL_FIELD_MAX_CHARS as _MAX_TERMINAL_FIELD_CHARS,
+    expected_asserted as _expected_asserted,
+    safe_ascii_field as _safe_ascii,
+)
 from .report import _table
 from .tasks import TASKS, task_project_label
 
 _MAX_AUDIT_CHARS = 16_384
 _MAX_ERROR_CHARS = 512
-
-_NEGATION = re.compile(
-    r"\b(?:not|never|no|without|cannot|can't|can['’]t|"
-    r"doesn't|doesn['’]t|does\s+not|didn't|didn['’]t|did\s+not|"
-    r"isn't|isn['’]t|is\s+not|aren't|aren['’]t|are\s+not|"
-    r"wasn't|wasn['’]t|was\s+not|weren't|weren['’]t|were\s+not|"
-    r"won't|won['’]t|will\s+not|don't|don['’]t|do\s+not)\b",
-    re.IGNORECASE,
-)
-_HEDGE = re.compile(
-    r"\b(?:maybe|perhaps|possibly|probably|might|could|guess|unsure|"
-    r"uncertain|unclear|unknown)\b",
-    re.IGNORECASE,
-)
-_UNCERTAINTY = re.compile(
-    r"\b(?:i\s+(?:cannot|can't|can['’]t)\s+tell|"
-    r"i\s+(?:do\s+not|don't|don['’]t)\s+know|"
-    r"not\s+enough\s+information|cannot\s+determine|can't\s+determine)\b",
-    re.IGNORECASE,
-)
-_POST_NEGATION = re.compile(
-    r"^\W*(?:is|was|are|were|does|did|can|will)?\W*"
-    r"(?:not|never|isn't|isn['’]t|wasn't|wasn['’]t|aren't|aren['’]t|"
-    r"doesn't|doesn['’]t|cannot|can't|can['’]t)\b",
-    re.IGNORECASE,
-)
-
 
 @dataclass(frozen=True)
 class _ValidatorSpec:
@@ -95,10 +73,6 @@ _BUILTIN_VALIDATORS: dict[str, _ValidatorSpec] = {
 }
 
 
-def _safe_ascii(value: object) -> str:
-    return str(value).encode("ascii", "replace").decode("ascii")
-
-
 def _clean_error(exc: Exception) -> str:
     text = " ".join(str(exc).split())
     text = "".join(ch if (ch == "\t" or ord(ch) >= 32) else "?" for ch in text)
@@ -112,41 +86,6 @@ def _bounded_answer(text: str) -> tuple[str, bool]:
     keep = _MAX_AUDIT_CHARS - len(marker)
     head = keep // 2
     return text[:head] + marker + text[-(keep - head):], True
-
-
-def _near(prefix: str, pattern: Pattern[str], words: int = 5) -> bool:
-    tokens = list(re.finditer(r"\b[\w'’]+\b", prefix))
-    if not tokens:
-        return False
-    return bool(pattern.search(prefix[tokens[max(0, len(tokens) - words)].start():]))
-
-
-def _expected_asserted(answer: str, expected: str) -> bool:
-    """Reject direct negation/hedging around an expected lexical label."""
-    low = answer.lower()
-    for match in re.finditer(re.escape(expected.lower()), low):
-        left = max(
-            low.rfind(".", 0, match.start()), low.rfind(";", 0, match.start()),
-            low.rfind(",", 0, match.start()), low.rfind("\n", 0, match.start()),
-        )
-        rights = [
-            p for p in (
-                low.find(".", match.end()), low.find(";", match.end()),
-                low.find(",", match.end()), low.find("\n", match.end()),
-            ) if p != -1
-        ]
-        right = min(rights) if rights else len(low)
-        clause = low[left + 1:right]
-        rel_start = match.start() - left - 1
-        rel_end = match.end() - left - 1
-        if _near(clause[:rel_start], _NEGATION) or _near(clause[:rel_start], _HEDGE):
-            continue
-        if _POST_NEGATION.search(" ".join(clause[rel_end:].split()[:5])):
-            continue
-        if _UNCERTAINTY.search(clause):
-            continue
-        return True
-    return False
 
 
 def _score(answer: str, answer_contains: list[str]) -> tuple[bool, float]:
@@ -181,7 +120,7 @@ def _validate_task_answer(task: dict, answer: str) -> dict:
     return {
         "validated": True, "semantic_success": bool(semantic),
         "guarded_lexical_success": guarded, "lexical_fraction": lexical,
-        "validator": f"builtin:{task['id']}/1",
+        "validator": f"builtin:{task['id']}/2",
     }
 
 
@@ -325,7 +264,7 @@ def run_tier2(
     return {
         "tier": 2, "skipped": False,
         "provider": {k: prov[k] for k in ("kind", "model", "host")},
-        "scoring_method": "explicit-task-validator-v1",
+        "scoring_method": "explicit-task-validator-v2",
         "n_tasks": len(per_task), "n_scored_tasks": len(scored),
         "n_measurement_error_tasks": len(measurement_errors),
         "n_unvalidated_tasks": len(unvalidated),
