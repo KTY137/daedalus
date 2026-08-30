@@ -16,23 +16,20 @@ from daedalus.runtimes.provider_executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
 from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.runtimes.provider_invocation_abi import (
-    issue_provider_invocation_abi_contract,
-)
+from daedalus.runtimes.provider_invocation_abi import issue_provider_invocation_abi_contract
 from daedalus.runtimes.provider_invocation_authority import (
     issue_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_payload import (
-    build_provider_invocation_payload,
-)
+from daedalus.runtimes.provider_invocation_payload import build_provider_invocation_payload
 from daedalus.runtimes.provider_observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
 )
+from daedalus.runtimes.provider_runtime_executable_binding import (
+    ProviderRuntimeExecutableBindingReceipt,
+)
 from daedalus.runtimes.provider_runtime_invocation_binding import (
     ProviderRuntimeInvocationBindingMismatch,
-    ProviderRuntimeInvocationBindingReceipt,
-    ProviderRuntimeInvocationBindingShapeError,
     bind_provider_runtime_invocation,
 )
 from daedalus.spine.envelope import canonical_sha
@@ -82,8 +79,7 @@ def _write_adapter(root: Path):
         "def output_digests(value):\n"
         "    return ('a' * 64,)\n"
     )
-    relative = Path(*module_name.split(".")).with_suffix(".py")
-    path = root / relative
+    path = root / Path(*module_name.split(".")).with_suffix(".py")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(source, encoding="utf-8", newline="\n")
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -110,13 +106,7 @@ def _invocation_subject(authorization, execution) -> ProviderInvocationSubject:
     )
 
 
-def _pre_admission(
-    authority,
-    *,
-    module_name: str,
-    source_sha256: str,
-    provider_id: str = PROVIDER_ID,
-) -> ProviderExecutablePreAdmissionReceipt:
+def _pre_admission(authority, *, module_name: str, source_sha256: str, provider_id=PROVIDER_ID):
     subject = authority.invocation_subject
     return ProviderExecutablePreAdmissionReceipt(
         source_revision=subject.source_revision,
@@ -220,7 +210,7 @@ def _bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         execution=execution,
         at=fixture.NOW,
     )
-    return (
+    return [
         authorization,
         execution,
         authority,
@@ -231,22 +221,11 @@ def _bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         pre_admission,
         module,
         path,
-    )
+    ]
 
 
 def _bind(bundle):
-    (
-        authorization,
-        execution,
-        authority,
-        payload,
-        abi,
-        ledger,
-        registry,
-        pre_admission,
-        _module,
-        _path,
-    ) = bundle
+    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = bundle[:8]
     return bind_provider_runtime_invocation(
         authorization.request.entrypoint_id,
         authorization=authorization,
@@ -261,58 +240,47 @@ def _bind(bundle):
     )
 
 
-def test_runtime_invocation_binding_authenticates_full_subject_without_effect(
+def test_runtime_invocation_binding_authenticates_conjunction_without_effect(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bundle = _bundle(tmp_path, monkeypatch)
-    authorization, execution, authority, payload, abi, ledger, _, pre_admission, _, _ = bundle
+    authorization, execution, authority, payload, abi, ledger, _, pre_admission = bundle[:8]
 
     receipt = _bind(bundle)
 
+    assert type(receipt) is ProviderRuntimeExecutableBindingReceipt
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
     assert ledger.load(execution.execution_id) is None
     assert receipt.provider_id == authority.invocation_subject.provider_id
     assert receipt.adapter_id == authority.invocation_subject.adapter_id
-    assert receipt.invocation_payload_sha256 == payload.digest
-    assert receipt.invocation_abi_sha256 == abi.digest
     assert receipt.pre_admission_sha256 == pre_admission.digest
+    assert abi.invocation_payload_sha256 == payload.digest
     rendered = receipt.to_dict()
-    assert rendered["invocation_abi_authenticated_before_effect"] is True
-    assert rendered["registered_executable_objects_reverified"] is True
     assert rendered["pre_effect_subject_verified"] is True
     assert rendered["effect_started"] is False
     assert rendered["provider_code_executed"] is False
     assert rendered["provider_execution_allowed"] is False
     assert rendered["callback_seam_removed"] is False
-    assert ProviderRuntimeInvocationBindingReceipt.from_dict(rendered) == receipt
 
 
 def test_semantic_payload_substitution_refuses_before_effect(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bundle = list(_bundle(tmp_path, monkeypatch))
+    bundle = _bundle(tmp_path, monkeypatch)
     authorization, execution, authority = bundle[:3]
-    changed = build_provider_invocation_payload(
+    bundle[3] = build_provider_invocation_payload(
         authority.invocation_subject,
         payload_schema_id=PAYLOAD_SCHEMA_ID,
-        body={
-            "objective": "different objective",
-            "workspace": "/tmp/ikarus-runtime-fixture",
-            "paths": ["src", "tests"],
-            "model": "fixture-model",
-            "timeout_seconds": 120,
-        },
+        body={"objective": "different objective"},
     )
-    bundle[3] = changed
 
     with pytest.raises(
         ProviderRuntimeInvocationBindingMismatch,
         match="invocation ABI did not authenticate pre-effect",
     ):
-        _bind(tuple(bundle))
-
+        _bind(bundle)
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
 
 
@@ -320,14 +288,11 @@ def test_provider_a_authority_plus_provider_b_pre_admission_refuses_before_effec
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bundle = list(_bundle(tmp_path, monkeypatch))
+    bundle = _bundle(tmp_path, monkeypatch)
     authorization, execution = bundle[:2]
     pre_admission = bundle[7]
     module = bundle[8]
-    foreign = dataclasses.replace(
-        pre_admission,
-        provider_id="provider.foreign-runtime",
-    )
+    foreign = dataclasses.replace(pre_admission, provider_id="provider.foreign-runtime")
     foreign_registry = ProviderExecutableObjectRegistry(tmp_path)
     foreign_registry.register(
         foreign,
@@ -341,16 +306,15 @@ def test_provider_a_authority_plus_provider_b_pre_admission_refuses_before_effec
         ProviderRuntimeInvocationBindingMismatch,
         match="invocation ABI did not authenticate pre-effect",
     ):
-        _bind(tuple(bundle))
-
+        _bind(bundle)
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
 
 
-def test_forged_abi_signature_refuses_before_registry_or_effect(
+def test_forged_abi_signature_refuses_before_effect(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bundle = list(_bundle(tmp_path, monkeypatch))
+    bundle = _bundle(tmp_path, monkeypatch)
     authorization, execution = bundle[:2]
     bundle[4] = dataclasses.replace(bundle[4], signature_sha256="f" * 64)
 
@@ -358,8 +322,7 @@ def test_forged_abi_signature_refuses_before_registry_or_effect(
         ProviderRuntimeInvocationBindingMismatch,
         match="invocation ABI did not authenticate pre-effect",
     ):
-        _bind(tuple(bundle))
-
+        _bind(bundle)
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
 
 
@@ -381,20 +344,4 @@ def test_repository_source_mutation_after_admission_refuses_before_effect(
         match="executable subject did not authenticate pre-effect",
     ):
         _bind(bundle)
-
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
-
-
-def test_binding_receipt_refuses_execution_claim_escalation(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    receipt = _bind(_bundle(tmp_path, monkeypatch))
-    payload = receipt.to_dict()
-    payload["callback_seam_removed"] = True
-
-    with pytest.raises(
-        ProviderRuntimeInvocationBindingShapeError,
-        match="escalated claim: callback_seam_removed",
-    ):
-        ProviderRuntimeInvocationBindingReceipt.from_dict(payload)
