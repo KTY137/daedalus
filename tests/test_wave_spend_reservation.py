@@ -63,6 +63,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(tmp_path / "budget.json"))
     monkeypatch.setenv("DAEDALUS_BUDGET_USD", f"{PERIOD_CEILING_USD:.2f}")
     monkeypatch.setenv("DAEDALUS_BUDGET_MAX_CALLS", "40")
+    monkeypatch.delenv(B.ENV_EXECUTION_LIMIT_POLICY, raising=False)
     monkeypatch.delenv(B.ENV_ENVELOPE, raising=False)
     B.reset_default_ledger()
     sw = KillSwitch(repo_root=REPO_ROOT)

@@ -71,7 +71,7 @@ class RouteTest(unittest.TestCase):
 # obligation 2 -- classify exactly ONCE, start and final cannot disagree       #
 # --------------------------------------------------------------------------- #
 class ClassifyOnceTest(unittest.TestCase):
-    def _count(self, message, provider=None):
+    def _count(self, message, provider="deterministic"):
         calls = []
         real = ikarus_os.classify
 
@@ -112,7 +112,7 @@ class ClassifyOnceTest(unittest.TestCase):
 
 
 class StartFinalAgreementTest(unittest.TestCase):
-    def _events(self, message, provider=None):
+    def _events(self, message, provider="deterministic"):
         with mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             return list(ikarus_os.ask_stream(PROJECT, message, provider=provider))
 
@@ -156,9 +156,11 @@ class StartFinalAgreementTest(unittest.TestCase):
         # and prove the stream still cannot emit an unannounced action.
         divergent = {"ok": True, "intent": "enqueue", "shell": "hand",
                      "assistant": "queued!", "action": {"kind": "queue_task"}}
-        with mock.patch.object(ikarus_os, "ask", return_value=divergent), \
+        with mock.patch.object(ikarus_os, "_chat", return_value=divergent), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
-            events = list(ikarus_os.ask_stream(PROJECT, "hello there", provider=None))
+            events = list(ikarus_os.ask_stream(
+                PROJECT, "hello there", provider="deterministic"
+            ))
         start = next(p for e, p in events if e == "start")
         final = next(p for e, p in events if e == "final")
         self.assertEqual(start["intent"], "chat")
@@ -196,12 +198,13 @@ class ProviderFenceTest(unittest.TestCase):
             res = ikarus_os.ask(PROJECT, "hello there", provider="claude")
         self.assertEqual(res["intent"], "chat")
         self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
-        self.assertEqual(res["provider_used"], "claude")
+        self.assertEqual(res["provider_used"], "claude_code_cli")
         self.assertEqual(res["model_used"], "m1")
 
-    def test_an_unwired_voice_still_degrades_deterministically(self):
+    def test_an_unwired_voice_fails_closed(self):
         res = ikarus_os.ask(PROJECT, "hello there", provider="gemini")
-        self.assertEqual(res["provider_used"], "deterministic")
+        self.assertEqual(res["provider_used"], "unavailable")
+        self.assertEqual(res["intent"], "error")
         self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
 
 
@@ -217,7 +220,9 @@ class HandLivenessVocabularyTest(unittest.TestCase):
                  ((False, "URLError: timed out", "TimeoutError"), health.UNKNOWN)]
         for ret, expected in cases:
             with self.subTest(expected=expected):
-                with mock.patch.object(health, "_ollama_alive", return_value=ret):
+                with mock.patch.object(health, "hand_admission",
+                                       return_value=(True, "trusted", "test")), \
+                     mock.patch.object(health, "_ollama_alive", return_value=ret):
                     self.assertEqual(health.hand_state("http://h:1").state, expected)
 
     def test_the_probe_speaks_the_same_five_words(self):

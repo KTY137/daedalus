@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -151,12 +152,14 @@ def test_the_memory_cap_refuses_a_commit_larger_than_the_job_allows(tmp_path):
 
 
 def test_the_child_cannot_break_out_of_the_job(tmp_path):
-    """CREATE_BREAKAWAY_FROM_JOB is refused, because BREAKAWAY_OK is never set.
+    """CREATE_BREAKAWAY_FROM_JOB cannot remove a child from our exact job.
 
     This is the flag that would make every other limit in this file
-    decorative -- a child that can leave the job takes no cap with it. Denial
-    is the Windows default, which is exactly why it is measured rather than
-    assumed.
+    decorative -- a child that can leave the job takes no cap with it. On a
+    nested-job host ``CreateProcessW`` may succeed because a parent job allows
+    breakaway while our immediate job does not. Therefore the proof is the
+    kernel's membership answer for the new process against OUR exact job
+    handle, not whether process creation returned success.
     """
     worktree, low_temp = _arena(tmp_path)
     probe = worktree / "breakaway.py"
@@ -178,6 +181,18 @@ def test_the_child_cannot_break_out_of_the_job(tmp_path):
             _fields_ = [("hProcess", wintypes.HANDLE), ("hThread", wintypes.HANDLE),
                         ("dwPid", wintypes.DWORD), ("dwTid", wintypes.DWORD)]
 
+        k.CreateProcessW.argtypes = [
+            wintypes.LPCWSTR, wintypes.LPWSTR, ctypes.c_void_p, ctypes.c_void_p,
+            wintypes.BOOL, wintypes.DWORD, ctypes.c_void_p, wintypes.LPCWSTR,
+            ctypes.POINTER(SI), ctypes.POINTER(PI)]
+        k.CreateProcessW.restype = wintypes.BOOL
+        k.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        k.WaitForSingleObject.restype = wintypes.DWORD
+        k.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        k.TerminateProcess.restype = wintypes.BOOL
+        k.CloseHandle.argtypes = [wintypes.HANDLE]
+        k.CloseHandle.restype = wintypes.BOOL
+
         CREATE_BREAKAWAY_FROM_JOB = 0x01000000
         si, pi = SI(), PI()
         si.cb = ctypes.sizeof(SI)
@@ -186,19 +201,75 @@ def test_the_child_cannot_break_out_of_the_job(tmp_path):
         ok = k.CreateProcessW(None, cmd, None, None, False,
                               CREATE_BREAKAWAY_FROM_JOB, None, None,
                               ctypes.byref(si), ctypes.byref(pi))
-        print("breakaway=%s err=%d" % ("ALLOWED" if ok else "REFUSED",
-                                       ctypes.get_last_error()))
+        print("breakaway=%s err=%d pid=%d" % (
+            "CREATED" if ok else "REFUSED", ctypes.get_last_error(),
+            pi.dwPid if ok else 0), flush=True)
         if ok:
+            # Stay alive long enough for the Medium-integrity harness to ask
+            # the kernel whether this exact process is still in the exact job.
+            k.WaitForSingleObject(pi.hProcess, 20000)
             k.TerminateProcess(pi.hProcess, 1)
+            k.CloseHandle(pi.hThread)
+            k.CloseHandle(pi.hProcess)
     '''), encoding="utf-8")
 
-    rc, out, att = _run_contained(tmp_path, worktree, low_temp,
-                                  [sys.executable, str(probe)])
+    log = C.open_low_append_log(tmp_path / "breakaway.out")
+    proc = None
+    try:
+        env = dict(os.environ)
+        env["TEMP"] = env["TMP"] = str(low_temp)
+        env["PYTHONPATH"] = str(REPO_ROOT)
+        proc = C.spawn_contained(
+            [sys.executable, str(probe)], cwd=worktree, env=env, log=log)
 
-    assert "breakaway=REFUSED" in out, (
-        f"the contained child broke out of its Job Object, taking every "
-        f"resource cap with it:\n{out}")
-    assert att.job_limits.breakaway_denied
+        deadline = time.monotonic() + 10.0
+        out = ""
+        while time.monotonic() < deadline:
+            out = log.path.read_text(encoding="utf-8", errors="replace")
+            if "breakaway=" in out:
+                break
+            if proc.poll() is not None:
+                break
+            time.sleep(0.02)
+
+        assert "breakaway=" in out, (
+            f"the contained probe produced no breakaway evidence:\n{out}")
+        assert proc.attestation.job_limits.breakaway_denied
+
+        if "breakaway=REFUSED" not in out:
+            assert "breakaway=CREATED" in out, out
+            child_pid = int(out.split("pid=")[1].split()[0])
+
+            import ctypes
+            from ctypes import wintypes
+
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            C._kernel32.OpenProcess.argtypes = [
+                wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            C._kernel32.OpenProcess.restype = wintypes.HANDLE
+            C._kernel32.IsProcessInJob.argtypes = [
+                wintypes.HANDLE, wintypes.HANDLE,
+                ctypes.POINTER(wintypes.BOOL)]
+            C._kernel32.IsProcessInJob.restype = wintypes.BOOL
+            child = C._kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, child_pid)
+            assert child, f"OpenProcess({child_pid}) failed"
+            try:
+                in_our_job = wintypes.BOOL()
+                queried = C._kernel32.IsProcessInJob(
+                    child, wintypes.HANDLE(proc._job),
+                    ctypes.byref(in_our_job))
+                assert queried, (
+                    f"IsProcessInJob failed with {ctypes.get_last_error()}")
+                assert in_our_job.value, (
+                    "CREATE_BREAKAWAY_FROM_JOB created a process outside the "
+                    f"exact Daedalus Job Object; every resource cap was lost:\n{out}")
+            finally:
+                C._kernel32.CloseHandle(child)
+    finally:
+        if proc is not None:
+            proc.close()
+        log.close()
 
 
 def test_the_caps_can_be_tightened_by_a_caller_and_never_loosened(tmp_path):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from daedalus.llm_client import IkarusLLMClient, LLMRequest, LLMResponse, LLMUnavailable
+from daedalus.limit_policy import ExecutionLimitPolicy, MODE_UNBOUNDED_EXECUTION
 
 
 def test_auto_selects_first_available_model_not_deterministic():
@@ -59,3 +60,25 @@ def test_tool_shapes_are_data_not_implicit_execution():
     response = client.complete(request, lambda provider, req, timeout: called.append(req.tools) or "proposal")
     assert response.text == "proposal"
     assert called == [({"name": "queue_task"},)]
+
+
+def test_unbounded_policy_removes_wall_time_and_retry_caps_without_a_sentinel():
+    calls = []
+    client = IkarusLLMClient(
+        environ={"DAEDALUS_IKARUS_PROVIDER": "claude"},
+        status_probe=lambda _: {"available": True},
+        limit_policy=ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION),
+    )
+
+    def invoke(provider, request, timeout):
+        calls.append((provider, timeout))
+        return "eventual answer" if len(calls) == 4 else None
+
+    selection = client.resolve()
+    response = client.complete(LLMRequest("keep trying"), invoke)
+
+    assert selection.timeout_s is None
+    assert selection.max_attempts is None
+    assert response.text == "eventual answer"
+    assert response.attempts == 4
+    assert calls == [("claude_code_cli", None)] * 4

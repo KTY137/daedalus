@@ -45,6 +45,7 @@ from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import Any, Mapping, Sequence
 
+from daedalus.limit_policy import ExecutionLimitPolicy, load_from_env
 from daedalus.schemas import (
     AttemptContract,
     AttemptReceipt,
@@ -74,6 +75,19 @@ ATTEMPT_ENTRYPOINT_ID = "python.attempt"
 ATTEMPT_ORIGIN = "daedalus.spine.attempt.TaskAttempt"
 ATTEMPT_RUNTIME_ID = "spine.attempt.harness"
 ATTEMPT_KILL_SWITCH_REF = "daedalus.spine.killswitch"
+
+
+def _admit_execution_limit_policy(
+    policy: ExecutionLimitPolicy | None,
+) -> ExecutionLimitPolicy:
+    """Freeze the policy once at admission; invalid input refuses closed."""
+
+    resolved = load_from_env() if policy is None else policy
+    if type(resolved) is not ExecutionLimitPolicy:
+        raise ValueError(
+            "execution_limit_policy must be an exact ExecutionLimitPolicy"
+        )
+    return ExecutionLimitPolicy.from_dict(resolved.as_dict())
 
 #: The exact wording that travels INSIDE the PolicyDecision digest. Reasons are
 #: part of the contract, so a limitation stated here cannot be lost between the
@@ -1962,6 +1976,7 @@ def canonicalise_attempt(
     boundary_receipt: Any = None,
     shed_telemetry: Any = None,
     mission_policy_sha256: str | None = None,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ) -> AttemptContractSet:
     """Turn one finished :class:`AttemptResult` into the canonical records.
 
@@ -2124,6 +2139,20 @@ def canonicalise_attempt(
                     "texts"
                 ),
             )
+        if execution_limit_policy is not None and type(
+            execution_limit_policy
+        ) is not ExecutionLimitPolicy:
+            raise ValueError(
+                "execution_limit_policy must be an exact ExecutionLimitPolicy"
+            )
+        limit_policy = (
+            ExecutionLimitPolicy.from_dict(execution_limit_policy.as_dict())
+            if execution_limit_policy is not None
+            else None
+        )
+        limit_policy_sha = (
+            limit_policy.fingerprint_sha256 if limit_policy is not None else None
+        )
         attempt = AttemptContract.from_task_spec(
             task,
             attempt_id=attempt_id,
@@ -2149,11 +2178,18 @@ def canonicalise_attempt(
                             runtime.digest,
                             policy.digest,
                             declared_policy_sha,
+                            *(
+                                (limit_policy_sha,)
+                                if limit_policy_sha is not None
+                                else ()
+                            ),
                         )
                     )
                 ),
                 trace_id=trace_id,
             ),
+            execution_limit_policy=limit_policy,
+            execution_limit_policy_sha256=limit_policy_sha,
         )
         if not evidence_locator:
             return AttemptContractSet(
@@ -2240,6 +2276,7 @@ def mission_contract_for_candidate(
     budget: ResourceBudget,
     mission_id: str | None = None,
     trace_id: str | None = None,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ) -> MissionContract:
     """Compile one picked candidate into the mission the attempt serves.
 
@@ -2260,6 +2297,8 @@ def mission_contract_for_candidate(
     task_id = _identifier_fragment(str(getattr(candidate, "task_id")), "candidate")
     reason = str(getattr(candidate, "reason", "") or "")
     policy_sha = _policy_registry_sha256()
+    limit_policy = _admit_execution_limit_policy(execution_limit_policy)
+    limit_policy_sha = limit_policy.fingerprint_sha256
     return MissionContract(
         mission_id=mission_id or f"mission-{task_id}",
         objective=str(getattr(candidate, "instruction", "") or reason or task_id),
@@ -2274,9 +2313,11 @@ def mission_contract_for_candidate(
             origin="daedalus.spine.picker",
             source_revision=source_revision,
             created_at=created_at,
-            input_digests=(policy_sha,),
+            input_digests=(policy_sha, limit_policy_sha),
             trace_id=trace_id,
         ),
+        execution_limit_policy=limit_policy,
+        execution_limit_policy_sha256=limit_policy_sha,
     )
 
 
@@ -2288,6 +2329,7 @@ def mission_contract_for_build_session(
     budget: ResourceBudget,
     success_criteria: Sequence[str] | None = None,
     trace_id: str | None = None,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ) -> MissionContract:
     """Compile ONE ``daedalus.build.BuildSession`` into the mission it runs.
 
@@ -2337,6 +2379,8 @@ def mission_contract_for_build_session(
         raise ValueError("build session has no feature to state as an objective")
 
     policy_sha = _policy_registry_sha256()
+    limit_policy = _admit_execution_limit_policy(execution_limit_policy)
+    limit_policy_sha = limit_policy.fingerprint_sha256
     return MissionContract(
         mission_id=mission_id,
         objective=feature,
@@ -2355,9 +2399,11 @@ def mission_contract_for_build_session(
             origin="daedalus.build",
             source_revision=source_revision,
             created_at=created_at,
-            input_digests=(policy_sha,),
+            input_digests=(policy_sha, limit_policy_sha),
             trace_id=trace_id,
         ),
+        execution_limit_policy=limit_policy,
+        execution_limit_policy_sha256=limit_policy_sha,
     )
 
 

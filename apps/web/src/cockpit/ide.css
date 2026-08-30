@@ -1,0 +1,115 @@
+/* The IDE owns the complete body slot. Chrome and the measured status line stay
+   visible; everything between them belongs to OpenVSCode. */
+.cockpit-body.ide {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--room2);
+}
+
+.ide-frame { display: block; width: 100%; height: 100%; border: 0; background: var(--room2); }
+
+.ide-toolbar {
+  position: absolute;
+  z-index: 2;
+  top: var(--u2);
+  right: var(--u3);
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  max-width: min(70vw, 560px);
+  padding: var(--u1) var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+}
+.ide-toolbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ide-toolbar a { flex: none; min-height: 36px; display: inline-flex; align-items: center; color: var(--accent); font-weight: 600; text-decoration: none; }
+.ide-toolbar a:hover { text-decoration: underline; }
+
+.ide-notice {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(560px, calc(100% - 2 * var(--u6)));
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: var(--u3);
+  padding: var(--u8);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.ide-mark { display: grid; place-items: center; width: 52px; height: 52px; border: var(--border) solid var(--line); border-radius: var(--radius); color: var(--accent); font-family: var(--font-mono); font-weight: 700; }
+.ide-notice h2 { font-family: var(--font-display); font-size: var(--fs-xl); }
+.ide-notice-copy { display: grid; gap: var(--u3); color: var(--ink2); }
+.ide-project-path { display: grid; gap: var(--u1); }
+.ide-project-path span { color: var(--ink3); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em; }
+.ide-project-path code { overflow-wrap: anywhere; color: var(--ink); }
+.ide-actions, .project-dialog-actions { display: flex; justify-content: center; gap: var(--u2); }
+.ide-actions button, .project-dialog-actions button {
+  min-height: 44px;
+  padding: 0 var(--u4);
+  border: var(--border) solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.ide-actions button.quiet, .project-dialog-actions button.quiet { border-color: var(--line); background: transparent; color: var(--ink2); }
+.ide-actions button:disabled, .project-dialog-actions button:disabled { opacity: 0.55; cursor: default; }
+
+.scope-add {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+}
+.scope-add:hover { border-color: var(--accent); background: var(--surface2); }
+
+.project-dialog-scrim { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: var(--u4); background: color-mix(in srgb, var(--room2) 72%, transparent); }
+.project-dialog { width: min(540px, 100%); border: var(--border) solid var(--line); border-radius: var(--radius); background: var(--room2); box-shadow: var(--shadow); padding: var(--u5); color: var(--ink); }
+.project-dialog-head { display: flex; align-items: start; justify-content: space-between; gap: var(--u3); margin-bottom: var(--u4); }
+.project-dialog-head span { color: var(--ink3); font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; }
+.project-dialog-head h2 { margin-top: var(--u1); font-family: var(--font-display); font-size: var(--fs-xl); }
+.project-dialog-head button { min-width: 44px; min-height: 44px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink2); font-size: var(--fs-xl); cursor: pointer; }
+.project-dialog form, .project-dialog label { display: grid; gap: var(--u2); }
+.project-dialog form { gap: var(--u4); }
+.project-dialog label > span { color: var(--ink2); font-size: var(--fs-sm); font-weight: 600; }
+.project-dialog label small { color: var(--ink3); font-weight: 400; }
+.project-dialog input { width: 100%; min-height: 44px; padding: 0 var(--u3); border: var(--border) solid var(--line); border-radius: var(--radius-sm); background: var(--surface2); color: var(--ink); }
+.project-folder-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--u2); }
+.project-folder-row .folder-picker {
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  cursor: pointer;
+}
+.project-folder-row .folder-picker:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.project-folder-row .folder-picker:disabled { opacity: 0.55; cursor: default; }
+.project-dialog-hint { margin-top: calc(-1 * var(--u3)); color: var(--ink3); font-size: var(--fs-xs); }
+.project-dialog-error { padding: var(--u2) var(--u3); border-left: 3px solid var(--danger); color: var(--danger); background: var(--surface2); }
+.project-dialog-actions { justify-content: flex-end; }
+
+@media (max-width: 640px) {
+  .ide-notice { padding: var(--u5); }
+  .ide-actions { width: 100%; flex-direction: column; }
+  .project-dialog { padding: var(--u4); }
+  .project-folder-row { grid-template-columns: 1fr; }
+}

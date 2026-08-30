@@ -156,7 +156,7 @@ daedalus/file_bridge.py (heartbeat)    JSON        epoch               N/A BY DE
                                                                        has no run to correlate to.
 =====================================  ==========  ==================  =========================================
 
-The scan also flags nine modules that serialise JSON into ``runs/`` or
+The scan also flags ten modules that serialise JSON into ``runs/`` or
 ``memory/`` and are NOT run records -- latest-only mirrors, config scaffolds,
 cursors, sealed fixtures. They are listed in :data:`UNCONVERTED_PRODUCERS` with
 the reason, because a detector whose output is not fully accounted for is a
@@ -661,6 +661,11 @@ UNCONVERTED_PRODUCERS = {
         "and is reproducible from that surface. If the GUI lane ever gates a "
         "candidate, the gate result becomes a run record and this entry moves "
         "to the worklist above with a real conversion cost.",
+    "daedalus/desktop_runtime.py":
+        "OPERATOR CONFIGURATION, NOT A RUN RECORD. config/connections.json and "
+        "config/known_hosts are latest-only desktop settings/trust material; "
+        "runs/desktop_runtime.log is an unstructured lifecycle log. None is an "
+        "attempt or mission record with a trace to join.",
 
     # -- genuine run records, in value order. THIS IS THE WORKLIST. --------- #
     "daedalus/council/bus.py":

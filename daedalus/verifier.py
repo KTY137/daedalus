@@ -19,6 +19,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .limit_policy import ExecutionLimitPolicy
 from .preservation import check_preservation, is_prose_path
 from .schemas import validate_report
 
@@ -365,7 +366,9 @@ def _effective_timeout(timeout_s: object) -> int | float:
     return timeout_s if timeout_s > 0 else DEFAULT_TEST_TIMEOUT_S
 
 
-def _run_tests(test_command: str, cwd: str, timeout_s: int) -> tuple[bool, str, str]:
+def _run_tests(
+    test_command: str, cwd: str, timeout_s: int | float | None
+) -> tuple[bool, str, str]:
     """Run the project suite. Returns ``(ok, detail, status)``.
 
     ``status`` is the MACHINE-READABLE outcome and is deliberately finer than
@@ -404,7 +407,8 @@ def verify(
     *,
     test_command: str | None = None,
     test_cwd: str | None = None,
-    timeout_s: int = DEFAULT_TEST_TIMEOUT_S,
+    timeout_s: int | float = DEFAULT_TEST_TIMEOUT_S,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
     require_changes: bool = False,
     disk_changed: list[str] | None = None,
     prose_before: dict[str, str | None] | None = None,
@@ -478,12 +482,27 @@ def verify(
         import os
         # test_cwd is relative to the TARGET repo, not the offload process cwd.
         cwd = repo_root if test_cwd in (None, "", ".") else os.path.join(repo_root, test_cwd)
-        budget = _effective_timeout(timeout_s)
+        limit_policy = execution_limit_policy or ExecutionLimitPolicy()
+        if not isinstance(limit_policy, ExecutionLimitPolicy):
+            raise TypeError(
+                "execution_limit_policy must be an ExecutionLimitPolicy"
+            )
+        budget = (
+            _effective_timeout(timeout_s)
+            if limit_policy.enforces("wall_time") else None
+        )
         ok, detail, status = _run_tests(test_command, cwd, budget)
         # ``status`` rides alongside ``ok`` so a consumer can tell a red suite
         # from a budget shortfall without string-matching English out of a
         # 300-char-truncated ``detail``. ``ok`` keeps its exact old meaning.
         checks.append({"name": "tests", "ok": ok, "status": status,
-                       "timeout_s": budget, "detail": detail})
+                       "timeout_s": budget,
+                       "wall_time_ceiling_enabled": (
+                           limit_policy.enforces("wall_time")
+                       ),
+                       "execution_limit_policy_sha256": (
+                           limit_policy.fingerprint_sha256
+                       ),
+                       "detail": detail})
 
     return VerifyResult(ok=all(c["ok"] for c in checks), checks=checks)

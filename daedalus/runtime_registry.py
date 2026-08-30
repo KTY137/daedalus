@@ -8,14 +8,18 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from .env import load_env
@@ -34,6 +38,13 @@ class RuntimeSpec:
     can_write: bool = False
     agentic: bool = False
     notes: str = ""
+
+
+_COMMAND_ENV = {
+    "claude_code_cli": "DAEDALUS_CLAUDE_CLI",
+    "codex_cli": "DAEDALUS_CODEX_CLI",
+    "ollama_cli": "DAEDALUS_OLLAMA_CLI",
+}
 
 
 RUNTIMES: tuple[RuntimeSpec, ...] = (
@@ -101,10 +112,184 @@ RUNTIMES: tuple[RuntimeSpec, ...] = (
 )
 
 
-def _run_version(command: str) -> tuple[bool, str, str]:
-    path = shutil.which(command)
+def _home_dir(environ: Mapping[str, str] | None = None) -> Path | None:
+    env = os.environ if environ is None else environ
+    for key in ("HOME", "USERPROFILE"):
+        raw = str(env.get(key, "")).strip()
+        if raw:
+            return Path(raw)
+    try:
+        return Path.home()
+    except (OSError, RuntimeError):
+        return None
+
+
+def _usable_command(path: Path) -> bool:
+    try:
+        if not path.is_file():
+            return False
+        return os.name == "nt" or os.access(path, os.X_OK)
+    except OSError:
+        return False
+
+
+def _codex_extension_payload(
+    *,
+    platform_name: str | None = None,
+    machine: str | None = None,
+) -> tuple[str, str] | None:
+    """The one Codex extension payload compatible with this host.
+
+    The OpenAI extension can bundle several native payloads side by side. A
+    wildcard below ``bin/*`` therefore is not discovery: on Windows it can
+    select the bundled Linux ELF before ``windows-*/codex.exe``. Keep this
+    mapping in lockstep with the extension's own native-binary layout and
+    refuse architectures it does not publish instead of guessing.
+    """
+
+    host = (sys.platform if platform_name is None else platform_name).lower()
+    if host == "win32":
+        os_family = "windows"
+        executable = "codex.exe"
+    elif host == "darwin":
+        os_family = "macos"
+        executable = "codex"
+    elif host.startswith("linux"):
+        os_family = "linux"
+        executable = "codex"
+    else:
+        return None
+
+    host_machine = (platform.machine() if machine is None else machine).lower()
+    if host_machine in {"amd64", "x86_64"}:
+        architecture = "x86_64"
+    elif host_machine in {"arm64", "aarch64"}:
+        architecture = "aarch64"
+    else:
+        return None
+    return f"{os_family}-{architecture}", executable
+
+
+def _extension_candidates(home: Path, runtime_id: str) -> list[Path]:
+    """Bounded editor-extension discovery, never a home-directory crawl."""
+    roots = (
+        home / ".vscode" / "extensions",
+        home / ".vscode-server" / "extensions",
+        home / ".cursor" / "extensions",
+        home / ".windsurf" / "extensions",
+    )
+    patterns: tuple[str, ...]
+    if runtime_id == "claude_code_cli":
+        patterns = (
+            "anthropic.claude-code-*/resources/native-binary/claude",
+            "anthropic.claude-code-*/resources/native-binary/claude.exe",
+        )
+    elif runtime_id == "codex_cli":
+        payload = _codex_extension_payload()
+        if payload is None:
+            return []
+        directory, executable = payload
+        patterns = (f"openai.chatgpt-*/bin/{directory}/{executable}",)
+    else:
+        return []
+    found: list[Path] = []
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for pattern in patterns:
+            found.extend(root.glob(pattern))
+    # Newest installed extension first. The path is a deterministic tie-break.
+    def rank(path: Path) -> tuple[float, str]:
+        try:
+            return path.stat().st_mtime, str(path)
+        except OSError:
+            return 0.0, str(path)
+    return sorted(found, key=rank, reverse=True)
+
+
+def resolve_runtime_command(
+    runtime_id: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> str | None:
+    """Resolve one registered CLI without assuming the server's ``PATH``.
+
+    Resolution is portable and narrow: an explicit Daedalus override, PATH,
+    documented/common per-user install roots, then known editor-extension
+    payloads. It never recursively scans a profile or guesses a network path.
+    """
+    env = os.environ if environ is None else environ
+    spec = next((row for row in RUNTIMES if row.id == runtime_id), None)
+    if spec is None or spec.mode != "cli" or not spec.command:
+        return None
+
+    candidates: list[Path] = []
+    override = str(env.get(_COMMAND_ENV.get(runtime_id, ""), "")).strip()
+    if override:
+        candidates.append(Path(override))
+
+    on_path = shutil.which(spec.command, path=env.get("PATH"))
+    if on_path:
+        candidates.append(Path(on_path))
+
+    home = _home_dir(env)
+    suffixes = (".exe", ".cmd", ".bat", "") if os.name == "nt" else ("",)
+    if home is not None:
+        for directory in (home / ".local" / "bin", home / "bin"):
+            candidates.extend(directory / f"{spec.command}{suffix}" for suffix in suffixes)
+        candidates.extend(_extension_candidates(home, runtime_id))
+
+    if os.name == "nt":
+        local = str(env.get("LOCALAPPDATA", "")).strip()
+        roaming = str(env.get("APPDATA", "")).strip()
+        if runtime_id == "ollama_cli" and local:
+            candidates.append(Path(local) / "Programs" / "Ollama" / "ollama.exe")
+        if roaming:
+            npm = Path(roaming) / "npm"
+            candidates.extend(npm / f"{spec.command}{suffix}" for suffix in suffixes)
+        if runtime_id == "codex_cli" and local:
+            candidates.append(Path(local) / "Programs" / "OpenAI" / "Codex" / "bin" / "codex.exe")
+    else:
+        for directory in (Path("/usr/local/bin"), Path("/opt/homebrew/bin"), Path("/snap/bin")):
+            candidates.append(directory / spec.command)
+        if sys.platform == "darwin" and runtime_id == "ollama_cli":
+            candidates.append(Path("/Applications/Ollama.app/Contents/Resources/ollama"))
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = os.path.normcase(os.path.abspath(str(candidate)))
+        if key in seen:
+            continue
+        seen.add(key)
+        if _usable_command(candidate):
+            return str(candidate.resolve())
+    return None
+
+
+def runtime_subprocess_env(
+    runtime_id: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Child environment bound to the runtime's existing local state root."""
+    env = dict(os.environ if environ is None else environ)
+    if runtime_id == "codex_cli" and not str(env.get("CODEX_HOME", "")).strip():
+        home = _home_dir(env)
+        codex_home = home / ".codex" if home is not None else None
+        # OpenAI's public contract requires CODEX_HOME to exist. Never create or
+        # copy it here; merely make the already-present state visible to a child
+        # launched from a service whose home-directory lookup may be absent.
+        if codex_home is not None and codex_home.is_dir():
+            env["CODEX_HOME"] = str(codex_home)
+    return env
+
+
+def _run_version(spec: RuntimeSpec) -> tuple[bool, str, str]:
+    path = resolve_runtime_command(spec.id)
     if not path:
-        return False, "", f"{command} not found on PATH"
+        override = _COMMAND_ENV.get(spec.id, "")
+        hint = f" or set {override}" if override else ""
+        return False, "", f"{spec.command} not found on PATH or supported install locations{hint}"
     try:
         completed = subprocess.run(
             # Spawn the RESOLVED path, not the bare name: npm ships `codex` as a
@@ -118,6 +303,7 @@ def _run_version(command: str) -> tuple[bool, str, str]:
             capture_output=True,
             timeout=5,
             check=False,
+            env=runtime_subprocess_env(spec.id),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return False, path, str(exc)
@@ -129,8 +315,24 @@ def _run_version(command: str) -> tuple[bool, str, str]:
 def _ollama_http_status() -> dict[str, Any]:
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
     want = os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
+    from .providers.ollama import ollama_endpoint_admission, ollama_http_base_url
+
+    allowed, lane, reason = ollama_endpoint_admission(host)
+    if not allowed:
+        return {
+            "available": False,
+            "auth_status": "egress_refused",
+            "command_path": "",
+            "version": "",
+            "endpoint": host,
+            "lane": lane,
+            "models": [],
+            "selected_model": want,
+            "model_present": False,
+            "last_error": reason,
+        }
     try:
-        with urllib.request.urlopen(host.rstrip("/") + "/api/tags", timeout=3) as resp:
+        with urllib.request.urlopen(ollama_http_base_url(host) + "/api/tags", timeout=3) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         models = [m.get("model") or m.get("name") for m in payload.get("models", [])]
         stem = want.split(":")[0]
@@ -140,6 +342,7 @@ def _ollama_http_status() -> dict[str, Any]:
             "command_path": "",
             "version": "",
             "endpoint": host,
+            "lane": lane,
             "models": models,
             "selected_model": want,
             "model_present": any(stem in (m or "") for m in models),
@@ -152,6 +355,7 @@ def _ollama_http_status() -> dict[str, Any]:
             "command_path": "",
             "version": "",
             "endpoint": host,
+            "lane": lane,
             "models": [],
             "selected_model": want,
             "model_present": False,
@@ -168,7 +372,20 @@ def runtime_status(runtime_id: str) -> dict[str, Any]:
     if spec.id == "ollama_http":
         return {**base, **_ollama_http_status()}
     if spec.mode == "cli":
-        ok, path, detail = _run_version(spec.command)
+        ok, path, detail = _run_version(spec)
+        if spec.id == "ollama_cli" and ok:
+            server = _ollama_http_status()
+            return {
+                **base,
+                **server,
+                "available": bool(server.get("available")),
+                "auth_status": (
+                    "cli_detected_server_reachable"
+                    if server.get("available") else server.get("auth_status")
+                ),
+                "command_path": path,
+                "version": detail,
+            }
         return {
             **base,
             "available": ok,

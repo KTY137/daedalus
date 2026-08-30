@@ -533,13 +533,20 @@ class NameIndex:
         """
 
         per_file: dict[str, frozenset[str]] = {}
+        generated_roots = (
+            "apps/web/src-tauri/backend",
+            "apps/web/src-tauri/target",
+        )
         for dirpath, dirnames, filenames in os.walk(root):
             here = Path(dirpath)
             dirnames[:] = sorted(
                 name
                 for name in dirnames
-                if name not in (".git", "__pycache__")
+                if name not in (".git", "__pycache__", "build", "dist")
                 and not (here / name / ".git").exists()
+                and not (here / name).relative_to(root).as_posix().startswith(
+                    generated_roots
+                )
             )
             for name in sorted(filenames):
                 if not name.endswith(".py"):

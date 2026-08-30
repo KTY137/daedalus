@@ -1,4 +1,4 @@
-import type { ApiEnvelope, BootstrapPayload, ContextPlanPayload, ControlPlanePayload, DashboardPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TopologyPayload } from './types';
+import type { ApiEnvelope, BootstrapPayload, ContextPlanPayload, ControlPlanePayload, DashboardPayload, DesktopStatusPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRegistration, ProjectRegistrationPayload, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TopologyPayload } from './types';
 
 /**
  * Why a request failed, kept SEPARATE from the message.
@@ -100,6 +100,29 @@ async function request<T>(url: string, init?: RequestInit, timeoutMs = 20_000): 
 
 export function getProjects() {
   return request<ApiEnvelope & { projects: ProjectRow[] }>('/api/projects');
+}
+
+/** Register an existing checkout. This sends only its local path and optional
+ * display name; it is not a repository upload. */
+export function createProject(registration: ProjectRegistration) {
+  return request<ProjectRegistrationPayload>('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify(registration)
+  });
+}
+
+/** The desktop settings response is also the single measured service-status
+ * snapshot. Source/dev servers may answer 404; callers must render that as
+ * unavailable instead of inventing a running IDE. */
+export function getDesktopStatus() {
+  return request<DesktopStatusPayload>('/api/desktop/settings');
+}
+
+export function startDesktopIde(repoRoot: string) {
+  return request<DesktopStatusPayload>('/api/desktop/services/ide/start', {
+    method: 'POST',
+    body: JSON.stringify({ project: repoRoot })
+  }, 70_000);
 }
 
 export function getDashboard(project: string) {

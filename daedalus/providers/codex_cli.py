@@ -44,10 +44,17 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from ..limit_policy import ExecutionLimitPolicy
 from ..schemas import REPORT_KEYS
 from ..sensitivity import classify_data
 from ..token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX, trim_paths
-from ._report import blocked_report, coerce_report, extract_json
+from ._report import (
+    blocked_report,
+    bounded_execution_limit_policy,
+    coerce_report,
+    extract_json,
+    provider_http_timeout,
+)
 from .base import Provider, ProviderCapabilities
 from .personas import persona_for
 
@@ -82,9 +89,21 @@ REPORT_SCHEMA: dict[str, Any] = {
 }
 
 
-def build_prompt(agent: dict[str, Any], objective: str, paths: list[str],
-                 writable: bool, policy: Any | None) -> str:
-    paths = trim_paths(paths)
+def build_prompt(
+    agent: dict[str, Any],
+    objective: str,
+    paths: list[str],
+    writable: bool,
+    policy: Any | None,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
+) -> str:
+    limit_policy = bounded_execution_limit_policy(execution_limit_policy)
+    paths = trim_paths(paths, limit_policy=limit_policy)
+    prefix = (
+        STATIC_PROMPT_PREFIX
+        if limit_policy.enforces("tokens")
+        else "Daedalus Bridge Protocol v1."
+    )
     action = ("Apply the change directly by editing files in place, then report."
               if writable else
               "You are ADVISORY (read-only sandbox): do NOT edit files; propose "
@@ -95,7 +114,13 @@ def build_prompt(agent: dict[str, Any], objective: str, paths: list[str],
         if frags:
             denied = ("\n- Policy-denied path fragments (do not open or modify): "
                       f"{frags}")
-    return f"""{STATIC_PROMPT_PREFIX}
+    detail_hint = (
+        "\n- The summary remains compact for the report schema; put any "
+        "unabridged detail in handoff.notes."
+        if not limit_policy.enforces("tokens")
+        else ""
+    )
+    return f"""{prefix}
 
 You are acting as {agent.get('call_name', '?')} / {agent.get('name', '?')}, a stateless specialist.
 Work alone; do not ask another agent. Do not use full chat history.
@@ -110,7 +135,7 @@ Constraints:
 - {action}
 - Stay inside the repository working root; never touch files outside it.
 - Do not run commands that can reach real hardware or external services.{denied}
-- Keep summary under {MAX_SUMMARY_CHARS} characters.
+- Keep summary under {MAX_SUMMARY_CHARS} characters.{detail_hint}
 - Your FINAL message must be ONLY a json object with exactly these keys:
   status (done|blocked|needs_review|failed), summary, files_changed,
   tests_run, risks, todos, handoff. No prose around it.
@@ -145,15 +170,26 @@ class CodexCLIProvider(Provider):
         # Measured live 2026-07-11: real repo tasks (C1/C2) take 8-20 min in
         # codex exec; 300s killed C2's wrapper while codex kept working and
         # the report went out as blocked despite good disk changes.
-        timeout_s: int = 1500,
+        timeout_s: int | float | None = 1500,
         policy: Any | None = None,
         writable: bool = False,  # fail-closed: caller must grant write explicitly
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
     ) -> dict[str, Any]:
+        limit_policy = bounded_execution_limit_policy(execution_limit_policy)
+        effective_timeout = provider_http_timeout(
+            limit_policy,
+            timeout_s,
+            bounded_default=1500.0,
+        )
         persona = persona_for(self.caps.name, agent.get("name"))
 
         def _out(report: dict[str, Any]) -> dict[str, Any]:
             return {"provider": self.caps.name, "persona": persona,
-                    "agent": agent.get("name"), "report": report}
+                    "agent": agent.get("name"), "report": report,
+                    "execution_limit_policy": limit_policy.as_dict(),
+                    "execution_limit_policy_sha256": (
+                        limit_policy.fingerprint_sha256
+                    )}
 
         # HARD EGRESS GATE (non-negotiable): same enforcement path as DeepSeek.
         # Refuse BEFORE spawning the CLI -- a denied path never reaches codex.
@@ -166,7 +202,14 @@ class CodexCLIProvider(Provider):
                 offending=verdict.offending,
             ))
 
-        prompt = build_prompt(agent, objective, paths, writable, policy)
+        prompt = build_prompt(
+            agent,
+            objective,
+            paths,
+            writable,
+            policy,
+            execution_limit_policy=limit_policy,
+        )
         try:
             RUN_DIR.mkdir(parents=True, exist_ok=True)
             (RUN_DIR / "last_codex_prompt.md").write_text(prompt, encoding="utf-8")
@@ -211,11 +254,16 @@ class CodexCLIProvider(Provider):
                     # inherited stdin never closes -> codex hangs at ~0 CPU
                     # (live-fired 2026-07-11, task C1).
                     stdin=subprocess.DEVNULL,
-                    timeout=timeout_s, check=False,
+                    timeout=effective_timeout, check=False,
                 )
             except subprocess.TimeoutExpired:
+                timeout_label = (
+                    f" after {effective_timeout:g}s"
+                    if effective_timeout is not None
+                    else ""
+                )
                 report = blocked_report(
-                    f"Codex CLI timed out after {timeout_s}s.",
+                    f"Codex CLI timed out{timeout_label}.",
                     "Retry with a longer timeout or fall back to Claude.",
                     disk_may_be_dirty=writable,
                 )
@@ -252,7 +300,10 @@ class CodexCLIProvider(Provider):
                     "Retry, or fall back to Claude.",
                 ))
             try:
-                report = coerce_report(extract_json(raw))
+                report = coerce_report(
+                    extract_json(raw),
+                    execution_limit_policy=limit_policy,
+                )
             except (ValueError, json.JSONDecodeError):
                 return _out(blocked_report(
                     "Codex CLI returned a malformed report (not the agent_report_v1 json).",

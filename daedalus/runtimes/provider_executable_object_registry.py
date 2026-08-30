@@ -1,4 +1,4 @@
-"""Guarded in-process admission for revision-bound provider executable objects.
+"""Canonical in-process admission for revision-bound provider executable objects.
 
 The pre-admission packet proves *which* provider implementation and repository
 targets are authorized to be considered. This module proves that the concrete
@@ -6,10 +6,11 @@ Python function objects already present in the process still correspond to
 those exact targets, repository bytes, and a deliberately narrow ambient-global
 dependency closure.
 
-It intentionally does not import modules, execute provider code, start effects,
-or grant provider authority. A later broker packet must still construct a
-sealed execution namespace before these objects can become executable; until
-then, an admission receipt remains evidence only.
+Admission itself does not import modules, execute provider code, start effects,
+or grant provider authority. The Gate-1 broker may additionally consume the
+registered objects through the narrow sealed-operation methods at the end of
+this module, but only with an exact persisted STARTED receipt and the same
+runtime/effect/payload subject. No caller-selected callable crosses that seam.
 """
 from __future__ import annotations
 
@@ -23,9 +24,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
+from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.runtimes.provider_executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
+from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
 from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
@@ -61,6 +65,10 @@ class ProviderExecutableObjectRegistryShapeError(ProviderExecutableObjectRegistr
 
 class ProviderExecutableObjectRegistryBindingError(ProviderExecutableObjectRegistryError):
     """A loaded object differs from the authenticated repository subject."""
+
+
+class ProviderSealedOutputEvidenceError(ProviderExecutableObjectRegistryError):
+    """The provider returned, but its fixed evidence operation did not."""
 
 
 def _target(value: Any, label: str) -> str:
@@ -239,6 +247,41 @@ def _verify_function_state(function: types.FunctionType, label: str) -> None:
         raise ProviderExecutableObjectRegistryBindingError(
             f"{label} function closures are not admissible"
         )
+    if function.__defaults__ is not None:
+        raise ProviderExecutableObjectRegistryBindingError(
+            f"{label} function positional defaults are not admissible"
+        )
+    if function.__kwdefaults__ not in (None, {}):
+        raise ProviderExecutableObjectRegistryBindingError(
+            f"{label} function keyword defaults are not admissible"
+        )
+
+
+def _verify_sealed_signature(
+    function: types.FunctionType,
+    expected_names: tuple[str, ...],
+    label: str,
+) -> None:
+    """Require the fixed payload ABI used by the D4 broker operation."""
+
+    try:
+        parameters = tuple(inspect.signature(function).parameters.values())
+    except (TypeError, ValueError) as exc:
+        raise ProviderExecutableObjectRegistryBindingError(
+            f"{label} sealed-operation signature could not be inspected"
+        ) from exc
+    if len(parameters) != len(expected_names):
+        raise ProviderExecutableObjectRegistryBindingError(
+            f"{label} must accept exactly {len(expected_names)} sealed arguments"
+        )
+    for parameter, expected_name in zip(parameters, expected_names):
+        if parameter.name != expected_name or parameter.kind not in {
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }:
+            raise ProviderExecutableObjectRegistryBindingError(
+                f"{label} sealed-operation parameter must be {expected_name!r}"
+            )
     if function.__defaults__ is not None:
         raise ProviderExecutableObjectRegistryBindingError(
             f"{label} function positional defaults are not admissible"
@@ -713,6 +756,134 @@ class ProviderExecutableObjectRegistry:
             )
         return current
 
+    def _verify_sealed_operation(
+        self,
+        pre_admission: ProviderExecutablePreAdmissionReceipt,
+        payload: ProviderInvocationPayload,
+    ) -> ProviderExecutableObjectAdmissionReceipt:
+        """Verify the fixed payload ABI without executing registered code."""
+
+        subject = _canonical_pre_admission(pre_admission)
+        if type(payload) is not ProviderInvocationPayload:
+            raise ProviderExecutableObjectRegistryShapeError(
+                "payload must be exact ProviderInvocationPayload"
+            )
+        if (
+            payload.provider_id != subject.provider_id
+            or payload.adapter_id != subject.adapter_id
+            or payload.invocation_subject_sha256
+            != subject.invocation_subject_sha256
+        ):
+            raise ProviderExecutableObjectRegistryBindingError(
+                "sealed payload differs from executable pre-admission subject"
+            )
+        admission = self.verify_registered(subject)
+        entry = self._entries.get(subject.digest)
+        if entry is None:  # verify_registered already refuses; retain fail-closed shape.
+            raise ProviderExecutableObjectRegistryBindingError(
+                "sealed provider executable objects disappeared after verification"
+            )
+        _verify_sealed_signature(entry.invoke, ("payload",), "invoke")
+        _verify_sealed_signature(
+            entry.output_digests,
+            ("value", "payload"),
+            "output_digests",
+        )
+        return admission
+
+    def _execute_sealed_operation(
+        self,
+        pre_admission: ProviderExecutablePreAdmissionReceipt,
+        payload: ProviderInvocationPayload,
+        *,
+        authorization: RuntimeBoundEffectAuthorization,
+        execution: EffectExecutionRequest,
+        start_receipt: LeasedEffectStartReceipt,
+    ) -> tuple[Any, Any]:
+        """Execute one fixed operation only after its exact durable Effect start."""
+
+        if type(authorization) is not RuntimeBoundEffectAuthorization:
+            raise ProviderExecutableObjectRegistryShapeError(
+                "authorization must be exact RuntimeBoundEffectAuthorization"
+            )
+        if type(execution) is not EffectExecutionRequest:
+            raise ProviderExecutableObjectRegistryShapeError(
+                "execution must be exact EffectExecutionRequest"
+            )
+        if type(start_receipt) is not LeasedEffectStartReceipt:
+            raise ProviderExecutableObjectRegistryShapeError(
+                "start_receipt must be exact LeasedEffectStartReceipt"
+            )
+        subject = _canonical_pre_admission(pre_admission)
+        ProviderExecutableObjectRegistry._verify_sealed_operation(
+            self,
+            subject,
+            payload,
+        )
+        mismatches = sorted(
+            name
+            for name, (actual, expected) in {
+                "entrypoint_id": (
+                    subject.entrypoint_id,
+                    authorization.request.entrypoint_id,
+                ),
+                "runtime_id": (subject.runtime_id, authorization.capability.runtime_id),
+                "execution_id": (subject.execution_id, execution.execution_id),
+                "idempotency_key": (
+                    subject.idempotency_key,
+                    execution.idempotency_key,
+                ),
+                "lease_sha256": (
+                    subject.lease_sha256,
+                    authorization.capability.lease.digest,
+                ),
+                "source_revision": (
+                    subject.source_revision,
+                    authorization.capability.source_revision,
+                ),
+                "start_execution_id": (
+                    start_receipt.execution_id,
+                    execution.execution_id,
+                ),
+                "start_idempotency_key": (
+                    start_receipt.idempotency_key,
+                    execution.idempotency_key,
+                ),
+                "start_execution_request_sha256": (
+                    start_receipt.execution_request_sha256,
+                    execution.digest,
+                ),
+                "start_lease_sha256": (
+                    start_receipt.lease_sha256,
+                    authorization.capability.lease.digest,
+                ),
+            }.items()
+            if actual != expected
+        )
+        if mismatches:
+            raise ProviderExecutableObjectRegistryBindingError(
+                "sealed operation start subject mismatch: " + ", ".join(mismatches)
+            )
+        authorization.verify()
+        if authorization.effect_ledger.execution_state(execution.execution_id) != "STARTED":
+            raise ProviderExecutableObjectRegistryBindingError(
+                "sealed operation requires the exact persisted STARTED execution"
+            )
+        entry = self._entries.get(subject.digest)
+        if entry is None:
+            raise ProviderExecutableObjectRegistryBindingError(
+                "sealed provider executable objects disappeared before execution"
+            )
+        body = payload.to_dict()["body"]
+        value = entry.invoke(body)
+        try:
+            output_digests = entry.output_digests(value, body)
+        except BaseException as exc:
+            raise ProviderSealedOutputEvidenceError(
+                "sealed provider output-evidence operation failed after invocation"
+            ) from exc
+        return value, output_digests
+
 
 __all__ = [
     "ProviderExecutableObjectAdmissionReceipt",
@@ -720,4 +891,5 @@ __all__ = [
     "ProviderExecutableObjectRegistryBindingError",
     "ProviderExecutableObjectRegistryError",
     "ProviderExecutableObjectRegistryShapeError",
+    "ProviderSealedOutputEvidenceError",
 ]

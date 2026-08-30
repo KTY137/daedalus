@@ -15,7 +15,7 @@ from daedalus.kernel.effect_recovery import (
 )
 from daedalus.runtimes.broker import (
     RuntimeProviderReconciliationRequired,
-    run_runtime_provider,
+    _run_runtime_provider_test_double as run_runtime_provider,
 )
 from daedalus.runtimes.provider_observation import (
     ProviderObservationBindingLedger,

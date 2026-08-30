@@ -20,33 +20,39 @@ def _function(module, name: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
     return matches[0]
 
 
-def test_broker_requires_exact_runtime_and_observation_authority_before_effect() -> None:
-    source = inspect.getsource(broker)
+def test_broker_requires_exact_runtime_and_invocation_authority_before_effect() -> None:
+    source = inspect.getsource(broker.run_runtime_provider)
     run = _function(broker, "run_runtime_provider")
     keyword_names = [arg.arg for arg in run.args.kwonlyargs]
-    assert "observation_authority" in keyword_names
+    assert "invocation_authority" in keyword_names
+    assert "invocation_payload" in keyword_names
+    assert "invocation_abi" in keyword_names
     assert "observation_binding_ledger" in keyword_names
+    assert "executable_registry" in keyword_names
+    assert "pre_admission" in keyword_names
+    assert "invoke" not in keyword_names
+    assert "output_digests" not in keyword_names
     assert "observation_keyring" not in keyword_names
     assert "expected_provider_id" not in keyword_names
 
-    boundary = inspect.getsource(broker._production_observation_binding)
-    assert "type(authorization) is not RuntimeBoundEffectAuthorization" in boundary
-    assert "type(authority) is not ProviderObservationAuthority" in boundary
-    assert "type(ledger) is not ProviderObservationBindingLedger" in boundary
-    assert "isinstance(authorization, RuntimeBoundEffectAuthorization)" not in boundary
-    assert "compatibility" not in boundary.lower()
+    assert "type(authorization) is not RuntimeBoundEffectAuthorization" in source
+    assert "ProviderInvocationObservationAuthority" in source
+    assert "ProviderObservationBindingLedger" in source
+    assert "ProviderExecutableObjectRegistry" in source
+    assert "isinstance(authorization, RuntimeBoundEffectAuthorization)" not in source
 
-    exact_position = source.index("observation_binding = _production_observation_binding(")
-    validate_position = source.index("spec = _validate_binding(", exact_position)
+    validate_position = source.index("spec = _validate_binding(")
+    bind_position = source.index("bind_provider_runtime_invocation(", validate_position)
+    sealed_verify_position = source.index("_verify_sealed_operation(", bind_position)
     grant_position = source.index("    authorization.grant()", validate_position)
     begin_position = source.index("    start = authorization.begin_effect", grant_position)
     prepare_position = source.index(
         "_prepare_observation_authority_after_start(",
         begin_position,
     )
-    invoke_position = source.index("        value = invoke()", prepare_position)
-    assert exact_position < validate_position < grant_position < begin_position
-    assert begin_position < prepare_position < invoke_position
+    invoke_position = source.index("_execute_sealed_operation(", prepare_position)
+    assert validate_position < bind_position < sealed_verify_position < grant_position
+    assert grant_position < begin_position < prepare_position < invoke_position
 
     helper = inspect.getsource(broker._prepare_observation_authority_after_start)
     assert "ledger.verify_authority(" in helper

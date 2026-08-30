@@ -17,6 +17,12 @@
 # which re-derives the census from the source and fails when a subject is not
 # covered here. Adding a file that hashes its own bytes without adding a line
 # here is a test failure, not a Windows-only surprise three sessions later.
+
+# The adopted plan and its append-only amendment chain bind their raw SHA-256
+# bytes to each accepted record. Checkout translation must not make a valid
+# owner decision appear to have a different identity on Windows.
+docs/IKARUS_ARIADNE_MASTER_PLAN.md -text
+docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl -text
 #
 # MEASURED 2026-08-22 on this worktree, `git ls-files --eol`: of the 12 byte-pin
 # subjects, 2 carried an attribute and 4 were checked out CRLF.
@@ -210,6 +216,7 @@ daedalus/lanes/__init__.py -text
 daedalus/lanes/checks.py -text
 daedalus/lanes/graph_brief.py -text
 daedalus/lanes/grounding.py -text
+daedalus/limit_policy.py -text
 daedalus/mapping/__init__.py -text
 daedalus/mapping/drift.py -text
 daedalus/mapping/inventory.py -text
@@ -289,3 +296,34 @@ daedalus/twin/legacy_forest.py -text
 daedalus/twin/projection_verifier.py -text
 daedalus/twin/reference_compiler.py -text
 daedalus/verifier.py -text
+daedalus/eval/__init__.py -text
+daedalus/eval/_text_integrity.py -text
+daedalus/eval/report.py -text
+daedalus/eval/tier2.py -text
+daedalus/gates/provider_target_receipt_retention_inventory.py -text
+daedalus/gates/python_target_structure.py -text
+daedalus/gates/repository_tree.py -text
+daedalus/kernel/artifacts.py -text
+daedalus/kernel/source_trees.py -text
+daedalus/runtimes/provider_executable_object_registry.py -text
+daedalus/runtimes/provider_executable_pre_admission.py -text
+daedalus/runtimes/provider_executable_structure.py -text
+daedalus/runtimes/provider_executable_targets.py -text
+daedalus/runtimes/provider_invocation.py -text
+daedalus/runtimes/provider_invocation_abi.py -text
+daedalus/runtimes/provider_invocation_authority.py -text
+daedalus/runtimes/provider_invocation_identity.py -text
+daedalus/runtimes/provider_invocation_payload.py -text
+daedalus/runtimes/provider_invocation_registry.py -text
+daedalus/runtimes/provider_invocation_resolution.py -text
+daedalus/runtimes/provider_runtime_executable_binding.py -text
+daedalus/runtimes/provider_runtime_invocation_binding.py -text
+daedalus/runtimes/provider_target_receipt_retention_admission.py -text
+daedalus/runtimes/provider_target_receipt_retention_completed_evidence.py -text
+daedalus/runtimes/provider_target_receipt_retention_contract.py -text
+daedalus/runtimes/provider_target_receipt_retention_effect_terminal_evidence.py -text
+daedalus/runtimes/provider_target_receipt_retention_preflight.py -text
+daedalus/runtimes/provider_target_receipt_retention_recovery.py -text
+daedalus/runtimes/provider_target_verification.py -text
+daedalus/runtimes/provider_target_verification_contracts.py -text
+daedalus/text_integrity.py -text

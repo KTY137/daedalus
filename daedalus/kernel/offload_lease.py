@@ -83,6 +83,7 @@ from daedalus.kernel.effects import (
     EffectLeaseStateError,
     issue_effect_lease,
 )
+from daedalus.limit_policy import ExecutionLimitPolicy, load_from_env
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
@@ -631,6 +632,10 @@ def record_effect_lease_subject_parts(
         "control_root_sha256": write_root_identity_sha256(control_root_path),
         "recorded_at": _timestamp(recorded_at or _utc_now()),
     }
+    if authorization.execution_limit_policy is not None:
+        body["execution_limit_policy"] = _limit_policy_evidence(
+            authorization.execution_limit_policy
+        )
     body["record_sha256"] = _record_sha256(body)
     _publish_evidence_record(evidence_root, "lease-subject", body)
     return body
@@ -679,6 +684,11 @@ def rebuild_effect_lease_authorization(
     )
     path = ledger_path if ledger_path is not None else subject_record["ledger_path"]
     generation = int(lease.kill_switch_generation)
+    retained_limit_policy = (
+        _limit_policy_from_evidence(subject_record["execution_limit_policy"])
+        if "execution_limit_policy" in subject_record
+        else None
+    )
     return NonRuntimeEffectAuthorization(
         lease=lease,
         request=request,
@@ -687,6 +697,7 @@ def rebuild_effect_lease_authorization(
         lease_keyring=dict(keyring),
         guard_decisions=decisions,
         kill_switch_generation_reader=lambda: generation,
+        execution_limit_policy=retained_limit_policy,
     )
 
 
@@ -1234,6 +1245,35 @@ def lane_endpoint(lane: str) -> str:
 # --------------------------------------------------------------------------- #
 # the results                                                                  #
 # --------------------------------------------------------------------------- #
+def _limit_policy_evidence(policy: ExecutionLimitPolicy) -> dict[str, Any]:
+    """Canonical resource-policy snapshot carried by digests and receipts."""
+
+    return {
+        "policy": policy.as_dict(),
+        "effective": policy.effective.as_dict(),
+        "fingerprint_sha256": policy.fingerprint_sha256,
+    }
+
+
+def _limit_policy_from_evidence(value: object) -> ExecutionLimitPolicy:
+    """Strictly rebuild the typed snapshot retained in existing evidence."""
+
+    if not isinstance(value, Mapping):
+        raise ValueError("execution_limit_policy evidence must be an object")
+    expected = {"policy", "effective", "fingerprint_sha256"}
+    if set(value) != expected:
+        raise ValueError(
+            "execution_limit_policy evidence must contain exactly policy, "
+            "effective and fingerprint_sha256"
+        )
+    policy = ExecutionLimitPolicy.from_dict(value["policy"])
+    if value["effective"] != policy.effective.as_dict():
+        raise ValueError("execution_limit_policy effective axes do not match its mode")
+    if value["fingerprint_sha256"] != policy.fingerprint_sha256:
+        raise ValueError("execution_limit_policy fingerprint does not match its policy")
+    return policy
+
+
 @dataclass(frozen=True)
 class WaveLeaseDenied:
     """No capability was issued, and the canonical reason why.
@@ -1255,6 +1295,9 @@ class WaveLeaseDenied:
     #: denial above keeps its exact shape; a denial that named the wrong row
     #: would be a receipt about a capability nobody asked for.
     entrypoint_id: str = ENTRYPOINT_ID
+    #: Captured execution-resource policy. Older hand-built denials have no
+    #: issuer snapshot and retain ``None`` rather than inventing one later.
+    limit_policy: ExecutionLimitPolicy | None = None
 
     @property
     def granted(self) -> bool:
@@ -1276,6 +1319,11 @@ class WaveLeaseDenied:
             "write_policy": (
                 None if self.write_policy is None else self.write_policy.to_dict()
             ),
+            "execution_limit_policy": (
+                None
+                if self.limit_policy is None
+                else _limit_policy_evidence(self.limit_policy)
+            ),
             "lease_id": None,
             "requested_effects": [],
             "security_boundary_claimed": False,
@@ -1291,6 +1339,7 @@ class WaveOffloadLease:
     lease: EffectLease
     request: EffectLeaseRequest
     policy_decision: PolicyDecision
+    limit_policy: ExecutionLimitPolicy
     ledger: EffectLeaseLedger = field(repr=False)
     ledger_path: str = ""
     #: The policy that cleared the declared roots, named on the receipt.
@@ -1349,7 +1398,7 @@ class WaveOffloadLease:
             writable_paths=declared or scope.writable_paths,
             egress_endpoints=scope.egress_endpoints,
             tools=scope.tools,
-            max_cost_microusd=scope.max_cost_microusd or 0,
+            max_cost_microusd=scope.max_cost_microusd,
             kill_switch_ref=scope.kill_switch_ref,
             kill_switch_generation=self.lease.kill_switch_generation,
         )
@@ -1501,6 +1550,7 @@ class WaveOffloadLease:
             "write_policy": (
                 None if self.write_policy is None else self.write_policy.to_dict()
             ),
+            "execution_limit_policy": _limit_policy_evidence(self.limit_policy),
             "ledger_path": self.ledger_path,
             "security_boundary_claimed": False,
         }
@@ -1691,6 +1741,7 @@ def _deny(
     now: datetime,
     write_policy: WritePolicySource | None = None,
     entrypoint_id: str = ENTRYPOINT_ID,
+    limit_policy: ExecutionLimitPolicy | None = None,
 ) -> WaveLeaseDenied:
     decision = PolicyDecision(
         decision_id=f"{subject_id}-deny",
@@ -1722,6 +1773,7 @@ def _deny(
         guard_decisions=tuple(guard_decisions),
         write_policy=write_policy,
         entrypoint_id=str(entrypoint_id),
+        limit_policy=limit_policy,
     )
 
 
@@ -1750,6 +1802,7 @@ def acquire_effect_lease(
     effect_key: str | None = None,
     subject_root: str | Path | None = None,
     worktree_root: str | Path | None = None,
+    limit_policy: ExecutionLimitPolicy | None = None,
 ) -> WaveOffloadLease | WaveLeaseDenied:
     """Run the guard contracts ONE registry row declares, then issue or deny.
 
@@ -1813,6 +1866,13 @@ def acquire_effect_lease(
     in as corroboration; it can only ever add a refusal, never remove one.
     """
     instant = now or _utc_now()
+    if limit_policy is None:
+        captured_limit_policy = load_from_env()
+    elif isinstance(limit_policy, ExecutionLimitPolicy):
+        captured_limit_policy = limit_policy
+    else:
+        raise TypeError("limit_policy must be ExecutionLimitPolicy or None")
+    limit_policy_material = _limit_policy_evidence(captured_limit_policy)
     # THE AUTHORITY ROOT. Everything the operator owns and the candidate must
     # never choose hangs off this name: the permit, the issuer key, the lease
     # ledger, the evidence store, the write fence, the attempt ledger the
@@ -1841,6 +1901,7 @@ def acquire_effect_lease(
                 "registry_sha256": registry_sha256(),
                 "issuer_contracts": sorted(ISSUER_CONTRACTS),
                 "issuer_effects": sorted(ISSUER_EFFECTS),
+                "execution_limit_policy": limit_policy_material,
                 "reasons": sorted(row_refusals),
             }
         )
@@ -1856,6 +1917,7 @@ def acquire_effect_lease(
             policy_sha256=refusal_sha256,
             now=instant,
             entrypoint_id=door,
+            limit_policy=captured_limit_policy,
         )
     effects = tuple(sorted(effect.value for effect in spec.effects))
     declared_contracts = frozenset(spec.guard_contracts)
@@ -2054,12 +2116,32 @@ def acquire_effect_lease(
     # WHAT THE ROW DID NOT DECLARE IS NOT GRANTED. `_scope_requirements`
     # refuses a scope that is too NARROW for the declared effects; nothing in
     # the kernel refuses one that is too wide, so the narrowing happens here.
-    cost_microusd = 0 if max_spend_usd is None else int(round(float(max_spend_usd) * 1e6))
-    if cost_microusd < 0:
-        cost_microusd = 0
     if Effect.SPEND.value not in declared_effects:
-        cost_microusd = 0
-    timeout = int(max(1, round(float(timeout_s)))) if timeout_s else 3600
+        # None means unbounded spend, so it must never appear on a lease whose
+        # registry row did not declare the SPEND effect.
+        cost_microusd: int | None = 0
+    elif not captured_limit_policy.enforces("mission_spend"):
+        cost_microusd = None
+    else:
+        cost_microusd = (
+            0
+            if max_spend_usd is None
+            else int(round(float(max_spend_usd) * 1e6))
+        )
+        if cost_microusd < 0:
+            cost_microusd = 0
+
+    timeout: int | None
+    if captured_limit_policy.enforces("wall_time"):
+        timeout = int(max(1, round(float(timeout_s)))) if timeout_s else 3600
+    else:
+        timeout = None
+
+    max_concurrency: int | None = (
+        max(1, int(positions))
+        if captured_limit_policy.enforces("concurrency")
+        else None
+    )
     spawns = bool(
         declared_effects
         & {Effect.PROCESS_SPAWN.value, Effect.PROCESS_CONTROL.value}
@@ -2093,6 +2175,7 @@ def acquire_effect_lease(
                 for d in sorted(guards, key=lambda d: d.contract)
             ],
             "kill_switch_generation": generation,
+            "execution_limit_policy": limit_policy_material,
             # The write fence's IDENTITY travels inside the digest, so a
             # decision recomputed under a different policy file does not
             # reproduce this sha: the drift is visible rather than silent.
@@ -2102,7 +2185,7 @@ def acquire_effect_lease(
             "writable_paths": list(declared_paths),
             "egress_endpoints": sorted(set(endpoints)),
             "tools": list(declared_tools),
-            "max_concurrency": max(1, int(positions)),
+            "max_concurrency": max_concurrency,
         }
     )
 
@@ -2126,6 +2209,7 @@ def acquire_effect_lease(
             now=instant,
             write_policy=policy_source,
             entrypoint_id=spec.id,
+            limit_policy=captured_limit_policy,
         )
 
     scope = EffectScope(
@@ -2134,7 +2218,7 @@ def acquire_effect_lease(
         egress_endpoints=tuple(sorted(set(endpoints))),
         tools=declared_tools,
         max_cost_microusd=cost_microusd,
-        max_concurrency=max(1, int(positions)),
+        max_concurrency=max_concurrency,
         timeout_s=timeout,
         kill_switch_ref=KILL_SWITCH_REF,
     )
@@ -2194,10 +2278,15 @@ def acquire_effect_lease(
             now=instant,
             write_policy=policy_source,
             entrypoint_id=spec.id,
+            limit_policy=captured_limit_policy,
         )
 
     keyring = issuer_keyring(root)
-    ttl = min(max(_MIN_TTL_S, timeout), _MAX_TTL_S)
+    # Lease expiry is an authorization-credential lifetime, not the disabled
+    # execution wall-time cap. Keep the existing one-hour credential lifetime
+    # when the scope has no execution deadline.
+    lease_ttl_basis = timeout if timeout is not None else 3600
+    ttl = min(max(_MIN_TTL_S, lease_ttl_basis), _MAX_TTL_S)
     lease = issue_effect_lease(
         request,
         policy,
@@ -2220,6 +2309,7 @@ def acquire_effect_lease(
         # operator's stop during a running wave invalidates the lease at the
         # next start/finish instead of being noticed only after the spend.
         kill_switch_generation_reader=lambda: kill_switch_generation(live_switch),
+        execution_limit_policy=captured_limit_policy,
     )
     # PERSIST BEFORE ANY EXECUTION MAY START. `EffectLeaseLedger.begin` refuses
     # a lease it has never seen ("effect lease was not persisted before start"),
@@ -2236,6 +2326,7 @@ def acquire_effect_lease(
         lease=lease,
         request=request,
         policy_decision=policy,
+        limit_policy=captured_limit_policy,
         ledger=ledger,
         ledger_path=str(ledger_path),
         write_policy=policy_source,
@@ -2300,7 +2391,10 @@ def acquire_effect_lease(
 
 
 def acquire_wave_offload_lease(
-    repo_root: str | Path, **kwargs: Any
+    repo_root: str | Path,
+    *,
+    limit_policy: ExecutionLimitPolicy | None = None,
+    **kwargs: Any,
 ) -> "WaveOffloadLease | WaveLeaseDenied":
     """One wave's ``python.offload`` lease. The row is PINNED here, not passed.
 
@@ -2316,7 +2410,12 @@ def acquire_wave_offload_lease(
             "acquire_wave_offload_lease() issues for python.offload only; call "
             "acquire_effect_lease(entrypoint_id=...) to ask for another row"
         )
-    return acquire_effect_lease(repo_root, entrypoint_id=ENTRYPOINT_ID, **kwargs)
+    return acquire_effect_lease(
+        repo_root,
+        entrypoint_id=ENTRYPOINT_ID,
+        limit_policy=limit_policy,
+        **kwargs,
+    )
 
 
 ATTEMPT_ENTRYPOINT_ID = "python.attempt"

@@ -68,6 +68,7 @@ MODULE = ROOT / "daedalus" / "ikarus_os.py"
 #: probe below rather than quietly inheriting the doors' reputation.
 SINK_FUNCTIONS = {
     "_ollama",
+    "_ollama_cli",
     "_deepseek",
     "_claude",
     "_codex",
@@ -105,6 +106,8 @@ def sealed(tmp_path, monkeypatch):
 
     monkeypatch.setenv("DAEDALUS_BUDGET_LEDGER", str(tmp_path / "ledger.json"))
     monkeypatch.setenv("DAEDALUS_BUDGET_USD", "5.00")
+    monkeypatch.setenv("DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED", "true")
+    monkeypatch.delenv("DAEDALUS_EXECUTION_LIMIT_POLICY", raising=False)
     monkeypatch.delenv("DAEDALUS_OLLAMA_REMOTE_OK", raising=False)
     monkeypatch.delenv("DAEDALUS_TRUSTED_HOSTS", raising=False)
     budget.reset_default_ledger()
@@ -382,6 +385,59 @@ def test_exhausted_ceiling_refuses_deepseek_before_socket_or_spawn(
     assert receipt["contract"] == "budget.process_guard"
     assert "ceiling" in receipt["reason"]
     assert "api.deepseek.com" in receipt["host"]
+
+
+def test_explicit_uncapped_mode_admits_paid_preflight_above_configured_amount(
+        sealed, monkeypatch):
+    import daedalus.ikarus_os as ikarus_os
+
+    monkeypatch.setenv("DAEDALUS_BUDGET_USD", "0.01")
+    monkeypatch.setenv("DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED", "false")
+    sealed.reset_default_ledger()
+
+    decision = ikarus_os._spend_decision("deepseek", "deepseek-chat")
+
+    assert decision.allowed is True
+    assert "explicitly uncapped" in decision.evidence
+
+
+def test_uncapped_paid_preflight_still_refuses_at_the_call_cap(
+        sealed, monkeypatch):
+    import daedalus.ikarus_os as ikarus_os
+
+    monkeypatch.setenv("DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED", "false")
+    monkeypatch.setenv("DAEDALUS_BUDGET_MAX_CALLS", "1")
+    sealed.reset_default_ledger()
+    sealed.reserve("deepseek", "deepseek-chat", label="use only call").settle()
+
+    decision = ikarus_os._spend_decision("deepseek", "deepseek-chat")
+
+    assert decision.allowed is False
+    assert "call-count cap" in decision.evidence
+    assert "explicitly uncapped" in decision.evidence
+
+
+def test_disabled_billable_call_axis_admits_but_keeps_recorded_count(
+        sealed, monkeypatch):
+    import daedalus.ikarus_os as ikarus_os
+    from daedalus.limit_policy import ExecutionLimitPolicy, LimitAxes, MODE_CUSTOM
+
+    policy = ExecutionLimitPolicy(
+        mode=MODE_CUSTOM,
+        configured=LimitAxes(billable_calls=False),
+    )
+    monkeypatch.setenv(
+        "DAEDALUS_EXECUTION_LIMIT_POLICY", policy.to_env_value()
+    )
+    monkeypatch.setenv("DAEDALUS_BUDGET_MAX_CALLS", "1")
+    sealed.reset_default_ledger()
+    sealed.reserve("deepseek", "deepseek-chat", label="record first call").settle()
+
+    decision = ikarus_os._spend_decision("deepseek", "deepseek-chat")
+
+    assert decision.allowed is True
+    assert "billable-call ceiling explicitly disabled" in decision.evidence
+    assert sealed.ledger().state().calls == 1
 
 
 def test_an_unreadable_ledger_denies_rather_than_passes(sealed, monkeypatch):

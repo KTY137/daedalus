@@ -10,7 +10,7 @@ import pytest
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
-    run_runtime_provider,
+    _run_runtime_provider_test_double as run_runtime_provider,
 )
 from daedalus.runtimes.provider_observation import (
     ProviderObservationAuthority,

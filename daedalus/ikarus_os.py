@@ -81,11 +81,11 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 import time as _time
 from collections import namedtuple
+from itertools import count
 from pathlib import Path
 
 from . import core, ikarus_act
@@ -93,6 +93,7 @@ from .ikarus_act import ActDecision
 from .projects import resolve_repo_root
 from .providers._openai_compat import chat_completion
 from .llm_client import IkarusLLMClient
+from .limit_policy import ExecutionLimitPolicy
 
 SYSTEM = (
     "You are Ikarus, the assistant inside the Daedalus Agent OS — a local, "
@@ -108,7 +109,9 @@ SYSTEM = (
 # in any of these sets still falls back to the deterministic layer -- cleanly,
 # via _llm()'s final `return None, None, _EMPTY_CTX` -- rather than crashing or
 # guessing at a different brain.
-_LOCAL = {"ollama", "ollama_http", "ollama_cli"}
+_OLLAMA_HTTP = {"ollama", "ollama_http"}
+_OLLAMA_CLI = {"ollama_cli"}
+_LOCAL = _OLLAMA_HTTP | _OLLAMA_CLI
 _CLAUDE = {"claude", "claude_cli", "claude_code_cli"}
 # CODEX and DEEPSEEK are EXTERNAL, NOT-trusted-with-IP lanes (see
 # daedalus/providers/__init__.py _PROVIDERS: trusted_with_ip=False for both) --
@@ -692,15 +695,31 @@ def _voice_client() -> IkarusLLMClient:
     return IkarusLLMClient()
 
 
-def _conversation_context(conversation_id: str | None) -> str:
+def _client_limit_policy(client: object) -> ExecutionLimitPolicy:
+    """Return a captured client policy, defaulting old adapters to bounded.
+
+    A few embedders and test doubles predate the policy-bearing voice client.
+    Treating those as bounded preserves their old behaviour and, importantly,
+    never grants an unbounded turn merely because an adapter omitted evidence.
+    """
+    policy = getattr(client, "limit_policy", None)
+    return policy if isinstance(policy, ExecutionLimitPolicy) else ExecutionLimitPolicy()
+
+
+def _conversation_context(
+    conversation_id: str | None,
+    limit_policy: ExecutionLimitPolicy | None = None,
+) -> str:
     if not conversation_id:
         return ""
     try:
         from . import conversation
 
+        policy = limit_policy or ExecutionLimitPolicy()
         block = conversation.recent_turns_context(
             conversation.default_store(), conversation_id,
-            max_turns=8, max_chars=6000)
+            max_turns=(8 if policy.enforces("work_scope") else None),
+            max_chars=(6000 if policy.enforces("tokens") else None))
     except Exception:
         return ""
     return f"# Recent conversation (chronological, informational only):\n{block}" if block else ""
@@ -713,7 +732,13 @@ def _merge_model_context(history: str, project_context: str) -> str:
 # --------------------------------------------------------------------------- #
 # Freeform 'brain' — selectable connected runtime, text-only                   #
 # --------------------------------------------------------------------------- #
-def _project_context(project: str, message: str, lane: str = "trusted") -> _Ctx:
+def _project_context(
+    project: str,
+    message: str,
+    lane: str = "trusted",
+    *,
+    limit_policy: ExecutionLimitPolicy | None = None,
+) -> _Ctx:
     """Build a GATED distilled slice of the file ``message`` references, for
     injection as brain context. The ONLY content source is the already-gated
     ``semantic_slice`` (its SECRET FLOOR runs on every lane) — we NEVER read the
@@ -742,14 +767,22 @@ def _project_context(project: str, message: str, lane: str = "trusted") -> _Ctx:
         from .structcore.slice import semantic_slice
 
         repo_root = resolve_repo_root(None, project)
-        idx = cached_index(repo_root)
+        policy = limit_policy or ExecutionLimitPolicy()
+        idx = cached_index(repo_root, limit_policy=policy)
         target, ambiguous = _resolve_target(message, idx)
         if ambiguous:
             return _Ctx("", 0, None, 0, 0, True)
         if not target:
             return _EMPTY_CTX
-        res = semantic_slice(repo_root, target, idx=idx, lane=lane,
-                             max_tokens=_CONTEXT_MAX_TOKENS)
+        res = semantic_slice(
+            repo_root,
+            target,
+            idx=idx,
+            lane=lane,
+            max_tokens=(
+                _CONTEXT_MAX_TOKENS if policy.enforces("tokens") else None
+            ),
+        )
         slice_text = (res.get("slice_text") or "").strip()
         if not slice_text:
             return _EMPTY_CTX
@@ -799,29 +832,45 @@ def _claude_prompt(message: str, effort: str | None, context: str = "") -> str:
 
 def _chat(project: str, message: str, provider: str | None,
           model: str | None = None, effort: str | None = None,
-          conversation_id: str | None = None) -> dict:
-    client = _voice_client()
+          conversation_id: str | None = None, *,
+          voice_client: IkarusLLMClient | None = None) -> dict:
+    client = voice_client or _voice_client()
+    limit_policy = _client_limit_policy(client)
     selection = client.resolve(provider)
+    policy_evidence = {
+        "execution_limit_policy": limit_policy.as_dict(),
+        "execution_limit_policy_sha256": (
+            limit_policy.fingerprint_sha256
+        ),
+    }
     if selection.provider == "deterministic":
         return core.envelope(project, intent="chat", shell=SHELL_VOICE,
                              assistant=_help_text(), provider_used="deterministic",
-                             model_used=None, llm=selection.to_dict())
+                             model_used=None,
+                             llm={**selection.to_dict(), **policy_evidence})
     if not selection.provider:
         return core.envelope(
             project, intent="error", shell=SHELL_VOICE,
             assistant=("Ikarus has no available LLM voice. Configure Claude Code, "
                        "Ollama, Codex or DeepSeek, or set DAEDALUS_IKARUS_PROVIDER. "
                        f"{selection.reason}"),
-            provider_used="unavailable", model_used=None, llm=selection.to_dict())
+            provider_used="unavailable", model_used=None,
+            llm={**selection.to_dict(), **policy_evidence})
 
     reply = None
     model_used = None
     ctx = _EMPTY_CTX
     attempts = 0
-    for attempts in range(1, selection.max_attempts + 1):
+    attempt_numbers = (
+        count(1)
+        if selection.max_attempts is None
+        else range(1, selection.max_attempts + 1)
+    )
+    for attempts in attempt_numbers:
         reply, model_used, ctx = _llm(
             selection.provider, message, model, effort, project,
-            conversation_id=conversation_id, timeout_s=selection.timeout_s)
+            conversation_id=conversation_id, timeout_s=selection.timeout_s,
+            limit_policy=limit_policy)
         if reply:
             break
     if reply:
@@ -830,22 +879,37 @@ def _chat(project: str, message: str, provider: str | None,
         return core.envelope(
             project, intent="chat", shell=SHELL_VOICE, assistant=reply,
             provider_used=selection.provider, model_used=model_used,
-            llm={**selection.to_dict(), "attempts": attempts}, **extra)
+            llm={**selection.to_dict(), **policy_evidence,
+                 "attempts": attempts}, **extra)
     return core.envelope(
         project, intent="error", shell=SHELL_VOICE,
         assistant=(f"{selection.provider} did not return a usable answer after "
                    f"{attempts} attempt(s). Nothing was silently replaced with a "
                    "deterministic chat answer."),
         provider_used=selection.provider, model_used=model_used,
-        llm={**selection.to_dict(), "attempts": attempts})
+        llm={**selection.to_dict(), **policy_evidence,
+             "attempts": attempts})
 
 
 # effort -> output-token cap (it's an interface chatbot; low keeps it snappy/cheap)
 _EFFORT_CAP = {"low": 700, "medium": 1400, "high": 2800}
 
 
-def _effort_cap(effort: str | None) -> int:
+def _effort_cap(
+    effort: str | None,
+    limit_policy: ExecutionLimitPolicy | None = None,
+) -> int | None:
+    if limit_policy is not None and not limit_policy.enforces("tokens"):
+        return None
     return _EFFORT_CAP.get((effort or "low").lower(), 300)
+
+
+def _generation_extra(
+    effort: str | None,
+    limit_policy: ExecutionLimitPolicy | None,
+) -> dict[str, int] | None:
+    cap = _effort_cap(effort, limit_policy)
+    return None if cap is None else {"max_tokens": cap}
 
 
 def _unconfigured_reply(brain: str, remedy: str) -> str:
@@ -862,7 +926,9 @@ def _unconfigured_reply(brain: str, remedy: str) -> str:
 def _llm(provider: str | None, message: str, model: str | None = None,
          effort: str | None = None,
          project: str | None = None, *, conversation_id: str | None = None,
-         timeout_s: float = 150.0) -> tuple[str | None, str | None, _Ctx]:
+         timeout_s: float | None = 150.0,
+         limit_policy: ExecutionLimitPolicy | None = None,
+         ) -> tuple[str | None, str | None, _Ctx]:
     """Return (reply_text, model_used, ctx). (None, None, _EMPTY_CTX) -> caller
     falls back to help. ``ctx`` carries the gated-slice metadata for the envelope.
 
@@ -872,16 +938,32 @@ def _llm(provider: str | None, message: str, model: str | None = None,
     p = (provider or "").lower()
     if p in ("", "auto", "none", "deterministic"):
         return None, None, _EMPTY_CTX
-    if p in _LOCAL:
+    captured_policy = limit_policy or ExecutionLimitPolicy()
+    if p in _OLLAMA_HTTP:
         from .providers.ollama import DEFAULT_MODEL
 
         mdl = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-        ctx = _project_context(project, message, lane=_local_lane())
-        context = _merge_model_context(_conversation_context(conversation_id), ctx.text)
-        return _ollama(message, mdl, effort, context, timeout_s=timeout_s), mdl, ctx
+        ctx = _project_context(
+            project, message, lane=_local_lane(), limit_policy=captured_policy)
+        context = _merge_model_context(
+            _conversation_context(conversation_id, captured_policy), ctx.text)
+        return _ollama(
+            message, mdl, effort, context, timeout_s=timeout_s,
+            limit_policy=captured_policy), mdl, ctx
+    if p in _OLLAMA_CLI:
+        from .providers.ollama import DEFAULT_MODEL
+
+        mdl = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
+        ctx = _project_context(
+            project, message, lane=_local_lane(), limit_policy=captured_policy)
+        context = _merge_model_context(
+            _conversation_context(conversation_id, captured_policy), ctx.text)
+        return _ollama_cli(message, mdl, effort, context, timeout_s=timeout_s), mdl, ctx
     if p in _CLAUDE:
-        ctx = _project_context(project, message, lane="trusted")
-        context = _merge_model_context(_conversation_context(conversation_id), ctx.text)
+        ctx = _project_context(
+            project, message, lane="trusted", limit_policy=captured_policy)
+        context = _merge_model_context(
+            _conversation_context(conversation_id, captured_policy), ctx.text)
         return _claude(message, effort, model, context, timeout_s=timeout_s), (model or "claude"), ctx
     if p in _DEEPSEEK:
         from .providers.deepseek import DEFAULT_MODEL
@@ -890,16 +972,24 @@ def _llm(provider: str | None, message: str, model: str | None = None,
             return _unconfigured_reply(
                 "DeepSeek", "set the DEEPSEEK_API_KEY environment variable"), None, _EMPTY_CTX
         mdl = model or os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL)
-        ctx = _project_context(project, message, lane="untrusted")
-        context = _merge_model_context(_conversation_context(conversation_id), ctx.text)
-        return _deepseek(message, mdl, effort, context, timeout_s=timeout_s), mdl, ctx
+        ctx = _project_context(
+            project, message, lane="untrusted", limit_policy=captured_policy)
+        context = _merge_model_context(
+            _conversation_context(conversation_id, captured_policy), ctx.text)
+        return _deepseek(
+            message, mdl, effort, context, timeout_s=timeout_s,
+            limit_policy=captured_policy), mdl, ctx
     if p in _CODEX:
-        if not shutil.which("codex"):
+        from .runtime_registry import resolve_runtime_command
+
+        if not resolve_runtime_command("codex_cli"):
             return _unconfigured_reply(
                 "Codex CLI", "install the Codex CLI and run `codex login`"), None, _EMPTY_CTX
         mdl = model or os.environ.get("CODEX_MODEL", "")
-        ctx = _project_context(project, message, lane="untrusted")
-        context = _merge_model_context(_conversation_context(conversation_id), ctx.text)
+        ctx = _project_context(
+            project, message, lane="untrusted", limit_policy=captured_policy)
+        context = _merge_model_context(
+            _conversation_context(conversation_id, captured_policy), ctx.text)
         return _codex(message, effort, mdl, context, timeout_s=timeout_s), (mdl or "codex"), ctx
     return None, None, _EMPTY_CTX  # gemini / api slots: not wired yet
 
@@ -955,6 +1045,7 @@ PROVIDER_ENTRYPOINT_ID = "ikarus_os.provider_call"
 #: registry stops meaning anything.
 _PROVIDER_EFFECTS: dict[str, tuple[str, ...]] = {
     "ollama": ("network_egress",),
+    "ollama_cli": ("process_spawn",),
     "deepseek": ("network_egress", "spend", "secrets"),
     "claude": ("process_spawn", "spend"),
     "codex": ("process_spawn", "spend"),
@@ -965,6 +1056,7 @@ _PROVIDER_EFFECTS: dict[str, tuple[str, ...]] = {
 #: disagree about what a call costs.
 _PROVIDER_VENDORS: dict[str, str] = {
     "ollama": "local_inference",
+    "ollama_cli": "local_inference",
     "deepseek": "deepseek",
     "claude": "anthropic_cli",
     "codex": "openai_cli",
@@ -1055,26 +1147,42 @@ def _spend_decision(vendor: str, model: str | None, *, host: str | None = None,
             f"the budget ledger could not be read for vendor {vendor!r} "
             f"({type(exc).__name__}: {exc}); an unknown ceiling is not an "
             f"absent ceiling")
-    over_dollars = (est.usd > 0
+    over_dollars = (state.period_ceiling_enabled and est.usd > 0
                     and state.committed_usd + est.usd > state.ceiling_usd)
     billable = est.basis != "free_local"
-    over_calls = (billable
+    over_calls = (billable and state.billable_call_ceiling_enabled
                   and state.calls + state.open_calls + calls > state.max_calls)
     if over_dollars or over_calls:
         crossed = "spend ceiling" if over_dollars else "call-count cap"
+        period_status = (
+            f"committed ${state.committed_usd:.4f} of "
+            f"${state.ceiling_usd:.4f}"
+            if state.period_ceiling_enabled
+            else f"period USD ceiling explicitly uncapped; "
+            f"${state.committed_usd:.4f} committed and recorded"
+        )
         return GuardDecision(
             "budget.process_guard", False,
             f"the {crossed} would be crossed by this {vendor} call: estimate "
-            f"${est.usd:.4f} (basis={est.basis}), committed "
-            f"${state.committed_usd:.4f} of ${state.ceiling_usd:.4f}, "
-            f"{state.calls + state.open_calls} of {state.max_calls} calls used "
+            f"${est.usd:.4f} (basis={est.basis}), {period_status}, "
+            f"{state.calls + state.open_calls} calls recorded; call ceiling "
+            f"{'enabled at ' + str(state.max_calls) if state.billable_call_ceiling_enabled else 'disabled'} "
             f"in period {state.period_key}")
+    period_headroom = (
+        f"${state.remaining_usd:.4f} period USD remaining"
+        if state.period_ceiling_enabled
+        else "period USD ceiling explicitly uncapped"
+    )
+    call_headroom = (
+        f"{state.remaining_calls} billable calls left"
+        if state.billable_call_ceiling_enabled
+        else "billable-call ceiling explicitly disabled"
+    )
     return GuardDecision(
         "budget.process_guard", True,
         f"{installed.evidence}; ledger headroom checked before the call: "
         f"estimate ${est.usd:.4f} (basis={est.basis}) against "
-        f"${state.ceiling_usd - state.committed_usd:.4f} remaining and "
-        f"{state.max_calls - state.calls - state.open_calls} calls left")
+        f"{period_headroom} and {call_headroom}")
 
 
 def _egress_decision(provider_key: str, endpoint: str | None):
@@ -1094,7 +1202,7 @@ def _egress_decision(provider_key: str, endpoint: str | None):
     """
     from .spine.effect_boundary import GuardDecision
 
-    if provider_key == "ollama":
+    if provider_key in ("ollama", "ollama_cli"):
         from .providers.ollama import ollama_endpoint_admission
 
         allowed, lane, why = ollama_endpoint_admission(endpoint)
@@ -1183,8 +1291,9 @@ def _refusal_envelope(project: str, receipt: dict) -> dict:
 
 
 def _ollama(message: str, model: str, effort: str | None,
-            context: str = "", *, timeout_s: float = 150.0) -> str | None:
-    from .providers.ollama import DEFAULT_HOST, warm_model_async
+            context: str = "", *, timeout_s: float | None = 150.0,
+            limit_policy: ExecutionLimitPolicy | None = None) -> str | None:
+    from .providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
     # BEFORE warm_model_async, which connects on a daemon thread, and before
@@ -1197,18 +1306,46 @@ def _ollama(message: str, model: str, effort: str | None,
     warm_model_async(host, model)
     try:
         txt = chat_completion(
-            base_url=host.rstrip("/") + "/v1", model=model,
+            base_url=ollama_http_base_url(host) + "/v1", model=model,
             system=system, user=_with_context(message, context),
             force_json=False, temperature=0.3,
-            timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},
+            timeout_s=timeout_s,
+            extra=_generation_extra(effort, limit_policy),
         )
         return (txt or "").strip() or None
     except Exception:
         return None
 
 
+def _ollama_cli(message: str, model: str, effort: str | None,
+                context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
+    """Use the installed Ollama CLI as a real transport, not an HTTP alias."""
+    from .providers.ollama import DEFAULT_HOST
+    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
+
+    path = resolve_runtime_command("ollama_cli")
+    if not path:
+        return None
+    host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+    # Ollama CLI may reach OLLAMA_HOST itself. Admission therefore happens
+    # before argv construction and applies identically to the HTTP transport.
+    _provider_start("ollama_cli", endpoint=host, model=model)
+    prompt = _claude_prompt(message, effort, context)
+    try:
+        proc = subprocess.run(
+            [path, "run", model, prompt], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout_s,
+            stdin=subprocess.DEVNULL, check=False, cwd=_neutral_cwd(),
+            env=runtime_subprocess_env("ollama_cli"),
+        )
+        return (proc.stdout or "").strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def _deepseek(message: str, model: str, effort: str | None,
-              context: str = "", *, timeout_s: float = 150.0) -> str | None:
+              context: str = "", *, timeout_s: float | None = 150.0,
+              limit_policy: ExecutionLimitPolicy | None = None) -> str | None:
     """DeepSeek chat brain -- the SAME OpenAI-compatible client Ollama's chat
     brain uses (``providers._openai_compat.chat_completion``), just pointed at
     DeepSeek's base URL with the API key it requires. No new HTTP client.
@@ -1227,7 +1364,8 @@ def _deepseek(message: str, model: str, effort: str | None,
         txt = chat_completion(
             base_url=base_url, model=model, system=system, user=_with_context(message, context),
             api_key=api_key, force_json=False, temperature=0.3,
-            timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},
+            timeout_s=timeout_s,
+            extra=_generation_extra(effort, limit_policy),
         )
         return (txt or "").strip() or None
     except Exception:
@@ -1262,8 +1400,10 @@ def _neutral_cwd() -> str:
 
 
 def _claude(message: str, effort: str | None = None, model: str | None = None,
-            context: str = "", *, timeout_s: float = 150.0) -> str | None:
-    path = shutil.which("claude")
+            context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
+    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
+
+    path = resolve_runtime_command("claude_code_cli")
     if not path:
         return None
     # Before the argv exists: a refused start costs zero spawns.
@@ -1277,6 +1417,7 @@ def _claude(message: str, effort: str | None = None, model: str | None = None,
             args, input=prompt, capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=timeout_s,
             cwd=_neutral_cwd(),
+            env=runtime_subprocess_env("claude_code_cli"),
         )
         return (proc.stdout or "").strip() or None
     except (OSError, subprocess.SubprocessError):
@@ -1284,7 +1425,7 @@ def _claude(message: str, effort: str | None = None, model: str | None = None,
 
 
 def _codex(message: str, effort: str | None = None, model: str | None = None,
-           context: str = "", *, timeout_s: float = 150.0) -> str | None:
+           context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
     """Codex CLI chat brain -- the lightweight, read-only, non-agentic sibling
     of ``CodexCLIProvider`` (providers/codex_cli.py), which stays reserved for
     the agentic, write-capable offload/task path. Mirrors ``_claude`` above:
@@ -1293,7 +1434,9 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
     can never write, and the SAME ``--output-last-message`` capture convention
     codex_cli.py already uses (no ``--output-schema`` here -- a freeform chat
     reply is plain text, not the agent_report_v1 json)."""
-    path = shutil.which("codex")
+    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
+
+    path = resolve_runtime_command("codex_cli")
     if not path:
         return None
     _provider_start("codex", endpoint=path, model=model)
@@ -1315,6 +1458,7 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
             subprocess.run(
                 args, capture_output=True, text=True, encoding="utf-8",
                 errors="replace", timeout=timeout_s, stdin=subprocess.DEVNULL, check=False,
+                env=runtime_subprocess_env("codex_cli"),
             )
             return (message_path.read_text(encoding="utf-8") or "").strip() or None
     except (OSError, subprocess.SubprocessError):
@@ -1461,28 +1605,55 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
                         intent=intent, act=act))
         return
 
-    selection = _voice_client().resolve(provider)
+    voice_client = _voice_client()
+    limit_policy = _client_limit_policy(voice_client)
+    selection = voice_client.resolve(provider)
+    selection_evidence = {
+        **selection.to_dict(),
+        "execution_limit_policy": limit_policy.as_dict(),
+        "execution_limit_policy_sha256": (
+            limit_policy.fingerprint_sha256
+        ),
+    }
     p = selection.provider or ""
     streamer = None
     model_used = None
     ctx = _EMPTY_CTX
-    history = _conversation_context(conversation_id)
-    if p in _LOCAL:
+    history = _conversation_context(
+        conversation_id, limit_policy)
+    if p in _OLLAMA_HTTP:
         from .providers.ollama import DEFAULT_MODEL
 
         model_used = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-        ctx = _project_context(project, message, lane=_local_lane())
-        streamer = _ollama_stream(message, model_used, effort, _merge_model_context(history, ctx.text), timeout_s=selection.timeout_s)
+        ctx = _project_context(
+            project, message, lane=_local_lane(),
+            limit_policy=limit_policy)
+        streamer = _ollama_stream(
+            message, model_used, effort, _merge_model_context(history, ctx.text),
+            timeout_s=selection.timeout_s,
+            limit_policy=limit_policy)
+    elif p in _OLLAMA_CLI:
+        model_used = model or os.environ.get("OLLAMA_MODEL", "") or "ollama"
+        ctx = _project_context(
+            project, message, lane=_local_lane(),
+            limit_policy=limit_policy)
     elif p in _CLAUDE:
         model_used = model or "claude"
-        ctx = _project_context(project, message, lane="trusted")
+        ctx = _project_context(
+            project, message, lane="trusted",
+            limit_policy=limit_policy)
         streamer = _claude_stream(message, effort, model, _merge_model_context(history, ctx.text), timeout_s=selection.timeout_s)
     elif p in _DEEPSEEK and os.environ.get("DEEPSEEK_API_KEY"):
         from .providers.deepseek import DEFAULT_MODEL
 
         model_used = model or os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL)
-        ctx = _project_context(project, message, lane="untrusted")
-        streamer = _deepseek_stream(message, model_used, effort, _merge_model_context(history, ctx.text), timeout_s=selection.timeout_s)
+        ctx = _project_context(
+            project, message, lane="untrusted",
+            limit_policy=limit_policy)
+        streamer = _deepseek_stream(
+            message, model_used, effort, _merge_model_context(history, ctx.text),
+            timeout_s=selection.timeout_s,
+            limit_policy=limit_policy)
     # Codex CLI has no verified streaming JSON frame format (unlike Claude's,
     # confirmed against 2.1.201 -- see _claude_stream's comment), so an
     # unverified parser here risks yielding garbled deltas. It deliberately
@@ -1497,7 +1668,10 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
                     "shell": SHELL_VOICE,
                     "provider_used": p or "unavailable",
                     "model_used": model_used,
-                    "auto_selected": selection.auto_selected}
+                    "auto_selected": selection.auto_selected,
+                    "execution_limit_policy_sha256": (
+                        limit_policy.fingerprint_sha256
+                    )}
 
     if streamer is None:
         # Codex currently has no verified token-frame parser; use the same
@@ -1505,7 +1679,8 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         # already-authorised streaming turn and preserves conversation context.
         yield "final", _reconcile_final(
             route, _chat(project, message, p or provider, model, effort,
-                         conversation_id=conversation_id))
+                         conversation_id=conversation_id,
+                         voice_client=voice_client))
         return
 
     chunks: list[str] = []
@@ -1532,26 +1707,36 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         extra = {"context": block} if block else {}
         yield "final", _reconcile_final(route, core.envelope(
             project, intent="chat", shell=SHELL_VOICE, assistant=text,
-            provider_used=p, model_used=model_used, stream_interrupted=True, **extra))
+            provider_used=p, model_used=model_used, stream_interrupted=True,
+            llm=selection_evidence, **extra))
         return
     if not text:
         yield "final", _reconcile_final(
             route, _chat(project, message, p or provider, model, effort,
-                         conversation_id=conversation_id))
+                         conversation_id=conversation_id,
+                         voice_client=voice_client))
         return
 
     block = _ctx_envelope_block(ctx)
     extra = {"context": block} if block else {}
     yield "final", _reconcile_final(route, core.envelope(
         project, intent="chat", shell=SHELL_VOICE, assistant=text,
-        provider_used=p, model_used=model_used, **extra))
+        provider_used=p, model_used=model_used, llm=selection_evidence, **extra))
 
 
-def _ollama_stream(message: str, model: str, effort: str | None, context: str = "", *, timeout_s: float = 150.0):
+def _ollama_stream(
+    message: str,
+    model: str,
+    effort: str | None,
+    context: str = "",
+    *,
+    timeout_s: float | None = 150.0,
+    limit_policy: ExecutionLimitPolicy | None = None,
+):
     """Yield text deltas from the local Ollama runtime, and refresh the VRAM
     residency TTL in the background so the NEXT turn skips the ~44s reload."""
     from .providers._openai_compat import chat_stream
-    from .providers.ollama import DEFAULT_HOST, warm_model_async
+    from .providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
     # Before warm_model_async's daemon thread and before the stream request.
@@ -1559,13 +1744,22 @@ def _ollama_stream(message: str, model: str, effort: str | None, context: str = 
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
     warm_model_async(host, model)  # non-blocking: never delays this reply
     yield from chat_stream(
-        base_url=host.rstrip("/") + "/v1", model=model,
+        base_url=ollama_http_base_url(host) + "/v1", model=model,
         system=system, user=_with_context(message, context), temperature=0.3,
-        timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},
+        timeout_s=timeout_s,
+        extra=_generation_extra(effort, limit_policy),
     )
 
 
-def _deepseek_stream(message: str, model: str, effort: str | None, context: str = "", *, timeout_s: float = 150.0):
+def _deepseek_stream(
+    message: str,
+    model: str,
+    effort: str | None,
+    context: str = "",
+    *,
+    timeout_s: float | None = 150.0,
+    limit_policy: ExecutionLimitPolicy | None = None,
+):
     """Yield text deltas from the DeepSeek API. Same OpenAI-compatible
     streaming client Ollama's stream uses (``chat_stream``); only
     base_url/api_key differ -- no new HTTP client."""
@@ -1579,7 +1773,7 @@ def _deepseek_stream(message: str, model: str, effort: str | None, context: str 
     yield from chat_stream(
         base_url=base_url, model=model, system=system, user=_with_context(message, context),
         api_key=api_key, temperature=0.3, timeout_s=timeout_s,
-        extra={"max_tokens": _effort_cap(effort)},
+        extra=_generation_extra(effort, limit_policy),
     )
 
 
@@ -1587,7 +1781,7 @@ def _deepseek_stream(message: str, model: str, effort: str | None, context: str 
 #   {"type":"stream_event","event":{"type":"content_block_delta",
 #    "delta":{"type":"text_delta","text":"..."}}}
 def _claude_stream(message: str, effort: str | None = None, model: str | None = None,
-                   context: str = "", *, timeout_s: float = 150.0):
+                   context: str = "", *, timeout_s: float | None = 150.0):
     """Yield text deltas from `claude -p --output-format stream-json
     --include-partial-messages`.
 
@@ -1596,7 +1790,9 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     process dies or emits no deltas the generator simply ends, and the caller
     falls back to the blocking path.
     """
-    path = shutil.which("claude")
+    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
+
+    path = resolve_runtime_command("claude_code_cli")
     if not path:
         return
     _provider_start("claude", endpoint=path, model=model)
@@ -1617,12 +1813,15 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
             # leaving it to reload the repo's CLAUDE.md on every turn would pay
             # the whole context cost precisely where it is most visible.
             cwd=_neutral_cwd(),
+            env=runtime_subprocess_env("claude_code_cli"),
         )
         proc.stdin.write(prompt)
         proc.stdin.close()
-        deadline = _time.time() + timeout_s
+        deadline = (
+            _time.time() + timeout_s if timeout_s is not None else None
+        )
         for line in proc.stdout:
-            if _time.time() > deadline:
+            if deadline is not None and _time.time() > deadline:
                 break
             line = line.strip()
             if not line or not line.startswith("{"):

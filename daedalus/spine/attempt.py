@@ -119,6 +119,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from daedalus.kairos.worktree import GitWorktreeManager, remove_tree_no_follow
+from daedalus.limit_policy import ExecutionLimitPolicy, load_from_env
 # THE FENCE LIVES IN ONE MODULE, and this file no longer owns a copy of it.
 # `_identity` and `_overlap_reason` were defined here; `eval/correctness.py`
 # then grew a SECOND answer to the same question that fails OPEN where this one
@@ -915,7 +916,8 @@ def _remove_gate_tmpdir(tmpdir: Path) -> str | None:
 
 
 def _poll_until_done(proc: Any, ctx: RunnerContext, started: float,
-                     timeout_s: float, poll_s: float) -> tuple[bool, bool, Any]:
+                     timeout_s: float | None,
+                     poll_s: float) -> tuple[bool, bool, Any]:
     """Poll one gate child, honouring the cancel token and the deadline.
 
     Returns ``(cancelled, timed_out, returncode)``.
@@ -929,13 +931,13 @@ def _poll_until_done(proc: Any, ctx: RunnerContext, started: float,
     """
     cancelled = False
     timed_out = False
-    deadline = started + float(timeout_s)
+    deadline = None if timeout_s is None else started + float(timeout_s)
     while proc.poll() is None:
         if ctx.is_cancelled():
             proc.cancel()
             cancelled = True
             break
-        if time.monotonic() > deadline:
+        if deadline is not None and time.monotonic() > deadline:
             proc.cancel()
             timed_out = True
             break
@@ -993,7 +995,7 @@ def _contained_gate_child(argv: Sequence[str], worktree: Path, out_path: Path,
 
 
 def command_gate(argv: Sequence[str], *,
-                 timeout_s: float = DEFAULT_GATE_TIMEOUT_S,
+                 timeout_s: float | None = DEFAULT_GATE_TIMEOUT_S,
                  poll_s: float = 0.25,
                  name: str = "command",
                  executes_candidate: bool = True
@@ -1153,7 +1155,7 @@ def command_gate(argv: Sequence[str], *,
 
 
 def pytest_gate(paths: Sequence[str] = (), *,
-                timeout_s: float = DEFAULT_GATE_TIMEOUT_S,
+                timeout_s: float | None = DEFAULT_GATE_TIMEOUT_S,
                 poll_s: float = 0.25,
                 name: str = "pytest",
                 executes_candidate: bool = True
@@ -1223,7 +1225,8 @@ class TaskAttempt:
                  budget: "ResourceBudget | None" = None,
                  spend_grant_microusd: int = 0,
                  mission_policy_sha256: str = "",
-                 attempt_lease: Any = None) -> None:
+                 attempt_lease: Any = None,
+                 execution_limit_policy: ExecutionLimitPolicy | None = None) -> None:
         if not isinstance(task, TaskSpec):
             raise TypeError("task must be a TaskSpec")
         if runner is None or not callable(runner):
@@ -1236,15 +1239,32 @@ class TaskAttempt:
             raise ValueError(
                 "TaskSpec command gates currently require gate_cwd='.'; "
                 "subdirectory execution is not implemented")
+        resolved_limit_policy = (
+            load_from_env()
+            if execution_limit_policy is None
+            else execution_limit_policy
+        )
+        if type(resolved_limit_policy) is not ExecutionLimitPolicy:
+            raise ValueError(
+                "execution_limit_policy must be an exact ExecutionLimitPolicy"
+            )
+        self.execution_limit_policy = ExecutionLimitPolicy.from_dict(
+            resolved_limit_policy.as_dict()
+        )
         self.task = task
         self.repo_root = Path(repo_root).resolve() if repo_root else ROOT
         self._runner = runner
+        effective_gate_timeout = (
+            float(task.gate_timeout_s)
+            if self.execution_limit_policy.enforces("wall_time")
+            else None
+        )
         if gate is not None:
             self._gate = gate
         elif task.gate_argv:
             self._gate = command_gate(
                 task.gate_argv,
-                timeout_s=float(task.gate_timeout_s),
+                timeout_s=effective_gate_timeout,
                 name="queue-command")
         elif task.fail_to_pass or task.pass_to_pass:
             # FAIL_TO_PASS/PASS_TO_PASS beats the plain pytest_gate default but
@@ -1268,9 +1288,16 @@ class TaskAttempt:
                     "before_state": dict(task.correctness_before_state),
                 },
                 self.repo_root,
-                timeout_s=float(task.gate_timeout_s))
+                timeout_s=effective_gate_timeout)
         else:
-            self._gate = pytest_gate(task.gate_paths)
+            # Keep the legacy bounded call shape byte-for-byte: callers and
+            # tests rely on the gate factory's canonical default.  Revision 10
+            # only needs to spell the disabled axis explicitly.
+            self._gate = (
+                pytest_gate(task.gate_paths)
+                if self.execution_limit_policy.enforces("wall_time")
+                else pytest_gate(task.gate_paths, timeout_s=None)
+            )
         self._manager = worktree_manager or GitWorktreeManager(self.repo_root)
         self._is_cancelled = _as_predicate(cancel)
         self._keep_worktree = bool(keep_worktree)
@@ -2589,6 +2616,7 @@ class TaskAttempt:
             # empty, `canonicalise_attempt` falls back to the declared registry
             # and still catches a registry that moved under the attempt.
             mission_policy_sha256=self.mission_policy_sha256 or None,
+            execution_limit_policy=self.execution_limit_policy,
             # THE SOURCE OF THE PolicyDecision, not a decoration on it. Without
             # it `canonicalise_attempt` re-states the guard names in prose and
             # binds the registry digest by reaching for it a second time; with

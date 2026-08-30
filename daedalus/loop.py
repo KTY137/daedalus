@@ -84,6 +84,11 @@ from typing import Any, Mapping, Sequence
 
 from . import progress
 from .atomic import write_text_atomic
+from .limit_policy import (
+    ExecutionLimitPolicy,
+    LimitPolicyError,
+    load_from_env as load_limit_policy,
+)
 from .spine.attempt import ATTEMPT_STATES, STATE_CANCELLED
 from .spine.envelope import (
     PREDICATE_LOOP_LEDGER,
@@ -303,16 +308,22 @@ class LoopLedger:
         rec = self.attempts.get(str(candidate_id))
         return list(rec.get("outcomes", [])) if rec else []
 
-    def verdict(self, candidate_id: str, paths: Sequence[str],
-                bounds: LoopBounds) -> tuple[bool, str]:
+    def verdict(
+        self,
+        candidate_id: str,
+        paths: Sequence[str],
+        bounds: LoopBounds,
+        limit_policy: ExecutionLimitPolicy | None = None,
+    ) -> tuple[bool, str]:
         """``(admissible, why_not)``. The loop's ONLY admission predicate.
 
         Two grounds for refusal, and they are different failures: the candidate
         has had its chances (convergence), or its files are already spoken for
         by an earlier iteration of this run (mergeability -- see :meth:`claim`).
         """
+        policy = limit_policy or ExecutionLimitPolicy()
         n = self.n_attempts(candidate_id)
-        if n >= int(bounds.max_attempts_per_candidate):
+        if policy.enforces("attempts") and n >= int(bounds.max_attempts_per_candidate):
             return False, (
                 f"attempted {n}x in this run with outcome(s) "
                 f"{', '.join(self.outcomes(candidate_id)) or 'unknown'}; "
@@ -681,6 +692,10 @@ class LoopReport:
     project: str | None
     bounds: LoopBounds
     dry_run: bool
+    #: Immutable resource-cap policy captured when this run was constructed.
+    #: Authorization and the kill switch are deliberately not axes in it.
+    execution_limit_policy: dict[str, Any] = field(default_factory=dict)
+    execution_limit_policy_sha256: str = ""
     #: The run's correlation id. On the REPORT because the report is what an
     #: operator actually reads, and a trace id nobody is told is a trace id
     #: nobody greps. Defaulted so every existing construction of LoopReport
@@ -751,6 +766,8 @@ class LoopReport:
             "run_id": self.run_id, "trace_id": self.trace_id,
             "repo_root": self.repo_root,
             "project": self.project, "bounds": self.bounds.to_dict(),
+            "execution_limit_policy": self.execution_limit_policy,
+            "execution_limit_policy_sha256": self.execution_limit_policy_sha256,
             "dry_run": self.dry_run, "mode": self.mode,
             "promotion_allowed": self.promotion_allowed,
             "governance_state": self.governance_state,
@@ -817,14 +834,25 @@ class LoopDriver:
                  switch: KillSwitch | None = None,
                  executor: Any = None,
                  dry_run: bool = False,
-                 runs_dir: str | Path | None = None,
-                 progress_log: Any = None,
-                 queue_limit: int = 25) -> None:
+                  runs_dir: str | Path | None = None,
+                  progress_log: Any = None,
+                  queue_limit: int = 25,
+                  limit_policy: ExecutionLimitPolicy | None = None) -> None:
         self.repo_root = str(Path(repo_root).resolve() if repo_root else ROOT)
         self.project = project
         self.bounds = bounds or LoopBounds()
         self.dry_run = bool(dry_run)
         self.queue_limit = max(1, int(queue_limit))
+        try:
+            self.limit_policy = limit_policy or load_limit_policy()
+        except LimitPolicyError as exc:
+            raise LoopMisconfigured(
+                f"execution limit policy is invalid: {exc}"
+            ) from exc
+        if not isinstance(self.limit_policy, ExecutionLimitPolicy):
+            raise LoopMisconfigured(
+                "limit_policy must be an ExecutionLimitPolicy"
+            )
         self.run_id = f"loop-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
         # THE TRACE IS MINTED HERE, ONCE, and this is the top of a run.
         # ADOPTED rather than minted when one is already in scope: a driver
@@ -868,8 +896,12 @@ class LoopDriver:
                 effect_bounds=EffectBounds(
                     mission_id=self.run_id,
                     source_revision=self.source_revision,
+                    # Keep configured fallbacks even when their axes are off;
+                    # the explicit policy snapshot, not a numeric sentinel,
+                    # determines the effective lease bounds downstream.
                     max_spend_usd=self.bounds.max_spend_usd,
                     timeout_s=self.bounds.max_wall_clock_s,
+                    limit_policy=self.limit_policy,
                     trace_id=self.trace_id,
                     switch=self.switch))
         self.executor = executor
@@ -905,19 +937,25 @@ class LoopDriver:
             return "killswitch", (self.switch.reason
                                   or "the permit is not armed")
 
-        if iterations_done >= int(self.bounds.max_iterations):
+        if (
+            self.limit_policy.enforces("attempts")
+            and iterations_done >= int(self.bounds.max_iterations)
+        ):
             return "max_iterations", (
                 f"{iterations_done} iteration(s) completed, bound is "
                 f"{self.bounds.max_iterations}")
 
         elapsed = time.monotonic() - started_monotonic
-        if elapsed >= float(self.bounds.max_wall_clock_s):
+        if (
+            self.limit_policy.enforces("wall_time")
+            and elapsed >= float(self.bounds.max_wall_clock_s)
+        ):
             return "max_wall_clock", (
                 f"{elapsed:.1f}s elapsed, bound is "
                 f"{self.bounds.max_wall_clock_s:.1f}s")
 
         # 3. SPEND. Skipped in a dry run, which cannot spend by construction.
-        if not self.dry_run:
+        if not self.dry_run and self.limit_policy.enforces("mission_spend"):
             now = read_spend()
             if not now.readable:
                 # FAIL CLOSED. An unreadable budget ledger means the spend
@@ -956,12 +994,22 @@ class LoopDriver:
         queue holds nothing this loop may still attempt."""
         from .spine.picker import build_queue
 
-        queue = build_queue(self.repo_root, limit=self.queue_limit)
+        queue = build_queue(
+            self.repo_root,
+            limit=(
+                self.queue_limit
+                if self.limit_policy.enforces("work_scope") else None
+            ),
+        )
 
         skipped: list[dict[str, Any]] = []
         for cand in queue.candidates:
             ok, why = self.ledger.verdict(
-                cand.task_id, list(cand.target_paths), self.bounds)
+                cand.task_id,
+                list(cand.target_paths),
+                self.bounds,
+                self.limit_policy,
+            )
             if ok:
                 return cand, skipped, ""
             # VISIBLE, NOT SILENT. Every candidate this loop declines to
@@ -1288,6 +1336,8 @@ class LoopDriver:
             run_id=self.run_id, trace_id=self.trace_id,
             repo_root=self.repo_root, project=self.project,
             bounds=self.bounds, dry_run=self.dry_run,
+            execution_limit_policy=self.limit_policy.as_dict(),
+            execution_limit_policy_sha256=self.limit_policy.fingerprint_sha256,
             mode="nominating" if promotion_allowed else "nominating_locked",
             promotion_allowed=promotion_allowed,
             governance_state=str(gov.get("state") or "unknown"),

@@ -34,6 +34,7 @@ from unittest import mock
 
 from daedalus import metrics, verifier
 from daedalus.config import STARTER
+from daedalus.limit_policy import ExecutionLimitPolicy, MODE_UNBOUNDED_EXECUTION
 from daedalus.verifier import DEFAULT_TEST_TIMEOUT_S, _effective_timeout, verify
 # THE LIVE CASCADE TAKES A LEASE NOW, AND SO DOES THIS TEST. The shim that
 # used to stand here called ``daedalus.offload._offload_impl`` directly with
@@ -180,6 +181,32 @@ class MalformedBudgetTests(unittest.TestCase):
         with mock.patch.object(verifier, "_run_tests", spy):
             verify(VALID, str(REPO_ROOT), test_command="whatever", timeout_s=0)
         self.assertEqual(seen["timeout_s"], DEFAULT_TEST_TIMEOUT_S)
+
+    def test_explicit_unbounded_wall_time_passes_no_timeout_but_keeps_the_gate(self):
+        seen = {}
+
+        def spy(cmd, cwd, timeout_s):
+            seen["timeout_s"] = timeout_s
+            return True, "ok", "pass"
+
+        policy = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+        with mock.patch.object(verifier, "_run_tests", spy):
+            result = verify(
+                VALID,
+                str(REPO_ROOT),
+                test_command="whatever",
+                timeout_s=1,
+                execution_limit_policy=policy,
+            )
+
+        check = _tests_check(result)
+        self.assertIsNone(seen["timeout_s"])
+        self.assertIsNone(check["timeout_s"])
+        self.assertFalse(check["wall_time_ceiling_enabled"])
+        self.assertEqual(
+            check["execution_limit_policy_sha256"],
+            policy.fingerprint_sha256,
+        )
 
 
 # --------------------------------------------------------------------------- #

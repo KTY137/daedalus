@@ -740,7 +740,8 @@ def _narrate(conversation_id: str, turns: list[Turn], last: Turn | None,
 # prompt-context helper (opt-in; see module docstring)                         #
 # --------------------------------------------------------------------------- #
 def recent_turns_context(store: "ConversationStore", conversation_id: str,
-                         *, max_turns: int = 6, max_chars: int = 4000) -> str:
+                         *, max_turns: int | None = 6,
+                         max_chars: int | None = 4000) -> str:
     """Render the last ``max_turns`` turns as a compact transcript block, for a
     caller that wants prior turns to inform the NEXT model call. Returns ``""``
     when there is no history (byte-identical to "no context" for a caller that
@@ -757,7 +758,7 @@ def recent_turns_context(store: "ConversationStore", conversation_id: str,
         if t.assistant_text:
             lines.append(f"Assistant: {t.assistant_text}")
     block = "\n".join(lines)
-    if len(block) > max_chars:
+    if max_chars is not None and len(block) > max_chars:
         block = block[-max_chars:]
         nl = block.find("\n")
         if nl != -1:

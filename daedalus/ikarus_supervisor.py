@@ -50,6 +50,7 @@ from types import MappingProxyType
 from typing import Any, Callable, Mapping, Sequence
 
 from .build import BuildSession, BuildTask, Wave, mission_id_for_session
+from .limit_policy import ExecutionLimitPolicy
 from .ikarus_runtime_role import (
     INPROCESS_RUNTIME_ID,
     RuntimeRoleRegistry,
@@ -177,7 +178,11 @@ def _snapshot_callback_task(task: TaskSpec) -> TaskSpec:
         target_paths=tuple(str(path) for path in task.target_paths),
         gate_argv=tuple(str(arg) for arg in task.gate_argv),
         gate_cwd=str(task.gate_cwd),
-        gate_timeout_s=float(task.gate_timeout_s),
+        gate_timeout_s=(
+            None
+            if task.gate_timeout_s is None
+            else float(task.gate_timeout_s)
+        ),
         fail_to_pass=tuple(str(test) for test in task.fail_to_pass),
         pass_to_pass=tuple(str(test) for test in task.pass_to_pass),
         gate_criterion_paths=tuple(
@@ -502,12 +507,12 @@ class MissionSupervisor:
         mission_source_revision = str(mission_snapshot.source_revision)
         mission_work_item_ids = tuple(mission_snapshot.work_item_ids)
         mission_policy_sha256 = str(mission_snapshot.policy_sha256)
-        mission_budget = ResourceBudget(
-            max_tokens=mission_snapshot.budget.max_tokens,
-            max_cost_microusd=mission_snapshot.budget.max_cost_microusd,
-            max_wall_time_s=mission_snapshot.budget.max_wall_time_s,
-            max_attempts=mission_snapshot.budget.max_attempts,
+        mission_limit_policy = (
+            mission_snapshot.execution_limit_policy
+            if mission_snapshot.execution_limit_policy is not None
+            else ExecutionLimitPolicy()
         )
+        mission_budget = mission_snapshot.budget
 
         # Snapshot caller-owned frozen dataclasses before any runner is handed
         # control. ``frozen=True`` prevents accidental assignment; it does not
@@ -516,13 +521,20 @@ class MissionSupervisor:
         try:
             execution_root = Path(self.repo_root).resolve()
             run_dir = Path(self.run_dir).resolve()
-            gate_timeout_s = float(self.gate_timeout_s)
+            configured_gate_timeout_s = float(self.gate_timeout_s)
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             raise SupervisorRefused(
                 "supervisor repository/run paths or timeout could not be resolved"
             ) from exc
-        if gate_timeout_s <= 0 or not math.isfinite(gate_timeout_s):
+        if configured_gate_timeout_s <= 0 or not math.isfinite(
+            configured_gate_timeout_s
+        ):
             raise SupervisorRefused("supervisor gate timeout must be positive and finite")
+        effective_gate_timeout_s = (
+            configured_gate_timeout_s
+            if mission_limit_policy.enforces("wall_time")
+            else None
+        )
         if type(self.fail_fast) is not bool:
             raise SupervisorRefused("supervisor fail_fast setting must be boolean")
         fail_fast = self.fail_fast
@@ -802,7 +814,7 @@ class MissionSupervisor:
                     base_revision=mission_source_revision,
                     target_paths=task_plan.paths,
                     gate_paths=item.gate_paths,
-                    gate_timeout_s=gate_timeout_s,
+                    gate_timeout_s=effective_gate_timeout_s,
                     metadata=MappingProxyType({
                         "mission_id": mission_id,
                         "work_item_id": task_plan.work_item_id,
@@ -976,6 +988,7 @@ class MissionSupervisor:
                 mission_id=mission_id,
                 budget=mission_budget,
                 mission_policy_sha256=mission_policy_sha256,
+                execution_limit_policy=mission_limit_policy,
             )
             result = attempt.run()
             result_sink.append(result)

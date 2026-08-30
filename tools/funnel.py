@@ -91,13 +91,32 @@ def budget_state():
 def budget_verdict(state, calls: int) -> str:
     need = calls * WORST_CASE_USD_PER_CALL
     bad = []
-    if need > state.remaining_usd:
+    if state.period_ceiling_enabled and need > state.remaining_usd:
         bad.append(f"needs ${need:.2f} worst-case, ${state.remaining_usd:.2f} left")
-    if state.calls + calls > state.max_calls:
+    if (state.billable_call_ceiling_enabled
+            and state.calls + calls > state.max_calls):
         bad.append(f"needs {calls} calls, {state.max_calls - state.calls} left "
                    "on the call axis")
-    return (f"YES (${need:.2f} worst-case fits)" if not bad
+    allowed = (
+        f"YES (${need:.2f} worst-case fits)"
+        if state.period_ceiling_enabled
+        else f"YES (${need:.2f} recorded; period USD ceiling uncapped)"
+    )
+    return (allowed if not bad
             else "NO -- " + "; ".join(bad))
+
+
+def budget_summary(state) -> str:
+    period_limit = (
+        f"${state.ceiling_usd:.2f}"
+        if state.period_ceiling_enabled else "uncapped"
+    )
+    call_limit = (
+        f"{state.calls} of {state.max_calls} calls"
+        if state.billable_call_ceiling_enabled
+        else f"{state.calls} calls recorded, call ceiling disabled"
+    )
+    return f"${state.spent_usd:.2f} of {period_limit}, {call_limit}"
 
 
 # --------------------------------------------------------------------------
@@ -625,8 +644,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PROJECTED CALLS (tiers that can be planned now): {total}")
         st = budget_state()
         if st:
-            print(f"budget      : ${st.spent_usd:.2f} of ${st.ceiling_usd:.2f}, "
-                  f"{st.calls} of {st.max_calls} calls")
+            print(f"budget      : {budget_summary(st)}")
             print(f"CAN THIS RUN: {budget_verdict(st, total)}")
         print("\nno calls made. add --run to spend.")
         return 0

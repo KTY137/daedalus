@@ -27,6 +27,7 @@ from typing import Any
 
 from . import metrics
 from .kairos.scheduler import FREE_LANES
+from .limit_policy import ExecutionLimitPolicy
 from .provider_router import route_and_select
 from .verifier import (DEFAULT_TEST_TIMEOUT_S, VerifyResult,
                        prose_before_images, verify)
@@ -258,7 +259,7 @@ def _resolved_ollama_lane() -> tuple[str, str]:
 
 
 def _slice_context(repo_root: str, targets: list[str], pol,
-                   include_focus: bool, budget: int) -> tuple[dict[str, str], dict]:
+                   include_focus: bool, budget: int | None) -> tuple[dict[str, str], dict]:
     """Gated distilled context for the LOCAL (trusted) lane -- the slice→offload
     wire (Horizon Phase 2, static import graph only).
 
@@ -296,7 +297,7 @@ def _slice_context(repo_root: str, targets: list[str], pol,
             f"this machine, so the distilled-context wire would be a network "
             f"egress lane rather than the local one it was built for")
         return texts, meta
-    if budget <= 0:
+    if budget is not None and budget <= 0:
         meta["reason"] = f"disabled ({_SLICE_BUDGET_ENV}=0)"
         return texts, meta
     if not targets:
@@ -309,7 +310,8 @@ def _slice_context(repo_root: str, targets: list[str], pol,
         # Warm for write tasks: the routing reachability precheck already built
         # this index; the cache makes the wire near-free at dispatch time.
         idx = cached_index(repo_root)
-        per_target = max(256, budget // len(targets))
+        per_target = (None if budget is None
+                      else max(256, budget // len(targets)))
         for rel in targets:
             entry: dict = {"target": rel}
             try:
@@ -377,6 +379,8 @@ def _offload_impl(
     # silently switch models mid-attempt.
     model: str | None = None,
     _attempt_workspace: dict[str, str] | None = None,
+    _execution_limit_policy: ExecutionLimitPolicy | None = None,
+    _execution_timeout_s: int | None = None,
 ) -> dict:
     if availability is None:
         from .doctor import check
@@ -495,6 +499,8 @@ def _offload_impl(
         run_tests=run_tests, isolate_paths=isolate_paths,
         rewrite_windows=rewrite_windows, model=model,
         agent=agent, decision=decision, pdata=pdata, pol=pol, result=result,
+        execution_limit_policy=_execution_limit_policy,
+        execution_timeout_s=_execution_timeout_s,
     )
     return result
 
@@ -521,6 +527,10 @@ class _LiveDispatch:
     pol: Any
     #: The partially-built result dict the executor finishes and returns.
     result: dict
+    #: Frozen at Effect-Lease admission. ``None`` is legacy/bounded, never an
+    #: ambient request to widen after the lease was granted.
+    execution_limit_policy: ExecutionLimitPolicy | None = None
+    execution_timeout_s: int | None = None
 
 
 #: The private key a planned dispatch rides on. :func:`offload` pops it before
@@ -569,12 +579,25 @@ def _leased_bench_cascade(dispatch: _LiveDispatch) -> dict:
     pdata = dispatch.pdata
     pol = dispatch.pol
     result = dispatch.result
+    execution_limit_policy = (
+        dispatch.execution_limit_policy or ExecutionLimitPolicy()
+    )
 
     # --- live cascade -------------------------------------------------
     from .providers import get_provider
     worker = get_provider(decision.provider)
-    run_kwargs = dict(objective=objective, repo_root=repo_root, paths=paths or [],
-                      agent=agent, policy=pol)
+    run_kwargs = dict(
+        objective=objective,
+        repo_root=repo_root,
+        paths=paths or [],
+        agent=agent,
+        policy=pol,
+        execution_limit_policy=execution_limit_policy,
+        timeout_s=(
+            dispatch.execution_timeout_s
+            if execution_limit_policy.enforces("wall_time") else None
+        ),
+    )
     slice_meta = None
     if decision.provider == "ollama":
         run_kwargs["writable"] = (decision.mode == "write")   # advisory truly can't write
@@ -590,16 +613,27 @@ def _leased_bench_cascade(dispatch: _LiveDispatch) -> dict:
         # bootstrap's Cerberus invariant, kept here on purpose).
         from .providers.ollama import MAX_REWRITE_FILES
         slice_targets = list(dict.fromkeys(
-            p.replace("\\", "/") for p in (paths or [])))[:MAX_REWRITE_FILES]
-        rewrite_bound = (decision.mode == "write" and bool(paths)
-                        and len(paths) <= MAX_REWRITE_FILES)
+            p.replace("\\", "/") for p in (paths or [])))
+        if execution_limit_policy.enforces("work_scope"):
+            slice_targets = slice_targets[:MAX_REWRITE_FILES]
+        rewrite_bound = (
+            decision.mode == "write"
+            and bool(paths)
+            and (
+                not execution_limit_policy.enforces("work_scope")
+                or len(paths) <= MAX_REWRITE_FILES
+            )
+        )
         # The rewrite prompt already carries the full file body, so its slice
         # omits the FOCUS body (neighborhood only) rather than paying for a
         # duplicate. Agentic/advisory workers haven't read the file yet -- they
         # get the full slice. This mirrors the provider's own dispatch rule.
+        slice_budget = _slice_budget()
+        if slice_budget > 0 and not execution_limit_policy.enforces("tokens"):
+            slice_budget = None
         slice_texts, slice_meta = _slice_context(
             repo_root, slice_targets, pol,
-            include_focus=not rewrite_bound, budget=_slice_budget())
+            include_focus=not rewrite_bound, budget=slice_budget)
         if slice_texts:
             run_kwargs["slice_texts"] = slice_texts
         # Only a WRITE run can splice anything; handing the hint to an advisory
@@ -708,6 +742,7 @@ def _leased_bench_cascade(dispatch: _LiveDispatch) -> dict:
     # A prose file with no before-image is refused, not waved through.
     vr = verify(report, repo_root, test_command=test_command, test_cwd=test_cwd,
                 timeout_s=test_timeout_s,
+                execution_limit_policy=execution_limit_policy,
                 require_changes=(decision.mode == "write"), disk_changed=disk_changed,
                 prose_before=prose_before_images(
                     getattr(worker, "_backups", None), repo_root))
@@ -884,7 +919,12 @@ def offload(
     try:
         result = _offload_impl(
             objective, repo_root, paths, live, availability, run_tests, project,
-            isolate_paths, rewrite_windows, model, _attempt_workspace
+            isolate_paths, rewrite_windows, model, _attempt_workspace,
+            _execution_limit_policy=(
+                getattr(effect_authorization, "execution_limit_policy", None)
+                or ExecutionLimitPolicy()
+            ),
+            _execution_timeout_s=effect_authorization.lease.effect_scope.timeout_s,
         )
         # THE ONLY PLACE THE BENCH IS ACTUALLY RUN. ``_offload_impl`` plans and
         # refuses; it never writes. When it returns a planned dispatch instead

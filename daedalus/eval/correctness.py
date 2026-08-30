@@ -506,7 +506,7 @@ class PytestRun:
 
 
 def _spawn_pytest(argv: Sequence[str], cwd: Path,
-                  timeout_s: float) -> tuple[int | None, str, bool, str]:
+                  timeout_s: float | None) -> tuple[int | None, str, bool, str]:
     """Run pytest and return ``(returncode, output, timed_out, containment)``.
 
     Preferred path is :class:`daedalus.spine.cancel.ManagedProcess`, i.e. a
@@ -544,9 +544,13 @@ def _spawn_pytest(argv: Sequence[str], cwd: Path,
                     proc = None
             if proc is not None:
                 with proc:
-                    deadline = time.monotonic() + float(timeout_s)
+                    deadline = (
+                        None
+                        if timeout_s is None
+                        else time.monotonic() + float(timeout_s)
+                    )
                     while proc.poll() is None:
-                        if time.monotonic() > deadline:
+                        if deadline is not None and time.monotonic() > deadline:
                             proc.cancel()
                             timed_out = True
                             break
@@ -575,7 +579,7 @@ def _spawn_pytest(argv: Sequence[str], cwd: Path,
 
 def run_node_ids(worktree: str | Path, node_ids: Sequence[str], *,
                  repo_root: str | Path,
-                 timeout_s: float = DEFAULT_TEST_TIMEOUT_S) -> PytestRun:
+                 timeout_s: float | None = DEFAULT_TEST_TIMEOUT_S) -> PytestRun:
     """Run exactly these node ids inside ``worktree`` and attribute per node.
 
     Batch first (one interpreter start, ~2.2s on this box, measured), then
@@ -823,7 +827,7 @@ class Selection:
     test_revision: str | None = None
     test_overlay: tuple[str, ...] = ()
     gate: str = "pytest"
-    timeout_s: float = DEFAULT_TEST_TIMEOUT_S
+    timeout_s: float | None = DEFAULT_TEST_TIMEOUT_S
 
     def to_dict(self) -> dict:
         return {
@@ -855,7 +859,7 @@ class Selection:
 
 
 def freeze_selection(task: dict, base_revision: str,
-                     timeout_s: float = DEFAULT_TEST_TIMEOUT_S) -> Selection:
+                     timeout_s: float | None = DEFAULT_TEST_TIMEOUT_S) -> Selection:
     """Capture the task's declaration as an immutable :class:`Selection`.
 
     Node ids are taken EXACTLY as declared -- deduplicated and ordered for
@@ -872,7 +876,7 @@ def freeze_selection(task: dict, base_revision: str,
         test_revision=task.get("test_revision"),
         test_overlay=tuple(sorted(dict.fromkeys(task.get("test_overlay") or []))),
         gate="pytest",
-        timeout_s=float(timeout_s),
+        timeout_s=None if timeout_s is None else float(timeout_s),
     )
 
 
@@ -1635,7 +1639,7 @@ def seed_task_from_commit(repo_root: str | Path, sha: str, *,
 # wiring: a gate a shadow run can use                                          #
 # --------------------------------------------------------------------------- #
 def correctness_gate(task: dict, repo_root: str | Path, *,
-                     timeout_s: float = DEFAULT_TEST_TIMEOUT_S,
+                     timeout_s: float | None = DEFAULT_TEST_TIMEOUT_S,
                      runner: TestRunner | None = None) -> Callable:
     """A gate callable for :class:`daedalus.spine.attempt.TaskAttempt`.
 

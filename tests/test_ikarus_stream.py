@@ -93,7 +93,7 @@ class KeepAliveTest(unittest.TestCase):
         self.assertTrue(ok)
         self.assertTrue(captured["url"].endswith("/api/generate"))
         self.assertNotIn("/v1/", captured["url"])
-        self.assertEqual(captured["body"]["keep_alive"], "30m")
+        self.assertEqual(captured["body"]["keep_alive"], "10m")
         self.assertEqual(captured["body"]["model"], "m7")
 
     def test_env_override(self):
@@ -138,7 +138,7 @@ class AskStreamTest(unittest.TestCase):
         self.assertEqual([e for e, _ in evs], ["start", "delta", "delta", "final"])
         self.assertEqual([p["text"] for e, p in evs if e == "delta"], ["Hel", "lo"])
         self.assertEqual(evs[-1][1]["assistant"], "Hello")
-        self.assertEqual(evs[-1][1]["provider_used"], "ollama")
+        self.assertEqual(evs[-1][1]["provider_used"], "ollama_http")
 
     def test_midstream_error_falls_back_to_blocking(self):
         def boom():
@@ -146,23 +146,25 @@ class AskStreamTest(unittest.TestCase):
             raise RuntimeError("stream died")
 
         with mock.patch.object(ikarus_os, "_ollama_stream", return_value=boom()), \
-             mock.patch.object(ikarus_os, "ask",
+             mock.patch.object(ikarus_os, "_chat",
                                return_value={"assistant": "fallback", "intent": "chat"}) as blocking:
             evs = self._events(self.PROJECT, "hello there", provider="ollama")
-        blocking.assert_called_once()
-        self.assertEqual(evs[-1][1]["assistant"], "fallback")
+        blocking.assert_not_called()
+        self.assertEqual(evs[-1][1]["assistant"], "partial")
+        self.assertTrue(evs[-1][1]["stream_interrupted"])
 
     def test_empty_stream_falls_back_to_blocking(self):
         with mock.patch.object(ikarus_os, "_ollama_stream", return_value=iter([])), \
-             mock.patch.object(ikarus_os, "ask",
+             mock.patch.object(ikarus_os, "_chat",
                                return_value={"assistant": "fallback", "intent": "chat"}):
             evs = self._events(self.PROJECT, "hello there", provider="ollama")
         self.assertEqual(evs[-1][1]["assistant"], "fallback")
 
-    def test_unwired_provider_degrades_to_deterministic(self):
+    def test_unwired_provider_fails_closed(self):
         # codex_cli gained a real chat branch; "gemini" remains genuinely unwired.
         evs = self._events(self.PROJECT, "hello there", provider="gemini")
-        self.assertEqual(evs[-1][1]["provider_used"], "deterministic")
+        self.assertEqual(evs[-1][1]["provider_used"], "unavailable")
+        self.assertEqual(evs[-1][1]["intent"], "error")
         self.assertNotIn("delta", [e for e, _ in evs])
 
     def test_empty_message_is_safe(self):
@@ -222,7 +224,9 @@ class NonStreamingUnchangedTest(unittest.TestCase):
     """The blocking path must keep working exactly as before."""
 
     def test_ask_still_answers_deterministically(self):
-        res = ikarus_os.ask("sunny_garden", "hello there", provider=None)
+        res = ikarus_os.ask(
+            "sunny_garden", "hello there", provider="deterministic"
+        )
         self.assertEqual(res["provider_used"], "deterministic")
         self.assertIn("Ikarus", res["assistant"])
 
@@ -241,10 +245,10 @@ class NonStreamingUnchangedTest(unittest.TestCase):
             self.assertIsNone(ikarus_os._ollama("hello", "m7", "low"))
 
     def test_effort_caps_preserved(self):
-        self.assertEqual(ikarus_os._effort_cap("low"), 300)
-        self.assertEqual(ikarus_os._effort_cap("medium"), 700)
-        self.assertEqual(ikarus_os._effort_cap("high"), 1400)
-        self.assertEqual(ikarus_os._effort_cap(None), 300)
+        self.assertEqual(ikarus_os._effort_cap("low"), 700)
+        self.assertEqual(ikarus_os._effort_cap("medium"), 1400)
+        self.assertEqual(ikarus_os._effort_cap("high"), 2800)
+        self.assertEqual(ikarus_os._effort_cap(None), 700)
 
 
 if __name__ == "__main__":

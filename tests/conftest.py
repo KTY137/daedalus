@@ -80,10 +80,13 @@ _OPERATOR_DECLARATIONS = (
     "OLLAMA_HOST", "OLLAMA_MODEL", "OLLAMA_EMBED_MODEL",
     "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_MODEL",
     "DAEDALUS_RTX_SSH", "DAEDALUS_RTX_SSH_FALLBACK",
+    "DAEDALUS_OLLAMA_REMOTE_OK",
     "DAEDALUS_TRACE_ID",
     # The operator's live-activation ceiling. A leaked real ceiling would make
     # budget tests measure the owner's wallet instead of their fixtures.
-    "DAEDALUS_BUDGET_USD", "DAEDALUS_BUDGET_MAX_CALLS",
+    "DAEDALUS_BUDGET_USD", "DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED",
+    "DAEDALUS_EXECUTION_LIMIT_POLICY",
+    "DAEDALUS_BUDGET_MAX_CALLS",
 )
 
 os.environ[LATENT_ENV] = "0"

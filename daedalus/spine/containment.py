@@ -123,9 +123,12 @@ caps as well as a lifetime (:func:`_create_job`):
     raising a Windows Error Reporting dialog that no one is there to dismiss,
     which on an unattended gate is an infinite hang dressed as a slow test.
   * BREAKAWAY IS DENIED BY OMISSION. Neither ``BREAKAWAY_OK`` nor
-    ``SILENT_BREAKAWAY_OK`` is set, so ``CREATE_BREAKAWAY_FROM_JOB`` in the
-    child fails. That is the default, and defaults are exactly what drift, so
-    the read-back below ASSERTS their absence rather than assuming it.
+    ``SILENT_BREAKAWAY_OK`` is set, so ``CREATE_BREAKAWAY_FROM_JOB`` cannot
+    remove a child from this job. On a nested-job host the ``CreateProcess``
+    call itself may still succeed while the new process remains in this
+    immediate job, so membership in this exact job -- not the creation return
+    value -- is the proof. The read-back below ASSERTS the flags' absence
+    rather than assuming the default.
 
 EVERY ONE OF THOSE IS READ BACK out of the kernel with
 ``QueryInformationJobObject`` and compared before a child is allowed to start.

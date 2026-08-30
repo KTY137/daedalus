@@ -21,6 +21,7 @@ from typing import Any
 
 from ..providers._openai_compat import ProviderHTTPError, chat_completion, server_reachable
 from ..providers.ollama import DEFAULT_HOST, DEFAULT_MODEL
+from ..limit_policy import ExecutionLimitPolicy, load_from_env as load_limit_policy
 
 # Keep the breakdown prompt tiny (token-efficiency rules): we only need a shape.
 _SYSTEM = (
@@ -33,12 +34,17 @@ _SYSTEM = (
 )
 
 
-def _user_prompt(objective: str, paths: list[str], max_subtasks: int) -> str:
+def _user_prompt(objective: str, paths: list[str], max_subtasks: int | None) -> str:
     known = ", ".join(paths) if paths else "(none supplied)"
+    scope = (
+        f"Break this into at most {max_subtasks} json subtasks."
+        if max_subtasks is not None
+        else "Break this into every useful independent json subtask."
+    )
     return (
         f"Objective:\n{objective}\n\n"
         f"Candidate paths: {known}\n\n"
-        f"Break this into at most {max_subtasks} json subtasks."
+        f"{scope}"
     )
 
 
@@ -63,7 +69,7 @@ def _coerce_item(item: Any) -> dict | None:
     return {"objective": str(objective).strip(), "paths": paths}
 
 
-def _parse_subtasks(raw: str, max_subtasks: int) -> list[dict]:
+def _parse_subtasks(raw: str, max_subtasks: int | None) -> list[dict]:
     """Defensively parse a model response into a list of subtask dicts.
 
     Accepts a top-level JSON array, or an object wrapping the array under
@@ -104,7 +110,7 @@ def _parse_subtasks(raw: str, max_subtasks: int) -> list[dict]:
         coerced = _coerce_item(item)
         if coerced:
             out.append(coerced)
-        if len(out) >= max_subtasks:
+        if max_subtasks is not None and len(out) >= max_subtasks:
             break
     return out
 
@@ -115,7 +121,13 @@ def _fallback(objective: str, paths: list[str]) -> list[dict]:
     return [{"objective": objective, "paths": list(paths)}]
 
 
-def _ask_model(objective: str, paths: list[str], max_subtasks: int) -> list[dict]:
+def _ask_model(
+    objective: str,
+    paths: list[str],
+    max_subtasks: int | None,
+    *,
+    timeout_s: float | None = 60.0,
+) -> list[dict]:
     """Best-effort dynamic breakdown via the local Ollama server. Returns []
     (never raises) when the server is down, the call fails, or parsing fails."""
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
@@ -129,7 +141,7 @@ def _ask_model(objective: str, paths: list[str], max_subtasks: int) -> list[dict
             system=_SYSTEM,
             user=_user_prompt(objective, paths, max_subtasks),
             api_key=None,
-            timeout_s=60,
+            timeout_s=timeout_s,
             force_json=True,
             temperature=0.0,
         )
@@ -145,6 +157,8 @@ def decompose(
     repo_root: str,
     paths: list[str] | None = None,
     max_subtasks: int = 4,
+    *,
+    limit_policy: ExecutionLimitPolicy | None = None,
 ) -> list[dict]:
     """Split ``objective`` into >=1 scoped subtask dict(s).
 
@@ -152,8 +166,16 @@ def decompose(
     model first (dynamic), then falls back to a deterministic per-path split.
     Never raises; always returns at least one subtask.
     """
+    policy = limit_policy or load_limit_policy()
+    if not isinstance(policy, ExecutionLimitPolicy):
+        raise TypeError("limit_policy must be an ExecutionLimitPolicy")
     paths = [str(p) for p in (paths or [])]
-    subtasks = _ask_model(objective, paths, max_subtasks)
+    effective_max = max_subtasks if policy.enforces("work_scope") else None
+    effective_timeout = 60.0 if policy.enforces("wall_time") else None
+    subtasks = _ask_model(
+        objective, paths, effective_max, timeout_s=effective_timeout
+    )
     if subtasks:
-        return subtasks[:max_subtasks]
-    return _fallback(objective, paths)
+        return subtasks if effective_max is None else subtasks[:effective_max]
+    fallback = _fallback(objective, paths)
+    return fallback if effective_max is None else fallback[:effective_max]

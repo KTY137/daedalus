@@ -1,8 +1,8 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 8
-Version: 1.3.0
+Revision: 10
+Version: 2.1.0
 Status: adopted  
 Date: 2026-08-02
 Owner: repository owner  
@@ -123,14 +123,59 @@ These invariants apply to every production-capable path:
 7. **Provenance.** Material actions and claims carry origin, revision, inputs,
    cost, outcome, and evidence. Failures and rejected candidates remain
    inspectable.
-8. **Bounded effects.** Spend, egress, write roots, concurrency, secrets, and a
-   kill switch are enforced at effect boundaries, not entrusted to prompts.
+8. **Bounded effects and explicit execution-limit exception.** Egress, write
+   roots, secrets, authorization, containment, evidence boundaries and a kill
+   switch are always enforced at effect boundaries, not entrusted to prompts.
+   Execution resources are bounded by default. Only the owner-controlled policy
+   in section 4.1 may disable Daedalus-owned monetary, call, token, time,
+   attempt, iteration, read-only concurrency, fan-out or work-scope caps. It
+   never disables unsafe-parallel-write refusal, host containment, trust
+   boundaries, the kill switch or the promotion prohibition.
 9. **Honest claims.** Comparative claims use frozen tasks, equal budgets,
    declared hardware/models, repeated trials, uncertainty, and relevant
    baselines. No benchmark is trained on its hidden test.
 10. **No silent constitution change.** This plan, its amendment chain, active
     instructions, and guards change only through the amendment protocol in
     section 16.
+
+### 4.1 Owner-controlled execution limit policy
+
+Execution is bounded by default. Every unconfigured process uses `bounded`
+mode, including the canonical `$5.00` period monetary ceiling and the existing
+positive call, Mission, lease, token, time, attempt, iteration, concurrency and
+work-scope limits. The repository owner may instead select `custom` and disable
+individual axes, or explicitly select `unbounded_execution`, which disables all
+Daedalus-owned execution resource cap axes for newly admitted work.
+
+The canonical axes are period USD; billable calls; Mission, EffectLease and
+SpendEnvelope money; input/context and output tokens; execution/provider/gate/
+evaluation wall time; retries/attempts/iterations/agent steps; read-only worker,
+fan-out and candidate-evaluation concurrency; and work scope such as queue
+batch, decomposition, rewrite scope and candidate population. Disabled caps use
+an explicit enforcement flag and nullable effective/remaining values. They are
+never represented by `Infinity`, `MAX_INT`, zero or an omitted field. Stored
+positive fallback values remain available when a cap is re-enabled.
+
+Every GUI/API transition that widens authority requires an explicit transient
+confirmation naming the affected axes and risk. The effectful backend verifies
+it before any service, settings, environment, ledger or work-admission effect;
+the confirmation is never persisted. The effective policy is captured for new
+reservations, missions, attempts, leases, provider calls and campaigns. An
+already issued contract is not rewritten by a later settings change.
+
+No execution-limit mode erases or rewrites the ledger, usage or evidence.
+Unknown prices and resource usage remain conservatively estimated and recorded.
+The kill switch, egress admission, bounded write roots, secret/tool policy,
+authentication, evaluator isolation, provenance, evidence gates, explicit
+owner approval and the prohibition on automatic merge or promotion remain
+enforced. Unsafe parallel writes remain refused until isolated worktrees make
+them safe. Sandbox CPU/RAM/PID/filesystem quotas remain containment boundaries.
+
+Provider context windows, API quotas/rate limits, hardware capacity, disk and
+operating-system limits are external physical constraints and cannot be removed
+by Daedalus. The UI and evidence report them honestly instead of claiming they
+were disabled. Scientific comparisons still use equal declared budgets;
+unbounded operation is not evidence of a better method.
 
 ## 5. The Project Twin: the strongest falsifiable prior
 
@@ -484,6 +529,36 @@ scoped rows stay reported; Docker host procurement stays an open owner
 position). `security_boundary_claimed` stays false on purpose — closing the
 gate does not advertise a complete security guarantee, which this repository's
 own review rules class as a defect.
+
+### Revision 9 — Explicit uncapped monetary mode (2026-08-30)
+
+By explicit owner instruction, the desktop may disable the global period USD
+ceiling without substituting a hidden absolute monetary ceiling. Default
+behavior remains capped at `$5.00`; entering the exceptional uncapped mode is a
+backend-confirmed, visibly reported widening action. Ledger history remains
+authoritative, the call ceiling and any Mission/SpendEnvelope limits remain,
+and the active delivery gate stays Gate 1. The accepted decision, rejected
+fixed-emergency-cap alternative, migration, rollback, and acceptance matrix are
+recorded in
+`docs/AMENDMENT_PROPOSAL_009_TWO_TIER_SPEND_CEILING.md`.
+
+### Revision 10 — Owner execution cap menu (2026-08-30)
+
+The owner subsequently rejected Revision 9's retained call and Mission/
+SpendEnvelope caps, requested a complete toggle menu, and explicitly instructed
+implementation. The desktop now distinguishes bounded, custom and unbounded
+execution policy. The master option disables every Daedalus-owned execution
+resource axis named in section 4.1 for newly admitted work, while individual
+toggles support narrower choices. Ledger and evidence recording continue.
+
+This amendment does not relabel trust boundaries as caps: the kill switch,
+egress, write roots, secret/tool authority, authentication, isolation,
+provenance, evidence gates, owner-controlled promotion and unsafe-parallel-write
+refusal remain. External provider, hardware and operating-system limits are
+reported, not claimed away. Ariadne campaign controls are policy preparation
+only until the live path has a campaign producer. The decision, migration,
+alternatives, rollback and acceptance matrix are recorded in
+`docs/AMENDMENT_PROPOSAL_010_EXECUTION_CAP_MENU.md`.
 
 ## 13. Forbidden default directions
 

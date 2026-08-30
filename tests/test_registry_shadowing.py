@@ -33,8 +33,10 @@ with the three paths above reported WRITABLE.
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from daedalus.config import resolve_project
+from daedalus.projects import load_project
 from daedalus.sensitivity import intersect_write_allow, load_policy, path_write_blocked
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +51,17 @@ SELF_PROTECTING = (
 
 
 def _policy_for(project):
-    data = resolve_project(str(REPO_ROOT), project)
+    if project:
+        # The checked-in project catalogue is historical operator state and
+        # may name another machine. This contract is about the merge rule for
+        # the repository under test, so bind the registered project metadata
+        # to this checkout without weakening or inventing policy.
+        registered = dict(load_project(project))
+        registered["repo_root"] = str(REPO_ROOT)
+        with patch("daedalus.projects.load_project", return_value=registered):
+            data = resolve_project(str(REPO_ROOT), project)
+    else:
+        data = resolve_project(str(REPO_ROOT), project)
     if not data or not data.get("policy"):
         return None
     return load_policy(data)

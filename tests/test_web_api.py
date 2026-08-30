@@ -58,7 +58,14 @@ class HierarchyContractTest(unittest.TestCase):
 
 class ControlPlaneContractTest(unittest.TestCase):
     def test_unified_profiles_include_claude_and_codex_surfaces(self) -> None:
-        payload = control_plane.unified_profiles("project_tct")
+        # project_tct is an operator catalogue entry whose absolute root may
+        # live on another machine. Exercise the surface contract against this
+        # checkout instead of making AGENTS.md existence depend on that host.
+        with mock.patch(
+            "daedalus.control_plane._repo_root",
+            return_value=Path(__file__).resolve().parents[1],
+        ):
+            payload = control_plane.unified_profiles("project_tct")
         self.assertTrue(payload["ok"])
         self.assertIsInstance(payload["profiles"], list)
         self.assertIn("claude", payload)

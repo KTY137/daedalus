@@ -26,7 +26,10 @@ from daedalus.kernel.runtime_effects import (
     RuntimeBoundEffectAuthorization,
     issue_runtime_bound_effect_lease,
 )
-from daedalus.runtimes.broker import RuntimeProviderTrustFenceError, run_runtime_provider
+from daedalus.runtimes.broker import (
+    RuntimeProviderTrustFenceError,
+    _run_runtime_provider_test_double as run_runtime_provider,
+)
 from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
 from daedalus.runtimes.provider_observation import (
     ProviderObservationBindingLedger,

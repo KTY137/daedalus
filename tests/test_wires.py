@@ -1,7 +1,8 @@
 """Wiring codex_cli and deepseek into ikarus_os's freeform 'brain' (`_llm`).
 
 No real subprocesses and no real network egress happen here: `subprocess.run`,
-`shutil.which` and `chat_completion`/`chat_stream` are mocked in every case.
+the portable runtime resolver and `chat_completion`/`chat_stream` are mocked
+in every case.
 Covers three things a silent-degrade bug could hide:
 
   1. An UNCONFIGURED codex/deepseek answers with a CLEAR, honest message under
@@ -81,7 +82,7 @@ class DeepSeekUnitTest(unittest.TestCase):
 
 class CodexUnitTest(unittest.TestCase):
     def test_missing_cli_returns_none(self):
-        with mock.patch("shutil.which", return_value=None):
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value=None):
             self.assertIsNone(ikarus_os._codex("hello"))
 
     def test_uses_read_only_sandbox_and_neutral_cwd(self):
@@ -91,7 +92,7 @@ class CodexUnitTest(unittest.TestCase):
             captured["args"] = args
             return _fake_codex_run("hi from codex")(args, **kwargs)
 
-        with mock.patch("shutil.which", return_value="codex"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             out = ikarus_os._codex("hello")
         self.assertEqual(out, "hi from codex")
@@ -102,7 +103,7 @@ class CodexUnitTest(unittest.TestCase):
         self.assertNotIn("--output-schema", args)  # freeform chat -> plain text, not a report schema
 
     def test_spawn_failure_returns_none(self):
-        with mock.patch("shutil.which", return_value="codex"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch("subprocess.run", side_effect=OSError("no exec")):
             self.assertIsNone(ikarus_os._codex("hello"))
 
@@ -121,17 +122,19 @@ class UnconfiguredBrainTest(unittest.TestCase):
         self.assertIn("DEEPSEEK_API_KEY", res["assistant"])
 
     def test_codex_without_cli_gives_clear_message(self):
-        with mock.patch("shutil.which", return_value=None):
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value=None):
             res = ikarus_os.ask(self.PROJECT, "hello there", provider="codex_cli")
         self.assertEqual(res["provider_used"], "codex_cli")
         self.assertNotEqual(res["provider_used"], "deterministic")
-        self.assertIn("Codex", res["assistant"])
+        self.assertIn("Codex CLI", res["assistant"])
 
     def test_unconfigured_reply_never_crashes_the_turn(self):
-        with mock.patch("shutil.which", return_value=None):
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value=None):
             res = ikarus_os.ask(self.PROJECT, "hello", provider="codex_cli")
         self.assertTrue(res["ok"])
-        self.assertNotEqual(res["intent"], "error")
+        # Intent remains the user's classified request; provider availability
+        # is reported honestly in the assistant text and provider_used field.
+        self.assertEqual(res["intent"], "chat")
 
 
 class ConfiguredBrainAnswersTest(unittest.TestCase):
@@ -145,7 +148,7 @@ class ConfiguredBrainAnswersTest(unittest.TestCase):
         self.assertEqual(res["assistant"], "hi from deepseek")
 
     def test_codex_configured_returns_reply(self):
-        with mock.patch("shutil.which", return_value="codex"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch("subprocess.run", side_effect=_fake_codex_run("hi from codex")):
             res = ikarus_os.ask(self.PROJECT, "hello there", provider="codex_cli")
         self.assertEqual(res["provider_used"], "codex_cli")
@@ -161,7 +164,7 @@ class LaneSafetyTest(unittest.TestCase):
     PROJECT = "sunny_garden"
 
     def _capture_lane(self, captured):
-        def fake_ctx(project, message, lane="trusted"):
+        def fake_ctx(project, message, lane="trusted", **_kwargs):
             captured["lane"] = lane
             return ikarus_os._EMPTY_CTX
         return fake_ctx
@@ -176,7 +179,7 @@ class LaneSafetyTest(unittest.TestCase):
 
     def test_codex_uses_untrusted_lane(self):
         captured = {}
-        with mock.patch("shutil.which", return_value="codex"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch.object(ikarus_os, "_project_context", side_effect=self._capture_lane(captured)), \
              mock.patch("subprocess.run", side_effect=_fake_codex_run("ok")):
             ikarus_os.ask(self.PROJECT, "hello", provider="codex_cli")
@@ -211,7 +214,7 @@ class DeepSeekStreamTest(unittest.TestCase):
         self.assertIn("DEEPSEEK_API_KEY", evs[-1][1]["assistant"])
 
     def test_codex_never_streams_but_still_answers_via_blocking_fallback(self):
-        with mock.patch("shutil.which", return_value="codex"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch("subprocess.run", side_effect=_fake_codex_run("hi from codex")):
             evs = list(ikarus_os.ask_stream(self.PROJECT, "hi", provider="codex_cli"))
         self.assertNotIn("delta", [e for e, _ in evs])
@@ -226,13 +229,15 @@ class StillUnwiredProviderTest(unittest.TestCase):
 
     PROJECT = "sunny_garden"
 
-    def test_ask_falls_back_to_deterministic(self):
+    def test_ask_fails_closed(self):
         res = ikarus_os.ask(self.PROJECT, "hello there", provider="gemini")
-        self.assertEqual(res["provider_used"], "deterministic")
+        self.assertEqual(res["provider_used"], "unavailable")
+        self.assertEqual(res["intent"], "error")
 
-    def test_ask_stream_falls_back_to_deterministic(self):
+    def test_ask_stream_fails_closed(self):
         evs = list(ikarus_os.ask_stream(self.PROJECT, "hello there", provider="gemini"))
-        self.assertEqual(evs[-1][1]["provider_used"], "deterministic")
+        self.assertEqual(evs[-1][1]["provider_used"], "unavailable")
+        self.assertEqual(evs[-1][1]["intent"], "error")
         self.assertNotIn("delta", [e for e, _ in evs])
 
 

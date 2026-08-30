@@ -1,6 +1,6 @@
 [package]
 name = "daedalus-desktop"
-version = "0.1.1"
+version = "0.1.2"
 description = "Native desktop shell for the Daedalus local-first agent operating system."
 authors = ["Daedalus contributors"]
 edition = "2021"
@@ -14,7 +14,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
+getrandom = "=0.2.16"
 tauri = { version = "=2.11.5", features = [] }
+tauri-plugin-dialog = "=2.7.2"
 
 [profile.release]
 codegen-units = 1

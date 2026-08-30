@@ -15,6 +15,54 @@ export interface ProjectRow {
   team: Record<string, unknown>;
 }
 
+/** A project registration deliberately points at an existing checkout. The
+ * browser never uploads or copies the repository. */
+export interface ProjectRegistration {
+  repo_root: string;
+  name?: string;
+}
+
+export interface ProjectRegistrationPayload extends ApiEnvelope {
+  project: string;
+  registered_project: Pick<ProjectRow, 'name' | 'repo_root'>;
+  created: boolean;
+}
+
+/** OpenVSCode is managed by the desktop runtime, not inferred from whether an
+ * iframe happened to paint. Optional aliases keep the web bundle compatible
+ * with an older desktop sidecar while its additive status contract rolls out. */
+export interface DesktopIdeService {
+  mode?: 'native' | 'docker';
+  installed?: boolean;
+  available?: boolean;
+  reachable?: boolean;
+  running?: boolean;
+  endpoint?: string;
+  ui_url?: string;
+  executable?: string;
+  image?: string;
+  container_name?: string;
+  configured_executable?: string;
+  managed?: boolean;
+  process_running?: boolean;
+  runtime_downloads?: boolean;
+  state?: string;
+  detail?: string;
+  last_error?: string;
+}
+
+export interface DesktopStatusSnapshot {
+  services?: {
+    ide?: DesktopIdeService;
+    [service: string]: unknown;
+  };
+}
+
+export interface DesktopStatusPayload extends ApiEnvelope {
+  desktop?: DesktopStatusSnapshot;
+  service?: DesktopIdeService;
+}
+
 export interface HierarchyNode {
   id: string;
   type: NodeKind;

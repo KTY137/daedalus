@@ -155,6 +155,24 @@ _INSTALLS = re.compile(
 _SKIP_PARTS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "build",
                "daedalus.egg-info", ".pytest_cache", "dist", "structcore-rs"}
 
+# Frozen sidecars contain byte-for-byte copies of the canonical Python package.
+# Counting those generated trees as fresh source doors duplicates every
+# installer and can turn one sealed entrypoint into an apparent unguarded one
+# merely because PyInstaller copied it. Keep the whole-repo walk, but bind its
+# identity to authoritative source rather than build output.
+_GENERATED_SOURCE_PREFIXES = (
+    "apps/web/src-tauri/backend/",
+    "apps/web/src-tauri/target/",
+)
+
+
+def _is_generated_source(path: Path, root: Path) -> bool:
+    try:
+        relative = path.relative_to(root).as_posix()
+    except ValueError:
+        return False
+    return relative.startswith(_GENERATED_SOURCE_PREFIXES)
+
 
 def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
     """``{repo-relative path: installs_the_guard}`` for every file that is BOTH
@@ -167,7 +185,9 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
     """
     out: dict[str, bool] = {}
     for path in Path(root).rglob("*.py"):
-        if any(part in _SKIP_PARTS for part in path.parts):
+        if any(part in _SKIP_PARTS for part in path.parts) or _is_generated_source(
+            path, Path(root)
+        ):
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
@@ -419,7 +439,9 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
     docs/SPEND_AND_EGRESS_COVERAGE.md needs rewriting."""
     installers = set()
     for path in Path(ROOT).rglob("*.py"):
-        if any(part in _SKIP_PARTS for part in path.parts):
+        if any(part in _SKIP_PARTS for part in path.parts) or _is_generated_source(
+            path, ROOT
+        ):
             continue
         if path.name.startswith("test_") or path.parts[-2:][0] == "tests":
             continue

@@ -2822,6 +2822,9 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
     from daedalus.spine.receipts import mission_contract_for_candidate
 
     mission_id = None
+    mission_budget = None
+    mission_policy_sha256 = ""
+    mission_limit_policy = None
     head = _head_sha(args.repo_root)
     if head:
         try:
@@ -2832,6 +2835,9 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
                 budget=ResourceBudget(max_wall_time_s=int(candidate.gate_timeout_s)),
             )
             mission_id = mission.mission_id
+            mission_budget = mission.budget
+            mission_policy_sha256 = mission.policy_sha256
+            mission_limit_policy = mission.execution_limit_policy
         except Exception:                   # noqa: BLE001 - reported by absence
             mission_id = None
     return run_attempt(
@@ -2841,6 +2847,9 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
         ledger_path=ledger_path,
         artifact_dir=args.artifact_dir,
         mission_id=mission_id,
+        budget=mission_budget,
+        mission_policy_sha256=mission_policy_sha256,
+        execution_limit_policy=mission_limit_policy,
         keep_worktree=bool(args.keep_worktree))
 
 
@@ -2941,7 +2950,15 @@ def main(argv: Sequence[str] | None = None, *,
 
     args = _build_parser().parse_args(
         list(argv) if argv is not None else _sys.argv[1:])
-    queue = build_queue(args.repo_root, limit=args.limit,
+    from ..limit_policy import load_from_env
+
+    execution_limit_policy = load_from_env()
+    queue_limit = (
+        args.limit
+        if execution_limit_policy.enforces("work_scope")
+        else None
+    )
+    queue = build_queue(args.repo_root, limit=queue_limit,
                         include_eval=args.include_eval,
                         include_hotspots=args.include_hotspots,
                         use_attempt_memory=not args.forget,

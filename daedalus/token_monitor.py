@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
+from .limit_policy import ExecutionLimitPolicy, load_from_env
 from .memory import MEMORY_DIR, MemoryEvent, append_event, refresh_todo_snapshot
 from .projects import ROOT as REPO_ROOT, resolve_repo_root
 
@@ -112,9 +113,18 @@ def _sample_from_obj(path: Path, obj: dict[str, Any]) -> UsageSample | None:
     )
 
 
-def read_usage_samples(repo_root: str | None = None, max_files: int = 20) -> list[UsageSample]:
+def read_usage_samples(
+    repo_root: str | None = None,
+    max_files: int = 20,
+    *,
+    limit_policy: ExecutionLimitPolicy | None = None,
+) -> list[UsageSample]:
+    policy = limit_policy or load_from_env()
+    paths = _iter_project_logs(repo_root)
+    if policy.enforces("work_scope"):
+        paths = paths[:max_files]
     samples: list[UsageSample] = []
-    for path in _iter_project_logs(repo_root)[:max_files]:
+    for path in paths:
         try:
             lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError:
@@ -248,6 +258,26 @@ def _budget_view(lock_timeout_s: float = BUDGET_READ_LOCK_TIMEOUT_S) -> dict[str
     return {"available": True, **state.as_dict()}
 
 
+def _render_budget_view(budget: dict[str, Any]) -> str:
+    if not budget.get("available"):
+        return f"budget: unavailable -- {budget['reason']}"
+    period_limit = (
+        f"${budget['ceiling_usd']:.2f} ceiling"
+        if budget["period_ceiling_enabled"]
+        else "uncapped period USD ceiling"
+    )
+    call_limit = (
+        f"{budget['calls']} of {budget['max_calls']} calls"
+        if budget["billable_call_ceiling_enabled"]
+        else f"{budget['calls']} calls recorded; call ceiling disabled"
+    )
+    return (
+        f"budget: ${budget['spent_usd']:.4f} spent + "
+        f"${budget['reserved_usd']:.4f} reserved of {period_limit} "
+        f"({call_limit}, period {budget['period_key']})"
+    )
+
+
 def _spine_view(recent: int = 3) -> dict[str, Any]:
     """How much work is in flight on the intent spine, as an observation.
 
@@ -348,13 +378,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print(report["reason"])
         budget = report["budget"]
-        if budget.get("available"):
-            print(f"budget: ${budget['spent_usd']:.4f} spent + "
-                  f"${budget['reserved_usd']:.4f} reserved of "
-                  f"${budget['ceiling_usd']:.2f} ceiling "
-                  f"({budget['calls']} calls, period {budget['period_key']})")
-        else:
-            print(f"budget: unavailable -- {budget['reason']}")
+        print(_render_budget_view(budget))
         spine = report["spine"]
         if spine.get("available"):
             print(f"spine: {spine['open_intents']} intent(s) in flight")

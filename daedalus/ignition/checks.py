@@ -245,7 +245,7 @@ def pytest_check(
     root: str | Path,
     node_ids: Sequence[str] = (),
     *,
-    timeout_s: float = 120.0,
+    timeout_s: float | None = 120.0,
     label: str = "pytest",
 ) -> CheckReport:
     """Execute the target project's conformance suite inside ``root``.

@@ -10,8 +10,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ..lanes import BASELINE_POLICY, WriteAttempt, render_brief, run_checks
-from ..sensitivity import path_write_blocked, read_inlined_context
+from ..lanes import BASELINE_POLICY, WriteAttempt, run_checks
+from ..limit_policy import ExecutionLimitPolicy, LimitPolicyError
+from ..sensitivity import path_write_blocked
 from ..structcore.tokens import count_tokens
 from ._ollama_native import (
     OUTPUT_RESERVE_TOKENS,
@@ -20,7 +21,18 @@ from ._ollama_native import (
     num_ctx_value,
 )
 from ._openai_compat import ProviderHTTPError, server_reachable
-from ._report import MAX_CONTEXT_CHARS, blocked_report, build_prompt, coerce_report, extract_json
+from ._report import (
+    MAX_CONTEXT_CHARS,
+    admit_execution_limit_policy,
+    attempt_numbers,
+    blocked_report,
+    build_prompt,
+    coerce_report,
+    extract_json,
+    provider_http_timeout,
+    read_provider_context,
+    render_provider_brief,
+)
 from .base import Provider, ProviderCapabilities
 from .personas import persona_for
 
@@ -301,6 +313,21 @@ def keep_alive_value() -> str:
     return os.environ.get("OLLAMA_KEEP_ALIVE", DEFAULT_KEEP_ALIVE)
 
 
+def ollama_http_base_url(host: str | None) -> str:
+    """Return an HTTP base URL while preserving Ollama's schemeless host form.
+
+    The Ollama CLI documents/accepts ``HOST:PORT`` in ``OLLAMA_HOST``. Python's
+    HTTP clients require a scheme, so the same portable configuration used to
+    be detected by the CLI but rejected as an ``unknown url type`` by Ikarus.
+    Only the request spelling is normalised; endpoint admission still receives
+    the operator's original value and therefore keeps exact remote consent.
+    """
+    value = (host or DEFAULT_HOST).strip().rstrip("/")
+    if "://" not in value:
+        value = "http://" + value
+    return value
+
+
 def warm_model(host: str | None = None, model: str | None = None,
                keep_alive: str | None = None, timeout_s: float = 60.0) -> bool:
     """Pin ``model`` in VRAM for ``keep_alive`` via Ollama's NATIVE /api/generate.
@@ -314,7 +341,7 @@ def warm_model(host: str | None = None, model: str | None = None,
     it costs nothing once the model is already resident. Local-only, no spend,
     no egress. Returns True if the pin was accepted; never raises.
     """
-    host = (host or os.environ.get("OLLAMA_HOST", DEFAULT_HOST)).rstrip("/")
+    host = ollama_http_base_url(host or os.environ.get("OLLAMA_HOST", DEFAULT_HOST))
     model = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
     keep_alive = keep_alive or keep_alive_value()
     if str(keep_alive) == "0":  # explicitly disabled
@@ -530,7 +557,26 @@ class OllamaProvider(Provider):
             raise ValueError("path escapes repo root")
         return target, target.relative_to(root).as_posix()
 
-    def _dispatch(self, name, args, repo_root, policy, changed, writable) -> str:
+    def _dispatch(
+        self,
+        name,
+        args,
+        repo_root,
+        policy,
+        changed,
+        writable,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
+    ) -> str:
+        limit_policy = execution_limit_policy or ExecutionLimitPolicy()
+        tool_timeout = 20 if limit_policy.enforces("wall_time") else None
+
+        def tool_text(value: str) -> str:
+            return (
+                value[:MAX_READ_CHARS]
+                if limit_policy.enforces("tokens")
+                else value
+            )
+
         if name == "git_status":
             try:
                 completed = subprocess.run(
@@ -540,10 +586,10 @@ class OllamaProvider(Provider):
                     encoding="utf-8",
                     errors="replace",
                     capture_output=True,
-                    timeout=20,
+                    timeout=tool_timeout,
                     check=False,
                 )
-                return (completed.stdout or completed.stderr)[:MAX_READ_CHARS]
+                return tool_text(completed.stdout or completed.stderr)
             except (OSError, subprocess.SubprocessError) as exc:
                 return f"ERROR: cannot run git status: {exc}"
         if name == "git_diff":
@@ -563,10 +609,12 @@ class OllamaProvider(Provider):
                     encoding="utf-8",
                     errors="replace",
                     capture_output=True,
-                    timeout=20,
+                    timeout=tool_timeout,
                     check=False,
                 )
-                return (completed.stdout or completed.stderr or "NO TRACKED DIFF")[:MAX_READ_CHARS]
+                return tool_text(
+                    completed.stdout or completed.stderr or "NO TRACKED DIFF"
+                )
             except (OSError, subprocess.SubprocessError) as exc:
                 return f"ERROR: cannot run git diff: {exc}"
         raw_rel = str(args.get("path", ""))
@@ -580,7 +628,9 @@ class OllamaProvider(Provider):
             return "\n".join(sorted(p.name for p in target.iterdir()))
         if name == "read_file":
             try:
-                return target.read_text(encoding="utf-8", errors="replace")[:MAX_READ_CHARS]
+                return tool_text(
+                    target.read_text(encoding="utf-8", errors="replace")
+                )
             except OSError as exc:
                 return f"ERROR: cannot read '{rel}': {exc}"
         if name == "write_file":
@@ -683,7 +733,9 @@ class OllamaProvider(Provider):
             RESCUE_CALLS, action)
 
     def _run_agentic(self, objective, repo_root, paths, agent, model, timeout_s, policy,
-                     writable, slice_texts=None):
+                     writable, slice_texts=None,
+                     execution_limit_policy: ExecutionLimitPolicy | None = None):
+        limit_policy = execution_limit_policy or ExecutionLimitPolicy()
         changed: list[str] = []
         tools = _READ_TOOLS + ([_WRITE_TOOL] if writable else [])
         action = ("APPLY every change by calling the write_file tool with the FULL new file "
@@ -692,7 +744,7 @@ class OllamaProvider(Provider):
                   "back edited. (Protected paths are refused -- that is expected.)"
                   if writable else "you are ADVISORY: do NOT write; propose edits in your report")
         system = (
-            build_prompt(agent, "", "")[0]
+            build_prompt(agent, "", "", limit_policy)[0]
             + f"\nYou have tools: git_status, git_diff, list_dir, read_file"
             + (", write_file" if writable else "")
             + f". Read what you need, then {action}. "
@@ -711,19 +763,19 @@ class OllamaProvider(Provider):
             {"role": "system", "content": system},
             {"role": "user", "content": first_user},
         ]
-        window = effective_input_window()
+        window = effective_input_window() if limit_policy.enforces("tokens") else None
         # PRE-FLIGHT: never make a call we know the server will head-truncate.
         # count_tokens is cl100k, which OVER-counts qwen tokens, so this refuses
         # a bit early (honest escalation) rather than letting the system prompt
         # be silently eaten. Same downstream semantics as a provider failure.
         est = count_tokens(system) + count_tokens(first_user) + 8 * len(messages)
-        if est > window:
+        if window is not None and est > window:
             return blocked_report(
                 f"objective/context exceed the local context window (~{est} of ~{window} tokens)",
                 "Route to Claude, or trim the objective.")
         report = None
-        for i in range(MAX_AGENT_STEPS):
-            if i > 0:
+        for i in attempt_numbers(limit_policy, MAX_AGENT_STEPS):
+            if i > 0 and window is not None:
                 # MID-LOOP EVICTION: tool results grow the history. Before every
                 # round after the first, if the full conversation would overflow,
                 # do NOT send it (the server would head-truncate the system
@@ -731,7 +783,9 @@ class OllamaProvider(Provider):
                 grown = (sum(count_tokens(str(m.get("content") or "")) for m in messages)
                          + 8 * len(messages))
                 if grown > window:
-                    report = self._forced_report(messages, model, timeout_s, window)
+                    report = self._forced_report(
+                        messages, model, timeout_s, window, limit_policy
+                    )
                     break
             msg = native_chat(host=self.host, model=model or self.model, messages=messages,
                               tools=tools, keep_alive=keep_alive_value(), timeout_s=timeout_s)
@@ -753,8 +807,15 @@ class OllamaProvider(Provider):
                 # Gated on ``writable and not changed`` on purpose: models that
                 # emit calls natively (qwen3.6 scored 100%) reach here only when
                 # genuinely finished, and pay nothing.
-                rescue = self._schema_rescue(messages, model, tools, timeout_s)
-                calls = rescue.calls
+                rescue = None
+                for _rescue_no in attempt_numbers(limit_policy, 1):
+                    rescue = self._schema_rescue(
+                        messages, model, tools, timeout_s
+                    )
+                    calls = rescue.calls
+                    if calls or rescue.kind == RESCUE_FINISHED:
+                        break
+                assert rescue is not None
                 if not calls and rescue.kind != RESCUE_FINISHED:
                     # FAIL LOUD, NEVER EMPTY. A write task that wrote nothing,
                     # whose constrained re-ask could not even be delivered (or
@@ -771,7 +832,20 @@ class OllamaProvider(Provider):
                         rescue_kind=rescue.kind, rescue_detail=rescue.detail)
                     break
             if not calls:
-                report = coerce_report(extract_json(msg.get("content") or "{}"))
+                try:
+                    report = coerce_report(
+                        extract_json(msg.get("content") or "{}"), limit_policy
+                    )
+                except ValueError:
+                    if limit_policy.enforces("attempts"):
+                        raise
+                    messages.extend([
+                        msg,
+                        {"role": "user", "content": (
+                            "Return ONLY the valid final json report, no prose."
+                        )},
+                    ])
+                    continue
                 break
             messages.append(msg)
             for call in calls:
@@ -780,18 +854,30 @@ class OllamaProvider(Provider):
                     args = json.loads(fn.get("arguments") or "{}")
                 except json.JSONDecodeError:
                     args = {}
-                result = self._dispatch(fn.get("name", ""), args, repo_root, policy, changed, writable)
+                result = self._dispatch(
+                    fn.get("name", ""), args, repo_root, policy, changed,
+                    writable, limit_policy,
+                )
                 messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
                                  "name": fn.get("name", ""), "content": result})
         if report is None:  # exhausted the step budget -- force a final report
             messages.append({"role": "user", "content": "Stop using tools. Output the final json report now."})
             final = native_chat(host=self.host, model=model or self.model, messages=messages,
                                 keep_alive=keep_alive_value(), timeout_s=timeout_s)
-            report = coerce_report(extract_json(final.get("content") or "{}"))
+            report = coerce_report(
+                extract_json(final.get("content") or "{}"), limit_policy
+            )
         report["files_changed"] = list(dict.fromkeys(changed))  # actual writes are authoritative
         return report
 
-    def _forced_report(self, messages, model, timeout_s, window):
+    def _forced_report(
+        self,
+        messages,
+        model,
+        timeout_s,
+        window,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
+    ):
         """Evict the conversation to a minimal form and make ONE final report call.
 
         Called mid-loop when accumulated tool output would overflow the local
@@ -822,12 +908,16 @@ class OllamaProvider(Provider):
                 last_tool_msg["content"] = original[:keep] + _TOOL_TRUNC_MARKER
         final = native_chat(host=self.host, model=model or self.model, messages=final_msgs,
                             keep_alive=keep_alive_value(), timeout_s=timeout_s)
-        return coerce_report(extract_json(final.get("content") or "{}"))
+        return coerce_report(
+            extract_json(final.get("content") or "{}"),
+            execution_limit_policy,
+        )
 
     # -- rewrite prompts: whole file, or one window at a time ----------------
 
     def _full_file_content(self, objective, rel, original, creating, slice_texts,
-                           dropped, model, timeout_s, repo_root=None, telemetry=None):
+                           dropped, model, timeout_s, repo_root=None, telemetry=None,
+                           execution_limit_policy: ExecutionLimitPolicy | None = None):
         """Ask for the ENTIRE edited file. Returns ``(content, None)`` or
         ``(None, reason)``. Behaviour is byte-for-byte what it was before the
         windowed path existed -- this is an extraction, not a change; ``dropped``
@@ -837,7 +927,11 @@ class OllamaProvider(Provider):
         ``telemetry`` is the same in-place channel for the SHED decision: one
         row per full-file prompt built, appended whether or not the brief was
         shed (see :meth:`_run_rewrite`)."""
-        if len(original) > MAX_REWRITE_CHARS:
+        limit_policy = execution_limit_policy or ExecutionLimitPolicy()
+        if (
+            limit_policy.enforces("tokens")
+            and len(original) > MAX_REWRITE_CHARS
+        ):
             return None, "too large for full rewrite"
         system = (
             "You are a careful software engineer. Apply the requested change and "
@@ -857,8 +951,16 @@ class OllamaProvider(Provider):
         # is the tightest resource on this whole path, and a brief the caller
         # cannot afford is worse than none: it is the first thing shed below.
         # Failure to build it must never block a write.
-        brief = render_brief(repo_root, [rel], hops=1,
-                             budget_chars=_LOCAL_BRIEF_BUDGET_CHARS) if repo_root else ""
+        brief = (
+            render_provider_brief(
+                repo_root,
+                [rel],
+                bounded_chars=_LOCAL_BRIEF_BUDGET_CHARS,
+                execution_limit_policy=limit_policy,
+            )
+            if repo_root
+            else ""
+        )
         brief_block = f"\n\n{brief}" if brief else ""
         if creating:
             user = (f"Change request:\n{objective}\n\nFILE {rel} does NOT exist yet. "
@@ -877,7 +979,11 @@ class OllamaProvider(Provider):
         # (honest escalation) rather than under-count into silent truncation.
         est_in = count_tokens(system) + count_tokens(user)
         output_reserve = count_tokens(original) + OUTPUT_RESERVE_TOKENS
-        window = effective_input_window(output_reserve)
+        window = (
+            effective_input_window(output_reserve)
+            if limit_policy.enforces("tokens")
+            else None
+        )
         # SHED TELEMETRY. Whether this prompt carried the structural brief is
         # the TREATMENT variable of any graph-conditioning measurement, and it
         # is assigned right here -- by est_in against the window, i.e. by task
@@ -899,7 +1005,7 @@ class OllamaProvider(Provider):
         }
         if telemetry is not None:
             telemetry.append(shed_row)
-        if est_in > window and brief_block:
+        if window is not None and est_in > window and brief_block:
             # Shed the brief FIRST: it is a convenience against a specific,
             # measured failure mode, not project context the caller curated for
             # this task the way the slice is.
@@ -908,7 +1014,7 @@ class OllamaProvider(Provider):
             est_in = count_tokens(system) + count_tokens(user)
             shed_row["brief_shed"] = True
             shed_row["brief_bytes"] = 0
-        if est_in > window:
+        if window is not None and est_in > window:
             if had_slice:  # shed the distilled context next, then re-check
                 user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
                 dropped.append(rel)
@@ -918,18 +1024,27 @@ class OllamaProvider(Provider):
                 return None, (f"file needs ~{est_in} input tok but the local context "
                               f"window leaves ~{window} tok after a ~{output_reserve}-tok "
                               "generation reserve")
-        try:
-            msg = native_chat(host=self.host, model=model or self.model,
-                              messages=[{"role": "system", "content": system},
-                                        {"role": "user", "content": user}],
-                              force_json=True, keep_alive=keep_alive_value(),
-                              timeout_s=timeout_s, temperature=0.0)
-            return extract_json(msg.get("content") or "{}").get("content"), None
-        except (ProviderHTTPError, ValueError) as exc:
-            return None, f"model call failed: {exc}"
+        last_failure = "no usable content returned"
+        for _attempt_no in attempt_numbers(limit_policy, 1):
+            try:
+                msg = native_chat(host=self.host, model=model or self.model,
+                                  messages=[{"role": "system", "content": system},
+                                            {"role": "user", "content": user}],
+                                  force_json=True, keep_alive=keep_alive_value(),
+                                  timeout_s=timeout_s, temperature=0.0)
+                content = extract_json(msg.get("content") or "{}").get("content")
+            except (ProviderHTTPError, ValueError) as exc:
+                last_failure = f"model call failed: {exc}"
+                continue
+            if not isinstance(content, str) or not content.strip():
+                last_failure = "no content returned"
+                continue
+            return content, None
+        return None, last_failure
 
     def _rewrite_by_window(self, objective, rel, original, windows, model, timeout_s,
-                           repo_root=None):
+                           repo_root=None,
+                           execution_limit_policy: ExecutionLimitPolicy | None = None):
         """Correct ONLY the given line windows and return the FULL spliced file.
 
         Returns ``(content, None)`` on success or ``(None, reason)`` on refusal.
@@ -941,10 +1056,21 @@ class OllamaProvider(Provider):
         """
         lines = original.splitlines(keepends=True)
         total = len(lines)
-        if len(windows) > MAX_WINDOWS_PER_FILE:
+        limit_policy = execution_limit_policy or ExecutionLimitPolicy()
+        if (
+            limit_policy.enforces("work_scope")
+            and len(windows) > MAX_WINDOWS_PER_FILE
+        ):
             return None, (f"{len(windows)} rewrite windows exceeds the cap of "
                           f"{MAX_WINDOWS_PER_FILE}")
-        oversize = next(((s, e) for s, e in windows if e - s + 1 > MAX_WINDOW_LINES), None)
+        oversize = (
+            next(
+                ((s, e) for s, e in windows if e - s + 1 > MAX_WINDOW_LINES),
+                None,
+            )
+            if limit_policy.enforces("work_scope")
+            else None
+        )
         if oversize:
             return None, (f"window {oversize[0]}-{oversize[1]} spans "
                           f"{oversize[1] - oversize[0] + 1} lines (cap {MAX_WINDOW_LINES}) "
@@ -967,8 +1093,11 @@ class OllamaProvider(Provider):
         for start, end in sorted(windows, reverse=True):
             old_slice = lines[start - 1:end]
             window_text = "".join(old_slice)
-            context_start = max(1, start - 2)
-            context_end = min(total, end + 2)
+            if limit_policy.enforces("tokens"):
+                context_start = max(1, start - 2)
+                context_end = min(total, end + 2)
+            else:
+                context_start, context_end = 1, total
             surrounding = "".join(lines[context_start - 1:context_end])
             broken_here: list[str] = []
             broken_modules: dict[str, str] = {}
@@ -1001,13 +1130,19 @@ class OllamaProvider(Provider):
                                 if needle in text.lower()), None)
                     if hit is None:
                         continue
-                    lo, hi = max(0, hit - 6), min(len(module_lines), hit + 7)
+                    if limit_policy.enforces("tokens"):
+                        lo, hi = max(0, hit - 6), min(len(module_lines), hit + 7)
+                    else:
+                        lo, hi = 0, len(module_lines)
                     snippet = "\n".join(
                         f"{i + 1}: {module_lines[i]}" for i in range(lo, hi))
                     code_context.append(
                         f"CURRENT CODE CONTEXT FROM {module_rel} "
                         f"(read-only; use it to find the current name):\n{snippet}")
-            if len(window_text) > MAX_REWRITE_CHARS:
+            if (
+                limit_policy.enforces("tokens")
+                and len(window_text) > MAX_REWRITE_CHARS
+            ):
                 return None, (f"window {start}-{end} is {len(window_text)} chars "
                               f"(cap {MAX_REWRITE_CHARS})")
             user = (f"Change request:\n{objective}\n\n"
@@ -1029,8 +1164,12 @@ class OllamaProvider(Provider):
                        f"{window_text}"))
             est_in = count_tokens(system) + count_tokens(user)
             reserve = count_tokens(window_text) + OUTPUT_RESERVE_TOKENS
-            window_budget = effective_input_window(reserve)
-            if est_in > window_budget:
+            window_budget = (
+                effective_input_window(reserve)
+                if limit_policy.enforces("tokens")
+                else None
+            )
+            if window_budget is not None and est_in > window_budget:
                 return None, (f"window {start}-{end} needs ~{est_in} input tok but the local "
                               f"context window leaves ~{window_budget} tok after a "
                               f"~{reserve}-tok generation reserve")
@@ -1039,9 +1178,10 @@ class OllamaProvider(Provider):
             # alive until the whole remaining context is exhausted; the first
             # real 81-line window did exactly that for >7 minutes. Twice the
             # source estimate leaves room for JSON escaping and modest reflow.
-            output_cap = min(
-                1536,
-                max(384, (2 * count_tokens(window_text)) + 128),
+            output_cap = (
+                min(1536, max(384, (2 * count_tokens(window_text)) + 128))
+                if limit_policy.enforces("tokens")
+                else None
             )
             content_schema = {
                 "type": "object",
@@ -1051,7 +1191,7 @@ class OllamaProvider(Provider):
             }
             replacement = None
             last_failure = "no usable content returned"
-            for attempt_no in range(2):
+            for attempt_no in attempt_numbers(limit_policy, 2):
                 attempt_user = user
                 if attempt_no:
                     attempt_user += (
@@ -1064,16 +1204,25 @@ class OllamaProvider(Provider):
                         "of lines, preserve its delimiter balance, and preserve all "
                         "other text.")
                 try:
-                    msg = native_chat(
-                        host=self.host, model=model or self.model,
+                    request_timeout = provider_http_timeout(
+                        limit_policy, timeout_s, bounded_default=60.0
+                    )
+                    if request_timeout is not None:
+                        request_timeout = min(request_timeout, 60.0)
+                    call_kwargs = dict(
+                        host=self.host,
+                        model=model or self.model,
                         messages=[{"role": "system", "content": system},
                                   {"role": "user", "content": attempt_user}],
-                        force_json=content_schema, keep_alive=keep_alive_value(),
-                        # urllib's request is not cooperatively cancellable.
-                        # Bound each generation so a stop/wall-clock request
-                        # cannot be hidden behind the provider's 300 s default.
-                        timeout_s=min(float(timeout_s), 60.0), temperature=0.0,
-                        num_predict=output_cap, think=False)
+                        force_json=content_schema,
+                        keep_alive=keep_alive_value(),
+                        timeout_s=request_timeout,
+                        temperature=0.0,
+                        think=False,
+                    )
+                    if output_cap is not None:
+                        call_kwargs["num_predict"] = output_cap
+                    msg = native_chat(**call_kwargs)
                     returned = extract_json(msg.get("content") or "{}").get("content")
                 except (ProviderHTTPError, ValueError) as exc:
                     last_failure = f"model call failed: {exc}"
@@ -1123,7 +1272,8 @@ class OllamaProvider(Provider):
     # -- full-file-rewrite write path --------------------------------------
 
     def _run_rewrite(self, objective, repo_root, paths, model, timeout_s, policy,
-                     slice_texts=None, rewrite_windows=None):
+                     slice_texts=None, rewrite_windows=None,
+                     execution_limit_policy: ExecutionLimitPolicy | None = None):
         """Apply a scoped write WITHOUT the tool loop. The live benchmark showed
         7B-class models narrate edits but never emit write_file calls -- yet the
         same model reliably returns the COMPLETE edited file as json. So: model
@@ -1137,7 +1287,13 @@ class OllamaProvider(Provider):
         slice_texts = slice_texts or {}
         rewrite_windows = rewrite_windows or {}
         windowed: list[str] = []           # rels edited through a line window
-        for raw_rel in paths[:MAX_REWRITE_FILES]:
+        limit_policy = execution_limit_policy or ExecutionLimitPolicy()
+        rewrite_paths = (
+            paths[:MAX_REWRITE_FILES]
+            if limit_policy.enforces("work_scope")
+            else paths
+        )
+        for raw_rel in rewrite_paths:
             try:
                 target, rel = self._resolve(repo_root, raw_rel)
             except ValueError:
@@ -1173,7 +1329,8 @@ class OllamaProvider(Provider):
                 original = disk_original
                 content, reason = self._rewrite_by_window(
                     objective, rel, original, windows, model, timeout_s,
-                    repo_root=repo_root)
+                    repo_root=repo_root,
+                    execution_limit_policy=limit_policy)
                 if reason:
                     skipped[rel] = reason
                     continue
@@ -1185,7 +1342,8 @@ class OllamaProvider(Provider):
                 original = (disk_original.replace("\r\n", "\n").replace("\r", "\n"))
                 content, reason = self._full_file_content(
                     objective, rel, original, creating, slice_texts, dropped,
-                    model, timeout_s, repo_root=repo_root, telemetry=shed)
+                    model, timeout_s, repo_root=repo_root, telemetry=shed,
+                    execution_limit_policy=limit_policy)
                 if reason:
                     skipped[rel] = reason
                     continue
@@ -1272,7 +1430,7 @@ class OllamaProvider(Provider):
         paths: list[str],
         agent: dict[str, Any],
         model: str | None = None,
-        timeout_s: int = 300,
+        timeout_s: float | None = 300,
         policy: Any | None = None,
         writable: bool = False,   # fail-closed: caller must grant write explicitly
         slice_texts: dict[str, str] | None = None,  # rel -> caller-gated distilled context
@@ -1280,6 +1438,7 @@ class OllamaProvider(Provider):
         # _normalize_rewrite_windows for the accepted item shapes. Absent (the
         # default) keeps the full-file behaviour exactly as it was.
         rewrite_windows: dict[str, Any] | None = None,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
     ) -> dict[str, Any]:
         # BEFORE any prompt is built: every path below this line puts repository
         # content on the wire (the rewrite prompt carries whole file bodies, the
@@ -1290,6 +1449,23 @@ class OllamaProvider(Provider):
         if refusal is not None:
             return {**refusal, "persona": persona_for(self.caps.name, agent.get("name")),
                     "wrote": [], "did_work": False}
+
+        persona = persona_for(self.caps.name, agent.get("name"))
+        try:
+            limit_policy = admit_execution_limit_policy(execution_limit_policy)
+        except LimitPolicyError as exc:
+            return {
+                "provider": self.caps.name,
+                "persona": persona,
+                "agent": agent.get("name"),
+                "report": blocked_report(
+                    f"Invalid execution-limit policy: {exc}",
+                    "Fix DAEDALUS_EXECUTION_LIMIT_POLICY before retrying.",
+                ),
+                "wrote": [],
+                "did_work": False,
+            }
+        request_timeout = provider_http_timeout(limit_policy, timeout_s)
 
         # GROUND TRUTH for THIS call. Reset here (not only in __init__) so an
         # instance reused across more than one run() never reports a PRIOR
@@ -1307,29 +1483,48 @@ class OllamaProvider(Provider):
         # validation runs again downstream in verifier.verify), so "wrote"/
         # "did_work" live only on this outer dict, as siblings of "report".
         self._written = []
-        persona = persona_for(self.caps.name, agent.get("name"))
         try:
-            if writable and paths and len(paths) <= MAX_REWRITE_FILES:
+            if (
+                writable
+                and paths
+                and (
+                    not limit_policy.enforces("work_scope")
+                    or len(paths) <= MAX_REWRITE_FILES
+                )
+            ):
                 # Scoped write -> full-file rewrite (deterministic apply; the
                 # benchmark proved the tool loop never actually writes at 7B).
-                report = self._run_rewrite(objective, repo_root, paths, model, timeout_s,
-                                           policy, slice_texts, rewrite_windows)
+                report = self._run_rewrite(
+                    objective, repo_root, paths, model, request_timeout,
+                    policy, slice_texts, rewrite_windows, limit_policy,
+                )
             else:
-                report = self._run_agentic(objective, repo_root, paths, agent, model, timeout_s,
-                                           policy, writable, slice_texts)
+                report = self._run_agentic(
+                    objective, repo_root, paths, agent, model,
+                    request_timeout, policy, writable, slice_texts, limit_policy,
+                )
         except (ProviderHTTPError, ValueError) as exc:
             # Fall back to a single-shot advisory read if the tool loop can't run.
             try:
-                context, _ = read_inlined_context(
-                    paths, repo_root, MAX_CONTEXT_CHARS, allow_sensitive=True, policy=policy
+                context, _ = read_provider_context(
+                    paths,
+                    repo_root,
+                    max_chars=MAX_CONTEXT_CHARS,
+                    allow_sensitive=True,
+                    sensitivity_policy=policy,
+                    execution_limit_policy=limit_policy,
                 )
-                system, user = build_prompt(agent, objective, context)
+                system, user = build_prompt(
+                    agent, objective, context, limit_policy
+                )
                 msg = native_chat(host=self.host, model=model or self.model,
                                   messages=[{"role": "system", "content": system},
                                             {"role": "user", "content": user}],
                                   force_json=True, keep_alive=keep_alive_value(),
-                                  timeout_s=timeout_s, temperature=0.0)
-                report = coerce_report(extract_json(msg.get("content") or "{}"))
+                                  timeout_s=request_timeout, temperature=0.0)
+                report = coerce_report(
+                    extract_json(msg.get("content") or "{}"), limit_policy
+                )
             except (ProviderHTTPError, ValueError):
                 wrote = list(dict.fromkeys(self._written))
                 return {"provider": self.caps.name, "persona": persona, "agent": agent.get("name"),

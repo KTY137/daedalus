@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -39,7 +40,23 @@ from daedalus.providers.claude_cli import (
 )
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
-    RuntimeProviderReconciliationRequired,
+)
+from daedalus.limit_policy import ExecutionLimitPolicy, MODE_UNBOUNDED_EXECUTION
+from daedalus.runtimes.provider_executable_object_registry import (
+    ProviderExecutableObjectRegistry,
+)
+from daedalus.runtimes.provider_executable_pre_admission import (
+    ProviderExecutablePreAdmissionReceipt,
+)
+from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
+from daedalus.runtimes.provider_invocation_abi import (
+    issue_provider_invocation_abi_contract,
+)
+from daedalus.runtimes.provider_invocation_authority import (
+    issue_provider_invocation_observation_authority,
+)
+from daedalus.runtimes.provider_invocation_payload import (
+    build_provider_invocation_payload,
 )
 from daedalus.runtimes.provider_observation import (
     ProviderObservationBindingLedger,
@@ -74,6 +91,9 @@ OBS_AUTHORITY_KEY = b"claude-observation-authority-key-material-32-bytes"
 OBS_KEY_ID = "claude-observation-issuer-key"
 OBS_KEY = b"claude-observation-issuer-key-material-at-least-32b"
 RECORD_KEY = b"claude-observation-record-key-material-32-bytes"
+ADAPTER_ID = "adapter.claude-cli"
+IMPLEMENTATION_ID = "implementation.claude-cli-v1"
+PAYLOAD_SCHEMA_ID = "claude-cli-invocation-v1"
 REPORT = {
     "status": "needs_review",
     "summary": "bounded review",
@@ -126,20 +146,25 @@ def _agent() -> dict[str, object]:
     }
 
 
-def _scope() -> EffectScope:
+def _scope(
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
+) -> EffectScope:
+    policy = execution_limit_policy or ExecutionLimitPolicy()
     return EffectScope(
         read_only=False,
         writable_paths=(".",),
         egress_endpoints=("https://api.anthropic.com",),
         tools=("claude",),
-        max_cost_microusd=1000,
-        max_concurrency=1,
-        timeout_s=600,
+        max_cost_microusd=(1000 if policy.enforces("mission_spend") else None),
+        max_concurrency=(1 if policy.enforces("concurrency") else None),
+        timeout_s=(600 if policy.enforces("wall_time") else None),
         kill_switch_ref="mission-kill",
     )
 
 
-def _request() -> EffectLeaseRequest:
+def _request(
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
+) -> EffectLeaseRequest:
     return EffectLeaseRequest(
         request_id="claude-broker-request-1",
         mission_id="mission-claude-1",
@@ -151,7 +176,7 @@ def _request() -> EffectLeaseRequest:
             Effect.PROCESS_SPAWN.value,
             Effect.SPEND.value,
         ),
-        effect_scope=_scope(),
+        effect_scope=_scope(execution_limit_policy),
         idempotency_namespace="mission-claude-1-attempt-claude-1",
         kill_switch_generation=3,
         runtime_manifest_sha256=MANIFEST_SHA,
@@ -231,9 +256,10 @@ def _trust_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 def _authorization(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ) -> RuntimeBoundEffectAuthorization:
     trust_ledger = _trust_ledger(tmp_path, monkeypatch)
-    request = _request()
+    request = _request(execution_limit_policy)
     policy = _policy(request)
     registry = _registry()
     capability = issue_runtime_bound_effect_lease(
@@ -312,6 +338,143 @@ def _observation(
     return authority, ledger
 
 
+def _sha(label: str) -> str:
+    return canonical_sha({"label": label})
+
+
+def _attach_invocation_stack(
+    ledger: ProviderObservationBindingLedger,
+    observation,
+    authorization: RuntimeBoundEffectAuthorization,
+    execution: EffectExecutionRequest,
+    worktree: Path,
+    *,
+    objective: str,
+    paths: list[str],
+    timeout_s: int | float | None = 300,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
+) -> None:
+    subject = ProviderInvocationSubject(
+        provider_id=observation.provider_id,
+        adapter_id=ADAPTER_ID,
+        adapter_artifact_sha256=_sha("claude-adapter-artifact"),
+        adapter_config_sha256=_sha("claude-adapter-config"),
+        entrypoint_id=ENTRYPOINT,
+        runtime_id=RUNTIME,
+        execution_id=execution.execution_id,
+        idempotency_key=execution.idempotency_key,
+        execution_request_sha256=execution.digest,
+        lease_sha256=authorization.capability.lease.digest,
+        source_revision=REVISION,
+    )
+    authority = issue_provider_invocation_observation_authority(
+        observation_authority=observation,
+        invocation_subject=subject,
+        invocation_contract_id="claude-provider-invocation-contract-v1",
+        invocation_registry_sha256=_sha("claude-invocation-registry"),
+        authority_secret=OBS_AUTHORITY_KEY,
+    )
+    effective_timeout = (
+        None
+        if execution_limit_policy is not None
+        and not execution_limit_policy.enforces("wall_time")
+        else (300 if timeout_s is None else timeout_s)
+    )
+    payload_paths = list(dict.fromkeys(paths))
+    if (
+        execution_limit_policy is None
+        or execution_limit_policy.enforces("work_scope")
+    ):
+        payload_paths = payload_paths[:12]
+    invocation_sha = _invocation_sha(
+        worktree,
+        objective=objective,
+        paths=payload_paths,
+        timeout_s=effective_timeout,
+        execution_limit_policy=execution_limit_policy,
+        request_sha256=authorization.request.digest,
+    )
+    body = {
+        "objective": objective,
+        "worktree": str(worktree.resolve()),
+        "paths": payload_paths,
+        "agent": _agent(),
+        "model": "sonnet",
+        "timeout_s": effective_timeout,
+        "invocation_sha256": invocation_sha,
+    }
+    if execution_limit_policy is not None:
+        body["execution_limit_policy"] = execution_limit_policy.as_dict()
+        body["execution_limit_policy_sha256"] = (
+            execution_limit_policy.fingerprint_sha256
+        )
+    payload = build_provider_invocation_payload(
+        subject,
+        payload_schema_id=PAYLOAD_SCHEMA_ID,
+        body=body,
+    )
+    source_path = Path(bridge.__file__).resolve()
+    source_sha = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    output_source_sha = hashlib.sha256(
+        Path(claude_provider.__file__).resolve().read_bytes()
+    ).hexdigest()
+    pre_admission = ProviderExecutablePreAdmissionReceipt(
+        source_revision=REVISION,
+        resolution_sha256=_sha("claude-resolution"),
+        verification_sha256=_sha("claude-verification"),
+        structure_sha256=_sha("claude-structure"),
+        completed_retention_sha256=_sha("claude-retention"),
+        retention_effect_terminal_sha256=_sha("claude-retention-terminal"),
+        repository_head_sha256=_sha("claude-repository-head"),
+        provider_id=subject.provider_id,
+        adapter_id=subject.adapter_id,
+        implementation_id=IMPLEMENTATION_ID,
+        entrypoint_id=subject.entrypoint_id,
+        runtime_id=subject.runtime_id,
+        execution_id=subject.execution_id,
+        idempotency_key=subject.idempotency_key,
+        invocation_authority_sha256=authority.digest,
+        invocation_contract_sha256=authority.invocation_contract_sha256,
+        invocation_subject_sha256=subject.digest,
+        invocation_identity_projection_sha256=_sha("claude-identity-projection"),
+        identity_registry_sha256=authority.invocation_registry_sha256,
+        identity_descriptor_sha256=_sha("claude-identity-descriptor"),
+        target_authority_sha256=_sha("claude-target-authority"),
+        target_projection_sha256=_sha("claude-target-projection"),
+        target_manifest_sha256=_sha("claude-target-manifest"),
+        target_descriptor_sha256=_sha("claude-target-descriptor"),
+        adapter_artifact_sha256=subject.adapter_artifact_sha256,
+        adapter_config_sha256=subject.adapter_config_sha256,
+        lease_sha256=subject.lease_sha256,
+        invoke_target="daedalus.claude_bridge:_invoke_claude_payload",
+        invoke_source_sha256=source_sha,
+        output_digests_target="daedalus.providers.claude_cli:_output_digests",
+        output_digests_source_sha256=output_source_sha,
+    )
+    registry = ProviderExecutableObjectRegistry(Path(__file__).resolve().parents[2])
+    registry.register(
+        pre_admission,
+        invoke=bridge._invoke_claude_payload,
+        output_digests=claude_provider._output_digests,
+    )
+    abi = issue_provider_invocation_abi_contract(
+        authority,
+        payload,
+        pre_admission,
+        authority_id="authority.claude-provider-observation",
+        authority_keyring={OBS_AUTHORITY_KEY_ID: OBS_AUTHORITY_KEY},
+        observation_keyring={OBS_KEY_ID: OBS_KEY},
+        execution=execution,
+        at=NOW,
+    )
+    ledger._test_observation = observation
+    ledger._test_invocation_authority = authority
+    ledger._test_invocation_payload = payload
+    ledger._test_invocation_abi = abi
+    ledger._test_executable_registry = registry
+    ledger._test_pre_admission = pre_admission
+
+
 def _set_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "daedalus.kernel.runtime_effects._utc_now",
@@ -334,7 +497,9 @@ def _invocation_sha(
     paths: list[str] | None = None,
     agent: dict[str, object] | None = None,
     model: str = "sonnet",
-    timeout_s: int = 300,
+    timeout_s: int | float | None = 300,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
+    request_sha256: str = REQUEST_SHA,
 ) -> str:
     return claude_invocation_sha256(
         objective=objective,
@@ -345,7 +510,8 @@ def _invocation_sha(
         timeout_s=timeout_s,
         attempt_id="attempt-claude-1",
         source_revision=REVISION,
-        request_sha256=REQUEST_SHA,
+        request_sha256=request_sha256,
+        execution_limit_policy=execution_limit_policy,
     )
 
 
@@ -356,7 +522,9 @@ def _execution(
     paths: list[str] | None = None,
     agent: dict[str, object] | None = None,
     model: str = "sonnet",
-    timeout_s: int = 300,
+    timeout_s: int | float | None = 300,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
+    request_sha256: str = REQUEST_SHA,
     **changes,
 ) -> EffectExecutionRequest:
     invocation_sha = _invocation_sha(
@@ -366,6 +534,8 @@ def _execution(
         agent=agent,
         model=model,
         timeout_s=timeout_s,
+        execution_limit_policy=execution_limit_policy,
+        request_sha256=request_sha256,
     )
     values = dict(
         execution_id="claude-execution-1",
@@ -379,7 +549,12 @@ def _execution(
         writable_paths=(".",),
         egress_endpoints=("https://api.anthropic.com",),
         tools=("claude",),
-        max_cost_microusd=1000,
+        max_cost_microusd=(
+            1000
+            if execution_limit_policy is None
+            or execution_limit_policy.enforces("mission_spend")
+            else None
+        ),
         kill_switch_ref="mission-kill",
         kill_switch_generation=3,
     )
@@ -411,11 +586,35 @@ def _stack(
     objective: str = "review",
     paths: list[str] | None = None,
     execution: EffectExecutionRequest | None = None,
+    timeout_s: int | float | None = 300,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ):
-    authorization = _authorization(tmp_path, monkeypatch)
+    authorization = _authorization(
+        tmp_path,
+        monkeypatch,
+        execution_limit_policy=execution_limit_policy,
+    )
     if execution is None:
-        execution = _execution(tmp_path, objective=objective, paths=paths)
+        execution = _execution(
+            tmp_path,
+            objective=objective,
+            paths=paths,
+            timeout_s=timeout_s,
+            execution_limit_policy=execution_limit_policy,
+            request_sha256=authorization.request.digest,
+        )
     authority, ledger = _observation(tmp_path, authorization, execution)
+    _attach_invocation_stack(
+        ledger,
+        authority,
+        authorization,
+        execution,
+        tmp_path,
+        objective=objective,
+        paths=list(paths or []),
+        timeout_s=timeout_s,
+        execution_limit_policy=execution_limit_policy,
+    )
     _set_clocks(monkeypatch)
     return authorization, execution, authority, ledger
 
@@ -435,9 +634,24 @@ def _run_kwargs(
         agent=_agent(),
         runtime_authorization=authorization,
         effect_execution=execution,
-        workspace_grant=_grant(tmp_path, execution),
-        observation_authority=authority,
+        workspace_grant=_grant(
+            tmp_path,
+            execution,
+            request_sha256=authorization.request.digest,
+        ),
+        invocation_authority=(
+            ledger._test_invocation_authority
+            if authority is ledger._test_observation
+            else dataclasses.replace(
+                ledger._test_invocation_authority,
+                observation_authority=authority,
+            )
+        ),
+        invocation_payload=ledger._test_invocation_payload,
+        invocation_abi=ledger._test_invocation_abi,
         observation_binding_ledger=ledger,
+        executable_registry=ledger._test_executable_registry,
+        pre_admission=ledger._test_pre_admission,
     )
     kwargs.update(overrides)
     return kwargs
@@ -468,9 +682,9 @@ def test_public_provider_refuses_missing_authority_before_private_invocation(
 ) -> None:
     called: list[str] = []
     monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: called.append("invoked") or OUTPUT,
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: called.append("invoked"),
     )
 
     with pytest.raises(ClaudeProviderAuthorizationRequired):
@@ -491,18 +705,18 @@ def test_missing_observation_authority_refuses_before_any_effect(
     authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
     called: list[str] = []
     monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: called.append("invoked") or OUTPUT,
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: called.append("invoked"),
     )
 
     for overrides in (
-        {"observation_authority": None},
+        {"invocation_authority": None},
         {"observation_binding_ledger": None},
     ):
         with pytest.raises(
             ClaudeProviderAuthorizationRequired,
-            match="provider-observation",
+            match="authenticated invocation ABI",
         ):
             ClaudeCLIProvider().run(
                 **_run_kwargs(
@@ -523,7 +737,7 @@ def test_exact_workspace_request_execution_attempt_and_revision_are_bound(
     tmp_path: Path,
 ) -> None:
     authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
-    monkeypatch.setattr(claude_provider, "_invoke_claude_cli", lambda **kwargs: OUTPUT)
+    monkeypatch.setattr(bridge.subprocess, "run", lambda *args, **kwargs: None)
     other = tmp_path / "other"
     other.mkdir()
 
@@ -559,7 +773,7 @@ def test_execution_scope_must_honestly_cover_agentic_workspace_and_spend(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(claude_provider, "_invoke_claude_cli", lambda **kwargs: OUTPUT)
+    monkeypatch.setattr(bridge.subprocess, "run", lambda *args, **kwargs: None)
 
     narrowed = _execution(tmp_path, paths=["src/a.py"], writable_paths=("src",))
     authorization, _, authority, ledger = _stack(
@@ -585,6 +799,31 @@ def test_execution_scope_must_honestly_cover_agentic_workspace_and_spend(
     assert _lease_rows(tmp_path) == 0
 
 
+def test_unbounded_execution_shape_requires_explicit_null_spend(
+    tmp_path: Path,
+) -> None:
+    policy = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+    execution = _execution(
+        tmp_path,
+        timeout_s=None,
+        execution_limit_policy=policy,
+        max_cost_microusd=None,
+    )
+
+    assert claude_provider._validate_execution_shape(
+        execution,
+        [],
+        policy,
+    ) == []
+
+    with pytest.raises(ClaudeProviderScopeMismatch, match="must carry null cost"):
+        claude_provider._validate_execution_shape(
+            dataclasses.replace(execution, max_cost_microusd=1),
+            [],
+            policy,
+        )
+
+
 @pytest.mark.parametrize(
     "malformed_path",
     ["../primary/secret.py", "/etc/passwd", "C:/repo/file.py", "bad\x00path"],
@@ -597,9 +836,9 @@ def test_malformed_path_refuses_before_broker_or_subprocess(
     authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
     called: list[str] = []
     monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: called.append("invoked") or OUTPUT,
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: called.append("invoked"),
     )
 
     with pytest.raises(ClaudeProviderScopeMismatch):
@@ -635,9 +874,9 @@ def test_invocation_change_cannot_reuse_execution_idempotency(
     authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
     called: list[str] = []
     monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: called.append("invoked") or OUTPUT,
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: called.append("invoked"),
     )
     call = {
         "objective": "review",
@@ -672,9 +911,9 @@ def test_invalid_invocation_metadata_refuses_before_broker(
     authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
     called: list[str] = []
     monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: called.append("invoked") or OUTPUT,
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: called.append("invoked"),
     )
 
     with pytest.raises(ValueError, match="objective"):
@@ -723,11 +962,15 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
         paths=normalized_paths,
     )
 
-    def invoke(**kwargs):
-        calls.append(kwargs)
-        return OUTPUT
+    def invoke(*args, **kwargs):
+        calls.append({"args": args, **kwargs})
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(REPORT),
+            stderr="",
+        )
 
-    monkeypatch.setattr(claude_provider, "_invoke_claude_cli", invoke)
+    monkeypatch.setattr(bridge.subprocess, "run", invoke)
     result = ClaudeCLIProvider().run(
         **_run_kwargs(
             tmp_path,
@@ -741,15 +984,16 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
     )
 
     assert len(calls) == 1
-    assert calls[0]["paths"] == normalized_paths
+    prompt = calls[0]["args"][0][2]
+    assert json.dumps(normalized_paths, indent=2) in prompt
     expected_output = canonical_sha(
         {
             "provider": "claude_cli",
             "agent": "reviewer",
             "invocation_sha256": invocation_sha,
-            "prompt_sha256": OUTPUT["prompt_sha256"],
-            "report_sha256": OUTPUT["report_sha256"],
-            "report": OUTPUT["report"],
+            "prompt_sha256": result["prompt_sha256"],
+            "report_sha256": result["report_sha256"],
+            "report": result["report"],
         }
     )
     row = _execution_row(tmp_path, execution.execution_id)
@@ -771,28 +1015,30 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
     )
 
 
-def test_report_digest_mismatch_keeps_execution_started_and_withholds_output(
+def test_invalid_provider_report_is_terminally_failed_and_withholds_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
-    malformed = {**OUTPUT, "report_sha256": "f" * 64}
     monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: malformed,
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({"status": "done"}),
+            stderr="",
+        ),
     )
 
-    with pytest.raises(RuntimeProviderReconciliationRequired) as excinfo:
+    with pytest.raises(ValueError, match="Invalid Claude report"):
         ClaudeCLIProvider().run(
             **_run_kwargs(tmp_path, authorization, execution, authority, ledger)
         )
 
-    assert "report digest" in str(excinfo.value.__cause__)
     row = _execution_row(tmp_path, execution.execution_id)
     assert row is not None
-    assert row["state"] == "STARTED"
-    assert row["terminal_receipt_json"] is None
+    assert row["state"] == "FAILED"
+    assert json.loads(row["terminal_receipt_json"])["outcome"] == "FAILED"
 
 
 def test_exact_replay_is_inert_and_does_not_extract_output_again(
@@ -802,9 +1048,12 @@ def test_exact_replay_is_inert_and_does_not_extract_output_again(
     authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
     calls: list[str] = []
     monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: calls.append("invoked") or OUTPUT,
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: (
+            calls.append("invoked")
+            or SimpleNamespace(returncode=0, stdout=json.dumps(REPORT), stderr="")
+        ),
     )
 
     first = ClaudeCLIProvider().run(
@@ -821,6 +1070,131 @@ def test_exact_replay_is_inert_and_does_not_extract_output_again(
     assert result["replay"] is True
     assert result["runtime_receipt"]["executed"] is False
     assert result["runtime_receipt"]["terminal_receipt_sha256"] is None
+
+
+def test_registered_adapter_cannot_be_redirected_by_later_global_rebinding(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
+    redirected: list[str] = []
+    subprocess_calls: list[str] = []
+    monkeypatch.setattr(
+        bridge,
+        "_invoke_claude_payload",
+        lambda payload: redirected.append("bridge") or OUTPUT,
+    )
+    monkeypatch.setattr(
+        claude_provider,
+        "_invoke_claude_payload",
+        lambda payload: redirected.append("provider") or OUTPUT,
+    )
+    monkeypatch.setattr(
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: (
+            subprocess_calls.append("fixed-adapter")
+            or SimpleNamespace(returncode=0, stdout=json.dumps(REPORT), stderr="")
+        ),
+    )
+
+    result = ClaudeCLIProvider().run(
+        **_run_kwargs(tmp_path, authorization, execution, authority, ledger)
+    )
+
+    assert redirected == []
+    assert subprocess_calls == ["fixed-adapter"]
+    assert result["runtime_receipt"]["executed"] is True
+
+
+def test_unbounded_policy_removes_cli_timeout_token_and_path_hint_caps(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    objective = "review every supplied documentation file"
+    paths = [f"docs/note-{index}.md" for index in range(20)]
+    limit_policy = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+    authorization, execution, authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        objective=objective,
+        paths=paths,
+        timeout_s=1,
+        execution_limit_policy=limit_policy,
+    )
+    calls: list[dict[str, object]] = []
+    long_summary = "detail-" * 120
+
+    def invoke(*args, **kwargs):
+        calls.append({"args": args, **kwargs})
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({**REPORT, "summary": long_summary}),
+            stderr="",
+        )
+
+    monkeypatch.setattr(bridge.subprocess, "run", invoke)
+    result = ClaudeCLIProvider().run(
+        **_run_kwargs(
+            tmp_path,
+            authorization,
+            execution,
+            authority,
+            ledger,
+            objective=objective,
+            paths=paths,
+            timeout_s=1,
+            execution_limit_policy=limit_policy,
+        )
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["timeout"] is None
+    prompt = calls[0]["args"][0][2]
+    assert paths[-1] in prompt
+    assert "Minimize tokens:" not in prompt
+    assert "unabridged detail" in prompt
+    assert result["report"]["summary"] == long_summary[:600]
+    assert result["report"]["handoff"]["unabridged_summary"] == long_summary
+    assert result["execution_limit_policy"] == limit_policy.as_dict()
+    assert (
+        result["execution_limit_policy_sha256"]
+        == limit_policy.fingerprint_sha256
+    )
+
+
+def test_bound_policy_snapshot_cannot_be_swapped_before_cli_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    admitted = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+    authorization, execution, authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        timeout_s=1,
+        execution_limit_policy=admitted,
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: calls.append("spawned"),
+    )
+
+    with pytest.raises((ClaudeInvocationBindingMismatch, ClaudeProviderScopeMismatch)):
+        ClaudeCLIProvider().run(
+            **_run_kwargs(
+                tmp_path,
+                authorization,
+                execution,
+                authority,
+                ledger,
+                timeout_s=1,
+                execution_limit_policy=ExecutionLimitPolicy(),
+            )
+        )
+
+    assert calls == []
 
 
 def test_legacy_bridge_name_is_fail_closed_without_runtime_context(
@@ -855,21 +1229,26 @@ def test_subprocess_effect_is_private_and_has_one_provider_caller() -> None:
                 isinstance(child, ast.Call)
                 and isinstance(child.func, ast.Attribute)
                 and isinstance(child.func.value, ast.Name)
-                and child.func.value.id == "subprocess"
+                and child.func.value.id in {"subprocess", "local_subprocess"}
                 and child.func.attr == "run"
             ):
                 subprocess_owners.append(node.name)
-    assert subprocess_owners == ["_invoke_claude_cli"]
+    assert subprocess_owners == ["_invoke_claude_payload"]
 
     private_calls = 0
     for node in ast.walk(provider_tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "_invoke_claude_cli"
-        ):
+        if not isinstance(node, ast.Call):
+            continue
+        direct = isinstance(node.func, ast.Name) and node.func.id == "_invoke_claude_payload"
+        qualified = (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_invoke_claude_payload"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "claude_cli"
+        )
+        if direct or qualified:
             private_calls += 1
-    assert private_calls == 1
+    assert private_calls == 0
 
 
 def test_noncentral_registry_still_refuses_provider_before_subprocess(
@@ -883,9 +1262,9 @@ def test_noncentral_registry_still_refuses_provider_before_subprocess(
     )
     called: list[str] = []
     monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: called.append("invoked") or OUTPUT,
+        bridge.subprocess,
+        "run",
+        lambda *args, **kwargs: called.append("invoked"),
     )
 
     with pytest.raises(RuntimeProviderBindingMismatch, match="not centrally wired"):

@@ -152,7 +152,7 @@ def native_chat(
     num_predict: int | None = None,
     think: bool | None = None,
     keep_alive: str | None = None,
-    timeout_s: int = 300,
+    timeout_s: int | float | None = 300,
     temperature: float = 0.0,
 ) -> dict[str, Any]:
     """POST ``messages`` to Ollama's native ``/api/chat`` and return the assistant
@@ -219,8 +219,12 @@ def native_chat(
     except urllib.error.URLError as exc:
         raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
     except TimeoutError as exc:
-        raise ProviderHTTPError(
-            f"request to {url} timed out after {timeout_s:g}s") from exc
+        detail = (
+            f" after {timeout_s:g}s"
+            if timeout_s is not None
+            else ""
+        )
+        raise ProviderHTTPError(f"request to {url} timed out{detail}") from exc
 
     message = payload.get("message")
     if not isinstance(message, dict):

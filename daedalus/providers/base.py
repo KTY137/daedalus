@@ -37,10 +37,11 @@ class Provider(abc.ABC):
         paths: list[str],
         agent: dict[str, Any],
         model: str | None = None,
-        timeout_s: int = 300,
+        timeout_s: int | float | None = 300,
         policy: Any | None = None,
+        execution_limit_policy: Any | None = None,
     ) -> dict[str, Any]:
-        """Execute the task and return {"provider", "agent", "report"}."""
+        """Execute under one captured limit policy and return a report."""
 
     # -- shared helpers ---------------------------------------------------
 

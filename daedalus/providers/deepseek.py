@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..lanes import BASELINE_POLICY, WriteAttempt, render_brief, run_checks
+from ..lanes import BASELINE_POLICY, WriteAttempt, run_checks
 from ..lanes.checks import toplevel_defs as _shared_toplevel_defs
 from ..lanes.checks import (
     not_substituted as _shared_not_substituted,
@@ -14,12 +14,23 @@ from ..lanes.checks import (
 from ..sensitivity import (
     classify_data,
     path_write_blocked,
-    read_inlined_context,
     secret_floor_rule,
     slice_egress_rule,
 )
+from ..limit_policy import ExecutionLimitPolicy, LimitPolicyError
 from ._openai_compat import ProviderHTTPError, chat_completion
-from ._report import MAX_CONTEXT_CHARS, blocked_report, build_prompt, coerce_report, extract_json
+from ._report import (
+    MAX_CONTEXT_CHARS,
+    admit_execution_limit_policy,
+    attempt_numbers,
+    blocked_report,
+    build_prompt,
+    coerce_report,
+    extract_json,
+    provider_http_timeout,
+    read_provider_context,
+    render_provider_brief,
+)
 from .base import Provider, ProviderCapabilities
 from .personas import persona_for
 
@@ -257,8 +268,9 @@ class DeepSeekProvider(Provider):
         repo_root: str,
         paths: list[str],
         model: str | None,
-        timeout_s: int,
+        timeout_s: float | None,
         policy: Any | None,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
     ) -> dict[str, Any]:
         """One request per file: send the whole current file, write back the
         whole edited file. Same shape as the local bench's rewrite flow, with
@@ -278,7 +290,17 @@ class DeepSeekProvider(Provider):
         #: Without this the writable branch has no way to report anything at all.
         notes: list[str] = []
         calls = 0
-        for raw_rel in paths[:MAX_REWRITE_FILES]:
+        limit_policy = (
+            execution_limit_policy
+            if execution_limit_policy is not None
+            else ExecutionLimitPolicy()
+        )
+        rewrite_paths = (
+            paths[:MAX_REWRITE_FILES]
+            if limit_policy.enforces("work_scope")
+            else paths
+        )
+        for raw_rel in rewrite_paths:
             try:
                 target, rel = self._resolve(repo_root, raw_rel)
             except ValueError:
@@ -321,7 +343,10 @@ class DeepSeekProvider(Provider):
                         "refused egress: sensitive/proprietary content must not "
                         f"leave the machine ({egress_rule})")
                     continue
-                if len(original) > MAX_REWRITE_CHARS:
+                if (
+                    limit_policy.enforces("tokens")
+                    and len(original) > MAX_REWRITE_CHARS
+                ):
                     skipped[rel] = "too large for full rewrite"
                     continue
             # The path is named BEFORE the change request as well as after it.
@@ -339,7 +364,12 @@ class DeepSeekProvider(Provider):
             # brief is that lookup. Failure to build it must never block a
             # write, so a brief-less prompt (empty string) degrades to the
             # pre-brief behaviour rather than failing the call.
-            brief = render_brief(repo_root, [rel], hops=1)
+            brief = render_provider_brief(
+                repo_root,
+                [rel],
+                bounded_chars=12_000,
+                execution_limit_policy=limit_policy,
+            )
             brief_block = f"\n\n{brief}" if brief else ""
             if creating:
                 user = (f"You are creating exactly one file: {rel}\n\n"
@@ -353,26 +383,47 @@ class DeepSeekProvider(Provider):
                         f"FILE {rel} (current contents):\n{original}\n\n"
                         f"Return the complete new contents of {rel}."
                         f"{brief_block}")
-            try:
+            content: str | None = None
+            last_failure = "no usable content returned"
+            for _attempt_no in attempt_numbers(limit_policy, 1):
                 calls += 1
-                raw = chat_completion(
-                    base_url=self.base_url, model=model or self.model,
-                    system=_REWRITE_SYSTEM, user=user, api_key=self.api_key,
-                    timeout_s=timeout_s, force_json=True, temperature=0.0,
-                )
-                parsed = extract_json(raw)
-                content = parsed.get("content")
+                try:
+                    raw = chat_completion(
+                        base_url=self.base_url, model=model or self.model,
+                        system=_REWRITE_SYSTEM, user=user, api_key=self.api_key,
+                        timeout_s=timeout_s, force_json=True, temperature=0.0,
+                    )
+                    parsed = extract_json(raw)
+                except (ProviderHTTPError, ValueError) as exc:
+                    last_failure = f"model call failed: {exc}"
+                    continue
                 # Collected BEFORE any of the guards below can `continue` past
                 # this file: a note explaining why a rewrite was refused is
                 # exactly the note worth keeping.
-                for note in (parsed.get("notes") or [])[:MAX_NOTES_PER_FILE]:
+                raw_notes = parsed.get("notes") or []
+                if not isinstance(raw_notes, list):
+                    raw_notes = []
+                selected_notes = (
+                    raw_notes[:MAX_NOTES_PER_FILE]
+                    if limit_policy.enforces("tokens")
+                    else raw_notes
+                )
+                for note in selected_notes:
                     if isinstance(note, str) and len(note.strip()) >= 8:
-                        notes.append(f"{rel}: {note.strip()[:400]}")
-            except (ProviderHTTPError, ValueError) as exc:
-                skipped[rel] = f"model call failed: {exc}"
-                continue
-            if not isinstance(content, str) or not content.strip():
-                skipped[rel] = "no content returned"
+                        rendered_note = (
+                            note.strip()[:400]
+                            if limit_policy.enforces("tokens")
+                            else note.strip()
+                        )
+                        notes.append(f"{rel}: {rendered_note}")
+                candidate = parsed.get("content")
+                if not isinstance(candidate, str) or not candidate.strip():
+                    last_failure = "no content returned"
+                    continue
+                content = candidate
+                break
+            if content is None:
+                skipped[rel] = last_failure
                 continue
             if content == original:
                 skipped[rel] = "no change produced"
@@ -437,7 +488,7 @@ class DeepSeekProvider(Provider):
         paths: list[str],
         agent: dict[str, Any],
         model: str | None = None,
-        timeout_s: int = 300,
+        timeout_s: float | None = 300,
         policy: Any | None = None,
         writable: bool = False,   # fail-closed: caller must grant write explicitly
         #: Replace the whole system message. ``None`` keeps ``build_prompt``'s,
@@ -450,15 +501,36 @@ class DeepSeekProvider(Provider):
         #: question three "independent" times at 0.0 buys one answer counted
         #: three times. Corroboration needs > 0.
         temperature: float = 0.0,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
     ) -> dict[str, Any]:
         persona = persona_for(self.caps.name, agent.get("name"))
+        try:
+            limit_policy = admit_execution_limit_policy(execution_limit_policy)
+        except LimitPolicyError as exc:
+            return {
+                "provider": self.caps.name,
+                "persona": persona,
+                "agent": agent.get("name"),
+                "report": blocked_report(
+                    f"Invalid execution-limit policy: {exc}",
+                    "Fix DAEDALUS_EXECUTION_LIMIT_POLICY before retrying.",
+                ),
+            }
+        request_timeout = provider_http_timeout(limit_policy, timeout_s)
         # Per-call state. Reset here (not only in __init__) so an instance reused
         # across more than one run() never reports a PRIOR call's writes as this
         # one's, and never carries a stale write grant into an advisory run.
         self._written = []
         # A write needs the caller's grant AND a scoped path list. No paths means
         # nothing to rewrite; too many means a fan-out that belongs to Ikarus.
-        self._writable = bool(writable) and bool(paths) and len(paths) <= MAX_REWRITE_FILES
+        self._writable = (
+            bool(writable)
+            and bool(paths)
+            and (
+                not limit_policy.enforces("work_scope")
+                or len(paths) <= MAX_REWRITE_FILES
+            )
+        )
         # Hard egress gate: refuse if the task itself is sensitive. Checked
         # BEFORE the write branch below, so a refused task never writes either.
         verdict = classify_data(paths, extra_text=objective, policy=policy)
@@ -497,14 +569,20 @@ class DeepSeekProvider(Provider):
                 "agent": agent.get("name"),
                 "report": self._run_rewrite(
                     objective=objective, repo_root=repo_root, paths=paths,
-                    model=model, timeout_s=timeout_s, policy=policy,
+                    model=model, timeout_s=request_timeout, policy=policy,
+                    execution_limit_policy=limit_policy,
                 ),
             }
 
-        context, skipped = read_inlined_context(
-            paths, repo_root, MAX_CONTEXT_CHARS, allow_sensitive=False, policy=policy
+        context, skipped = read_provider_context(
+            paths,
+            repo_root,
+            max_chars=MAX_CONTEXT_CHARS,
+            allow_sensitive=False,
+            sensitivity_policy=policy,
+            execution_limit_policy=limit_policy,
         )
-        system, user = build_prompt(agent, objective, context)
+        system, user = build_prompt(agent, objective, context, limit_policy)
         # LANE-SPECIFIC SYSTEM PROMPT, opt-in. MEASURED 2026-07-30: an audit fan-out
         # over 169 modules returned 2 findings from 715 answers, and the cause was
         # one layer above the question. ``build_prompt`` prepends
@@ -526,16 +604,33 @@ class DeepSeekProvider(Provider):
             system = system_override
         try:
             kw = dict(base_url=self.base_url, model=model or self.model, system=system,
-                      api_key=self.api_key, timeout_s=timeout_s, force_json=True,
+                      api_key=self.api_key, timeout_s=request_timeout, force_json=True,
                       temperature=temperature)
-            raw = chat_completion(user=user, **kw)
             repairs: list[str] = []
-            try:
-                report = coerce_report(extract_json(raw, repairs=repairs))
-            except ValueError:
-                # exactly one deterministic re-ask for valid JSON before escalating
-                raw = chat_completion(user=user + "\n\nReturn ONLY the json object, no prose.", **kw)
-                report = coerce_report(extract_json(raw, repairs=repairs))
+            report = None
+            last_error: ProviderHTTPError | ValueError | None = None
+            for attempt_no in attempt_numbers(limit_policy, 2):
+                attempt_user = user
+                if attempt_no:
+                    attempt_user += "\n\nReturn ONLY the json object, no prose."
+                try:
+                    raw = chat_completion(user=attempt_user, **kw)
+                    report = coerce_report(
+                        extract_json(raw, repairs=repairs), limit_policy
+                    )
+                except ProviderHTTPError as exc:
+                    last_error = exc
+                    if limit_policy.enforces("attempts"):
+                        raise
+                    continue
+                except ValueError as exc:
+                    last_error = exc
+                    continue
+                break
+            if report is None:
+                if last_error is None:
+                    raise ValueError("DeepSeek produced no report")
+                raise last_error
         except (ProviderHTTPError, ValueError) as exc:
             return {
                 "provider": self.caps.name,

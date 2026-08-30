@@ -21,6 +21,32 @@ The backend process path is fixed in Rust and a pre-existing listener on port
 8765 is treated as a startup error rather than silently adopted. Closing the app
 terminates the child it spawned.
 
+## Integrated IDE on Windows
+
+The cockpit's third `IDE` view embeds OpenVSCode Server in the same Daedalus
+window. On Windows the desktop runtime defaults to Docker mode: the selected
+registered checkout is mounted read/write at `/home/workspace`, Docker publishes
+only `127.0.0.1:3000`, and the iframe uses the backend-reported workspace URL.
+The native OpenVSCode executable mode remains available explicitly on other
+platforms.
+
+The NSIS installer packages the Daedalus shell, cockpit and Python backend. It
+does **not** package Docker Desktop or a Docker image inside the installer. The
+pinned local IDE image can be reproduced from the repository and is never
+pulled or built by the running application:
+
+```powershell
+docker build --pull=false --tag daedalus/openvscode-server:1.109.5 packaging/openvscode
+docker run --rm --entrypoint /home/.openvscode-server/bin/openvscode-server `
+  daedalus/openvscode-server:1.109.5 --version
+```
+
+Docker Desktop must be installed and its Linux engine running before the user
+presses `IDE starten`. Daedalus accepts only a version- or digest-pinned
+`daedalus/openvscode-server` or `gitpod/openvscode-server` image, never performs
+a runtime pull, and removes only the immutable ID it adopted after verifying
+the image, project label, canonical mount source and loopback port binding.
+
 ## Runtime layout
 
 CI freezes the Python backend with PyInstaller in `onedir` mode and embeds that

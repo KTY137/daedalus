@@ -14,8 +14,11 @@ language-model work.
 from __future__ import annotations
 
 import os
+from itertools import count
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Sequence
+
+from .limit_policy import ExecutionLimitPolicy, load_from_env as load_limit_policy
 
 
 _PROVIDER_ALIASES = {
@@ -96,8 +99,8 @@ class LLMSelection:
     provider: str | None
     requested: str
     auto_selected: bool
-    timeout_s: float
-    max_attempts: int
+    timeout_s: float | None
+    max_attempts: int | None
     reason: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -136,16 +139,24 @@ class IkarusLLMClient:
     """
 
     def __init__(self, *, environ: Mapping[str, str] | None = None,
-                 status_probe: StatusProbe | None = None) -> None:
+                 status_probe: StatusProbe | None = None,
+                 limit_policy: ExecutionLimitPolicy | None = None) -> None:
         self.environ = os.environ if environ is None else environ
         self._status_probe = status_probe
+        self.limit_policy = limit_policy or load_limit_policy(self.environ)
+        if not isinstance(self.limit_policy, ExecutionLimitPolicy):
+            raise TypeError("limit_policy must be an ExecutionLimitPolicy")
 
     @property
-    def timeout_s(self) -> float:
+    def timeout_s(self) -> float | None:
+        if not self.limit_policy.enforces("wall_time"):
+            return None
         return _bounded_float(self.environ.get("DAEDALUS_IKARUS_TIMEOUT_S"), 150.0, 10.0, 600.0)
 
     @property
-    def max_attempts(self) -> int:
+    def max_attempts(self) -> int | None:
+        if not self.limit_policy.enforces("attempts"):
+            return None
         # No hidden paid retries by default. Operators can opt into at most two
         # retries; every transport attempt still crosses the budget boundary.
         retries = _bounded_int(self.environ.get("DAEDALUS_IKARUS_RETRIES"), 0, 0, 2)
@@ -207,7 +218,7 @@ class IkarusLLMClient:
                             "no configured LLM runtime is available" + (f" ({detail})" if detail else ""))
 
     def complete(self, request: LLMRequest,
-                 invoke: Callable[[str, LLMRequest, float], LLMResponse | str | None],
+                 invoke: Callable[[str, LLMRequest, float | None], LLMResponse | str | None],
                  requested: str | None = None) -> LLMResponse:
         """Run a blocking transport under this client's retry policy.
 
@@ -218,7 +229,12 @@ class IkarusLLMClient:
         if not selection.provider or selection.provider == "deterministic":
             raise LLMUnavailable(selection.reason)
         last_error = "model returned no text"
-        for attempt in range(1, selection.max_attempts + 1):
+        attempts: Iterable[int] = (
+            count(1)
+            if selection.max_attempts is None
+            else range(1, selection.max_attempts + 1)
+        )
+        for attempt in attempts:
             try:
                 result = invoke(selection.provider, request, selection.timeout_s)
                 if isinstance(result, LLMResponse) and result.text.strip():
@@ -229,5 +245,7 @@ class IkarusLLMClient:
                                        request.model, attempts=attempt)
             except Exception as exc:  # caller still owns the typed provider error
                 last_error = f"{type(exc).__name__}: {exc}"
+        # The unbounded-attempt iterator has no natural exhaustion, so this is
+        # reachable only for a bounded admission.
         raise LLMUnavailable(f"{selection.provider} produced no usable response after "
                              f"{selection.max_attempts} attempt(s): {last_error}")

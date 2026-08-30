@@ -1,0 +1,58 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-DESKTOP-STARTUP-NONCE-270",
+  "title": "Authenticate the spawned desktop backend before opening the webview",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "issue": 270,
+  "base_revision": "98833bf71e53eec184a7db2a065aec1469a9b8c7",
+  "master_plan_sha256": "7cccda0fb75ff60af846b0c7eb697f6f3fd9fdd76ca2f4ae3aa5670ee2f3c704",
+  "primary_claim": "The Tauri parent opens the operator webview only after its spawned backend returns per-launch child-specific startup evidence, never from TCP reachability alone.",
+  "authority": {
+    "master_plan_revision": 8,
+    "invariants": ["one kernel", "provenance", "bounded effects"],
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false
+  },
+  "scope": {
+    "changed_paths": [
+      "apps/web/src-tauri/Cargo.toml",
+      "apps/web/src-tauri/src/lib.rs",
+      "daedalus/web_api.py",
+      "tools/smoke_tauri_sidecar.py",
+      "tests/test_desktop_packaging.py",
+      "tests/test_desktop_startup_nonce.py",
+      "docs/work-packets/G1-DESKTOP-STARTUP-NONCE-270.json"
+    ],
+    "new_runtime": false,
+    "new_server": false,
+    "new_store": false,
+    "new_effect_path": false
+  },
+  "baseline": {
+    "desktop_packaging_tests": "7 passed in 0.35s on Windows CPython 3.10",
+    "finding": "wait_until_ready accepted any TCP listener that won the race for 127.0.0.1:8765"
+  },
+  "acceptance": [
+    "the parent generates a fresh 256-bit nonce from the operating-system RNG for every launch",
+    "the nonce reaches only the spawned child environment",
+    "generic TCP success or a generic health response cannot satisfy readiness",
+    "the backend exposes startup evidence only when launched with a valid child nonce",
+    "the parent compares the exact returned nonce before webview construction",
+    "child exit is checked before and after a successful readiness probe",
+    "startup failure kills and reaps only the spawned child",
+    "the frozen-sidecar smoke test verifies nonce-bound readiness"
+  ],
+  "budgets": {
+    "startup_timeout_seconds": 25,
+    "nonce_bytes": 32,
+    "readiness_response_max_bytes": 8192,
+    "network_scope": "127.0.0.1 only"
+  },
+  "rollback": [
+    "revert the scoped source and tests together",
+    "retain issue 270 and this packet as negative startup-integrity evidence"
+  ],
+  "evidence_status": "local_implementation_verified_14_tests; frontend_build_passed; native_rust_and_hosted_exact_head_pending"
+}

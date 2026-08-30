@@ -1,4 +1,4 @@
-"""A HARD CEILING on money. Ledger-backed, cross-process, fail-closed.
+"""A default HARD CEILING on money. Ledger-backed, cross-process, fail-closed.
 
 WHY THIS EXISTS
 ---------------
@@ -31,7 +31,8 @@ THE FIVE INVARIANTS
   unparseable ceiling, a lock we could not take -- the answer is
   :class:`BudgetUnavailable`, never "allow". Absence of configuration is not
   absence of a cap: an unconfigured process gets :data:`DEFAULT_CEILING_USD`,
-  not infinity.
+  not infinity. Only the canonical owner execution-limit policy can disable a
+  resource axis; the ledger and attribution remain active in every mode.
 * **THE CHECK HAPPENS BEFORE THE CALL.** :meth:`Ledger.reserve` PERSISTS the
   reservation to disk before it returns, so the money is committed before a
   single vendor byte moves. A cap that inspects what was already spent is not a
@@ -62,11 +63,21 @@ from math import isfinite
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from .limit_policy import (
+    ENV_EXECUTION_LIMIT_POLICY,
+    ExecutionLimitPolicy,
+    LimitAxes,
+    LimitPolicyError,
+    MODE_CUSTOM,
+    load_from_env as load_limit_policy_from_env,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LEDGER_PATH = ROOT / "runs" / "budget" / "ledger.json"
 
 ENV_LEDGER = "DAEDALUS_BUDGET_LEDGER"
 ENV_CEILING = "DAEDALUS_BUDGET_USD"
+ENV_PERIOD_CEILING_ENABLED = "DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED"
 ENV_MAX_CALLS = "DAEDALUS_BUDGET_MAX_CALLS"
 ENV_PERIOD = "DAEDALUS_BUDGET_PERIOD"
 ENV_ON_UNKNOWN = "DAEDALUS_BUDGET_ON_UNKNOWN"
@@ -109,6 +120,8 @@ __all__ = [
     "BudgetError", "BudgetRefused", "BudgetUnavailable", "UnknownPrice",
     "Estimate", "BudgetState", "Reservation", "Ledger",
     "SpendEnvelope", "open_envelope", "ENV_ENVELOPE",
+    "ENV_PERIOD_CEILING_ENABLED",
+    "ENV_EXECUTION_LIMIT_POLICY",
     "price_call", "reserve", "guard", "ledger", "reset_default_ledger",
     "classify_argv", "classify_url",
     "install_process_guard", "uninstall_process_guard",
@@ -139,13 +152,19 @@ class BudgetRefused(BudgetError):
     def __init__(self, *, label: str, vendor: str, model: str, estimate_usd: float,
                  spent_usd: float, reserved_usd: float, ceiling_usd: float,
                  calls: int, open_calls: int, want_calls: int, max_calls: int,
-                 reason: str, envelope: dict[str, Any] | None = None) -> None:
+                 reason: str, envelope: dict[str, Any] | None = None,
+                 period_ceiling_enabled: bool = True,
+                 billable_call_ceiling_enabled: bool = True,
+                 mission_spend_ceiling_enabled: bool = True) -> None:
         # WHICH CEILING REFUSED. Defaulted to None so every existing raise site
         # is unchanged; set when the refusal came from a SPEND ENVELOPE (a
         # lease's own ceiling) rather than from the period ceiling, so a
         # receipt can name the lease that stopped the money instead of
         # reporting the day's cap for a wave that never came near it.
         self.envelope = dict(envelope) if envelope else None
+        self.period_ceiling_enabled = period_ceiling_enabled
+        self.billable_call_ceiling_enabled = billable_call_ceiling_enabled
+        self.mission_spend_ceiling_enabled = mission_spend_ceiling_enabled
         self.label = label
         self.vendor = vendor
         self.model = model
@@ -161,8 +180,36 @@ class BudgetRefused(BudgetError):
         super().__init__(self.message())
 
     def message(self) -> str:
+        period_ceiling = (
+            f"${self.ceiling_usd:.4f}"
+            if self.period_ceiling_enabled
+            else f"uncapped (configured fallback=${self.ceiling_usd:.4f})"
+        )
         if self.envelope is not None:
             env = self.envelope
+            mission_enforced = bool(env.get("mission_spend_enforced", True))
+            envelope_limit = (
+                f"cap=${float(env.get('cap_usd') or 0.0):.4f}, "
+                f"drawn=${float(env.get('drawn_usd') or 0.0):.4f}, "
+                f"remaining=${float(env.get('remaining_usd') or 0.0):.4f}"
+                if mission_enforced
+                else (
+                    "effective cap=unbounded (configured fallback="
+                    f"${float(env.get('cap_usd') or 0.0):.4f}), "
+                    f"drawn=${float(env.get('drawn_usd') or 0.0):.4f}, "
+                    "remaining=unbounded"
+                )
+            )
+            envelope_explanation = (
+                "This is the LEASED ceiling; the period USD ceiling is "
+                f"{period_ceiling}: the wave was authorised for exactly this "
+                "much money and has now asked for more."
+                if mission_enforced
+                else (
+                    "The Mission monetary cap is disabled for this captured "
+                    f"contract; this refusal is instead: {self.reason}."
+                )
+            )
             return (
                 f"BUDGET REFUSED: {self.reason}. "
                 f"refused='{self.label}' (vendor={self.vendor or '?'}, "
@@ -170,24 +217,30 @@ class BudgetRefused(BudgetError):
                 f"estimate=${self.estimate_usd:.4f}). "
                 f"envelope={env.get('label') or env.get('id')!r} "
                 f"lease={env.get('lease_id') or '<none>'} "
-                f"cap=${float(env.get('cap_usd') or 0.0):.4f}, "
-                f"drawn=${float(env.get('drawn_usd') or 0.0):.4f}, "
-                f"remaining=${float(env.get('remaining_usd') or 0.0):.4f}. "
-                f"This is the LEASED ceiling, not the period ceiling "
-                f"(${self.ceiling_usd:.4f}): the wave was authorised for "
-                f"exactly this much money and has now asked for more."
+                f"{envelope_limit}. {envelope_explanation}"
             )
+        remaining = (
+            f"${self.ceiling_usd - self.spent_usd - self.reserved_usd:.4f}"
+            if self.period_ceiling_enabled
+            else "uncapped"
+        )
+        operator_hint = (
+            f"Raise {ENV_CEILING}/{ENV_MAX_CALLS} deliberately, or wait for the "
+            "period to roll over."
+            if self.period_ceiling_enabled
+            else f"The period USD ceiling is explicitly uncapped; raise "
+            f"{ENV_MAX_CALLS} deliberately or wait for the period to roll over."
+        )
         return (
             f"BUDGET REFUSED: {self.reason}. "
             f"refused='{self.label}' (vendor={self.vendor or '?'}, "
             f"model={self.model or '?'}, {self.want_calls} call(s), "
             f"estimate=${self.estimate_usd:.4f}). "
-            f"ceiling=${self.ceiling_usd:.4f}, spent=${self.spent_usd:.4f}, "
+            f"period_ceiling={period_ceiling}, spent=${self.spent_usd:.4f}, "
             f"reserved=${self.reserved_usd:.4f}, "
-            f"remaining=${self.ceiling_usd - self.spent_usd - self.reserved_usd:.4f}, "
+            f"remaining={remaining}, "
             f"calls={self.calls}+{self.open_calls} of {self.max_calls}. "
-            f"Raise {ENV_CEILING}/{ENV_MAX_CALLS} deliberately, or wait for the "
-            f"period to roll over."
+            f"{operator_hint}"
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -195,8 +248,30 @@ class BudgetRefused(BudgetError):
             "refused": self.label, "vendor": self.vendor, "model": self.model,
             "estimate_usd": self.estimate_usd, "spent_usd": self.spent_usd,
             "reserved_usd": self.reserved_usd, "ceiling_usd": self.ceiling_usd,
+            "period_ceiling_enabled": self.period_ceiling_enabled,
+            "billable_call_ceiling_enabled": (
+                self.billable_call_ceiling_enabled
+            ),
+            "mission_spend_ceiling_enabled": (
+                self.mission_spend_ceiling_enabled
+            ),
+            "period_ceiling_usd": self.ceiling_usd,
+            "effective_period_ceiling_usd": (
+                self.ceiling_usd if self.period_ceiling_enabled else None
+            ),
+            "remaining_period_usd": (
+                self.ceiling_usd - self.spent_usd - self.reserved_usd
+                if self.period_ceiling_enabled else None
+            ),
             "calls": self.calls, "open_calls": self.open_calls,
             "want_calls": self.want_calls, "max_calls": self.max_calls,
+            "effective_max_calls": (
+                self.max_calls if self.billable_call_ceiling_enabled else None
+            ),
+            "remaining_calls": (
+                self.max_calls - self.calls - self.open_calls
+                if self.billable_call_ceiling_enabled else None
+            ),
             "reason": self.reason, "envelope": self.envelope,
         }
 
@@ -530,24 +605,74 @@ class BudgetState:
     #: expired. Published so a receipt can report the leased ceiling beside
     #: the realized spend without re-reading the ledger file.
     envelopes: tuple[dict[str, Any], ...] = ()
+    #: False is the explicit owner-selected no-global-period-USD-cap mode. The
+    #: configured positive ceiling is retained for a later switch back.
+    period_ceiling_enabled: bool = True
+    #: The configured positive call fallback is retained while this axis is
+    #: disabled. Calls are still counted in the ledger in every mode.
+    billable_call_ceiling_enabled: bool = True
+    #: Whether newly issued SpendEnvelopes enforce their monetary fallback.
+    #: Each envelope captures this bit at issuance so later policy changes do
+    #: not rewrite an active Mission/lease contract.
+    mission_spend_ceiling_enabled: bool = True
+    #: Canonical policy evidence captured for this state read.
+    limit_policy_mode: str = "bounded"
+    configured_limit_axes: dict[str, bool] | None = None
+    effective_limit_axes: dict[str, bool] | None = None
+    limit_policy_fingerprint_sha256: str = ""
 
     @property
     def committed_usd(self) -> float:
         return self.spent_usd + self.reserved_usd
 
     @property
-    def remaining_usd(self) -> float:
+    def effective_period_ceiling_usd(self) -> float | None:
+        return self.ceiling_usd if self.period_ceiling_enabled else None
+
+    @property
+    def remaining_usd(self) -> float | None:
+        if not self.period_ceiling_enabled:
+            return None
         return self.ceiling_usd - self.committed_usd
 
+    @property
+    def effective_max_calls(self) -> int | None:
+        return self.max_calls if self.billable_call_ceiling_enabled else None
+
+    @property
+    def remaining_calls(self) -> int | None:
+        if not self.billable_call_ceiling_enabled:
+            return None
+        return self.max_calls - self.calls - self.open_calls
+
     def as_dict(self) -> dict[str, Any]:
-        return {"ceiling_usd": self.ceiling_usd, "max_calls": self.max_calls,
+        return {"ceiling_usd": self.ceiling_usd,
+                "period_ceiling_enabled": self.period_ceiling_enabled,
+                "period_ceiling_usd": self.ceiling_usd,
+                "effective_period_ceiling_usd": self.effective_period_ceiling_usd,
+                "max_calls": self.max_calls,
+                "billable_call_ceiling_enabled": self.billable_call_ceiling_enabled,
+                "effective_max_calls": self.effective_max_calls,
+                "remaining_calls": self.remaining_calls,
+                "remaining_billable_calls": self.remaining_calls,
+                "mission_spend_ceiling_enabled": self.mission_spend_ceiling_enabled,
                 "spent_usd": self.spent_usd, "reserved_usd": self.reserved_usd,
                 "committed_usd": self.committed_usd,
-                "remaining_usd": self.remaining_usd, "calls": self.calls,
+                "remaining_usd": self.remaining_usd,
+                "remaining_period_usd": self.remaining_usd,
+                "calls": self.calls,
                 "open_calls": self.open_calls, "period": self.period,
                 "period_key": self.period_key,
                 "envelope_hold_usd": self.envelope_hold_usd,
-                "envelopes": [dict(e) for e in self.envelopes]}
+                "envelopes": [dict(e) for e in self.envelopes],
+                "caps": {
+                    "mode": self.limit_policy_mode,
+                    "configured": dict(self.configured_limit_axes or {}),
+                },
+                "effective_caps": dict(self.effective_limit_axes or {}),
+                "limit_policy_fingerprint_sha256": (
+                    self.limit_policy_fingerprint_sha256
+                )}
 
 
 @dataclass
@@ -719,6 +844,21 @@ def _env_float(name: str, default: float) -> float:
     return out
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise BudgetUnavailable(
+        f"{name}={raw!r} is not a boolean; refusing to guess whether the "
+        "period USD ceiling is active"
+    )
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
@@ -747,6 +887,8 @@ class Ledger:
         path: str | os.PathLike[str] | None = None,
         *,
         ceiling_usd: float | None = None,
+        period_ceiling_enabled: bool | None = None,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
         max_calls: int | None = None,
         period: str | None = None,
         now: Callable[[], float] | None = None,
@@ -756,6 +898,8 @@ class Ledger:
         self.path = Path(raw)
         self.lock_path = self.path.with_name(self.path.name + ".lock")
         self._ceiling_override = ceiling_usd
+        self._period_ceiling_enabled_override = period_ceiling_enabled
+        self._execution_limit_policy_override = execution_limit_policy
         self._max_calls_override = max_calls
         self._period_override = period
         self._now = now or time.time
@@ -767,6 +911,64 @@ class Ledger:
         if self._ceiling_override is not None:
             return _num(self._ceiling_override, ENV_CEILING, allow_zero=False)
         return _env_float(ENV_CEILING, DEFAULT_CEILING_USD)
+
+    def period_ceiling_enabled(self) -> bool:
+        return self.execution_limit_policy().enforces("period_usd")
+
+    def billable_call_ceiling_enabled(self) -> bool:
+        return self.execution_limit_policy().enforces("billable_calls")
+
+    def mission_spend_ceiling_enabled(self) -> bool:
+        return self.execution_limit_policy().enforces("mission_spend")
+
+    def execution_limit_policy(self) -> ExecutionLimitPolicy:
+        """Policy for the next admission, with conservative Rev-9 migration.
+
+        The canonical JSON environment wins when present.  Only when it is
+        absent do we project the retired period-only boolean into ``custom``;
+        this is what prevents an old USD-only uncapped desktop from silently
+        becoming fully unbounded after an upgrade.
+        """
+
+        if self._execution_limit_policy_override is not None:
+            if self._period_ceiling_enabled_override is not None:
+                raise BudgetUnavailable(
+                    "execution_limit_policy and period_ceiling_enabled cannot "
+                    "both override the canonical policy"
+                )
+            if not isinstance(
+                self._execution_limit_policy_override, ExecutionLimitPolicy
+            ):
+                raise BudgetUnavailable(
+                    "execution_limit_policy must be ExecutionLimitPolicy"
+                )
+            return self._execution_limit_policy_override
+        try:
+            if self._period_ceiling_enabled_override is not None:
+                if not isinstance(self._period_ceiling_enabled_override, bool):
+                    raise BudgetUnavailable(
+                        "period_ceiling_enabled must be a boolean"
+                    )
+                if self._period_ceiling_enabled_override:
+                    return ExecutionLimitPolicy()
+                return ExecutionLimitPolicy(
+                    mode=MODE_CUSTOM,
+                    configured=LimitAxes(period_usd=False),
+                )
+            if ENV_EXECUTION_LIMIT_POLICY in os.environ:
+                return load_limit_policy_from_env()
+            legacy_period = _env_bool(ENV_PERIOD_CEILING_ENABLED, True)
+            if legacy_period:
+                return ExecutionLimitPolicy()
+            return ExecutionLimitPolicy(
+                mode=MODE_CUSTOM,
+                configured=LimitAxes(period_usd=False),
+            )
+        except LimitPolicyError as exc:
+            raise BudgetUnavailable(
+                f"invalid execution limit policy: {exc}; refusing to guess "
+                "which resource caps are enforced"
+            ) from exc
 
     def max_calls(self) -> int:
         if self._max_calls_override is not None:
@@ -841,6 +1043,29 @@ class Ledger:
                     not isinstance(n2, str) for n2 in names):
                 raise BudgetUnavailable(
                     f"budget ledger open[{key}].envelopes is not a list of ids")
+            captured = row.get("limit_policy")
+            if captured is not None:
+                try:
+                    captured_policy = ExecutionLimitPolicy.from_dict(captured)
+                    captured_effective = LimitAxes.from_dict(
+                        row.get("effective_limit_axes")
+                    )
+                except LimitPolicyError as exc:
+                    raise BudgetUnavailable(
+                        f"budget ledger open reservation {key!r} has invalid "
+                        f"execution-policy evidence: {exc}"
+                    ) from exc
+                if captured_effective != captured_policy.effective:
+                    raise BudgetUnavailable(
+                        f"budget ledger open reservation {key!r} effective "
+                        "axes do not match its captured policy"
+                    )
+                fingerprint = row.get("limit_policy_fingerprint_sha256")
+                if fingerprint != captured_policy.fingerprint_sha256:
+                    raise BudgetUnavailable(
+                        f"budget ledger open reservation {key!r} execution-"
+                        "policy fingerprint does not match its captured policy"
+                    )
         # ENVELOPES ARE VALIDATED AS HARD AS RESERVATIONS. A malformed envelope
         # is a ceiling we cannot compute, and an uncomputable ceiling is a
         # refusal -- the same rule the rest of this loader follows.
@@ -859,6 +1084,33 @@ class Ledger:
             exp = row.get("expires_at")
             if exp is not None:
                 row["expires_at"] = _num(exp, f"envelopes[{key}].expires_at")
+            mission_enforced = row.get("mission_spend_enforced", True)
+            if type(mission_enforced) is not bool:
+                raise BudgetUnavailable(
+                    f"budget ledger envelope {key!r} has an invalid captured "
+                    "mission-spend policy"
+                )
+            row["mission_spend_enforced"] = mission_enforced
+            captured = row.get("limit_policy")
+            if captured is not None:
+                try:
+                    captured_policy = ExecutionLimitPolicy.from_dict(captured)
+                except LimitPolicyError as exc:
+                    raise BudgetUnavailable(
+                        f"budget ledger envelope {key!r} has an invalid captured "
+                        f"execution policy: {exc}"
+                    ) from exc
+                fingerprint = row.get("limit_policy_fingerprint_sha256")
+                if fingerprint not in (None, captured_policy.fingerprint_sha256):
+                    raise BudgetUnavailable(
+                        f"budget ledger envelope {key!r} execution-policy "
+                        "fingerprint does not match its captured policy"
+                    )
+                if mission_enforced != captured_policy.enforces("mission_spend"):
+                    raise BudgetUnavailable(
+                        f"budget ledger envelope {key!r} mission-spend flag "
+                        "does not match its captured policy"
+                    )
         if not isinstance(data.get("entries"), list):
             data["entries"] = []
         return self._roll(data)
@@ -901,6 +1153,7 @@ class Ledger:
                             if eid in (r.get("envelopes") or []))
             cap = float(row["cap_usd"])
             drawn = float(row["settled_usd"]) + in_flight
+            mission_enforced = bool(row.get("mission_spend_enforced", True))
             expires_at = row.get("expires_at")
             expired = expires_at is not None and now >= float(expires_at)
             rows.append({
@@ -908,10 +1161,14 @@ class Ledger:
                 "label": str(row.get("label") or ""),
                 "lease_id": row.get("lease_id"),
                 "cap_usd": cap,
+                "effective_cap_usd": cap if mission_enforced else None,
+                "mission_spend_enforced": mission_enforced,
                 "drawn_usd": drawn,
                 "settled_usd": float(row["settled_usd"]),
                 "in_flight_usd": in_flight,
-                "remaining_usd": max(0.0, cap - drawn),
+                "remaining_usd": (
+                    max(0.0, cap - drawn) if mission_enforced else None
+                ),
                 "opened_at": row.get("opened_at"),
                 "expires_at": expires_at,
                 "expired": expired,
@@ -920,7 +1177,15 @@ class Ledger:
                 # an abandoned wave must not hold the day's ceiling forever.
                 # Expiry frees the HOLD only -- `drawn` above keeps every
                 # dollar that was actually spent.
-                "hold_usd": 0.0 if expired else max(0.0, cap - drawn),
+                "hold_usd": (
+                    0.0
+                    if expired or not mission_enforced
+                    else max(0.0, cap - drawn)
+                ),
+                "limit_policy": row.get("limit_policy"),
+                "limit_policy_fingerprint_sha256": row.get(
+                    "limit_policy_fingerprint_sha256", ""
+                ),
             })
         return rows
 
@@ -928,6 +1193,7 @@ class Ledger:
         open_res = data.get("open") or {}
         envelopes = self._envelope_views(data)
         hold = float(sum(e["hold_usd"] for e in envelopes))
+        policy = self.execution_limit_policy()
         return BudgetState(
             ceiling_usd=self.ceiling_usd(),
             max_calls=self.max_calls(),
@@ -943,6 +1209,13 @@ class Ledger:
             period_key=str(data.get("period_key", self.period_key())),
             envelope_hold_usd=hold,
             envelopes=tuple(envelopes),
+            period_ceiling_enabled=policy.enforces("period_usd"),
+            billable_call_ceiling_enabled=policy.enforces("billable_calls"),
+            mission_spend_ceiling_enabled=policy.enforces("mission_spend"),
+            limit_policy_mode=policy.mode,
+            configured_limit_axes=policy.configured.as_dict(),
+            effective_limit_axes=policy.effective.as_dict(),
+            limit_policy_fingerprint_sha256=policy.fingerprint_sha256,
         )
 
     def state(self) -> BudgetState:
@@ -1003,20 +1276,39 @@ class Ledger:
                         raise BudgetRefused(
                             label=label, vendor=estimate.vendor, model=estimate.model,
                             estimate_usd=estimate.usd, spent_usd=st.spent_usd,
-                            reserved_usd=st.reserved_usd, ceiling_usd=st.ceiling_usd,
+                            reserved_usd=st.reserved_usd,
+                            ceiling_usd=st.ceiling_usd,
                             calls=st.calls, open_calls=st.open_calls, want_calls=want,
                             max_calls=st.max_calls, envelope=env,
                             reason=("the spend envelope for this lease has expired; "
                                     "an expired pre-authorisation is not a licence "
-                                    "to keep spending"))
-                    if env["drawn_usd"] + estimate.usd > env["cap_usd"]:
+                                    "to keep spending"),
+                            period_ceiling_enabled=st.period_ceiling_enabled,
+                            billable_call_ceiling_enabled=(
+                                st.billable_call_ceiling_enabled
+                            ),
+                            mission_spend_ceiling_enabled=(
+                                st.mission_spend_ceiling_enabled
+                            ))
+                    if (
+                        env["mission_spend_enforced"]
+                        and env["drawn_usd"] + estimate.usd > env["cap_usd"]
+                    ):
                         raise BudgetRefused(
                             label=label, vendor=estimate.vendor, model=estimate.model,
                             estimate_usd=estimate.usd, spent_usd=st.spent_usd,
-                            reserved_usd=st.reserved_usd, ceiling_usd=st.ceiling_usd,
+                            reserved_usd=st.reserved_usd,
+                            ceiling_usd=st.ceiling_usd,
                             calls=st.calls, open_calls=st.open_calls, want_calls=want,
                             max_calls=st.max_calls, envelope=env,
-                            reason="the leased spend ceiling would be crossed")
+                            reason="the leased spend ceiling would be crossed",
+                            period_ceiling_enabled=st.period_ceiling_enabled,
+                            billable_call_ceiling_enabled=(
+                                st.billable_call_ceiling_enabled
+                            ),
+                            mission_spend_ceiling_enabled=(
+                                st.mission_spend_ceiling_enabled
+                            ))
                 # A DRAW INSIDE AN ENVELOPE IS NOT NEW COMMITMENT. Its hold was
                 # already counted against the period ceiling when the lease was
                 # granted, so the draw converts hold into an open reservation
@@ -1041,15 +1333,24 @@ class Ledger:
             # host-certified ``free_local`` basis is exempt there), so an
             # under-priced runaway is still bounded -- by call count, which is
             # the axis this module already says it trusts more than price.
-            if estimate.usd > 0 and st.committed_usd + extra > st.ceiling_usd:
+            if (st.period_ceiling_enabled and extra > 0
+                    and st.committed_usd + extra > st.ceiling_usd):
                 raise BudgetRefused(
                     label=label, vendor=estimate.vendor, model=estimate.model,
                     estimate_usd=estimate.usd, spent_usd=st.spent_usd,
-                    reserved_usd=st.reserved_usd, ceiling_usd=st.ceiling_usd,
+                    reserved_usd=st.reserved_usd,
+                    ceiling_usd=st.ceiling_usd,
                     calls=st.calls, open_calls=st.open_calls, want_calls=want,
                     max_calls=st.max_calls,
                     reason=(f"spend ceiling would be crossed "
-                            f"(basis={estimate.basis})"))
+                            f"(basis={estimate.basis})"),
+                    period_ceiling_enabled=st.period_ceiling_enabled,
+                    billable_call_ceiling_enabled=(
+                        st.billable_call_ceiling_enabled
+                    ),
+                    mission_spend_ceiling_enabled=(
+                        st.mission_spend_ceiling_enabled
+                    ))
 
             # The call cap bounds BILLABLE fan-out (the canary's 16 probes), not
             # work in general. A call to this machine costs nothing, so counting
@@ -1058,16 +1359,32 @@ class Ledger:
             # from a mispriced vendor must still be counted, and only
             # ``free_local`` is certified zero by the shared host predicate.
             billable = estimate.basis != "free_local"
-            if billable and st.calls + st.open_calls + want > st.max_calls:
+            if (
+                billable
+                and st.billable_call_ceiling_enabled
+                and st.calls + st.open_calls + want > st.max_calls
+            ):
                 raise BudgetRefused(
                     label=label, vendor=estimate.vendor, model=estimate.model,
                     estimate_usd=estimate.usd, spent_usd=st.spent_usd,
-                    reserved_usd=st.reserved_usd, ceiling_usd=st.ceiling_usd,
+                    reserved_usd=st.reserved_usd,
+                    ceiling_usd=st.ceiling_usd,
                     calls=st.calls, open_calls=st.open_calls, want_calls=want,
                     max_calls=st.max_calls,
-                    reason="call-count cap would be crossed")
+                    reason="call-count cap would be crossed",
+                    period_ceiling_enabled=st.period_ceiling_enabled,
+                    billable_call_ceiling_enabled=(
+                        st.billable_call_ceiling_enabled
+                    ),
+                    mission_spend_ceiling_enabled=(
+                        st.mission_spend_ceiling_enabled
+                    ))
 
             rid = uuid.uuid4().hex
+            captured_policy = {
+                "mode": st.limit_policy_mode,
+                "configured": dict(st.configured_limit_axes or {}),
+            }
             data["open"][rid] = {
                 "usd": float(estimate.usd), "calls": want if billable else 0,
                 "vendor": estimate.vendor, "model": estimate.model,
@@ -1078,12 +1395,21 @@ class Ledger:
                 # the reservation if it is released and cannot be lost if this
                 # process dies between the two writes.
                 "envelopes": names,
+                "limit_policy": captured_policy,
+                "effective_limit_axes": dict(st.effective_limit_axes or {}),
+                "limit_policy_fingerprint_sha256": (
+                    st.limit_policy_fingerprint_sha256
+                ),
             }
             data["entries"].append(
                 {"kind": "reserve", "id": rid, "usd": float(estimate.usd),
                  "calls": want, "vendor": estimate.vendor, "model": estimate.model,
                  "basis": estimate.basis, "label": label, "at": self._now(),
-                 "envelopes": names})
+                 "envelopes": names, "limit_policy": captured_policy,
+                 "effective_limit_axes": dict(st.effective_limit_axes or {}),
+                 "limit_policy_fingerprint_sha256": (
+                     st.limit_policy_fingerprint_sha256
+                 )})
             self._store(data)
         return Reservation(id=rid, estimate=estimate, label=label, ledger=self)
 
@@ -1121,7 +1447,12 @@ class Ledger:
                  "usd": charge, "estimate_usd": float(row["usd"]),
                  "vendor": row.get("vendor"), "model": row.get("model"),
                  "label": res.label, "reason": reason, "at": self._now(),
-                 "envelopes": drawn_on})
+                 "envelopes": drawn_on,
+                 "limit_policy": row.get("limit_policy"),
+                 "effective_limit_axes": row.get("effective_limit_axes"),
+                 "limit_policy_fingerprint_sha256": row.get(
+                     "limit_policy_fingerprint_sha256", ""
+                 )})
             self._store(data)
 
     # -- spend envelopes --------------------------------------------------
@@ -1129,13 +1460,14 @@ class Ledger:
     def open_envelope(self, cap_usd: float, *, label: str,
                       lease_id: str | None = None,
                       ttl_s: float | None = None) -> SpendEnvelope:
-        """PRE-AUTHORISE ``cap_usd`` and refuse anything past it inside.
+        """Capture a Mission spend fallback and its admission-time policy.
 
         This is the enforcement point for a lease's ``max_cost_microusd``. The
-        whole cap is written to the ledger before this returns, exactly as
-        :meth:`reserve` writes a call's estimate before the call: an envelope
-        that cannot fit under the period ceiling is refused here, not
-        discovered halfway through a wave.
+        When ``mission_spend`` is enforced, the whole cap is written as a hold
+        before this returns, exactly as :meth:`reserve` writes a call estimate.
+        When the axis is disabled the fallback is still stored and every draw
+        is still attributed, but no monetary hold or envelope refusal is
+        invented. The captured policy remains with this envelope until close.
 
         ``cap_usd == 0`` is legal and means what it says -- a lease granted no
         money refuses every priced call attributed to it, while free local work
@@ -1149,7 +1481,9 @@ class Ledger:
         with _BudgetLock(self.lock_path, self.lock_timeout_s):
             data = self._load()
             st = self._state(data)
-            if cap > 0 and st.committed_usd + cap > st.ceiling_usd:
+            if (st.mission_spend_ceiling_enabled
+                    and st.period_ceiling_enabled and cap > 0
+                    and st.committed_usd + cap > st.ceiling_usd):
                 raise BudgetRefused(
                     label=label, vendor="", model="", estimate_usd=cap,
                     spent_usd=st.spent_usd, reserved_usd=st.reserved_usd,
@@ -1158,17 +1492,38 @@ class Ledger:
                     max_calls=st.max_calls,
                     reason=(f"the lease asked to pre-authorise ${cap:.4f} and the "
                             f"period ceiling has ${st.remaining_usd:.4f} left; a "
-                            "capability nobody can pay for is not issued"))
+                            "capability nobody can pay for is not issued"),
+                    period_ceiling_enabled=st.period_ceiling_enabled,
+                    billable_call_ceiling_enabled=(
+                        st.billable_call_ceiling_enabled
+                    ),
+                    mission_spend_ceiling_enabled=(
+                        st.mission_spend_ceiling_enabled
+                    ))
             eid = uuid.uuid4().hex
             now = self._now()
+            captured_policy = {
+                "mode": st.limit_policy_mode,
+                "configured": dict(st.configured_limit_axes or {}),
+            }
             data.setdefault("envelopes", {})[eid] = {
                 "cap_usd": cap, "settled_usd": 0.0, "label": label,
                 "lease_id": lease_id, "opened_at": now,
                 "expires_at": now + ttl, "pid": os.getpid(),
+                "mission_spend_enforced": st.mission_spend_ceiling_enabled,
+                "limit_policy": captured_policy,
+                "limit_policy_fingerprint_sha256": (
+                    st.limit_policy_fingerprint_sha256
+                ),
             }
             data["entries"].append(
                 {"kind": "envelope_open", "id": eid, "usd": cap, "label": label,
-                 "lease_id": lease_id, "at": now})
+                 "lease_id": lease_id, "at": now,
+                 "mission_spend_enforced": st.mission_spend_ceiling_enabled,
+                 "limit_policy": captured_policy,
+                 "limit_policy_fingerprint_sha256": (
+                     st.limit_policy_fingerprint_sha256
+                 )})
             self._store(data)
         return SpendEnvelope(id=eid, label=label, cap_usd=cap, ledger=self,
                              lease_id=lease_id, expires_at=now + ttl)
@@ -1211,10 +1566,16 @@ class Ledger:
             out = {
                 "id": eid, "label": view["label"], "lease_id": view["lease_id"],
                 "cap_usd": view["cap_usd"],
+                "effective_cap_usd": view["effective_cap_usd"],
+                "mission_spend_enforced": view["mission_spend_enforced"],
                 "spent_usd": view["settled_usd"],
                 "in_flight_usd": view["in_flight_usd"],
                 "released_hold_usd": view["hold_usd"],
                 "expired": view["expired"], "closed": True, "reason": reason,
+                "limit_policy": view["limit_policy"],
+                "limit_policy_fingerprint_sha256": view[
+                    "limit_policy_fingerprint_sha256"
+                ],
             }
             data["entries"].append(dict(out, kind="envelope_close",
                                         at=self._now()))
@@ -1323,6 +1684,22 @@ _PAID_EXECUTABLES: dict[str, str] = {
     "agy": "google_agy",
     "antigravity": "google_agy",
 }
+
+# Exact vendor commands that inspect the installed CLI/account without asking
+# a model to generate anything.  This is deliberately an argv allowlist rather
+# than a prefix allowlist: ``claude --version explain this`` and
+# ``codex login status --some-new-mode`` have extra semantics we have not
+# audited, so they remain paid/refused like every other vendor invocation.
+#
+# Only direct vendor executables qualify.  Runtime discovery already resolves
+# npm shims before spawning them (for example ``...\\codex.cmd`` on Windows),
+# and :func:`_basename` normalises those paths.  A shell/process wrapper still
+# takes the conservative path below because its quoting and argument boundary
+# cannot be proved from this coarse syscall view.
+_READ_ONLY_VENDOR_PROBES: dict[str, frozenset[tuple[str, ...]]] = {
+    "claude": frozenset({("--version",)}),
+    "codex": frozenset({("--version",), ("login", "status")}),
+}
 # argv[0] basenames that RUN something else; scan their arguments too, because
 # `ssh bench agy -p ...` and `cmd /c claude -p ...` spend exactly as much money
 # as `claude -p ...` does.
@@ -1357,12 +1734,23 @@ _INFERENCE_PATHS = ("/v1/chat/completions", "/v1/completions", "/v1/messages",
 
 
 def _basename(token: str) -> str:
-    name = os.path.basename(str(token or "").strip().strip('"')).lower()
+    # Recognise resolved Windows executables even when classification runs on
+    # a non-Windows host (as the Linux CI tests do).  ``os.path.basename`` only
+    # treats the current platform's separator as special.
+    raw = str(token or "").strip().strip('"').replace("\\", "/")
+    name = raw.rsplit("/", 1)[-1].lower()
     for ext in (".exe", ".cmd", ".bat", ".ps1", ".sh"):
         if name.endswith(ext):
             name = name[: -len(ext)]
             break
     return name
+
+
+def _is_read_only_vendor_probe(executable: str, arguments: list[str]) -> bool:
+    """Whether this direct CLI argv is an audited, no-generation probe."""
+
+    allowed = _READ_ONLY_VENDOR_PROBES.get(executable)
+    return allowed is not None and tuple(arguments) in allowed
 
 
 def classify_argv(argv: Any) -> str | None:
@@ -1392,6 +1780,8 @@ def classify_argv(argv: Any) -> str | None:
 
     head = _basename(tokens[0])
     if head in _PAID_EXECUTABLES:
+        if _is_read_only_vendor_probe(head, tokens[1:]):
+            return None
         return _PAID_EXECUTABLES[head]
     if scan_all or head in _WRAPPERS:
         # Split on whitespace as well: `bash -c "agy -p ..."` and

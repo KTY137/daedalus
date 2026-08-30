@@ -1,7 +1,9 @@
-"""Desktop-owned lifecycle for the Daedalus file bridge and Ollama."""
+"""Desktop-owned lifecycle for the file bridge, Ollama, and local IDE."""
 from __future__ import annotations
 
 import atexit
+import hashlib
+import hmac
 import ipaddress
 import json
 import os
@@ -13,9 +15,20 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from math import isfinite
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
+
+from . import budget as budget_kernel
+from .limit_policy import (
+    ENV_EXECUTION_LIMIT_POLICY,
+    ExecutionLimitPolicy,
+    LimitAxes,
+    LimitPolicyError,
+    MODE_CUSTOM,
+    store_in_env as store_limit_policy_in_env,
+)
 
 CONFIG_REL = Path("config/connections.json")
 KNOWN_HOSTS_REL = Path("config/known_hosts")
@@ -26,8 +39,27 @@ TUNNEL_TARGET_VAR = "DAEDALUS_OLLAMA_TUNNEL_TARGET"
 REMOTE_OK_VAR = "DAEDALUS_OLLAMA_REMOTE_OK"
 TRUSTED_HOSTS_VAR = "DAEDALUS_TRUSTED_HOSTS"
 
+IDE_DOCKER_CONTAINER = "daedalus-openvscode"
+IDE_DOCKER_WORKSPACE = "/home/workspace"
+IDE_DOCKER_IMAGE = "daedalus/openvscode-server:1.109.5"
+IDE_DOCKER_OWNER_LABEL = "dev.daedalus.desktop.service"
+IDE_DOCKER_OWNER_VALUE = "openvscode"
+IDE_DOCKER_PROJECT_LABEL = "dev.daedalus.desktop.project-sha256"
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "bridge": {"auto_start": True},
+    "budget": {
+        "period_ceiling_usd": budget_kernel.DEFAULT_CEILING_USD,
+        "max_calls": budget_kernel.DEFAULT_MAX_CALLS,
+    },
+    "caps": ExecutionLimitPolicy().as_dict(),
+    "ide": {
+        "mode": "native",
+        "auto_start": False,
+        "endpoint": "http://127.0.0.1:3000",
+        "executable": "",
+        "docker_image": IDE_DOCKER_IMAGE,
+    },
     "ollama": {
         "mode": "local",
         "auto_start": True,
@@ -50,14 +82,31 @@ DEFAULT_CONFIG: dict[str, Any] = {
 _HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 _USER_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _FP_RE = re.compile(r"^SHA256:[A-Za-z0-9+/]{20,}={0,2}$")
+_IDE_DOCKER_IMAGE_RE = re.compile(
+    r"^(?:daedalus|gitpod)/openvscode-server(?:"
+    r":[0-9]+\.[0-9]+\.[0-9]+(?:[-.][A-Za-z0-9_.-]+)?"
+    r"|@sha256:[0-9a-f]{64})$"
+)
+_DOCKER_CONTAINER_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class DesktopRuntimeError(RuntimeError):
     pass
 
 
-def _defaults() -> dict[str, Any]:
-    return json.loads(json.dumps(DEFAULT_CONFIG))
+def _defaults(
+    *,
+    budget_defaults: dict[str, Any] | None = None,
+    caps_defaults: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    defaults = json.loads(json.dumps(DEFAULT_CONFIG))
+    if budget_defaults:
+        defaults["budget"].update(budget_defaults)
+    if caps_defaults:
+        defaults["caps"] = json.loads(json.dumps(caps_defaults))
+    if os.name == "nt":
+        defaults["ide"]["mode"] = "docker"
+    return defaults
 
 
 def _port(value: Any, name: str, low: int = 1) -> int:
@@ -96,6 +145,28 @@ def _loopback_endpoint(value: Any) -> str:
     return raw
 
 
+def _ide_endpoint(value: Any) -> str:
+    raw = str(value or "").strip().rstrip("/")
+    try:
+        parsed = urlsplit(raw)
+        host, port = parsed.hostname or "", parsed.port
+        local = bool(ipaddress.ip_address(host).is_loopback)
+    except (ValueError, UnicodeError):
+        raise ValueError("ide.endpoint must look like http://127.0.0.1:3000") from None
+    if (
+        not local
+        or parsed.scheme != "http"
+        or port is None
+        or parsed.path not in ("", "/")
+        or parsed.username is not None
+        or parsed.password is not None
+        or bool(parsed.query)
+        or bool(parsed.fragment)
+    ):
+        raise ValueError("ide.endpoint must look like http://127.0.0.1:3000")
+    return raw
+
+
 def _numeric_host(value: str) -> str | None:
     try:
         addr = ipaddress.ip_address(value)
@@ -106,18 +177,110 @@ def _numeric_host(value: str) -> str | None:
     return str(addr)
 
 
-def normalize_config(raw: Any) -> dict[str, Any]:
+def normalize_config(
+    raw: Any,
+    *,
+    budget_defaults: dict[str, Any] | None = None,
+    caps_defaults: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Whitelist settings. Passwords, tokens, key bytes and commands are invalid."""
     if raw is None:
         raw = {}
     if not isinstance(raw, dict):
         raise ValueError("settings must be a JSON object")
+    if "budget" in raw and not isinstance(raw["budget"], dict):
+        raise ValueError("budget settings must be a JSON object")
+    if "caps" in raw and not isinstance(raw["caps"], dict):
+        raise ValueError("caps settings must be a JSON object")
+    if "ide" in raw and not isinstance(raw["ide"], dict):
+        raise ValueError("ide settings must be a JSON object")
     b = raw.get("bridge") if isinstance(raw.get("bridge"), dict) else {}
+    budget = raw.get("budget") if isinstance(raw.get("budget"), dict) else {}
+    caps = raw.get("caps") if isinstance(raw.get("caps"), dict) else None
+    i = raw.get("ide") if isinstance(raw.get("ide"), dict) else {}
     o = raw.get("ollama") if isinstance(raw.get("ollama"), dict) else {}
     r = o.get("remote") if isinstance(o.get("remote"), dict) else {}
 
-    cfg = _defaults()
+    cfg = _defaults(
+        budget_defaults=budget_defaults,
+        caps_defaults=caps_defaults,
+    )
     cfg["bridge"]["auto_start"] = bool(b.get("auto_start", True))
+    unsupported_budget = sorted(
+        set(budget)
+        - {"period_ceiling_enabled", "period_ceiling_usd", "max_calls"}
+    )
+    if unsupported_budget:
+        raise ValueError(
+            f"unsupported budget settings: {', '.join(unsupported_budget)}"
+        )
+    legacy_enabled = budget.get("period_ceiling_enabled")
+    if "period_ceiling_enabled" in budget and not isinstance(
+        legacy_enabled, bool
+    ):
+        raise ValueError("budget.period_ceiling_enabled must be a boolean")
+    ceiling = budget.get("period_ceiling_usd", cfg["budget"]["period_ceiling_usd"])
+    if isinstance(ceiling, bool) or not isinstance(ceiling, (int, float)):
+        raise ValueError("budget.period_ceiling_usd must be a number")
+    ceiling = float(ceiling)
+    if not isfinite(ceiling) or ceiling <= 0:
+        raise ValueError(
+            "budget.period_ceiling_usd must be finite and greater than zero"
+        )
+    max_calls = budget.get("max_calls", cfg["budget"]["max_calls"])
+    if type(max_calls) is not int or max_calls <= 0:
+        raise ValueError("budget.max_calls must be a positive integer")
+    cfg["budget"] = {
+        "period_ceiling_usd": ceiling,
+        "max_calls": max_calls,
+    }
+    try:
+        if caps is not None:
+            policy = ExecutionLimitPolicy.from_dict(caps)
+        elif "period_ceiling_enabled" in budget:
+            # Revision 9 migration is deliberately narrow: its single
+            # uncapped USD choice becomes custom with only period_usd off.
+            policy = (
+                ExecutionLimitPolicy()
+                if legacy_enabled
+                else ExecutionLimitPolicy(
+                    mode=MODE_CUSTOM,
+                    configured=LimitAxes(period_usd=False),
+                )
+            )
+        else:
+            policy = ExecutionLimitPolicy.from_dict(cfg["caps"])
+    except LimitPolicyError as exc:
+        raise ValueError(f"invalid caps settings: {exc}") from exc
+    cfg["caps"] = policy.as_dict()
+    unsupported_ide = sorted(
+        set(i) - {"mode", "auto_start", "endpoint", "executable", "docker_image"}
+    )
+    if unsupported_ide:
+        raise ValueError(f"unsupported ide settings: {', '.join(unsupported_ide)}")
+    ide_mode = str(i.get("mode", cfg["ide"]["mode"])).strip()
+    if ide_mode not in {"native", "docker"}:
+        raise ValueError("ide.mode must be native or docker")
+    cfg["ide"]["mode"] = ide_mode
+    cfg["ide"]["auto_start"] = bool(i.get("auto_start", False))
+    cfg["ide"]["endpoint"] = _ide_endpoint(
+        i.get("endpoint", cfg["ide"]["endpoint"])
+    )
+    executable = str(i.get("executable", "")).strip()
+    if len(executable) > 4096 or any(ord(ch) < 32 for ch in executable):
+        raise ValueError("ide.executable must be a valid local path")
+    if ide_mode == "docker" and executable:
+        raise ValueError("ide.executable is only valid when ide.mode is native")
+    cfg["ide"]["executable"] = executable
+    docker_image = str(i.get("docker_image", cfg["ide"]["docker_image"])).strip()
+    if not _IDE_DOCKER_IMAGE_RE.fullmatch(docker_image):
+        raise ValueError(
+            "ide.docker_image must be a pinned daedalus/openvscode-server or "
+            "gitpod/openvscode-server version/digest"
+        )
+    cfg["ide"]["docker_image"] = docker_image
+    if ide_mode == "docker" and cfg["ide"]["endpoint"] != "http://127.0.0.1:3000":
+        raise ValueError("docker IDE endpoint must be exactly http://127.0.0.1:3000")
     mode = str(o.get("mode", "local")).strip()
     if mode not in {"local", "remote_ssh"}:
         raise ValueError("ollama.mode must be local or remote_ssh")
@@ -196,28 +359,96 @@ class DesktopRuntimeManager:
         self._bridge: threading.Thread | None = None
         self._tunnel: subprocess.Popen[bytes] | None = None
         self._ollama: subprocess.Popen[bytes] | None = None
+        self._ide: subprocess.Popen[bytes] | None = None
+        self._ide_docker_managed_id: str | None = None
         self._tunnel_log = None
         self._ollama_log = None
+        self._ide_log = None
         self._closed = False
         self._base_trusted = os.environ.get(TRUSTED_HOSTS_VAR, "")
         self._config_error = ""
+        self._budget_policy_error = ""
+        (
+            self._budget_environment_defaults,
+            self._caps_environment_defaults,
+            self._budget_environment_error,
+        ) = self._read_budget_environment()
         self.config = self._load()
         self.apply_environment()
         atexit.register(self.close)
+
+    @staticmethod
+    def _read_budget_environment(
+    ) -> tuple[dict[str, Any], dict[str, Any], str]:
+        """Read cap fallbacks/policy without touching the usage ledger."""
+
+        probe = budget_kernel.Ledger()
+        try:
+            return {
+                "period_ceiling_usd": probe.ceiling_usd(),
+                "max_calls": probe.max_calls(),
+            }, probe.execution_limit_policy().as_dict(), ""
+        except budget_kernel.BudgetError as exc:
+            # Keep the desktop repairable, but do not silently replace an
+            # invalid monetary policy with a spend-authorising default.
+            return (
+                dict(DEFAULT_CONFIG["budget"]),
+                json.loads(json.dumps(DEFAULT_CONFIG["caps"])),
+                str(exc),
+            )
 
     def _load(self) -> dict[str, Any]:
         try:
             raw = json.loads(self.config_path.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            return _defaults()
+            self._budget_policy_error = self._budget_environment_error
+            return _defaults(
+                budget_defaults=self._budget_environment_defaults,
+                caps_defaults=self._caps_environment_defaults,
+            )
         except (OSError, json.JSONDecodeError) as exc:
             self._config_error = f"cannot read {self.config_path}: {exc}"
-            return _defaults()
+            self._budget_policy_error = (
+                "desktop settings are unreadable; spend remains refused until "
+                "valid budget settings are saved"
+            )
+            return _defaults(
+                budget_defaults=self._budget_environment_defaults,
+                caps_defaults=self._caps_environment_defaults,
+            )
         try:
-            return normalize_config(raw)
+            config = normalize_config(
+                raw,
+                budget_defaults=self._budget_environment_defaults,
+                caps_defaults=self._caps_environment_defaults,
+            )
         except ValueError as exc:
             self._config_error = f"invalid desktop settings: {exc}"
-            return _defaults()
+            self._budget_policy_error = (
+                "desktop settings are invalid; spend remains refused until "
+                "valid budget settings are saved"
+            )
+            return _defaults(
+                budget_defaults=self._budget_environment_defaults,
+                caps_defaults=self._caps_environment_defaults,
+            )
+        persisted_policy = (
+            isinstance(raw, dict)
+            and (
+                "caps" in raw
+                or (
+                    isinstance(raw.get("budget"), dict)
+                    and "period_ceiling_enabled" in raw["budget"]
+                )
+            )
+        )
+        if persisted_policy:
+            # A valid persisted desktop policy is authoritative for this
+            # process and repairs a stale/invalid deployment environment.
+            self._budget_policy_error = ""
+        else:
+            self._budget_policy_error = self._budget_environment_error
+        return config
 
     def _save(self) -> None:
         try:
@@ -249,15 +480,129 @@ class DesktopRuntimeManager:
         return out
 
     def save_settings(self, raw: Any) -> dict[str, Any]:
-        new = normalize_config(raw)
-        old_route = (
-            self.config["ollama"]["mode"],
-            json.dumps(self.config["ollama"]["remote"], sort_keys=True),
-        )
-        new_route = (new["ollama"]["mode"], json.dumps(new["ollama"]["remote"], sort_keys=True))
         with self._lock:
+            if not isinstance(raw, dict):
+                raise ValueError("settings must be a JSON object")
+            incoming = dict(raw)
+            budget_supplied = "budget" in incoming
+            caps_supplied = "caps" in incoming
+            if self._budget_policy_error and not (
+                budget_supplied and caps_supplied
+            ):
+                raise ValueError(
+                    "valid explicit budget and caps settings are required to "
+                    "repair the unavailable execution-limit policy"
+                )
+            confirmations: list[tuple[str, bool]] = []
+            if not budget_supplied:
+                # Older clients know nothing about this section. Their PUT must
+                # not silently reset configured positive fallbacks.
+                incoming["budget"] = dict(self.config["budget"])
+            elif isinstance(incoming["budget"], dict):
+                budget_raw = dict(incoming["budget"])
+                if "confirm_widening" in budget_raw:
+                    legacy_confirmation = budget_raw.pop("confirm_widening")
+                    if not isinstance(legacy_confirmation, bool):
+                        raise ValueError(
+                            "budget.confirm_widening must be a boolean"
+                        )
+                    confirmations.append(("budget", legacy_confirmation))
+                incoming["budget"] = budget_raw
+
+            if caps_supplied and isinstance(incoming["caps"], dict):
+                caps_raw = dict(incoming["caps"])
+                if "confirm_widening" in caps_raw:
+                    caps_confirmation = caps_raw.pop("confirm_widening")
+                    if not isinstance(caps_confirmation, bool):
+                        raise ValueError(
+                            "caps.confirm_widening must be a boolean"
+                        )
+                    confirmations.append(("caps", caps_confirmation))
+                incoming["caps"] = caps_raw
+            elif not caps_supplied:
+                # A Revision-9 client may still send its one boolean. Project
+                # that single choice into the current configured axes without
+                # changing any other owner selection.
+                current_policy = ExecutionLimitPolicy.from_dict(
+                    self.config["caps"]
+                )
+                legacy_period = (
+                    incoming["budget"].get("period_ceiling_enabled")
+                    if isinstance(incoming.get("budget"), dict)
+                    else None
+                )
+                if isinstance(legacy_period, bool):
+                    configured = current_policy.configured.as_dict()
+                    configured["period_usd"] = legacy_period
+                    mode = current_policy.mode
+                    if mode == "bounded" and not legacy_period:
+                        mode = MODE_CUSTOM
+                    incoming["caps"] = ExecutionLimitPolicy(
+                        mode=mode,
+                        configured=LimitAxes.from_dict(configured),
+                    ).as_dict()
+                else:
+                    incoming["caps"] = current_policy.as_dict()
+
+            if len({value for _, value in confirmations}) > 1:
+                raise ValueError(
+                    "caps.confirm_widening conflicts with legacy "
+                    "budget.confirm_widening"
+                )
+            confirm_widening = confirmations[0][1] if confirmations else False
+            new = normalize_config(
+                incoming,
+                budget_defaults=self.config["budget"],
+                caps_defaults=self.config["caps"],
+            )
+            old_budget = self.config["budget"]
+            new_budget = new["budget"]
+            old_policy = ExecutionLimitPolicy.from_dict(self.config["caps"])
+            new_policy = ExecutionLimitPolicy.from_dict(new["caps"])
+            disabled_axes = [
+                axis
+                for axis, was_enforced in old_policy.effective.as_dict().items()
+                if was_enforced and not new_policy.enforces(axis)
+            ]
+            raised_fallbacks = [
+                field
+                for field in ("period_ceiling_usd", "max_calls")
+                if new_budget[field] > old_budget[field]
+            ]
+            widening = disabled_axes or raised_fallbacks
+            if widening and confirm_widening is not True:
+                affected = ", ".join([*disabled_axes, *raised_fallbacks])
+                raise ValueError(
+                    "caps.confirm_widening=true is required for execution-limit "
+                    f"widening affecting: {affected}"
+                )
+
+            # All validation and widening consent checks happen before any
+            # service stop, file write, environment mutation, or ledger read.
+            old_route = (
+                self.config["ollama"]["mode"],
+                json.dumps(self.config["ollama"]["remote"], sort_keys=True),
+            )
+            new_route = (
+                new["ollama"]["mode"],
+                json.dumps(new["ollama"]["remote"], sort_keys=True),
+            )
+            old_ide_route = (
+                self.config["ide"]["mode"],
+                self.config["ide"]["endpoint"],
+                self.config["ide"]["executable"],
+                self.config["ide"]["docker_image"],
+            )
+            new_ide_route = (
+                new["ide"]["mode"],
+                new["ide"]["endpoint"],
+                new["ide"]["executable"],
+                new["ide"]["docker_image"],
+            )
             if old_route != new_route:
                 self.stop_ollama_transport()
+            if old_ide_route != new_ide_route:
+                self.stop_ide()
             previous = self.config
             self.config = new
             try:
@@ -266,6 +611,7 @@ class DesktopRuntimeManager:
                 self.config = previous
                 raise
             self._config_error = ""
+            self._budget_policy_error = ""
             self.apply_environment()
         startup_error = ""
         if new["bridge"]["auto_start"]:
@@ -276,12 +622,31 @@ class DesktopRuntimeManager:
             except DesktopRuntimeError as exc:
                 startup_error = str(exc)
                 self._log(f"ollama settings autostart failed: {exc}")
+        if new["ide"]["auto_start"]:
+            try:
+                self.ensure_ide()
+            except DesktopRuntimeError as exc:
+                startup_error = "; ".join(x for x in (startup_error, str(exc)) if x)
+                self._log(f"IDE settings autostart failed: {exc}")
         snap = self.snapshot()
         if startup_error:
             snap["startup_error"] = startup_error
         return snap
 
     def apply_environment(self) -> None:
+        if self._budget_policy_error:
+            # A deliberately invalid canonical policy makes every Ledger read
+            # fail closed while the settings UI stays available for repair.
+            os.environ[ENV_EXECUTION_LIMIT_POLICY] = "{invalid"
+        else:
+            budget = self.config["budget"]
+            policy = ExecutionLimitPolicy.from_dict(self.config["caps"])
+            store_limit_policy_in_env(policy)
+            os.environ.pop(budget_kernel.ENV_PERIOD_CEILING_ENABLED, None)
+            os.environ[budget_kernel.ENV_CEILING] = format(
+                budget["period_ceiling_usd"], ".17g"
+            )
+            os.environ[budget_kernel.ENV_MAX_CALLS] = str(budget["max_calls"])
         o = self.config["ollama"]
         os.environ["OLLAMA_MODEL"] = o["model"]
         trusted = [x.strip() for x in self._base_trusted.split(",") if x.strip()]
@@ -316,6 +681,11 @@ class DesktopRuntimeManager:
                 self.ensure_ollama()
             except DesktopRuntimeError as exc:
                 self._log(f"ollama autostart failed: {exc}")
+        if self.config["ide"]["auto_start"]:
+            try:
+                self.ensure_ide()
+            except DesktopRuntimeError as exc:
+                self._log(f"IDE autostart failed: {exc}")
         return self.snapshot()
 
     # Bridge ---------------------------------------------------------------
@@ -350,6 +720,476 @@ class DesktopRuntimeManager:
                 break
             time.sleep(0.05)
         return {"managed": bool(self._bridge and self._bridge.is_alive()), **status}
+
+    # OpenVSCode Server ---------------------------------------------------
+
+    def _probe_ide(self, timeout: float = 1.5) -> tuple[bool, str]:
+        endpoint = self.config["ide"]["endpoint"].rstrip("/")
+        try:
+            with urllib.request.urlopen(endpoint + "/", timeout=timeout) as response:
+                response.read(1)
+                return 200 <= response.status < 400, ""
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            return False, str(exc)
+
+    def _discover_ide_executable(self) -> str:
+        configured = self.config["ide"]["executable"]
+        if configured:
+            path = Path(configured).expanduser()
+            if not path.is_absolute():
+                path = self.root / path
+            try:
+                path = path.resolve()
+            except OSError as exc:
+                raise DesktopRuntimeError(
+                    f"configured OpenVSCode Server executable is invalid: {exc}"
+                ) from exc
+            if not path.is_file():
+                raise DesktopRuntimeError(
+                    f"configured OpenVSCode Server executable does not exist: {path}"
+                )
+            return str(path)
+        for command in ("openvscode-server", "openvscode-server.cmd"):
+            found = shutil.which(command)
+            if found:
+                return found
+        raise DesktopRuntimeError(
+            "OpenVSCode Server is offline and 'openvscode-server' is not on PATH; "
+            "configure ide.executable to an existing installation (runtime downloads are disabled)"
+        )
+
+    def _discover_docker_executable(self) -> str:
+        executable = shutil.which("docker")
+        if not executable:
+            raise DesktopRuntimeError(
+                "Docker is not installed or is not on PATH; runtime downloads are disabled"
+            )
+        return executable
+
+    def _docker_exec(self, args: list[str], *, timeout: float = 20.0):
+        executable = self._discover_docker_executable()
+        try:
+            return subprocess.run(
+                [executable, *args],
+                text=True,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+                shell=False,
+                creationflags=self._creationflags(),
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise DesktopRuntimeError(f"Docker command failed: {exc}") from exc
+
+    @staticmethod
+    def _docker_error(result: Any) -> str:
+        return str(result.stderr or result.stdout or f"exit {result.returncode}").strip()[:500]
+
+    def _docker_image_error(self) -> str:
+        image = self.config["ide"]["docker_image"]
+        result = self._docker_exec(["image", "inspect", image])
+        if result.returncode == 0:
+            return ""
+        return (
+            f"Docker image {image!r} is not available locally: "
+            f"{self._docker_error(result)} (runtime pull/build is disabled)"
+        )
+
+    def _docker_inspect_container(
+        self,
+        reference: str = IDE_DOCKER_CONTAINER,
+        *,
+        timeout: float = 20.0,
+    ) -> dict[str, Any] | None:
+        result = self._docker_exec(["container", "inspect", reference], timeout=timeout)
+        if result.returncode != 0:
+            detail = self._docker_error(result)
+            if "no such container" in detail.lower() or "no such object" in detail.lower():
+                return None
+            raise DesktopRuntimeError(f"cannot inspect Docker IDE container: {detail}")
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise DesktopRuntimeError("Docker returned invalid container metadata") from exc
+        if not isinstance(payload, list) or len(payload) != 1 or not isinstance(payload[0], dict):
+            raise DesktopRuntimeError("Docker returned unexpected container metadata")
+        return payload[0]
+
+    @staticmethod
+    def _docker_container_id(container: dict[str, Any]) -> str:
+        container_id = str(container.get("Id") or "")
+        if not _DOCKER_CONTAINER_ID_RE.fullmatch(container_id):
+            raise DesktopRuntimeError("Docker returned an invalid container ID")
+        return container_id
+
+    @staticmethod
+    def _docker_container_owned(container: dict[str, Any]) -> bool:
+        labels = container.get("Config", {}).get("Labels") or {}
+        return labels.get(IDE_DOCKER_OWNER_LABEL) == IDE_DOCKER_OWNER_VALUE
+
+    @staticmethod
+    def _docker_project_hash(folder: Path) -> str:
+        canonical = os.path.normcase(str(folder)).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    @staticmethod
+    def _docker_mount_source_matches(source: Any, folder: Path) -> bool:
+        if not isinstance(source, str) or not source:
+            return False
+        try:
+            mounted = Path(source).resolve()
+        except OSError:
+            return False
+        return os.path.normcase(str(mounted)) == os.path.normcase(str(folder))
+
+    def _docker_container_matches(self, container: dict[str, Any], folder: Path) -> bool:
+        config = container.get("Config", {})
+        labels = config.get("Labels") or {}
+        mounts = container.get("Mounts") or []
+        bindings = container.get("HostConfig", {}).get("PortBindings") or {}
+        published = bindings.get("3000/tcp") or []
+        loopback_publish = (
+            len(published) == 1
+            and published[0].get("HostIp") == "127.0.0.1"
+            and published[0].get("HostPort") == "3000"
+        )
+        return (
+            self._docker_container_owned(container)
+            and config.get("Image") == self.config["ide"]["docker_image"]
+            and labels.get(IDE_DOCKER_PROJECT_LABEL) == self._docker_project_hash(folder)
+            and any(
+                mount.get("Type") == "bind"
+                and self._docker_mount_source_matches(mount.get("Source"), folder)
+                and mount.get("Destination") == IDE_DOCKER_WORKSPACE
+                and mount.get("RW") is True
+                for mount in mounts
+            )
+            and loopback_publish
+        )
+
+    def _canonical_ide_project(self, project: Any, *, required: bool = False) -> Path | None:
+        if project is None or project == "":
+            if required:
+                raise DesktopRuntimeError("Docker IDE requires a selected project folder")
+            return None
+        if not isinstance(project, (str, os.PathLike)):
+            raise DesktopRuntimeError("IDE project must be a local folder path")
+        raw = os.fspath(project)
+        if not isinstance(raw, str):
+            raise DesktopRuntimeError("IDE project must be a local folder path")
+        if not raw or len(raw) > 4096 or any(ord(ch) < 32 for ch in raw):
+            raise DesktopRuntimeError("IDE project must be a valid local folder path")
+        folder = Path(raw).expanduser()
+        if not folder.is_absolute():
+            folder = self.root / folder
+        try:
+            folder = folder.resolve()
+        except OSError as exc:
+            raise DesktopRuntimeError(f"IDE project path is invalid: {exc}") from exc
+        if not folder.is_dir():
+            raise DesktopRuntimeError(f"IDE project folder does not exist: {folder}")
+        return folder
+
+    def _ide_ui_url(self, project: Any = None) -> str:
+        endpoint = self.config["ide"]["endpoint"].rstrip("/")
+        folder = self._canonical_ide_project(
+            project, required=self.config["ide"]["mode"] == "docker" and project not in (None, "")
+        )
+        if self.config["ide"]["mode"] == "docker":
+            return endpoint + "/?" + urlencode(
+                {"folder": IDE_DOCKER_WORKSPACE}, safe="/"
+            )
+        if folder is None:
+            return endpoint + "/"
+        # The folder only selects the browser workspace. It is deliberately not
+        # passed to Popen, so project input cannot add or alter CLI arguments.
+        return endpoint + "/?" + urlencode({"folder": str(folder)})
+
+    def _ide_status(self, project: Any = None) -> dict[str, Any]:
+        if self.config["ide"]["mode"] == "docker":
+            return self._docker_ide_status(project)
+        ok, detail = self._probe_ide()
+        running = bool(self._ide and self._ide.poll() is None)
+        executable = ""
+        discovery_error = ""
+        try:
+            executable = self._discover_ide_executable()
+        except DesktopRuntimeError as exc:
+            # A status read must remain observational. Missing installations
+            # are reported to the UI and never trigger a download or start.
+            discovery_error = str(exc)
+        installed = bool(executable)
+        return {
+            "endpoint": self.config["ide"]["endpoint"],
+            "ui_url": self._ide_ui_url(project),
+            "installed": installed,
+            "available": installed,
+            "executable": executable,
+            "reachable": ok,
+            "last_error": "" if ok else (discovery_error or detail),
+            "detail": discovery_error,
+            "managed": running,
+            "process_running": running,
+            "configured_executable": self.config["ide"]["executable"],
+            "runtime_downloads": False,
+        }
+
+    def ensure_ide(self, project: Any = None) -> dict[str, Any]:
+        if self.config["ide"]["mode"] == "docker":
+            return self._ensure_docker_ide(project)
+        ui_url = self._ide_ui_url(project)
+        ok, _ = self._probe_ide()
+        if ok:
+            status = self._ide_status(project)
+            status["ui_url"] = ui_url
+            return status
+        with self._lock:
+            if not (self._ide and self._ide.poll() is None):
+                executable = self._discover_ide_executable()
+                parsed = urlsplit(self.config["ide"]["endpoint"])
+                assert parsed.hostname is not None and parsed.port is not None
+                if self._ide_log:
+                    try:
+                        self._ide_log.close()
+                    except OSError:
+                        pass
+                try:
+                    self._ide_log = self._child_log("OpenVSCode Server")
+                    self._ide = subprocess.Popen(
+                        [
+                            executable,
+                            "--host",
+                            parsed.hostname,
+                            "--port",
+                            str(parsed.port),
+                            "--without-connection-token",
+                        ],
+                        stdin=subprocess.DEVNULL,
+                        stdout=self._ide_log,
+                        stderr=self._ide_log,
+                        creationflags=self._creationflags(),
+                    )
+                except OSError as exc:
+                    if self._ide_log:
+                        try:
+                            self._ide_log.close()
+                        except OSError:
+                            pass
+                        self._ide_log = None
+                    raise DesktopRuntimeError(
+                        f"cannot start OpenVSCode Server: {exc}"
+                    ) from exc
+            proc = self._ide
+        detail = ""
+        end = time.monotonic() + 8
+        while proc and proc.poll() is None and time.monotonic() < end:
+            ok, detail = self._probe_ide(0.5)
+            if ok:
+                break
+            time.sleep(0.2)
+        if not proc or proc.poll() is not None:
+            raise DesktopRuntimeError(f"OpenVSCode Server exited; see {self.log_path}")
+        status = self._ide_status(project)
+        status["ui_url"] = ui_url
+        if not status["reachable"] and detail:
+            status["last_error"] = detail
+        return status
+
+    def _docker_ide_status(self, project: Any = None) -> dict[str, Any]:
+        ok, probe_detail = self._probe_ide()
+        executable = ""
+        detail = ""
+        image_available = False
+        container: dict[str, Any] | None = None
+        try:
+            executable = self._discover_docker_executable()
+            detail = self._docker_image_error()
+            image_available = not detail
+            container = self._docker_inspect_container()
+        except DesktopRuntimeError as exc:
+            detail = str(exc)
+        owned = bool(container and self._docker_container_owned(container))
+        running = bool(owned and container and container.get("State", {}).get("Running") is True)
+        if container is not None:
+            if not owned:
+                detail = (
+                    f"Docker container {IDE_DOCKER_CONTAINER!r} is not owned by Daedalus"
+                )
+        elif ok and not detail:
+            detail = "IDE endpoint is occupied by an unmanaged service"
+        reachable = bool(ok and running)
+        return {
+            "mode": "docker",
+            "endpoint": self.config["ide"]["endpoint"],
+            "ui_url": self._ide_ui_url(project),
+            "installed": image_available,
+            "available": image_available,
+            "executable": executable,
+            "reachable": reachable,
+            "last_error": "" if reachable else (detail or probe_detail),
+            "detail": detail,
+            "managed": running,
+            "process_running": running,
+            "configured_executable": "",
+            "image": self.config["ide"]["docker_image"],
+            "container_name": IDE_DOCKER_CONTAINER,
+            "runtime_downloads": False,
+        }
+
+    def _remove_owned_docker_ide(
+        self, container: dict[str, Any], *, timeout: float = 20.0
+    ) -> None:
+        if not self._docker_container_owned(container):
+            raise DesktopRuntimeError(
+                f"refusing to remove unowned Docker container {IDE_DOCKER_CONTAINER!r}"
+            )
+        container_id = self._docker_container_id(container)
+        result = self._docker_exec(
+            ["container", "rm", "--force", container_id], timeout=timeout
+        )
+        if result.returncode != 0:
+            raise DesktopRuntimeError(
+                f"cannot remove Docker IDE container: {self._docker_error(result)}"
+            )
+        if self._ide_docker_managed_id == container_id:
+            self._ide_docker_managed_id = None
+
+    def _ensure_docker_ide(self, project: Any) -> dict[str, Any]:
+        folder = self._canonical_ide_project(project, required=True)
+        assert folder is not None
+        with self._lock:
+            image_error = self._docker_image_error()
+            if image_error:
+                raise DesktopRuntimeError(image_error)
+            container = self._docker_inspect_container()
+            if container is not None and not self._docker_container_owned(container):
+                raise DesktopRuntimeError(
+                    f"fixed Docker container name {IDE_DOCKER_CONTAINER!r} is already in use"
+                )
+            if container is not None and not self._docker_container_matches(container, folder):
+                self._remove_owned_docker_ide(container)
+                container = None
+
+            if container is None:
+                ok, _ = self._probe_ide()
+                if ok:
+                    raise DesktopRuntimeError("IDE endpoint is occupied by an unmanaged service")
+                mount = f"type=bind,source={folder},target={IDE_DOCKER_WORKSPACE}"
+                result = self._docker_exec(
+                    [
+                        "run",
+                        "--detach",
+                        "--name",
+                        IDE_DOCKER_CONTAINER,
+                        "--label",
+                        f"{IDE_DOCKER_OWNER_LABEL}={IDE_DOCKER_OWNER_VALUE}",
+                        "--label",
+                        f"{IDE_DOCKER_PROJECT_LABEL}={self._docker_project_hash(folder)}",
+                        "--init",
+                        "--publish",
+                        "127.0.0.1:3000:3000",
+                        "--mount",
+                        mount,
+                        "--pull",
+                        "never",
+                        self.config["ide"]["docker_image"],
+                        "--port",
+                        "3000",
+                        "--default-folder",
+                        IDE_DOCKER_WORKSPACE,
+                    ]
+                )
+            elif container.get("State", {}).get("Running") is not True:
+                result = self._docker_exec(
+                    ["container", "start", self._docker_container_id(container)]
+                )
+            else:
+                result = None
+
+            if result is not None and result.returncode != 0:
+                raise DesktopRuntimeError(
+                    f"cannot start Docker IDE container: {self._docker_error(result)}"
+                )
+            managed = self._docker_inspect_container()
+            if managed is None or not self._docker_container_matches(managed, folder):
+                raise DesktopRuntimeError(
+                    "Docker IDE container metadata does not match the selected project"
+                )
+            self._ide_docker_managed_id = self._docker_container_id(managed)
+        detail = ""
+        end = time.monotonic() + 8
+        while time.monotonic() < end:
+            ok, detail = self._probe_ide(0.5)
+            if ok:
+                break
+            time.sleep(0.2)
+        status = self._docker_ide_status(project)
+        if not status["reachable"]:
+            status["last_error"] = detail or status["last_error"]
+        return status
+
+    def stop_ide(
+        self,
+        *,
+        owned_only: bool = False,
+        strict: bool = False,
+        timeout: float = 8.0,
+    ) -> None:
+        if self.config["ide"]["mode"] == "docker":
+            managed_id = self._ide_docker_managed_id
+            if not managed_id:
+                return
+            deadline = time.monotonic() + max(0.1, timeout)
+
+            def remaining() -> float:
+                value = deadline - time.monotonic()
+                if value <= 0:
+                    raise DesktopRuntimeError("Docker IDE cleanup timed out")
+                return value
+
+            with self._lock:
+                try:
+                    container = self._docker_inspect_container(
+                        managed_id, timeout=remaining()
+                    )
+                    if container is None:
+                        self._ide_docker_managed_id = None
+                        return
+                    inspected_id = self._docker_container_id(container)
+                    if inspected_id != managed_id:
+                        raise DesktopRuntimeError(
+                            "Docker IDE container identity changed during cleanup"
+                        )
+                    if container is not None and self._docker_container_owned(container):
+                        self._remove_owned_docker_ide(
+                            container, timeout=remaining()
+                        )
+                    else:
+                        raise DesktopRuntimeError(
+                            f"refusing to stop unowned Docker container {managed_id!r}"
+                        )
+                except DesktopRuntimeError as exc:
+                    self._log(f"Docker IDE stop failed: {exc}")
+                    if strict:
+                        raise
+            return
+        with self._lock:
+            proc, self._ide = self._ide, None
+            if proc and proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=2)
+                except (OSError, subprocess.SubprocessError):
+                    try:
+                        proc.kill()
+                    except OSError:
+                        pass
+            if self._ide_log:
+                try:
+                    self._ide_log.close()
+                except OSError:
+                    pass
+                self._ide_log = None
 
     # Ollama ---------------------------------------------------------------
 
@@ -590,8 +1430,13 @@ class DesktopRuntimeManager:
                     pass
                 self._tunnel_log = None
 
-    def close(self) -> None:
+    def close(self, *, strict: bool = False, timeout: float = 8.0) -> None:
         self._closed = True
+        cleanup_error: DesktopRuntimeError | None = None
+        try:
+            self.stop_ide(owned_only=True, strict=strict, timeout=timeout)
+        except DesktopRuntimeError as exc:
+            cleanup_error = exc
         self.stop_ollama_transport()
         with self._lock:
             proc, self._ollama = self._ollama, None
@@ -610,16 +1455,121 @@ class DesktopRuntimeManager:
                 except OSError:
                     pass
                 self._ollama_log = None
+        if strict and cleanup_error is not None:
+            raise cleanup_error
+
+    def _budget_status(self) -> dict[str, Any]:
+        configured = self.config["budget"]
+        policy = ExecutionLimitPolicy.from_dict(self.config["caps"])
+        effective = policy.effective
+        base: dict[str, Any] = {
+            "available": False,
+            "mode": policy.mode,
+            "caps": policy.as_dict(),
+            "configured_caps": policy.configured.as_dict(),
+            "effective_caps": effective.as_dict(),
+            "limit_policy_fingerprint_sha256": policy.fingerprint_sha256,
+            "period_ceiling_enabled": effective.period_usd,
+            "period_ceiling_usd": configured["period_ceiling_usd"],
+            "effective_period_ceiling_usd": (
+                configured["period_ceiling_usd"] if effective.period_usd else None
+            ),
+            "remaining_period_usd": None,
+            "spent_usd": None,
+            "reserved_usd": None,
+            "committed_usd": None,
+            "envelope_hold_usd": None,
+            "max_calls": configured["max_calls"],
+            "effective_max_calls": (
+                configured["max_calls"] if effective.billable_calls else None
+            ),
+            "remaining_calls": None,
+            "remaining_billable_calls": None,
+            "calls": None,
+            "open_calls": None,
+            "period": None,
+            "period_key": None,
+            "call_ceiling_enforced": effective.billable_calls,
+            "billable_call_ceiling_enabled": effective.billable_calls,
+            "explicit_envelope_ceiling_enforced": effective.mission_spend,
+            "mission_spend_ceiling_enabled": effective.mission_spend,
+            "last_error": "",
+        }
+        if self._budget_policy_error:
+            base["last_error"] = self._budget_policy_error
+            return base
+        try:
+            state = budget_kernel.ledger().state()
+        except (budget_kernel.BudgetError, OSError) as exc:
+            base["last_error"] = str(exc)
+            return base
+        return {
+            **base,
+            "available": True,
+            "mode": state.limit_policy_mode,
+            "caps": {
+                "mode": state.limit_policy_mode,
+                "configured": dict(state.configured_limit_axes or {}),
+            },
+            "configured_caps": dict(state.configured_limit_axes or {}),
+            "effective_caps": dict(state.effective_limit_axes or {}),
+            "limit_policy_fingerprint_sha256": (
+                state.limit_policy_fingerprint_sha256
+            ),
+            "period_ceiling_enabled": state.period_ceiling_enabled,
+            "period_ceiling_usd": state.ceiling_usd,
+            "effective_period_ceiling_usd": state.effective_period_ceiling_usd,
+            "remaining_period_usd": state.remaining_usd,
+            "spent_usd": state.spent_usd,
+            "reserved_usd": state.reserved_usd,
+            "committed_usd": state.committed_usd,
+            "envelope_hold_usd": state.envelope_hold_usd,
+            "max_calls": state.max_calls,
+            "effective_max_calls": state.effective_max_calls,
+            "remaining_calls": state.remaining_calls,
+            "remaining_billable_calls": state.remaining_calls,
+            "calls": state.calls,
+            "open_calls": state.open_calls,
+            "period": state.period,
+            "period_key": state.period_key,
+            "call_ceiling_enforced": state.billable_call_ceiling_enabled,
+            "billable_call_ceiling_enabled": (
+                state.billable_call_ceiling_enabled
+            ),
+            "explicit_envelope_ceiling_enforced": (
+                state.mission_spend_ceiling_enabled
+            ),
+            "mission_spend_ceiling_enabled": (
+                state.mission_spend_ceiling_enabled
+            ),
+            "last_error": "",
+        }
 
     def snapshot(self) -> dict[str, Any]:
         from . import file_bridge
 
         ok, err = self._probe()
         r = self.config["ollama"]["remote"]
+        budget_status = self._budget_status()
+        caps_status = {
+            "available": budget_status["available"],
+            "mode": budget_status["mode"],
+            "configured": budget_status["configured_caps"],
+            "effective": budget_status["effective_caps"],
+            "fingerprint_sha256": budget_status[
+                "limit_policy_fingerprint_sha256"
+            ],
+            "last_error": budget_status["last_error"],
+            "external_limits_remain": True,
+            "ariadne_campaign_live": False,
+        }
         return {
             "config": self.config,
             "config_path": str(self.config_path),
             "config_error": self._config_error,
+            "budget": budget_status,
+            "caps": caps_status,
+            "budget_error": budget_status["last_error"],
             "credential_policy": {
                 "ssh_key_only": True,
                 "stores_passwords": False,
@@ -644,6 +1594,7 @@ class DesktopRuntimeManager:
                         or (self.known_hosts_path.exists() and self.known_hosts_path.stat().st_size)
                     ),
                 },
+                "ide": self._ide_status(),
             },
         }
 
@@ -673,7 +1624,21 @@ def install_web_integration(web_api: Any, manager: DesktopRuntimeManager) -> Non
         def _handle_post(self) -> None:
             path = urlsplit(self.path).path
             try:
-                if path == "/api/desktop/services/bridge/start":
+                if path == "/api/desktop/shutdown":
+                    expected = (
+                        getattr(self.server, "daedalus_desktop_startup_nonce", "")
+                        or ""
+                    )
+                    supplied = self.headers.get("X-Daedalus-Desktop-Nonce", "")
+                    if not expected or not hmac.compare_digest(supplied, expected):
+                        self._send_json(
+                            {"ok": False, "error": "desktop parent nonce required"},
+                            status=403,
+                        )
+                        return
+                    manager.close(strict=True, timeout=6.0)
+                    result = {"closed": True}
+                elif path == "/api/desktop/services/bridge/start":
                     result = manager.ensure_bridge()
                 elif path == "/api/desktop/services/ollama/start":
                     result = manager.ensure_ollama()
@@ -681,11 +1646,19 @@ def install_web_integration(web_api: Any, manager: DesktopRuntimeManager) -> Non
                 elif path == "/api/desktop/services/ollama/stop":
                     manager.stop_ollama_transport()
                     result = manager.snapshot()["services"]["ollama"]
+                elif path == "/api/desktop/services/ide/start":
+                    body = web_api._read_body(self)
+                    if not isinstance(body, dict):
+                        raise DesktopRuntimeError("request body must be a JSON object")
+                    result = manager.ensure_ide(body.get("project"))
+                elif path == "/api/desktop/services/ide/stop":
+                    manager.stop_ide(strict=True)
+                    result = manager.snapshot()["services"]["ide"]
                 else:
                     super()._handle_post()
                     return
                 self._send_json(web_api.core.envelope(None, service=result))
-            except DesktopRuntimeError as exc:
+            except (ValueError, DesktopRuntimeError) as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=400)
 
     web_api.DaedalusHandler = ManagedHandler

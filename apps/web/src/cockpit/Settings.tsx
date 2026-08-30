@@ -42,8 +42,99 @@ interface RemoteOllamaSettings {
   trust_remote_host: boolean;
 }
 
+type CapMode = 'bounded' | 'custom' | 'unbounded_execution';
+type CapAxis =
+  | 'period_usd'
+  | 'billable_calls'
+  | 'mission_spend'
+  | 'tokens'
+  | 'wall_time'
+  | 'attempts'
+  | 'concurrency'
+  | 'work_scope';
+
+type CapConfigured = Record<CapAxis, boolean>;
+
+interface CapsConfig {
+  mode: CapMode;
+  configured: CapConfigured;
+}
+
+interface BudgetConfig {
+  period_ceiling_usd: number;
+  max_calls: number;
+}
+
+interface CapPolicy {
+  caps: CapsConfig;
+  budget: BudgetConfig;
+}
+
+interface CapEditor {
+  baseline: CapPolicy;
+  mode: CapMode;
+  configured: CapConfigured;
+  periodUsdText: string;
+  maxCallsText: string;
+}
+
+const CAP_AXIS_ORDER: CapAxis[] = [
+  'period_usd',
+  'billable_calls',
+  'mission_spend',
+  'tokens',
+  'wall_time',
+  'attempts',
+  'concurrency',
+  'work_scope'
+];
+
+const CAP_AXIS_COPY: Record<CapAxis, { label: string; description: string }> = {
+  period_usd: {
+    label: 'Globale Periodenkosten (USD)',
+    description: 'Kumulative Modellkosten innerhalb der Budgetperiode.'
+  },
+  billable_calls: {
+    label: 'Bezahlte Modellaufrufe',
+    description: 'Anzahl abrechenbarer Provider-Aufrufe pro Budgetperiode.'
+  },
+  mission_spend: {
+    label: 'Mission-, EffectLease- und SpendEnvelope-Beträge',
+    description: 'Geldgrenzen einzelner Missionen, Leases und SpendEnvelopes.'
+  },
+  tokens: {
+    label: 'Input-, Kontext- und Output-Tokens',
+    description: 'Tokenbudgets der neu zugelassenen Modellarbeit.'
+  },
+  wall_time: {
+    label: 'Ausführungs-, Provider-, Gate- und Evaluationszeit',
+    description: 'Daedalus-eigene Zeitlimits und Timeouts.'
+  },
+  attempts: {
+    label: 'Retries, Attempts, Iterationen und Agent-Schritte',
+    description: 'Wiederholungs- und Schrittgrenzen einer Arbeit.'
+  },
+  concurrency: {
+    label: 'Read-only Worker, Fan-out und Kandidaten-Evaluation',
+    description: 'Parallelität ausschließlich dort, wo die Schreibisolation sicher bleibt.'
+  },
+  work_scope: {
+    label: 'Queue-Batch, Zerlegung, Rewrite-Umfang und Kandidatenmenge',
+    description: 'Daedalus-eigene Grenzen für Arbeits- und Suchumfang.'
+  }
+};
+
+const CAP_GROUPS: Array<{ title: string; axes: CapAxis[] }> = [
+  { title: 'Kosten & Provider-Nutzung', axes: ['period_usd', 'billable_calls', 'mission_spend', 'tokens'] },
+  { title: 'Laufzeit & Wiederholungen', axes: ['wall_time', 'attempts'] },
+  { title: 'Parallelität & Arbeitsumfang', axes: ['concurrency', 'work_scope'] }
+];
+
 interface DesktopConfig {
+  [key: string]: unknown;
   bridge: { auto_start: boolean };
+  caps?: CapsConfig & { confirm_widening?: boolean };
+  budget?: BudgetConfig;
   ollama: {
     mode: 'local' | 'remote_ssh';
     auto_start: boolean;
@@ -129,6 +220,114 @@ function cloneConfig(config: DesktopConfig): DesktopConfig {
   return JSON.parse(JSON.stringify(config)) as DesktopConfig;
 }
 
+function capPolicyOf(config: DesktopConfig): CapPolicy | undefined {
+  const caps = config.caps;
+  const budget = config.budget;
+  if (
+    !caps
+    || !['bounded', 'custom', 'unbounded_execution'].includes(caps.mode)
+    || !caps.configured
+    || CAP_AXIS_ORDER.some((axis) => typeof caps.configured[axis] !== 'boolean')
+    || !budget
+    || typeof budget.period_ceiling_usd !== 'number'
+    || !Number.isFinite(budget.period_ceiling_usd)
+    || budget.period_ceiling_usd <= 0
+    || typeof budget.max_calls !== 'number'
+    || !Number.isSafeInteger(budget.max_calls)
+    || budget.max_calls <= 0
+  ) {
+    return undefined;
+  }
+  return {
+    caps: {
+      mode: caps.mode,
+      configured: Object.fromEntries(
+        CAP_AXIS_ORDER.map((axis) => [axis, caps.configured[axis]])
+      ) as CapConfigured
+    },
+    budget: {
+      period_ceiling_usd: budget.period_ceiling_usd,
+      max_calls: budget.max_calls
+    }
+  };
+}
+
+function editorFromPolicy(policy: CapPolicy): CapEditor {
+  return {
+    baseline: policy,
+    mode: policy.caps.mode,
+    configured: { ...policy.caps.configured },
+    periodUsdText: String(policy.budget.period_ceiling_usd),
+    maxCallsText: String(policy.budget.max_calls)
+  };
+}
+
+function parsePositiveNumber(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parsePositiveInteger(value: string): number | undefined {
+  const parsed = parsePositiveNumber(value);
+  return parsed !== undefined && Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+function capEditorChanged(editor: CapEditor): boolean {
+  const periodUsd = parsePositiveNumber(editor.periodUsdText);
+  const maxCalls = parsePositiveInteger(editor.maxCallsText);
+  return (
+    periodUsd === undefined
+    || maxCalls === undefined
+    || editor.mode !== editor.baseline.caps.mode
+    || CAP_AXIS_ORDER.some((axis) => editor.configured[axis] !== editor.baseline.caps.configured[axis])
+    || periodUsd !== editor.baseline.budget.period_ceiling_usd
+    || maxCalls !== editor.baseline.budget.max_calls
+  );
+}
+
+function effectiveCaps(mode: CapMode, configured: CapConfigured): CapConfigured {
+  const forced = mode === 'bounded' ? true : mode === 'unbounded_execution' ? false : undefined;
+  return Object.fromEntries(
+    CAP_AXIS_ORDER.map((axis) => [axis, forced ?? configured[axis]])
+  ) as CapConfigured;
+}
+
+function wideningReasons(editor: CapEditor): string[] {
+  const reasons = new Set<string>();
+  const previousEffective = effectiveCaps(editor.baseline.caps.mode, editor.baseline.caps.configured);
+  const nextEffective = effectiveCaps(editor.mode, editor.configured);
+
+  if (editor.baseline.caps.mode === 'bounded' && editor.mode === 'custom') {
+    reasons.add('Wechsel vom Standardmodus in den individuell abschaltbaren Modus');
+  }
+  if (editor.mode === 'unbounded_execution' && editor.baseline.caps.mode !== 'unbounded_execution') {
+    reasons.add('Eintritt in die unbegrenzte Daedalus-Ausführung');
+  }
+  for (const axis of CAP_AXIS_ORDER) {
+    if (
+      (editor.baseline.caps.configured[axis] && !editor.configured[axis])
+      || (previousEffective[axis] && !nextEffective[axis])
+    ) {
+      reasons.add(CAP_AXIS_COPY[axis].label);
+    }
+  }
+
+  const periodUsd = parsePositiveNumber(editor.periodUsdText);
+  if (periodUsd !== undefined && periodUsd > editor.baseline.budget.period_ceiling_usd) {
+    reasons.add(`Perioden-USD von ${formatBudgetUsd(editor.baseline.budget.period_ceiling_usd)} auf ${formatBudgetUsd(periodUsd)}`);
+  }
+  const maxCalls = parsePositiveInteger(editor.maxCallsText);
+  if (maxCalls !== undefined && maxCalls > editor.baseline.budget.max_calls) {
+    reasons.add(`bezahlte Aufrufe von ${editor.baseline.budget.max_calls} auf ${maxCalls}`);
+  }
+  return [...reasons];
+}
+
+function formatBudgetUsd(value: number): string {
+  return `${value.toLocaleString('de-DE', { maximumFractionDigits: 6 })} USD`;
+}
+
 export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, logSignal = 0 }: SettingsProps) {
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
   const [env, setEnv] = useState<EnvStatusPayload | undefined>();
@@ -144,6 +343,11 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
   const [desktopError, setDesktopError] = useState('');
   const [desktopNotice, setDesktopNotice] = useState('');
   const [desktopBusy, setDesktopBusy] = useState('');
+  const [desktopLoading, setDesktopLoading] = useState(false);
+  const [capEditor, setCapEditor] = useState<CapEditor | undefined>();
+  const [capError, setCapError] = useState('');
+  const [capNotice, setCapNotice] = useState('');
+  const [capConfirmed, setCapConfirmed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -162,19 +366,37 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
 
   const loadDesktop = useCallback(async () => {
     setDesktopError('');
+    setCapError('');
+    setCapNotice('');
+    setCapConfirmed(false);
+    setDesktopLoading(true);
     try {
       const payload = await desktopRequest('/api/desktop/settings');
       if (!payload.desktop) throw new Error('Desktop-Backend meldete keine Einstellungen.');
       setDesktop(payload.desktop);
       setDesktopDraft(cloneConfig(payload.desktop.config));
+      const canonicalPolicy = capPolicyOf(payload.desktop.config);
+      if (!canonicalPolicy) {
+        setCapEditor((prev) => (prev && capEditorChanged(prev) ? prev : undefined));
+        setCapError('Dieses Desktop-Backend meldet keine gültige Ausführungs-Cap-Policy.');
+      } else {
+        setCapEditor((prev) => (
+          prev && capEditorChanged(prev)
+            ? { ...prev, baseline: canonicalPolicy }
+            : editorFromPolicy(canonicalPolicy)
+        ));
+      }
     } catch (e) {
       setDesktop(undefined);
       setDesktopDraft(undefined);
-      setDesktopError(
-        e instanceof Error
-          ? e.message
-          : 'Desktop-Serviceverwaltung ist in diesem Lauf nicht verfügbar.'
-      );
+      const message = e instanceof Error
+        ? e.message
+        : 'Desktop-Serviceverwaltung ist in diesem Lauf nicht verfügbar.';
+      setDesktopError(message);
+      setCapError(message);
+      setCapEditor((prev) => (prev && capEditorChanged(prev) ? prev : undefined));
+    } finally {
+      setDesktopLoading(false);
     }
   }, []);
 
@@ -242,6 +464,14 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
       if (!payload.desktop) throw new Error('Desktop-Backend bestätigte die Einstellungen nicht.');
       setDesktop(payload.desktop);
       setDesktopDraft(cloneConfig(payload.desktop.config));
+      const canonicalPolicy = capPolicyOf(payload.desktop.config);
+      if (canonicalPolicy) {
+        setCapEditor((prev) => (
+          prev && capEditorChanged(prev)
+            ? { ...prev, baseline: canonicalPolicy }
+            : editorFromPolicy(canonicalPolicy)
+        ));
+      }
       setDesktopNotice(
         payload.desktop.startup_error
           ? `Gespeichert. Autostart meldet: ${payload.desktop.startup_error}`
@@ -254,6 +484,71 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
       setDesktopBusy('');
     }
   }, [desktopDraft, load]);
+
+  const editCaps = useCallback((patch: Partial<Omit<CapEditor, 'baseline'>>) => {
+    setCapEditor((prev) => (prev ? { ...prev, ...patch } : prev));
+    setCapConfirmed(false);
+    setCapError('');
+    setCapNotice('');
+  }, []);
+
+  const saveCaps = useCallback(async () => {
+    if (!desktop || !capEditor) return;
+    const periodUsd = parsePositiveNumber(capEditor.periodUsdText);
+    const maxCalls = parsePositiveInteger(capEditor.maxCallsText);
+    if (periodUsd === undefined || maxCalls === undefined || !capEditorChanged(capEditor)) return;
+
+    const widening = wideningReasons(capEditor);
+    if (widening.length > 0 && !capConfirmed) return;
+
+    setDesktopBusy('caps-save');
+    setCapError('');
+    setCapNotice('');
+    try {
+      const nextConfig = cloneConfig(desktop.config);
+      nextConfig.caps = {
+        mode: capEditor.mode,
+        configured: { ...capEditor.configured },
+        ...(widening.length > 0 ? { confirm_widening: true } : {})
+      };
+      nextConfig.budget = {
+        period_ceiling_usd: periodUsd,
+        max_calls: maxCalls
+      };
+      const payload = await desktopRequest('/api/desktop/settings', {
+        method: 'PUT',
+        body: JSON.stringify(nextConfig)
+      });
+      if (!payload.desktop) throw new Error('Desktop-Backend bestätigte die Ausführungs-Cap-Policy nicht.');
+      const canonicalPolicy = capPolicyOf(payload.desktop.config);
+      if (!canonicalPolicy) throw new Error('Desktop-Backend gab keine gültige Ausführungs-Cap-Policy zurück.');
+
+      setDesktop(payload.desktop);
+      setDesktopDraft((prev) => {
+        const next = prev ? cloneConfig(prev) : cloneConfig(payload.desktop!.config);
+        next.caps = canonicalPolicy.caps;
+        next.budget = canonicalPolicy.budget;
+        return next;
+      });
+      setCapEditor(editorFromPolicy(canonicalPolicy));
+      setCapConfirmed(false);
+      const disabled = CAP_AXIS_ORDER.filter((axis) => (
+        !effectiveCaps(canonicalPolicy.caps.mode, canonicalPolicy.caps.configured)[axis]
+      ));
+      setCapNotice(
+        canonicalPolicy.caps.mode === 'bounded'
+          ? 'Gespeichert: Alle acht Daedalus-Ausführungsgrenzen sind für neue Arbeit aktiv.'
+          : canonicalPolicy.caps.mode === 'unbounded_execution'
+            ? 'Gespeichert: Unbegrenzte Daedalus-Ausführung für neue Arbeit. Ledger und Evidenzaufzeichnung bleiben aktiv.'
+            : `Gespeichert: Individuelle Cap-Policy mit ${disabled.length} deaktivierten ${disabled.length === 1 ? 'Achse' : 'Achsen'}.`
+      );
+    } catch (e) {
+      setCapConfirmed(false);
+      setCapError(e instanceof Error ? e.message : 'Ausführungs-Cap-Policy konnte nicht gespeichert werden.');
+    } finally {
+      setDesktopBusy('');
+    }
+  }, [capConfirmed, capEditor, desktop]);
 
   const serviceAction = useCallback(async (service: 'bridge' | 'ollama', verb: 'start' | 'stop' = 'start') => {
     const key = `${service}:${verb}`;
@@ -282,6 +577,23 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
   const bridgeState = desktop?.services.bridge;
   const ollamaState = desktop?.services.ollama;
   const remoteMode = desktopDraft?.ollama.mode === 'remote_ssh';
+  const capPeriodUsd = capEditor ? parsePositiveNumber(capEditor.periodUsdText) : undefined;
+  const capMaxCalls = capEditor ? parsePositiveInteger(capEditor.maxCallsText) : undefined;
+  const capDirty = capEditor ? capEditorChanged(capEditor) : false;
+  const capWideningReasons = capEditor ? wideningReasons(capEditor) : [];
+  const capEffective = capEditor ? effectiveCaps(capEditor.mode, capEditor.configured) : undefined;
+  const disabledCapAxes = capEffective
+    ? CAP_AXIS_ORDER.filter((axis) => !capEffective[axis])
+    : [];
+  const capSaveDisabled = (
+    !desktop
+    || !capEditor
+    || capPeriodUsd === undefined
+    || capMaxCalls === undefined
+    || !capDirty
+    || desktopBusy !== ''
+    || (capWideningReasons.length > 0 && !capConfirmed)
+  );
 
   return (
     <motion.aside
@@ -361,6 +673,247 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
               Auf dieser Stufe schreibt jeder Entwurf ohne Klick in dein Repository — auch die mit gemeldeten Risiken.
             </p>
           )}
+        </section>
+
+        <section className="settings-section" aria-labelledby="caps-settings-title">
+          <div className="settings-title" id="caps-settings-title">Ausführungsgrenzen</div>
+          <p className="settings-hint">
+            Wähle den Master-Modus und die Daedalus-eigenen Ressourcenlimits für neu zugelassene Arbeit.
+            Bereits ausgestellte Verträge werden nicht nachträglich geändert.
+          </p>
+
+          {desktopLoading && !capEditor && (
+            <p className="settings-hint" role="status">Cap-Policy wird gelesen …</p>
+          )}
+          {!desktopLoading && !capEditor && (
+            <div className="cap-load-state">
+              <p className="settings-hint bad" role="alert">
+                {capError || 'Die Ausführungs-Cap-Policy ist nicht verfügbar.'}
+              </p>
+              <button type="button" className="settings-refresh" onClick={() => void loadDesktop()}>
+                Erneut laden
+              </button>
+            </div>
+          )}
+
+          {capEditor && capEffective && (
+            <div className="cap-card" aria-busy={desktopBusy === 'caps-save'}>
+              {desktopLoading && <p className="settings-hint" role="status">Serverstand wird aktualisiert …</p>}
+
+              <div className={`cap-policy-status ${disabledCapAxes.length ? 'widened' : ''}`}>
+                <div>
+                  <b>
+                    {capEditor.mode === 'bounded'
+                      ? 'Begrenzt · alle acht Cap-Achsen aktiv'
+                      : capEditor.mode === 'unbounded_execution'
+                        ? 'Unbegrenzte Daedalus-Ausführung'
+                        : `Individuell · ${disabledCapAxes.length} ${disabledCapAxes.length === 1 ? 'Achse' : 'Achsen'} deaktiviert`}
+                  </b>
+                  <small>
+                    Effektiver Zustand für neue Reservierungen, Missionen, Attempts, Leases, Provider-Aufrufe und Kampagnen.
+                  </small>
+                </div>
+                <code>{capEditor.mode}</code>
+              </div>
+
+              <fieldset className="cap-mode-fieldset">
+                <legend>Master-Modus</legend>
+                <div className="cap-mode-grid">
+                  {([
+                    {
+                      id: 'bounded' as const,
+                      label: 'Begrenzt (Standard)',
+                      note: 'Alle acht Daedalus-Cap-Achsen werden erzwungen.'
+                    },
+                    {
+                      id: 'custom' as const,
+                      label: 'Individuell',
+                      note: 'Die acht Achsen unten einzeln ein- oder ausschalten.'
+                    },
+                    {
+                      id: 'unbounded_execution' as const,
+                      label: 'Unbegrenzte Ausführung',
+                      note: 'Alle Daedalus-eigenen Ausführungs-Caps für neue Arbeit ausschalten.'
+                    }
+                  ]).map((mode) => (
+                    <label
+                      className={`cap-mode-option ${capEditor.mode === mode.id ? 'selected' : ''} ${mode.id === 'unbounded_execution' ? 'danger' : ''}`}
+                      key={mode.id}
+                    >
+                      <input
+                        type="radio"
+                        name="cap-mode"
+                        value={mode.id}
+                        checked={capEditor.mode === mode.id}
+                        onChange={() => editCaps({ mode: mode.id })}
+                        disabled={desktopBusy !== ''}
+                      />
+                      <span><b>{mode.label}</b><small>{mode.note}</small></span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              {disabledCapAxes.length > 0 && (
+                <div className="cap-disabled-disclosure" role="note">
+                  <b>
+                    {capEditor.mode === 'unbounded_execution'
+                      ? 'Unbegrenzte Daedalus-Ausführung: alle acht Cap-Achsen sind aus'
+                      : `${disabledCapAxes.length} Daedalus-${disabledCapAxes.length === 1 ? 'Cap-Achse ist' : 'Cap-Achsen sind'} aus`}
+                  </b>
+                  <p>
+                    Diese Achsen verweigern neu zugelassene Arbeit nicht mehr. Nutzung, Kosten, Ledger und Evidenz
+                    werden weiterhin gemessen und aufgezeichnet.
+                  </p>
+                  <ul>
+                    {disabledCapAxes.map((axis) => <li key={axis}>{CAP_AXIS_COPY[axis].label}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              <div className="cap-groups">
+                {CAP_GROUPS.map((group, groupIndex) => (
+                  <section className="cap-group" key={group.title} aria-labelledby={`cap-group-${groupIndex}`}>
+                    <h3 id={`cap-group-${groupIndex}`}>{group.title}</h3>
+                    {group.axes.map((axis) => (
+                      <div className="cap-axis" key={axis}>
+                        <div className="cap-axis-head">
+                          <div>
+                            <b>{CAP_AXIS_COPY[axis].label}</b>
+                            <small>{CAP_AXIS_COPY[axis].description}</small>
+                          </div>
+                          <span className={`cap-effective ${capEffective[axis] ? 'on' : 'off'}`}>
+                            Effektiv: {capEffective[axis] ? 'aktiv' : 'aus'}
+                          </span>
+                        </div>
+                        <label className="spend-switch cap-axis-switch">
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            checked={capEditor.configured[axis]}
+                            onChange={(event) => editCaps({
+                              configured: { ...capEditor.configured, [axis]: event.target.checked }
+                            })}
+                            disabled={capEditor.mode !== 'custom' || desktopBusy !== ''}
+                            aria-label={`${CAP_AXIS_COPY[axis].label} begrenzen`}
+                          />
+                          <span className="spend-switch-track" aria-hidden="true"><span /></span>
+                          <span>Im individuellen Modus begrenzen</span>
+                        </label>
+
+                        {axis === 'period_usd' && (
+                          <label className="settings-field cap-value-field">
+                            <span>Gespeicherter USD-Fallback pro Budgetperiode</span>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="any"
+                              inputMode="decimal"
+                              value={capEditor.periodUsdText}
+                              onChange={(event) => editCaps({ periodUsdText: event.target.value })}
+                              disabled={desktopBusy !== ''}
+                            />
+                            <small>Bleibt positiv gespeichert, auch wenn diese Achse effektiv aus ist.</small>
+                          </label>
+                        )}
+                        {axis === 'billable_calls' && (
+                          <label className="settings-field cap-value-field">
+                            <span>Gespeicherter Aufruf-Fallback pro Budgetperiode</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max={Number.MAX_SAFE_INTEGER}
+                              step="1"
+                              inputMode="numeric"
+                              value={capEditor.maxCallsText}
+                              onChange={(event) => editCaps({ maxCallsText: event.target.value })}
+                              disabled={desktopBusy !== ''}
+                            />
+                            <small>Eine positive ganze Zahl; keine Null oder Großzahl als Unlimited-Sentinel.</small>
+                          </label>
+                        )}
+                      </div>
+                    ))}
+                  </section>
+                ))}
+              </div>
+
+              <p className="settings-hint cap-contract-note">
+                Token-, Zeit-, Attempt-, Parallelitäts- und Umfangswerte bleiben als positive Fallbacks in ihren
+                jeweiligen Mission-/Runtime-Verträgen erhalten; dieses Menü ändert deren Durchsetzung.
+              </p>
+
+              {capWideningReasons.length > 0 && (
+                <div className="cap-widening-warning">
+                  <b>Diese Änderung erweitert die Ausführungsautorität</b>
+                  <p>Betroffen:</p>
+                  <ul>{capWideningReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                  <label className="settings-check danger cap-confirm">
+                    <input
+                      type="checkbox"
+                      checked={capConfirmed}
+                      onChange={(event) => setCapConfirmed(event.target.checked)}
+                      disabled={desktopBusy !== ''}
+                    />
+                    <span>
+                      <b>Risiko bewusst bestätigen</b>
+                      <small>
+                        Ich bestätige die genannten deaktivierten oder erhöhten Ausführungsgrenzen und das Risiko
+                        deutlich höherer Kosten, Laufzeit, Parallelität und Arbeitsmenge.
+                      </small>
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              {capPeriodUsd === undefined && (
+                <p className="settings-hint bad" role="alert">Der USD-Fallback muss positiv und endlich sein.</p>
+              )}
+              {capMaxCalls === undefined && (
+                <p className="settings-hint bad" role="alert">Der Aufruf-Fallback muss eine positive ganze Zahl sein.</p>
+              )}
+              {capError && <p className="settings-hint bad" role="alert">{capError}</p>}
+              {capNotice && <p className="settings-hint cap-notice" role="status" aria-live="polite">{capNotice}</p>}
+
+              <div className="settings-save-row cap-actions">
+                <span className="settings-hint">Keine Grenze wird automatisch erhöht oder ausgeschaltet.</span>
+                <button
+                  type="button"
+                  className="settings-primary"
+                  onClick={() => void saveCaps()}
+                  disabled={capSaveDisabled}
+                >
+                  {desktopBusy === 'caps-save' ? 'Speichert …' : 'Cap-Policy speichern'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="cap-boundary-grid">
+            <div className="cap-boundary-card">
+              <b>Bleibt immer erzwungen</b>
+              <p>
+                Kill-Switch, Egress-Zulassung, begrenzte Schreibwurzeln, Secret-/Tool-Rechte, Authentifizierung,
+                Evaluator-Isolation, Provenienz, Evidenz-Gates, explizite Owner-Freigabe und das Verbot von
+                Auto-Merge/Auto-Promotion. Unsichere parallele Schreibzugriffe bleiben verweigert; Sandbox-CPU-,
+                RAM-, PID- und Dateisystemquoten bleiben Host-Containment.
+              </p>
+            </div>
+            <div className="cap-boundary-card external">
+              <b>Externe Grenzen bleiben real</b>
+              <p>
+                Provider-Kontextfenster, API-Quoten und Rate-Limits, Hardware, Datenträger und Betriebssystem setzen
+                weiterhin physische Grenzen. Daedalus kann sie nicht abschalten und behauptet das hier auch nicht.
+              </p>
+            </div>
+          </div>
+          <div className="cap-ariadne-notice" role="note">
+            <b>Ariadne ist noch nicht live</b>
+            <p>
+              Auf dem Live-Pfad existiert aktuell kein Evolution-Campaign-Produzent. Diese Policy bereitet
+              Kampagnenkontrollen vor, startet aber keine Kampagne.
+            </p>
+          </div>
         </section>
 
         <section className="settings-section">

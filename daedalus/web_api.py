@@ -27,7 +27,12 @@ from . import (
 from .bootstrap_prompt import claude_bootstrap_prompt
 from .context_plan import plan_context
 from .env import env_status, load_env
-from .projects import list_projects, resolve_repo_root
+from .projects import (
+    ProjectRegistrationError,
+    list_projects,
+    register_project,
+    resolve_repo_root,
+)
 from .file_bridge import stream_state
 from . import file_bridge
 from . import ikarus_os
@@ -1256,7 +1261,17 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         path = parsed.path
-        if path == "/api/dashboard":
+        if path == "/api/desktop-ready":
+            nonce = getattr(self.server, "daedalus_desktop_startup_nonce", "") or ""
+            if not nonce:
+                self._send_json({"ok": False, "error": "not found"}, status=404)
+                return
+            self._send_json({
+                "schema": "daedalus-desktop-startup/1",
+                "ready": True,
+                "nonce": nonce,
+            })
+        elif path == "/api/dashboard":
             self._send_json(core.get_dashboard((qs.get("project") or [None])[0]))
         elif path == "/api/governance":
             # "May this system promote anything right now, and why not?"
@@ -1703,7 +1718,36 @@ class DaedalusHandler(BaseHTTPRequestHandler):
 
     def _handle_post(self) -> None:
         path = urlparse(self.path).path
-        body = _read_body(self)
+        try:
+            body = _read_body(self)
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            if path == "/api/projects":
+                self._send_json(
+                    {"ok": False, "error": f"invalid JSON body: {exc}"},
+                    status=400,
+                )
+                return
+            raise
+        if path == "/api/projects":
+            if not isinstance(body, dict):
+                self._send_json({"ok": False, "error": "JSON body must be an object"}, status=400)
+                return
+            try:
+                registered = register_project(
+                    body.get("repo_root"), body.get("name")
+                )
+            except ProjectRegistrationError as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            self._send_json(core.envelope(
+                registered["name"],
+                registered_project={
+                    "name": registered["name"],
+                    "repo_root": registered["repo_root"],
+                },
+                created=registered["created"],
+            ), status=201 if registered["created"] else 200)
+            return
         if path == "/api/queue":
             project = str(body.get("project") or "")
             objective = str(body.get("objective") or "").strip()
@@ -1846,7 +1890,19 @@ class NonLoopbackBindRefused(RuntimeError):
 # looks routine turns an unauthenticated local tool into a network service.
 ALLOW_REMOTE_ENV = "DAEDALUS_WEB_ALLOW_REMOTE_CLIENTS"
 AUTH_TOKEN_ENV = "DAEDALUS_WEB_TOKEN"
+DESKTOP_STARTUP_NONCE_ENV = "DAEDALUS_DESKTOP_STARTUP_NONCE"
 MIN_AUTH_TOKEN_CHARS = 32
+
+
+def _desktop_startup_nonce() -> str:
+    """Return the parent-issued desktop nonce or refuse malformed evidence."""
+
+    nonce = os.environ.get(DESKTOP_STARTUP_NONCE_ENV, "").strip()
+    if nonce and not re.fullmatch(r"[0-9a-f]{64}", nonce):
+        raise ValueError(
+            f"{DESKTOP_STARTUP_NONCE_ENV} must be exactly 64 lowercase hex characters"
+        )
+    return nonce
 
 
 def _refusal(host: str, why: str, remedy: str) -> str:
@@ -1943,6 +1999,7 @@ def run(host: str = "127.0.0.1", port: int = 8765, *,
     # Read per request by DaedalusHandler._authorized. Empty on the loopback
     # path, which is every path anybody normally takes.
     httpd.daedalus_auth_token = token
+    httpd.daedalus_desktop_startup_nonce = _desktop_startup_nonce()
     if token:
         print(f"!! Daedalus Agent OS is bound to {host}, which is NOT this "
               f"machine. Every request requires 'Authorization: Bearer "

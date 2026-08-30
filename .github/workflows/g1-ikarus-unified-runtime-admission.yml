@@ -20,6 +20,9 @@ on:
       - "daedalus/runtimes/provider_invocation_payload.py"
       - "daedalus/runtimes/provider_invocation_abi.py"
       - "daedalus/runtimes/provider_runtime_invocation_binding.py"
+      - "daedalus/runtimes/broker.py"
+      - "daedalus/providers/claude_cli.py"
+      - "daedalus/claude_bridge.py"
       - "tests/test_ikarus_effect_bridge.py"
       - "tests/test_ikarus_oneshot.py"
       - "tests/test_ikarus_tool_scope.py"
@@ -35,6 +38,9 @@ on:
       - "tests/runtimes/test_provider_invocation_abi_review.py"
       - "tests/runtimes/test_provider_runtime_invocation_binding.py"
       - "tests/runtimes/test_provider_runtime_invocation_binding_review.py"
+      - "tests/providers/test_claude_runtime_broker.py"
+      - "tests/providers/test_claude_bypass_inventory.py"
+      - "docs/work-packets/G1-IKARUS-07D4_SEALED_BROKER_CUTOVER.md"
       - "docs/research/hermes-agent-v2026.8.19-provenance.json"
       - "docs/research/hermes-agent-v2026.8.27-delta-provenance.json"
       - "docs/work-packets/G1-IKARUS-07S_PROVIDER_STACK_SERIALIZATION.md"
@@ -83,6 +89,9 @@ jobs:
           daedalus/runtimes/provider_invocation_payload.py
           daedalus/runtimes/provider_invocation_abi.py
           daedalus/runtimes/provider_runtime_invocation_binding.py
+          daedalus/runtimes/broker.py
+          daedalus/providers/claude_cli.py
+          daedalus/claude_bridge.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
@@ -95,6 +104,8 @@ jobs:
           tests/runtimes/test_provider_invocation_abi_review.py
           tests/runtimes/test_provider_runtime_invocation_binding.py
           tests/runtimes/test_provider_runtime_invocation_binding_review.py
+          tests/providers/test_claude_runtime_broker.py
+          tests/providers/test_claude_bypass_inventory.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
       - run: >-
@@ -120,3 +131,5 @@ jobs:
           tests/runtimes/test_provider_invocation_authority.py
           tests/runtimes/test_runtime_provider_exact_authority_boundary.py
           tests/runtimes/test_provider_observation_authority_review.py
+          tests/providers/test_claude_runtime_broker.py
+          tests/providers/test_claude_bypass_inventory.py

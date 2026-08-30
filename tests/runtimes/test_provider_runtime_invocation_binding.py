@@ -74,10 +74,12 @@ def _write_adapter(root: Path):
         "def helper():\n"
         "    return 'ok'\n"
         "\n"
-        "def invoke():\n"
-        "    return helper()\n"
+        "def invoke(payload):\n"
+        "    return {'result': helper(), 'objective': payload['objective']}\n"
         "\n"
-        "def output_digests(value):\n"
+        "def output_digests(value, payload):\n"
+        "    if payload.get('fail_output'):\n"
+        "        raise RuntimeError('fixed evidence failure')\n"
         "    return ('a' * 64,)\n"
     )
     path = root / Path(*module_name.split(".")).with_suffix(".py")
@@ -401,3 +403,175 @@ def test_repository_source_mutation_after_admission_refuses_before_effect(
     ):
         _bind(bundle)
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+
+
+def test_d4_broker_executes_only_registered_payload_operation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus.runtimes.broker import run_runtime_provider
+
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+    monkeypatch.setattr("daedalus.runtimes.broker._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.runtime_effects._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.effects._utc_now", lambda: fixture.NOW)
+
+    result = run_runtime_provider(
+        authorization.request.entrypoint_id,
+        authorization=authorization,
+        execution=execution,
+        invocation_authority=authority,
+        invocation_payload=payload,
+        invocation_abi=abi,
+        observation_binding_ledger=ledger,
+        executable_registry=registry,
+        pre_admission=pre_admission,
+    )
+
+    assert result.executed is True
+    assert result.value == {
+        "result": "ok",
+        "objective": "prove exact provider binding",
+    }
+    assert result.terminal_receipt is not None
+    assert result.terminal_receipt.output_digests == ("a" * 64,)
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "COMPLETED"
+    assert ledger.load(execution.execution_id) is not None
+
+
+def test_d4_exact_replay_does_not_reverify_or_execute_registered_objects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus.runtimes.broker import run_runtime_provider
+
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, payload, abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+    source_path = bundle[9]
+    monkeypatch.setattr("daedalus.runtimes.broker._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.runtime_effects._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.effects._utc_now", lambda: fixture.NOW)
+    kwargs = dict(
+        authorization=authorization,
+        execution=execution,
+        invocation_authority=authority,
+        invocation_payload=payload,
+        invocation_abi=abi,
+        observation_binding_ledger=ledger,
+        executable_registry=registry,
+        pre_admission=pre_admission,
+    )
+    first = run_runtime_provider(authorization.request.entrypoint_id, **kwargs)
+    assert first.executed is True
+
+    source_path.write_text(
+        source_path.read_text(encoding="utf-8") + "\nMUTATED_AFTER_COMPLETION = True\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    replay = run_runtime_provider(authorization.request.entrypoint_id, **kwargs)
+
+    assert replay.executed is False
+    assert replay.start_receipt == first.start_receipt
+    assert replay.terminal_receipt is None
+
+
+def test_d4_production_signature_contains_no_loose_callback() -> None:
+    import inspect
+
+    from daedalus.runtimes.broker import run_runtime_provider
+
+    parameters = inspect.signature(run_runtime_provider).parameters
+    assert "invoke" not in parameters
+    assert "output_digests" not in parameters
+    assert {
+        "invocation_authority",
+        "invocation_payload",
+        "invocation_abi",
+        "executable_registry",
+        "pre_admission",
+    } <= set(parameters)
+
+
+def test_d4_payload_substitution_refuses_before_effect_start(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus.runtimes.broker import RuntimeProviderBindingMismatch, run_runtime_provider
+
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, _payload, abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+    substituted = build_provider_invocation_payload(
+        authority.invocation_subject,
+        payload_schema_id=PAYLOAD_SCHEMA_ID,
+        body={"objective": "substituted after ABI issuance"},
+    )
+    monkeypatch.setattr("daedalus.runtimes.broker._utc_now", lambda: fixture.NOW)
+    with pytest.raises(RuntimeProviderBindingMismatch):
+        run_runtime_provider(
+            authorization.request.entrypoint_id,
+            authorization=authorization,
+            execution=execution,
+            invocation_authority=authority,
+            invocation_payload=substituted,
+            invocation_abi=abi,
+            observation_binding_ledger=ledger,
+            executable_registry=registry,
+            pre_admission=pre_admission,
+        )
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+
+
+def test_d4_fixed_output_evidence_failure_stays_started_for_reconciliation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus.runtimes.broker import (
+        RuntimeProviderReconciliationRequired,
+        run_runtime_provider,
+    )
+
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, payload, _abi, ledger, registry, pre_admission = (
+        bundle[:8]
+    )
+    body = payload.to_dict()["body"]
+    body["fail_output"] = True
+    failing_payload = build_provider_invocation_payload(
+        authority.invocation_subject,
+        payload_schema_id=PAYLOAD_SCHEMA_ID,
+        body=body,
+    )
+    failing_abi = issue_provider_invocation_abi_contract(
+        authority,
+        failing_payload,
+        pre_admission,
+        authority_id=AUTHORITY_ID,
+        authority_keyring={AUTHORITY_KEY_ID: AUTHORITY_KEY},
+        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
+        execution=execution,
+        at=fixture.NOW,
+    )
+    monkeypatch.setattr("daedalus.runtimes.broker._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.runtime_effects._utc_now", lambda: fixture.NOW)
+    monkeypatch.setattr("daedalus.kernel.effects._utc_now", lambda: fixture.NOW)
+    with pytest.raises(RuntimeProviderReconciliationRequired):
+        run_runtime_provider(
+            authorization.request.entrypoint_id,
+            authorization=authorization,
+            execution=execution,
+            invocation_authority=authority,
+            invocation_payload=failing_payload,
+            invocation_abi=failing_abi,
+            observation_binding_ledger=ledger,
+            executable_registry=registry,
+            pre_admission=pre_admission,
+        )
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"

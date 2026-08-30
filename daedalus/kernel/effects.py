@@ -88,7 +88,10 @@ class EffectExecutionRequest:
     egress_endpoints: tuple[str, ...] = ()
     tools: tuple[str, ...] = ()
     secret_refs: tuple[str, ...] = ()
-    max_cost_microusd: int = 0
+    # ``None`` is the explicit representation of a disabled mission-spend
+    # axis.  Zero remains a real (and therefore fully enforced) zero-cost
+    # ceiling for bounded callers; it must never double as "unlimited".
+    max_cost_microusd: int | None = 0
     kill_switch_ref: str = ""
     kill_switch_generation: int = 0
 
@@ -128,10 +131,14 @@ class EffectExecutionRequest:
             "secret_refs",
             _sorted_strings(self.secret_refs, "secret_refs", identifiers=True),
         )
-        if isinstance(self.max_cost_microusd, bool) or not isinstance(
-            self.max_cost_microusd, int
-        ) or self.max_cost_microusd < 0:
-            raise ValueError("max_cost_microusd must be a non-negative integer")
+        if self.max_cost_microusd is not None and (
+            isinstance(self.max_cost_microusd, bool)
+            or not isinstance(self.max_cost_microusd, int)
+            or self.max_cost_microusd < 0
+        ):
+            raise ValueError(
+                "max_cost_microusd must be a non-negative integer or null"
+            )
         if self.kill_switch_ref:
             object.__setattr__(
                 self,
@@ -267,12 +274,11 @@ def _scope_requirements(effects: Iterable[str], scope: EffectScope) -> None:
             raise EffectLeaseScopeError("process effects require explicit tools")
     if Effect.SECRETS in values and not scope.secret_refs:
         raise EffectLeaseScopeError("secret effects require explicit secret_refs")
-    if Effect.SPEND in values and scope.max_cost_microusd is None:
-        raise EffectLeaseScopeError("spend effects require an explicit cost ceiling")
     if not scope.kill_switch_ref:
         raise EffectLeaseScopeError("effectful scope requires a kill_switch_ref")
-    if scope.timeout_s is None:
-        raise EffectLeaseScopeError("effectful scope requires a timeout_s")
+    # max_cost_microusd/timeout_s/max_concurrency may be explicitly null under
+    # an evidenced execution-limit policy. The effect name, kill switch and
+    # write/egress/tool/secret authority above remain mandatory.
 
 
 def _path_within(candidate: str, root: str) -> bool:
@@ -301,11 +307,15 @@ def _validate_narrowed_scope(request: EffectExecutionRequest, lease: EffectLease
         raise EffectLeaseScopeError("execution requested an unleased tool")
     if not set(request.secret_refs) <= set(scope.secret_refs):
         raise EffectLeaseScopeError("execution requested an unleased secret")
-    if scope.max_cost_microusd is None:
-        if request.max_cost_microusd:
-            raise EffectLeaseScopeError("execution requested spend from a no-spend lease")
-    elif request.max_cost_microusd > scope.max_cost_microusd:
-        raise EffectLeaseScopeError("execution requested cost above the leased ceiling")
+    if scope.max_cost_microusd is not None:
+        if request.max_cost_microusd is None:
+            raise EffectLeaseScopeError(
+                "execution removed the leased cost ceiling"
+            )
+        if request.max_cost_microusd > scope.max_cost_microusd:
+            raise EffectLeaseScopeError(
+                "execution requested cost above the leased ceiling"
+            )
     if request.kill_switch_ref != scope.kill_switch_ref:
         raise EffectLeaseScopeError("execution kill_switch_ref does not match the lease")
     if request.kill_switch_generation != lease.kill_switch_generation:
@@ -758,7 +768,8 @@ class EffectLeaseLedger:
                 "SELECT COUNT(*) FROM effect_executions WHERE lease_sha256=? AND state='STARTED'",
                 (lease.digest,),
             ).fetchone()[0]
-            if active >= lease.effect_scope.max_concurrency:
+            concurrency_ceiling = lease.effect_scope.max_concurrency
+            if concurrency_ceiling is not None and active >= concurrency_ceiling:
                 raise EffectLeaseConcurrencyError("effect lease concurrency ceiling reached")
             payload = {
                 "lease_sha256": lease.digest,

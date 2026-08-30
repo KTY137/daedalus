@@ -85,6 +85,11 @@ from .kairos.scheduler import (
     KairosScheduler,
     spend_refused_result,
 )
+from .limit_policy import (
+    ExecutionLimitPolicy,
+    LimitPolicyError,
+    load_from_env as load_limit_policy,
+)
 
 
 class UnsafeParallelWriteError(RuntimeError):
@@ -203,6 +208,12 @@ class EffectBounds:
     source_revision: str
     max_spend_usd: float | None = None
     timeout_s: float | None = None
+    #: The owner policy captured when this run was admitted.  Numeric fields
+    #: above remain the configured fallback values; this explicit snapshot
+    #: decides whether each one is effective.  Keeping both is what lets an
+    #: unbounded run retain honest attribution without inventing Infinity or
+    #: rewriting the operator's configured values.
+    limit_policy: ExecutionLimitPolicy | None = None
     trace_id: str | None = None
     #: The run's own KillSwitch. Shared so the lease's generation and the
     #: loop's cancel token read ONE permit; two switches could disagree.
@@ -351,10 +362,21 @@ class WaveExecutor:
                  effect_bounds: "EffectBounds | None" = None) -> None:
         self.availability = availability
         # WHAT THIS WAVE'S CAPABILITY IS BOUNDED BY. None means "not supplied",
-        # and that is not the same as "unbounded": _acquire_wave_lease then
-        # leases ZERO spend and reads the run's revision from the checkout, so
-        # the missing declaration narrows the grant instead of widening it.
+        # and that is not the same as "unbounded": the explicit limit policy
+        # below, never a missing number, is the only thing that widens a run.
         self.effect_bounds = effect_bounds
+        try:
+            captured_policy = (effect_bounds.limit_policy
+                               if effect_bounds is not None else None)
+            self.limit_policy = captured_policy or load_limit_policy()
+        except LimitPolicyError as exc:
+            raise ValueError(
+                f"execution limit policy is invalid: {exc}"
+            ) from exc
+        if not isinstance(self.limit_policy, ExecutionLimitPolicy):
+            raise TypeError(
+                "effect_bounds.limit_policy must be an ExecutionLimitPolicy"
+            )
         # WHERE THE ATTEMPT-LIFECYCLE EVENTS GO. Defaulted to None (=
         # daedalus.progress.default_log()) so every existing construction is
         # unchanged. A driver that already owns a log -- LoopDriver does --
@@ -365,8 +387,38 @@ class WaveExecutor:
 
     def _scheduler_for(self, session: BuildSession) -> KairosScheduler:
         scheduler = KairosScheduler(availability=self.availability, project=session.project)
-        scheduler.max_workers = max(1, int(session.max_workers))
+        if self.limit_policy.enforces("concurrency"):
+            scheduler.max_workers = max(1, int(session.max_workers))
+        else:
+            # "Unbounded" means no Daedalus-owned worker ceiling.  A finite
+            # saved plan still has a finite number of tasks, so using the
+            # largest wave size starts every task that actually exists without
+            # a MAX_INT sentinel or an unbounded thread factory.
+            full_wave = max((len(wave.tasks) for wave in session.waves), default=1)
+            scheduler.max_workers = max(1, full_wave)
+            # Isolated write attempts may fan out across that whole wave too.
+            # The unsafe shared-checkout write path is still refused by
+            # run_wave independently of this resource policy.
+            scheduler.max_parallel_writes = scheduler.max_workers
         return scheduler
+
+    def _apply_wave_concurrency_policy(
+        self, scheduler: KairosScheduler, wave: Wave
+    ) -> None:
+        """Remove Daedalus worker ceilings for this finite admitted wave.
+
+        ``run_wave`` is also a public entrypoint and callers may supply their
+        own scheduler instead of going through :meth:`run`; applying the
+        snapshot here prevents that path from accidentally retaining the
+        configured worker cap.  Containment and the shared-checkout parallel
+        write refusal are separate safety decisions and remain untouched.
+        """
+
+        if self.limit_policy.enforces("concurrency"):
+            return
+        full_wave = max(1, len(wave.tasks))
+        scheduler.max_workers = full_wave
+        scheduler.max_parallel_writes = full_wave
 
     @staticmethod
     def _task_dicts(wave: Wave,
@@ -565,12 +617,12 @@ class WaveExecutor:
                 "a write-mode assignment would reach the unisolated dispatch path"
             ),
             write_policy_blocked=blocked,
+            limit_policy=self.limit_policy,
             switch=(bounds.switch if bounds else None),
             trace_id=(bounds.trace_id if bounds else None),
         )
 
-    @staticmethod
-    def _open_spend_envelope(lease: Any, wave: Wave) -> tuple[Any, dict[str, Any] | None]:
+    def _open_spend_envelope(self, lease: Any, wave: Wave) -> tuple[Any, dict[str, Any] | None]:
         """Turn the lease's ``max_cost_microusd`` into money that actually stops.
 
         THE GAP THIS CLOSES. ``EffectScope.max_cost_microusd`` was, until this
@@ -600,7 +652,15 @@ class WaveExecutor:
 
         scope = lease.lease.effect_scope
         micro = scope.max_cost_microusd
-        cap_usd = 0.0 if not micro else float(micro) / 1_000_000.0
+        bounds = self.effect_bounds
+        # The envelope ledger still attributes every draw when Mission spend
+        # enforcement is disabled.  In that case the lease's *effective* cap
+        # is null, while the configured numeric fallback remains available for
+        # display and for a later bounded admission.
+        cap_usd = (float(bounds.max_spend_usd)
+                   if micro is None and bounds is not None
+                   and bounds.max_spend_usd is not None
+                   else (0.0 if not micro else float(micro) / 1_000_000.0))
         # The envelope outlives the lease by nothing: a hold whose wave is over
         # must stop holding the day's money. `timeout_s` is the wave's own
         # bound, doubled so a wave that ends exactly at its timeout still
@@ -736,6 +796,7 @@ class WaveExecutor:
         at the last instant before anything is dispatched, and then handed
         down -- see ``_accepts_cancel`` for why the hand-down is conditional.
         """
+        self._apply_wave_concurrency_policy(scheduler, wave)
         tasks = self._task_dicts(wave, curated_gates)
         assignments = scheduler.accept(tasks, repo_root=repo_root)
         write_n = sum(1 for a in assignments if a.accepted and a.mode == "write")

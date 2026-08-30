@@ -42,6 +42,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import NamedTuple
 
+from ..limit_policy import ExecutionLimitPolicy, load_from_env
 from .languages import (DOCUMENT_EXTENSIONS, DocumentSpec, LanguageSpec,
                         doc_spec_for, spec_for)
 from .parse import (CodeUnit, PyTypeFacts, resolve_python_imports,
@@ -70,7 +71,10 @@ def backend_status() -> dict:
     return {"tree_sitter": tree_sitter_available(), "lizard": lizard_available()}
 
 
-def _collect(root: Path, max_files: int) -> list[tuple[Path, str, LanguageSpec]]:
+def _collect(
+    root: Path,
+    max_files: int | None,
+) -> list[tuple[Path, str, LanguageSpec]]:
     out: list[tuple[Path, str, LanguageSpec]] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _IGNORE_DIRS and not d.startswith(".")]
@@ -81,7 +85,7 @@ def _collect(root: Path, max_files: int) -> list[tuple[Path, str, LanguageSpec]]
             p = Path(dirpath) / fn
             rel = p.relative_to(root).as_posix()
             out.append((p, rel, spec))
-            if len(out) >= max_files:
+            if max_files is not None and len(out) >= max_files:
                 return out
     return out
 
@@ -214,7 +218,10 @@ def wiki_enabled(flag: bool | None = None) -> bool:
     return os.environ.get(_WIKI_ENV, "").strip().lower() in _TRUTHY
 
 
-def _collect_docs(root: Path, max_files: int) -> list[tuple[Path, str, DocumentSpec]]:
+def _collect_docs(
+    root: Path,
+    max_files: int | None,
+) -> list[tuple[Path, str, DocumentSpec]]:
     """Walk for DOCUMENTS only.
 
     A separate walk rather than a second return value from ``_collect``:
@@ -233,7 +240,7 @@ def _collect_docs(root: Path, max_files: int) -> list[tuple[Path, str, DocumentS
             p = Path(dirpath) / fn
             rel = p.relative_to(root).as_posix()
             out.append((p, rel, spec))
-            if len(out) >= max_files:
+            if max_files is not None and len(out) >= max_files:
                 return out
     return out
 
@@ -443,13 +450,26 @@ class _PyNaming:
 # captures the mid-size repos.
 _PARALLEL_MIN_FILES = 100
 _CHUNK_SIZE = 40
+_DEFAULT_MAX_FILES = 20_000
 
 
-def _worker_count() -> int:
+def _worker_count(limit_policy: ExecutionLimitPolicy | None = None) -> int:
+    """Select read-only index workers under the captured execution policy.
+
+    ``DAEDALUS_SCAN_WORKERS`` and the historical eight-worker default are both
+    Daedalus-owned selections.  Bounded mode honours the explicit selection or
+    retains the default ceiling.  Disabling the concurrency axis ignores both
+    and leaves the operating system's reported CPU capacity as the physical
+    limit.
+    """
+    policy = limit_policy or load_from_env()
+    cpu_capacity = os.cpu_count() or 1
+    if not policy.enforces("concurrency"):
+        return cpu_capacity
     env = os.environ.get("DAEDALUS_SCAN_WORKERS", "").strip()
     if env.isdigit():
         return max(0, int(env))
-    return min(8, os.cpu_count() or 1)
+    return min(8, cpu_capacity)
 
 
 def _parallel_min() -> int:
@@ -460,7 +480,8 @@ def _parallel_min() -> int:
 
 
 def _per_file_pass(root: Path, records: list[tuple[str, LanguageSpec, str]],
-                   ts_on: bool) -> list[FileAnalysis]:
+                   ts_on: bool,
+                   limit_policy: ExecutionLimitPolicy) -> list[FileAnalysis]:
     """Analyze every record, returning results in EXACTLY the input order.
 
     Two levers, composed: a content-keyed disk cache absorbs unchanged files,
@@ -487,7 +508,7 @@ def _per_file_pass(root: Path, records: list[tuple[str, LanguageSpec, str]],
             else:
                 pending.append((i, rel, text, spec))
 
-        _compute(pending, ts_on, out)
+        _compute(pending, ts_on, out, limit_policy)
 
         fresh = [(keys[i], out[i]) for i, _, _, _ in pending if out[i] is not None]
         cache.put_many(fresh)
@@ -504,12 +525,12 @@ def _per_file_pass(root: Path, records: list[tuple[str, LanguageSpec, str]],
 
 
 def _compute(pending: list[tuple[int, str, str, LanguageSpec]], ts_on: bool,
-             out: list) -> None:
+             out: list, limit_policy: ExecutionLimitPolicy) -> None:
     """Fill ``out[i]`` for every pending record, in parallel when it pays."""
     if not pending:
         return
 
-    workers = _worker_count()
+    workers = _worker_count(limit_policy)
     if len(pending) < _parallel_min() or workers < 2:
         for i, rel, text, spec in pending:
             out[i] = analyze_file(rel, text, spec, ts_on)
@@ -531,11 +552,16 @@ def _compute(pending: list[tuple[int, str, str, LanguageSpec]], ts_on: bool,
             out[i] = analyze_file(rel, text, spec, ts_on)
 
 
-def build_index(root, max_files: int = 20000, center=None, ignore=None,
+def build_index(root, max_files: int = _DEFAULT_MAX_FILES, center=None, ignore=None,
                 documents: bool | None = None, types: bool | None = None,
-                wiki: bool | None = None) -> dict:
+                wiki: bool | None = None, *,
+                limit_policy: ExecutionLimitPolicy | None = None) -> dict:
+    captured_policy = limit_policy or load_from_env()
+    effective_max_files = (
+        max_files if captured_policy.enforces("work_scope") else None
+    )
     root = Path(root).resolve()
-    collected = _collect(root, max_files)
+    collected = _collect(root, effective_max_files)
 
     records: list[tuple[str, LanguageSpec, str]] = []
     for path, rel, spec in collected:
@@ -563,7 +589,7 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
     types_on = types_enabled(types)
     doc_records: list[tuple[str, DocumentSpec, str]] = []
     if docs_on:
-        for path, rel, dspec in _collect_docs(root, max_files):
+        for path, rel, dspec in _collect_docs(root, effective_max_files):
             try:
                 text = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
@@ -613,7 +639,7 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
             by_dir_tail[tail].append(rel)
 
     ts_on = tree_sitter_available()
-    analyses = _per_file_pass(root, records, ts_on)
+    analyses = _per_file_pass(root, records, ts_on, captured_policy)
 
     modules: dict[str, dict] = {}
     all_units: list[CodeUnit] = []
@@ -883,8 +909,22 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
     # and if a field name were, ``graph.callees`` -- which resolves EVERY
     # identifier token in a body -- would turn ``path``, ``root``, ``name``,
     # ``line``, ``source`` into fabricated CALL edges in every slice.
-    _RESOLVER_CACHE[_scope_key(root, scope, docs_on, types_on, wiki_on)] = graph.build_resolver(
-        all_units + doc_units, import_targets_by_rel)
+    limit_identity = _limit_scope_identity(
+        captured_policy, effective_max_files)
+    resolver = graph.build_resolver(all_units + doc_units, import_targets_by_rel)
+    resolver_key = _scope_key(
+        root, scope, docs_on, types_on, wiki_on,
+        limit_identity=limit_identity,
+    )
+    _RESOLVER_CACHE[resolver_key] = resolver
+    # Preserve the historical no-key lookup for the exact historical default.
+    # Policy-aware consumers use the published ``scope_key`` above; this alias
+    # exists only for older callers that ask ``resolution_context(root)``.
+    if (captured_policy == ExecutionLimitPolicy()
+            and effective_max_files == _DEFAULT_MAX_FILES):
+        _RESOLVER_CACHE[
+            _scope_key(root, scope, docs_on, types_on, wiki_on)
+        ] = resolver
 
     churn = git_churn(root)
     # HOTSPOTS ARE A CODE-HEALTH RANKING, so documents are not in it. Left in,
@@ -985,6 +1025,13 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
         **extra,
         "root": str(root),
         "backend": backend_status(),
+        # These three fields make the scan contract inspectable and keep a
+        # bounded/truncated index from masquerading as an uncapped one.  The
+        # configured policy remains exact; the nullable value is the effective
+        # work-scope cap for this build.
+        "execution_limit_policy": captured_policy.as_dict(),
+        "execution_limit_policy_sha256": captured_policy.fingerprint_sha256,
+        "effective_max_files": effective_max_files,
         "n_files": len(records) - len(ignored) + doc_totals["count"],
         # NEVER let exclusion be silent -- a shrunken duplication report that
         # does not say what it dropped reads exactly like a clean bill of health
@@ -1034,7 +1081,10 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
         # The (root, scope) identity of THIS index. Additive. Lets a consumer
         # holding only the index dict ask for the resolver built alongside it
         # (``resolution_context``) instead of guessing at the bare-root key.
-        "scope_key": _scope_key(root, scope, docs_on, types_on, wiki_on),
+        "scope_key": _scope_key(
+            root, scope, docs_on, types_on, wiki_on,
+            limit_identity=limit_identity,
+        ),
         "hotspots": scored[:15],
         # Full ranking (same pass as ``hotspots``) so the map can heat-shade
         # every node, not just the top 15.
@@ -1057,16 +1107,26 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
 _RESOLVER_CACHE: dict[str, "graph.SymbolResolver"] = {}
 
 
+def _limit_scope_identity(
+    policy: ExecutionLimitPolicy,
+    effective_max_files: int | None,
+) -> str:
+    max_files = "none" if effective_max_files is None else str(effective_max_files)
+    return f"{policy.fingerprint_sha256}-max-files-{max_files}"
+
+
 def _scope_key(resolved: Path, scope, documents: bool = False,
-               types: bool = False, wiki=False) -> str:
+               types: bool = False, wiki=False, *,
+               limit_identity: str | None = None) -> str:
     """Cache identity of an index: its root, the scope when one is declared, and
     which optional layers were indexed.
 
     SINGLE SOURCE OF TRUTH for both ``_INDEX_CACHE`` and ``_RESOLVER_CACHE``.
     They are two views of one build and MUST agree; when they were keyed by
     different expressions they drifted apart and a scoped index was served with
-    an unscoped resolver. An unscoped repo keeps its bare path key, so nothing
-    changes for repos that never configure this.
+    an unscoped resolver. The bare path remains the structural base for an
+    unscoped repo; policy-aware builds append their captured limit identity so
+    a truncated index can never satisfy an uncapped request.
 
     ``documents`` is part of the key for the same reason ``scope`` is: a
     document-bearing index is a DIFFERENT index (different ``modules``,
@@ -1081,12 +1141,16 @@ def _scope_key(resolved: Path, scope, documents: bool = False,
     the other presents as the layer silently missing in one process and silently
     present in the next.
 
-    THE SUFFIX ORDER IS FIXED -- ``base`` then ``+docs`` then ``+types`` -- so
-    the four flag combinations produce four distinct keys and no two of them can
-    collide by being spelled in a different order.
+    THE SUFFIX ORDER IS FIXED -- ``base`` then limits, ``+docs``, ``+types`` and
+    ``+wiki`` -- so configurations cannot collide by being spelled in a
+    different order.
     """
     unscoped = not scope.center and not scope.ignore
     base = str(resolved) if unscoped else f"{resolved}#{scope.fingerprint}"
+    if limit_identity:
+        # Limits precede optional-layer suffixes so established diagnostics
+        # such as ``endswith('+wiki')`` remain truthful.
+        base = f"{base}+limits-{limit_identity}"
     if documents:
         base = f"{base}+docs"
     if types:
@@ -1121,10 +1185,12 @@ def _build_lock(key: str) -> threading.Lock:
         return _BUILD_LOCKS.setdefault(key, threading.Lock())
 
 
-def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
+def cached_index(repo_root, refresh: bool = False,
+                 max_files: int = _DEFAULT_MAX_FILES,
                  center=None, ignore=None, documents: bool | None = None,
                  types: bool | None = None,
-                 wiki: bool | None = None) -> dict:
+                 wiki: bool | None = None, *,
+                 limit_policy: ExecutionLimitPolicy | None = None) -> dict:
     """Process-wide index cache keyed by resolved repo root. build_index is
     expensive on big repos; the first caller warms it and everyone (the web
     endpoints, the Ikarus chat brain) reuses it. ``refresh`` forces a rebuild.
@@ -1141,10 +1207,14 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
     # of the center and the ignore rules as well as the root, so changing either
     # must not hand back the index built under the old scope. (It would present
     # as the feature silently not working, and only until the next restart --
-    # the worst kind of bug to chase.) An unscoped repo keeps its bare path key,
-    # so nothing changes for repos that never configure this.
+    # the worst kind of bug to chase.) Limit policy and effective max_files are
+    # added below for the same reason.
     resolved = Path(repo_root).resolve()
     scope = project_scope(resolved, center, ignore)
+    captured_policy = limit_policy or load_from_env()
+    effective_max_files = (
+        max_files if captured_policy.enforces("work_scope") else None
+    )
     # ``documents`` is resolved ONCE, here, and the same resolved boolean is used
     # for both the key and the build. Reading the env var independently in
     # ``build_index`` would let the two disagree if it changed between the two
@@ -1162,7 +1232,11 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
     # it -- a key that said "+wiki" over a wiki-free index is exactly the
     # silent-mismatch bug the documents flag already had to close.
     wiki_on = wiki_enabled(wiki) and docs_on
-    key = _scope_key(resolved, scope, docs_on, types_on, wiki_on)
+    key = _scope_key(
+        resolved, scope, docs_on, types_on, wiki_on,
+        limit_identity=_limit_scope_identity(
+            captured_policy, effective_max_files),
+    )
     if not refresh and key in _INDEX_CACHE:
         return _INDEX_CACHE[key]
     with _build_lock(key):
@@ -1174,7 +1248,8 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
             _INDEX_CACHE[key] = build_index(repo_root, max_files=max_files,
                                            center=center, ignore=ignore,
                                            documents=docs_on, types=types_on,
-                                           wiki=wiki_on)
+                                           wiki=wiki_on,
+                                           limit_policy=captured_policy)
         return _INDEX_CACHE[key]
 
 

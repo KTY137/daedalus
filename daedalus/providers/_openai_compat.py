@@ -23,7 +23,7 @@ def chat_raw(
     model: str,
     messages: list[dict[str, Any]],
     api_key: str | None = None,
-    timeout_s: int = 300,
+    timeout_s: float | None = 300,
     tools: list[dict[str, Any]] | None = None,
     temperature: float = 0.0,
 ) -> dict[str, Any]:
@@ -41,7 +41,12 @@ def chat_raw(
     return _post(base_url, body, api_key, timeout_s)["choices"][0]["message"]
 
 
-def _post(base_url: str, body: dict[str, Any], api_key: str | None, timeout_s: int) -> dict[str, Any]:
+def _post(
+    base_url: str,
+    body: dict[str, Any],
+    api_key: str | None,
+    timeout_s: float | None,
+) -> dict[str, Any]:
     url = base_url.rstrip("/") + "/chat/completions"
     headers = {"Content-Type": "application/json"}
     if api_key:
@@ -66,7 +71,7 @@ def chat_completion(
     system: str,
     user: str,
     api_key: str | None = None,
-    timeout_s: int = 300,
+    timeout_s: float | None = 300,
     force_json: bool = True,
     json_schema: dict[str, Any] | None = None,
     temperature: float = 0.2,
@@ -111,7 +116,7 @@ def chat_stream(
     system: str,
     user: str,
     api_key: str | None = None,
-    timeout_s: int = 300,
+    timeout_s: float | None = 300,
     temperature: float = 0.2,
     extra: dict[str, Any] | None = None,
 ):

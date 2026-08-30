@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -31,9 +32,13 @@ def smoke(backend: Path, timeout_s: float = 25.0) -> None:
         if not exe.is_file():
             raise SystemExit(f"missing frozen backend executable: {exe}")
 
+        startup_nonce = "d" * 64
+        child_env = os.environ.copy()
+        child_env["DAEDALUS_DESKTOP_STARTUP_NONCE"] = startup_nonce
         proc = subprocess.Popen(
             [str(exe), "--host", "127.0.0.1", "--port", "8765"],
             cwd=runtime,
+            env=child_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -65,6 +70,17 @@ def smoke(backend: Path, timeout_s: float = 25.0) -> None:
                     f"desktop self-project missing from /api/projects: {payload!r}"
                 )
 
+            with urlopen(
+                "http://127.0.0.1:8765/api/desktop-ready", timeout=3.0
+            ) as response:
+                ready = json.loads(response.read())
+            if ready != {
+                "schema": "daedalus-desktop-startup/1",
+                "ready": True,
+                "nonce": startup_nonce,
+            }:
+                raise SystemExit(f"desktop startup nonce mismatch: {ready!r}")
+
             with urlopen("http://127.0.0.1:8765/", timeout=3.0) as response:
                 html = response.read().decode("utf-8", errors="replace")
             if 'id="root"' not in html:
@@ -85,6 +101,14 @@ def smoke(backend: Path, timeout_s: float = 25.0) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.desktop_sidecar_smoke",
+        REGISTRY_BY_ID["tools.desktop_sidecar_smoke"].effects,
+        (process_guard_boundary_decision(),),
+    )
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--backend",

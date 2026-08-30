@@ -113,6 +113,14 @@ each inspected, unchanged by this reconstruction):
 
 ## 4. Who installs the ceiling
 
+The census excludes generated frozen-sidecar copies under
+`apps/web/src-tauri/backend/` and `apps/web/src-tauri/target/`. Measured on
+2026-08-30 after a desktop build, scanning those outputs counted the same
+`daedalus/budget.py`, `cli.py`, `loop.py`, and sealed `claude_bridge.py` a
+second time. They are derived packaging artifacts, not independent executable
+source owners; authoritative source remains covered by the repository-wide
+walk.
+
 Independently reproduced 2026-08-22 [MEASURED] by scanning every non-test
 `*.py` for a *call* to `install_process_guard()` — **8 files**, exactly the set
 the test pins, with no drift:

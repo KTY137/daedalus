@@ -16,6 +16,7 @@ from types import MappingProxyType
 from typing import Any, ClassVar, Mapping, Sequence
 from urllib.parse import urlsplit
 
+from .limit_policy import ExecutionLimitPolicy
 from .spine.envelope import canonical_json, canonical_sha
 
 
@@ -226,7 +227,14 @@ class CanonicalContract:
     CONTRACT_VERSION: ClassVar[str] = KERNEL_CONTRACT_VERSION
 
     def to_dict(self) -> dict[str, Any]:
-        body = {f.name: _json_value(getattr(self, f.name)) for f in fields(self)}
+        body = {
+            f.name: _json_value(getattr(self, f.name))
+            for f in fields(self)
+            if not (
+                f.metadata.get("canonical_omit_if_none", False)
+                and getattr(self, f.name) is None
+            )
+        }
         return {
             "contract_type": self.CONTRACT_TYPE,
             "contract_version": self.CONTRACT_VERSION,
@@ -312,6 +320,46 @@ def _require_provenance_inputs(
         )
 
 
+def _snapshot_execution_limit_policy(
+    policy: ExecutionLimitPolicy | None,
+    fingerprint_sha256: str | None,
+    provenance: ContractProvenance,
+    label: str,
+) -> tuple[ExecutionLimitPolicy | None, str | None]:
+    """Validate and freeze an optional Revision-10 policy/evidence pair.
+
+    ``None``/``None`` is the legacy wire shape and means bounded execution.
+    Newly admitted work supplies both values.  Keeping the fields optional and
+    omitting them from the canonical JSON when absent preserves the digest of
+    records written before Revision 10; a half-present or unbound pair is
+    refused rather than guessed.
+    """
+
+    if policy is None and fingerprint_sha256 is None:
+        return None, None
+    if policy is None or fingerprint_sha256 is None:
+        raise ValueError(
+            f"{label} must carry execution_limit_policy and "
+            "execution_limit_policy_sha256 together"
+        )
+    if type(policy) is not ExecutionLimitPolicy:
+        raise ValueError(
+            f"{label}.execution_limit_policy must be an exact "
+            "ExecutionLimitPolicy"
+        )
+    snapshot = ExecutionLimitPolicy.from_dict(policy.as_dict())
+    fingerprint = _sha256(
+        fingerprint_sha256, f"{label}.execution_limit_policy_sha256"
+    )
+    if fingerprint != snapshot.fingerprint_sha256:
+        raise ValueError(
+            f"{label}.execution_limit_policy_sha256 does not match the "
+            "captured policy"
+        )
+    _require_provenance_inputs(provenance, (fingerprint,), label)
+    return snapshot, fingerprint
+
+
 @dataclass(frozen=True)
 class ResourceBudget:
     """Frozen upper bounds. Money is integer micro-USD, never a float."""
@@ -357,7 +405,53 @@ class ResourceBudget:
             )
         )
 
-    def violations(self, usage: "ResourceUsage") -> tuple[str, ...]:
+    def effective(
+        self,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
+    ) -> "ResourceBudget":
+        """Return effective limits without erasing configured fallbacks.
+
+        The receiver remains the frozen configured budget embedded in the
+        contract.  ``None`` is the legacy bounded policy; explicit disabled
+        axes become nullable effective values as required by Revision 10.
+        """
+
+        if execution_limit_policy is None:
+            return self
+        if type(execution_limit_policy) is not ExecutionLimitPolicy:
+            raise ValueError(
+                "execution_limit_policy must be an exact ExecutionLimitPolicy"
+            )
+        return ResourceBudget(
+            max_tokens=(
+                self.max_tokens
+                if execution_limit_policy.enforces("tokens")
+                else None
+            ),
+            max_cost_microusd=(
+                self.max_cost_microusd
+                if execution_limit_policy.enforces("mission_spend")
+                else None
+            ),
+            max_wall_time_s=(
+                self.max_wall_time_s
+                if execution_limit_policy.enforces("wall_time")
+                else None
+            ),
+            max_attempts=(
+                self.max_attempts
+                if execution_limit_policy.enforces("attempts")
+                else None
+            ),
+        )
+
+    def violations(
+        self,
+        usage: "ResourceUsage",
+        *,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
+    ) -> tuple[str, ...]:
+        effective = self.effective(execution_limit_policy)
         violations: list[str] = []
         # THE LARGER OF THE TWO INPUT NUMBERS, never their sum. They describe
         # the SAME prompt -- a server-reported count and a local pre-send
@@ -368,25 +462,25 @@ class ResourceBudget:
         # is not a bound. It stays conservative by construction, because the
         # estimator over-counts.
         used_tokens = max(usage.input_tokens, usage.est_input_tokens) + usage.output_tokens
-        if self.max_tokens is not None and used_tokens > self.max_tokens:
+        if effective.max_tokens is not None and used_tokens > effective.max_tokens:
             violations.append(
-                f"tokens {used_tokens} exceed max_tokens {self.max_tokens}"
+                f"tokens {used_tokens} exceed max_tokens {effective.max_tokens}"
             )
         if (
-            self.max_cost_microusd is not None
-            and usage.cost_microusd > self.max_cost_microusd
+            effective.max_cost_microusd is not None
+            and usage.cost_microusd > effective.max_cost_microusd
         ):
             violations.append(
                 f"cost {usage.cost_microusd} exceeds "
-                f"max_cost_microusd {self.max_cost_microusd}"
+                f"max_cost_microusd {effective.max_cost_microusd}"
             )
         if (
-            self.max_wall_time_s is not None
-            and usage.wall_time_ms > self.max_wall_time_s * 1000
+            effective.max_wall_time_s is not None
+            and usage.wall_time_ms > effective.max_wall_time_s * 1000
         ):
             violations.append(
                 f"wall time {usage.wall_time_ms}ms exceeds "
-                f"max_wall_time_s {self.max_wall_time_s}"
+                f"max_wall_time_s {effective.max_wall_time_s}"
             )
         return tuple(violations)
 
@@ -435,7 +529,7 @@ class EffectScope:
     tools: tuple[str, ...] = ()
     secret_refs: tuple[str, ...] = ()
     max_cost_microusd: int | None = None
-    max_concurrency: int = 1
+    max_concurrency: int | None = 1
     timeout_s: int | None = None
     kill_switch_ref: str = ""
 
@@ -479,12 +573,14 @@ class EffectScope:
             )
         ):
             raise ValueError("effect_scope.max_cost_microusd must be non-negative or null")
-        if (
+        if self.max_concurrency is not None and (
             isinstance(self.max_concurrency, bool)
             or not isinstance(self.max_concurrency, int)
             or self.max_concurrency < 1
         ):
-            raise ValueError("effect_scope.max_concurrency must be a positive integer")
+            raise ValueError(
+                "effect_scope.max_concurrency must be a positive integer or null"
+            )
         if self.timeout_s is not None and (
             isinstance(self.timeout_s, bool)
             or not isinstance(self.timeout_s, int)
@@ -506,6 +602,11 @@ class EffectScope:
             or self.tools
             or self.secret_refs
             or not self.read_only
+            # A resource-unbounded spend/process-only scope can otherwise have
+            # no non-empty collection above. The kill-switch binding is the
+            # invariant marker that this is still an effect grant; the default
+            # deny scope carries no such binding.
+            or self.kill_switch_ref
         )
 
     @classmethod
@@ -548,6 +649,12 @@ class MissionContract(CanonicalContract):
     policy_sha256: str
     budget: ResourceBudget
     provenance: ContractProvenance
+    execution_limit_policy: ExecutionLimitPolicy | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    execution_limit_policy_sha256: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "mission_id", _identifier(self.mission_id, "mission_id"))
@@ -576,7 +683,23 @@ class MissionContract(CanonicalContract):
             raise ValueError("mission must name at least one work item")
         if not self.success_criteria:
             raise ValueError("mission must name at least one success criterion")
-        if not self.budget.has_execution_bound:
+        policy, policy_fingerprint = _snapshot_execution_limit_policy(
+            self.execution_limit_policy,
+            self.execution_limit_policy_sha256,
+            self.provenance,
+            "mission",
+        )
+        object.__setattr__(self, "execution_limit_policy", policy)
+        object.__setattr__(
+            self, "execution_limit_policy_sha256", policy_fingerprint
+        )
+        if not self.budget.effective(policy).has_execution_bound and (
+            policy is None
+            or any(
+                policy.enforces(axis)
+                for axis in ("tokens", "mission_spend", "wall_time")
+            )
+        ):
             raise ValueError(
                 "mission budget must bound tokens, cost, or wall time; "
                 "max_attempts alone does not bound one attempt"
@@ -592,6 +715,10 @@ class MissionContract(CanonicalContract):
         body = cls._contract_payload(payload)
         body["budget"] = ResourceBudget.from_dict(body["budget"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
+        if body.get("execution_limit_policy") is not None:
+            body["execution_limit_policy"] = ExecutionLimitPolicy.from_dict(
+                body["execution_limit_policy"]
+            )
         return cls(**body)
 
 
@@ -685,6 +812,12 @@ class AttemptContract(CanonicalContract):
     gate_names: tuple[str, ...] = ()
     campaign_id: str | None = None
     read_only: bool = False
+    execution_limit_policy: ExecutionLimitPolicy | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    execution_limit_policy_sha256: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
 
     def __post_init__(self) -> None:
         for name in ("attempt_id", "mission_id", "task_id"):
@@ -725,7 +858,23 @@ class AttemptContract(CanonicalContract):
             raise ValueError("write-capable attempt must declare bounded writable paths")
         if not self.gate_names:
             raise ValueError("attempt must declare at least one evidence gate")
-        if not self.budget.has_execution_bound:
+        policy, policy_fingerprint = _snapshot_execution_limit_policy(
+            self.execution_limit_policy,
+            self.execution_limit_policy_sha256,
+            self.provenance,
+            "attempt",
+        )
+        object.__setattr__(self, "execution_limit_policy", policy)
+        object.__setattr__(
+            self, "execution_limit_policy_sha256", policy_fingerprint
+        )
+        if not self.budget.effective(policy).has_execution_bound and (
+            policy is None
+            or any(
+                policy.enforces(axis)
+                for axis in ("tokens", "mission_spend", "wall_time")
+            )
+        ):
             raise ValueError(
                 "attempt budget must bound tokens, cost, or wall time; "
                 "max_attempts alone does not bound one attempt"
@@ -756,6 +905,8 @@ class AttemptContract(CanonicalContract):
         campaign_id: str | None = None,
         read_only: bool = False,
         base_revision: str | None = None,
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
+        execution_limit_policy_sha256: str | None = None,
     ) -> "AttemptContract":
         """Adapt the existing spine TaskSpec without inventing a second task.
 
@@ -808,6 +959,8 @@ class AttemptContract(CanonicalContract):
             gate_names=gate_names,
             campaign_id=campaign_id,
             read_only=read_only,
+            execution_limit_policy=execution_limit_policy,
+            execution_limit_policy_sha256=execution_limit_policy_sha256,
         )
 
     @classmethod
@@ -815,6 +968,10 @@ class AttemptContract(CanonicalContract):
         body = cls._contract_payload(payload)
         body["budget"] = ResourceBudget.from_dict(body["budget"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
+        if body.get("execution_limit_policy") is not None:
+            body["execution_limit_policy"] = ExecutionLimitPolicy.from_dict(
+                body["execution_limit_policy"]
+            )
         return cls(**body)
 
 
@@ -963,6 +1120,12 @@ class EvidencePacket(CanonicalContract):
     provenance: ContractProvenance
     candidate_artifact_sha256: str | None = None
     candidate_artifact_locator: str | None = None
+    execution_limit_policy: ExecutionLimitPolicy | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    execution_limit_policy_sha256: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
 
     def __post_init__(self) -> None:
         for name in ("packet_id", "mission_id", "attempt_id"):
@@ -1035,6 +1198,16 @@ class EvidencePacket(CanonicalContract):
             raise ValueError(
                 "passed packet requires a durable content-addressed candidate locator"
             )
+        policy, policy_fingerprint = _snapshot_execution_limit_policy(
+            self.execution_limit_policy,
+            self.execution_limit_policy_sha256,
+            self.provenance,
+            "evidence packet",
+        )
+        object.__setattr__(self, "execution_limit_policy", policy)
+        object.__setattr__(
+            self, "execution_limit_policy_sha256", policy_fingerprint
+        )
         if self.provenance.source_revision != self.source_revision:
             raise ValueError("evidence source_revision must match provenance.source_revision")
         if any(
@@ -1096,6 +1269,8 @@ class EvidencePacket(CanonicalContract):
             digests.append(str(candidate_sha))
         if projection["locator_matches"] and projection["candidate_locator"]:
             digests.append(_locator_sha256(str(projection["candidate_locator"])))
+        if attempt.execution_limit_policy_sha256 is not None:
+            digests.append(attempt.execution_limit_policy_sha256)
         digests.extend(str(value) for value in extra_digests)
         return ContractProvenance(
             origin=origin,
@@ -1130,13 +1305,24 @@ class EvidencePacket(CanonicalContract):
         candidate_sha = projection["candidate_sha256"]
         candidate_locator = projection["candidate_locator"]
         locator_matches = projection["locator_matches"]
-        budget_violations = attempt.budget.violations(usage)
+        budget_violations = attempt.budget.violations(
+            usage,
+            execution_limit_policy=attempt.execution_limit_policy,
+        )
         details = {
             **details,
             "candidate_locator_bound": locator_matches,
             "persist_error": persist_error,
             "budget_violations": list(budget_violations),
         }
+        if attempt.execution_limit_policy is not None:
+            details = {
+                **details,
+                "execution_limit_policy": attempt.execution_limit_policy.as_dict(),
+                "execution_limit_policy_sha256": (
+                    attempt.execution_limit_policy_sha256
+                ),
+            }
         conclusive = (
             evaluator_assurance in {"deterministic", "independent"}
             and not persist_error
@@ -1184,6 +1370,8 @@ class EvidencePacket(CanonicalContract):
             provenance=provenance,
             candidate_artifact_sha256=candidate_sha,
             candidate_artifact_locator=candidate_locator if locator_matches else None,
+            execution_limit_policy=attempt.execution_limit_policy,
+            execution_limit_policy_sha256=attempt.execution_limit_policy_sha256,
         )
 
     @classmethod
@@ -1192,6 +1380,10 @@ class EvidencePacket(CanonicalContract):
         body["items"] = tuple(EvidenceItem.from_dict(item) for item in body["items"])
         body["usage"] = ResourceUsage.from_dict(body["usage"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
+        if body.get("execution_limit_policy") is not None:
+            body["execution_limit_policy"] = ExecutionLimitPolicy.from_dict(
+                body["execution_limit_policy"]
+            )
         return cls(**body)
 
 
@@ -1213,6 +1405,12 @@ class CampaignContract(CanonicalContract):
     budget: ResourceBudget
     expires_at: str
     provenance: ContractProvenance
+    execution_limit_policy: ExecutionLimitPolicy | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    execution_limit_policy_sha256: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -1279,7 +1477,23 @@ class CampaignContract(CanonicalContract):
         )
         if not self.writable_paths:
             raise ValueError("campaign must declare a bounded writable scope")
-        if not self.budget.has_execution_bound:
+        policy, policy_fingerprint = _snapshot_execution_limit_policy(
+            self.execution_limit_policy,
+            self.execution_limit_policy_sha256,
+            self.provenance,
+            "campaign",
+        )
+        object.__setattr__(self, "execution_limit_policy", policy)
+        object.__setattr__(
+            self, "execution_limit_policy_sha256", policy_fingerprint
+        )
+        if not self.budget.effective(policy).has_execution_bound and (
+            policy is None
+            or any(
+                policy.enforces(axis)
+                for axis in ("tokens", "mission_spend", "wall_time")
+            )
+        ):
             raise ValueError(
                 "campaign budget must bound tokens, cost, or wall time; "
                 "max_attempts alone does not bound one attempt"
@@ -1306,6 +1520,10 @@ class CampaignContract(CanonicalContract):
         body = cls._contract_payload(payload)
         body["budget"] = ResourceBudget.from_dict(body["budget"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
+        if body.get("execution_limit_policy") is not None:
+            body["execution_limit_policy"] = ExecutionLimitPolicy.from_dict(
+                body["execution_limit_policy"]
+            )
         return cls(**body)
 
 
@@ -1347,13 +1565,10 @@ class PolicyDecision(CanonicalContract):
         if self.verdict == "allow" and self.effect_scope.has_effects:
             if not self.effect_scope.kill_switch_ref:
                 raise ValueError("effectful allow decision requires a kill_switch_ref")
-            if self.effect_scope.timeout_s is None:
-                raise ValueError("effectful allow decision requires a timeout_s bound")
-            if self.effect_scope.max_cost_microusd is None:
-                raise ValueError(
-                    "effectful allow decision requires an explicit max_cost_microusd "
-                    "(use zero for a no-spend scope)"
-                )
+            # Resource nulls are explicit unbounded-axis decisions captured by
+            # the execution-limit policy. Authorization remains bounded by the
+            # kill switch and the effect-specific scope checks in the lease
+            # issuer; PolicyDecision must not reinterpret null as no authority.
         _require_provenance_inputs(
             self.provenance,
             (self.subject_sha256, self.policy_sha256),

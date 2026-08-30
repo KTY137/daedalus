@@ -274,6 +274,19 @@ class NativeChatErrorTests(unittest.TestCase):
             native_chat(host=f"http://127.0.0.1:{port}", model="m",
                         messages=[{"role": "user", "content": "x"}], timeout_s=2)
 
+    def test_transport_timeout_without_daedalus_deadline_stays_provider_error(self):
+        with mock.patch(
+            "daedalus.providers._ollama_native.urllib.request.urlopen",
+            side_effect=TimeoutError("transport timed out"),
+        ):
+            with self.assertRaisesRegex(ProviderHTTPError, r"timed out$"):
+                native_chat(
+                    host="http://127.0.0.1:11434",
+                    model="m",
+                    messages=[{"role": "user", "content": "x"}],
+                    timeout_s=None,
+                )
+
 
 # --------------------------------------------------------------------------- #
 # _run_rewrite: window skip, slice injection, drop-to-fit                      #

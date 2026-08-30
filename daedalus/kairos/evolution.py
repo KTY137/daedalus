@@ -6,6 +6,7 @@ import logging
 
 from daedalus.eval.provenance import check_import_provenance
 from daedalus.kairos.shadow_shell import ShadowShellManager, CandidateBranch
+from daedalus.limit_policy import ExecutionLimitPolicy, load_from_env as load_limit_policy
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,16 @@ class EvolutionaryOrchestrator:
     A trusted verifier still has to inspect a candidate before it can be merged
     into the primary workspace.
     """
-    def __init__(self, shell_manager_factory: Callable[[], ShadowShellManager]):
+    def __init__(
+        self,
+        shell_manager_factory: Callable[[], ShadowShellManager],
+        *,
+        limit_policy: ExecutionLimitPolicy | None = None,
+    ):
         self.shell_manager_factory = shell_manager_factory
+        self.limit_policy = limit_policy or load_limit_policy()
+        if not isinstance(self.limit_policy, ExecutionLimitPolicy):
+            raise TypeError("limit_policy must be an ExecutionLimitPolicy")
 
     async def generate_candidates(self, task: str, population_size: int) -> List[CandidateBranch]:
         """
@@ -120,8 +129,13 @@ class EvolutionaryOrchestrator:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=timeout_s)
+                if self.limit_policy.enforces("wall_time"):
+                    stdout, stderr = await asyncio.wait_for(
+                        process.communicate(), timeout=timeout_s)
+                else:
+                    # Explicit owner policy: the evaluator still records the
+                    # result but imposes no Daedalus wall-clock deadline.
+                    stdout, stderr = await process.communicate()
 
                 if process.returncode == 0:
                     candidate.score = 100.0

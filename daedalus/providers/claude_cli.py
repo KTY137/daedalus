@@ -20,17 +20,30 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from ..claude_bridge import _invoke_claude_cli
+from ..claude_bridge import _invoke_claude_payload
 from ..kernel.effects import EffectExecutionRequest
 from ..kernel.runtime_effects import RuntimeBoundEffectAuthorization
+from ..limit_policy import ExecutionLimitPolicy
 from ..primary_tree import assert_write_allowed
 from ..runtimes.broker import RuntimeInvocationResult, run_runtime_provider
+from ..runtimes.provider_executable_object_registry import (
+    ProviderExecutableObjectRegistry,
+)
+from ..runtimes.provider_executable_pre_admission import (
+    ProviderExecutablePreAdmissionReceipt,
+)
+from ..runtimes.provider_invocation_abi import ProviderInvocationABIContract
+from ..runtimes.provider_invocation_authority import (
+    ProviderInvocationObservationAuthority,
+)
+from ..runtimes.provider_invocation_payload import ProviderInvocationPayload
 from ..runtimes.provider_observation import (
-    ProviderObservationAuthority,
     ProviderObservationBindingLedger,
 )
 from ..spine.effect_boundary import Effect
 from ..spine.envelope import canonical_sha
+from ..token_policy import trim_paths
+from ._report import bounded_execution_limit_policy
 from .base import Provider, ProviderCapabilities
 
 
@@ -98,11 +111,36 @@ class ClaudeWorkspaceGrant:
             raise ValueError("Claude workspace binding requires a worktree path")
 
 
-def _required_text(value: Any, name: str, *, max_length: int) -> str:
+def _required_text(
+    value: Any,
+    name: str,
+    *,
+    max_length: int | None,
+) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a non-empty string")
-    if len(value) > max_length:
+    if max_length is not None and len(value) > max_length:
         raise ValueError(f"{name} exceeds {max_length} characters")
+    return value
+
+
+def _effective_timeout(
+    policy: ExecutionLimitPolicy,
+    timeout_s: int | float | None,
+    *,
+    bounded_default: int = 300,
+) -> int | float | None:
+    """Resolve one real deadline; ``None`` is the explicit unbounded value."""
+
+    if not policy.enforces("wall_time"):
+        return None
+    value = bounded_default if timeout_s is None else timeout_s
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or value <= 0
+    ):
+        raise ValueError("timeout_s must be a positive number")
     return value
 
 
@@ -137,14 +175,21 @@ def claude_invocation_sha256(
     paths: list[str],
     agent: Mapping[str, Any],
     model: str,
-    timeout_s: int,
+    timeout_s: int | float | None,
     attempt_id: str,
     source_revision: str,
     request_sha256: str,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ) -> str:
     """Canonical identity callers must bind into the execution idempotency key."""
 
-    objective = _required_text(objective, "objective", max_length=16000)
+    explicit_limit_policy = execution_limit_policy is not None
+    limit_policy = bounded_execution_limit_policy(execution_limit_policy)
+    objective = _required_text(
+        objective,
+        "objective",
+        max_length=16000 if limit_policy.enforces("tokens") else None,
+    )
     model = _required_text(model, "model", max_length=200)
     attempt_id = _required_text(attempt_id, "attempt_id", max_length=200)
     source_revision = _required_text(
@@ -158,8 +203,7 @@ def claude_invocation_sha256(
         or any(char not in "0123456789abcdef" for char in request_sha256)
     ):
         raise ValueError("request_sha256 must be lowercase SHA-256")
-    if isinstance(timeout_s, bool) or not isinstance(timeout_s, int) or timeout_s <= 0:
-        raise ValueError("timeout_s must be a positive integer")
+    effective_timeout = _effective_timeout(limit_policy, timeout_s)
     if not isinstance(agent, Mapping):
         raise ValueError("agent must be a mapping")
     try:
@@ -168,21 +212,29 @@ def claude_invocation_sha256(
         raise ClaudeProviderWorkspaceMismatch(
             "Claude invocation worktree could not be resolved"
         ) from exc
-    return canonical_sha(
-        {
+    body = {
             "entrypoint_id": ENTRYPOINT_ID,
             "runtime_id": RUNTIME_ID,
             "objective": objective,
             "worktree": resolved_worktree,
-            "paths": _normalize_paths(paths),
+            "paths": trim_paths(
+                _normalize_paths(paths),
+                limit_policy=limit_policy,
+            ),
             "agent": dict(agent),
             "model": model,
-            "timeout_s": timeout_s,
+            "timeout_s": effective_timeout,
             "attempt_id": attempt_id,
             "source_revision": source_revision,
             "request_sha256": request_sha256,
         }
-    )
+    # Preserve legacy replay identities when no Revision-10 snapshot was
+    # supplied. Newly admitted calls bind the exact snapshot, including a
+    # deliberately explicit bounded policy.
+    if explicit_limit_policy:
+        body["execution_limit_policy"] = limit_policy.as_dict()
+        body["execution_limit_policy_sha256"] = limit_policy.fingerprint_sha256
+    return canonical_sha(body)
 
 
 def claude_idempotency_key(invocation_sha256: str) -> str:
@@ -198,7 +250,9 @@ def claude_idempotency_key(invocation_sha256: str) -> str:
 def _validate_execution_shape(
     execution: EffectExecutionRequest,
     paths: list[str],
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ) -> list[str]:
+    limit_policy = bounded_execution_limit_policy(execution_limit_policy)
     effects = set(execution.requested_effects)
     missing = sorted(_REQUIRED_EFFECTS - effects)
     if missing:
@@ -217,11 +271,22 @@ def _validate_execution_shape(
         raise ClaudeProviderScopeMismatch(
             "Claude execution must name the exact 'claude' process tool"
         )
-    if execution.max_cost_microusd <= 0:
+    if limit_policy.enforces("mission_spend"):
+        if (
+            execution.max_cost_microusd is None
+            or execution.max_cost_microusd <= 0
+        ):
+            raise ClaudeProviderScopeMismatch(
+                "Claude execution requires a positive explicit spend ceiling"
+            )
+    elif execution.max_cost_microusd is not None:
         raise ClaudeProviderScopeMismatch(
-            "Claude execution requires a positive explicit spend ceiling"
+            "Claude execution must carry null cost when mission spend is disabled"
         )
-    return _normalize_paths(paths)
+    return trim_paths(
+        _normalize_paths(paths),
+        limit_policy=limit_policy,
+    )
 
 
 def _resolve_workspace(
@@ -266,18 +331,16 @@ def _resolve_workspace(
     return supplied
 
 
-def _output_digests(
-    value: Mapping[str, Any],
-    *,
-    invocation_sha256: str,
-) -> tuple[str, ...]:
+def _output_digests(value, payload):
     """Content-address exact invocation, prompt, report and semantic output."""
+
+    from daedalus.spine.envelope import canonical_sha
 
     report = value.get("report")
     agent = value.get("agent")
     prompt_sha256 = value.get("prompt_sha256")
     report_sha256 = value.get("report_sha256")
-    if not isinstance(report, Mapping) or not isinstance(agent, str) or not agent:
+    if type(report) is not dict or not isinstance(agent, str) or not agent:
         raise ValueError("Claude provider returned malformed structured output")
     computed_report = canonical_sha(dict(report))
     if report_sha256 != computed_report:
@@ -297,7 +360,7 @@ def _output_digests(
             {
                 "provider": "claude_cli",
                 "agent": agent,
-                "invocation_sha256": invocation_sha256,
+                "invocation_sha256": payload["invocation_sha256"],
                 "prompt_sha256": prompt_sha256,
                 "report_sha256": report_sha256,
                 "report": dict(report),
@@ -328,15 +391,23 @@ class ClaudeCLIProvider(Provider):
         paths: list[str],
         agent: dict[str, Any],
         model: str | None = None,
-        timeout_s: int = 300,
+        timeout_s: int | float | None = 300,
         policy: Any | None = None,  # retained for the common provider interface
+        execution_limit_policy: ExecutionLimitPolicy | None = None,
         runtime_authorization: RuntimeBoundEffectAuthorization | None = None,
         effect_execution: EffectExecutionRequest | None = None,
         workspace_grant: ClaudeWorkspaceGrant | None = None,
-        observation_authority: ProviderObservationAuthority | None = None,
+        invocation_authority: ProviderInvocationObservationAuthority | None = None,
+        invocation_payload: ProviderInvocationPayload | None = None,
+        invocation_abi: ProviderInvocationABIContract | None = None,
         observation_binding_ledger: ProviderObservationBindingLedger | None = None,
+        executable_registry: ProviderExecutableObjectRegistry | None = None,
+        pre_admission: ProviderExecutablePreAdmissionReceipt | None = None,
     ) -> dict[str, Any]:
         del policy
+        explicit_limit_policy = execution_limit_policy is not None
+        limit_policy = bounded_execution_limit_policy(execution_limit_policy)
+        effective_timeout = _effective_timeout(limit_policy, timeout_s)
         if runtime_authorization is None or effect_execution is None:
             raise ClaudeProviderAuthorizationRequired(
                 "Claude live execution requires runtime-bound Effect-Lease authority"
@@ -345,12 +416,23 @@ class ClaudeCLIProvider(Provider):
             raise ClaudeProviderAuthorizationRequired(
                 "Claude live execution requires an exact isolated-workspace binding"
             )
-        if observation_authority is None or observation_binding_ledger is None:
+        if (
+            invocation_authority is None
+            or invocation_payload is None
+            or invocation_abi is None
+            or observation_binding_ledger is None
+            or executable_registry is None
+            or pre_admission is None
+        ):
             raise ClaudeProviderAuthorizationRequired(
-                "Claude live execution requires the signed provider-observation "
-                "authority and its binding ledger"
+                "Claude live execution requires the authenticated invocation ABI, "
+                "payload, executable registry, pre-admission, and binding ledger"
             )
-        normalized_paths = _validate_execution_shape(effect_execution, paths)
+        normalized_paths = _validate_execution_shape(
+            effect_execution,
+            paths,
+            limit_policy,
+        )
         workspace = _resolve_workspace(
             repo_root,
             authorization=runtime_authorization,
@@ -364,10 +446,13 @@ class ClaudeCLIProvider(Provider):
             paths=normalized_paths,
             agent=agent,
             model=resolved_model,
-            timeout_s=timeout_s,
+            timeout_s=effective_timeout,
             attempt_id=runtime_authorization.request.attempt_id,
             source_revision=runtime_authorization.request.provenance.source_revision,
             request_sha256=runtime_authorization.request.digest,
+            execution_limit_policy=(
+                limit_policy if explicit_limit_policy else None
+            ),
         )
         expected_idempotency = claude_idempotency_key(invocation_sha256)
         if effect_execution.idempotency_key != expected_idempotency:
@@ -375,24 +460,35 @@ class ClaudeCLIProvider(Provider):
                 "Claude execution idempotency key does not bind the exact invocation"
             )
 
+        expected_payload = {
+            "objective": objective,
+            "worktree": str(workspace),
+            "paths": normalized_paths,
+            "agent": dict(agent),
+            "model": resolved_model,
+            "timeout_s": effective_timeout,
+            "invocation_sha256": invocation_sha256,
+        }
+        if explicit_limit_policy:
+            expected_payload["execution_limit_policy"] = limit_policy.as_dict()
+            expected_payload["execution_limit_policy_sha256"] = (
+                limit_policy.fingerprint_sha256
+            )
+        if invocation_payload.to_dict()["body"] != expected_payload:
+            raise ClaudeInvocationBindingMismatch(
+                "Claude authenticated payload does not match the exact invocation"
+            )
+
         invocation: RuntimeInvocationResult[dict[str, Any]] = run_runtime_provider(
             ENTRYPOINT_ID,
             authorization=runtime_authorization,
             execution=effect_execution,
-            invoke=lambda: _invoke_claude_cli(
-                objective=objective,
-                repo_root=str(workspace),
-                paths=normalized_paths,
-                agent=agent,
-                model=resolved_model,
-                timeout_s=timeout_s,
-            ),
-            output_digests=lambda value: _output_digests(
-                value,
-                invocation_sha256=invocation_sha256,
-            ),
-            observation_authority=observation_authority,
+            invocation_authority=invocation_authority,
+            invocation_payload=invocation_payload,
+            invocation_abi=invocation_abi,
             observation_binding_ledger=observation_binding_ledger,
+            executable_registry=executable_registry,
+            pre_admission=pre_admission,
         )
         runtime_receipt = {
             "executed": invocation.executed,
@@ -409,6 +505,8 @@ class ClaudeCLIProvider(Provider):
                 "provider": self.caps.name,
                 "replay": True,
                 "runtime_receipt": runtime_receipt,
+                "execution_limit_policy": limit_policy.as_dict(),
+                "execution_limit_policy_sha256": limit_policy.fingerprint_sha256,
             }
         value = invocation.value
         if not isinstance(value, dict):
@@ -420,6 +518,8 @@ class ClaudeCLIProvider(Provider):
             "prompt_sha256": value["prompt_sha256"],
             "report_sha256": value["report_sha256"],
             "runtime_receipt": runtime_receipt,
+            "execution_limit_policy": limit_policy.as_dict(),
+            "execution_limit_policy_sha256": limit_policy.fingerprint_sha256,
         }
 
 

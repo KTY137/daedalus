@@ -3,17 +3,157 @@ for building the prompt sent to non-agentic providers."""
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
+from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 from ..budget import BudgetError, BudgetRefused, Reservation, reserve
+from ..lanes import graph_brief, render_brief
+from ..limit_policy import ExecutionLimitPolicy, LimitPolicyError, load_from_env
 from ..schemas import REPORT_KEYS, validate_report
 from ..token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX
 
 # Total inlined-context budget for non-agentic providers (chars). Keeps prompts
 # small per the token-efficiency rules; sensitive files are excluded upstream.
 MAX_CONTEXT_CHARS = 24_000
+
+
+def bounded_execution_limit_policy(
+    policy: ExecutionLimitPolicy | None,
+) -> ExecutionLimitPolicy:
+    """Return an explicit policy for internal helpers without reading env.
+
+    Environment fallback belongs only at a provider's direct ``run`` admission.
+    Internal helpers default to the legacy bounded behaviour so calling one in a
+    test or from another already-admitted path cannot recapture mutable process
+    configuration halfway through a request.
+    """
+
+    if policy is None:
+        return ExecutionLimitPolicy()
+    if not isinstance(policy, ExecutionLimitPolicy):
+        raise LimitPolicyError(
+            "execution_limit_policy must be an ExecutionLimitPolicy"
+        )
+    return policy
+
+
+def admit_execution_limit_policy(
+    policy: ExecutionLimitPolicy | None,
+) -> ExecutionLimitPolicy:
+    """Capture the policy once at a provider's direct admission boundary."""
+
+    return load_from_env() if policy is None else bounded_execution_limit_policy(policy)
+
+
+def attempt_numbers(
+    policy: ExecutionLimitPolicy | None,
+    bounded_attempts: int,
+) -> Iterator[int]:
+    """Yield bounded attempt numbers, or an open iterator when attempts are off.
+
+    There is deliberately no large-number stand-in for unlimited execution.
+    A finite fake (or a real provider that eventually succeeds) terminates the
+    open iterator through the caller's ordinary ``break``/``return`` path.
+    """
+
+    resolved = bounded_execution_limit_policy(policy)
+    if bounded_attempts <= 0:
+        raise ValueError("bounded_attempts must be positive")
+    if resolved.enforces("attempts"):
+        return iter(range(bounded_attempts))
+    return itertools.count()
+
+
+def provider_http_timeout(
+    policy: ExecutionLimitPolicy | None,
+    timeout_s: float | None,
+    *,
+    bounded_default: float = 300.0,
+) -> float | None:
+    """Return a real deadline or ``None``; never encode unlimited as a number."""
+
+    resolved = bounded_execution_limit_policy(policy)
+    if not resolved.enforces("wall_time"):
+        return None
+    return bounded_default if timeout_s is None else float(timeout_s)
+
+
+def read_provider_context(
+    paths: list[str],
+    repo_root: str,
+    *,
+    max_chars: int,
+    allow_sensitive: bool,
+    sensitivity_policy: Any | None,
+    execution_limit_policy: ExecutionLimitPolicy | None,
+) -> tuple[str, list[str]]:
+    """Read provider context while retaining the canonical sensitivity gate.
+
+    With token limits disabled, the capacity passed to
+    :func:`read_inlined_context` is derived from the complete readable inputs;
+    it is not an arbitrary numeric substitute for infinity.  The canonical
+    secret/egress checks still decide which of those inputs may be returned.
+    """
+
+    from ..sensitivity import read_inlined_context
+
+    resolved = bounded_execution_limit_policy(execution_limit_policy)
+    capacity = max_chars
+    if not resolved.enforces("tokens"):
+        root = Path(repo_root)
+        capacity = 1
+        for raw in paths:
+            candidate = Path(raw)
+            if not candidate.is_absolute():
+                candidate = root / candidate
+            try:
+                data = candidate.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            capacity += len(f"\n===== FILE: {raw} =====\n") + len(data)
+    return read_inlined_context(
+        paths,
+        repo_root,
+        capacity,
+        allow_sensitive=allow_sensitive,
+        policy=sensitivity_policy,
+    )
+
+
+def render_provider_brief(
+    repo_root: str,
+    paths: list[str],
+    *,
+    bounded_chars: int,
+    execution_limit_policy: ExecutionLimitPolicy | None,
+) -> str:
+    """Render the normal bounded brief or the complete graph brief.
+
+    The unlimited branch grows an explicit working capacity until the graph
+    builder reports that it omitted nothing.  It therefore has a terminating
+    completeness condition rather than a fake numerical "unlimited" value.
+    """
+
+    resolved = bounded_execution_limit_policy(execution_limit_policy)
+    if resolved.enforces("tokens"):
+        return render_brief(
+            repo_root, paths, hops=1, budget_chars=bounded_chars
+        )
+    capacity = max(1, bounded_chars)
+    try:
+        while True:
+            result = graph_brief(
+                repo_root, paths, hops=1, budget_chars=capacity
+            )
+            if not result.truncated:
+                return result.text
+            capacity *= 2
+    except Exception:  # noqa: BLE001 -- optional context, never an admission gate
+        return ""
 
 
 def report_instructions() -> str:
@@ -32,10 +172,21 @@ def report_instructions() -> str:
     )
 
 
-def build_prompt(agent: dict[str, Any], objective: str, context_text: str) -> tuple[str, str]:
+def build_prompt(
+    agent: dict[str, Any],
+    objective: str,
+    context_text: str,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
+) -> tuple[str, str]:
     """Return (system, user) messages for a read-only, non-agentic provider."""
+    resolved = bounded_execution_limit_policy(execution_limit_policy)
+    prefix = (
+        STATIC_PROMPT_PREFIX
+        if resolved.enforces("tokens")
+        else "Daedalus Bridge Protocol v1.\n"
+    )
     system = (
-        f"{STATIC_PROMPT_PREFIX}\n"
+        f"{prefix}\n"
         f"You are acting as {agent.get('call_name', '?')} / {agent.get('name', '?')}, "
         "a stateless specialist. Do not ask another agent. Use only the supplied "
         "context. Do not invent instrument commands.\n"
@@ -107,7 +258,10 @@ def extract_json(text: str, *, repairs: list[str] | None = None) -> dict[str, An
     return payload
 
 
-def coerce_report(payload: dict[str, Any]) -> dict[str, Any]:
+def coerce_report(
+    payload: dict[str, Any],
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
+) -> dict[str, Any]:
     """Fill any missing report keys with safe defaults, then validate.
 
     THREE THINGS THIS USED TO DO SILENTLY, each of which destroyed evidence:
@@ -149,9 +303,21 @@ def coerce_report(payload: dict[str, Any]) -> dict[str, Any]:
     key. A non-dict ``handoff`` is left exactly as it was, so it still fails
     validation below rather than being quietly repaired here.
     """
+    resolved = bounded_execution_limit_policy(execution_limit_policy)
     handoff = payload.get("handoff") or {}
-    summary = str(payload.get("summary", ""))[:MAX_SUMMARY_CHARS]
+    raw_summary = str(payload.get("summary", ""))
+    summary = raw_summary[:MAX_SUMMARY_CHARS]
     if isinstance(handoff, dict):
+        # ``agent_report_v1`` always requires a <=600-char summary.  That schema
+        # boundary is not a resource cap and remains non-disableable.  When the
+        # token axis is off, retain the complete model output in the free-form
+        # handoff rather than silently destroying it while shaping the schema.
+        if (
+            not resolved.enforces("tokens")
+            and len(raw_summary) > MAX_SUMMARY_CHARS
+            and "unabridged_summary" not in handoff
+        ):
+            handoff = {**handoff, "unabridged_summary": raw_summary}
         unexpected = {k: v for k, v in payload.items() if k not in REPORT_KEYS}
         if unexpected:
             handoff = {**handoff, "unexpected_keys": unexpected}

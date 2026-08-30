@@ -1,16 +1,36 @@
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
+from daedalus import budget as budget_kernel
 from daedalus import sensitivity
+from daedalus.limit_policy import (
+    ExecutionLimitPolicy,
+    LIMIT_AXES,
+    LimitAxes,
+    MODE_CUSTOM,
+    MODE_UNBOUNDED_EXECUTION,
+)
 from daedalus.desktop_runtime import (
+    IDE_DOCKER_CONTAINER,
+    IDE_DOCKER_IMAGE,
+    IDE_DOCKER_OWNER_LABEL,
+    IDE_DOCKER_OWNER_VALUE,
+    IDE_DOCKER_PROJECT_LABEL,
+    IDE_DOCKER_WORKSPACE,
     REMOTE_OK_VAR,
     TRUSTED_HOSTS_VAR,
     TUNNEL_FORWARD_VAR,
     TUNNEL_TARGET_VAR,
+    DesktopRuntimeError,
     DesktopRuntimeManager,
+    install_web_integration,
     install_tunnel_egress_policy,
     normalize_config,
 )
@@ -22,13 +42,25 @@ _RUNTIME_ENV = (
     TRUSTED_HOSTS_VAR,
     TUNNEL_FORWARD_VAR,
     TUNNEL_TARGET_VAR,
+    budget_kernel.ENV_CEILING,
+    budget_kernel.ENV_PERIOD_CEILING_ENABLED,
+    budget_kernel.ENV_EXECUTION_LIMIT_POLICY,
+    budget_kernel.ENV_MAX_CALLS,
+    budget_kernel.ENV_LEDGER,
 )
 
 
 @pytest.fixture(autouse=True)
-def restore_runtime_env():
+def restore_runtime_env(tmp_path):
     before = {key: os.environ.get(key) for key in _RUNTIME_ENV}
+    os.environ[budget_kernel.ENV_LEDGER] = str(tmp_path / "desktop-budget.json")
+    os.environ.pop(budget_kernel.ENV_CEILING, None)
+    os.environ.pop(budget_kernel.ENV_PERIOD_CEILING_ENABLED, None)
+    os.environ.pop(budget_kernel.ENV_EXECUTION_LIMIT_POLICY, None)
+    os.environ.pop(budget_kernel.ENV_MAX_CALLS, None)
+    budget_kernel.reset_default_ledger()
     yield
+    budget_kernel.reset_default_ledger()
     for key, value in before.items():
         if value is None:
             os.environ.pop(key, None)
@@ -61,11 +93,503 @@ def remote_config(**patch):
     }
 
 
+def budget_settings(
+    manager: DesktopRuntimeManager,
+    *,
+    enabled: bool,
+    ceiling_usd: float,
+    confirm_widening: bool | None = None,
+):
+    config = json.loads(json.dumps(manager.config))
+    config["bridge"]["auto_start"] = False
+    config["ide"]["auto_start"] = False
+    config["ollama"]["auto_start"] = False
+    config["budget"] = {
+        "period_ceiling_usd": ceiling_usd,
+        "max_calls": manager.config["budget"]["max_calls"],
+    }
+    configured = ExecutionLimitPolicy.from_dict(
+        manager.config["caps"]
+    ).configured.as_dict()
+    configured["period_usd"] = enabled
+    config["caps"] = ExecutionLimitPolicy(
+        mode=MODE_CUSTOM,
+        configured=LimitAxes.from_dict(configured),
+    ).as_dict()
+    if confirm_widening is not None:
+        config["caps"]["confirm_widening"] = confirm_widening
+    return config
+
+
+def cap_settings(
+    manager: DesktopRuntimeManager,
+    *,
+    mode: str | None = None,
+    axes: dict[str, bool] | None = None,
+    ceiling_usd: float | None = None,
+    max_calls: int | None = None,
+    confirm_widening: bool | None = None,
+):
+    config = json.loads(json.dumps(manager.config))
+    config["bridge"]["auto_start"] = False
+    config["ide"]["auto_start"] = False
+    config["ollama"]["auto_start"] = False
+    policy = ExecutionLimitPolicy.from_dict(manager.config["caps"])
+    configured = policy.configured.as_dict()
+    configured.update(axes or {})
+    config["caps"] = ExecutionLimitPolicy(
+        mode=mode or policy.mode,
+        configured=LimitAxes.from_dict(configured),
+    ).as_dict()
+    if confirm_widening is not None:
+        config["caps"]["confirm_widening"] = confirm_widening
+    config["budget"] = {
+        "period_ceiling_usd": (
+            manager.config["budget"]["period_ceiling_usd"]
+            if ceiling_usd is None else ceiling_usd
+        ),
+        "max_calls": (
+            manager.config["budget"]["max_calls"]
+            if max_calls is None else max_calls
+        ),
+    }
+    return config
+
+
+def quiet_status(manager: DesktopRuntimeManager, monkeypatch) -> None:
+    monkeypatch.setattr(manager, "_probe", lambda timeout=1.5: (False, "offline"))
+    monkeypatch.setattr(
+        manager,
+        "_ide_status",
+        lambda project=None: {"reachable": False, "last_error": "offline"},
+    )
+
+
 def test_defaults_autostart_bridge_and_local_ollama():
     cfg = normalize_config({})
     assert cfg["bridge"]["auto_start"] is True
+    assert cfg["budget"] == {
+        "period_ceiling_usd": budget_kernel.DEFAULT_CEILING_USD,
+        "max_calls": budget_kernel.DEFAULT_MAX_CALLS,
+    }
+    assert cfg["caps"] == ExecutionLimitPolicy().as_dict()
+    assert cfg["ide"] == {
+        "mode": "docker" if os.name == "nt" else "native",
+        "auto_start": False,
+        "endpoint": "http://127.0.0.1:3000",
+        "executable": "",
+        "docker_image": IDE_DOCKER_IMAGE,
+    }
     assert cfg["ollama"]["auto_start"] is True
     assert cfg["ollama"]["mode"] == "local"
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"period_ceiling_enabled": 1, "period_ceiling_usd": 5.0},
+        {"period_ceiling_enabled": "false", "period_ceiling_usd": 5.0},
+        {"period_ceiling_enabled": True, "period_ceiling_usd": True},
+        {"period_ceiling_enabled": True, "period_ceiling_usd": "5"},
+        {"period_ceiling_enabled": True, "period_ceiling_usd": 0},
+        {"period_ceiling_enabled": True, "period_ceiling_usd": -1},
+        {"period_ceiling_enabled": True, "period_ceiling_usd": float("nan")},
+        {"period_ceiling_enabled": True, "period_ceiling_usd": float("inf")},
+        {"period_ceiling_usd": 5.0, "max_calls": True},
+        {"period_ceiling_usd": 5.0, "max_calls": 0},
+        {"period_ceiling_usd": 5.0, "max_calls": 1.5},
+        {"period_ceiling_usd": 5.0, "max_calls": "40"},
+        {
+            "period_ceiling_enabled": True,
+            "period_ceiling_usd": 5.0,
+            "api_key": "must-not-be-stored",
+        },
+    ],
+)
+def test_budget_settings_are_strict_and_never_accept_secrets(settings):
+    with pytest.raises(ValueError, match="budget"):
+        normalize_config({"budget": settings})
+
+
+def test_missing_desktop_budget_migrates_the_existing_environment(
+        tmp_path, monkeypatch):
+    monkeypatch.setenv(budget_kernel.ENV_CEILING, "12.5")
+    monkeypatch.setenv(budget_kernel.ENV_PERIOD_CEILING_ENABLED, "false")
+
+    manager = DesktopRuntimeManager(tmp_path)
+    try:
+        assert manager.config["budget"] == {
+            "period_ceiling_usd": 12.5,
+            "max_calls": budget_kernel.DEFAULT_MAX_CALLS,
+        }
+        assert manager.config["caps"]["mode"] == MODE_CUSTOM
+        assert manager.config["caps"]["configured"]["period_usd"] is False
+        assert budget_kernel.ledger().state().effective_period_ceiling_usd is None
+    finally:
+        manager.close()
+
+
+def test_disabling_the_period_ceiling_requires_transient_confirmation_and_keeps_ledger(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    budget_kernel.ledger().reserve(
+        budget_kernel.Estimate("deepseek", "m", 1.0, 1, "priced"),
+        label="existing spend",
+    ).settle()
+    before = budget_kernel.ledger().state()
+    config_path = tmp_path / "config" / "connections.json"
+
+    try:
+        with pytest.raises(ValueError, match="confirm_widening"):
+            manager.save_settings(
+                budget_settings(manager, enabled=False, ceiling_usd=5.0)
+            )
+        assert not config_path.exists()
+        assert budget_kernel.ledger().state().period_ceiling_enabled is True
+
+        snapshot = manager.save_settings(
+            budget_settings(
+                manager,
+                enabled=False,
+                ceiling_usd=5.0,
+                confirm_widening=True,
+            )
+        )
+        saved = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "confirm_widening" not in saved["caps"]
+        assert "confirm_widening" not in snapshot["config"]["caps"]
+        assert snapshot["budget"]["effective_period_ceiling_usd"] is None
+        assert snapshot["budget"]["remaining_period_usd"] is None
+        assert snapshot["budget"]["call_ceiling_enforced"] is True
+
+        after = budget_kernel.ledger().state()
+        assert after.spent_usd == before.spent_usd
+        assert after.calls == before.calls
+        assert after.period_key == before.period_key
+        budget_kernel.ledger().reserve(
+            budget_kernel.Estimate("deepseek", "m", 10.0, 1, "priced"),
+            label="uncapped paid call",
+        ).settle()
+        assert budget_kernel.ledger().state().spent_usd == pytest.approx(11.0)
+    finally:
+        manager.close()
+
+
+def test_uncapping_or_increasing_the_configured_amount_requires_confirmation(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    try:
+        manager.save_settings(
+            budget_settings(
+                manager,
+                enabled=False,
+                ceiling_usd=5.0,
+                confirm_widening=True,
+            )
+        )
+        with pytest.raises(ValueError, match="confirm_widening"):
+            manager.save_settings(
+                budget_settings(manager, enabled=False, ceiling_usd=50.0)
+            )
+        manager.save_settings(
+            budget_settings(
+                manager,
+                enabled=False,
+                ceiling_usd=50.0,
+                confirm_widening=True,
+            )
+        )
+        # Returning from uncapped to the already-confirmed finite fallback is
+        # a narrowing and needs no second confirmation.
+        manager.save_settings(
+            budget_settings(manager, enabled=True, ceiling_usd=50.0)
+        )
+
+        with pytest.raises(ValueError, match="confirm_widening"):
+            manager.save_settings(
+                budget_settings(manager, enabled=True, ceiling_usd=51.0)
+            )
+        manager.save_settings(
+            budget_settings(
+                manager,
+                enabled=True,
+                ceiling_usd=51.0,
+                confirm_widening=True,
+            )
+        )
+        manager.save_settings(
+            budget_settings(manager, enabled=True, ceiling_usd=4.0)
+        )
+    finally:
+        manager.close()
+
+
+def test_budget_snapshot_reports_ledger_error_without_bricking_settings(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    ledger_path = Path(os.environ[budget_kernel.ENV_LEDGER])
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger_path.write_text("{not-json", encoding="utf-8")
+
+    try:
+        snapshot = manager.snapshot()
+        assert snapshot["config"]["budget"]["period_ceiling_usd"] == 5.0
+        assert snapshot["budget"]["available"] is False
+        assert snapshot["budget_error"]
+        assert snapshot["budget"]["remaining_period_usd"] is None
+        with pytest.raises(budget_kernel.BudgetUnavailable):
+            budget_kernel.ledger().reserve(
+                budget_kernel.Estimate("deepseek", "m", 0.01, 1, "priced"),
+                label="corrupt balance remains refused",
+            )
+    finally:
+        manager.close()
+
+
+def test_desktop_settings_route_requires_transient_budget_widening_confirmation(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+
+    class BaseHandler:
+        path = ""
+        body = None
+
+        def _send_json(self, payload, status=200):
+            self.sent = (payload, status)
+
+        def _handle_get(self):
+            self.fell_through = True
+
+        def _handle_put(self):
+            self.fell_through = True
+
+    web_api = SimpleNamespace(
+        DaedalusHandler=BaseHandler,
+        _read_body=lambda handler: handler.body,
+        core=SimpleNamespace(envelope=lambda project, **payload: payload),
+        runtime_registry=SimpleNamespace(reset_status_cache=lambda: None),
+    )
+    install_web_integration(web_api, manager)
+
+    try:
+        rejected = web_api.DaedalusHandler()
+        rejected.path = "/api/desktop/settings"
+        rejected.body = budget_settings(
+            manager, enabled=False, ceiling_usd=5.0
+        )
+        rejected._handle_put()
+        assert rejected.sent[1] == 400
+        assert "confirm_widening" in rejected.sent[0]["error"]
+        assert budget_kernel.ledger().state().period_ceiling_enabled is True
+
+        accepted = web_api.DaedalusHandler()
+        accepted.path = "/api/desktop/settings"
+        accepted.body = budget_settings(
+            manager,
+            enabled=False,
+            ceiling_usd=5.0,
+            confirm_widening=True,
+        )
+        accepted._handle_put()
+        assert accepted.sent[1] == 200
+        returned = accepted.sent[0]["desktop"]
+        assert returned["budget"]["effective_period_ceiling_usd"] is None
+        assert "confirm_widening" not in returned["config"]["caps"]
+
+        fetched = web_api.DaedalusHandler()
+        fetched.path = "/api/desktop/settings"
+        fetched._handle_get()
+        assert fetched.sent[1] == 200
+        assert "confirm_widening" not in (
+            fetched.sent[0]["desktop"]["config"]["caps"]
+        )
+    finally:
+        manager.close()
+
+
+@pytest.mark.parametrize("axis", LIMIT_AXES)
+def test_every_effective_cap_disable_requires_backend_confirmation(
+        axis, tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    try:
+        proposed = cap_settings(
+            manager,
+            mode=MODE_CUSTOM,
+            axes={axis: False},
+        )
+        with pytest.raises(ValueError, match=axis):
+            manager.save_settings(proposed)
+
+        proposed["caps"]["confirm_widening"] = True
+        snapshot = manager.save_settings(proposed)
+        assert snapshot["caps"]["effective"][axis] is False
+        assert "confirm_widening" not in snapshot["config"]["caps"]
+    finally:
+        manager.close()
+
+
+def test_unbounded_execution_keeps_fallbacks_but_nulls_live_budget_limits(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    try:
+        snapshot = manager.save_settings(
+            cap_settings(
+                manager,
+                mode=MODE_UNBOUNDED_EXECUTION,
+                confirm_widening=True,
+            )
+        )
+        assert snapshot["config"]["budget"] == {
+            "period_ceiling_usd": budget_kernel.DEFAULT_CEILING_USD,
+            "max_calls": budget_kernel.DEFAULT_MAX_CALLS,
+        }
+        assert set(snapshot["caps"]["effective"].values()) == {False}
+        assert snapshot["budget"]["effective_period_ceiling_usd"] is None
+        assert snapshot["budget"]["remaining_period_usd"] is None
+        assert snapshot["budget"]["effective_max_calls"] is None
+        assert snapshot["budget"]["remaining_billable_calls"] is None
+        assert snapshot["budget"]["explicit_envelope_ceiling_enforced"] is False
+
+        reloaded = DesktopRuntimeManager(tmp_path)
+        try:
+            assert reloaded.config == manager.config
+            assert set(
+                budget_kernel.ledger().state().effective_limit_axes.values()
+            ) == {False}
+        finally:
+            reloaded.close()
+    finally:
+        manager.close()
+
+
+@pytest.mark.parametrize(
+    "patch, affected",
+    [
+        ({"ceiling_usd": 6.0}, "period_ceiling_usd"),
+        ({"max_calls": 41}, "max_calls"),
+    ],
+)
+def test_every_budget_fallback_increase_requires_confirmation(
+        patch, affected, tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    try:
+        with pytest.raises(ValueError, match=affected):
+            manager.save_settings(cap_settings(manager, **patch))
+        manager.save_settings(
+            cap_settings(manager, confirm_widening=True, **patch)
+        )
+        assert "confirm_widening" not in json.loads(
+            manager.config_path.read_text(encoding="utf-8")
+        )["caps"]
+    finally:
+        manager.close()
+
+
+def test_mode_label_without_effective_widening_needs_no_confirmation(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    try:
+        snapshot = manager.save_settings(
+            cap_settings(manager, mode=MODE_CUSTOM)
+        )
+        assert snapshot["caps"]["mode"] == MODE_CUSTOM
+        assert set(snapshot["caps"]["effective"].values()) == {True}
+    finally:
+        manager.close()
+
+
+def test_revision9_file_migrates_only_period_axis_and_reloads_canonically(
+        tmp_path, monkeypatch):
+    path = tmp_path / "config" / "connections.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "budget": {
+                    "period_ceiling_enabled": False,
+                    "period_ceiling_usd": 9.0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    try:
+        assert manager.config["caps"]["mode"] == MODE_CUSTOM
+        effective = ExecutionLimitPolicy.from_dict(
+            manager.config["caps"]
+        ).effective.as_dict()
+        assert effective["period_usd"] is False
+        assert all(effective[axis] for axis in LIMIT_AXES if axis != "period_usd")
+        assert manager.config["budget"] == {
+            "period_ceiling_usd": 9.0,
+            "max_calls": budget_kernel.DEFAULT_MAX_CALLS,
+        }
+
+        manager.save_settings(manager.config)
+        persisted = json.loads(path.read_text(encoding="utf-8"))
+        assert "period_ceiling_enabled" not in persisted["budget"]
+        assert persisted["caps"] == manager.config["caps"]
+    finally:
+        manager.close()
+
+
+def test_invalid_policy_environment_is_fail_closed_but_explicitly_repairable(
+        tmp_path, monkeypatch):
+    monkeypatch.setenv(budget_kernel.ENV_EXECUTION_LIMIT_POLICY, "{invalid")
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    try:
+        assert manager.snapshot()["budget"]["available"] is False
+        with pytest.raises(budget_kernel.BudgetUnavailable):
+            budget_kernel.ledger().state()
+        with pytest.raises(ValueError, match="budget and caps"):
+            manager.save_settings({"bridge": {"auto_start": False}})
+
+        repaired = manager.save_settings(cap_settings(manager))
+        assert repaired["budget"]["available"] is True
+        assert ExecutionLimitPolicy.from_env_value(
+            os.environ[budget_kernel.ENV_EXECUTION_LIMIT_POLICY]
+        ) == ExecutionLimitPolicy()
+    finally:
+        manager.close()
+
+
+def test_legacy_and_canonical_confirmation_must_not_conflict(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    try:
+        conflicting = cap_settings(
+            manager,
+            mode=MODE_CUSTOM,
+            axes={"period_usd": False},
+            confirm_widening=True,
+        )
+        conflicting["budget"]["confirm_widening"] = False
+        with pytest.raises(ValueError, match="conflicts"):
+            manager.save_settings(conflicting)
+
+        legacy = cap_settings(
+            manager,
+            mode=MODE_CUSTOM,
+            axes={"period_usd": False},
+        )
+        legacy["budget"]["confirm_widening"] = True
+        saved = manager.save_settings(legacy)
+        assert saved["caps"]["effective"]["period_usd"] is False
+        assert "confirm_widening" not in saved["config"]["budget"]
+    finally:
+        manager.close()
 
 
 def test_settings_do_not_accept_password_or_private_key_bytes():
@@ -172,3 +696,622 @@ def test_local_endpoint_must_be_numeric_loopback_and_clean_url():
 def test_ipv6_loopback_keeps_required_brackets():
     cfg = normalize_config({"ollama": {"local_host": "http://[::1]:11434"}})
     assert cfg["ollama"]["local_host"] == "http://[::1]:11434"
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    (
+        "http://localhost:3000",
+        "http://0.0.0.0:3000",
+        "https://127.0.0.1:3000",
+        "http://user@127.0.0.1:3000",
+        "http://127.0.0.1:3000/workspace",
+        "http://127.0.0.1:3000?token=nope",
+    ),
+)
+def test_ide_endpoint_is_plain_numeric_loopback(endpoint):
+    with pytest.raises(ValueError, match=r"ide\.endpoint"):
+        normalize_config({"ide": {"endpoint": endpoint}})
+
+
+def test_ide_executable_rejects_control_characters():
+    with pytest.raises(ValueError, match=r"ide\.executable"):
+        normalize_config({"ide": {"executable": "openvscode-server\n--host=evil"}})
+
+
+def test_ide_discovery_prefers_configured_file_then_path(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    configured = tmp_path / "tools" / "openvscode-server"
+    configured.parent.mkdir()
+    configured.write_text("", encoding="utf-8")
+    try:
+        manager.config = normalize_config(
+            {"ide": {"mode": "native", "executable": str(configured), "auto_start": False}}
+        )
+        monkeypatch.setattr(
+            "daedalus.desktop_runtime.shutil.which",
+            lambda command: pytest.fail("PATH must not be used for an explicit executable"),
+        )
+        assert manager._discover_ide_executable() == str(configured.resolve())
+
+        manager.config = normalize_config({"ide": {"mode": "native", "executable": ""}})
+        monkeypatch.setattr(
+            "daedalus.desktop_runtime.shutil.which",
+            lambda command: "/opt/openvscode-server" if command == "openvscode-server" else None,
+        )
+        assert manager._discover_ide_executable() == "/opt/openvscode-server"
+    finally:
+        manager.close()
+
+
+def test_ide_discovery_does_not_download_missing_server(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    monkeypatch.setattr("daedalus.desktop_runtime.shutil.which", lambda command: None)
+    try:
+        with pytest.raises(DesktopRuntimeError, match="runtime downloads are disabled"):
+            manager._discover_ide_executable()
+    finally:
+        manager.close()
+
+
+def test_ide_start_is_loopback_only_and_project_never_enters_command(tmp_path, monkeypatch):
+    class Process:
+        def __init__(self):
+            self.returncode = None
+            self.terminated = False
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.terminated = True
+            self.returncode = 0
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+        def kill(self):
+            self.returncode = -9
+
+    executable = tmp_path / "openvscode-server"
+    executable.write_text("", encoding="utf-8")
+    project = tmp_path / "--project with spaces"
+    project.mkdir()
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config(
+        {
+            "ide": {
+                "mode": "native",
+                "endpoint": "http://127.0.0.1:3000",
+                "executable": str(executable),
+            }
+        }
+    )
+    probes = iter(((False, "offline"), (True, ""), (True, "")))
+    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: next(probes))
+    launched = {}
+    proc = Process()
+
+    def popen(args, **kwargs):
+        launched["args"] = args
+        launched["kwargs"] = kwargs
+        return proc
+
+    monkeypatch.setattr("daedalus.desktop_runtime.subprocess.Popen", popen)
+    try:
+        status = manager.ensure_ide(project)
+        assert launched["args"] == [
+            str(executable.resolve()),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "3000",
+            "--without-connection-token",
+        ]
+        assert str(project) not in launched["args"]
+        assert parse_qs(urlsplit(status["ui_url"]).query) == {
+            "folder": [str(project.resolve())]
+        }
+        assert status["reachable"] is True
+        assert status["managed"] is True
+        manager.stop_ide()
+        assert proc.terminated is True
+        assert manager._ide is None
+    finally:
+        manager.close()
+
+
+def test_ide_project_must_be_an_existing_folder(tmp_path):
+    manager = DesktopRuntimeManager(tmp_path)
+    try:
+        with pytest.raises(DesktopRuntimeError, match="folder does not exist"):
+            manager._ide_ui_url(tmp_path / "missing")
+        with pytest.raises(DesktopRuntimeError, match="local folder path"):
+            manager._ide_ui_url(["--host", "0.0.0.0"])
+    finally:
+        manager.close()
+
+
+def test_snapshot_reports_ide_probe_and_close_stops_managed_process(tmp_path, monkeypatch):
+    class Process:
+        returncode = None
+        terminated = False
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.terminated = True
+            self.returncode = 0
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+        def kill(self):
+            self.returncode = -9
+
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "native"}})
+    proc = Process()
+    manager._ide = proc
+    monkeypatch.setattr(manager, "_probe", lambda timeout=1.5: (False, "ollama offline"))
+    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (True, ""))
+    monkeypatch.setattr(
+        "daedalus.desktop_runtime.shutil.which",
+        lambda command: r"C:\tools\openvscode-server.cmd"
+        if command == "openvscode-server"
+        else None,
+    )
+
+    snapshot = manager.snapshot()
+    assert snapshot["services"]["ide"] == {
+        "endpoint": "http://127.0.0.1:3000",
+        "ui_url": "http://127.0.0.1:3000/",
+        "installed": True,
+        "available": True,
+        "executable": r"C:\tools\openvscode-server.cmd",
+        "reachable": True,
+        "last_error": "",
+        "detail": "",
+        "managed": True,
+        "process_running": True,
+        "configured_executable": "",
+        "runtime_downloads": False,
+    }
+
+    manager.close()
+    assert proc.terminated is True
+    assert manager._ide is None
+
+
+def test_ide_status_reports_missing_binary_without_start_or_download(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "native"}})
+    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (False, "offline"))
+    monkeypatch.setattr("daedalus.desktop_runtime.shutil.which", lambda command: None)
+    monkeypatch.setattr(
+        "daedalus.desktop_runtime.subprocess.Popen",
+        lambda *args, **kwargs: pytest.fail("status must not start a process"),
+    )
+    try:
+        status = manager._ide_status()
+        assert status["installed"] is False
+        assert status["available"] is False
+        assert status["executable"] == ""
+        assert "not on PATH" in status["detail"]
+        assert "runtime downloads are disabled" in status["last_error"]
+        assert status["runtime_downloads"] is False
+    finally:
+        manager.close()
+
+
+def test_ide_status_reports_configured_executable_while_service_is_offline(
+    tmp_path, monkeypatch
+):
+    executable = tmp_path / "tools" / "openvscode-server"
+    executable.parent.mkdir()
+    executable.write_text("", encoding="utf-8")
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config(
+        {"ide": {"mode": "native", "executable": str(executable)}}
+    )
+    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (False, "offline"))
+    try:
+        status = manager._ide_status()
+        assert status["installed"] is True
+        assert status["available"] is True
+        assert status["executable"] == str(executable.resolve())
+        assert status["reachable"] is False
+        assert status["last_error"] == "offline"
+        assert status["detail"] == ""
+    finally:
+        manager.close()
+
+
+def test_docker_ide_config_is_strictly_allowlisted_and_pinned():
+    cfg = normalize_config(
+        {
+            "ide": {
+                "mode": "docker",
+                "docker_image": "gitpod/openvscode-server@sha256:" + "a" * 64,
+            }
+        }
+    )
+    assert cfg["ide"]["docker_image"].endswith("a" * 64)
+
+    for ide in (
+        {"mode": "compose"},
+        {"mode": "docker", "endpoint": "http://127.0.0.1:3001"},
+        {"mode": "docker", "docker_image": "alpine:latest"},
+        {"mode": "docker", "docker_image": "gitpod/openvscode-server:latest"},
+        {"mode": "docker", "command": "calc.exe"},
+        {"mode": "docker", "executable": r"C:\evil.exe"},
+    ):
+        with pytest.raises(ValueError):
+            normalize_config({"ide": ide})
+
+
+def _owned_docker_container(manager, project, *, running=True, owned=True):
+    labels = {
+        IDE_DOCKER_PROJECT_LABEL: manager._docker_project_hash(project.resolve()),
+    }
+    if owned:
+        labels[IDE_DOCKER_OWNER_LABEL] = IDE_DOCKER_OWNER_VALUE
+    return {
+        "Id": "f" * 64,
+        "Config": {
+            "Image": manager.config["ide"]["docker_image"],
+            "Labels": labels,
+        },
+        "State": {"Running": running},
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": str(project.resolve()),
+                "Destination": IDE_DOCKER_WORKSPACE,
+                "RW": True,
+            }
+        ],
+        "HostConfig": {
+            "PortBindings": {
+                "3000/tcp": [{"HostIp": "127.0.0.1", "HostPort": "3000"}]
+            }
+        },
+    }
+
+
+def test_docker_exec_is_argument_only_and_never_uses_shell(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    launched = {}
+    monkeypatch.setattr(
+        "daedalus.desktop_runtime.shutil.which",
+        lambda command: r"C:\Program Files\Docker\docker.exe" if command == "docker" else None,
+    )
+
+    def run(args, **kwargs):
+        launched["args"] = args
+        launched["kwargs"] = kwargs
+        return SimpleNamespace(returncode=0, stdout="[]", stderr="")
+
+    monkeypatch.setattr("daedalus.desktop_runtime.subprocess.run", run)
+    result = manager._docker_exec(["image", "inspect", IDE_DOCKER_IMAGE])
+    assert result.returncode == 0
+    assert launched["args"] == [
+        r"C:\Program Files\Docker\docker.exe",
+        "image",
+        "inspect",
+        IDE_DOCKER_IMAGE,
+    ]
+    assert launched["kwargs"]["shell"] is False
+    manager.close()
+
+
+def test_docker_ide_mounts_canonical_project_and_owns_exact_lifecycle(
+    tmp_path, monkeypatch
+):
+    project = tmp_path / "project with spaces"
+    project.mkdir()
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    created = False
+    calls = []
+
+    def docker_exec(args, **kwargs):
+        nonlocal created
+        calls.append(list(args))
+        if args[:2] == ["image", "inspect"]:
+            return SimpleNamespace(returncode=0, stdout="[]", stderr="")
+        if args[:2] == ["container", "inspect"]:
+            if not created:
+                return SimpleNamespace(
+                    returncode=1, stdout="", stderr="Error: No such container"
+                )
+            payload = [_owned_docker_container(manager, project)]
+            return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
+        if args and args[0] == "run":
+            created = True
+            return SimpleNamespace(returncode=0, stdout="container-id", stderr="")
+        if args[:3] == ["container", "rm", "--force"]:
+            created = False
+            return SimpleNamespace(returncode=0, stdout=IDE_DOCKER_CONTAINER, stderr="")
+        raise AssertionError(f"unexpected Docker command: {args!r}")
+
+    probes = iter(((False, "offline"), (True, ""), (True, "")))
+    monkeypatch.setattr(manager, "_docker_exec", docker_exec)
+    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: next(probes))
+    monkeypatch.setattr(
+        "daedalus.desktop_runtime.subprocess.Popen",
+        lambda *args, **kwargs: pytest.fail("Docker mode must not use Popen"),
+    )
+
+    status = manager.ensure_ide(project / ".")
+    run = next(args for args in calls if args and args[0] == "run")
+    mount = run[run.index("--mount") + 1]
+    assert mount == (
+        f"type=bind,source={project.resolve()},target={IDE_DOCKER_WORKSPACE}"
+    )
+    assert run[run.index("--publish") + 1] == "127.0.0.1:3000:3000"
+    assert run[run.index("--pull") + 1] == "never"
+    assert run[run.index("--name") + 1] == IDE_DOCKER_CONTAINER
+    assert run[-5:] == [
+        IDE_DOCKER_IMAGE,
+        "--port",
+        "3000",
+        "--default-folder",
+        IDE_DOCKER_WORKSPACE,
+    ]
+    assert all(args[0] not in {"pull", "build"} for args in calls)
+    assert parse_qs(urlsplit(status["ui_url"]).query) == {
+        "folder": [IDE_DOCKER_WORKSPACE]
+    }
+    assert status["reachable"] is True
+    assert status["managed"] is True
+
+    manager.stop_ide()
+    assert ["container", "rm", "--force", "f" * 64] in calls
+    assert created is False
+    manager.close()
+
+
+def test_docker_ide_refuses_foreign_container_and_missing_local_image(
+    tmp_path, monkeypatch
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    foreign = _owned_docker_container(manager, project, owned=False)
+    monkeypatch.setattr(manager, "_docker_image_error", lambda: "")
+    monkeypatch.setattr(manager, "_docker_inspect_container", lambda: foreign)
+    monkeypatch.setattr(
+        manager,
+        "_docker_exec",
+        lambda *args, **kwargs: pytest.fail("foreign container must never be mutated"),
+    )
+    with pytest.raises(DesktopRuntimeError, match="already in use"):
+        manager.ensure_ide(project)
+    manager.stop_ide()
+
+    monkeypatch.setattr(
+        manager,
+        "_docker_image_error",
+        lambda: "image is not available locally; runtime pull/build is disabled",
+    )
+    with pytest.raises(DesktopRuntimeError, match="runtime pull/build is disabled"):
+        manager.ensure_ide(project)
+    manager.close()
+
+
+def test_docker_ide_status_honestly_reports_missing_docker(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (False, "offline"))
+    monkeypatch.setattr("daedalus.desktop_runtime.shutil.which", lambda command: None)
+    status = manager._ide_status()
+    assert status["installed"] is False
+    assert status["available"] is False
+    assert status["managed"] is False
+    assert status["reachable"] is False
+    assert "Docker is not installed" in status["last_error"]
+    assert status["runtime_downloads"] is False
+    manager.close()
+
+
+def test_docker_status_does_not_adopt_lifecycle_ownership(tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    project.mkdir()
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    container = _owned_docker_container(manager, project)
+    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (True, ""))
+    monkeypatch.setattr(manager, "_docker_image_error", lambda: "")
+    monkeypatch.setattr(manager, "_discover_docker_executable", lambda: "docker")
+    monkeypatch.setattr(manager, "_docker_inspect_container", lambda *args, **kwargs: container)
+
+    status = manager._docker_ide_status(project)
+
+    assert status["reachable"] is True
+    assert status["detail"] == ""
+    assert manager._ide_docker_managed_id is None
+
+
+def test_ensure_docker_ide_recovers_matching_orphan_before_adopting_it(
+    tmp_path, monkeypatch
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    container = _owned_docker_container(manager, project)
+    calls = []
+    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (True, ""))
+    monkeypatch.setattr(manager, "_docker_image_error", lambda: "")
+    monkeypatch.setattr(manager, "_discover_docker_executable", lambda: "docker")
+    monkeypatch.setattr(
+        manager,
+        "_docker_inspect_container",
+        lambda reference=IDE_DOCKER_CONTAINER, **kwargs: container,
+    )
+
+    def docker_exec(args, **kwargs):
+        calls.append(list(args))
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(manager, "_docker_exec", docker_exec)
+    status = manager.ensure_ide(project)
+
+    assert status["reachable"] is True
+    assert manager._ide_docker_managed_id == "f" * 64
+    assert not any(args and args[0] in {"run", "start"} for args in calls)
+    manager.close(strict=True)
+    assert ["container", "rm", "--force", "f" * 64] in calls
+
+
+def test_docker_match_requires_exact_canonical_mount_source(tmp_path):
+    project = tmp_path / "project"
+    other = tmp_path / "other"
+    project.mkdir()
+    other.mkdir()
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    container = _owned_docker_container(manager, project)
+    container["Mounts"][0]["Source"] = str(other.resolve())
+
+    assert manager._docker_container_matches(container, project.resolve()) is False
+
+
+def test_strict_docker_cleanup_propagates_failure_and_uses_inspected_id(
+    tmp_path, monkeypatch
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    container = _owned_docker_container(manager, project)
+    manager._ide_docker_managed_id = "f" * 64
+    calls = []
+
+    monkeypatch.setattr(
+        manager,
+        "_docker_inspect_container",
+        lambda reference=IDE_DOCKER_CONTAINER, **kwargs: container,
+    )
+
+    def docker_exec(args, **kwargs):
+        calls.append(list(args))
+        return SimpleNamespace(returncode=1, stdout="", stderr="removal failed")
+
+    monkeypatch.setattr(manager, "_docker_exec", docker_exec)
+    with pytest.raises(DesktopRuntimeError, match="cannot remove"):
+        manager.stop_ide(strict=True)
+    assert calls == [["container", "rm", "--force", "f" * 64]]
+    assert manager._ide_docker_managed_id == "f" * 64
+
+
+def test_strict_docker_cleanup_refuses_replacement_container_id(
+    tmp_path, monkeypatch
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    manager = DesktopRuntimeManager(tmp_path)
+    manager.config = normalize_config({"ide": {"mode": "docker"}})
+    replacement = _owned_docker_container(manager, project)
+    replacement["Id"] = "e" * 64
+    manager._ide_docker_managed_id = "f" * 64
+    monkeypatch.setattr(
+        manager,
+        "_docker_inspect_container",
+        lambda reference=IDE_DOCKER_CONTAINER, **kwargs: replacement,
+    )
+    monkeypatch.setattr(
+        manager,
+        "_docker_exec",
+        lambda *args, **kwargs: pytest.fail("replacement container must not be removed"),
+    )
+
+    with pytest.raises(DesktopRuntimeError, match="identity changed"):
+        manager.stop_ide(strict=True)
+
+
+def test_web_integration_exposes_ide_start_and_stop_routes():
+    class BaseHandler:
+        path = ""
+
+        def _send_json(self, payload, status=200):
+            self.sent = (payload, status)
+
+        def _handle_post(self):
+            self.fell_through = True
+
+    class Manager:
+        def __init__(self):
+            self.started = None
+            self.stopped = False
+            self.closed = False
+            self.close_error = False
+
+        def ensure_ide(self, project=None):
+            self.started = project
+            return {"ui_url": "http://127.0.0.1:3000/"}
+
+        def stop_ide(self, **kwargs):
+            self.stopped = True
+
+        def close(self, **kwargs):
+            self.closed = True
+            if self.close_error:
+                raise DesktopRuntimeError("cleanup failed")
+
+        def snapshot(self):
+            return {"services": {"ide": {"reachable": False}}}
+
+    manager = Manager()
+    web_api = SimpleNamespace(
+        DaedalusHandler=BaseHandler,
+        _read_body=lambda handler: {"project": r"C:\work\demo"},
+        core=SimpleNamespace(envelope=lambda project, **payload: payload),
+    )
+    install_web_integration(web_api, manager)
+
+    start = web_api.DaedalusHandler()
+    start.path = "/api/desktop/services/ide/start"
+    start._handle_post()
+    assert manager.started == r"C:\work\demo"
+    assert start.sent == ({"service": {"ui_url": "http://127.0.0.1:3000/"}}, 200)
+
+    stop = web_api.DaedalusHandler()
+    stop.path = "/api/desktop/services/ide/stop"
+    stop._handle_post()
+    assert manager.stopped is True
+    assert stop.sent == ({"service": {"reachable": False}}, 200)
+
+    for supplied in ("", "b" * 64):
+        rejected = web_api.DaedalusHandler()
+        rejected.path = "/api/desktop/shutdown"
+        rejected.server = SimpleNamespace(daedalus_desktop_startup_nonce="a" * 64)
+        rejected.headers = (
+            {"X-Daedalus-Desktop-Nonce": supplied} if supplied else {}
+        )
+        rejected._handle_post()
+        assert manager.closed is False
+        assert rejected.sent == (
+            {"ok": False, "error": "desktop parent nonce required"},
+            403,
+        )
+
+    shutdown = web_api.DaedalusHandler()
+    shutdown.path = "/api/desktop/shutdown"
+    shutdown.server = SimpleNamespace(daedalus_desktop_startup_nonce="a" * 64)
+    shutdown.headers = {"X-Daedalus-Desktop-Nonce": "a" * 64}
+    shutdown._handle_post()
+    assert manager.closed is True
+    assert shutdown.sent == ({"service": {"closed": True}}, 200)
+
+    manager.close_error = True
+    failed = web_api.DaedalusHandler()
+    failed.path = "/api/desktop/shutdown"
+    failed.server = SimpleNamespace(daedalus_desktop_startup_nonce="a" * 64)
+    failed.headers = {"X-Daedalus-Desktop-Nonce": "a" * 64}
+    failed._handle_post()
+    assert failed.sent == ({"ok": False, "error": "cleanup failed"}, 400)

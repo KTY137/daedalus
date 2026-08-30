@@ -244,7 +244,16 @@ def _apply_repo_confinement(data: dict | None, repo_root: str) -> dict | None:
     """
     if not data:
         return data
-    local = _repo_local_policy(data.get("repo_root") or repo_root)
+    registered_root = data.get("repo_root")
+    # A committed registry entry can outlive the workstation path that created
+    # it. When that path is gone and the caller supplied an existing checkout,
+    # judge the checkout that can actually be written. This never widens a
+    # live registered target: an existing registry root still wins, and the
+    # selected repo-local policy is intersected below rather than replaced.
+    policy_root = registered_root or repo_root
+    if registered_root and not Path(str(registered_root)).is_dir():
+        policy_root = repo_root
+    local = _repo_local_policy(str(policy_root))
     if not local:
         return data
     from .sensitivity import intersect_write_allow

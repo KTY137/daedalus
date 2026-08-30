@@ -137,7 +137,10 @@ class DaedalusTests(unittest.TestCase):
         self.assertEqual(_count_open_todos(events), 1)
 
     def test_infers_existing_paths(self):
-        paths = _infer_paths("look at README.md", "C:/Users/nukei/Desktop/agent_env")
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[1]
+        paths = _infer_paths("look at README.md", str(repo_root))
         self.assertTrue(any(path.endswith("README.md") for path in paths))
 
     def test_fallback_allows_codex_when_claude_blocked(self):

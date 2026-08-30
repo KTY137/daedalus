@@ -2027,6 +2027,7 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
             # One anchor per sink so deleting the admission from any single
             # transport is a conformance blocker, not a silent regression.
             GuardAnchor("daedalus.ikarus_os:_ollama", "_provider_start"),
+            GuardAnchor("daedalus.ikarus_os:_ollama_cli", "_provider_start"),
             GuardAnchor("daedalus.ikarus_os:_deepseek", "_provider_start"),
             GuardAnchor("daedalus.ikarus_os:_claude", "_provider_start"),
             GuardAnchor("daedalus.ikarus_os:_codex", "_provider_start"),
@@ -2035,7 +2036,7 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
             GuardAnchor("daedalus.ikarus_os:_claude_stream", "_provider_start"),
         ),
         notes=(
-            "ONE transport start, taken inside each of the seven sink "
+            "ONE transport start, taken inside each of the eight sink "
             "functions before the request object or the argv exists, so "
             "'zero connects on refusal' is a property of the control flow. "
             "Each branch requests only the effects it performs (ollama: "
@@ -2534,6 +2535,67 @@ _LATE_DOOR_ROWS: tuple[EntrypointSpec, ...] = (
 )
 
 ENTRYPOINTS += _LATE_DOOR_ROWS
+
+
+# Portable maintenance/build tools that are direct executable module tails.
+# They use the same canonical process-guard boundary as the other tool rows;
+# dry-run/default behavior does not erase the effects the door can perform.
+_PORTABLE_TOOL_ROWS: tuple[EntrypointSpec, ...] = (
+    EntrypointSpec(
+        id="tools.desktop_sidecar_build",
+        surface=Surface.CLI,
+        target="tools.build_tauri_sidecar:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.build_tauri_sidecar:main", "begin_effect"),),
+        notes=(
+            "Release build helper: replaces only the bounded desktop build/backend "
+            "directories and starts the pinned local PyInstaller module."
+        ),
+        migration="complete for the desktop sidecar build entrypoint",
+    ),
+    EntrypointSpec(
+        id="tools.desktop_sidecar_smoke",
+        surface=Surface.CLI,
+        target="tools.smoke_tauri_sidecar:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+            Effect.NETWORK_EGRESS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.smoke_tauri_sidecar:main", "begin_effect"),),
+        notes=(
+            "Bounded release smoke: copies a frozen backend into a temporary "
+            "directory, owns that child lifecycle, and probes loopback HTTP only."
+        ),
+        migration="complete for the desktop sidecar smoke entrypoint",
+    ),
+    EntrypointSpec(
+        id="tools.desktop_release_assets",
+        surface=Surface.CLI,
+        target="tools.select_desktop_release_assets:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "tools.select_desktop_release_assets:main", "begin_effect"
+            ),
+        ),
+        notes=(
+            "Release-asset admission helper. The select branch is read-only; "
+            "the archive branch creates one bounded .app.tar.gz via a sibling "
+            "temporary file and refuses overwrite or ambiguous app bundles."
+        ),
+        migration="complete for the desktop release-asset entrypoint",
+    ),
+)
+
+ENTRYPOINTS += _PORTABLE_TOOL_ROWS
 
 
 REGISTRY_BY_ID: Mapping[str, EntrypointSpec] = MappingProxyType(

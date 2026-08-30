@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .limit_policy import ExecutionLimitPolicy, load_from_env as load_limit_policy
+
 
 MAX_SUMMARY_CHARS = 600
 MAX_TODO_CHARS = 180
@@ -21,8 +23,19 @@ Minimize tokens:
 """
 
 
-def trim_paths(paths: list[str], limit: int = MAX_PATHS_PER_REQUEST) -> list[str]:
-    return list(dict.fromkeys(paths))[:limit]
+def trim_paths(
+    paths: list[str],
+    limit: int = MAX_PATHS_PER_REQUEST,
+    *,
+    limit_policy: ExecutionLimitPolicy | None = None,
+) -> list[str]:
+    """Deduplicate request paths and apply the captured work-scope policy."""
+
+    policy = limit_policy or load_limit_policy()
+    if not isinstance(policy, ExecutionLimitPolicy):
+        raise TypeError("limit_policy must be an ExecutionLimitPolicy")
+    unique = list(dict.fromkeys(paths))
+    return unique[:limit] if policy.enforces("work_scope") else unique
 
 
 def trim_text(text: str, max_chars: int) -> str:

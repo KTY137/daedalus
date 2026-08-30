@@ -15,7 +15,7 @@ from daedalus.runtimes import trust_store
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
     RuntimeProviderTrustFenceError,
-    run_runtime_provider,
+    _run_runtime_provider_test_double as run_runtime_provider,
 )
 from daedalus.runtimes.fixture_fault_collector import report_runtime_fault_outcome
 from daedalus.runtimes.provider_observation import (

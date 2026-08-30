@@ -1,14 +1,17 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Daedalus",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "dev.daedalus.desktop",
   "build": {
     "beforeBuildCommand": "npm run build",
     "frontendDist": "http://127.0.0.1:8765"
   },
   "app": {
-    "windows": []
+    "windows": [],
+    "security": {
+      "capabilities": ["project-folder-dialog"]
+    }
   },
   "bundle": {
     "active": true,

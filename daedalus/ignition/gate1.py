@@ -398,7 +398,11 @@ def rename_operator(paths: Sequence[str], *, symbol: str = RETIRED_SYMBOL,
     return _run
 
 
-def code_type_gate(sink: dict[str, ignition_checks.CheckReport], *, timeout_s: float = 120.0):
+def code_type_gate(
+    sink: dict[str, ignition_checks.CheckReport],
+    *,
+    timeout_s: float | None = 120.0,
+):
     """Attempt gate for the code/type work item: the conformance node it owns."""
 
     def _gate(ctx: RunnerContext) -> GateResult:
@@ -420,7 +424,11 @@ def code_type_gate(sink: dict[str, ignition_checks.CheckReport], *, timeout_s: f
     return _gate
 
 
-def data_knowledge_gate(sink: dict[str, ignition_checks.CheckReport], *, timeout_s: float = 120.0):
+def data_knowledge_gate(
+    sink: dict[str, ignition_checks.CheckReport],
+    *,
+    timeout_s: float | None = 120.0,
+):
     """Attempt gate for the data/knowledge work item: the conformance nodes it
     owns, plus the schema and link measurements.
 
@@ -738,6 +746,16 @@ def run_gate1_ignition(
             session, base_revision=base_revision, created_at=collected_at,
             gate_timeout_s=gate_timeout_s,
         )
+        mission_limit_policy = mission.execution_limit_policy
+        if mission_limit_policy is None:
+            raise IgnitionError(
+                "the Gate-1 mission producer omitted its execution-limit policy snapshot"
+            )
+        effective_gate_timeout_s = (
+            float(gate_timeout_s)
+            if mission_limit_policy.enforces("wall_time")
+            else None
+        )
         if mission.mission_id != SESSION_MISSION_ID:
             raise IgnitionError(
                 f"mission id {mission.mission_id!r} does not match the constant "
@@ -753,7 +771,7 @@ def run_gate1_ignition(
             trace_id="gate1-voltage-base",
         )
         base_pytest = ignition_checks.pytest_check(
-            repo, timeout_s=float(gate_timeout_s), label="pytest-base",
+            repo, timeout_s=effective_gate_timeout_s, label="pytest-base",
         )
         if base_pytest.passed:
             blockers.append(
@@ -763,8 +781,10 @@ def run_gate1_ignition(
 
         # -- two attempts, each through the attempt spine -------------------- #
         reports: dict[str, ignition_checks.CheckReport] = {}
-        gates = (code_type_gate(reports, timeout_s=float(gate_timeout_s)),
-                 data_knowledge_gate(reports, timeout_s=float(gate_timeout_s)))
+        gates = (
+            code_type_gate(reports, timeout_s=effective_gate_timeout_s),
+            data_knowledge_gate(reports, timeout_s=effective_gate_timeout_s),
+        )
         attempts: list[Any] = []
         attempt_results: list[Any] = []
         for index, (planned_item, task, gate) in enumerate(zip(planned, tasks, gates)):
@@ -803,7 +823,7 @@ def run_gate1_ignition(
                 gate_reads_scope=bool(
                     "code" in planned_item.planes or "type" in planned_item.planes
                 ),
-                gate_timeout_s=float(gate_timeout_s),
+                gate_timeout_s=effective_gate_timeout_s,
                 metadata={
                     "mission_id": mission.mission_id,
                     "work_item_id": task.work_item_id,
@@ -819,7 +839,9 @@ def run_gate1_ignition(
                 ledger_path=scratch / "spine.sqlite3",
                 artifact_dir=store_root,
                 mission_id=mission.mission_id,
-                budget=ResourceBudget(max_wall_time_s=int(gate_timeout_s)),
+                budget=mission.budget,
+                mission_policy_sha256=mission.policy_sha256,
+                execution_limit_policy=mission_limit_policy,
             )
             # G1-LEASE-01 (owner decision 2026-08-27, Option A). The lease's
             # AUTHORITY is the installation checkout: control root, issuer
@@ -861,6 +883,7 @@ def run_gate1_ignition(
                     subject_root=repo,
                     worktree_root=attempt._manager.worktree_root,
                     trace_id="gate1-voltage-ignition",
+                    limit_policy=mission_limit_policy,
                 )
             except WaveLeaseKillSwitchEngaged as halt:
                 # An engaged switch is an instruction to stop the run, not a
@@ -980,7 +1003,9 @@ def run_gate1_ignition(
 
         # -- the three checks over the composed candidate -------------------- #
         composed_pytest = ignition_checks.pytest_check(
-            candidate_root, timeout_s=float(gate_timeout_s), label="pytest-composed",
+            candidate_root,
+            timeout_s=effective_gate_timeout_s,
+            label="pytest-composed",
         )
         composed_schema = ignition_checks.schema_check(candidate_root)
         composed_link = ignition_checks.link_check(candidate_root)
@@ -992,11 +1017,11 @@ def run_gate1_ignition(
                     f"{report.detail.get('problems') or report.detail.get('output_tail')}"
                 )
         anchored_node_roles = measure_anchored_node_roles(
-            repo, gate_timeout_s=float(gate_timeout_s)
+            repo, gate_timeout_s=effective_gate_timeout_s
         )
         discrimination = _measure_discrimination(
             candidate_root, repo, base_pytest, scratch / "controls",
-            gate_timeout_s=float(gate_timeout_s),
+            gate_timeout_s=effective_gate_timeout_s,
         )
         for name, observed in discrimination.items():
             if observed.get("passed") is not False:
@@ -1032,7 +1057,7 @@ def run_gate1_ignition(
         )
         subject_coverage = measure_subject_coverage(
             candidate_root, repo, data_knowledge_subjects, scratch / "coverage",
-            gate_timeout_s=float(gate_timeout_s),
+            gate_timeout_s=effective_gate_timeout_s,
         )
         unread = sorted(rel for rel, row in subject_coverage.items() if row.get("unread"))
         if unread:
@@ -1306,7 +1331,7 @@ def _measure_discrimination(
     base_pytest: ignition_checks.CheckReport,
     control_root: Path,
     *,
-    gate_timeout_s: float,
+    gate_timeout_s: float | None,
 ) -> dict[str, Any]:
     """Show each check going RED, so a green one means something.
 
@@ -1352,7 +1377,11 @@ def _measure_discrimination(
     return observed
 
 
-def measure_anchored_node_roles(repo: Path, *, gate_timeout_s: float) -> dict[str, Any]:
+def measure_anchored_node_roles(
+    repo: Path,
+    *,
+    gate_timeout_s: float | None,
+) -> dict[str, Any]:
     """What each anchored node DID on the base revision, one node at a time.
 
     "The suite fails on base" does not say which node moved. A node that already
@@ -1374,7 +1403,7 @@ def measure_anchored_node_roles(repo: Path, *, gate_timeout_s: float) -> dict[st
     ):
         for node in node_ids:
             report = ignition_checks.pytest_check(
-                repo, (node,), timeout_s=float(gate_timeout_s), label=f"base-{label}",
+                repo, (node,), timeout_s=gate_timeout_s, label=f"base-{label}",
             )
             roles[node] = {
                 "gate": label,
@@ -1404,7 +1433,7 @@ def measure_subject_coverage(
     subjects: Sequence[str],
     control_root: Path,
     *,
-    gate_timeout_s: float,
+    gate_timeout_s: float | None,
 ) -> dict[str, Any]:
     """For each subject the work items rewrote: revert it alone in the composed
     candidate, and record which evaluator notices.
@@ -1436,7 +1465,7 @@ def measure_subject_coverage(
         shutil.copy2(source, control / rel)
         nodes = ignition_checks.pytest_check(
             control, ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
-            timeout_s=float(gate_timeout_s), label=f"coverage-{rel}",
+            timeout_s=gate_timeout_s, label=f"coverage-{rel}",
         )
         schema = ignition_checks.schema_check(control)
         links = ignition_checks.link_check(control)

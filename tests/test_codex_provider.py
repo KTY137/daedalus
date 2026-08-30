@@ -15,6 +15,13 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from daedalus import core, metrics
+from daedalus.limit_policy import (
+    ExecutionLimitPolicy,
+    LimitAxes,
+    LimitPolicyError,
+    MODE_CUSTOM,
+    MODE_UNBOUNDED_EXECUTION,
+)
 from daedalus.offload import offload
 from daedalus.projects import load_project
 from daedalus.provider_router import route_and_select
@@ -139,6 +146,60 @@ class CodexProviderRunTests(unittest.TestCase):
             out = self._run()
         self.assertEqual(out["report"]["status"], "blocked")
         self.assertIn("could not be launched", out["report"]["summary"])
+
+    def test_unbounded_policy_removes_timeout_token_and_path_hint_caps(self):
+        paths = [f"docs/note-{index}.md" for index in range(20)]
+        policy = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+        with patch(
+            "daedalus.providers.codex_cli.subprocess.run",
+            side_effect=_write_last_message(json.dumps(VALID_REPORT)),
+        ) as run:
+            out = self._run(
+                paths=paths,
+                timeout_s=1,
+                execution_limit_policy=policy,
+            )
+
+        self.assertIsNone(run.call_args.kwargs["timeout"])
+        prompt = run.call_args.args[0][-1]
+        self.assertIn(paths[-1], prompt)
+        self.assertNotIn("Minimize tokens:", prompt)
+        self.assertIn("unabridged detail", prompt)
+        self.assertEqual(out["execution_limit_policy"], policy.as_dict())
+        self.assertEqual(
+            out["execution_limit_policy_sha256"], policy.fingerprint_sha256
+        )
+
+    def test_custom_axes_are_independent_and_legacy_default_stays_bounded(self):
+        paths = [f"docs/note-{index}.md" for index in range(20)]
+        work_scope_off = ExecutionLimitPolicy(
+            mode=MODE_CUSTOM,
+            configured=LimitAxes(work_scope=False),
+        )
+        with patch(
+            "daedalus.providers.codex_cli.subprocess.run",
+            side_effect=_write_last_message(json.dumps(VALID_REPORT)),
+        ) as run:
+            self._run(paths=paths, execution_limit_policy=work_scope_off)
+        unbounded_scope_prompt = run.call_args.args[0][-1]
+        self.assertIn(paths[-1], unbounded_scope_prompt)
+        self.assertIn("Minimize tokens:", unbounded_scope_prompt)
+
+        with patch(
+            "daedalus.providers.codex_cli.subprocess.run",
+            side_effect=_write_last_message(json.dumps(VALID_REPORT)),
+        ) as run:
+            self._run(paths=paths)
+        bounded_prompt = run.call_args.args[0][-1]
+        self.assertNotIn(paths[-1], bounded_prompt)
+        self.assertIn(paths[11], bounded_prompt)
+        self.assertEqual(run.call_args.kwargs["timeout"], 5)
+
+    def test_invalid_execution_policy_refuses_before_egress_or_subprocess(self):
+        with patch("daedalus.providers.codex_cli.subprocess.run") as run:
+            with self.assertRaises(LimitPolicyError):
+                self._run(execution_limit_policy={"mode": "unbounded_execution"})
+        run.assert_not_called()
 
 
 class CodexEgressGateTests(unittest.TestCase):

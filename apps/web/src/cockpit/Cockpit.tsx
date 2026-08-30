@@ -28,6 +28,8 @@ import { loadAutonomy, saveAutonomy, type AutonomyLevel } from './autonomy';
 import { Conversation } from './Conversation';
 import { Settings } from './Settings';
 import { Decision } from './Decision';
+import { IdeWorkspace } from './IdeWorkspace';
+import { ProjectDialog } from './ProjectDialog';
 import { buildIndex, defaultFocus, neighbourhood, rankModules, searchModules, shortLabel } from './graph';
 import { Stage } from './Stage';
 import { StatusLine } from './StatusLine';
@@ -57,6 +59,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
  */
 
 const LAST_FOCUS_KEY = 'daedalus-cockpit-focus';
+type CockpitView = 'map' | 'chat' | 'ide';
 
 export function Cockpit() {
   const { theme } = useThemes();
@@ -81,17 +84,16 @@ export function Cockpit() {
    * Everything used to share one screen: the graph, the conversation, the
    * decision and the state line, with two of them floating ON TOP of the
    * graph. The owner's verdict on 2026-08-25 was that it read badly and that
-   * the graph needs a page of its own where it is legible. So there are two
-   * views, the map gets the whole canvas with nothing laid over it, and the
-   * conversation gets a page where IT is the hero instead of a card in a
-   * corner. The theme still decides how each page is composed.
+   * the graph needs a page of its own where it is legible. The map therefore
+   * gets the whole canvas, the conversation is its own page, and the IDE owns
+   * a third full body slot. The theme still decides the shared shell.
    */
-  const [view, setView] = useState<'map' | 'chat'>(() => {
+  const [view, setView] = useState<CockpitView>(() => {
     const fromUrl = new URLSearchParams(location.search).get('view');
-    if (fromUrl === 'chat' || fromUrl === 'map') return fromUrl;
+    if (fromUrl === 'chat' || fromUrl === 'map' || fromUrl === 'ide') return fromUrl;
     try {
       const saved = localStorage.getItem('daedalus-cockpit-view');
-      return saved === 'chat' ? 'chat' : 'map';
+      return saved === 'chat' || saved === 'ide' ? saved : 'map';
     } catch {
       return 'map';
     }
@@ -122,26 +124,30 @@ export function Cockpit() {
   const loadedFor = useRef('');
 
   /* ---- projects ---- */
-  useEffect(() => {
-    let alive = true;
-    getProjects()
-      .then((payload) => {
-        if (!alive) return;
-        setOffline(false);
-        setProjects(payload.projects);
+  const loadProjects = useCallback(async (preferredName = '', preferredRoot = '') => {
+    try {
+      const payload = await getProjects();
+      setOffline(false);
+      setProjects(payload.projects);
+      setProject((current) => {
         const fromUrl = new URLSearchParams(location.search).get('project') || '';
-        const chosen = fromUrl || payload.projects[0]?.name || '';
-        setProject(chosen);
-      })
-      .catch((e) => {
-        if (!alive) return;
-        setOffline(isBackendDown(e));
-        setError(e instanceof Error ? e.message : 'Projekte konnten nicht gelesen werden.');
+        const chosen = payload.projects.find((row) => row.name === preferredName)
+          || payload.projects.find((row) => row.repo_root === preferredRoot)
+          || payload.projects.find((row) => row.name === current)
+          || payload.projects.find((row) => row.name === fromUrl)
+          || payload.projects[0];
+        return chosen?.name || '';
       });
-    return () => {
-      alive = false;
-    };
+    } catch (reason) {
+      setOffline(isBackendDown(reason));
+      setError(reason instanceof Error ? reason.message : 'Projekte konnten nicht gelesen werden.');
+      throw reason;
+    }
   }, []);
+
+  useEffect(() => {
+    void loadProjects().catch(() => undefined);
+  }, [loadProjects]);
 
   /* ---- structure (the map) ---- */
   const loadStructure = useCallback(
@@ -282,7 +288,7 @@ export function Cockpit() {
     saveAutonomy(level);
   }, []);
 
-  const goto = useCallback((next: 'map' | 'chat') => {
+  const goto = useCallback((next: CockpitView) => {
     setView(next);
     try {
       localStorage.setItem('daedalus-cockpit-view', next);
@@ -376,6 +382,7 @@ export function Cockpit() {
       if (chord || e.altKey || paletteOpen || settingsOpen || studioOpen || isTypingTarget(e.target)) return;
       if (e.key === '1') goto('map');
       else if (e.key === '2') goto('chat');
+      else if (e.key === '3') goto('ide');
       else if (e.key.toLowerCase() === 'r') void loadStructure(project, true);
     };
     window.addEventListener('keydown', onKey);
@@ -394,6 +401,7 @@ export function Cockpit() {
   }, []);
 
   const contextModule = nh?.focus;
+  const selectedProject = projects.find((row) => row.name === project);
 
   const conversation = (
     <Conversation
@@ -534,7 +542,7 @@ export function Cockpit() {
         <div className="masthead-rule" />
         <h1 className="masthead-title">Daedalus</h1>
         <div className="masthead-meta">
-          <ProjectPicker projects={projects} project={project} onPick={setProject} reduced={reducedMotion} />
+          <ProjectPicker projects={projects} project={project} onPick={setProject} onRegistered={loadProjects} reduced={reducedMotion} />
           <span className="chrome-divider" aria-hidden="true" />
           <ViewSwitch view={view} onGo={goto} pending={pendingCount} reduced={reducedMotion} />
           <ChromeTools
@@ -552,7 +560,7 @@ export function Cockpit() {
       </header>
     ) : (
       <header className="chrome bar">
-        <ProjectPicker projects={projects} project={project} onPick={setProject} reduced={reducedMotion} />
+        <ProjectPicker projects={projects} project={project} onPick={setProject} onRegistered={loadProjects} reduced={reducedMotion} />
         <span className="chrome-divider" aria-hidden="true" />
         <ViewSwitch view={view} onGo={goto} pending={pendingCount} reduced={reducedMotion} />
         <div className="chrome-spacer" />
@@ -590,7 +598,7 @@ export function Cockpit() {
             )}
           </div>
         </main>
-      ) : (
+      ) : view === 'chat' ? (
         <main className="cockpit-body talk">
           <section className="talk-main">
             {decision}
@@ -614,6 +622,8 @@ export function Cockpit() {
             <HotList nodes={hottest} focus={focus} onPick={chooseFocus} />
           </aside>
         </main>
+      ) : (
+        <IdeWorkspace project={selectedProject} />
       )}
 
       <footer className="cockpit-foot">
@@ -792,7 +802,7 @@ function KeyList<T>({
 }
 
 /**
- * Two pages, named for what they are. The active tab rides one shared pill
+ * Three pages, named for what they are. The active tab rides one shared pill
  * (`layoutId`) instead of each button drawing its own underline, so choosing
  * a page reads as the SAME control moving rather than as two independent
  * buttons toggling — a state change (`src/motion/variants.ts`'s `move`
@@ -806,8 +816,8 @@ function ViewSwitch({
   pending,
   reduced
 }: {
-  view: 'map' | 'chat';
-  onGo: (v: 'map' | 'chat') => void;
+  view: CockpitView;
+  onGo: (v: CockpitView) => void;
   pending: number;
   reduced: boolean;
 }) {
@@ -855,6 +865,21 @@ function ViewSwitch({
           gespraech
         )}
       </button>
+      <button
+        type="button"
+        className={view === 'ide' ? 'on' : ''}
+        aria-current={view === 'ide'}
+        title="IDE (3)"
+        onClick={() => onGo('ide')}
+      >
+        {view === 'ide' ? (
+          <motion.span layoutId="viewswitch-thumb" className="viewswitch-thumb" transition={thumbTransition}>
+            IDE
+          </motion.span>
+        ) : (
+          'IDE'
+        )}
+      </button>
     </nav>
   );
 }
@@ -871,14 +896,17 @@ function ProjectPicker({
   projects,
   project,
   onPick,
+  onRegistered,
   reduced
 }: {
   projects: ProjectRow[];
   project: string;
   onPick: (name: string) => void;
+  onRegistered: (preferredName?: string, preferredRoot?: string) => Promise<void>;
   reduced: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -909,8 +937,6 @@ function ProjectPicker({
     if (projects.length <= 6) menuRef.current?.focus();
   }, [open, projects.length]);
 
-  if (!projects.length) return <span className="muted">Keine Projekte gemeldet</span>;
-
   const commit = (name: string) => {
     onPick(name);
     setOpen(false);
@@ -926,7 +952,7 @@ function ProjectPicker({
         onClick={() => setOpen((v) => !v)}
       >
         <span className="scope-eyebrow">Projekt</span>
-        <span className="scope-name">{project}</span>
+        <span className="scope-name">{project || 'Projekt hinzufügen'}</span>
         <svg className="scope-chevron" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
           <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -976,12 +1002,27 @@ function ProjectPicker({
               ariaLabel="Projekt wählen"
               reduced={reduced}
               animate={false}
-              emptyLabel={`Kein Projekt passt zu „${query}“.`}
+              emptyLabel={projects.length ? `Kein Projekt passt zu „${query}“.` : 'Noch kein Projekt registriert.'}
               renderItem={(p) => p.name}
             />
+            <button
+              type="button"
+              className="scope-add"
+              onClick={() => {
+                setOpen(false);
+                setAddOpen(true);
+              }}
+            >
+              + Projekt hinzufügen / Ordner öffnen
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
+      <ProjectDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onRegistered={(name, repoRoot) => onRegistered(name, repoRoot)}
+      />
     </div>
   );
 }

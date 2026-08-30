@@ -337,6 +337,11 @@ _EXCLUDED_DIRS: frozenset[str] = frozenset({
     ".mypy_cache", ".pytest_cache", ".worktrees", "site-packages", ".room",
 })
 
+_GENERATED_PYTHON_ROOTS: tuple[str, ...] = (
+    "apps/web/src-tauri/backend",
+    "apps/web/src-tauri/target",
+)
+
 
 def _repository_python_files(root: Path) -> list[Path]:
     """Every ``*.py`` in THIS checkout, nested checkouts excluded.
@@ -372,6 +377,9 @@ def _repository_python_files(root: Path) -> list[Path]:
             for name in dirnames
             if name not in _EXCLUDED_DIRS
             and not (here / name / ".git").exists()
+            and not (here / name).relative_to(root).as_posix().startswith(
+                _GENERATED_PYTHON_ROOTS
+            )
         )
         for name in sorted(filenames):
             if name.endswith(".py"):

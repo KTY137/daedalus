@@ -95,7 +95,7 @@ def _rewrite_env(brief, window):
     """
 
     return dict(
-        render_brief=lambda *a, **k: brief,
+        render_provider_brief=lambda *a, **k: brief,
         count_tokens=len,
         effective_input_window=lambda _reserve: window,
     )

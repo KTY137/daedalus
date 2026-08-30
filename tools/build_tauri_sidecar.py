@@ -105,6 +105,14 @@ def build(target: str) -> Path:
 
 
 def main(argv: list[str] | None = None) -> None:
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.desktop_sidecar_build",
+        REGISTRY_BY_ID["tools.desktop_sidecar_build"].effects,
+        (process_guard_boundary_decision(),),
+    )
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--target",

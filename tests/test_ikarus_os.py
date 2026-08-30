@@ -29,17 +29,18 @@ class AskTest(unittest.TestCase):
         self.assertTrue(res["action"]["requires_confirmation"])
         self.assertEqual(res["action"]["args"]["lane"], "local_only")
 
-    def test_chat_without_provider_is_deterministic(self):
-        res = ikarus_os.ask(self.PROJECT, "hello there", provider=None)
+    def test_explicit_deterministic_voice_is_deterministic(self):
+        res = ikarus_os.ask(self.PROJECT, "hello there", provider="deterministic")
         self.assertEqual(res["provider_used"], "deterministic")
         self.assertIn("Ikarus", res["assistant"])
 
-    def test_unwired_provider_falls_back_safely(self):
+    def test_unwired_provider_fails_closed_without_impersonating_a_voice(self):
         # a picker-visible but not-yet-wired runtime must not error or execute.
         # codex_cli was the example here until it got a real _llm branch;
         # "gemini" is a runtime the registry knows but chat does not.
         res = ikarus_os.ask(self.PROJECT, "hello there", provider="gemini")
-        self.assertEqual(res["provider_used"], "deterministic")
+        self.assertEqual(res["provider_used"], "unavailable")
+        self.assertEqual(res["intent"], "error")
 
     def test_status_reads_the_bus(self):
         res = ikarus_os.ask(self.PROJECT, "what's running?", provider=None)
