@@ -87,6 +87,32 @@ def test_registry_exposes_evidence_only_not_a_public_callable_resolver() -> None
     assert "_RegisteredProviderExecutableObjects" not in exported
 
 
+def test_registry_reproves_loaded_function_ambient_dependencies() -> None:
+    tree = _tree()
+    function_names = {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    assert "_referenced_global_names" in function_names
+    assert "_verify_function_ambient_dependencies" in function_names
+
+    attributes = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+    }
+    assert "__globals__" in attributes
+    assert "__builtins__" in attributes
+
+    calls = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert "get_instructions" in calls
+
+
 def test_admission_receipt_keeps_execution_authority_claims_false() -> None:
     tree = _tree()
     false_claims = next(
