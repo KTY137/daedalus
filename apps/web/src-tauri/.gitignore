@@ -1,0 +1,6 @@
+/target/
+/backend/*
+!/backend/.gitkeep
+/icons/*
+!/icons/icon.svg
+/gen/
