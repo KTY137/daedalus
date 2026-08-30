@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01D",
+  "title": "Refuse lossy integer scalar canonicalization",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01C",
+  "campaign_issue": 239,
+  "base_revision": "7b6ccb2c3e4d5c952ca12530d314c44a3f1cf6af",
+  "finding": "SparseTensorEntry stores scalar values as binary64 floats. Integer input was accepted and unconditionally converted with float(...), so distinct integers such as 2**53 and 2**53+1 could collapse to the same retained float, canonical JSON and TensorView digest. Extremely large integers could also raise OverflowError outside the tensor contract's ValueError refusal domain.",
+  "primary_claim": "Integer-valued sparse tensor claims are accepted only when their exact integer value survives binary64 canonicalization; lossy integers refuse before retention, and integer overflow is normalized into the existing finite-number ValueError boundary.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_scalar_contract.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01D.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Harden the existing SparseTensorEntry scalar boundary rather than add a Decimal/fixed-point wrapper, alternate serializer or second numeric contract. Forest and Fourfold remain authoritative; tensor remains a derived computational projection.",
+  "acceptance": [
+    "2**53 remains accepted and canonicalizes to its exact binary64 value",
+    "larger integers that are exactly representable, such as 2**60, remain accepted",
+    "2**53+1 refuses instead of aliasing the retained value and digest of 2**53",
+    "integer overflow such as 10**400 refuses as ValueError inside the tensor contract boundary",
+    "bool, string and arbitrary __float__ coercion remain refused",
+    "signed zero normalization from G1-TENSOR-01C remains unchanged"
+  ],
+  "verification": {
+    "requested": [
+      "python -m py_compile daedalus/twin/tensor.py tests/twin/test_tensor_scalar_contract.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin/test_tensor_scalar_contract.py tests/twin/test_tensor_evidence_bounds.py tests/twin/test_tensor_construction_bounds.py tests/twin/test_tensor_kernel.py tests/twin/test_fourfold_contracts.py tests/twin/test_projection_verifier.py"
+    ],
+    "executed_in_connector_session": [],
+    "claim": "source-level identity hardening plus focused regression preparation only until exact-head executable evidence exists"
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01D commits; canonical Forest/Fourfold artifacts and identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
