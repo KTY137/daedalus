@@ -1,13 +1,17 @@
 # WP-G1-T2-EVIDENCE-HARDENING-R2 - Tier-2 evidence truth boundary
 
-- Status: local candidate; independent re-review and executable exact-head CI required
+- Status: reviewed integration candidate; executable exact-head CI required
 - Classification: `ALIGNED`
 - Active gate: Gate 1 - Renovation ignition slice (supporting evaluator
   integrity; this packet neither advances nor closes Gate 1)
 - Owner: repository owner (`KTY137`)
-- Implementation branch: `review/pr291-evidence-hardening-fixes` (local only)
-- Implementation base: `0db2e1ece81335f9f5483454c13a97ac7a34f6d3`
-- PR comparison base: `e5f55840a12dcfb1a50935c6080f06306a8854a8`
+- Implementation branch: `review/pr291-evidence-hardening-fixes`
+- Original implementation base: `0db2e1ece81335f9f5483454c13a97ac7a34f6d3`
+- Integrated main parent: `cfe9f40a4ff421a0441c612315b3ee0ed93469a2`
+- Independently reviewed pre-evidence-correction head:
+  `470545d972fb46d07b79ec42d24c2022506d3cb3`
+- The final self SHA is recorded by the PR/check handoff rather than embedded
+  recursively in its own commit.
 - Plan revision: commit `657c8af5f9707de3882a71716bcd8ff3d9aa6146`,
   SHA-256 `7cccda0fb75ff60af846b0c7eb697f6f3fd9fdd76ca2f4ae3aa5670ee2f3c704`
 - Dependencies: issues #252 and #268; prior provider-failure separation from
@@ -210,7 +214,7 @@ a Tier-2 pass and not a regression attributed to this packet. The all-C0/C1
 property regression was added after this broad run and executed in the final
 27-test focused run above; production code did not change between those runs.
 
-# Independent-review remediation on local commit 83bd0217
+# Independent-review remediation working tree later committed as 5e71dd62
 python -m pytest -q -p no:cacheprovider \
   tests/test_eval_tier2_integrity.py \
   tests/test_eval_tier2_text_evidence_nemesis.py \
@@ -235,13 +239,39 @@ not counted as green evidence and not attributed to the Tier-2 change. The run
 also exceeded the packet's declared 300-second broad-suite budget by 55.31
 seconds, so it is retained as diagnostic coverage and does not satisfy a
 within-budget A11 run.
+
+# Independent final review on exact integration head 470545d9
+python -m pytest -q -p no:cacheprovider \
+  tests/test_eval_tier2_integrity.py \
+  tests/test_eval_tier2_text_evidence_nemesis.py \
+  tests/test_eval.py::EvalTier1Test::test_tier2_skips_cleanly_without_provider
+31 passed, 8 subtests passed in 2.11s
+
+python -m pytest -q -p no:cacheprovider \
+  tests/test_eval_tier2_integrity.py \
+  tests/test_eval_tier2_text_evidence_nemesis.py \
+  tests/test_loop_terminal_rendering.py
+54 passed, 8 subtests passed in 3.11s
+
+python -m pytest -q -p no:cacheprovider \
+  tests/test_eval.py tests/test_eval_correctness.py tests/test_eval_mint.py \
+  tests/test_eval_oracle.py tests/test_eval_provenance.py \
+  tests/test_eval_tier2_integrity.py \
+  tests/test_eval_tier2_text_evidence_nemesis.py
+206 passed, 30 subtests passed, 1 failed in 282.98s
+The sole failure is the same parent-identical provenance isolation failure above;
+`daedalus/eval/correctness.py` and `tests/test_eval_provenance.py` are byte-equal
+to parent cfe9f40a. This within-budget run satisfies the candidate-specific A11
+coverage while retaining the unrelated baseline failure as non-green evidence.
+Independent review found no code blocker; it required only honest attribution
+of these results and executable exact-final-head CI.
 ```
 
 Pending before owner merge decision:
 
-- executable exact-head CI on Python 3.10 and 3.12;
-- a within-budget broad affected-suite run;
-- independent review of this repair candidate.
+- executable exact-final-head CI on Python 3.10 and 3.12;
+- read-only confirmation that this evidence-only correction introduces no new
+  claim or code change.
 
 ## Expected failures and residual risk
 
