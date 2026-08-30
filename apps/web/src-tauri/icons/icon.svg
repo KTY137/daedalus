@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Daedalus">
+  <rect width="512" height="512" rx="112" fill="#11141d"/>
+  <path fill="#eef0f5" d="M132 104h113c99 0 161 56 161 152s-62 152-161 152H132V104zm83 70v164h31c49 0 78-29 78-82s-29-82-78-82h-31z"/>
+  <circle cx="405" cy="107" r="28" fill="#eef0f5"/>
+</svg>
