@@ -1,8 +1,9 @@
 name: Run branch consolidation 2026-08-30
 
 on:
-  issue_comment:
-    types: [created]
+  pull_request:
+    branches: [main]
+    types: [closed]
 
 permissions:
   contents: write
@@ -15,7 +16,7 @@ concurrency:
 
 jobs:
   consolidate:
-    if: github.event.issue.number == 42 && github.event.comment.body == '/run-branch-consolidation-20260830'
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'ops/branch-consolidation-arm3-20260830'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
