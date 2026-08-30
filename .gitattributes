@@ -159,13 +159,14 @@ tests/gates/test_repository_head_revision_wire.py -text
 # changed since git's index last cached them clean; the first `git add` (or
 # `git add -A`) that touches one after this file starts asking `-text`'s
 # question would silently flip an unrelated module's committed line endings.
-# The list below is exactly the 124 the bundle's closure computes -- nothing
-# more -- and every one of them has ALSO been renormalised to LF in this
-# worktree (a working-tree-only change; no committed byte moves, matching
-# every -text pin above), so `-text` here changes nothing about to be
-# committed. tests/test_ignition_bundle_gitattributes.py re-derives the
-# closure from source on every run via `git check-attr` and fails on any gap,
-# so a closure that outgrows this list is a red test, not a silent hole --
+# The initial list below was exactly the 124 modules measured above -- nothing
+# more -- and every one of them had ALSO been renormalised to LF in that
+# worktree (a working-tree-only change; no committed byte moved, matching every
+# -text pin above). Guard-driven additions remain explicit: MEASURED 2026-08-30,
+# the current closure contains 175 files, including seven chip-design modules
+# introduced by the canonical EDA execution path. The guard below re-derives
+# the closure from source on every run via `git check-attr` and fails on any
+# gap, so a closure that outgrows this list is a red test, not a silent hole --
 # the same self-healing property a wildcard would have given for free, without
 # the blast radius a wildcard measured to carry here.
 daedalus/__init__.py -text
@@ -177,6 +178,13 @@ daedalus/bookkeeper.py -text
 daedalus/budget.py -text
 daedalus/build.py -text
 daedalus/categories.py -text
+daedalus/chip_design/contracts.py -text
+daedalus/chip_design/execution_plan.py -text
+daedalus/chip_design/executor.py -text
+daedalus/chip_design/manifest.py -text
+daedalus/chip_design/sources.py -text
+daedalus/chip_design/toolchains.py -text
+daedalus/chip_design/vivado_tcl.py -text
 daedalus/claude_bridge.py -text
 daedalus/claude_detect.py -text
 daedalus/config.py -text
