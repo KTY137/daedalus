@@ -12,19 +12,12 @@ import {
 import './settings.css';
 
 /**
- * Settings: which brain answers, how much may happen without a click, and what
- * is actually reachable.
+ * Settings: brain, autonomy, managed services/connections, measured runtime
+ * reachability, and the local autonomy log.
  *
- * Four sections, and no fifth. The owner's constraint was "intelligent, nicht
- * zu overloaded", so this panel answers only the questions a person actually
- * asks of a running agent: who is thinking, what may it do alone, what can it
- * reach, and what did it already do by itself.
- *
- * The reachability table is a MEASUREMENT, not a badge wall. Every row shows
- * what the runtime registry reports — including the error text when a runtime
- * is not reachable — because "not configured" and "configured and broken" are
- * different problems with different fixes, and a green/grey dot cannot tell
- * them apart.
+ * Desktop service controls are additive. A source/dev web_api that does not
+ * install the Tauri sidecar extension still renders every older section and
+ * reports the desktop controls as unavailable instead of breaking Settings.
  */
 
 export interface SettingsProps {
@@ -34,8 +27,84 @@ export interface SettingsProps {
   onBrain: (id: string) => void;
   autonomy: AutonomyLevel;
   onAutonomy: (level: AutonomyLevel) => void;
-  /** bumped when something happened automatically, so the log re-reads */
   logSignal?: number;
+}
+
+interface RemoteOllamaSettings {
+  host: string;
+  user: string;
+  port: number;
+  identity_file: string;
+  host_key_fingerprint: string;
+  local_port: number;
+  remote_port: number;
+  start_method: 'systemd' | 'windows' | 'none';
+  trust_remote_host: boolean;
+}
+
+interface DesktopConfig {
+  bridge: { auto_start: boolean };
+  ollama: {
+    mode: 'local' | 'remote_ssh';
+    auto_start: boolean;
+    model: string;
+    local_host: string;
+    remote: RemoteOllamaSettings;
+  };
+}
+
+interface DesktopSnapshot {
+  config: DesktopConfig;
+  config_path: string;
+  startup_error?: string;
+  credential_policy: {
+    ssh_key_only: boolean;
+    stores_passwords: boolean;
+    stores_private_key_bytes: boolean;
+    host_key_verification: string;
+  };
+  services: {
+    bridge: {
+      managed?: boolean;
+      state?: string;
+      age_s?: number | null;
+      detail?: string;
+    };
+    ollama: {
+      mode: string;
+      endpoint: string;
+      physical_target?: string;
+      reachable: boolean;
+      last_error?: string;
+      tunnel_running?: boolean;
+      local_process_running?: boolean;
+      host_key_pinned?: boolean;
+    };
+  };
+}
+
+interface DesktopEnvelope {
+  ok?: boolean;
+  error?: string;
+  desktop?: DesktopSnapshot;
+  service?: Record<string, unknown>;
+}
+
+async function desktopRequest(url: string, init?: RequestInit): Promise<DesktopEnvelope> {
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    ...init
+  });
+  let payload: DesktopEnvelope = {};
+  try {
+    payload = await response.json();
+  } catch {
+    // The status below still distinguishes an unavailable/old backend.
+  }
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.error || `Desktop-Dienst antwortete mit HTTP ${response.status}.`);
+  }
+  return payload;
 }
 
 function stateOf(r: RuntimeRow): { word: string; tone: 'ok' | 'warn' | 'bad' } {
@@ -44,10 +113,6 @@ function stateOf(r: RuntimeRow): { word: string; tone: 'ok' | 'warn' | 'bad' } {
   return { word: 'nicht erreichbar', tone: 'bad' };
 }
 
-/** When this reading was actually measured. The probe is cached (owner
- * decision 2026-08-27), so "erreichbar" is only honest if it says how old it
- * is: a cached reachable for a CLI that broke a minute ago must not read as
- * live. Empty when the backend sent no timestamp (the uncached path). */
 function measuredLabel(r: RuntimeRow): string {
   if (typeof r.measured_at !== 'string' || !r.measured_at) return '';
   const age = typeof r.measured_age_s === 'number' ? r.measured_age_s : 0;
@@ -60,16 +125,25 @@ function measuredLabel(r: RuntimeRow): string {
   return `gemessen ${hh}:${mm}`;
 }
 
+function cloneConfig(config: DesktopConfig): DesktopConfig {
+  return JSON.parse(JSON.stringify(config)) as DesktopConfig;
+}
+
 export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, logSignal = 0 }: SettingsProps) {
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
   const [env, setEnv] = useState<EnvStatusPayload | undefined>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  /** false until the first attempt has finished, either way */
   const [loaded, setLoaded] = useState(false);
   const [testing, setTesting] = useState('');
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [log, setLog] = useState<AutonomyEntry[]>([]);
+
+  const [desktop, setDesktop] = useState<DesktopSnapshot | undefined>();
+  const [desktopDraft, setDesktopDraft] = useState<DesktopConfig | undefined>();
+  const [desktopError, setDesktopError] = useState('');
+  const [desktopNotice, setDesktopNotice] = useState('');
+  const [desktopBusy, setDesktopBusy] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,9 +160,30 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
     }
   }, []);
 
+  const loadDesktop = useCallback(async () => {
+    setDesktopError('');
+    try {
+      const payload = await desktopRequest('/api/desktop/settings');
+      if (!payload.desktop) throw new Error('Desktop-Backend meldete keine Einstellungen.');
+      setDesktop(payload.desktop);
+      setDesktopDraft(cloneConfig(payload.desktop.config));
+    } catch (e) {
+      setDesktop(undefined);
+      setDesktopDraft(undefined);
+      setDesktopError(
+        e instanceof Error
+          ? e.message
+          : 'Desktop-Serviceverwaltung ist in diesem Lauf nicht verfügbar.'
+      );
+    }
+  }, []);
+
   useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
+    if (open) {
+      void load();
+      void loadDesktop();
+    }
+  }, [open, load, loadDesktop]);
 
   useEffect(() => {
     setLog(readAutonomyLog());
@@ -100,19 +195,93 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
       const payload = await testRuntime(id);
       setTestResult((prev) => ({
         ...prev,
-        [id]: payload.test?.ok ? `antwortet · ${payload.test.detail || payload.test.mode}` : `fehlgeschlagen: ${payload.test?.detail || 'ohne Angabe'}`
+        [id]: payload.test?.ok
+          ? `antwortet · ${payload.test.detail || payload.test.mode}`
+          : `fehlgeschlagen: ${payload.test?.detail || 'ohne Angabe'}`
       }));
     } catch (e) {
-      setTestResult((prev) => ({ ...prev, [id]: `fehlgeschlagen: ${e instanceof Error ? e.message : 'unbekannt'}` }));
+      setTestResult((prev) => ({
+        ...prev,
+        [id]: `fehlgeschlagen: ${e instanceof Error ? e.message : 'unbekannt'}`
+      }));
     } finally {
       setTesting('');
     }
   }, []);
 
-  const reachable = runtimes.filter((r) => r.available);
+  const patchOllama = useCallback((patch: Partial<DesktopConfig['ollama']>) => {
+    setDesktopDraft((prev) => (
+      prev ? { ...prev, ollama: { ...prev.ollama, ...patch } } : prev
+    ));
+  }, []);
 
+  const patchRemote = useCallback((patch: Partial<RemoteOllamaSettings>) => {
+    setDesktopDraft((prev) => (
+      prev
+        ? {
+            ...prev,
+            ollama: {
+              ...prev.ollama,
+              remote: { ...prev.ollama.remote, ...patch }
+            }
+          }
+        : prev
+    ));
+  }, []);
+
+  const saveDesktop = useCallback(async () => {
+    if (!desktopDraft) return;
+    setDesktopBusy('save');
+    setDesktopError('');
+    setDesktopNotice('');
+    try {
+      const payload = await desktopRequest('/api/desktop/settings', {
+        method: 'PUT',
+        body: JSON.stringify(desktopDraft)
+      });
+      if (!payload.desktop) throw new Error('Desktop-Backend bestätigte die Einstellungen nicht.');
+      setDesktop(payload.desktop);
+      setDesktopDraft(cloneConfig(payload.desktop.config));
+      setDesktopNotice(
+        payload.desktop.startup_error
+          ? `Gespeichert. Autostart meldet: ${payload.desktop.startup_error}`
+          : 'Gespeichert und auf den laufenden Desktop angewendet.'
+      );
+      void load();
+    } catch (e) {
+      setDesktopError(e instanceof Error ? e.message : 'Einstellungen konnten nicht gespeichert werden.');
+    } finally {
+      setDesktopBusy('');
+    }
+  }, [desktopDraft, load]);
+
+  const serviceAction = useCallback(async (service: 'bridge' | 'ollama', verb: 'start' | 'stop' = 'start') => {
+    const key = `${service}:${verb}`;
+    setDesktopBusy(key);
+    setDesktopError('');
+    setDesktopNotice('');
+    try {
+      await desktopRequest(`/api/desktop/services/${service}/${verb}`, {
+        method: 'POST',
+        body: '{}'
+      });
+      setDesktopNotice(service === 'bridge' ? 'Bridge läuft.' : verb === 'stop' ? 'Ollama-Tunnel beendet.' : 'Ollama gestartet.');
+      await loadDesktop();
+      void load();
+    } catch (e) {
+      setDesktopError(e instanceof Error ? e.message : 'Dienstaktion fehlgeschlagen.');
+    } finally {
+      setDesktopBusy('');
+    }
+  }, [load, loadDesktop]);
+
+  const reachable = runtimes.filter((r) => r.available);
   const reduced = useReducedMotionPref();
   const drawer = useMemo(() => drawerVariants(reduced), [reduced]);
+
+  const bridgeState = desktop?.services.bridge;
+  const ollamaState = desktop?.services.ollama;
+  const remoteMode = desktopDraft?.ollama.mode === 'remote_ssh';
 
   return (
     <motion.aside
@@ -135,8 +304,7 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
         <section className="settings-section">
           <div className="settings-title">Brain</div>
           <p className="settings-hint">
-            Wer antwortet, wenn du Ikarus etwas fragst. Nur erreichbare Laufzeiten stehen zur Wahl — eine Liste, die
-            nicht erreichbare Optionen anbietet, ist eine Liste, die lügt.
+            Wer antwortet, wenn du Ikarus etwas fragst. Nur erreichbare Laufzeiten stehen zur Wahl.
           </p>
           <div className="choice-row" role="radiogroup" aria-label="Brain">
             <button
@@ -196,9 +364,255 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
         </section>
 
         <section className="settings-section">
+          <div className="settings-title">Dienste & Verbindungen</div>
+          <p className="settings-hint">
+            Der Desktop hält Bridge und Ollama selbst am Leben. Remote-Ollama läuft durch einen SSH-Loopback-Tunnel;
+            Port 11434 muss nicht ins LAN oder Internet geöffnet werden.
+          </p>
+
+          {!desktopDraft ? (
+            <p className={`settings-hint ${desktopError ? 'bad' : ''}`}>
+              {desktopError || 'Desktop-Dienste werden gelesen …'}
+            </p>
+          ) : (
+            <div className="connection-stack">
+              <div className="service-status">
+                <div>
+                  <b>Bridge</b>
+                  <span className={bridgeState?.state === 'alive' || bridgeState?.state === 'busy' ? 'ok' : 'bad'}>
+                    {bridgeState?.state || 'unbekannt'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void serviceAction('bridge')}
+                  disabled={desktopBusy !== ''}
+                >
+                  {desktopBusy === 'bridge:start' ? 'Startet …' : 'Starten'}
+                </button>
+              </div>
+
+              <label className="settings-check">
+                <input
+                  type="checkbox"
+                  checked={desktopDraft.bridge.auto_start}
+                  onChange={(event) => setDesktopDraft((prev) => (
+                    prev ? { ...prev, bridge: { auto_start: event.target.checked } } : prev
+                  ))}
+                />
+                <span>
+                  <b>Bridge mit Daedalus starten</b>
+                  <small>Dann braucht `python -m daedalus.file_bridge watch …` kein eigenes Terminal mehr.</small>
+                </span>
+              </label>
+
+              <div className="service-status">
+                <div>
+                  <b>Ollama</b>
+                  <span className={ollamaState?.reachable ? 'ok' : 'bad'}>
+                    {ollamaState?.reachable ? 'erreichbar' : 'offline'}
+                  </span>
+                  {ollamaState?.endpoint && <code>{ollamaState.endpoint}</code>}
+                </div>
+                <div className="service-actions">
+                  <button
+                    type="button"
+                    onClick={() => void serviceAction('ollama')}
+                    disabled={desktopBusy !== ''}
+                  >
+                    {desktopBusy === 'ollama:start' ? 'Startet …' : 'Starten'}
+                  </button>
+                  {remoteMode && ollamaState?.tunnel_running && (
+                    <button
+                      type="button"
+                      onClick={() => void serviceAction('ollama', 'stop')}
+                      disabled={desktopBusy !== ''}
+                    >
+                      Tunnel stoppen
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <label className="settings-field">
+                <span>Ollama-Modell</span>
+                <input
+                  value={desktopDraft.ollama.model}
+                  onChange={(event) => patchOllama({ model: event.target.value })}
+                  placeholder="qwen2.5-coder:7b"
+                />
+              </label>
+
+              <label className="settings-field">
+                <span>Ollama läuft</span>
+                <select
+                  value={desktopDraft.ollama.mode}
+                  onChange={(event) => patchOllama({ mode: event.target.value as DesktopConfig['ollama']['mode'] })}
+                >
+                  <option value="local">auf diesem Rechner</option>
+                  <option value="remote_ssh">remote über SSH-Tunnel</option>
+                </select>
+              </label>
+
+              <label className="settings-check">
+                <input
+                  type="checkbox"
+                  checked={desktopDraft.ollama.auto_start}
+                  onChange={(event) => patchOllama({ auto_start: event.target.checked })}
+                />
+                <span>
+                  <b>Ollama automatisch starten</b>
+                  <small>Lokal mit `ollama serve`, remote über den unten gewählten festen Startmechanismus.</small>
+                </span>
+              </label>
+
+              {!remoteMode ? (
+                <label className="settings-field">
+                  <span>Lokaler Endpoint</span>
+                  <input
+                    value={desktopDraft.ollama.local_host}
+                    onChange={(event) => patchOllama({ local_host: event.target.value })}
+                    placeholder="http://127.0.0.1:11434"
+                  />
+                  <small>Nur numerisches Loopback wird akzeptiert.</small>
+                </label>
+              ) : (
+                <div className="remote-settings">
+                  <div className="settings-grid two">
+                    <label className="settings-field">
+                      <span>SSH Host</span>
+                      <input
+                        value={desktopDraft.ollama.remote.host}
+                        onChange={(event) => patchRemote({ host: event.target.value })}
+                        placeholder="192.168.1.50"
+                      />
+                    </label>
+                    <label className="settings-field">
+                      <span>SSH Benutzer</span>
+                      <input
+                        value={desktopDraft.ollama.remote.user}
+                        onChange={(event) => patchRemote({ user: event.target.value })}
+                        placeholder="kaya"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="settings-grid three">
+                    <label className="settings-field">
+                      <span>SSH Port</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={65535}
+                        value={desktopDraft.ollama.remote.port}
+                        onChange={(event) => patchRemote({ port: Number(event.target.value) })}
+                      />
+                    </label>
+                    <label className="settings-field">
+                      <span>Lokaler Tunnel</span>
+                      <input
+                        type="number"
+                        min={1024}
+                        max={65535}
+                        value={desktopDraft.ollama.remote.local_port}
+                        onChange={(event) => patchRemote({ local_port: Number(event.target.value) })}
+                      />
+                    </label>
+                    <label className="settings-field">
+                      <span>Remote Ollama</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={65535}
+                        value={desktopDraft.ollama.remote.remote_port}
+                        onChange={(event) => patchRemote({ remote_port: Number(event.target.value) })}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="settings-field">
+                    <span>SSH Private-Key-Pfad</span>
+                    <input
+                      value={desktopDraft.ollama.remote.identity_file}
+                      onChange={(event) => patchRemote({ identity_file: event.target.value })}
+                      placeholder="C:\Users\du\.ssh\id_ed25519"
+                    />
+                    <small>Daedalus speichert nur den Pfad, niemals den privaten Schlüssel oder ein SSH-Passwort.</small>
+                  </label>
+
+                  <label className="settings-field">
+                    <span>Server Host-Key-Fingerprint</span>
+                    <input
+                      value={desktopDraft.ollama.remote.host_key_fingerprint}
+                      onChange={(event) => patchRemote({ host_key_fingerprint: event.target.value })}
+                      placeholder="SHA256:…"
+                    />
+                    <small>Beim ersten Connect Pflicht. Der gescannte Host-Key muss exakt zu diesem Fingerprint passen.</small>
+                  </label>
+
+                  <label className="settings-field">
+                    <span>Remote starten mit</span>
+                    <select
+                      value={desktopDraft.ollama.remote.start_method}
+                      onChange={(event) => patchRemote({ start_method: event.target.value as RemoteOllamaSettings['start_method'] })}
+                    >
+                      <option value="systemd">Linux / systemd</option>
+                      <option value="windows">Windows / PowerShell</option>
+                      <option value="none">bereits laufend — nur Tunnel öffnen</option>
+                    </select>
+                    <small>
+                      systemd verwendet ausschließlich `sudo -n systemctl start ollama`; es werden keine frei editierbaren Remote-Befehle ausgeführt.
+                    </small>
+                  </label>
+
+                  <label className="settings-check danger">
+                    <input
+                      type="checkbox"
+                      checked={desktopDraft.ollama.remote.trust_remote_host}
+                      onChange={(event) => patchRemote({ trust_remote_host: event.target.checked })}
+                    />
+                    <span>
+                      <b>Remote-Rechner gehört zu meiner Trust Boundary</b>
+                      <small>
+                        Aus bedeutet Default-Deny-Egress. An erlaubt auch nicht öffentlich freigegebenen Source-Code zum Remote-Modell und ist nur für eine numerische IP möglich.
+                      </small>
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              {ollamaState?.physical_target && (
+                <p className="settings-hint">
+                  Physisches Ziel der Egress-Policy: <code>{ollamaState.physical_target}</code>
+                </p>
+              )}
+              {ollamaState?.last_error && !ollamaState.reachable && (
+                <p className="settings-hint bad">{ollamaState.last_error}</p>
+              )}
+              {desktopError && <p className="settings-hint bad">{desktopError}</p>}
+              {desktopNotice && <p className="settings-hint">{desktopNotice}</p>}
+
+              <div className="settings-save-row">
+                <span className="settings-hint">
+                  SSH: Key-only · Host-Key {desktop?.credential_policy.host_key_verification || 'strict'}
+                </span>
+                <button
+                  type="button"
+                  className="settings-primary"
+                  onClick={() => void saveDesktop()}
+                  disabled={desktopBusy !== ''}
+                >
+                  {desktopBusy === 'save' ? 'Speichert …' : 'Verbindungen speichern'}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="settings-section">
           <div className="settings-title">
             Erreichbarkeit
-            <button type="button" className="settings-refresh" onClick={() => void load()} disabled={loading}>
+            <button type="button" className="settings-refresh" onClick={() => { void load(); void loadDesktop(); }} disabled={loading}>
               {loading ? 'Prüft …' : 'Neu prüfen'}
             </button>
           </div>
@@ -228,8 +642,6 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
                 </li>
               );
             })}
-            {/* "not looked yet" is not "nothing there". The registry call takes
-                seconds; until it lands this says what is actually true. */}
             {!loaded && <li className="settings-hint">Laufzeiten werden geprüft …</li>}
             {loaded && !loading && runtimes.length === 0 && (
               <li className="settings-hint">Keine Laufzeiten gemeldet.</li>
@@ -237,7 +649,7 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
           </ul>
           {env && (
             <p className="settings-hint">
-              Schlüssel bleiben auf deiner Maschine: die API gibt nur zurück, OB einer gesetzt ist, nie welcher.
+              API-Schlüssel bleiben auf deiner Maschine: die API gibt nur zurück, OB einer gesetzt ist, nie welcher.
             </p>
           )}
         </section>
