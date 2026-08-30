@@ -3,6 +3,7 @@ name: Gate 1 Ikarus Unified Runtime Admission
 on:
   push:
     branches:
+      - main
       - g1/ikarus-unified-runtime-admission-07
       - g1/ikarus-provider-invocation-abi-07d2
       - g1/ikarus-runtime-invocation-binding-07d3
@@ -38,6 +39,14 @@ on:
       - "tests/runtimes/test_provider_invocation_abi_review.py"
       - "tests/runtimes/test_provider_runtime_invocation_binding.py"
       - "tests/runtimes/test_provider_runtime_invocation_binding_review.py"
+      - "tests/runtimes/runtime_provider_test_double.py"
+      - "tests/runtimes/test_runtime_provider_broker.py"
+      - "tests/runtimes/test_runtime_provider_exact_authority_boundary.py"
+      - "tests/runtimes/test_runtime_provider_post_invoke_unknown.py"
+      - "tests/runtimes/test_runtime_provider_recovery.py"
+      - "tests/runtimes/test_runtime_terminal_fence.py"
+      - "tests/runtimes/test_runtime_terminal_fence_release.py"
+      - "tests/runtimes/test_sealed_broker_wheel_reachability.py"
       - "tests/providers/test_claude_runtime_broker.py"
       - "tests/providers/test_claude_bypass_inventory.py"
       - "docs/work-packets/G1-IKARUS-07D4_SEALED_BROKER_CUTOVER.md"
@@ -59,11 +68,13 @@ concurrency:
 
 jobs:
   focused:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     env:
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
@@ -104,6 +115,14 @@ jobs:
           tests/runtimes/test_provider_invocation_abi_review.py
           tests/runtimes/test_provider_runtime_invocation_binding.py
           tests/runtimes/test_provider_runtime_invocation_binding_review.py
+          tests/runtimes/runtime_provider_test_double.py
+          tests/runtimes/test_runtime_provider_broker.py
+          tests/runtimes/test_runtime_provider_exact_authority_boundary.py
+          tests/runtimes/test_runtime_provider_post_invoke_unknown.py
+          tests/runtimes/test_runtime_provider_recovery.py
+          tests/runtimes/test_runtime_terminal_fence.py
+          tests/runtimes/test_runtime_terminal_fence_release.py
+          tests/runtimes/test_sealed_broker_wheel_reachability.py
           tests/providers/test_claude_runtime_broker.py
           tests/providers/test_claude_bypass_inventory.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
@@ -129,7 +148,31 @@ jobs:
           tests/runtimes/test_provider_runtime_invocation_binding.py
           tests/runtimes/test_provider_runtime_invocation_binding_review.py
           tests/runtimes/test_provider_invocation_authority.py
+          tests/runtimes/test_runtime_provider_broker.py
           tests/runtimes/test_runtime_provider_exact_authority_boundary.py
+          tests/runtimes/test_runtime_provider_post_invoke_unknown.py
+          tests/runtimes/test_runtime_provider_recovery.py
+          tests/runtimes/test_runtime_terminal_fence.py
+          tests/runtimes/test_runtime_terminal_fence_release.py
+          tests/runtimes/test_sealed_broker_wheel_reachability.py
           tests/runtimes/test_provider_observation_authority_review.py
           tests/providers/test_claude_runtime_broker.py
           tests/providers/test_claude_bypass_inventory.py
+      - name: Build and import the isolated production wheel
+        run: python -m pip wheel . --no-deps --wheel-dir wheelhouse-ci
+      - name: Install the isolated production wheel
+        run: >-
+          python -c "import glob, subprocess, sys;
+          wheels = glob.glob('wheelhouse-ci/*.whl');
+          assert len(wheels) == 1, wheels;
+          subprocess.check_call([sys.executable, '-m', 'pip', 'install',
+          '--no-deps', '--target', 'wheelcheck-ci', wheels[0]])"
+      - name: Prove the wheel cannot reach the test-only callback broker
+        run: >-
+          python -c "from pathlib import Path; import sys;
+          target = Path('wheelcheck-ci').resolve();
+          sys.path.insert(0, str(target));
+          import daedalus.runtimes.broker as broker;
+          assert not (target / 'tests').exists();
+          assert not hasattr(broker, '_run_runtime_provider_test_double');
+          assert not hasattr(broker, 'run_runtime_provider_test_double')"

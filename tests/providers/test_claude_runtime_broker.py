@@ -10,10 +10,12 @@ row) instead of spy counters on a fake authority.
 from __future__ import annotations
 
 import ast
+import builtins
 import dataclasses
 import hashlib
 import json
 import sqlite3
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -40,6 +42,7 @@ from daedalus.providers.claude_cli import (
 )
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
+    run_runtime_provider,
 )
 from daedalus.limit_policy import ExecutionLimitPolicy, MODE_UNBOUNDED_EXECUTION
 from daedalus.runtimes.provider_executable_object_registry import (
@@ -109,6 +112,37 @@ OUTPUT = {
     "report_sha256": canonical_sha(REPORT),
     "report": REPORT,
 }
+REPORT_JSON = json.dumps(REPORT)
+INVALID_REPORT_JSON = json.dumps({"status": "done"})
+UNBOUNDED_SUMMARY = "detail-" * 120
+UNBOUNDED_REPORT_JSON = json.dumps({**REPORT, "summary": UNBOUNDED_SUMMARY})
+
+
+def _successful_subprocess_run(*args, **kwargs):
+    del args, kwargs
+    return SimpleNamespace(returncode=0, stdout=REPORT_JSON, stderr="")
+
+
+def _normalized_paths_subprocess_run(*args, **kwargs):
+    if '[\n  "src/a.py"\n]' not in args[0][2]:
+        raise AssertionError("sealed Claude prompt lost normalized paths")
+    return SimpleNamespace(returncode=0, stdout=REPORT_JSON, stderr="")
+
+
+def _invalid_report_subprocess_run(*args, **kwargs):
+    del args, kwargs
+    return SimpleNamespace(returncode=0, stdout=INVALID_REPORT_JSON, stderr="")
+
+
+def _unbounded_subprocess_run(*args, **kwargs):
+    if kwargs.get("timeout") is not None:
+        raise AssertionError("unbounded sealed invocation retained a timeout")
+    prompt = args[0][2]
+    if "docs/note-19.md" not in prompt or "Minimize tokens:" in prompt:
+        raise AssertionError("unbounded sealed invocation retained bounded prompt caps")
+    if "unabridged detail" not in prompt:
+        raise AssertionError("unbounded sealed invocation lost detail handoff")
+    return SimpleNamespace(returncode=0, stdout=UNBOUNDED_REPORT_JSON, stderr="")
 
 
 def _spec(*, wiring: Wiring = Wiring.CENTRAL) -> EntrypointSpec:
@@ -452,7 +486,7 @@ def _attach_invocation_stack(
         output_digests_source_sha256=output_source_sha,
     )
     registry = ProviderExecutableObjectRegistry(Path(__file__).resolve().parents[2])
-    registry.register(
+    executable_admission = registry.register(
         pre_admission,
         invoke=bridge._invoke_claude_payload,
         output_digests=claude_provider._output_digests,
@@ -461,6 +495,9 @@ def _attach_invocation_stack(
         authority,
         payload,
         pre_admission,
+        dependency_manifest_sha256=(
+            executable_admission.dependency_manifest_sha256
+        ),
         authority_id="authority.claude-provider-observation",
         authority_keyring={OBS_AUTHORITY_KEY_ID: OBS_AUTHORITY_KEY},
         observation_keyring={OBS_KEY_ID: OBS_KEY},
@@ -588,6 +625,7 @@ def _stack(
     execution: EffectExecutionRequest | None = None,
     timeout_s: int | float | None = 300,
     execution_limit_policy: ExecutionLimitPolicy | None = None,
+    subprocess_run=None,
 ):
     authorization = _authorization(
         tmp_path,
@@ -604,6 +642,8 @@ def _stack(
             request_sha256=authorization.request.digest,
         )
     authority, ledger = _observation(tmp_path, authorization, execution)
+    if subprocess_run is not None:
+        monkeypatch.setattr(bridge.subprocess, "run", subprocess_run)
     _attach_invocation_stack(
         ledger,
         authority,
@@ -946,7 +986,6 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    calls: list[dict[str, object]] = []
     objective = "review exact diff"
     paths = ["src/a.py", "src/a.py"]
     normalized_paths = ["src/a.py"]
@@ -955,6 +994,7 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
         monkeypatch,
         objective=objective,
         paths=normalized_paths,
+        subprocess_run=_normalized_paths_subprocess_run,
     )
     invocation_sha = _invocation_sha(
         tmp_path,
@@ -962,15 +1002,6 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
         paths=normalized_paths,
     )
 
-    def invoke(*args, **kwargs):
-        calls.append({"args": args, **kwargs})
-        return SimpleNamespace(
-            returncode=0,
-            stdout=json.dumps(REPORT),
-            stderr="",
-        )
-
-    monkeypatch.setattr(bridge.subprocess, "run", invoke)
     result = ClaudeCLIProvider().run(
         **_run_kwargs(
             tmp_path,
@@ -983,9 +1014,6 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
         )
     )
 
-    assert len(calls) == 1
-    prompt = calls[0]["args"][0][2]
-    assert json.dumps(normalized_paths, indent=2) in prompt
     expected_output = canonical_sha(
         {
             "provider": "claude_cli",
@@ -1019,15 +1047,10 @@ def test_invalid_provider_report_is_terminally_failed_and_withholds_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
-    monkeypatch.setattr(
-        bridge.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(
-            returncode=0,
-            stdout=json.dumps({"status": "done"}),
-            stderr="",
-        ),
+    authorization, execution, authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_invalid_report_subprocess_run,
     )
 
     with pytest.raises(ValueError, match="Invalid Claude report"):
@@ -1045,28 +1068,31 @@ def test_exact_replay_is_inert_and_does_not_extract_output_again(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
-    calls: list[str] = []
+    authorization, execution, authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_successful_subprocess_run,
+    )
+    run_kwargs = _run_kwargs(
+        tmp_path,
+        authorization,
+        execution,
+        authority,
+        ledger,
+    )
+
+    first = ClaudeCLIProvider().run(**run_kwargs)
+    assert first["runtime_receipt"]["executed"] is True
+    replay_trap: list[str] = []
     monkeypatch.setattr(
         bridge.subprocess,
         "run",
-        lambda *args, **kwargs: (
-            calls.append("invoked")
-            or SimpleNamespace(returncode=0, stdout=json.dumps(REPORT), stderr="")
-        ),
+        lambda *args, **kwargs: replay_trap.append("invoked"),
     )
 
-    first = ClaudeCLIProvider().run(
-        **_run_kwargs(tmp_path, authorization, execution, authority, ledger)
-    )
-    assert first["runtime_receipt"]["executed"] is True
-    assert calls == ["invoked"]
+    result = ClaudeCLIProvider().run(**run_kwargs)
 
-    result = ClaudeCLIProvider().run(
-        **_run_kwargs(tmp_path, authorization, execution, authority, ledger)
-    )
-
-    assert calls == ["invoked"]
+    assert replay_trap == []
     assert result["replay"] is True
     assert result["runtime_receipt"]["executed"] is False
     assert result["runtime_receipt"]["terminal_receipt_sha256"] is None
@@ -1076,9 +1102,19 @@ def test_registered_adapter_cannot_be_redirected_by_later_global_rebinding(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
+    authorization, execution, authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_successful_subprocess_run,
+    )
+    run_kwargs = _run_kwargs(
+        tmp_path,
+        authorization,
+        execution,
+        authority,
+        ledger,
+    )
     redirected: list[str] = []
-    subprocess_calls: list[str] = []
     monkeypatch.setattr(
         bridge,
         "_invoke_claude_payload",
@@ -1089,22 +1125,309 @@ def test_registered_adapter_cannot_be_redirected_by_later_global_rebinding(
         "_invoke_claude_payload",
         lambda payload: redirected.append("provider") or OUTPUT,
     )
-    monkeypatch.setattr(
-        bridge.subprocess,
-        "run",
-        lambda *args, **kwargs: (
-            subprocess_calls.append("fixed-adapter")
-            or SimpleNamespace(returncode=0, stdout=json.dumps(REPORT), stderr="")
-        ),
-    )
-
-    result = ClaudeCLIProvider().run(
-        **_run_kwargs(tmp_path, authorization, execution, authority, ledger)
-    )
+    result = ClaudeCLIProvider().run(**run_kwargs)
 
     assert redirected == []
-    assert subprocess_calls == ["fixed-adapter"]
     assert result["runtime_receipt"]["executed"] is True
+
+
+@pytest.mark.parametrize(
+    ("module_name", "member_name"),
+    [
+        ("subprocess", "run"),
+        ("json", "dumps"),
+        ("json", "loads"),
+        ("json", "JSONDecodeError"),
+        ("hashlib", "sha256"),
+    ],
+)
+def test_post_admission_dependency_substitution_refuses_before_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    module_name: str,
+    member_name: str,
+) -> None:
+    authorization, execution, authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_successful_subprocess_run,
+    )
+    traps: list[str] = []
+
+    def substituted_dependency(*args, **kwargs):
+        del args, kwargs
+        traps.append(f"{module_name}.{member_name}")
+        raise AssertionError("post-admission dependency executed")
+
+    module = getattr(bridge, module_name)
+    with monkeypatch.context() as mutation:
+        mutation.setattr(module, member_name, substituted_dependency)
+        with pytest.raises(
+            RuntimeProviderBindingMismatch,
+            match="sealed provider invocation did not authenticate before effect start",
+        ):
+            run_runtime_provider(
+                ENTRYPOINT,
+                authorization=authorization,
+                execution=execution,
+                invocation_authority=ledger._test_invocation_authority,
+                invocation_payload=ledger._test_invocation_payload,
+                invocation_abi=ledger._test_invocation_abi,
+                observation_binding_ledger=ledger,
+                executable_registry=ledger._test_executable_registry,
+                pre_admission=ledger._test_pre_admission,
+            )
+
+    assert traps == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert _lease_rows(tmp_path) == 0
+
+
+def test_in_place_popen_mutation_refuses_on_normal_claude_path_before_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    authorization, execution, authority, ledger = _stack(tmp_path, monkeypatch)
+    traps: list[str] = []
+
+    def substituted_init(*args, **kwargs):
+        del args, kwargs
+        traps.append("Popen.__init__")
+        raise AssertionError("post-admission Popen.__init__ executed")
+
+    with monkeypatch.context() as mutation:
+        mutation.setattr(bridge.subprocess.Popen, "__init__", substituted_init)
+        with pytest.raises(
+            RuntimeProviderBindingMismatch,
+            match="sealed provider invocation did not authenticate before effect start",
+        ):
+            ClaudeCLIProvider().run(
+                **_run_kwargs(
+                    tmp_path,
+                    authorization,
+                    execution,
+                    authority,
+                    ledger,
+                )
+            )
+
+    assert traps == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert _lease_rows(tmp_path) == 0
+
+
+@pytest.mark.parametrize(
+    ("target_name", "member_name"),
+    [
+        ("JSONEncoder", "encode"),
+        ("JSONDecoder", "decode"),
+        ("JSONDecodeError", "__init__"),
+        ("_default_encoder", "encode"),
+        ("_default_decoder", "decode"),
+    ],
+)
+def test_in_place_json_dependency_mutation_refuses_before_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    target_name: str,
+    member_name: str,
+) -> None:
+    authorization, execution, _authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_successful_subprocess_run,
+    )
+    traps: list[str] = []
+
+    def substituted_member(*args, **kwargs):
+        del args, kwargs
+        traps.append(f"{target_name}.{member_name}")
+        raise AssertionError("post-admission JSON dependency executed")
+
+    target = getattr(bridge.json, target_name)
+    with monkeypatch.context() as mutation:
+        mutation.setattr(target, member_name, substituted_member)
+        with pytest.raises(
+            RuntimeProviderBindingMismatch,
+            match="sealed provider invocation did not authenticate before effect start",
+        ):
+            run_runtime_provider(
+                ENTRYPOINT,
+                authorization=authorization,
+                execution=execution,
+                invocation_authority=ledger._test_invocation_authority,
+                invocation_payload=ledger._test_invocation_payload,
+                invocation_abi=ledger._test_invocation_abi,
+                observation_binding_ledger=ledger,
+                executable_registry=ledger._test_executable_registry,
+                pre_admission=ledger._test_pre_admission,
+            )
+
+    assert traps == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert _lease_rows(tmp_path) == 0
+
+
+def test_equal_reconstructed_receipt_cannot_bypass_dependency_precheck(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    authorization, execution, _authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_successful_subprocess_run,
+    )
+    reconstructed = ProviderExecutablePreAdmissionReceipt.from_dict(
+        ledger._test_pre_admission.to_dict()
+    )
+    assert reconstructed == ledger._test_pre_admission
+    assert reconstructed is not ledger._test_pre_admission
+    traps: list[str] = []
+
+    class EncoderTrap:
+        def encode(self, value):
+            del value
+            traps.append("json._default_encoder.encode")
+            raise AssertionError("ambient canonical encoder executed")
+
+    with monkeypatch.context() as mutation:
+        mutation.setattr(bridge.json, "_default_encoder", EncoderTrap())
+        with pytest.raises(
+            RuntimeProviderBindingMismatch,
+            match="sealed provider invocation did not authenticate before effect start",
+        ):
+            run_runtime_provider(
+                ENTRYPOINT,
+                authorization=authorization,
+                execution=execution,
+                invocation_authority=ledger._test_invocation_authority,
+                invocation_payload=ledger._test_invocation_payload,
+                invocation_abi=ledger._test_invocation_abi,
+                observation_binding_ledger=ledger,
+                executable_registry=ledger._test_executable_registry,
+                pre_admission=reconstructed,
+            )
+
+    assert traps == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert _lease_rows(tmp_path) == 0
+
+
+@pytest.mark.parametrize("builtin_name", ["dict", "getattr", "type"])
+def test_post_admission_verifier_builtin_mutation_refuses_without_calling_trap(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    builtin_name: str,
+) -> None:
+    authorization, execution, _authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_successful_subprocess_run,
+    )
+    traps: list[str] = []
+
+    def builtin_trap(*args, **kwargs):
+        del args, kwargs
+        traps.append(builtin_name)
+        raise AssertionError(f"ambient builtin {builtin_name} executed")
+
+    original = builtins.__dict__[builtin_name]
+    caught = None
+    builtins.__dict__[builtin_name] = builtin_trap
+    try:
+        try:
+            run_runtime_provider(
+                ENTRYPOINT,
+                authorization=authorization,
+                execution=execution,
+                invocation_authority=ledger._test_invocation_authority,
+                invocation_payload=ledger._test_invocation_payload,
+                invocation_abi=ledger._test_invocation_abi,
+                observation_binding_ledger=ledger,
+                executable_registry=ledger._test_executable_registry,
+                pre_admission=ledger._test_pre_admission,
+            )
+        except BaseException as exc:
+            caught = exc
+    finally:
+        builtins.__dict__[builtin_name] = original
+
+    assert isinstance(caught, RuntimeProviderBindingMismatch)
+    assert "verifier environment changed" in str(caught)
+    assert traps == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert _lease_rows(tmp_path) == 0
+
+
+@pytest.mark.parametrize("module_name", ["subprocess", "json", "hashlib"])
+def test_post_admission_sys_modules_substitution_refuses_before_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    module_name: str,
+) -> None:
+    authorization, execution, _authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_successful_subprocess_run,
+    )
+    with monkeypatch.context() as mutation:
+        mutation.setitem(sys.modules, module_name, SimpleNamespace())
+        with pytest.raises(
+            RuntimeProviderBindingMismatch,
+            match="sealed provider invocation did not authenticate before effect start",
+        ):
+            run_runtime_provider(
+                ENTRYPOINT,
+                authorization=authorization,
+                execution=execution,
+                invocation_authority=ledger._test_invocation_authority,
+                invocation_payload=ledger._test_invocation_payload,
+                invocation_abi=ledger._test_invocation_abi,
+                observation_binding_ledger=ledger,
+                executable_registry=ledger._test_executable_registry,
+                pre_admission=ledger._test_pre_admission,
+            )
+
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert _lease_rows(tmp_path) == 0
+
+
+def test_post_admission_importer_substitution_refuses_before_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    authorization, execution, _authority, ledger = _stack(
+        tmp_path,
+        monkeypatch,
+        subprocess_run=_successful_subprocess_run,
+    )
+    traps: list[str] = []
+
+    def import_trap(*args, **kwargs):
+        del args, kwargs
+        traps.append("import")
+        raise AssertionError("ambient importer executed")
+
+    with monkeypatch.context() as mutation:
+        mutation.setattr(builtins, "__import__", import_trap)
+        with pytest.raises(
+            RuntimeProviderBindingMismatch,
+            match="sealed provider invocation did not authenticate before effect start",
+        ):
+            run_runtime_provider(
+                ENTRYPOINT,
+                authorization=authorization,
+                execution=execution,
+                invocation_authority=ledger._test_invocation_authority,
+                invocation_payload=ledger._test_invocation_payload,
+                invocation_abi=ledger._test_invocation_abi,
+                observation_binding_ledger=ledger,
+                executable_registry=ledger._test_executable_registry,
+                pre_admission=ledger._test_pre_admission,
+            )
+
+    assert traps == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
 
 
 def test_unbounded_policy_removes_cli_timeout_token_and_path_hint_caps(
@@ -1121,19 +1444,8 @@ def test_unbounded_policy_removes_cli_timeout_token_and_path_hint_caps(
         paths=paths,
         timeout_s=1,
         execution_limit_policy=limit_policy,
+        subprocess_run=_unbounded_subprocess_run,
     )
-    calls: list[dict[str, object]] = []
-    long_summary = "detail-" * 120
-
-    def invoke(*args, **kwargs):
-        calls.append({"args": args, **kwargs})
-        return SimpleNamespace(
-            returncode=0,
-            stdout=json.dumps({**REPORT, "summary": long_summary}),
-            stderr="",
-        )
-
-    monkeypatch.setattr(bridge.subprocess, "run", invoke)
     result = ClaudeCLIProvider().run(
         **_run_kwargs(
             tmp_path,
@@ -1148,14 +1460,11 @@ def test_unbounded_policy_removes_cli_timeout_token_and_path_hint_caps(
         )
     )
 
-    assert len(calls) == 1
-    assert calls[0]["timeout"] is None
-    prompt = calls[0]["args"][0][2]
-    assert paths[-1] in prompt
-    assert "Minimize tokens:" not in prompt
-    assert "unabridged detail" in prompt
-    assert result["report"]["summary"] == long_summary[:600]
-    assert result["report"]["handoff"]["unabridged_summary"] == long_summary
+    assert result["report"]["summary"] == UNBOUNDED_SUMMARY[:600]
+    assert (
+        result["report"]["handoff"]["unabridged_summary"]
+        == UNBOUNDED_SUMMARY
+    )
     assert result["execution_limit_policy"] == limit_policy.as_dict()
     assert (
         result["execution_limit_policy_sha256"]
@@ -1251,6 +1560,36 @@ def test_subprocess_effect_is_private_and_has_one_provider_caller() -> None:
     assert private_calls == 0
 
 
+def test_sealed_output_evidence_has_no_envelope_global_dependency() -> None:
+    provider_path = Path(claude_provider.__file__).resolve()
+    tree = ast.parse(provider_path.read_text(encoding="utf-8"))
+    output_function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_output_digests"
+    )
+    imported_modules = {
+        alias.name
+        for node in ast.walk(output_function)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    imported_from = {
+        node.module
+        for node in ast.walk(output_function)
+        if isinstance(node, ast.ImportFrom)
+    }
+    names = {
+        node.id
+        for node in ast.walk(output_function)
+        if isinstance(node, ast.Name)
+    }
+
+    assert imported_modules == {"hashlib", "json"}
+    assert not imported_from
+    assert "canonical_sha" not in names
+
+
 def test_noncentral_registry_still_refuses_provider_before_subprocess(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1259,12 +1598,6 @@ def test_noncentral_registry_still_refuses_provider_before_subprocess(
     demoted = dataclasses.replace(
         authorization,
         registry=_registry(wiring=Wiring.INVENTORY_ONLY),
-    )
-    called: list[str] = []
-    monkeypatch.setattr(
-        bridge.subprocess,
-        "run",
-        lambda *args, **kwargs: called.append("invoked"),
     )
 
     with pytest.raises(RuntimeProviderBindingMismatch, match="not centrally wired"):
@@ -1276,6 +1609,5 @@ def test_noncentral_registry_still_refuses_provider_before_subprocess(
                 authority,
                 ledger,
             )
-        )
-    assert called == []
+            )
     assert _lease_rows(tmp_path) == 0

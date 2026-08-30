@@ -334,7 +334,8 @@ def _resolve_workspace(
 def _output_digests(value, payload):
     """Content-address exact invocation, prompt, report and semantic output."""
 
-    from daedalus.spine.envelope import canonical_sha
+    import hashlib as local_hashlib
+    import json as local_json
 
     report = value.get("report")
     agent = value.get("agent")
@@ -342,7 +343,13 @@ def _output_digests(value, payload):
     report_sha256 = value.get("report_sha256")
     if type(report) is not dict or not isinstance(agent, str) or not agent:
         raise ValueError("Claude provider returned malformed structured output")
-    computed_report = canonical_sha(dict(report))
+    report_bytes = local_json.dumps(
+        dict(report),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    computed_report = local_hashlib.sha256(report_bytes).hexdigest()
     if report_sha256 != computed_report:
         raise ValueError("Claude provider report digest does not match report bytes")
     for name, digest in (
@@ -356,16 +363,21 @@ def _output_digests(value, payload):
         ):
             raise ValueError(f"Claude provider {name} is not lowercase SHA-256")
     return (
-        canonical_sha(
-            {
-                "provider": "claude_cli",
-                "agent": agent,
-                "invocation_sha256": payload["invocation_sha256"],
-                "prompt_sha256": prompt_sha256,
-                "report_sha256": report_sha256,
-                "report": dict(report),
-            }
-        ),
+        local_hashlib.sha256(
+            local_json.dumps(
+                {
+                    "provider": "claude_cli",
+                    "agent": agent,
+                    "invocation_sha256": payload["invocation_sha256"],
+                    "prompt_sha256": prompt_sha256,
+                    "report_sha256": report_sha256,
+                    "report": dict(report),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("ascii")
+        ).hexdigest(),
     )
 
 

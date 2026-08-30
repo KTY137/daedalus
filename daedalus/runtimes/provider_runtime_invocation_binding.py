@@ -192,6 +192,10 @@ def bind_provider_runtime_invocation(
                 executable.output_digests_source_sha256,
                 invocation_abi.output_evidence_source_sha256,
             ),
+            "dependency_manifest_sha256": (
+                executable.dependency_manifest_sha256,
+                invocation_abi.dependency_manifest_sha256,
+            ),
             "payload_digest": (
                 invocation_payload.digest,
                 invocation_abi.invocation_payload_sha256,

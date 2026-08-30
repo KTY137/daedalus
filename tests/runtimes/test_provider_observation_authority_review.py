@@ -41,9 +41,9 @@ def test_broker_requires_exact_runtime_and_invocation_authority_before_effect() 
     assert "ProviderExecutableObjectRegistry" in source
     assert "isinstance(authorization, RuntimeBoundEffectAuthorization)" not in source
 
-    validate_position = source.index("spec = _validate_binding(")
+    sealed_verify_position = source.index("_verify_sealed_operation(")
+    validate_position = source.index("spec = _validate_binding(", sealed_verify_position)
     bind_position = source.index("bind_provider_runtime_invocation(", validate_position)
-    sealed_verify_position = source.index("_verify_sealed_operation(", bind_position)
     grant_position = source.index("    authorization.grant()", validate_position)
     begin_position = source.index("    start = authorization.begin_effect", grant_position)
     prepare_position = source.index(
@@ -51,7 +51,7 @@ def test_broker_requires_exact_runtime_and_invocation_authority_before_effect() 
         begin_position,
     )
     invoke_position = source.index("_execute_sealed_operation(", prepare_position)
-    assert validate_position < bind_position < sealed_verify_position < grant_position
+    assert sealed_verify_position < validate_position < bind_position < grant_position
     assert grant_position < begin_position < prepare_position < invoke_position
 
     helper = inspect.getsource(broker._prepare_observation_authority_after_start)
