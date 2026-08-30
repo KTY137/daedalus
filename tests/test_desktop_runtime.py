@@ -1038,6 +1038,11 @@ def test_docker_ide_mounts_canonical_project_and_owns_exact_lifecycle(
         raise AssertionError(f"unexpected Docker command: {args!r}")
 
     probes = iter(((False, "offline"), (True, ""), (True, "")))
+    # The fake Docker boundary is complete only when discovery is fake too.
+    # Windows and Linux runners happen to carry a Docker CLI, while the macOS
+    # bundle runner does not; relying on the host executable made the status
+    # half of this otherwise hermetic lifecycle test platform-dependent.
+    monkeypatch.setattr(manager, "_discover_docker_executable", lambda: "docker")
     monkeypatch.setattr(manager, "_docker_exec", docker_exec)
     monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: next(probes))
     monkeypatch.setattr(
@@ -1067,6 +1072,7 @@ def test_docker_ide_mounts_canonical_project_and_owns_exact_lifecycle(
     }
     assert status["reachable"] is True
     assert status["managed"] is True
+    assert status["executable"] == "docker"
 
     manager.stop_ide()
     assert ["container", "rm", "--force", "f" * 64] in calls
