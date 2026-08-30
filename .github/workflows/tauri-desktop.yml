@@ -1,32 +1,12 @@
-name: Tauri Desktop
+name: Tauri Desktop Build
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "apps/web/**"
-      - "daedalus/**"
-      - "scripts/daedalus_desktop_sidecar.py"
-      - "tools/build_tauri_sidecar.py"
-      - "tools/smoke_tauri_sidecar.py"
-      - "tests/test_desktop_packaging.py"
-      - "pyproject.toml"
-      - ".github/workflows/tauri-desktop.yml"
-  push:
-    branches: [main]
-    paths:
-      - "apps/web/**"
-      - "daedalus/**"
-      - "scripts/daedalus_desktop_sidecar.py"
-      - "tools/build_tauri_sidecar.py"
-      - "tools/smoke_tauri_sidecar.py"
-      - "tests/test_desktop_packaging.py"
-      - "pyproject.toml"
-      - ".github/workflows/tauri-desktop.yml"
-  workflow_dispatch:
-
-permissions:
-  contents: write
+  workflow_call:
+    inputs:
+      publish_release:
+        description: Publish native bundles as a GitHub prerelease.
+        required: true
+        type: boolean
 
 concurrency:
   group: tauri-desktop-${{ github.ref }}
@@ -56,6 +36,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -118,7 +100,7 @@ jobs:
         run: cargo fmt --manifest-path apps/web/src-tauri/Cargo.toml -- --check
 
       - name: Build validation desktop bundles
-        if: github.event_name != 'push'
+        if: ${{ !inputs.publish_release }}
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -132,7 +114,7 @@ jobs:
           uploadUpdaterSignatures: false
 
       - name: Build release desktop bundles
-        if: github.event_name == 'push'
+        if: ${{ inputs.publish_release }}
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
