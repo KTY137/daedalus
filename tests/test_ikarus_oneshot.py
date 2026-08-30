@@ -11,7 +11,7 @@ from daedalus.ikarus_oneshot import (
     OneShotContractError,
     OneShotRequest,
     OneShotRuntimeRefused,
-    admit_oneshot_runtime,
+    bind_oneshot_runtime_evidence,
 )
 from daedalus.ikarus_runtime_role import (
     SOURCE_ONLY_EXECUTION_MODE,
@@ -173,13 +173,13 @@ def test_request_digest_binds_prompt_budget_and_runtime_identity():
     assert baseline.digest != _request(_binding(adapter_version="v2026.8.19-r2")).digest
 
 
-def test_current_toolless_runtime_evidence_is_admitted_without_execution(tmp_path):
+def test_current_toolless_runtime_evidence_is_bound_without_execution(tmp_path):
     binding = _binding()
     manifest = _manifest()
     receipt = _conformance(manifest, tmp_path)
     request = _request(binding)
 
-    admission = admit_oneshot_runtime(
+    evidence_binding = bind_oneshot_runtime_evidence(
         request,
         binding,
         manifest,
@@ -187,12 +187,12 @@ def test_current_toolless_runtime_evidence_is_admitted_without_execution(tmp_pat
         now=NOW + timedelta(seconds=2),
     )
 
-    assert admission.request_sha256 == request.digest
-    assert admission.runtime_binding_sha256 == binding.digest
-    assert admission.runtime_manifest_sha256 == manifest.digest
-    assert admission.runtime_conformance_sha256 == receipt.digest
-    assert admission.runtime_id == "hermes_agent"
-    assert admission.source_revision == HERMES_COMMIT
+    assert evidence_binding.request_sha256 == request.digest
+    assert evidence_binding.runtime_binding_sha256 == binding.digest
+    assert evidence_binding.runtime_manifest_sha256 == manifest.digest
+    assert evidence_binding.runtime_conformance_sha256 == receipt.digest
+    assert evidence_binding.runtime_id == "hermes_agent"
+    assert evidence_binding.source_revision == HERMES_COMMIT
 
 
 def test_stale_or_identity_drifted_runtime_evidence_refuses(tmp_path):
@@ -202,7 +202,7 @@ def test_stale_or_identity_drifted_runtime_evidence_refuses(tmp_path):
     request = _request(binding)
 
     with pytest.raises(OneShotRuntimeRefused, match="not current"):
-        admit_oneshot_runtime(
+        bind_oneshot_runtime_evidence(
             request,
             binding,
             manifest,
@@ -212,7 +212,7 @@ def test_stale_or_identity_drifted_runtime_evidence_refuses(tmp_path):
 
     drifted = _manifest(adapter_version="v2026.8.19-r2")
     with pytest.raises(OneShotRuntimeRefused, match="adapter_version"):
-        admit_oneshot_runtime(
+        bind_oneshot_runtime_evidence(
             request,
             binding,
             drifted,
@@ -227,7 +227,7 @@ def test_tools_and_unmetered_cost_fail_closed_before_live_adapter(tmp_path):
 
     with_tools = _manifest(tools=("read-file",))
     with pytest.raises(OneShotRuntimeRefused, match="deny-by-default"):
-        admit_oneshot_runtime(
+        bind_oneshot_runtime_evidence(
             request,
             binding,
             with_tools,
@@ -237,7 +237,7 @@ def test_tools_and_unmetered_cost_fail_closed_before_live_adapter(tmp_path):
 
     no_cost = _manifest(cost=False)
     with pytest.raises(OneShotRuntimeRefused, match="cost reporting"):
-        admit_oneshot_runtime(
+        bind_oneshot_runtime_evidence(
             request,
             binding,
             no_cost,
