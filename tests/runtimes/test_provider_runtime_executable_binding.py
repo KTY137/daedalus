@@ -65,12 +65,16 @@ def _write_adapter(
     source = (
         "CALLS = []\n"
         "\n"
-        "def invoke():\n"
-        "    CALLS.append('invoke')\n"
+        "def helper():\n"
         "    return 'ok'\n"
         "\n"
+        "def other_helper():\n"
+        "    return 'substituted'\n"
+        "\n"
+        "def invoke():\n"
+        "    return helper()\n"
+        "\n"
         "def output_digests(value):\n"
-        "    CALLS.append('output')\n"
         "    return ('a' * 64,)\n"
     )
     relative = Path(*module_name.split(".")).with_suffix(".py")
@@ -301,6 +305,32 @@ def test_repository_mutation_after_admission_refuses_before_effect(
         encoding="utf-8",
         newline="\n",
     )
+
+    with pytest.raises(
+        ProviderRuntimeExecutableBindingMismatch,
+        match="did not reverify pre-effect",
+    ):
+        _bind(
+            authorization,
+            execution,
+            authority,
+            ledger,
+            registry,
+            pre_admission,
+        )
+
+    assert module.CALLS == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    assert ledger.load(execution.execution_id) is None
+
+
+def test_ambient_helper_rebinding_after_admission_refuses_before_effect(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subject = _subject(tmp_path, monkeypatch)
+    authorization, execution, authority, ledger, registry, pre_admission, module, _ = subject
+    module.helper = module.other_helper
 
     with pytest.raises(
         ProviderRuntimeExecutableBindingMismatch,
