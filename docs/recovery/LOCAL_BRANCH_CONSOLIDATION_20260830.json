@@ -1,0 +1,48 @@
+{
+  "schema": "daedalus-local-branch-consolidation/1",
+  "executed_at": "2026-08-30T08:23:00Z",
+  "repository": "KTY137/daedalus",
+  "classification": "ALIGNED",
+  "iron_gate": 1,
+  "operation": {
+    "source_main": "d8e496e8464a01d6a3eae49a00ef54333b4fb1c2",
+    "branch_count_before": 128,
+    "branch_count_after": 11,
+    "retired_ref_count": 117,
+    "atomic_push": true,
+    "exact_force_with_lease_per_ref": true,
+    "history_rewrites": false,
+    "open_pull_requests_affected": 0,
+    "github_actions_used": false
+  },
+  "recovery": {
+    "branch": "archive/legacy-20260830",
+    "head_before_final_anchor": "e29a4102c6fafd6f0bb31819b66da5213f25dbd3",
+    "head_after_final_anchor": "057f96cb12d2dd1fea6e505acb4c89d620abc378",
+    "tree": "a14194a8dbe4578a0e7e87d14a6d3b2a920d87e1",
+    "base_manifest": "docs/recovery/REMOTE_BRANCH_CONSOLIDATION_20260830.json",
+    "base_manifest_commit": "dd0cf6e7fbf615d05e03d9035f5b6ce957827885",
+    "base_manifest_branch_count": 123,
+    "retired_refs_from_base_manifest": 113,
+    "post_manifest_retired_refs": {
+      "ops/branch-consolidation-arm3-20260830": "5c0de8eefff91dc6b6176c4f828675f8955b285a",
+      "ops/branch-consolidation-arm4-20260830": "79a7efc86cf156aef04e58b60b0ffc993cb966f3",
+      "ops/branch-consolidation-arm5-20260830": "291cdf4bdba32a6356ced8585b6ca86498108013",
+      "ops/branch-consolidation-arm6-20260830": "db6897d2f189734e2ffc2f261260babbfa732e29"
+    },
+    "all_117_retired_tips_verified_as_archive_ancestors": true
+  },
+  "final_heads": {
+    "archive/legacy-20260830": "057f96cb12d2dd1fea6e505acb4c89d620abc378",
+    "exp/tensor-kernel-contract-01": "f6de10941e59efc7eacb8c5390aed6fcf0aedf1f",
+    "exp/tensor-latent-ceiling-01": "6095fc466301451a0dada863f771e97ec9f49efb",
+    "experiment/deepseek-lab": "a31d004dc764dd7b64fec88247e48d59f2b5519c",
+    "feature/chip-design-rtl-tcl": "ecedaaac9c0016fdf768ac059e25d750d06b3fb6",
+    "g1/gardener-post-release-containment-03": "47229f0a230111ad1be29cbd5f976dcc31c02859",
+    "g1/ikarus-runtime-invocation-binding-07d3": "1c2c97f5ebff63a3bb1a2795d4017c5173348347",
+    "g2/knowledge-correlation-bootstrap": "6e8264be25dac91606e962a070ba786e79bf48fa",
+    "main": "d8e496e8464a01d6a3eae49a00ef54333b4fb1c2",
+    "nemesis/20260830-tier2-evidence-hardening-r2": "0db2e1ece81335f9f5483454c13a97ac7a34f6d3",
+    "ops/gardener-campaign-20260929": "3c5dd7a0b620716a8028edf34a53f0e428a056a2"
+  }
+}
