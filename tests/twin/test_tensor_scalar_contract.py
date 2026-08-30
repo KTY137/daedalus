@@ -60,6 +60,31 @@ def test_integer_scalar_is_canonicalized_to_float() -> None:
     assert type(scalar.value) is float
 
 
+def test_integer_scalar_requires_exact_binary64_representation() -> None:
+    exact = entry(2**53)
+    large_but_exact = entry(2**60)
+
+    assert exact.value == float(2**53)
+    assert large_but_exact.value == float(2**60)
+
+    with pytest.raises(ValueError, match="exactly representable as binary64"):
+        entry(2**53 + 1)
+
+
+def test_huge_integer_overflow_stays_inside_contract_error_domain() -> None:
+    with pytest.raises(ValueError, match="finite number"):
+        entry(10**400)
+
+
+def test_lossy_integer_cannot_alias_an_existing_tensor_digest() -> None:
+    canonical = view(2**53)
+
+    with pytest.raises(ValueError, match="exactly representable as binary64"):
+        view(2**53 + 1)
+
+    assert canonical.entries[0].value == float(2**53)
+
+
 def test_negative_zero_is_normalized_before_canonical_serialization() -> None:
     positive = view(0.0)
     negative = view(-0.0)
