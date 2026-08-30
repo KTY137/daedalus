@@ -239,19 +239,20 @@ class TensorView(CanonicalContract):
         return tuple(axis.labels.index(coordinate[axis.name]) for axis in self.axes)
 
     def select(self, **coordinates: str) -> tuple[SparseTensorEntry, ...]:
-        normalized: dict[str, str] = {}
-        axes = self.axis_map
+        normalized: dict[int, str] = {}
+        axis_positions = {axis.name: index for index, axis in enumerate(self.axes)}
         for name, raw in coordinates.items():
-            if name not in axes:
+            if name not in axis_positions:
                 raise ValueError(f"unknown tensor axis {name!r}")
+            position = axis_positions[name]
             label = _non_empty(raw, f"selector.{name}", max_length=1000)
-            if label not in axes[name].labels:
+            if label not in self.axes[position].labels:
                 raise ValueError(f"selector label {label!r} is not declared by axis {name!r}")
-            normalized[name] = label
+            normalized[position] = label
         return tuple(
             entry
             for entry in self.entries
-            if all(entry.coordinate_map[name] == label for name, label in normalized.items())
+            if all(entry.coordinates[position][1] == label for position, label in normalized.items())
         )
 
     @classmethod
