@@ -1,9 +1,10 @@
 name: Run branch consolidation 2026-08-30
 
 on:
-  pull_request:
+  push:
     branches: [main]
-    types: [opened]
+    paths:
+      - .github/branch-consolidation-final.trigger
 
 permissions:
   contents: write
@@ -16,7 +17,6 @@ concurrency:
 
 jobs:
   consolidate:
-    if: github.event.pull_request.head.ref == 'ops/branch-consolidation-arm4-20260830'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
