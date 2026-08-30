@@ -1,17 +1,8 @@
-"""Bounded typed tensor view over the canonical Fourfold/Forest subject.
+"""Deterministic sparse tensor view of one exact Fourfold/Forest subject.
 
-This module is deliberately an internal computational projection, not a fifth
-semantic plane, graph authority, store, scheduler, evaluator, or promotion
-surface.  Forest/source artifacts and :class:`FourfoldSnapshot` remain the
-semantic authority.  A ``TensorView`` only gives algorithms a deterministic,
-sparse, named-axis representation of one exact Fourfold/Forest pair.
-
-The contract is intentionally standard-library only.  A later NumPy/PyTorch or
-sparse backend must be an adapter over this representation and must demonstrate
-a measured benefit plus a replacement path; backend state must never become
-candidate identity.
+This is an internal computational projection only. Source artifacts, Forest and
+Fourfold remain authoritative; this module adds no fifth plane or state store.
 """
-
 from __future__ import annotations
 
 import math
@@ -37,41 +28,27 @@ MAX_AXIS_LABELS = 100_000
 MAX_TENSOR_ENTRIES = 1_000_000
 
 
-def _coordinates(
-    values: Sequence[Sequence[Any]], name: str = "entry.coordinates"
-) -> tuple[tuple[str, str], ...]:
-    """Canonicalize a named sparse coordinate without inventing axis order.
-
-    Coordinates are stored as ``(axis_name, label)`` pairs instead of raw
-    integer positions.  This keeps the wire identity stable when callers build
-    the same tensor with axes in a different input order.  ``TensorView`` can
-    cheaply project the names to integer indices for computational backends.
-    """
-
+def _coordinate(values: Sequence[Sequence[Any]]) -> tuple[tuple[str, str], ...]:
     if isinstance(values, (str, bytes, Mapping)):
-        raise ValueError(f"{name} must be a sequence of (axis, label) pairs")
-    converted: list[tuple[str, str]] = []
+        raise ValueError("entry.coordinates must be (axis, label) pairs")
+    out: list[tuple[str, str]] = []
     seen: set[str] = set()
     for index, raw in enumerate(values):
-        if isinstance(raw, (str, bytes, Mapping)) or not isinstance(raw, Sequence):
-            raise ValueError(f"{name}[{index}] must be an (axis, label) pair")
-        if len(raw) != 2:
-            raise ValueError(f"{name}[{index}] must contain exactly axis and label")
-        axis = _identifier(raw[0], f"{name}[{index}].axis")
-        label = _non_empty(raw[1], f"{name}[{index}].label", max_length=1000)
+        if isinstance(raw, (str, bytes, Mapping)) or not isinstance(raw, Sequence) or len(raw) != 2:
+            raise ValueError(f"entry.coordinates[{index}] must be an (axis, label) pair")
+        axis = _identifier(raw[0], f"entry.coordinates[{index}].axis")
+        label = _non_empty(raw[1], f"entry.coordinates[{index}].label", max_length=1000)
         if "\x00" in label:
-            raise ValueError(f"{name}[{index}].label contains a NUL byte")
+            raise ValueError("entry coordinate labels must not contain NUL bytes")
         if axis in seen:
-            raise ValueError(f"{name} must name every axis at most once")
+            raise ValueError("entry.coordinates must name every axis at most once")
         seen.add(axis)
-        converted.append((axis, label))
-    return tuple(sorted(converted))
+        out.append((axis, label))
+    return tuple(sorted(out))
 
 
 @dataclass(frozen=True)
 class TensorAxis:
-    """One named dimension and its canonical finite label vocabulary."""
-
     name: str
     labels: tuple[str, ...]
 
@@ -79,15 +56,10 @@ class TensorAxis:
         object.__setattr__(self, "name", _identifier(self.name, "axis.name"))
         labels = _sorted_strings(self.labels, "axis.labels")
         if len(labels) > MAX_AXIS_LABELS:
-            raise ValueError(
-                f"axis.labels exceeds the bounded limit of {MAX_AXIS_LABELS}"
-            )
+            raise ValueError(f"axis.labels exceeds bounded limit {MAX_AXIS_LABELS}")
         if any("\x00" in label for label in labels):
             raise ValueError("axis.labels must not contain NUL bytes")
         object.__setattr__(self, "labels", labels)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"name": self.name, "labels": list(self.labels)}
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "TensorAxis":
@@ -96,13 +68,6 @@ class TensorAxis:
 
 @dataclass(frozen=True)
 class SparseTensorEntry:
-    """One sparse typed relation/value at a fully named coordinate.
-
-    ``masked`` is explicit rather than encoded as a magic numeric value.
-    Evidence digests remain attached to the derived row; they do not make the
-    tensor authoritative over the Fourfold/Forest source.
-    """
-
     coordinates: tuple[tuple[str, str], ...]
     relation: str
     value: float = 1.0
@@ -110,27 +75,22 @@ class SparseTensorEntry:
     evidence_sha256s: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "coordinates", _coordinates(self.coordinates))
-        object.__setattr__(
-            self, "relation", _identifier(self.relation, "entry.relation")
-        )
+        object.__setattr__(self, "coordinates", _coordinate(self.coordinates))
+        object.__setattr__(self, "relation", _identifier(self.relation, "entry.relation"))
         if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
             raise ValueError("entry.value must be a finite number")
-        numeric = float(self.value)
-        if not math.isfinite(numeric):
+        value = float(self.value)
+        if not math.isfinite(value):
             raise ValueError("entry.value must be a finite number")
-        object.__setattr__(self, "value", numeric)
+        object.__setattr__(self, "value", value)
         if type(self.masked) is not bool:
             raise ValueError("entry.masked must be boolean")
-        object.__setattr__(
-            self,
-            "evidence_sha256s",
-            _sorted_strings(
-                self.evidence_sha256s,
-                "entry.evidence_sha256s",
-                digests=True,
-            ),
+        evidence = _sorted_strings(
+            self.evidence_sha256s, "entry.evidence_sha256s", digests=True
         )
+        if not evidence:
+            raise ValueError("entry must retain evidence digests")
+        object.__setattr__(self, "evidence_sha256s", evidence)
 
     @property
     def coordinate_map(self) -> Mapping[str, str]:
@@ -138,18 +98,7 @@ class SparseTensorEntry:
 
     @property
     def semantic_key(self) -> tuple[tuple[tuple[str, str], ...], str]:
-        """Coordinate/relation identity independent of value/evidence packaging."""
-
         return self.coordinates, self.relation
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "coordinates": [list(item) for item in self.coordinates],
-            "relation": self.relation,
-            "value": self.value,
-            "masked": self.masked,
-            "evidence_sha256s": list(self.evidence_sha256s),
-        }
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "SparseTensorEntry":
@@ -158,12 +107,7 @@ class SparseTensorEntry:
 
 @dataclass(frozen=True)
 class TensorView(CanonicalContract):
-    """Immutable sparse computational view of one exact Fourfold/Forest pair.
-
-    Completeness uses the same ``complete`` / ``partial`` / ``absent``
-    vocabulary as the Fourfold planes, but this status describes only the
-    *projection*.  It cannot change the status of any source plane.
-    """
+    """Immutable derived view; completeness describes the projection only."""
 
     CONTRACT_TYPE: ClassVar[str] = "daedalus.twin.tensor-view"
 
@@ -178,84 +122,53 @@ class TensorView(CanonicalContract):
     reason: str = ""
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "repository_id", _identifier(self.repository_id, "repository_id")
-        )
-        object.__setattr__(
-            self,
-            "source_revision",
-            _revision(self.source_revision, "source_revision"),
-        )
-        object.__setattr__(
-            self,
-            "source_forest_sha256",
-            _sha256(self.source_forest_sha256, "source_forest_sha256"),
-        )
-        object.__setattr__(
-            self,
-            "source_fourfold_sha256",
-            _sha256(self.source_fourfold_sha256, "source_fourfold_sha256"),
-        )
+        object.__setattr__(self, "repository_id", _identifier(self.repository_id, "repository_id"))
+        object.__setattr__(self, "source_revision", _revision(self.source_revision, "source_revision"))
+        object.__setattr__(self, "source_forest_sha256", _sha256(self.source_forest_sha256, "source_forest_sha256"))
+        object.__setattr__(self, "source_fourfold_sha256", _sha256(self.source_fourfold_sha256, "source_fourfold_sha256"))
         if self.status not in TENSOR_STATUSES:
             raise ValueError("tensor.status must be complete, partial, or absent")
 
         axes = tuple(self.axes)
         if len(axes) > MAX_TENSOR_AXES:
-            raise ValueError(f"tensor.axes exceeds the bounded limit of {MAX_TENSOR_AXES}")
+            raise ValueError(f"tensor.axes exceeds bounded limit {MAX_TENSOR_AXES}")
         if any(not isinstance(axis, TensorAxis) for axis in axes):
             raise ValueError("tensor.axes must contain TensorAxis records")
         by_name = {axis.name: axis for axis in axes}
         if len(by_name) != len(axes):
             raise ValueError("tensor.axes must have unique names")
-        canonical_axes = tuple(by_name[name] for name in sorted(by_name))
-        object.__setattr__(self, "axes", canonical_axes)
+        axes = tuple(by_name[name] for name in sorted(by_name))
+        object.__setattr__(self, "axes", axes)
 
         entries = tuple(self.entries)
         if len(entries) > MAX_TENSOR_ENTRIES:
-            raise ValueError(
-                f"tensor.entries exceeds the bounded limit of {MAX_TENSOR_ENTRIES}"
-            )
+            raise ValueError(f"tensor.entries exceeds bounded limit {MAX_TENSOR_ENTRIES}")
         if any(not isinstance(entry, SparseTensorEntry) for entry in entries):
             raise ValueError("tensor.entries must contain SparseTensorEntry records")
-
-        axis_names = tuple(axis.name for axis in canonical_axes)
-        axis_sets = {axis.name: frozenset(axis.labels) for axis in canonical_axes}
-        seen: set[tuple[tuple[tuple[str, str], ...], str]] = set()
-        for entry in entries:
-            coordinates = entry.coordinate_map
-            if tuple(sorted(coordinates)) != axis_names:
-                raise ValueError(
-                    "every sparse entry must bind exactly the TensorView axes"
-                )
-            for axis_name, label in entry.coordinates:
-                if label not in axis_sets[axis_name]:
-                    raise ValueError(
-                        f"entry label {label!r} is not declared by axis {axis_name!r}"
-                    )
-            if entry.semantic_key in seen:
-                raise ValueError(
-                    "tensor.entries must not repeat a coordinate/relation claim"
-                )
-            seen.add(entry.semantic_key)
-
+        axis_names = tuple(axis.name for axis in axes)
+        label_sets = {axis.name: frozenset(axis.labels) for axis in axes}
         label_index = {
             axis.name: {label: index for index, label in enumerate(axis.labels)}
-            for axis in canonical_axes
+            for axis in axes
         }
+        seen: set[tuple[tuple[tuple[str, str], ...], str]] = set()
+        for entry in entries:
+            coordinate = entry.coordinate_map
+            if tuple(sorted(coordinate)) != axis_names:
+                raise ValueError("every sparse entry must bind exactly the TensorView axes")
+            for axis, label in entry.coordinates:
+                if label not in label_sets[axis]:
+                    raise ValueError(f"entry label {label!r} is not declared by axis {axis!r}")
+            if entry.semantic_key in seen:
+                raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
+            seen.add(entry.semantic_key)
 
-        def entry_key(entry: SparseTensorEntry) -> tuple[Any, ...]:
-            mapping = entry.coordinate_map
-            indices = tuple(label_index[name][mapping[name]] for name in axis_names)
-            return (
-                indices,
-                entry.relation,
-                entry.masked,
-                entry.value,
-                entry.evidence_sha256s,
-            )
+        def order(entry: SparseTensorEntry) -> tuple[Any, ...]:
+            coordinate = entry.coordinate_map
+            indices = tuple(label_index[name][coordinate[name]] for name in axis_names)
+            return indices, entry.relation, entry.masked, entry.value, entry.evidence_sha256s
 
-        object.__setattr__(self, "entries", tuple(sorted(entries, key=entry_key)))
-
+        object.__setattr__(self, "entries", tuple(sorted(entries, key=order)))
         reason = self.reason
         if reason:
             reason = _non_empty(reason, "tensor.reason", max_length=2000)
@@ -270,18 +183,15 @@ class TensorView(CanonicalContract):
                 raise ValueError("a partial tensor must retain its known axes")
             if not reason:
                 raise ValueError("a partial tensor must explain what is incomplete")
-        else:
-            if not self.axes:
-                raise ValueError("a complete tensor must contain at least one axis")
-            if reason:
-                raise ValueError("a complete tensor must not carry an incompleteness reason")
+        elif not self.axes:
+            raise ValueError("a complete tensor must contain at least one axis")
+        elif reason:
+            raise ValueError("a complete tensor must not carry an incompleteness reason")
 
         if not isinstance(self.provenance, ContractProvenance):
             raise ValueError("tensor.provenance must be ContractProvenance")
         if self.provenance.source_revision != self.source_revision:
-            raise ValueError(
-                "tensor source_revision must match provenance.source_revision"
-            )
+            raise ValueError("tensor source_revision must match provenance.source_revision")
         _require_provenance_inputs(
             self.provenance,
             (self.source_forest_sha256, self.source_fourfold_sha256),
@@ -297,30 +207,21 @@ class TensorView(CanonicalContract):
         return MappingProxyType({axis.name: axis for axis in self.axes})
 
     def index_coordinate(self, entry: SparseTensorEntry) -> tuple[int, ...]:
-        """Project one retained named coordinate to deterministic integer indices."""
-
         if entry not in self.entries:
             raise ValueError("entry is not retained by this TensorView")
         coordinate = entry.coordinate_map
-        return tuple(
-            axis.labels.index(coordinate[axis.name])
-            for axis in self.axes
-        )
+        return tuple(axis.labels.index(coordinate[axis.name]) for axis in self.axes)
 
     def select(self, **coordinates: str) -> tuple[SparseTensorEntry, ...]:
-        """Deterministic sparse slice by zero or more named axis labels."""
-
         normalized: dict[str, str] = {}
         axes = self.axis_map
-        for axis_name, raw_label in coordinates.items():
-            if axis_name not in axes:
-                raise ValueError(f"unknown tensor axis {axis_name!r}")
-            label = _non_empty(raw_label, f"selector.{axis_name}", max_length=1000)
-            if label not in axes[axis_name].labels:
-                raise ValueError(
-                    f"selector label {label!r} is not declared by axis {axis_name!r}"
-                )
-            normalized[axis_name] = label
+        for name, raw in coordinates.items():
+            if name not in axes:
+                raise ValueError(f"unknown tensor axis {name!r}")
+            label = _non_empty(raw, f"selector.{name}", max_length=1000)
+            if label not in axes[name].labels:
+                raise ValueError(f"selector label {label!r} is not declared by axis {name!r}")
+            normalized[name] = label
         return tuple(
             entry
             for entry in self.entries
@@ -331,14 +232,10 @@ class TensorView(CanonicalContract):
     def from_dict(cls, payload: Mapping[str, Any]) -> "TensorView":
         body = cls._contract_payload(payload)
         body["axes"] = tuple(TensorAxis.from_dict(item) for item in body["axes"])
-        body["entries"] = tuple(
-            SparseTensorEntry.from_dict(item) for item in body["entries"]
-        )
+        body["entries"] = tuple(SparseTensorEntry.from_dict(item) for item in body["entries"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
 
 
 def parse_tensor_view(payload: Mapping[str, Any]) -> TensorView:
-    """Strict parser for the internal view; intentionally absent from registries."""
-
     return TensorView.from_dict(payload)
