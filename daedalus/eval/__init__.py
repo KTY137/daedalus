@@ -14,11 +14,16 @@ from .tasks import TASKS, resolve_task_repo
 from . import harness as harness
 from . import report as report
 from . import tier2 as tier2
+from ._text_integrity import expected_asserted, safe_ascii_field
 
 # Backward-compatible strangler seam. Existing code imports
 # ``daedalus.eval.harness.run_tier2`` and tests call ``harness._score`` directly.
 # Keep those names working while tier2.py becomes the single owner of live-model
-# scoring and provider-integrity semantics.
+# scoring and provider-integrity semantics. The two text-integrity guards are
+# likewise installed here so every historical Tier-2 import receives the same
+# fail-closed semantics while the legacy module is being collapsed.
+tier2._expected_asserted = expected_asserted
+tier2._safe_ascii = safe_ascii_field
 harness._score = tier2._score
 harness._ask = tier2._ask
 harness.run_tier2 = tier2.run_tier2
