@@ -1,7 +1,12 @@
-name: Ikarus Provider Pre-Admission
+name: Gate 1 Ikarus Provider Pre-Admission
 
 on:
+  push:
+    branches:
+      - g1/ikarus-provider-pre-admission-07a
   pull_request:
+    branches:
+      - main
     paths:
       - "daedalus/runtimes/provider_executable_pre_admission.py"
       - "tests/runtimes/test_provider_executable_pre_admission.py"
@@ -13,32 +18,38 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: g1-ikarus-provider-pre-admission-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  exact-boundary:
+  focused:
     strategy:
       fail-fast: false
       matrix:
         python: ["3.10", "3.12"]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONHASHSEED: "0"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[test]" pytest
-      - name: Compile touched boundary
-        run: >-
+      - run: python -m pip install -e . pytest
+      - run: >-
           python -m py_compile
           daedalus/runtimes/provider_executable_pre_admission.py
           tests/runtimes/test_provider_executable_pre_admission.py
           tests/runtimes/test_provider_executable_pre_admission_review.py
-      - name: Validate pinned Hermes provenance
-        run: >-
-          python -c "import json,pathlib; p=pathlib.Path('docs/research/hermes-agent-v2026.8.19-provenance.json'); json.loads(p.read_text(encoding='utf-8')); print(p)"
-      - name: Run exact pre-admission and prerequisite regressions
-        run: >-
-          python -m pytest -q
+      - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
+      - run: >-
+          python -m pytest -q -p no:cacheprovider
           tests/runtimes/test_provider_executable_pre_admission.py
           tests/runtimes/test_provider_executable_pre_admission_review.py
           tests/runtimes/test_provider_invocation_resolution.py
