@@ -64,6 +64,14 @@ def main(argv: list[str] | None = None) -> None:
     runtime = prepare_runtime()
     os.chdir(runtime)
 
+    # Load the existing desktop .env before connection settings are applied so
+    # operator-owned trust lists and provider secrets remain part of the same
+    # process environment. Desktop connection settings intentionally override
+    # only their managed OLLAMA_* transport/model values afterwards.
+    from daedalus.env import load_env
+
+    load_env(runtime / ".env")
+
     # Apply desktop connection settings BEFORE importing the web API. Modules
     # that read OLLAMA_* at import time then see the same endpoint as Ikarus.
     from daedalus.desktop_runtime import (
