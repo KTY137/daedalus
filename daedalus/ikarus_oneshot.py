@@ -8,9 +8,11 @@ template registry, provider client, or second runtime authority.
 
 This module is deliberately effect-free.  It does not call a model, open a
 network connection, read chat history, resolve credentials, or grant a tool.
-It only builds an immutable request and admits the selected runtime identity
-against already-existing canonical runtime-conformance evidence.  Real provider
-execution still has to pass through ``daedalus.runtimes.broker``.
+It only builds an immutable request and binds the selected runtime identity to
+already-existing canonical runtime-conformance evidence.  A tool-capable
+manifest may be observed here, but tool exposure remains empty on the request
+and requires a separate canonical-policy projection.  Real provider execution
+still has to pass through ``daedalus.runtimes.broker``.
 """
 from __future__ import annotations
 
@@ -97,7 +99,9 @@ class OneShotRequest:
     The request has no conversation/session/thread/memory identifier and no
     message-history parameter.  Its iteration limit is structurally one.  A
     caller may choose a runtime, prompt and canonical resource budget; it cannot
-    smuggle another turn or an ambient transcript into this contract.
+    smuggle another turn or an ambient transcript into this contract.  Tool
+    exposure is intentionally absent here and must be supplied by a separate
+    projection over canonical runtime and policy authority.
     """
 
     purpose: str
@@ -206,7 +210,9 @@ class OneShotRuntimeEvidenceBinding:
     This is not a RuntimeConformanceReceipt, Effect Lease, provider authority or
     permission to execute.  It exists so Ikarus can retain one exact answer to
     "which already-conformant runtime identity was selected for this stateless
-    request?" without creating a second trust contract.
+    request?" without creating a second trust contract.  It may bind a
+    tool-capable runtime manifest; that fact is capability evidence only and
+    grants no tool to this request.
     """
 
     request_sha256: str
@@ -258,10 +264,11 @@ def bind_oneshot_runtime_evidence(
 ) -> OneShotRuntimeEvidenceBinding:
     """Bind a stateless request to current canonical runtime evidence.
 
-    The selected manifest must match the exact Ikarus role binding.  Until the
-    later tool-scope packet lands, this seam is deny-by-default for tools: a
-    manifest that declares any tool is refused instead of relying on a provider
-    default to disable it.
+    The selected manifest must match the exact Ikarus role binding.  A manifest
+    may declare tools, but this seam does not expose them: ``OneShotRequest`` is
+    structurally tool-less and the separate policy-bound tool projection must
+    explicitly select any subset later.  Capability declaration never becomes
+    permission by appearing here.
     """
 
     if type(request) is not OneShotRequest:
@@ -298,10 +305,6 @@ def bind_oneshot_runtime_evidence(
             "one-shot runtime identity mismatch: " + ", ".join(mismatch)
         )
 
-    if manifest.declared_tools:
-        raise OneShotRuntimeRefused(
-            "one-shot tool scope is deny-by-default until canonical tool-scope projection lands"
-        )
     if not manifest.capabilities.timeout:
         raise OneShotRuntimeRefused(
             "one-shot runtime manifest must declare timeout capability"
