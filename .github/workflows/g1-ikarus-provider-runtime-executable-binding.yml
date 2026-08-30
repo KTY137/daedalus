@@ -1,0 +1,66 @@
+name: Gate 1 Ikarus Provider Runtime Executable Binding
+
+on:
+  push:
+    branches:
+      - g1/ikarus-broker-registry-binding-07c
+  pull_request:
+    paths:
+      - "daedalus/runtimes/provider_executable_pre_admission.py"
+      - "daedalus/runtimes/provider_executable_object_registry.py"
+      - "daedalus/runtimes/provider_runtime_executable_binding.py"
+      - "tests/runtimes/test_provider_executable_pre_admission.py"
+      - "tests/runtimes/test_provider_executable_pre_admission_review.py"
+      - "tests/runtimes/test_provider_executable_object_registry.py"
+      - "tests/runtimes/test_provider_executable_object_registry_review.py"
+      - "tests/runtimes/test_provider_runtime_executable_binding.py"
+      - "tests/runtimes/test_provider_runtime_executable_binding_review.py"
+      - "docs/work-packets/G1-IKARUS-07C_PROVIDER_RUNTIME_EXECUTABLE_BINDING.md"
+      - ".github/workflows/g1-ikarus-provider-runtime-executable-binding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g1-ikarus-provider-runtime-executable-binding-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: >-
+          python -m py_compile
+          daedalus/runtimes/provider_executable_pre_admission.py
+          daedalus/runtimes/provider_executable_object_registry.py
+          daedalus/runtimes/provider_runtime_executable_binding.py
+          tests/runtimes/test_provider_runtime_executable_binding.py
+          tests/runtimes/test_provider_runtime_executable_binding_review.py
+      - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
+      - run: >-
+          python -m pytest -q -p no:cacheprovider
+          tests/runtimes/test_provider_runtime_executable_binding.py
+          tests/runtimes/test_provider_runtime_executable_binding_review.py
+          tests/runtimes/test_provider_executable_object_registry.py
+          tests/runtimes/test_provider_executable_object_registry_review.py
+          tests/runtimes/test_provider_executable_pre_admission.py
+          tests/runtimes/test_provider_executable_pre_admission_review.py
+          tests/runtimes/test_runtime_provider_exact_authority_boundary.py
+          tests/runtimes/test_provider_observation_authority_review.py
