@@ -126,6 +126,8 @@ def test_sparse_entries_have_named_coordinates_and_deterministic_integer_project
     assert selected[0].coordinate_map == {"node": "src/a.py", "plane": "code"}
     assert tensor.index_coordinate(selected[0]) == (0, 0)
     assert tensor.select(plane="knowledge") == (tensor.entries[1],)
+    assert tensor.select(node="src/a.py", plane="code") == (tensor.entries[0],)
+    assert tensor.select(node="src/a.py", plane="knowledge") == ()
 
     with pytest.raises(ValueError, match="unknown tensor axis"):
         tensor.select(missing="x")
