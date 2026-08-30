@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only structural verification for signed provider executable targets.
 
 Exact CAS-backed Python source bytes are parsed without importing or executing

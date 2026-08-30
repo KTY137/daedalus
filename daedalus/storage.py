@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical low-level storage primitives for the Daedalus kernel.
 
 This module owns two related, deliberately small contracts:

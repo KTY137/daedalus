@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """CLI:  python -m daedalus.structcore <repo> [--json out.json]
 
 Prints a derived, multi-language structural summary for distillation targeting.

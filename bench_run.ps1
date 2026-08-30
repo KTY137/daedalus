@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 # bench_run.ps1 — sync branches to the sophonone test bench and run the TCT suite there.
 # Runs on the LAPTOP (uses the already-authorized SSH key; changes nothing on the
 # bench outside C:\bench). Usage examples:

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The acceptance harness's own contract.
 
 `tools/system_check.py` is the thing that answers "does the system work". It is

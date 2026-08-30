@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Offline tests for the cross-vendor council adapters.
 
 NO network, NO Ollama, NO vendor CLI: every transport is injected. The only

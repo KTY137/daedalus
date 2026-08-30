@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Binding the whole-matrix verdict is fail-closed, and binding is not closure.
 
 These are policy tests, so every fixture is built here rather than read out of a

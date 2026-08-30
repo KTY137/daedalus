@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 export type NodeKind = 'project' | 'squad' | 'category' | 'agent' | 'model' | 'capability' | 'path';
 
 export interface ApiEnvelope<T = Record<string, unknown>> {

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """inventory.py — what tools exist on this machine, and what they are cleared for.
 
 ``skills.py`` could parse a ``SKILL.md`` and had no consumer but its own tests;

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """tokens.py — token counting for the distill benchmark.
 
 Uses ``tiktoken`` (optional dep) for a real BPE count when installed; otherwise a

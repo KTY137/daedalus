@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """graph_delta.py — does the MULTI-LAYER GRAPH see a defect the test suite missed?
 
 THE QUESTION

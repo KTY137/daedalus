@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Unified `daedalus` command -- one entry point for the whole harness.
 
     daedalus doctor                     is the bench ready? (Ollama/model/claude)

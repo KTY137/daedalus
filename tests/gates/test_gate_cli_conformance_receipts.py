@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Both gate-report CLIs bind a conformance-receipt bundle only when told to.
 
 Without ``--conformance-receipts`` the fail-closed unbound blocker is

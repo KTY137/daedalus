@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Authority is the operator's; the subject is the caller's. They are two roots.
 
 THE DEFECT THIS SUITE PINS, and it was mine. ``acquire_effect_lease`` took one

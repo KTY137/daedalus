@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The declared remote-Ollama lane.
 
 ``providers/ollama.py`` refuses to send repository content to any endpoint

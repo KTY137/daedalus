@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """typegraph.py — whole-repo RESOLUTION of the type/data-structure layer.
 
 Stage 2 of the type-graph lane. ``parse.py`` extracted RAW, unresolved facts

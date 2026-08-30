@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Terminal trust fence stays read-only on the runtime trust ledger.
 
 Since G0-RTC-07A the broker refuses duck-typed or subclassed authority

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The three shells: deterministic / hand / voice.
 
 Covers the five obligations that are properties of the ROUTER rather than of

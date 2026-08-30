@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Detect Claude Code subagents defined in a repo's `.claude/agents/`.
 
 These are distinct from the harness's own agent roles (`agents/*.json`, which

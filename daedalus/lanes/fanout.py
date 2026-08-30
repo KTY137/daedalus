@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Bounded, resumable, corroborated fan-out over the cheap external lane.
 
 The volume half of the two-judge plan. Its one job is to run N advisory tasks

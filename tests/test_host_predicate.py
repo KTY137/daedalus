@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """ONE answer to "do the bytes leave this machine", pinned host by host.
 
 ``tests/test_egress_lane_by_host.py`` closed the live breach: ``lane="trusted"``

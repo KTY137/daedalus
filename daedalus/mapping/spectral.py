@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Spectral structure metrics over the reachability graph.
 
 The question this module answers is ONE question: *does our declared package

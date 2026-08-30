@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Run a bounded mutation campaign against the retention inventory boundary."""
 from __future__ import annotations
 

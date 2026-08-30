@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The D5 acceptance truth table, executed.
 
 The expected column is not written here. It is READ OUT OF THE COMMITTED PLAN

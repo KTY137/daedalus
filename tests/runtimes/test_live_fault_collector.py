@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The live-runtime collector: what it records, and what it refuses to record.
 
 The collector is the seam that turns a probe's answer into a canonical

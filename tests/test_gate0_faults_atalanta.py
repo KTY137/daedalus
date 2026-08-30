@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Gate-0 exit criterion, as a fault-injection matrix.
 
 Section 10 of ``docs/IKARUS_ARIADNE_MASTER_PLAN.md`` lets Gate 0 exit only when

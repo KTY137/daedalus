@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """What the loop's own receipts must say about the capability and the revision.
 
 Two defects are pinned here, both measured on 2026-08-22:

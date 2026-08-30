@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """End-to-end coverage for the write-mode guard's fail-closed behavior.
 
 Exercises the real seam (``daedalus.offload.offload``) for the invariants the

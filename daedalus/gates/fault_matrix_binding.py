@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Bind the whole runtime fault matrix verdict into the Gate-0 report.
 
 The verdict itself is a runtimes-side observation record

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail-closed behavior of the Gate-1 rehearsal runner under faults.
 
 The green-path suite proves the rename slice works and replays digest-

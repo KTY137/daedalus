@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Project the append-only memory journal into the versioned vector index.
 
 The journal (``memory/events.local.jsonl``) is authoritative.  The vector index

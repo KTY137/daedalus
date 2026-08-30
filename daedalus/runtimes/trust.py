@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """External trust anchor for production runtime-conformance evidence.
 
 A caller can construct canonical contracts in memory, so an ``authority``

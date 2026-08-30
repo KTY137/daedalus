@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Build the Daedalus Python backend as a Tauri resource.
 
 PyInstaller is intentionally used in *onedir* mode. Tauri owns the outer

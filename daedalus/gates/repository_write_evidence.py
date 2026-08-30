@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Exact repository-write artifact evidence for GateReport-v3.
 
 This additive contract binds a content-addressed repository-write inventory

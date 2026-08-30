@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Naming a project must never grant more write permission than not naming one.
 
 FOUND BY THE PRODUCT-SURFACE AGENT, 2026-07-29, while trying to render the

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Authenticate runtime-fault observations before they enter a trust set.
 
 A :class:`RuntimeFaultObservation` is a canonical record, not proof. This module

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Strict verification of a :class:`GateEvidenceIndex` against live state.
 
 Canonical data is not authenticated merely because it parses. The strict

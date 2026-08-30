@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """report.py — shape a full ``build_index`` result into a compact API payload.
 
 The raw index carries a per-file ``modules`` dict and full clone-site lists —

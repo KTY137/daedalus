@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Authenticated read-only structural verification for provider targets.
 
 The signed target authority authenticates which local Python objects and source

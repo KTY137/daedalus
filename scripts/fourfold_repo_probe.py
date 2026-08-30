@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Produce a bounded, deterministic polyglot source-discovery report.
 
 This is a benchmark probe, not a Fourfold compiler. It establishes repository

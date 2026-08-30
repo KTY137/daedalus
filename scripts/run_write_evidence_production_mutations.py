@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Run bounded trust-boundary mutations for repository-write evidence production.
 
 Two files, one runner: the kernel producers that retain what a granted and

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for daedalus.eval.correctness -- the FAIL_TO_PASS/PASS_TO_PASS evaluator.
 
 EVERY GUARD IN THIS FILE HAS BEEN VERIFIED RED BY ACTUALLY DISABLING IT, not by

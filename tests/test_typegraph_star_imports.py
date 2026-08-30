@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A star import can prove an AMBIGUITY. It can never prove a BINDING.
 
 Adversarial regression suite for three I5 violations found by probing the

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 from tools.run_gate_checks import G0_TESTS, G1_TESTS, PROFILES

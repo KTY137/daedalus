@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Ikarus supervisor: one mission, one shared state ledger, role attempts.
 
 WHAT THIS IS. The reusable half of what ``daedalus/ignition/gate1.py`` proved

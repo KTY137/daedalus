@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """One rollback, two providers -- and a guard against the copy coming back.
 
 ``DeepSeekProvider.rollback`` and ``OllamaProvider.rollback`` were

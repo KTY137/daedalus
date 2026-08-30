@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Signed guard contract for provider-observation store operations.
 
 The pre-provisioned store separates schema publication from ordinary ledger

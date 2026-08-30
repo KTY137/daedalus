@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Slice egress gate -- the assembled slice (the payload this product sends to a
 model) must not carry secrets, in ANY lane, and must never withhold silently.
 

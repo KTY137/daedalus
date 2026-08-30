@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The type layer's FOREST WIRING — is it a lens, and does it stay one?
 
 Stage 4 turns ``index["type_nodes"]``/``index["type_edges"]`` into forest nodes

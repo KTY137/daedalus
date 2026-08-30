@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """slice — "Distill this": a semantic slice of a target, vs whole-repo concat.
 
 The wedge. Repomix/Gitingest hand an agent the WHOLE repo as concatenated text.

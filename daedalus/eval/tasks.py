@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """tasks.py -- the labelled task set for the distillation eval.
 
 Each task targets a real symbol/file in a small repo and records the symbols a

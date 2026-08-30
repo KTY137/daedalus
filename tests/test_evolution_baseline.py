@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Characterise the Best-of-N baseline that ADR-009 says Ariadne must replace.
 
 WHY THIS FILE EXISTS. ADR-009 requires that any superiority claim for Ariadne be

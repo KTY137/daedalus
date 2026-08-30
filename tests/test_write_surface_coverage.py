@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """What does and does not clear a repository write surface.
 
 These tests pin the coverage semantics that ``daedalus/gates/report_v3.py``

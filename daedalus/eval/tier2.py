@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail-closed Tier-2 live-model evaluation.
 
 Tier 2 is the only eval lane that grades generated text.  It therefore keeps

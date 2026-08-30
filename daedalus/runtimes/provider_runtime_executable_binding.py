@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Compose provider/executable evidence before a runtime effect can start.
 
 This boundary is deliberately non-executing.  It authenticates the exact

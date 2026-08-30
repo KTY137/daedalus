@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 # Run the gate suite on the RTX bench instead of this laptop.
 #
 # WHY: the laptop is an i7-10510U (15W, 2019, 8 threads); the bench is a

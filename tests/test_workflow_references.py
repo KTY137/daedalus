@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A workflow that calls a file nobody kept is a test suite that does not run.
 
 WHAT HAPPENED. `tools/iron_plan_guard.py` was deleted on 2026-08-22 by the

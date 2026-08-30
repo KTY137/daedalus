@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Signed guard contract for provider-target receipt retention.
 
 The contract is deliberately inert. It binds one exact receipt-retention

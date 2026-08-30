@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """THE OPERABILITY DRILL -- every control deliberately tripped, end to end.
 
 WHY THIS EXISTS AND WHY IT IS NOT FOUR UNIT TESTS. The question it answers is

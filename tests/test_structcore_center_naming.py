@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Center-relative Python dotted names (Defect A).
 
 A declared ``center`` means "this subtree IS the project", so it is also the

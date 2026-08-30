@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """_schema_rescue returns a REASON, not a bare empty list.
 
 The rescue used to answer three different worlds with the same value: the bench

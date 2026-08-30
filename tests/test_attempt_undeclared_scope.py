@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """An attempt that declares no ``target_paths`` is refused, never unfenced.
 
 THE DEFECT, MEASURED 2026-08-24 (docs/inventory/2026-08-24/DENY_FLOOR_CORPUS.md).

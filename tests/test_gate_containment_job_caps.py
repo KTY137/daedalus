@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Job Object caps on the gate child: they bite, AND they let work through.
 
 WHY BOTH HALVES ARE IN ONE FILE. A containment that refuses everything passes

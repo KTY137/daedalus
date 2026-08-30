@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """`/api/health` -- the endpoint that carries the five states to the browser.
 
 WHY IT MATTERS THAT THIS EXISTS AT ALL. `daedalus/health.py` reports five states

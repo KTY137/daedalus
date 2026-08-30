@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Facts about the tree a session stands in. Everything here is derived from
 git and two files (``.mcp.json``, the sweeps log); nothing is a clock, so the
 rendered card is identical for an identical repository state (a cache-stable

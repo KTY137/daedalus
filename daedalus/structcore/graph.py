@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """graph.py — a pragmatic symbol-reference graph (call-graph approximation).
 
 Compiler-precise, cross-file symbol resolution is SCIP / tree-sitter-stack-graphs

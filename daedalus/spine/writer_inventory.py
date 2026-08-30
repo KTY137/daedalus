@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic inventory of canonical Event-Store construction sites.
 
 The inventory is deliberately syntax-based and fail-closed. It does not claim

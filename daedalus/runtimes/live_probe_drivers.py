@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The two live-runtime fault probes, and the evidence they are allowed to claim.
 
 The canonical catalog carries exactly two ``live-runtime`` rows:

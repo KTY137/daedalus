@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Browser-level acceptance for the Daedalus cockpit.
 
 WHY THIS EXISTS. ``tools/system_check.py`` starts the web server, waits for it

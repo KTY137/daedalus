@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Dynamic task decomposition -- turn ONE objective into a bounded list of
 scoped subtasks the bench can fan out over.
 

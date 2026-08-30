@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Wave executor -- the missing half of the build-session abstraction.
 
 ``daedalus.build`` plans a multi-wave, frontier-first build and writes it to

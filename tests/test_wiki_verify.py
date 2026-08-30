@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for ``daedalus.wiki.verify`` -- the half of wiki generation that a
 model does not get a vote in.
 

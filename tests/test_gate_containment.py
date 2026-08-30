@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """BOUNDED HANDLE INHERITANCE, and the gate that now runs behind it.
 
 THE GATE IS THE EXECUTION POINT. `_capture_patch` was launching candidate-

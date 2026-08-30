@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Revision-bound Fourfold Project Twin contracts and adapters.
 
 The package is intentionally additive while Gate 0 is active. It does not

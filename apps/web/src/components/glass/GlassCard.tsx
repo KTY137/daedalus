@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMemo } from 'react';
 import type { HTMLAttributes } from 'react';
 import { motion } from 'framer-motion';

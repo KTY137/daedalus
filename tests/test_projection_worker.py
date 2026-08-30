@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Adversarial tests for the memory -> vector-index projection worker.
 
 Every embedding in this file comes from a deterministic fake -- either an

@@ -1,3 +1,6 @@
+/* SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+ * SPDX-License-Identifier: Apache-2.0 */
+
 /*
  * Narrow: the one breakpoint the cockpit has, kept last so it can override
  * anything above it without raising a single selector's specificity.

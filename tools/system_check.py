@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Does the SYSTEM work? -- an end-to-end acceptance run over the real paths.
 
 WHY THIS EXISTS. The unit suite is at 1732 green and that is not evidence the

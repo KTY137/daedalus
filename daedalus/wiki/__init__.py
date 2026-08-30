@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """wiki -- the knowledge plane: read a vault, and generate one.
 
 Two halves, deliberately separate.

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Registry and deterministic argv builders for chip-design toolchains.
 
 No function in this module uses a shell. Tool-specific Tcl invocation is

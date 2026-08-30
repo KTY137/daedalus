@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic semantic super-sampling over a :class:`KnowledgeForest`.
 
 ``DSS`` borrows the *coarse-to-fine* idea from multigrid and temporal

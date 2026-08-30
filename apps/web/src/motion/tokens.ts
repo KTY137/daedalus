@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 /* =========================================================================
    Ikarus motion vocabulary — the ONLY place a duration, easing, spring or
    travel distance is allowed to be written down.

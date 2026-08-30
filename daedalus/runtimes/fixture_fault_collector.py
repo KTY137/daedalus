@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail-closed execution records for deterministic-fixture runtime fault rows.
 
 This module is the collector-side seam between the pytest nodes named by the

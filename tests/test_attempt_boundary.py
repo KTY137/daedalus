@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """``python.attempt`` starts at the central boundary, and the receipt is the record.
 
 The row was ``LOCAL_GUARDS`` with the note "direct Python callers do not yet

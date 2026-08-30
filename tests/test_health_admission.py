@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The health module asks the egress policy before it opens a socket.
 
 ``daedalus/health.py`` sits under the ikarus door's declared

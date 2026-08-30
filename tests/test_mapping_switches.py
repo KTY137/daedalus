@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The switch inventory must classify a KNOWN repo, not just run without error.
 
 The fixture below is a miniature repo built to contain, on purpose, every case

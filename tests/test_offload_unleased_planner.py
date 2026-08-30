@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The planning half of ``python.offload`` cannot write. That is the guard.
 
 THE DEFECT THIS CLOSES, measured at merge 21f21f2a. ``python.offload`` was the

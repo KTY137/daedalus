@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Escalation metering -- the silent-escalation alarm.
 
 The most load-bearing practitioner warning (docs/IMPROVEMENTS_RESEARCH.md): a

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tier-1 tests for the distillation eval harness (deterministic, no LLM).
 
 Asserts: recall is a fraction in [0,1], mean compression is positive, the

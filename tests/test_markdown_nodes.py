@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Markdown as a StructCore node kind.
 
 WHAT THIS FILE IS DEFENDING, in the order the failures actually cost something:

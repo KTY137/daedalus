@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Plan a project wiki: survey the tree, partition topics, emit agent tasks.
 
 This is the deterministic half of automatic wiki generation. It reads a

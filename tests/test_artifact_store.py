@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Gate-0 contract for the canonical content-addressed artifact store.
 
 Every test uses an isolated temporary root.  Nothing here depends on the

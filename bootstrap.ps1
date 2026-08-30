@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 # daedalus bootstrap (Windows) -- drop the repo on a PC and run this.
 #   powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1
 $ErrorActionPreference = "Stop"

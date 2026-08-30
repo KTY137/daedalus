@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Role-category taxonomy — strictly additive metadata layer.
 
 Categories group agent roles for the UI (icon/color/lane/tier presets) and

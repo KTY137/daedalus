@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Cancellation must kill the whole tree, not just the child we hold a handle to.
 
 The discriminating test is ``test_cancel_kills_grandchild``: with the old

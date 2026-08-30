@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Pure restart/replay decisions for provider-target receipt retention.
 
 This module consumes one exact, already materialized retention-admission receipt

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Conservative adapter from the existing KnowledgeForest to FourfoldSnapshot.
 
 The adapter projects evidence; it does not upgrade its assurance.  Current

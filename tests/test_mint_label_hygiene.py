@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """test_mint_label_hygiene.py -- lane A1 label hygiene: JUNK filter,
 CROSS-LANGUAGE filter, and FLOOR-TRIPPING ANCHOR EXCLUSION inside
 ``daedalus.eval.mint._mint_from_diffs`` (see that module's docstring, "LABEL

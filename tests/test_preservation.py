@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for the prose preservation tripwire.
 
 Every guard here is tested in BOTH directions: the damaging rewrite that must

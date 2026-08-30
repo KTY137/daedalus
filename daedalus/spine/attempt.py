@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """spine/attempt.py -- TaskAttempt: produce a candidate change, never in the primary checkout.
 
 ONE way to attempt a task. The loop ("Daedalus writes Daedalus") needs exactly

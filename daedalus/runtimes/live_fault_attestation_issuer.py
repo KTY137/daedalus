@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Issue signed attestations for retained ``live-runtime`` observations.
 
 This is the third sibling of :mod:`daedalus.runtimes.fault_attestation_issuer`

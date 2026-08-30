@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The brief-shed covariate must be recorded, or graph-conditioning is unreadable.
 
 WHAT IS BEING GUARDED

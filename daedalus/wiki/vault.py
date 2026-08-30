@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """vault.py — nested wikis on disk, and the path validator that guards them.
 
 WHAT A VAULT IS

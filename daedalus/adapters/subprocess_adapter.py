@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Subprocess transport for explicitly configured, non-interactive agent CLIs.
 
 This is a process/event normalization layer, not a universal agent protocol:

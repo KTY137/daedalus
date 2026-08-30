@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The outbox must refuse work when nothing is alive to consume it.
 
 THE INCIDENT THIS PINS (MEASURED 2026-07-29):

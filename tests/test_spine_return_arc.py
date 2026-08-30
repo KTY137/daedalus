@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The loop's RETURN path: does measurement come back and change the next pick?
 
 The forward half of the circle (picker -> attempt) already worked. This file

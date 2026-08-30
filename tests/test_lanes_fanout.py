@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The fan-out driver must be boring under failure and free on resume.
 
 Every test here pins a property that a measured 2026-07-30 failure would have

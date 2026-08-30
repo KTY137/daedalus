@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Isolated git worktrees for candidate (agent-written) code.
 
 CONTAINMENT IS THE POINT OF THIS MODULE

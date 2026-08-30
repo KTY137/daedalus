@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Regressions for the 2026-08-25 hooks review.
 
 Every defect covered here was green-by-absence: the code did the wrong thing

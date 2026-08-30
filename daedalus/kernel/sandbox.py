@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Explicit Docker sandbox policy and fail-closed launch classification.
 
 The policy is converted to argv without invoking a shell. It rejects privileged

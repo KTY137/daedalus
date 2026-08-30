@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The spend ceiling, attacked from both sides.
 
 Every guard in ``daedalus/budget.py`` is pinned here by a test that was

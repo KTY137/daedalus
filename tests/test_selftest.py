@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The live-selftest HARNESS is unit-tested with mocks (fast, deterministic);
 the CAPABILITY it checks is exercised by `daedalus selftest` against real Ollama.
 This is the two-tier split in action: here we prove the harness skips cleanly

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """What a granted, terminalised wave lease is allowed to leave behind.
 
 Every test here needs a REAL granted lease -- a signed capability, a durable

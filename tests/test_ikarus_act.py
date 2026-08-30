@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """ikarus_act -- the CAPABILITY predicate, tested separately from classify().
 
 The whole point of the split is that these two questions have different error

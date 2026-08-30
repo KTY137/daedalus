@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Uniform, honest adapters over four INDEPENDENT model vendors ("Der Rat").
 
 Every adapter here exposes the same shape --

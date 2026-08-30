@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Guarded in-process admission for revision-bound provider executable objects.
 
 The pre-admission packet proves *which* provider implementation and repository

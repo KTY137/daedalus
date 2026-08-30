@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 /* =========================================================================
    Resolved motion — pure functions from (tier, reduced) to a framer-motion
    transition or variant set.

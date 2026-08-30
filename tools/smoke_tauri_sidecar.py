@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """End-to-end smoke test for the frozen desktop backend."""
 from __future__ import annotations
 

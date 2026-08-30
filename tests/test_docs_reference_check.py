@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The docs checker has to survive the same rot it exists to catch.
 
 Three things are pinned here, and each one failed somewhere in this repository

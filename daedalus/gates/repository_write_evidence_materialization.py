@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Content-addressed materialization for repository-write evidence.
 
 This module verifies exact canonical JSON bytes named by revision-and-surface

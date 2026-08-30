@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for daedalus.spine.attempt.
 
 The load-bearing assertion in this file is not the happy path: it is

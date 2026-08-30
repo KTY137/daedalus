@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Is THIS machine fit to produce a discrimination receipt, and who is it?
 
 Two jobs, deliberately in one tool because they answer one question.

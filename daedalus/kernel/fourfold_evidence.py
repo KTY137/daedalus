@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Bind a real Fourfold snapshot into the canonical Gate-0 evidence chain.
 
 This module is deliberately narrow. It does not compile repositories, create a

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The attestation issuer is the only path from a retained row into a trust set.
 
 Every test here answers one question: can a record that is not exactly what the

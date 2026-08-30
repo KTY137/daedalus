@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Mechanical verification that Fourfold is an exact KnowledgeForest projection."""
 from __future__ import annotations
 

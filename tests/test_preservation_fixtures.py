@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fixture texts for the preservation checker.
 
 Contains no tests itself -- it is named ``test_*`` only so it lives beside the

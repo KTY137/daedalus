@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Runtime-conformance evidence binds, or the report says exactly what is missing."""
 from __future__ import annotations
 

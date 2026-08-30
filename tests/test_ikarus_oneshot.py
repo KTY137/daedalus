@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """G1-IKARUS-04/05: stateless request and runtime-evidence binding."""
 from __future__ import annotations
 

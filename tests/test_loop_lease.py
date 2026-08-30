@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The wave's ``python.offload`` Effect Lease: who issues it, who may not, and
 what the receipt has to say about it afterwards.
 

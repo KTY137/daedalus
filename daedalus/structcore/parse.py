@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Parsing abstraction — extract code units (functions/methods) per language.
 
 Three backends, chosen automatically:

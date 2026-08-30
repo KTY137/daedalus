@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The feature inventory is GENERATED, and the snapshot says what it scanned.
 
 Two defects, one shape. ``docs/FEATURE_INVENTORY.json`` was typed by hand,

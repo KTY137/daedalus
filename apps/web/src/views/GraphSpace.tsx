@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { Suspense, lazy, useMemo } from 'react';
 import { AlertTriangle, Boxes, Fingerprint, RefreshCw, Waypoints } from 'lucide-react';
 import { GlassButton, cx } from '../components/glass';

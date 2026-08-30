@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Does what a model ASSERTED correspond to what is actually in the tree?
 
 One module, one question. It has two shapes:

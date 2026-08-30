@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """FENRIR round: two CONFIRMED defects on the S2 slice path.
 
 Both are failing tests against the current tree. They are written to fail for

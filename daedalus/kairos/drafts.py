@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Persist advisory drafts -- the missing half of the FrugalGPT loop (Era 3 #1).
 
 An advisory-mode task legitimately writes nothing: the free lane produces a

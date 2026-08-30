@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """report.py -- render eval results as an ASCII table (Windows cp1252 safe).
 
 No unicode box-drawing, no fancy glyphs: only ``+ - |`` so it prints on a raw

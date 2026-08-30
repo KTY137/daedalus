@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The per-file half of ``build_index`` — pure, picklable, parallelizable.
 
 Roughly half the index build is per-file work that depends on nothing but that

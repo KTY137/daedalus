@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Phase 2 regression coverage for the role-category taxonomy's integration
 seams: the Mission Control dashboard, the per-repo override round-trip, and
 queue_task's best-effort category stamping.

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The latent half of the context planner must be visible, not merely optional.
 
 Every case here is deterministic: the embedding backends are fakes, no network

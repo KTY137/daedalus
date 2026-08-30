@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """harness.py -- run the distillation eval over a task set.
 
 Tier 1 (deterministic, no LLM, the rigorous core):

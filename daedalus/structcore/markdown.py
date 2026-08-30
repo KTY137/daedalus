@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """markdown — DOCUMENTS as a StructCore node kind (a second PARSER, not a
 second architecture).
 

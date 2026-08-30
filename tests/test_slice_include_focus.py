@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Movement I -- the additive ``include_focus`` param on ``semantic_slice``.
 
 Consumer: the offload rewrite path already puts the target file body in the

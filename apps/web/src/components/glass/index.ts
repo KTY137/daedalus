@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 export { cx } from './util';
 export { GlassPanel } from './GlassPanel';
 export { GlassCard } from './GlassCard';

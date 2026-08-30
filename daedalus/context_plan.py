@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Hybrid, evidence-bearing context planning over the Daedalus Knowledge Forest.
 
 The planner turns a natural-language objective into file-level seed evidence,

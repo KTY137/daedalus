@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail-closed Gate-0 release assembly over retained exact-head evidence.
 
 This module does not close a gate, create OwnerApproval, promote a candidate or

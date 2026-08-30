@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Persona names for the free-model lanes.
 
 Each Claude specialist keeps its name on the trusted Claude lane, but gets a

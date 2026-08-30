@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """CLI-first, API-ready runtime registry.
 
 Daedalus orchestration should depend on runtime capabilities, not on random

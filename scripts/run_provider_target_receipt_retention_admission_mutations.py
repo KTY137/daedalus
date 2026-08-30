@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Bounded mutation campaign for receipt-retention admission."""
 from __future__ import annotations
 

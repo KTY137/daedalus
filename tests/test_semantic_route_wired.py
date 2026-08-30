@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The latent route is WIRED: ``route_and_select`` actually reaches it.
 
 ``daedalus/semantic_route.py`` was dead code -- importing every module in the

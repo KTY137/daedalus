@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Content-addressed offline runtime-conformance evidence.
 
 This harness does not trust a runtime manifest's declarations. A caller must

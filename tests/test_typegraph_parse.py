@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Stage 1 of the type/data-structure graph: EXTRACTION in ``parse.py``.
 
 What this suite is for, in one sentence: prove that the extractor reads every

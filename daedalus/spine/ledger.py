@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """spine/ledger.py -- Mission Spine light: the durable intent ledger.
 
 The self-improvement loop performs EXTERNAL effects (create a worktree, write a

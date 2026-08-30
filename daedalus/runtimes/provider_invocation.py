@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical provider/adapter identity for one runtime effect subject.
 
 This module is intentionally non-executing.  It defines the exact immutable

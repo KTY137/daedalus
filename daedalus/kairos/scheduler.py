@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Kairos -- bounded scheduler for the contractor bench.
 
 Adam owns trust, safety, and the senior Claude crew. He hands Ikarus only the

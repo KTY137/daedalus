@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Offline tests for Phase 2: dynamic decomposition + the unified bench/Claude
 bridge. Every model/network seam is mocked -- no live Ollama or Claude call is
 made. Run with:  python -m unittest discover tests

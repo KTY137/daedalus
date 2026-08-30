@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useRef, useState } from 'react';
 import { openEventStream } from '../api';
 import type { LiveHeartbeat, LiveHello, LiveQueue, LiveReport } from '../types';

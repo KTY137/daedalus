@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail-closed execution records for ``live-runtime`` runtime fault rows.
 
 This is the third collector column, sibling to

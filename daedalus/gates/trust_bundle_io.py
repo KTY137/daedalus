@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Strict untrusted-wire boundary for authenticated evidence trust bundles.
 
 The contract constructor intentionally canonicalizes anchor and digest order for

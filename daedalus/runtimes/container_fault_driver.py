@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Run the canonical Linux-host fault scenarios inside a Docker Linux container.
 
 The catalog in :mod:`daedalus.runtimes.fault_matrix` declares nine ``linux-host``

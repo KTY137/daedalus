@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """``python.attempt``'s registry anchor must dominate the attempt it starts.
 
 THE DEFECT, MEASURED AT 684b7503. ``TaskAttempt.run`` held its central

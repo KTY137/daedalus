@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Additive trust-kernel contracts built on the canonical Gate-0 wire language.
 
 These records inherit :class:`daedalus.schemas.CanonicalContract`; they do not

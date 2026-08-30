@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Portable per-repo config resolution.
 
 To run the bench against ANY repo, the safety policy travels *with that repo*.

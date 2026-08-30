@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The health surface, and the proof that each of its guards is load-bearing.
 
 THE PROBLEM THIS FILE HAS TO SOLVE. A test suite over a *status* module is the

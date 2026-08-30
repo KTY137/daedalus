@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The shared report helpers: the parser that decides whether a model's answer
 survives, and the coercion that decides what of it is kept.
 

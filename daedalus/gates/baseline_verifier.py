@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Independent recomputation for Gate-0 monotonicity receipts."""
 from __future__ import annotations
 

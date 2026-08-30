@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The chat seam has no store of its own -- and the old one cannot come back.
 
 ``daedalus/conversation.py`` used to open ``runs/ikarus/conversations.sqlite3``

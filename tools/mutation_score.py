@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """mutation_score.py -- can this suite detect a defect it claims to cover?
 
 A green suite is a claim. A suite that KILLS a seeded defect is a control. This

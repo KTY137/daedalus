@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """spine/picker.py -- the measurement-sorted work queue, and ``daedalus improve``.
 
 The loop is: PICK a task by measurement -> attempt it in an isolated worktree

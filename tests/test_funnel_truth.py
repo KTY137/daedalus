@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A gold set for the funnel's precision metric, hand-verified 2026-07-30.
 
 Every case below was checked against the real repository by hand that evening,

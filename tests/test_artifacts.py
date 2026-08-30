@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The data layer's contract: refuse to guess, and never confuse
 "we could not look" with "there is nothing there".
 

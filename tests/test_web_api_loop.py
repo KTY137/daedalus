@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The self-improvement loop over the local API -- driven through a REAL server.
 
 Every test here goes through ``ThreadingHTTPServer`` + ``DaedalusHandler`` on a

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Focused proof for the curated picker -> attempt path.
 
 No model or network is used. The one end-to-end attempt uses a temporary git

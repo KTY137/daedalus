@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Strict, pure runtime-profile and conformance-envelope contracts for Gate 0.
 
 Offline fixtures prove only the provider-neutral Daedalus protocol. They are

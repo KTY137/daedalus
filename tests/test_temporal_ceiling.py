@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Lane A2 close-out: the temporal co-change CEILING check (eval/ceiling.py).
 
 The load-bearing tests are the two controls:

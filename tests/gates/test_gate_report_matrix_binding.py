@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Gate-0 report speaks the bound matrix verdict, and never a silent pass."""
 from __future__ import annotations
 

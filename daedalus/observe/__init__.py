@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """observe — the behavioural axis: what the code actually did, not what it declares.
 
 Deliberately OUTSIDE ``structcore``. Getting a live object means the program ran,

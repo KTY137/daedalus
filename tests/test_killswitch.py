@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The kill switch must actually stop things, and the latency must be MEASURED.
 
 Four properties, and a test may only be counted for one of them:

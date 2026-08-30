@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { cx } from './util';
 // LiveDot needs the motion stylesheet but none of the motion runtime.
 import '../../motion/motion.css';

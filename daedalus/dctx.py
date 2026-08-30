@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """dctx.py -- the Certified Context Artifact: a slice, plus a proof about it.
 
 ``semantic_slice`` returns a slice and some numbers. Nobody downstream can check,

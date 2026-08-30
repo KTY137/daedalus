@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Optional Tree-sitter structural extractors for polyglot source artifacts.
 
 Tree-sitter establishes syntax structure, not semantic truth. The adapter emits

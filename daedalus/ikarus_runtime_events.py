@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Loss-aware, provider-neutral runtime callback projection for Ikarus.
 
 This is a deliberately small adaptation of a Hermes/ACP motif: callbacks from

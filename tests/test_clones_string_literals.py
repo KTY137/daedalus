@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Comment stripping must respect string literals.
 
 A comment marker inside a string is NOT a comment. Getting this wrong does not

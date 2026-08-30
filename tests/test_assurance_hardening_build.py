@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A bound work item id cannot outlive the plan it was derived from.
 
 WHAT WAS WRONG. ``BuildSession.bind_work_items`` wrote an id only into a task

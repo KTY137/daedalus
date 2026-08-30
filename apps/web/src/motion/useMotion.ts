@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useMemo } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import type { Transition } from 'framer-motion';

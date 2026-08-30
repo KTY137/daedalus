@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Movement I.5 / Move 3 — churn x complexity hotspots.
 
 ``git_churn`` degrades cleanly (no git / not a repo -> {}); when a repo IS

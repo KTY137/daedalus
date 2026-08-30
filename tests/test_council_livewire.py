@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The live-wire gate: a real vendor is unreachable without an explicit opt-in.
 
 WHY THIS FILE EXISTS.  ``session.py`` used to state, in its module docstring,

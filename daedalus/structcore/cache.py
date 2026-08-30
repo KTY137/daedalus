@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Persistent per-file analysis cache (sqlite).
 
 The index cache in ``index.py`` is in-memory, so it dies with the process: every

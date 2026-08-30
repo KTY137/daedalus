@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The threefold graph, as a paragraph a model can read.
 
 MEASURED 2026-07-30, and the whole reason this module exists: **the agents never

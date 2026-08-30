@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Emit the provider-target receipt-retention inventory as canonical JSON."""
 from __future__ import annotations
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Compile one bounded wiki application into an evidence-bound Fourfold Twin.
 
 The manifest declares a finite source set and semantic claims. Claims are not

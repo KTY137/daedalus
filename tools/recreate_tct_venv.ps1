@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 <#
 .SYNOPSIS
     Supervised runbook to recreate TCT_app\.venv with a REAL CPython 3.10

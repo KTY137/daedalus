@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """F3 + F4: the single-use claim, and the stage that selected it by typo.
 
 ADDED beside ``test_promotion_trust_root_truth_table.py``,

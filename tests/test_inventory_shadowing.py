@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A skill cannot hide from the trust gate by choosing a name.
 
 ADVERSARIAL REVIEW 2026-07-30 (Cerberus, high 7). ``inventory.SKILL_SCOPES``

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The attempt spine's ``target-scope`` containment, and what a declaration MEANS.
 
 WHAT WAS WRONG. ``TaskAttempt.run`` normalised each declared ``target_path``

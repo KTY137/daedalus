@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """agent_findings.py — consolidate what the external review lanes actually said.
 
 THE PROBLEM THIS SOLVES

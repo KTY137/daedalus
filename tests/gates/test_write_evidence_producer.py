@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The in-process producer: what it takes before a surface may be central.
 
 The producer lives in ``scripts/declare_write_surfaces.py`` because that script

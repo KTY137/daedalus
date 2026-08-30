@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Atomic publish, with the Windows retry that makes the claim true.
 
 Every module in this repo that publishes a small file does the same three things:

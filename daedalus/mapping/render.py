@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """mapping/render.py -- ``daedalus map``: the architecture artifact itself.
 
 WHY THIS COMMAND EXISTS

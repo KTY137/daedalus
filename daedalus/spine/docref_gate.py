@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """spine/docref_gate.py -- the gate a docref attempt is actually judged by.
 
 WHAT THIS IS FOR

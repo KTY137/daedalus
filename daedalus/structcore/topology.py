@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Optional, read-only spectral analysis of the structural import graph.
 
 This module is an analysis/visualization aid.  A low graph cut does *not*

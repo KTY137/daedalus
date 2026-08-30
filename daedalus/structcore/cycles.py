@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Directed cycle structure of the import graph. Stdlib only.
 
 FOUND BY AUDIT 2026-07-30 (Aristaeus), and it is the reason this file exists:

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """links.py — the wiki's nervous system: wikilinks, backlinks, unlinked mentions,
 and the LOCAL graph.
 

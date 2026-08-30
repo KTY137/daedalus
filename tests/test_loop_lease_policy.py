@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The two contracts the wave-offload issuer used to accept on the caller's word.
 
 Both holes were MEASURED, not theorised:

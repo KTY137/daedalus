@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The loop driver: pick -> attempt -> gate -> nominate -> re-pick, repeatedly.
 
 Every other entry point in this tree runs ONE attempt and exits. This one runs

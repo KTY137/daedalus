@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The LIVE attempt path must produce the canonical Gate-0 contracts.
 
 Invariant 1 says Mission, Attempt, Evidence, Campaign, policy decisions,

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Runtime CRUD for agent-role definitions — Ikarus as a dynamic configurator.
 
 Roles are the SAME JSON the router reads via ``router.load_agents``. Writing

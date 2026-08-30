@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The whole-matrix verdict reaches the release path only through the existing row.
 
 The bridge maps a :class:`WholeRuntimeFaultMatrixVerdict` into the existing

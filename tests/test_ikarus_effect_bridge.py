@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """G1-IKARUS-06: Ikarus one-shot -> canonical effect-kernel bridge."""
 from __future__ import annotations
 

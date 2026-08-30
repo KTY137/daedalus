@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 <#
 .SYNOPSIS
 Install and operate the bounded Daedalus nomination loop as a per-user Windows task.

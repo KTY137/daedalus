@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Policy-bound tool projection for Ikarus one-shot requests.
 
 Hermes can select toolsets per one-shot invocation.  Daedalus keeps the useful

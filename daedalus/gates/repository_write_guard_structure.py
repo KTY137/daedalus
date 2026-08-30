@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Structural replay for repository-write guard-contract evidence.
 
 This verifier joins four independently checkable subjects on one exact source

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Containment regressions for daedalus.spine.attempt's git choke point.
 
 Kept separate from tests/test_spine_attempt.py so the guard's geometry can be

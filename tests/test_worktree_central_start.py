@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The worktree manager's three mutating doors start centrally.
 
 MIGRATED 2026-08-25. Before this, ``tools/effect_boundary_check.py`` reported

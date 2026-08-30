@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Server-side environment loading for Daedalus.
 
 The web UI and VS Code wrapper must never receive secret values. This module

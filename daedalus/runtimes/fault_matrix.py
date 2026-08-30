@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical runtime-fault requirements, observations, and verification.
 
 The catalog defines required Gate-0 questions. It does not claim that any fault

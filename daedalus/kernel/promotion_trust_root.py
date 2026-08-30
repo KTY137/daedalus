@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """D5: the sealed-promotion trust root -- hybrid, with B as the root.
 
 WHAT THIS MODULE IS. Owner decision D5 chose ``hybrid with B as root``:

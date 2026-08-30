@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for daedalus.kairos.archive -- the advisory inspiration notebook.
 
 HAND-BACK: this file belongs at tests/test_kairos_archive.py. It was written

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Model-provider backends for the agent harness.
 
 A provider turns a task brief into a validated structured report. Providers

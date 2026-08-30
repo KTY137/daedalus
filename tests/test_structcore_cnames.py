@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """S1 — C/C++ function naming, and the Type-3 hold-out that must accompany it.
 
 C and C++ are the only supported grammars with no ``name`` field on a function:

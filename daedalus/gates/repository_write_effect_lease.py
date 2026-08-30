@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only semantic replay of repository-write Effect-Lease evidence.
 
 The verifier composes the authenticated repository-write runtime-conformance

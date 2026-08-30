@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Strict read-only projection over persisted Effect-Lease execution rows.
 
 The generic Effect-Lease authority intentionally returns ``execute=False`` on

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The whole matrix with its third column present.
 
 The point of this file is one comparison: assembled without the live column the

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """council.bus -- the transcript that cannot silently lie.
 
 A council record is only worth keeping if it can FAIL LOUDLY. These tests attack

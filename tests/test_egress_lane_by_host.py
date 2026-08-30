@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The lane is decided by WHERE THE BYTES GO, not by the provider's name.
 
 The breach this closes, which Momus raised against the council and which was

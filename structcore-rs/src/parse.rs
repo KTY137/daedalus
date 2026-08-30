@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 //! Parse a source file with tree-sitter and extract function/method units.
 //! Mirrors `daedalus/structcore/parse.py::extract_units`.
 

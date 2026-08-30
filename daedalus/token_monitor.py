@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """`daedalus tokens` -- what the session has burned, and nothing else.
 
 This is OBSERVABILITY, not enforcement, and the distinction is load-bearing.

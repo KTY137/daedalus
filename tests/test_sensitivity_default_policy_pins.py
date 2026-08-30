@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """F6: what an unattended write lane may edit when NO project was named.
 
 THE REACHABLE PATH, not a hypothetical one::

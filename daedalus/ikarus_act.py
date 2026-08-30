@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """ikarus_act — MAY this message reach a tool-bearing executor?
 
 THE SECOND PREDICATE, AND DELIBERATELY NOT THE FIRST ONE.

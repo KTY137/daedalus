@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """KILL SWITCH for the unattended loop. A loop you cannot stop is one you may not start.
 
 ADR-013's precondition list, and ADR-007 line 19, name this as unmet:

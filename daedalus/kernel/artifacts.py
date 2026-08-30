@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Shared content-addressed artifact identities for the trust stack.
 
 This module contains no domain policy.  It provides the single mechanical

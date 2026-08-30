@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Bind persisted runtime trust to one signed Effect Lease capability.
 
 The generic EffectLease contract remains useful for non-runtime effects. A

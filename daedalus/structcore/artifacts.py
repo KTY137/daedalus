@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """artifacts.py — the DATA layer: which files a program moves, and what is in them.
 
 WHY THIS IS A SEPARATE LAYER FROM ``typegraph``

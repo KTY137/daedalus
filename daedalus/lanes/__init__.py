@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """daedalus.lanes -- what every write lane must do, in one place.
 
 A "lane" is a path by which a model's output becomes a file on disk: the local

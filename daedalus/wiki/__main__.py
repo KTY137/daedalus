@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Command-line entry point for the wiki module: ``python -m daedalus.wiki``.
 
 Three subcommands, each delegating to the module that already owns the work

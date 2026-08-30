@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Clone detection — the dominant AI-decay signal, generalized to any language.
 
 Two complementary strategies (both generalize ``codemap.py``):

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """WHICH TREE do these bytes land in? The primary-checkout fence.
 
 Daedalus modifies itself. The owner's rule is that it must always do so **on a

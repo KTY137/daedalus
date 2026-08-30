@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Revision-bound additive inventory for stdlib write/process surfaces.
 
 This module is deliberately inert.  It does not patch the canonical repository

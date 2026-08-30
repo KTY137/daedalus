@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The chat surface is a spend-and-egress surface, and now it has a door.
 
 ``daedalus/budget.py`` has named ``ikarus_os.py`` as one of the four

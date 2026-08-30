@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic Gate-1 ignition: ``voltage`` -> ``bias_voltage``.
 
 This is a bounded Renovation slice, not an autonomous agent loop. It executes

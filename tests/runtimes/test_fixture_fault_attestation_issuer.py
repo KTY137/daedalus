@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The fixture issuer is a sibling of the host issuer, not a shared one.
 
 The load-bearing property here is the cross-column refusal. Each column has its

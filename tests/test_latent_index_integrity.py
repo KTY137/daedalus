@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Adversarial integrity tests for the Latent Projection Index v2.
 
 Every test here constructs a BAD state and asserts the index refuses it.  The

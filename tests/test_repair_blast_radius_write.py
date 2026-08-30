@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Regression: the blast-radius fence must also see what a WRITE actually landed.
 
 Two confirmed CRITICALs closed here, both the same shape -- the routing-time

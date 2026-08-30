@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Every case here is a reference shape MEASURED in a 2026-07-30 advisory run.
 
 The four-tier funnel over this repository cited 77 paths in its planning tier

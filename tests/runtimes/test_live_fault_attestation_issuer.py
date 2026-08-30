@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The live-runtime issuer: one authority, one key, and refusal in both directions.
 
 The three column issuers are siblings, not instances of one parameterised

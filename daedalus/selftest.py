@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Live self-test -- a REAL Ollama round-trip, repeatable, separate from the
 unit suite.
 

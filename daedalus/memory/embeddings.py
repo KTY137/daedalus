@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Versioned, derived embedding projections for Daedalus events.
 
 The append-only event journal remains authoritative.  This module stores

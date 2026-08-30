@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """`daedalus map` -- the command that produces the architecture artifact.
 
 What is pinned here is the set of properties that make the artifact trustworthy

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The one hook entrypoint: ``python -m daedalus.hooks <event>``.
 
 ``<event>`` is one of ``session``, ``turn``, ``pre_tool``, ``post_tool``,

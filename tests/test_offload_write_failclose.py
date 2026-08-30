@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail-close the routed write lane on rollback capability (Momus CRITICAL #1).
 
 The verify-fail path in ``offload`` undoes a bad write via ``worker.rollback()``,

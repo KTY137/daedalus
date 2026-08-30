@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A registry row may not outlive the file it inventories.
 
 Two separate claims live here, both about rows in

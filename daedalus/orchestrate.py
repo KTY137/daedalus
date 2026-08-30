@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Compatibility CLI for :mod:`daedalus.kairos.orchestrate`."""
 
 from .kairos.orchestrate import _infer_paths, main, prepare_task

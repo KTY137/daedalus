@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Production issuance of a ``RuntimeBoundEffectAuthorization``.
 
 WHY THIS MODULE EXISTS.  Measured 2026-08-26 at 4f71c020, unchanged since

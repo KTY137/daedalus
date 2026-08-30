@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Offline replay harness for the council session.
 
 NO network, NO Ollama, NO vendor CLI. Every participant is a fake adapter that

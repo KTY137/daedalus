@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Gate-0 registry and conformance contract for effectful runtime entrypoints.
 
 This module is deliberately *not* an operating-system sandbox and does not

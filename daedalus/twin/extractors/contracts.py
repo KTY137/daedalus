@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Language-neutral contracts for bounded Fourfold extractor adapters.
 
 These records describe extractor capability and output. They do not make

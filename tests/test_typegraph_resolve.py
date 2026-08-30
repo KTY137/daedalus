@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Stage 2 of the type-graph lane: RESOLUTION and edge construction.
 
 What is under test is ``daedalus/structcore/typegraph.py``: the whole-repo half

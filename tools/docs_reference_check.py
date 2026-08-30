@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Does the prose still point at files that exist?
 
 WHY THIS EXISTS. Documentation rots in one specific, mechanical way long before

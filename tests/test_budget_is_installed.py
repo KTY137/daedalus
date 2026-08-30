@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The spend cap is only a cap if something installs it.
 
 `daedalus/budget.py` was built, measured, and had ZERO callers -- which is the

@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+name: Source provenance watermark
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install --disable-pip-version-check ".[test]"
+      - name: Verify first-party source headers
+        run: python tools/source_provenance.py check
+      - name: Test provenance tooling
+        run: python -m pytest -q tests/test_source_provenance.py
+      - name: Verify a changed provenance snapshot
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REVISION: ${{ github.event.pull_request.base.sha }}
+          TARGET_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet "$BASE_REVISION"...HEAD -- \
+            NOTICE \
+            .github/workflows/source-provenance.yml \
+            provenance/source-watermark-policy.json \
+            provenance/source-watermark-manifest.json \
+            provenance/source-watermark-manifest.json.sig \
+            provenance/source-watermark-allowed-signers \
+            tools/source_provenance.py \
+            tests/test_source_provenance.py; then
+            echo "Provenance snapshot unchanged; header check is authoritative."
+            exit 0
+          fi
+          python tools/source_provenance.py verify-manifest \
+            --target-ref "$TARGET_REF" \
+            --base-revision "$BASE_REVISION"
+          ssh-keygen -Y verify \
+            -f provenance/source-watermark-allowed-signers \
+            -I kaya-yesilyurt@daedalus \
+            -n daedalus-source-provenance \
+            -s provenance/source-watermark-manifest.json.sig \
+            < provenance/source-watermark-manifest.json

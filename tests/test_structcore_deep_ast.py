@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Regression — unbounded recursion in tree-sitter AST walks.
 
 ``parse._tree_sitter_units`` and ``imports._ts_import_nodes`` used to walk the

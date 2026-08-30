@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Structured Claude CLI adapter with a broker-only public execution path.
 
 Prompt construction and output parsing are pure helpers.  The only subprocess

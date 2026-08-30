@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """`daedalus status` -- what is WORKING, what is merely PRESENT, what nobody ran.
 
 WHAT CHANGED AND WHY. This file used to print six numbers and a git diff:

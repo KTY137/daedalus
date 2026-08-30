@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """S1/S2 regression at the INDEX level, and where the two fixes meet scope.
 
 The adjacent suites already cover the halves of this in isolation:

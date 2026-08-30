@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Signed composite authority for one exact provider invocation subject.
 
 The existing ``ProviderObservationAuthority`` authenticates the provider ID,

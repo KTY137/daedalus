@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """progress_sources.py -- adapters from signals this repo ALREADY produces
 onto :mod:`daedalus.progress`'s event vocabulary.
 

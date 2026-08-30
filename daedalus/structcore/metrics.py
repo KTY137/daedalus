@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Per-file health metrics — the 'code health' signal, comment-aware per language.
 
 Stdlib-only baseline (LOC, function count, comment density, guard/over-defensive

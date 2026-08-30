@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Era-1 robustness fixes, each pinned by a regression test:
 
 1. ``offload`` result carries ``wrote`` -- the GROUND-TRUTH list of files that

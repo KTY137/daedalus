@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Vendor-neutral language-model client policy for Ikarus.
 
 Iron Plan: ALIGNED — this is the vendor-neutral runtime contract required by

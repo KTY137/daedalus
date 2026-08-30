@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The embedding transport's outbound POST, and what decides it.
 
 Written for the two evidenced openings the codex round-2 security seat named:

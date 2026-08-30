@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """G1-IKARUS-02 acceptance matrix: variable, fail-closed runtime roles."""
 from __future__ import annotations
 

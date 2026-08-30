@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic, domain-neutral Code-Knowledge Forest snapshots.
 
 The "forest" is a product metaphor, not a claim that software is an acyclic

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only binding of completed retention evidence to persisted Effect state.
 
 This module verifies that one exact completed provider-target receipt-retention

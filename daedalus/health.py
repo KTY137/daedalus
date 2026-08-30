@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Is the SYSTEM working, or is it merely PRESENT? -- the operator's glance.
 
 WHY THIS EXISTS. In one day this repo shipped three live escapes under three

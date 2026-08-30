@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * "A DEGRADED SOURCE IS VISIBLE, not silently rendered as 'no work'."
  *

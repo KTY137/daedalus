@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * React's DOM props that framer-motion redefines with a different signature.
  * Spreading a plain `HTMLAttributes` bag onto a motion component collides on

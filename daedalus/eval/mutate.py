@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """mutate.py — a mechanical, unbiased defect corpus for HELD-OUT validation.
 
 WHY THIS EXISTS, STATED AGAINST MY OWN RESULT

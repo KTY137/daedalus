@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A provider row declares SECRETS when, and only when, it reads a credential.
 
 WHAT IS BEING GUARDED

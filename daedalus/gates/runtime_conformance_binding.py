@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Bind runtime-conformance receipts into the Gate-0 report, or say why not.
 
 The canonical producer of a :class:`RuntimeConformanceReceipt` is

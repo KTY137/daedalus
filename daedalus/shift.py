@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """shift.py — a declared working window, so an agent cannot lose the clock.
 
 WHY THIS EXISTS
