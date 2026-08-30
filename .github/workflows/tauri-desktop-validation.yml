@@ -1,0 +1,29 @@
+name: Tauri Desktop Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "daedalus/**"
+      - "scripts/daedalus_desktop_sidecar.py"
+      - "tools/build_tauri_sidecar.py"
+      - "tools/smoke_tauri_sidecar.py"
+      - "tests/test_desktop_packaging.py"
+      - "pyproject.toml"
+      - ".github/workflows/tauri-desktop.yml"
+      - ".github/workflows/tauri-desktop-validation.yml"
+      - ".github/workflows/tauri-desktop-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/tauri-desktop.yml
+    with:
+      publish_release: false
+    secrets: inherit
