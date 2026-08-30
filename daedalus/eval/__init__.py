@@ -15,16 +15,16 @@ from . import harness as harness
 from . import report as report
 from . import tier2 as tier2
 
-# Backward-compatible strangler seam. Existing code imports
-# ``daedalus.eval.harness.run_tier2`` and tests call ``harness._score`` directly.
-# Keep those names working while tier2.py becomes the single owner of live-model
-# scoring and provider-integrity semantics.
-harness._score = tier2._score
-harness._ask = tier2._ask
-harness.run_tier2 = tier2.run_tier2
-report.render_tier2 = tier2.render_tier2
-
 run_tier1 = harness.run_tier1
-run_tier2 = tier2.run_tier2
+
+
+def run_tier2(
+    tasks: list[dict] | None = None,
+    provider: str | None = None,
+    cap_tokens: int = 120_000,
+) -> dict:
+    """Package-level delegate to the live canonical Tier-2 implementation."""
+
+    return tier2.run_tier2(tasks, provider, cap_tokens)
 
 __all__ = ["TASKS", "resolve_task_repo", "run_tier1", "run_tier2"]

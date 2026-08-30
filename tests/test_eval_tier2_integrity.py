@@ -8,6 +8,7 @@ Neither is allowed to become ordinary Tier-2 task-success evidence.
 """
 from __future__ import annotations
 
+import importlib
 import unittest
 from unittest.mock import patch
 
@@ -48,10 +49,51 @@ def _err(kind: str = "TimeoutError", message: str = "provider timed out") -> dic
 
 
 class CompatibilitySurfaceTest(unittest.TestCase):
-    def test_legacy_harness_names_are_strangled_to_integrity_layer(self):
-        self.assertIs(harness.run_tier2, tier2.run_tier2)
-        self.assertIs(harness._score, tier2._score)
-        self.assertIs(harness._ask, tier2._ask)
+    def test_legacy_surfaces_delegate_to_canonical_tier2(self):
+        answer = "It calls cached_index. Correction: it does not."
+        self.assertEqual(
+            harness._score(answer, ["cached_index"]),
+            tier2._score(answer, ["cached_index"]),
+        )
+        self.assertEqual(
+            harness.run_tier2([], provider="none"),
+            tier2.run_tier2([], provider="none"),
+        )
+
+    def test_historical_imports_survive_compatibility_first_reload_order(self):
+        from daedalus.eval import run_tier2 as historical_package_run
+        from daedalus.eval.harness import _score as historical_score
+        from daedalus.eval.report import render_tier2 as historical_render
+
+        importlib.reload(harness)
+        importlib.reload(report)
+        reloaded = importlib.reload(tier2)
+        answer = "It calls cached_index. Actually, it calls build_index instead."
+        self.assertFalse(historical_score(answer, ["cached_index"])[0])
+        self.assertFalse(harness._score(answer, ["cached_index"])[0])
+
+        malicious = {
+            "tier": 2,
+            "skipped": True,
+            "reason": "x\x1b[2J\nFORGED" + "z" * 1000,
+        }
+        rendered = historical_render(malicious)
+        self.assertNotIn("\x1b", rendered)
+        self.assertNotIn("\nFORGED", rendered)
+        self.assertNotIn("z" * (reloaded._MAX_TERMINAL_FIELD_CHARS + 1), rendered)
+
+        with patch.object(reloaded, "_score", return_value=(False, 0.25)) as score:
+            self.assertEqual(harness._score("x", ["x"]), (False, 0.25))
+            score.assert_called_once_with("x", ["x"])
+        with patch.object(reloaded, "render_tier2", return_value="canonical") as render:
+            self.assertEqual(report.render_tier2({}), "canonical")
+            render.assert_called_once_with({})
+        with patch.object(reloaded, "run_tier2", return_value={"canonical": True}) as run:
+            self.assertEqual(
+                historical_package_run([], "none", 1),
+                {"canonical": True},
+            )
+            run.assert_called_once_with([], "none", 1)
 
 
 class GuardedScoreTest(unittest.TestCase):
