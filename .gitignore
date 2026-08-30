@@ -48,6 +48,10 @@ runs/plan_critique/**
 runs/budget/ledger.json
 runs/budget/ledger.json.lock
 
+# Fixed, crash-released Managed Bridge OS-lock identity. The file deliberately
+# survives process exit; only the lock ownership is transient runtime state.
+runs/bridge_watcher.lock
+
 # Rust build output (structcore-rs) -- ~0.6 GB of compiled artifacts
 target/
 

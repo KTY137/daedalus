@@ -40,6 +40,7 @@ from daedalus.desktop_runtime import (
     normalize_config,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
 _RUNTIME_ENV = (
     "OLLAMA_HOST",
     "OLLAMA_MODEL",
@@ -231,6 +232,15 @@ def test_bridge_watcher_lock_is_atomic_and_released(tmp_path):
 
     with file_bridge._BridgeWatcherLock(lock_path):
         pass
+
+
+def test_persistent_bridge_lock_is_untracked_runtime_state():
+    result = subprocess.run(
+        ["git", "check-ignore", "--quiet", "--", "runs/bridge_watcher.lock"],
+        cwd=ROOT,
+        check=False,
+    )
+    assert result.returncode == 0
 
 
 def test_two_desktop_managers_racing_create_exactly_one_bridge_owner(
