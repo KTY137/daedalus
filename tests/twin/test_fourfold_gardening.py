@@ -8,7 +8,7 @@ from daedalus.twin import FOURFOLD_PLANES, compile_reference_project, verify_for
 from daedalus.twin import projection_verifier
 
 REVISION = "7" * 40
-NOW = "2026-08-30T02:00:00Z"
+NOW = "2026-08-29T21:58:00Z"
 FIXTURE = Path(__file__).resolve().parents[2] / "examples" / "fourfold_wiki_app"
 
 
@@ -18,9 +18,7 @@ def test_projection_verifier_reuses_canonical_fourfold_identity_contracts() -> N
     source = inspect.getsource(projection_verifier)
     tree = ast.parse(source)
     function_names = {
-        node.name
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
 
     assert "_binding_key" not in function_names
@@ -44,13 +42,13 @@ def test_reference_projection_round_trip_remains_revision_bound_and_deterministi
         FIXTURE,
         source_revision=REVISION,
         created_at=NOW,
-        trace_id="tr-fourfold-gardener-port",
+        trace_id="tr-fourfold-gardener",
     )
     second = compile_reference_project(
         FIXTURE,
         source_revision=REVISION,
         created_at=NOW,
-        trace_id="tr-fourfold-gardener-port",
+        trace_id="tr-fourfold-gardener",
     )
 
     assert first.snapshot.to_json() == second.snapshot.to_json()
