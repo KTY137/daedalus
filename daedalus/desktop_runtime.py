@@ -85,9 +85,15 @@ def _loopback_endpoint(value: Any) -> str:
         or parsed.scheme != "http"
         or port is None
         or parsed.path not in ("", "/")
+        or parsed.username is not None
+        or parsed.password is not None
+        or bool(parsed.query)
+        or bool(parsed.fragment)
     ):
         raise ValueError("local_host must look like http://127.0.0.1:11434")
-    return f"http://{host}:{port}"
+    # Preserve brackets around IPv6 loopback. Reconstructing from
+    # parsed.hostname would turn http://[::1]:11434 into an invalid URL.
+    return raw
 
 
 def _numeric_host(value: str) -> str | None:
@@ -194,6 +200,7 @@ class DesktopRuntimeManager:
         self._ollama_log = None
         self._closed = False
         self._base_trusted = os.environ.get(TRUSTED_HOSTS_VAR, "")
+        self._config_error = ""
         self.config = self._load()
         self.apply_environment()
         atexit.register(self.close)
@@ -204,19 +211,24 @@ class DesktopRuntimeManager:
         except FileNotFoundError:
             return _defaults()
         except (OSError, json.JSONDecodeError) as exc:
-            raise DesktopRuntimeError(f"cannot read {self.config_path}: {exc}") from exc
+            self._config_error = f"cannot read {self.config_path}: {exc}"
+            return _defaults()
         try:
             return normalize_config(raw)
         except ValueError as exc:
-            raise DesktopRuntimeError(f"invalid desktop settings: {exc}") from exc
+            self._config_error = f"invalid desktop settings: {exc}"
+            return _defaults()
 
     def _save(self) -> None:
-        self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.config_path.with_name(f".{self.config_path.name}.{os.getpid()}.tmp")
-        tmp.write_text(
-            json.dumps(self.config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
-        os.replace(tmp, self.config_path)
+        try:
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.config_path.with_name(f".{self.config_path.name}.{os.getpid()}.tmp")
+            tmp.write_text(
+                json.dumps(self.config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            )
+            os.replace(tmp, self.config_path)
+        except OSError as exc:
+            raise DesktopRuntimeError(f"cannot write {self.config_path}: {exc}") from exc
 
     def _log(self, message: str) -> None:
         try:
@@ -246,8 +258,14 @@ class DesktopRuntimeManager:
         with self._lock:
             if old_route != new_route:
                 self.stop_ollama_transport()
+            previous = self.config
             self.config = new
-            self._save()
+            try:
+                self._save()
+            except DesktopRuntimeError:
+                self.config = previous
+                raise
+            self._config_error = ""
             self.apply_environment()
         startup_error = ""
         if new["bridge"]["auto_start"]:
@@ -601,6 +619,7 @@ class DesktopRuntimeManager:
         return {
             "config": self.config,
             "config_path": str(self.config_path),
+            "config_error": self._config_error,
             "credential_policy": {
                 "ssh_key_only": True,
                 "stores_passwords": False,
