@@ -121,6 +121,9 @@ jobs:
       - name: Rust formatting
         run: cargo fmt --manifest-path apps/web/src-tauri/Cargo.toml -- --check
 
+      - name: Rust library tests
+        run: cargo test --manifest-path apps/web/src-tauri/Cargo.toml --lib --locked
+
       - name: Build Linux validation desktop bundle
         uses: tauri-apps/tauri-action@v1
         with:
@@ -225,6 +228,9 @@ jobs:
 
       - name: Rust formatting
         run: cargo fmt --manifest-path apps/web/src-tauri/Cargo.toml -- --check
+
+      - name: Rust library tests
+        run: cargo test --manifest-path apps/web/src-tauri/Cargo.toml --lib --locked
 
       - name: Build desktop bundles
         uses: tauri-apps/tauri-action@v1

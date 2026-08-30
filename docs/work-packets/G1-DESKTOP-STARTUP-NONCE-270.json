@@ -54,5 +54,5 @@
     "revert the scoped source and tests together",
     "retain issue 270 and this packet as negative startup-integrity evidence"
   ],
-  "evidence_status": "local_implementation_verified_14_tests; frontend_build_passed; native_rust_and_hosted_exact_head_pending"
+  "evidence_status": "local_implementation_verified_14_tests; local_native_rust_verified_8_tests; frontend_build_passed; workflow_requires_native_rust_before_bundle; hosted_exact_head_pending"
 }

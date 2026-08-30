@@ -629,6 +629,7 @@ def test_pull_request_validation_cannot_receive_release_write_authority() -> Non
         "build_tauri_sidecar.py",
         "smoke_tauri_sidecar.py",
         "cargo fmt",
+        "cargo test",
         "tauri-action@v1",
     ):
         assert forbidden not in release
@@ -637,6 +638,22 @@ def test_pull_request_validation_cannot_receive_release_write_authority() -> Non
     # avoid persisting Git credentials. The release token is scoped to the one
     # gh release command through GH_TOKEN instead.
     assert workflow.count("persist-credentials: false") == 3
+
+
+def test_native_rust_tests_gate_each_desktop_bundle() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    validation, publisher = workflow.split("\n  release:\n", 1)
+    pr_linux, release_matrix = validation.split("\n  desktop-release:\n", 1)
+    command = (
+        "cargo test --manifest-path apps/web/src-tauri/Cargo.toml "
+        "--lib --locked"
+    )
+
+    assert workflow.count(command) == 2
+    for build_job in (pr_linux, release_matrix):
+        assert build_job.index("Generate desktop icons") < build_job.index(command)
+        assert build_job.index(command) < build_job.index("tauri-apps/tauri-action@v1")
+    assert command not in publisher
 
 
 def test_desktop_release_versions_are_aligned() -> None:
