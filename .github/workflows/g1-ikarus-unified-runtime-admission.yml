@@ -15,6 +15,7 @@ on:
       - "daedalus/runtimes/provider_executable_pre_admission.py"
       - "daedalus/runtimes/provider_executable_object_registry.py"
       - "daedalus/runtimes/provider_runtime_executable_binding.py"
+      - "daedalus/runtimes/provider_invocation_payload.py"
       - "tests/test_ikarus_effect_bridge.py"
       - "tests/test_ikarus_oneshot.py"
       - "tests/test_ikarus_tool_scope.py"
@@ -24,8 +25,11 @@ on:
       - "tests/runtimes/test_provider_executable_object_registry_review.py"
       - "tests/runtimes/test_provider_runtime_executable_binding.py"
       - "tests/runtimes/test_provider_runtime_executable_binding_review.py"
+      - "tests/runtimes/test_provider_invocation_payload.py"
+      - "tests/runtimes/test_provider_invocation_payload_review.py"
       - "docs/research/hermes-agent-v2026.8.19-provenance.json"
       - "docs/work-packets/G1-IKARUS-07S_PROVIDER_STACK_SERIALIZATION.md"
+      - "docs/work-packets/G1-IKARUS-07D1_PROVIDER_INVOCATION_PAYLOAD.md"
       - ".github/workflows/g1-ikarus-unified-runtime-admission.yml"
   workflow_dispatch:
 
@@ -65,12 +69,15 @@ jobs:
           daedalus/runtimes/provider_executable_pre_admission.py
           daedalus/runtimes/provider_executable_object_registry.py
           daedalus/runtimes/provider_runtime_executable_binding.py
+          daedalus/runtimes/provider_invocation_payload.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
           tests/runtimes/test_provider_executable_pre_admission.py
           tests/runtimes/test_provider_executable_object_registry.py
           tests/runtimes/test_provider_runtime_executable_binding.py
+          tests/runtimes/test_provider_invocation_payload.py
+          tests/runtimes/test_provider_invocation_payload_review.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
       - run: >-
           python -m pytest -q -p no:cacheprovider
@@ -86,5 +93,8 @@ jobs:
           tests/runtimes/test_provider_executable_object_registry_review.py
           tests/runtimes/test_provider_runtime_executable_binding.py
           tests/runtimes/test_provider_runtime_executable_binding_review.py
+          tests/runtimes/test_provider_invocation_payload.py
+          tests/runtimes/test_provider_invocation_payload_review.py
+          tests/runtimes/test_provider_invocation_authority.py
           tests/runtimes/test_runtime_provider_exact_authority_boundary.py
           tests/runtimes/test_provider_observation_authority_review.py
