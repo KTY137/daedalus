@@ -59,3 +59,31 @@ def test_invocation_abi_public_surface_exposes_no_callable_resolver() -> None:
     assert "Callable[" not in source
     assert "provider_execution_allowed\": True" not in source
     assert "effect_start_authorized\": True" not in source
+    assert "authority_secret" not in source
+
+
+def test_invocation_abi_issuer_has_no_detached_signing_secret() -> None:
+    tree = _tree()
+    issuer = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "issue_provider_invocation_abi_contract"
+    )
+    parameter_names = {
+        argument.arg
+        for argument in (*issuer.args.args, *issuer.args.kwonlyargs)
+    }
+    assert "authority_secret" not in parameter_names
+
+    source = MODULE.read_text(encoding="utf-8")
+    canonicalize = source.index(
+        "authority_rows = _canonical_keyring(",
+        source.index("def issue_provider"),
+    )
+    authenticate = source.index("_authenticate_parent(", canonicalize)
+    sign = source.index(
+        "_canonical_signing_key(authority, authority_rows)",
+        authenticate,
+    )
+    assert canonicalize < authenticate < sign

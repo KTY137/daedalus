@@ -105,6 +105,32 @@ def _signature(digest: str, secret: bytes | str, label: str) -> str:
     ).hexdigest()
 
 
+def _canonical_keyring(
+    keyring: Mapping[str, bytes | str],
+    *,
+    label: str,
+) -> dict[str, bytes]:
+    """Snapshot one untrusted keyring before authentication and signing."""
+
+    try:
+        return dict(_normalize_keyring(keyring, label=label))
+    except (TypeError, ValueError) as exc:
+        raise ProviderInvocationABIShapeError(f"{label} is malformed") from exc
+
+
+def _canonical_signing_key(
+    authority: ProviderInvocationObservationAuthority,
+    authority_keyring: Mapping[str, bytes],
+) -> bytes:
+    key_id = authority.observation_authority.authority_key_id
+    secret = authority_keyring.get(key_id)
+    if secret is None:
+        raise ProviderInvocationABISignatureError(
+            "provider invocation ABI authority key is unknown"
+        )
+    return secret
+
+
 def _require_exact_inputs(
     authority: ProviderInvocationObservationAuthority,
     payload: ProviderInvocationPayload,
@@ -442,7 +468,6 @@ def issue_provider_invocation_abi_contract(
     pre_admission: ProviderExecutablePreAdmissionReceipt,
     *,
     authority_id: str,
-    authority_secret: bytes | str,
     authority_keyring: Mapping[str, bytes | str],
     observation_keyring: Mapping[str, bytes | str],
     execution: EffectExecutionRequest,
@@ -451,12 +476,20 @@ def issue_provider_invocation_abi_contract(
     """Issue the signed payload/target ABI extension after parent authentication."""
 
     _require_exact_inputs(authority, payload, pre_admission, execution)
+    authority_rows = _canonical_keyring(
+        authority_keyring,
+        label="authority_keyring",
+    )
+    observation_rows = _canonical_keyring(
+        observation_keyring,
+        label="observation_keyring",
+    )
     subject = authority.invocation_subject
     _authenticate_parent(
         authority,
         authority_id=authority_id,
-        authority_keyring=authority_keyring,
-        observation_keyring=observation_keyring,
+        authority_keyring=authority_rows,
+        observation_keyring=observation_rows,
         entrypoint_id=subject.entrypoint_id,
         runtime_id=subject.runtime_id,
         execution=execution,
@@ -496,8 +529,8 @@ def issue_provider_invocation_abi_contract(
         placeholder,
         signature_sha256=_signature(
             placeholder.signing_digest,
-            authority_secret,
-            "authority_secret",
+            _canonical_signing_key(authority, authority_rows),
+            "authority_keyring secret",
         ),
     )
 
@@ -521,12 +554,20 @@ def verify_provider_invocation_abi_contract(
             "contract must be exact ProviderInvocationABIContract"
         )
     _require_exact_inputs(authority, payload, pre_admission, execution)
+    authority_rows = _canonical_keyring(
+        authority_keyring,
+        label="authority_keyring",
+    )
+    observation_rows = _canonical_keyring(
+        observation_keyring,
+        label="observation_keyring",
+    )
     subject = authority.invocation_subject
     _authenticate_parent(
         authority,
         authority_id=authority_id,
-        authority_keyring=authority_keyring,
-        observation_keyring=observation_keyring,
+        authority_keyring=authority_rows,
+        observation_keyring=observation_rows,
         entrypoint_id=subject.entrypoint_id,
         runtime_id=subject.runtime_id,
         execution=execution,
@@ -536,13 +577,7 @@ def verify_provider_invocation_abi_contract(
     )
     _validate_conjunction(authority, payload, pre_admission, execution)
 
-    try:
-        rows = dict(_normalize_keyring(authority_keyring, label="authority_keyring"))
-    except (TypeError, ValueError) as exc:
-        raise ProviderInvocationABIShapeError(
-            "authority keyring is malformed"
-        ) from exc
-    secret = rows.get(contract.authority_key_id)
+    secret = authority_rows.get(contract.authority_key_id)
     if secret is None:
         raise ProviderInvocationABISignatureError(
             "provider invocation ABI authority key is unknown"
@@ -562,9 +597,8 @@ def verify_provider_invocation_abi_contract(
         payload,
         pre_admission,
         authority_id=authority_id,
-        authority_secret=secret,
-        authority_keyring=authority_keyring,
-        observation_keyring=observation_keyring,
+        authority_keyring=authority_rows,
+        observation_keyring=observation_rows,
         execution=execution,
         at=at,
     )
