@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -15,6 +14,26 @@ from daedalus.desktop_runtime import (
     install_tunnel_egress_policy,
     normalize_config,
 )
+
+_RUNTIME_ENV = (
+    "OLLAMA_HOST",
+    "OLLAMA_MODEL",
+    REMOTE_OK_VAR,
+    TRUSTED_HOSTS_VAR,
+    TUNNEL_FORWARD_VAR,
+    TUNNEL_TARGET_VAR,
+)
+
+
+@pytest.fixture(autouse=True)
+def restore_runtime_env():
+    before = {key: os.environ.get(key) for key in _RUNTIME_ENV}
+    yield
+    for key, value in before.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 
 def remote_config(**patch):
@@ -126,8 +145,30 @@ def test_ssh_is_strict_key_only(tmp_path, monkeypatch):
     assert "UserKnownHostsFile=" in joined
 
 
-def test_local_endpoint_must_be_numeric_loopback():
+def test_corrupt_settings_fall_back_without_bricking_desktop(tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "connections.json").write_text("{not-json", encoding="utf-8")
+
+    manager = DesktopRuntimeManager(tmp_path)
+    try:
+        assert manager.config["ollama"]["mode"] == "local"
+        assert "cannot read" in manager._config_error
+    finally:
+        manager.close()
+
+
+def test_local_endpoint_must_be_numeric_loopback_and_clean_url():
     with pytest.raises(ValueError):
         normalize_config({"ollama": {"local_host": "http://localhost:11434"}})
     with pytest.raises(ValueError):
         normalize_config({"ollama": {"local_host": "http://0.0.0.0:11434"}})
+    with pytest.raises(ValueError):
+        normalize_config({"ollama": {"local_host": "http://user@127.0.0.1:11434"}})
+    with pytest.raises(ValueError):
+        normalize_config({"ollama": {"local_host": "http://127.0.0.1:11434?x=1"}})
+
+
+def test_ipv6_loopback_keeps_required_brackets():
+    cfg = normalize_config({"ollama": {"local_host": "http://[::1]:11434"}})
+    assert cfg["ollama"]["local_host"] == "http://[::1]:11434"
