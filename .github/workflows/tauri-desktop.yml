@@ -1,0 +1,158 @@
+name: Tauri Desktop
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "daedalus/**"
+      - "scripts/daedalus_desktop_sidecar.py"
+      - "tools/build_tauri_sidecar.py"
+      - "tools/smoke_tauri_sidecar.py"
+      - "tests/test_desktop_packaging.py"
+      - "pyproject.toml"
+      - ".github/workflows/tauri-desktop.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "daedalus/**"
+      - "scripts/daedalus_desktop_sidecar.py"
+      - "tools/build_tauri_sidecar.py"
+      - "tools/smoke_tauri_sidecar.py"
+      - "tests/test_desktop_packaging.py"
+      - "pyproject.toml"
+      - ".github/workflows/tauri-desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tauri-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  desktop:
+    name: ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows x86-64
+            platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            tauri_args: --bundles nsis
+          - label: Linux x86-64
+            platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            tauri_args: --bundles appimage,deb
+          - label: macOS Apple Silicon
+            platform: macos-latest
+            target: aarch64-apple-darwin
+            tauri_args: --target aarch64-apple-darwin --bundles app,dmg
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin' || '' }}
+
+      - name: Install Linux desktop dependencies
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install cockpit dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Build cockpit
+        working-directory: apps/web
+        run: npm run build
+
+      # 6.22.1 fixes GHSA-9fxf-4qw3-ghmr (2026-08-15). Keep this exact:
+      # packaging must not bake a known unsafe bootloader into a release.
+      - name: Install Python build/test dependencies
+        run: python -m pip install -e ".[test]" pyinstaller==6.22.1
+
+      - name: Build frozen Daedalus backend
+        run: python tools/build_tauri_sidecar.py --target "${{ matrix.target }}"
+
+      - name: Smoke-test frozen backend and cockpit
+        run: python tools/smoke_tauri_sidecar.py
+
+      - name: Desktop packaging contract tests
+        run: python -m pytest -q tests/test_desktop_packaging.py
+
+      - name: Install pinned Tauri CLI
+        run: npm install --global @tauri-apps/cli@2.11.4
+
+      - name: Generate desktop icons
+        working-directory: apps/web
+        run: tauri icon src-tauri/icons/icon.svg
+
+      - name: Rust formatting
+        run: cargo fmt --manifest-path apps/web/src-tauri/Cargo.toml -- --check
+
+      - name: Build validation desktop bundles
+        if: github.event_name != 'push'
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/web
+          tauriScript: tauri
+          args: ${{ matrix.tauri_args }}
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: daedalus-desktop-[platform]-[arch]-[bundle]
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
+
+      - name: Build release desktop bundles
+        if: github.event_name == 'push'
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/web
+          tauriScript: tauri
+          args: ${{ matrix.tauri_args }}
+          tagName: desktop-v__VERSION__
+          releaseName: Daedalus Desktop v__VERSION__
+          releaseBody: |
+            Native Daedalus desktop bundles.
+
+            This release is intentionally a prerelease: Windows artifacts are
+            not Authenticode-signed and macOS is ad-hoc signed, not notarized.
+            The application updater is disabled until an updater signing trust
+            root is provisioned and validated.
+          releaseCommitish: ${{ github.sha }}
+          generateReleaseNotes: true
+          prerelease: true
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: daedalus-desktop-[platform]-[arch]-[bundle]
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
