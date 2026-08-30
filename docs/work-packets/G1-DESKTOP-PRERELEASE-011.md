@@ -62,8 +62,21 @@ publishing app internals.
 - Local selector, workflow-contract, project, and desktop matrix:
   `96 passed in 2.70s`.
 - Workflow YAML plus changed Python, JSON, and TOML parsing: passed.
-- Exact-head hosted run and published v0.1.2 release: pending and deliberately
-  outside this packet edit.
+- Hosted run `33320352069` at
+  `2dbf54aa134ede39f0aacf1c5687b368086cf148`: Windows, Linux, and macOS bundle
+  lanes passed. Publication failed before `gh release create` because
+  `tools/select_desktop_release_assets.py` could not import the checked-out
+  `daedalus` package in the isolated publisher job. This retained failure is
+  the publisher-environment baseline.
+- Exact-head hosted run `33321096897` at
+  `ac6f33c0f04984c6946e76a4532734b650c62182`: all three bundle lanes and the
+  trusted-main publisher passed. The immutable historical prerelease
+  `desktop-v0.1.2` targets that revision and contains exactly the expected
+  `.exe`, `.AppImage`, `.deb`, `.dmg`, and `.app.tar.gz` assets, each with a
+  GitHub-recorded SHA-256 digest.
+- G1-DESKTOP-PRERELEASE-012 supersedes this package for final delivery because
+  the completed child-nonce race coverage and sealed 07D4 broker cutover land
+  after this v0.1.2 revision.
 
 ## Rollback
 

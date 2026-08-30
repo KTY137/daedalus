@@ -51,7 +51,14 @@ def test_desktop_rust_shell_uses_loopback_and_owns_child_lifecycle() -> None:
     assert "getrandom::getrandom" in source
     assert '.env(DESKTOP_STARTUP_NONCE_ENV, startup_nonce)' in source
     assert "probe_authenticated_readiness" in source
-    assert source.count("child.try_wait()?") >= 2
+    lifecycle_source = source.split("fn readiness_poll_with", 1)[1].split(
+        "fn readiness_poll(", 1
+    )[0]
+    assert lifecycle_source.count("child_status()?") == 2
+    concrete_poll = source.split("fn readiness_poll(", 1)[1].split(
+        "fn wait_until_ready", 1
+    )[0]
+    assert "child.try_wait()?" in concrete_poll
     wait_source = source.split("fn wait_until_ready", 1)[1].split("fn start_desktop", 1)[0]
     assert "TcpStream::connect_timeout" not in wait_source
     assert "child.kill()" in source
@@ -138,7 +145,7 @@ def test_macos_app_archive_contains_one_top_level_bundle_and_keeps_modes(
     executable.write_bytes(b"native executable")
     executable.chmod(0o755)
     source_mode = executable.stat().st_mode & 0o777
-    archive = tmp_path / "Daedalus_0.1.2_aarch64.app.tar.gz"
+    archive = tmp_path / "Daedalus_0.1.3_aarch64.app.tar.gz"
 
     assert archive_macos_app(app_root, archive) == archive
 
@@ -163,7 +170,7 @@ def test_macos_app_archive_refuses_missing_duplicate_or_existing_output(
 ) -> None:
     app_root = tmp_path / "macos"
     app_root.mkdir()
-    archive = tmp_path / "Daedalus_0.1.2_aarch64.app.tar.gz"
+    archive = tmp_path / "Daedalus_0.1.3_aarch64.app.tar.gz"
     with pytest.raises(
         ValueError, match="top-level \\.app: expected 1 directory, found 0"
     ):
@@ -187,11 +194,11 @@ def test_release_asset_selection_is_exactly_the_v010_five_asset_matrix(
     tmp_path: Path,
 ) -> None:
     expected = (
-        tmp_path / "Daedalus_0.1.2_x64-setup.exe",
-        tmp_path / "Daedalus_0.1.2_amd64.AppImage",
-        tmp_path / "Daedalus_0.1.2_amd64.deb",
-        tmp_path / "Daedalus_0.1.2_aarch64.dmg",
-        tmp_path / "Daedalus_0.1.2_aarch64.app.tar.gz",
+        tmp_path / "Daedalus_0.1.3_x64-setup.exe",
+        tmp_path / "Daedalus_0.1.3_amd64.AppImage",
+        tmp_path / "Daedalus_0.1.3_amd64.deb",
+        tmp_path / "Daedalus_0.1.3_aarch64.dmg",
+        tmp_path / "Daedalus_0.1.3_aarch64.app.tar.gz",
     )
     for path in expected:
         path.write_bytes(b"installer")
@@ -251,6 +258,7 @@ def test_pull_request_validation_cannot_receive_release_write_authority() -> Non
     assert "permissions:\n      contents: write" in release
     assert "actions/download-artifact@v4" in release
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in release
+    assert "PYTHONPATH: ${{ github.workspace }}" in release
     assert "gh release create" in release
     for forbidden in (
         "npm ci",
@@ -298,5 +306,5 @@ def test_desktop_release_versions_are_aligned() -> None:
         == match.group(1)
         == locked_match.group(1)
         == project_match.group(1)
-        == "0.1.2"
+        == "0.1.3"
     )

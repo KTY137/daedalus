@@ -96,6 +96,10 @@ fn install_backend(app: &tauri::App) -> Result<(PathBuf, PathBuf), Box<dyn Error
 
 fn port_is_busy() -> bool {
     let address: SocketAddr = BACKEND_ADDR.parse().expect("constant socket address");
+    port_is_busy_at(address)
+}
+
+fn port_is_busy_at(address: SocketAddr) -> bool {
     TcpStream::connect_timeout(&address, Duration::from_millis(250)).is_ok()
 }
 
@@ -179,23 +183,38 @@ fn probe_authenticated_readiness(address: SocketAddr, startup_nonce: &str) -> bo
     status_ok && body == expected
 }
 
-fn readiness_poll(child: &mut Child, address: SocketAddr, startup_nonce: &str) -> io::Result<bool> {
-    if let Some(status) = child.try_wait()? {
+fn readiness_poll_with<ChildStatus, Probe, Status>(
+    mut child_status: ChildStatus,
+    probe: Probe,
+) -> io::Result<bool>
+where
+    ChildStatus: FnMut() -> io::Result<Option<Status>>,
+    Probe: FnOnce() -> bool,
+    Status: std::fmt::Display,
+{
+    if let Some(status) = child_status()? {
         return Err(io::Error::other(format!(
             "Daedalus backend exited before startup completed: {status}"
         )));
     }
-    if !probe_authenticated_readiness(address, startup_nonce) {
+    if !probe() {
         return Ok(false);
     }
     // A raced listener must not win merely because our child exited between
     // the first lifecycle check and the authenticated HTTP response.
-    if let Some(status) = child.try_wait()? {
+    if let Some(status) = child_status()? {
         return Err(io::Error::other(format!(
             "Daedalus backend exited during startup readiness: {status}"
         )));
     }
     Ok(true)
+}
+
+fn readiness_poll(child: &mut Child, address: SocketAddr, startup_nonce: &str) -> io::Result<bool> {
+    readiness_poll_with(
+        || Ok(child.try_wait()?),
+        || probe_authenticated_readiness(address, startup_nonce),
+    )
 }
 
 fn wait_until_ready(child: &mut Child, startup_nonce: &str) -> io::Result<()> {
@@ -363,6 +382,29 @@ mod tests {
     }
 
     #[test]
+    fn listener_present_before_spawn_is_detected() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind pre-existing listener");
+        let address = listener
+            .local_addr()
+            .expect("pre-existing listener address");
+        assert!(port_is_busy_at(address));
+    }
+
+    #[test]
+    fn listener_winning_bind_race_cannot_replay_another_nonce() {
+        let raced_nonce = "e".repeat(64);
+        let body = format!(
+            "{{\"schema\": \"daedalus-desktop-startup/1\", \"ready\": true, \"nonce\": \"{raced_nonce}\"}}"
+        );
+        let response = format!(
+            "HTTP/1.0 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        );
+        let address = one_response(response);
+        assert!(!probe_authenticated_readiness(address, &"f".repeat(64)));
+    }
+
+    #[test]
     fn only_exact_child_nonce_satisfies_readiness() {
         let nonce = "b".repeat(64);
         let body = format!(
@@ -374,6 +416,53 @@ mod tests {
         );
         let address = one_response(response);
         assert!(probe_authenticated_readiness(address, &nonce));
+    }
+
+    #[test]
+    fn child_exit_before_probe_wins_without_contacting_listener() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake ready listener");
+        listener
+            .set_nonblocking(true)
+            .expect("make fake listener observable without blocking");
+        let address = listener.local_addr().expect("fake ready listener address");
+        let error = readiness_poll_with(
+            || Ok(Some("fixture exit 17".to_owned())),
+            || probe_authenticated_readiness(address, &"1".repeat(64)),
+        )
+        .expect_err("an exited child must refuse readiness before probing");
+        assert!(error
+            .to_string()
+            .contains("exited before startup completed"));
+        assert_eq!(
+            listener
+                .accept()
+                .expect_err("readiness probe must not run")
+                .kind(),
+            io::ErrorKind::WouldBlock
+        );
+    }
+
+    #[test]
+    fn child_exit_during_probe_wins_over_exact_nonce_response() {
+        let nonce = "2".repeat(64);
+        let body = format!(
+            "{{\"schema\": \"daedalus-desktop-startup/1\", \"ready\": true, \"nonce\": \"{nonce}\"}}"
+        );
+        let response = format!(
+            "HTTP/1.0 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        );
+        let address = one_response(response);
+        let mut statuses = [None, Some("fixture exit 23".to_owned())].into_iter();
+        let error = readiness_poll_with(
+            || Ok(statuses.next().expect("exactly two child status checks")),
+            || probe_authenticated_readiness(address, &nonce),
+        )
+        .expect_err("child exit must win over exact readiness evidence");
+        assert!(error
+            .to_string()
+            .contains("exited during startup readiness"));
+        assert!(statuses.next().is_none());
     }
 
     #[test]
