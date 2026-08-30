@@ -1,75 +1,236 @@
 {
-  "schema": "daedalus.work-packet/1",
-  "id": "G1-LOOP-TERMINAL-250",
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-LOOP-TERMINAL-250",
   "title": "Loop terminal renderer trust-boundary repair",
-  "status": "implementation_complete_verification_blocked",
-  "authority": {
-    "plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
-    "revision": 8,
-    "version": "1.3.0",
-    "active_gate": "Gate 1 — Renovation ignition slice"
-  },
+  "status": "IMPLEMENTED_LOCAL_EVIDENCE_GREEN_HOSTED_CI_BLOCKED",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "owner": "repository owner; merge and promotion require an explicit owner decision",
   "issue": 250,
   "pull_request": 306,
-  "canonical_branch": "g1/gardener-post-release-containment-03",
+  "base_revision": "47229f0a230111ad1be29cbd5f976dcc31c02859",
+  "dependencies": [
+    "LoopReport and IterationResult schema 2",
+    "G1-GARDEN-CONTAINMENT-03 branch history",
+    "issue #250 terminal rendering containment"
+  ],
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "master_plan_revision": 8,
+    "master_plan_version": "1.3.0",
+    "active_gate": "Gate 1 - Renovation ignition slice",
+    "invariants": [
+      "canonical evidence is retained verbatim",
+      "independent evidence verifies claims",
+      "bounded effects",
+      "no automatic merge or promotion"
+    ]
+  },
+  "primary_acceptance_claim": "Every runtime-derived field emitted by the loop terminal renderer is projected through one neutral helper to a single printable-ASCII field of at most 160 characters including any ellipsis, while canonical LoopReport and IterationResult evidence remains byte-for-byte semantically unchanged.",
   "branch_policy": {
+    "canonical_remote_branch": "g1/gardener-post-release-containment-03",
+    "local_remediation_branch": "review-fix/pr306-terminal-boundary",
+    "original_implementation_base": "8dea59782afc9ba275a28cbc00c455b088f254d0",
     "new_remote_branch_created": false,
-    "legacy_evidence_preserved": true,
+    "remote_write_performed": false,
     "history_rewritten": false,
     "force_update_used": false,
-    "containment_note": "The pre-existing canonical branch history from closed PR #293 remains in ancestry. A two-parent, non-force merge advanced the line onto main commit 8dea59782afc9ba275a28cbc00c455b088f254d0 with the exact main tree before this packet was applied."
+    "legacy_evidence_preserved": true,
+    "containment_note": "The pre-existing canonical branch history from closed PR #293 remains in ancestry. A two-parent, non-force merge advanced that line onto main commit 8dea59782afc9ba275a28cbc00c455b088f254d0 before this packet was applied."
   },
-  "scope": {
-    "production": [
-      "daedalus/loop.py"
+  "in_scope": [
+    "daedalus/text_integrity.py",
+    "daedalus/loop.py",
+    "tests/test_loop_terminal_rendering.py",
+    "docs/work-packets/G1-LOOP-TERMINAL-250.json"
+  ],
+  "forbidden_paths": [
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
+    "daedalus/eval/",
+    "daedalus/spine/",
+    "daedalus/kairos/",
+    "provider execution and effect-boundary entrypoints",
+    "artifact, event, evidence, graph, policy, promotion, registry, receipt, and store authorities"
+  ],
+  "contracts": {
+    "neutral_helper": "daedalus.text_integrity.safe_terminal_text",
+    "input": "any object accepted only for presentation through str(value)",
+    "output": "one line containing only ASCII code points 0x20 through 0x7e",
+    "normalization_order": [
+      "collapse whitespace to single ASCII spaces",
+      "encode non-ASCII text with deterministic question-mark replacement",
+      "defensively replace every remaining non-printable code point",
+      "truncate the sanitized field to 160 characters including a three-character ASCII ellipsis"
     ],
-    "tests": [
-      "tests/test_loop_terminal_rendering.py"
+    "rejected_terminal_semantics": [
+      "C0 controls including NUL, BEL, ESC, CR, and LF",
+      "DEL and C1 controls including CSI",
+      "Unicode bidirectional and invisible format controls",
+      "lone UTF-16 surrogate code points",
+      "unbounded runtime-derived strings"
     ],
-    "work_packet": "docs/work-packets/G1-LOOP-TERMINAL-250.json",
-    "principle": "sanitize only the human terminal projection; retain canonical LoopReport and IterationResult evidence verbatim"
+    "canonical_evidence": "No report, iteration, skipped-item, note, receipt, serialization, or persisted value is rewritten; sanitization is presentation-only.",
+    "architecture": "The helper is a neutral package-level presentation primitive. daedalus.loop does not import or depend on private evaluator code, and the change creates no effect authority, registry, receipt, or store."
   },
-  "implementation": {
-    "helper": "_terminal_text",
-    "behavior": [
-      "collapse rendered values to a single display line",
-      "strip C0, DEL, and C1 terminal control characters including ESC, BEL, NUL, and CSI",
-      "apply display truncation only after sanitization",
-      "sanitize runtime-derived identities, stop detail, governance state, worker/lane/status fields, branch names, skipped reasons, and notes",
-      "leave LoopReport.to_dict() and IterationResult.to_dict() unchanged"
-    ],
-    "new_subsystems": [],
-    "new_registries": [],
-    "new_stores": [],
-    "new_control_planes": []
+  "acceptance_matrix": [
+    {
+      "id": "T250-A01",
+      "kind": "contract",
+      "test": "test_safe_terminal_text_is_one_line_printable_ascii",
+      "acceptance": "C0, DEL/C1, bidi/format controls, multiline input, and lone surrogates produce only one-line printable ASCII and remain UTF-8 encodable",
+      "budget": "all tested cases complete in the focused suite; no I/O or provider call"
+    },
+    {
+      "id": "T250-A02",
+      "kind": "boundary",
+      "test": "test_safe_terminal_text_bounds_after_sanitization_including_ellipsis",
+      "acceptance": "sanitization precedes truncation and the complete field, including '...', is at most 160 characters",
+      "budget": "160 output characters per runtime-derived field"
+    },
+    {
+      "id": "T250-A03",
+      "kind": "parametric integration",
+      "test": "test_every_runtime_text_surface_is_ascii_bounded_and_evidence_immutable",
+      "acceptance": "every report, iteration, branch, skipped-item, and note text surface uses the same contract under combined C0/C1/bidi/format/surrogate/long-string injection",
+      "budget": "17 named text surfaces; 160 characters per field; zero canonical mutations"
+    },
+    {
+      "id": "T250-A04",
+      "kind": "immutability",
+      "test": "test_every_runtime_text_surface_is_ascii_bounded_and_evidence_immutable",
+      "acceptance": "LoopReport.to_dict() is deeply equal before and after rendering for every injected surface",
+      "budget": "zero evidence mutations"
+    },
+    {
+      "id": "T250-A05",
+      "kind": "architecture",
+      "test": "test_loop_uses_neutral_canonical_terminal_helper",
+      "acceptance": "loop imports the neutral helper and contains neither a duplicate local helper nor an evaluator dependency",
+      "budget": "one canonical terminal presentation helper"
+    },
+    {
+      "id": "T250-A06",
+      "kind": "regression",
+      "test": "focused and broad loop regression commands in evidence.verification",
+      "acceptance": "existing loop bounds, governance, lease, spend, envelope, and web API behavior remains green",
+      "budget": "focused <= 60 seconds; selected broad loop suite <= 120 seconds"
+    }
+  ],
+  "refusal_tests": [
+    "raw ESC/CSI/BEL/NUL cannot reach terminal output",
+    "DEL and every C1 byte-class code point cannot reach terminal output",
+    "Unicode bidi and invisible format controls cannot reach terminal output",
+    "lone surrogates cannot make rendered output fail ASCII or UTF-8 encoding",
+    "a runtime-derived field longer than 160 sanitized characters cannot render without truncation"
+  ],
+  "fault_injections": [
+    "all C0 code points 0x00-0x1f",
+    "DEL and all C1 code points 0x7f-0x9f",
+    "U+061C, U+200B-U+200F, U+202A-U+202E, U+2060-U+2064, U+2066-U+2069, and U+FEFF",
+    "lone high and low surrogates U+D800 and U+DFFF",
+    "CR/LF/tab/vertical-tab/form-feed line manipulation",
+    "combined adversarial prefixes followed by 500 printable characters on every named render surface"
+  ],
+  "budgets": {
+    "terminal_field_max_chars_including_ellipsis": 160,
+    "canonical_evidence_mutations": 0,
+    "provider_calls": 0,
+    "network_calls": 0,
+    "effectful_entrypoints_added": 0,
+    "stores_registries_receipts_added": 0,
+    "focused_test_wall_clock_seconds": 60,
+    "selected_broad_test_wall_clock_seconds": 120
   },
-  "focused_verification": {
-    "commands": [
-      "python -m py_compile daedalus/loop.py tests/test_loop_terminal_rendering.py",
-      "python -m pytest -q tests/test_loop_terminal_rendering.py tests/test_loop_bound_safety.py"
+  "migration": {
+    "current": "Replace the loop-local partial C0/C1 helper with daedalus.text_integrity.safe_terminal_text and route every runtime-derived render field through it.",
+    "data_or_schema_migration": "none",
+    "parallel_291_convergence": "The local #291 repair established the same printable-ASCII and 160-character contract in a private evaluator helper. On integration, that consumer should import this neutral helper so the private duplicate can be deleted; loop must never import daedalus.eval._text_integrity.",
+    "compatibility": "Canonical report and iteration schemas and serialized evidence remain unchanged; terminal presentation intentionally becomes more defensive and more tightly bounded."
+  },
+  "rollback": {
+    "procedure": "Revert only the four in-scope paths from the remediation commit.",
+    "data_cleanup": "none; the change creates no persistent state or migration",
+    "negative_evidence_retention": "Retain the baseline bidi, surrogate, and unbounded-output reproductions in this packet even if the implementation is rolled back."
+  },
+  "expected_failures": [
+    "Exact-head hosted CI for 47229f0a230111ad1be29cbd5f976dcc31c02859 is a zero-step infrastructure failure and supplies no product evidence.",
+    "Linux and the remaining supported interpreter matrix are not established by Windows CPython 3.10 local evidence and remain required before release.",
+    "Objects whose __str__ raises are outside the LoopReport/IterationResult schema contract; this presentation packet does not convert arbitrary execution failures into evidence."
+  ],
+  "review_questions": [
+    "Does every runtime-derived terminal field pass through the neutral helper after formatting and before interpolation?",
+    "Can C0, C1, bidi/format controls, or lone surrogates survive in any rendered output?",
+    "Is the 160-character bound measured after sanitization and inclusive of the ellipsis?",
+    "Does rendering preserve canonical evidence exactly for every adversarial surface?",
+    "Is the helper neutral rather than coupled to private evaluator code, and can the parallel #291 duplicate converge on it?",
+    "Does this packet add any execution, effect, evidence, policy, promotion, receipt, registry, or storage authority?",
+    "Are hosted CI limitations stated as blockers rather than represented as green evidence?"
+  ],
+  "evidence": {
+    "environment": {
+      "platform": "Windows",
+      "python": "CPython 3.10.11",
+      "local_branch": "review-fix/pr306-terminal-boundary",
+      "remediation_base": "47229f0a230111ad1be29cbd5f976dcc31c02859"
+    },
+    "retained_baseline_at_47229f0a": {
+      "c0_c1_survive": false,
+      "bidi_controls_survive": true,
+      "lone_surrogate_retained": true,
+      "lone_surrogate_utf8_encodable": false,
+      "long_input_chars": 10000,
+      "longest_rendered_line_chars": 50021,
+      "total_rendered_chars": 170613,
+      "canonical_evidence_unchanged": true
+    },
+    "verification": [
+      {
+        "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -B -m pytest -q -p no:cacheprovider tests/test_loop_terminal_rendering.py tests/test_loop_bound_safety.py",
+        "result": "28 passed, 18 subtests passed in 1.40s"
+      },
+      {
+        "command": "python -m py_compile daedalus/text_integrity.py daedalus/loop.py tests/test_loop_terminal_rendering.py",
+        "result": "PASS; bytecode redirected outside the worktree"
+      },
+      {
+        "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -B -m pytest -q -p no:cacheprovider tests/test_envelope_join.py tests/test_loop.py tests/test_loop_bound_safety.py tests/test_loop_entrypoint_guard.py tests/test_loop_governance_head.py tests/test_loop_lease.py tests/test_loop_lease_policy.py tests/test_loop_lease_receipt.py tests/test_loop_spend_refused.py tests/test_loop_terminal_rendering.py tests/test_web_api_loop.py",
+        "result": "181 passed, 1 skipped, 32 subtests passed in 64.22s"
+      },
+      {
+        "command": "python -m json.tool docs/work-packets/G1-LOOP-TERMINAL-250.json and git diff --check",
+        "result": "PASS"
+      }
     ],
-    "local_execution": "NOT_EXECUTED_IN_CONNECTOR_SESSION",
     "hosted_ci": {
-      "run_id": 33301115166,
-      "workflow": "Tauri Desktop",
-      "head_sha": "31dc18ab7290054d40ea33b4b232a1362eaf823d",
+      "run_id": 33301152494,
+      "job_id": 99229434671,
+      "head_sha": "47229f0a230111ad1be29cbd5f976dcc31c02859",
       "conclusion": "failure",
-      "linux_job_id": 99229335067,
-      "linux_job_conclusion": "failure",
-      "linux_steps": [],
-      "classification": "ZERO_STEP_INFRASTRUCTURE_FAILURE_NOT_PRODUCT_EVIDENCE"
+      "runner_id": 0,
+      "steps": [],
+      "classification": "ZERO_STEP_INFRASTRUCTURE_FAILURE_NOT_PRODUCT_EVIDENCE",
+      "blocked_requirement": "Exact-head hosted system CI on supported platforms and interpreters remains required before release."
     },
     "claims": {
-      "focused_tests_green": false,
-      "full_suite_green": false,
+      "focused_local_green": true,
+      "selected_broad_local_green": true,
+      "py_compile_green": true,
+      "hosted_system_ci_green": false,
       "packaging_green": false,
-      "benchmark_win": false
+      "benchmark_claimed": false
     }
   },
   "governance": {
     "owner_approval_created": false,
     "promotion_performed": false,
     "gate_transition_performed": false,
-    "merge_to_main_performed": false
-  }
+    "merge_to_main_performed": false,
+    "remote_mutation_performed": false
+  },
+  "residual_risks": [
+    "Hosted system CI for the exact remediation commit has not run and remains release-blocking evidence.",
+    "Current main has advanced beyond the packet base; integration must revalidate mergeability and the affected suites.",
+    "The parallel local #291 change must converge on the neutral helper during integration to avoid two canonical text-integrity implementations."
+  ]
 }

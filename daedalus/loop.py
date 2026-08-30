@@ -96,6 +96,7 @@ from .spine.envelope import (
     unwrap,
 )
 from .spine.killswitch import KillSwitch, LoopHalted
+from .text_integrity import safe_terminal_text
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -1490,28 +1491,10 @@ class LoopDriver:
 # --------------------------------------------------------------------------- #
 # rendering                                                                    #
 # --------------------------------------------------------------------------- #
-def _terminal_text(value: Any, *, limit: int | None = None) -> str:
-    """One-line terminal-safe display text; canonical report data is untouched.
-
-    Runtime/provider text belongs in receipts verbatim, but the interactive
-    renderer is a separate trust boundary. Collapse whitespace first, then
-    strip C0, DEL, and C1 controls (including ESC/BEL/NUL/CSI). Any display
-    truncation happens last so control bytes cannot consume the visible limit.
-    """
-    text = " ".join(str(value).split())
-    text = "".join(
-        ch for ch in text
-        if ord(ch) >= 0x20 and not 0x7F <= ord(ch) <= 0x9F
-    )
-    if limit is not None and len(text) > limit:
-        return text[:limit] + "..."
-    return text
-
-
 def render(report: LoopReport) -> str:
     lines: list[str] = []
-    run_id = _terminal_text(report.run_id)
-    mode = _terminal_text(report.mode).upper()
+    run_id = safe_terminal_text(report.run_id)
+    mode = safe_terminal_text(report.mode).upper()
     head = f"loop {run_id}  [{mode}]"
     if report.dry_run:
         head += "  (dry run -- nothing attempted, nothing spent)"
@@ -1520,23 +1503,26 @@ def render(report: LoopReport) -> str:
         # Printed as a ready-to-run grep rather than as a bare field: the id is
         # only useful to someone who knows it is greppable, and telling them
         # costs one line.
-        trace_id = _terminal_text(report.trace_id)
+        trace_id = safe_terminal_text(report.trace_id)
         lines.append(f"  trace: {trace_id}   (grep -r {trace_id} runs/)")
     lines.append(
-        f"  stopped: {_terminal_text(report.stop_reason)} -- "
-        f"{_terminal_text(report.stop_detail)}")
+        f"  stopped: {safe_terminal_text(report.stop_reason)} -- "
+        f"{safe_terminal_text(report.stop_detail)}")
     lines.append(
-        f"  governance: state={_terminal_text(report.governance_state)} "
-        f"promotion_allowed={report.promotion_allowed}")
+        f"  governance: state={safe_terminal_text(report.governance_state)} "
+        f"promotion_allowed={safe_terminal_text(report.promotion_allowed)}")
     lines.append(
-        f"  iterations: {len(report.iterations)}/{report.bounds.max_iterations}"
-        f"   gated-clean: {report.gated_clean}   promoted: {report.promoted}")
+        f"  iterations: {safe_terminal_text(len(report.iterations))}/"
+        f"{safe_terminal_text(report.bounds.max_iterations)}"
+        f"   gated-clean: {safe_terminal_text(report.gated_clean)}"
+        f"   promoted: {safe_terminal_text(report.promoted)}")
     spend = "n/a" if report.spend_usd is None else f"${report.spend_usd:.4f}"
     lines.append(
-        f"  wall clock: {report.wall_clock_s:.1f}s/"
-        f"{report.bounds.max_wall_clock_s:.0f}s   spend: {spend}/"
-        f"${report.bounds.max_spend_usd:.2f}")
-    lines.append(f"  kill switch: {_terminal_text(report.killswitch_path)}")
+        f"  wall clock: {safe_terminal_text(f'{report.wall_clock_s:.1f}s')}/"
+        f"{safe_terminal_text(f'{report.bounds.max_wall_clock_s:.0f}s')}"
+        f"   spend: {safe_terminal_text(spend)}/"
+        f"{safe_terminal_text(f'${report.bounds.max_spend_usd:.2f}')}")
+    lines.append(f"  kill switch: {safe_terminal_text(report.killswitch_path)}")
     for it in report.iterations:
         flag = "" if it.counted else "  [INTERRUPTED - not counted]"
         # WHO, then WHY, on the same line as the verdict. An operator reading
@@ -1545,30 +1531,35 @@ def render(report: LoopReport) -> str:
         # is truncated, not dropped: the untruncated text is in the report JSON
         # and the ledger detail, and a line that wraps the terminal is a line
         # nobody scans.
-        lane = _terminal_text(it.lane or "?")
-        worker = _terminal_text(it.worker or "?")
+        lane = safe_terminal_text(it.lane or "?")
+        worker = safe_terminal_text(it.worker or "?")
         who = f"  [{lane}/{worker}]" if (it.lane or it.worker) else ""
         why = ""
         if it.reason:
-            why = f"\n         why: {_terminal_text(it.reason, limit=200)}"
+            why = f"\n         why: {safe_terminal_text(it.reason)}"
         lines.append(
-            f"    #{it.index} {_terminal_text(it.candidate_id)}  "
-            f"{_terminal_text(it.outcome)}/{_terminal_text(it.status or '-')}"
-            f"  {it.duration_s:.1f}s{who}{flag}{why}")
+            f"    #{safe_terminal_text(it.index)} "
+            f"{safe_terminal_text(it.candidate_id)}  "
+            f"{safe_terminal_text(it.outcome)}/"
+            f"{safe_terminal_text(it.status or '-')}"
+            f"  {safe_terminal_text(f'{it.duration_s:.1f}s')}"
+            f"{who}{flag}{why}")
     branches = report.integration_branches
     if branches:
-        lines.append(f"  awaiting a human `git merge` ({len(branches)} sibling "
-                     f"branch(es), same base, unmerged):")
+        branch_count = safe_terminal_text(len(branches))
+        lines.append(f"  awaiting a human `git merge` ({branch_count} sibling "
+                     "branch(es), same base, unmerged):")
         for b in branches:
-            lines.append(f"    {_terminal_text(b)}")
+            lines.append(f"    {safe_terminal_text(b)}")
     if report.skipped:
-        lines.append(f"  not re-picked ({len(report.skipped)}):")
+        skipped_count = safe_terminal_text(len(report.skipped))
+        lines.append(f"  not re-picked ({skipped_count}):")
         for s in report.skipped[:10]:
             lines.append(
-                f"    {_terminal_text(s['candidate_id'])}: "
-                f"{_terminal_text(s['reason'])}")
+                f"    {safe_terminal_text(s['candidate_id'])}: "
+                f"{safe_terminal_text(s['reason'])}")
     for note in report.notes:
-        lines.append(f"  NOTE: {_terminal_text(note)}")
+        lines.append(f"  NOTE: {safe_terminal_text(note)}")
     return "\n".join(lines)
 
 
