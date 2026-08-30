@@ -11,7 +11,8 @@
 - Plan revision: commit `657c8af5f9707de3882a71716bcd8ff3d9aa6146`,
   SHA-256 `7cccda0fb75ff60af846b0c7eb697f6f3fd9fdd76ca2f4ae3aa5670ee2f3c704`
 - Dependencies: issues #252 and #268; prior provider-failure separation from
-  #253; hosted-runner allocation incident #67
+  #253; neutral terminal presentation boundary from #306; hosted-runner
+  allocation incident #67
 
 ## Primary acceptance claim
 
@@ -35,8 +36,10 @@ candidate identity, graph authority, policy path, promotion path, automatic
 merge, or automatic evaluation-to-policy feedback.
 
 `daedalus/eval/_text_integrity.py` is the sole owner of generated-text assertion
-guards and terminal-field sanitation. `daedalus/eval/tier2.py` imports those
-guards directly and remains the sole owner of live-model execution, validation,
+guards. Its historical `safe_ascii_field` name delegates to the neutral
+presentation boundary in `daedalus/text_integrity.py`, so Loop and Eval do not
+mint competing terminal policies. `daedalus/eval/tier2.py` imports the guards
+directly and remains the sole owner of live-model execution, validation,
 receipts, and Tier-2 rendering. Historical `harness` and `report` names are
 call-time compatibility delegates only; they contain no second implementation
 and perform no import-time mutation.
@@ -85,9 +88,10 @@ Forbidden paths and changes:
    success. Unknown tasks remain unvalidated and outside the denominator.
 4. Validator receipts and the scoring method advance to version 2 so changed
    evaluator semantics are not mislabeled as version 1 evidence.
-5. `safe_ascii_field` first collapses whitespace, replaces non-ASCII/control
-   characters, then truncates to 160 characters with an ASCII `...` marker.
-   It is presentation-only and never writes into the input result dictionary.
+5. `safe_ascii_field` delegates to the neutral `safe_terminal_text` boundary,
+   which first collapses whitespace, replaces non-ASCII/control characters,
+   then truncates to 160 characters with an ASCII `...` marker. It is
+   presentation-only and never writes into the input result dictionary.
 6. Compatibility imports delegate to the live canonical Tier-2 functions at
    call time. Reloading `tier2` cannot restore a legacy scorer or renderer.
 

@@ -1,0 +1,29 @@
+{
+  "schema": "daedalus-branch-target/1",
+  "target_branch_count": 11,
+  "history_archive": {
+    "branch": "archive/legacy-20260830",
+    "head_sha": "2bc09fcfd64334c1573e0a1ade086e973508919d",
+    "tree_sha": "b3918df1d86de81c2369e512e6e1cfda2222683b",
+    "tree_semantics": "main-equivalent tree at recovery snapshot; legacy histories retained only through parent ancestry"
+  },
+  "keep_branches": [
+    "main",
+    "g1/ikarus-runtime-invocation-binding-07d3",
+    "nemesis/20260830-tier2-evidence-hardening-r2",
+    "g1/gardener-post-release-containment-03",
+    "exp/tensor-latent-ceiling-01",
+    "exp/tensor-kernel-contract-01",
+    "feature/chip-design-rtl-tcl",
+    "experiment/deepseek-lab",
+    "ops/gardener-campaign-20260929",
+    "g2/knowledge-correlation-bootstrap",
+    "archive/legacy-20260830"
+  ],
+  "retired_active_candidate": "worktree-wiki-generation-gate",
+  "notes": [
+    "worktree-wiki-generation-gate is preserved through archive ancestry and is no longer a long-lived canonical ref",
+    "feature work remains unmerged unless independently verified; archive reachability is not a main-integration claim",
+    "no force-push or history rewrite is required"
+  ]
+}

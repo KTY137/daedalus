@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import re
 
-
-TERMINAL_FIELD_MAX_CHARS = 160
+from daedalus.text_integrity import (
+    TERMINAL_FIELD_MAX_CHARS,
+    safe_terminal_text,
+)
 
 _NEGATION = re.compile(
     r"\b(?:not|never|no|without|cannot|can't|can['\u2019]t|"
@@ -97,14 +99,9 @@ _BOUNDARIES = ".;,?!\n"
 
 
 def safe_ascii_field(value: object) -> str:
-    """Return one bounded printable-ASCII field without changing evidence."""
+    """Compatibility name for the neutral terminal presentation boundary."""
 
-    text = " ".join(str(value).split())
-    text = text.encode("ascii", "replace").decode("ascii")
-    text = "".join(ch if 32 <= ord(ch) <= 126 else "?" for ch in text)
-    if len(text) > TERMINAL_FIELD_MAX_CHARS:
-        text = text[: TERMINAL_FIELD_MAX_CHARS - 3] + "..."
-    return text
+    return safe_terminal_text(value)
 
 
 def _near(prefix: str, pattern: re.Pattern[str], words: int = 5) -> bool:
