@@ -1,0 +1,112 @@
+name: G1 Ikarus Hermes Runtime Admission
+
+on:
+  push:
+    branches:
+      - g1/ikarus-runtime-invocation-binding-07d3
+    paths:
+      - "daedalus/integrations/hermes/**"
+      - "daedalus/providers/hermes_agent.py"
+      - "tests/integrations/test_hermes_*.py"
+      - "docs/adrs/023-hermes-agent-kernel-adapter.md"
+      - "docs/work-packets/G1-IKARUS-08_HERMES_KERNEL_RUNTIME_ADAPTER.md"
+      - "docs/research/hermes-agent-kernel-adapter-v1-provenance.json"
+      - ".github/workflows/g1-ikarus-hermes-runtime-admission.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g1-ikarus-hermes-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adapter-contracts:
+    name: adapter-contracts (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install Daedalus
+        run: python -m pip install -e . pytest
+      - name: Compile Hermes integration
+        run: python -m compileall -q daedalus/integrations/hermes daedalus/providers/hermes_agent.py tests/integrations
+      - name: Run Hermes integration contracts
+        run: >-
+          python -m pytest -q -p no:cacheprovider
+          tests/integrations/test_hermes_runtime_adapter.py
+          tests/integrations/test_hermes_tool_gateway.py
+          tests/integrations/test_hermes_kernel_provider.py
+          tests/integrations/test_hermes_conformance.py
+      - name: Run inherited Ikarus and provider contracts
+        run: >-
+          python -m pytest -q -p no:cacheprovider
+          tests/test_ikarus_runtime_role.py
+          tests/test_ikarus_supervisor.py
+          tests/runtimes/test_provider_runtime_invocation_binding.py
+          tests/runtimes/test_runtime_provider_broker.py
+          tests/runtimes/test_provider_invocation_registry.py
+          tests/runtimes/test_provider_invocation_authority.py
+          tests/providers/test_claude_runtime_broker.py
+          tests/providers/test_claude_bypass_inventory.py
+          tests/kernel/test_runtime_authorization_issuer.py
+          tests/runtimes/test_runtime_conformance_profiles.py
+          tests/kernel/test_runtime_conformance_harness.py
+          tests/test_codex_provider.py
+          tests/test_adapters.py
+
+  exact-upstream-provenance:
+    name: exact Hermes upstream provenance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Daedalus
+        uses: actions/checkout@v4
+        with:
+          path: daedalus
+      - name: Checkout pinned Hermes Agent
+        uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: fcbd1076a93841fa88855acce810e342a5b78101
+          path: hermes-agent
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Daedalus
+        working-directory: daedalus
+        run: python -m pip install -e . pytest
+      - name: Verify commit, tree and source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C hermes-agent rev-parse HEAD)" = "fcbd1076a93841fa88855acce810e342a5b78101"
+          test "$(git -C hermes-agent rev-parse 'HEAD^{tree}')" = "cc9f987a403a1d02b8b17cc527a57b54402e864b"
+          test "$(sha256sum hermes-agent/run_agent.py | cut -d' ' -f1)" = "b8e0244cfdbdce9328040d92adb9b89d78351000ee88bafae35d71b3e33fb8a1"
+          test "$(sha256sum hermes-agent/LICENSE | cut -d' ' -f1)" = "821556e6336796450ab852d375117b48a4887e71d255794fd6318d99982a5ab6"
+          test -z "$(git -C hermes-agent status --porcelain=v1 --untracked-files=all)"
+      - name: Build non-production conformance receipt
+        working-directory: daedalus
+        env:
+          HERMES_CHECKOUT: ${{ github.workspace }}/hermes-agent
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from daedalus.integrations.hermes.conformance import build_conformance_receipt
+
+          receipt = build_conformance_receipt(checkout_root=os.environ["HERMES_CHECKOUT"])
+          data = receipt.to_dict()
+          assert data["production_admitted"] is False
+          assert data["forbidden_imports"] == []
+          print(json.dumps(data, sort_keys=True))
+          PY
