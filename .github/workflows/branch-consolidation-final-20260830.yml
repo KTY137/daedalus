@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   consolidate:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
@@ -28,9 +28,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Fetch complete remote branch graph
-        shell: bash
+        shell: pwsh
         run: |
           gh auth setup-git
           git fetch --no-tags --prune origin '+refs/heads/*:refs/remotes/origin/*'
       - name: Execute recovery-first consolidation
+        shell: pwsh
         run: python tools/branch_consolidate_20260830.py
