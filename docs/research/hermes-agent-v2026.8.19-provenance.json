@@ -70,6 +70,11 @@
       "concept": "session-independent orchestration binding",
       "daedalus_target": "daedalus/ikarus_supervisor.py",
       "adaptation": "runtime identity is plan and attempt metadata; chat/session history is absent; runtime statelessness remains a future conformance requirement"
+    },
+    {
+      "concept": "parallel tool callback correlation and loss-aware cancelled-plan projection",
+      "daedalus_target": "daedalus/ikarus_runtime_events.py",
+      "adaptation": "per-run in-memory projector with exact plan-entry-to-call-id binding; same-name tool calls never correlate by name; cancellation retains unfinished plan rows; terminal observations are SHA-256 digests only; no provider, event-store or scheduler authority"
     }
   ],
   "copied_code": [],
