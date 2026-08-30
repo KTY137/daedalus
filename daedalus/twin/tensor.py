@@ -26,6 +26,7 @@ TENSOR_STATUSES = frozenset({"complete", "partial", "absent"})
 MAX_TENSOR_AXES = 16
 MAX_AXIS_LABELS = 100_000
 MAX_TENSOR_ENTRIES = 1_000_000
+MAX_ENTRY_EVIDENCE_DIGESTS = 64
 
 
 def _bounded_sequence(values: Any, name: str, limit: int) -> Sequence[Any]:
@@ -34,7 +35,7 @@ def _bounded_sequence(values: Any, name: str, limit: int) -> Sequence[Any]:
     The tensor contract advertises bounded construction. Checking a limit only
     after ``tuple(...)`` or ``sorted(...)`` has already consumed an attacker-
     sized input would bound the retained object but not the work needed to build
-    it. All three high-cardinality surfaces therefore pass through this one
+    it. All high-cardinality surfaces therefore pass through this one
     pre-canonicalization guard.
     """
     if isinstance(values, (str, bytes, Mapping)) or not isinstance(values, Sequence):
@@ -99,8 +100,13 @@ class SparseTensorEntry:
         object.__setattr__(self, "value", value)
         if type(self.masked) is not bool:
             raise ValueError("entry.masked must be boolean")
+        raw_evidence = _bounded_sequence(
+            self.evidence_sha256s,
+            "entry.evidence_sha256s",
+            MAX_ENTRY_EVIDENCE_DIGESTS,
+        )
         evidence = _sorted_strings(
-            self.evidence_sha256s, "entry.evidence_sha256s", digests=True
+            raw_evidence, "entry.evidence_sha256s", digests=True
         )
         if not evidence:
             raise ValueError("entry must retain evidence digests")
