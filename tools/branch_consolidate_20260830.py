@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 REPO = os.environ["GITHUB_REPOSITORY"]
+ARCHIVE_BRANCH = "archive/legacy-20260830"
 KEEP = [
     "main",
     "g1/ikarus-runtime-invocation-binding-07d3",
@@ -18,8 +19,8 @@ KEEP = [
     "feature/chip-design-rtl-tcl",
     "experiment/deepseek-lab",
     "ops/gardener-campaign-20260929",
-    "worktree-wiki-generation-gate",
     "g2/knowledge-correlation-bootstrap",
+    ARCHIVE_BRANCH,
 ]
 KEEP_SET = set(KEEP)
 MANIFEST_PATH = "docs/recovery/REMOTE_BRANCH_CONSOLIDATION_20260830.json"
@@ -86,6 +87,15 @@ def persist_manifest(manifest: dict[str, object]) -> None:
     run(cmd)
 
 
+def verify_archive_reachability(retire: dict[str, str], archive_sha: str) -> None:
+    for name, sha in sorted(retire.items()):
+        cp = run(["git", "merge-base", "--is-ancestor", sha, archive_sha], check=False)
+        if cp.returncode != 0:
+            raise SystemExit(
+                f"retiring branch is not reachable from {ARCHIVE_BRANCH}: {name} {sha}"
+            )
+
+
 def main() -> None:
     if len(KEEP) != 11 or len(KEEP_SET) != 11 or "main" not in KEEP_SET:
         raise SystemExit("invalid canonical keep-set")
@@ -106,6 +116,8 @@ def main() -> None:
             archive_prs.append({"number": number, "head": head, "base": base})
 
     retire = {name: sha for name, sha in before.items() if name not in KEEP_SET}
+    verify_archive_reachability(retire, before[ARCHIVE_BRANCH])
+
     manifest = {
         "schema": "daedalus-remote-branch-consolidation/1",
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -116,6 +128,8 @@ def main() -> None:
             "force_updates": False,
             "history_rewrites": False,
             "delete_only_after_manifest": True,
+            "retired_history_anchor": ARCHIVE_BRANCH,
+            "archive_reachability_verified": True,
         },
         "keep_branches": {name: before[name] for name in KEEP},
         "retired_branches": dict(sorted(retire.items())),
@@ -138,9 +152,9 @@ def main() -> None:
             continue
         body = (
             "Repository branch consolidation: this PR is archived without merge. "
-            f"Its head `{head}` and exact pre-deletion SHA are preserved in "
-            f"`{MANIFEST_PATH}`. This is not a claim that the code was integrated; "
-            "unverified unique work remains selectively recoverable/portable from the recorded SHA. "
+            f"Its head `{head}` is preserved by exact SHA in `{MANIFEST_PATH}` and is "
+            f"reachable through `{ARCHIVE_BRANCH}`. This is not a claim that the code was "
+            "integrated into main; unverified unique work remains selectively portable from the archive. "
             "The active repository topology is being reduced to the owner-approved 11 canonical lines under #42."
         )
         run([
