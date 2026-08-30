@@ -36,6 +36,7 @@ on:
       - "tests/runtimes/test_provider_runtime_invocation_binding.py"
       - "tests/runtimes/test_provider_runtime_invocation_binding_review.py"
       - "docs/research/hermes-agent-v2026.8.19-provenance.json"
+      - "docs/research/hermes-agent-v2026.8.27-delta-provenance.json"
       - "docs/work-packets/G1-IKARUS-07S_PROVIDER_STACK_SERIALIZATION.md"
       - "docs/work-packets/G1-IKARUS-07D1_PROVIDER_INVOCATION_PAYLOAD.md"
       - "docs/work-packets/G1-IKARUS-07D2_PROVIDER_INVOCATION_ABI.md"
@@ -95,6 +96,7 @@ jobs:
           tests/runtimes/test_provider_runtime_invocation_binding.py
           tests/runtimes/test_provider_runtime_invocation_binding_review.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
+      - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
       - run: >-
           python -m pytest -q -p no:cacheprovider
           tests/test_ikarus_effect_bridge.py
