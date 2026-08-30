@@ -4,77 +4,60 @@
 
 Compose the authenticated per-call provider ABI from 07D2 with the hardened
 executable-object evidence from 07B/07C before any runtime Effect can start.
-This packet closes the gap where payload/target evidence and loaded-object
-evidence were individually strong but not yet consumed as one conjunction.
+Payload/target evidence and loaded-object evidence must describe one exact
+subject before the broker is allowed to proceed toward durable start.
 
-## Boundary
+## Minimal boundary
 
-`daedalus.runtimes.provider_runtime_invocation_binding` requires exact instances
-of the canonical runtime authorization, Effect execution request, signed
-`ProviderInvocationObservationAuthority`, canonical `ProviderInvocationPayload`,
-signed `ProviderInvocationABIContract`, observation binding ledger, guarded
-executable registry and exact pre-admission receipt.
+`daedalus.runtimes.provider_runtime_invocation_binding` intentionally introduces
+**no new receipt schema, registry, policy engine or execution layer**. It:
 
-The boundary:
-
-1. re-authenticates the 07D2 ABI using the existing observation ledger's
-   configured provider-authority and observation trust material;
-2. reuses 07C to authenticate the nested observation authority and re-prove the
-   registered loaded executable objects against repository source and bytecode;
-3. requires both proofs to name the same provider, adapter, implementation,
+1. re-authenticates the signed `ProviderInvocationABIContract` and canonical
+   `ProviderInvocationPayload` using the existing observation-ledger trust root;
+2. reuses `bind_provider_runtime_executable(...)` to re-prove the exact loaded
+   repository functions, source hashes and code hashes;
+3. requires both proofs to agree on provider, adapter, implementation,
    entrypoint, runtime, execution, idempotency identity, Effect Lease, source
-   revision, invocation authority/contract/subject, fixed invoke target and fixed
-   output-evidence target;
-4. returns a deterministic, non-authorizing conjunction receipt containing the
-   ABI/payload/executable evidence digests and the verified target code digests.
+   revision, pre-admission receipt, invocation authority/contract/subject and
+   fixed invoke/output-evidence targets;
+4. returns the already-existing `ProviderRuntimeExecutableBindingReceipt`.
 
-No key material is returned or persisted by the new boundary. The existing
-`ProviderObservationBindingLedger` remains the trust root; the code reads its
-already-normalized authority keyring only inside the same-package verifier call.
+Keeping the existing receipt is deliberate anti-bloat: the signed ABI already
+is the payload/target evidence, while the 07C receipt already is executable
+object evidence. A third persistent evidence object would duplicate both.
+
+The existing `ProviderObservationBindingLedger` remains the authority-key trust
+root. The composition boundary reads its already-normalized private authority
+keyring only for the existing ABI verifier call and never returns or persists
+key material.
 
 ## Deliberate non-claims
 
-This packet does **not** execute a provider and does not make the guarded object
-registry an execution authority. It calls no `grant`, `begin_effect`,
-`bind_start`, provider target, process or network API. The receipt therefore
-keeps all of the following false:
+This packet does **not** execute a provider. It calls no `grant`, `begin_effect`,
+`bind_start`, provider target, process or network API. The reused 07C receipt
+continues to state `effect_started=false`, `provider_code_executed=false`,
+`provider_execution_allowed=false` and `callback_seam_removed=false`.
 
-- `effect_lease_granted`
-- `effect_started`
-- `provider_start_persisted`
-- `provider_code_executed`
-- `provider_execution_allowed`
-- `callback_seam_removed`
-- `broker_invocation_performed`
-- automatic replay/re-execution, promotion and Gate-transition claims
-
-Consequently #188 and #278 remain open. The live `run_runtime_provider` callback
-ABI on `main` is not changed by this packet.
+Therefore #188 and #278 remain open. The live `run_runtime_provider` callback
+ABI is unchanged by this packet.
 
 ## Adversarial checks
 
-Focused tests cover:
-
-- semantic payload substitution after ABI issuance;
-- Provider-A authority plus Provider-B pre-admission/registry substitution;
-- forged ABI signatures;
-- repository source mutation after executable admission;
-- exact no-Effect/no-provider behavior on a successful binding;
-- receipt claim escalation;
-- AST/source review prohibiting Effect start, provider execution, callable
-  resolver, dynamic loader, subprocess and network surfaces.
+Focused tests cover semantic payload substitution, Provider-A authority plus
+Provider-B pre-admission, forged ABI signatures, repository-source mutation
+after executable admission, exact no-Effect behavior on successful composition,
+and AST/source review forbidding Effect start, provider execution, callable
+resolvers, dynamic loaders, subprocess and network surfaces.
 
 ## Next packet
 
-07D4 should consume `bind_provider_runtime_invocation(...)` *inside* the broker
-immediately before durable grant/start, then introduce one sealed provider
-execution operation whose implementation identity is the already-admitted
-fixed target. Exact replay must branch before that operation is resolved or
-invoked. Only when the sealed operation can consume the authenticated payload
-without ambient closure/default/global state should production
-`invoke`/`output_digests` callback parameters be removed.
+07D4 should call this conjunction **inside `run_runtime_provider` immediately
+before durable grant/start** and keep exact replay ahead of executable
+resolution. The remaining blocker to deleting production `invoke` and
+`output_digests` callbacks is a sealed execution operation that consumes the
+authenticated payload without closure/default/global ambient state.
 
-Do not weaken `ProviderExecutableObjectRegistry` to make the current Claude
-closures fit. The current imported `_invoke_claude_cli` dependency needs an
-explicit authenticated dependency/sealed-namespace contract or a provider
-adapter refactor before execution can safely move behind the registry.
+Do not weaken `ProviderExecutableObjectRegistry` merely to fit the current
+Claude lambdas. The imported `_invoke_claude_cli` dependency needs an explicit
+authenticated dependency/sealed-namespace contract or an adapter refactor before
+execution can safely move behind the registry.
