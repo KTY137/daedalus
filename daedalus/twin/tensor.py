@@ -28,9 +28,24 @@ MAX_AXIS_LABELS = 100_000
 MAX_TENSOR_ENTRIES = 1_000_000
 
 
+def _bounded_sequence(values: Any, name: str, limit: int) -> Sequence[Any]:
+    """Refuse oversized construction input before copying or sorting it.
+
+    The tensor contract advertises bounded construction. Checking a limit only
+    after ``tuple(...)`` or ``sorted(...)`` has already consumed an attacker-
+    sized input would bound the retained object but not the work needed to build
+    it. All three high-cardinality surfaces therefore pass through this one
+    pre-canonicalization guard.
+    """
+    if isinstance(values, (str, bytes, Mapping)) or not isinstance(values, Sequence):
+        raise ValueError(f"{name} must be a bounded sequence")
+    if len(values) > limit:
+        raise ValueError(f"{name} exceeds bounded limit {limit}")
+    return values
+
+
 def _coordinate(values: Sequence[Sequence[Any]]) -> tuple[tuple[str, str], ...]:
-    if isinstance(values, (str, bytes, Mapping)):
-        raise ValueError("entry.coordinates must be (axis, label) pairs")
+    values = _bounded_sequence(values, "entry.coordinates", MAX_TENSOR_AXES)
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
     for index, raw in enumerate(values):
@@ -54,9 +69,8 @@ class TensorAxis:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "name", _identifier(self.name, "axis.name"))
-        labels = _sorted_strings(self.labels, "axis.labels")
-        if len(labels) > MAX_AXIS_LABELS:
-            raise ValueError(f"axis.labels exceeds bounded limit {MAX_AXIS_LABELS}")
+        raw_labels = _bounded_sequence(self.labels, "axis.labels", MAX_AXIS_LABELS)
+        labels = _sorted_strings(raw_labels, "axis.labels")
         if any("\x00" in label for label in labels):
             raise ValueError("axis.labels must not contain NUL bytes")
         object.__setattr__(self, "labels", labels)
@@ -129,9 +143,8 @@ class TensorView(CanonicalContract):
         if self.status not in TENSOR_STATUSES:
             raise ValueError("tensor.status must be complete, partial, or absent")
 
-        axes = tuple(self.axes)
-        if len(axes) > MAX_TENSOR_AXES:
-            raise ValueError(f"tensor.axes exceeds bounded limit {MAX_TENSOR_AXES}")
+        raw_axes = _bounded_sequence(self.axes, "tensor.axes", MAX_TENSOR_AXES)
+        axes = tuple(raw_axes)
         if any(not isinstance(axis, TensorAxis) for axis in axes):
             raise ValueError("tensor.axes must contain TensorAxis records")
         by_name = {axis.name: axis for axis in axes}
@@ -140,9 +153,8 @@ class TensorView(CanonicalContract):
         axes = tuple(by_name[name] for name in sorted(by_name))
         object.__setattr__(self, "axes", axes)
 
-        entries = tuple(self.entries)
-        if len(entries) > MAX_TENSOR_ENTRIES:
-            raise ValueError(f"tensor.entries exceeds bounded limit {MAX_TENSOR_ENTRIES}")
+        raw_entries = _bounded_sequence(self.entries, "tensor.entries", MAX_TENSOR_ENTRIES)
+        entries = tuple(raw_entries)
         if any(not isinstance(entry, SparseTensorEntry) for entry in entries):
             raise ValueError("tensor.entries must contain SparseTensorEntry records")
         axis_names = tuple(axis.name for axis in axes)
