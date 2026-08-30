@@ -269,14 +269,15 @@ def test_deny_policy_never_becomes_tool_authority(tmp_path):
 
 
 def test_policy_subject_substitution_refuses(tmp_path):
-    request, manifest, evidence, policy = _subjects(tmp_path)
-    foreign = replace(policy, subject_sha256="2" * 64)
+    request, manifest, evidence, _policy_for_request = _subjects(tmp_path)
+    foreign_request = replace(request, user_input="Foreign request subject")
+    foreign_policy = _policy(foreign_request)
     with pytest.raises(IkarusToolScopeRefused, match="different request"):
         project_oneshot_tool_scope(
             request,
             evidence,
             manifest,
-            foreign,
+            foreign_policy,
             requested_tools=("read-file",),
         )
 
