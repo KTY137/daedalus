@@ -1,0 +1,65 @@
+{
+  "schema": "daedalus.work-packet/1",
+  "id": "G1-LOOP-TERMINAL-250",
+  "title": "Loop terminal renderer trust-boundary repair",
+  "status": "implementation_complete_verification_pending",
+  "authority": {
+    "plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 8,
+    "version": "1.3.0",
+    "active_gate": "Gate 1 — Renovation ignition slice"
+  },
+  "issue": 250,
+  "canonical_branch": "g1/gardener-post-release-containment-03",
+  "branch_policy": {
+    "new_remote_branch_created": false,
+    "legacy_evidence_preserved": true,
+    "history_rewritten": false,
+    "force_update_used": false,
+    "containment_note": "The pre-existing canonical branch history from closed PR #293 remains in ancestry. A two-parent, non-force merge advanced the line onto main commit 8dea59782afc9ba275a28cbc00c455b088f254d0 with the exact main tree before this packet was applied."
+  },
+  "scope": {
+    "production": [
+      "daedalus/loop.py"
+    ],
+    "tests": [
+      "tests/test_loop_terminal_rendering.py"
+    ],
+    "work_packet": "docs/work-packets/G1-LOOP-TERMINAL-250.json",
+    "principle": "sanitize only the human terminal projection; retain canonical LoopReport and IterationResult evidence verbatim"
+  },
+  "implementation": {
+    "helper": "_terminal_text",
+    "behavior": [
+      "collapse rendered values to a single display line",
+      "strip C0, DEL, and C1 terminal control characters including ESC, BEL, NUL, and CSI",
+      "apply display truncation only after sanitization",
+      "sanitize runtime-derived identities, stop detail, governance state, worker/lane/status fields, branch names, skipped reasons, and notes",
+      "leave LoopReport.to_dict() and IterationResult.to_dict() unchanged"
+    ],
+    "new_subsystems": [],
+    "new_registries": [],
+    "new_stores": [],
+    "new_control_planes": []
+  },
+  "focused_verification": {
+    "commands": [
+      "python -m py_compile daedalus/loop.py tests/test_loop_terminal_rendering.py",
+      "python -m pytest -q tests/test_loop_terminal_rendering.py tests/test_loop_bound_safety.py"
+    ],
+    "local_execution": "NOT_EXECUTED_IN_CONNECTOR_SESSION",
+    "hosted_ci": "PENDING_EXACT_HEAD_CHECK",
+    "claims": {
+      "focused_tests_green": false,
+      "full_suite_green": false,
+      "packaging_green": false,
+      "benchmark_win": false
+    }
+  },
+  "governance": {
+    "owner_approval_created": false,
+    "promotion_performed": false,
+    "gate_transition_performed": false,
+    "merge_to_main_performed": false
+  }
+}
