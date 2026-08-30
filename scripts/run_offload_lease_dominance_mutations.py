@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Mutants for the ``python.offload`` lease-dominance guard.
 
 Each mutation restores one shape the guard exists to refuse, and each must turn

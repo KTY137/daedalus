@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The observation layer's contract: shape, never value — and honest ignorance.
 
 The negative tests carry the weight. An observer that quietly copies a payload is

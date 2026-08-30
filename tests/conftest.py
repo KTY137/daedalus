@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Suite-wide determinism for stage-1 routing and for operator declarations.
 
 The latent (embedding) route in ``daedalus/semantic_route.py`` is wired into

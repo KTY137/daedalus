@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """THE BOOTSTRAP ENTRY POINT -- one attempt, driven to the gate, with a receipt.
 
 WHY THIS FILE EXISTS AT ALL. The first real bootstrap of this repository was

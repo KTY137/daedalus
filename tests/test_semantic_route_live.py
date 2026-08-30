@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Drive the REAL latent route against a REAL (fake-backed) embedding server.
 
 Nothing here mocks ``semantic_route`` or its helpers. Every test starts an

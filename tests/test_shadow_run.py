@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The shadow run: it may collect candidates, it may not confer trust.
 
 The rule this file enforces came out of an adversarial review of the bootstrap

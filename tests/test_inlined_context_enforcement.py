@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """`read_inlined_context` is the enforcement point, and nothing tested it.
 
 FOUND BY MEASUREMENT, not by reading. A mutation run over

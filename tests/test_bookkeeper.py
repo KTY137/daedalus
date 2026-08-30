@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The bookkeeper renders ARCHITECTURE.md -> architecture.html and files a
 timestamped history snapshot when the architecture changed. These tests pin the
 markdown renderer's core constructs and the change-detection/history behavior,

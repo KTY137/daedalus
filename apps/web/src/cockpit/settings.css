@@ -1,3 +1,6 @@
+/* SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+ * SPDX-License-Identifier: Apache-2.0 */
+
 /*
  * The settings panel. Same drawer mechanics as the Theme Studio — including
  * `flex: none` on every band, because the studio's tab row once collapsed to

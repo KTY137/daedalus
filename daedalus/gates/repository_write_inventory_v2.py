@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical generation-2 repository write-surface inventory strangler.
 
 The generation-1 scanner remains import-compatible.  This module composes its

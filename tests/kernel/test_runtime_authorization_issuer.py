@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The production minter exists — and both halves of its condition are pinned.
 
 ``effect_boundary.py`` records the exact condition under which the

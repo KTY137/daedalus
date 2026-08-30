@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for the hooks package (``daedalus/hooks``), hooks v2 (2026-08-23).
 
 Every test builds its own throwaway git repository so no assertion depends on

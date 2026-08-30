@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Mechanical inventory of every switch that can turn a built feature off.
 
 A hand-written feature inventory goes stale the hour it is written; this half

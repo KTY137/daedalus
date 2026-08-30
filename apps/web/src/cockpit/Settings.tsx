@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { getEnvStatus, getRuntimeStatus, testRuntime, type EnvStatusPayload } from '../api';

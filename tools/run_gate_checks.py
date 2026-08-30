@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Run canonical local/CI verification profiles for the G0→G1 stack."""
 from __future__ import annotations
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """daedalus.lanes.graph_brief -- the threefold graph as a prompt a model reads.
 
 MEASURED 2026-07-30: no provider module referenced structcore/build_index/

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """F1: the kill switch's control root must be the directory it says it is.
 
 WHAT WENT WRONG, MEASURED ON THIS BOX. The repo's ``python`` is the

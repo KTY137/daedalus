@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """An evaluation must prove it scored the CANDIDATE, not the host.
 
 ADR-015 Finding 1: the runner called a bare ``pytest``, ``daedalus`` resolved to

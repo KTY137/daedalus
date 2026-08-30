@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Immutable non-executing provider invocation registry manifest.
 
 A registry manifest gives one provider ID exactly one adapter identity,

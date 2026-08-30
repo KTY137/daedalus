@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The labeled-property-graph projection of a Knowledge Forest.
 
 WHAT THIS IS, AND WHAT IT IS NOT.  The Forest is the identity: an immutable,

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for tools/mutation_score.py -- the scorer has to be falsifiable too.
 
 The point of this file is not coverage. It is that a tool whose whole job is

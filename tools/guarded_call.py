@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """One door for an external model call, usable from a process that has no daedalus.
 
 WHY A PROCESS AND NOT AN IMPORT

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Desktop-owned lifecycle for the Daedalus file bridge and Ollama."""
 from __future__ import annotations
 

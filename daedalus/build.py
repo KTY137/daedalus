@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Build-session abstraction -- the coordination layer that turns ONE feature
 objective into a multi-wave build plan the crew can execute.
 

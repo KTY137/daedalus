@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Runtime-bound reconciliation for provider effects with unknown outcomes.
 
 This adapter authenticates the exact persisted runtime execution at its durable

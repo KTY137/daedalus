@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A door that HELD a lease is not the same claim as a write that was UNDER one.
 
 THE DEFECT THIS GUARD EXISTS FOR. ``authenticated_doors`` proves that a

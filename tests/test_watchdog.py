@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for tools/watchdog.py -- the background docs/work watchdogs.
 
 Every test uses a throwaway git repository; nothing spawns a model (the

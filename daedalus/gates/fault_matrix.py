@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Revision-bound canonical contracts for Gate-0 fault evidence.
 
 The contracts in this module are deliberately non-executing.  They inventory

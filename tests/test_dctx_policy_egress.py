@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """dctx -- receipts minted under a project policy must verify under that SAME
 policy, not the generic default.
 

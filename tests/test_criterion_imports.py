@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The criterion's import surface, resolved against the base tree for real.
 
 WHAT WAS WRONG. ``daedalus.spine.receipts`` read the criterion's imports with a

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """qml_index.py -- the names a Qt/QML front-end defines, so it stops being invisible.
 
 ``verify`` decides whether a wiki page tells the truth about a tree by asking

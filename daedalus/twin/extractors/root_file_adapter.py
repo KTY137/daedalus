@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Optional read-only ROOT file metadata extraction through Uproot.
 
 The adapter inventories object classes and TTree/RNTuple field schemas without

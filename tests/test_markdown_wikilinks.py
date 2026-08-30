@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Obsidian-Flavored-Markdown wikilinks in ``structcore.markdown`` (phase K1).
 
 WHAT THESE TESTS DEFEND, in the order the failures cost something:

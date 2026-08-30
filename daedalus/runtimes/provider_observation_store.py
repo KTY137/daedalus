@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Pre-provisioned provider-observation binding store.
 
 This additive strangler separates explicit no-clobber schema publication from

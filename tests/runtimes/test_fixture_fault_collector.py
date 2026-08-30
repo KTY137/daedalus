@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The deterministic-fixture collector must never upgrade ignorance to a pass.
 
 Every test here drives :func:`classify_pytest_invocation` with a synthetic

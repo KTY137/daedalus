@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 //! Clone detection — normalize, SHA1-fingerprint, cluster exact clones.
 //! Mirrors `daedalus/structcore/clones.py` (exact / Type-1 tier).
 //!

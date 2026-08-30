@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Ikarus network-designer chat for the Agent OS.
 
 This is intentionally deterministic for v1: it turns an operator message into

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical Event-Store facade for restart-safe isolated Attempts."""
 from __future__ import annotations
 

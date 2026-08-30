@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The second door becomes leasable: ``python.attempt`` through the issuer.
 
 The measured Gate-0 wall (B5 handoff, 2026-08-23): exactly one registry row --

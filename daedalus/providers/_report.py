@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Shared helpers for turning a raw model response into a validated report and
 for building the prompt sent to non-agentic providers."""
 

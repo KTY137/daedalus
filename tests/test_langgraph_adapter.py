@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """An adapter earns the name by producing the same answer as what it adapts.
 
 ``docs/IKARUS_ARIADNE_MASTER_PLAN.md`` §9.2 admits an external library "behind

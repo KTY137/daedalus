@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """session.py -- convene the council, chain every word of it, report honestly.
 
 One entry point, :func:`convene`.  It asks N INDEPENDENT vendors the same

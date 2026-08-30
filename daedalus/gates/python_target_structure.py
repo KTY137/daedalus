@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Structural resolution of exact Daedalus Python implementation targets.
 
 This module joins a canonical ``daedalus.module:Qualified.name`` target to an

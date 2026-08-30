@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """OpenAI Codex CLI provider -- an external, agentic, write-capable lane.
 
 ``codex exec`` runs the Codex agent non-interactively against a target repo:

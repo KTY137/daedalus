@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """churn.py — git change-frequency per file (the CodeScene health signal), plus
 temporal-coupling (co-change) pairs for edges the static import graph can't see.
 

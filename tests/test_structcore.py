@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Movement I — structcore: multi-language clone index + safety fencing.
 
 Runs stdlib-only (no tree-sitter/lizard required). Python clones are detected at

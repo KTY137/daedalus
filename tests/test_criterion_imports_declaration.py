@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A declared path means one thing to every reader of it, or there is no task.
 
 WHAT WAS WRONG. ``TaskSpec.target_paths`` took any string at construction.

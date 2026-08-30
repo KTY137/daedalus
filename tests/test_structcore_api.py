@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Mythic connection — structure_summary shape + symbol-level (graph) slicing.
 
 Covers the data the /api/structure and /api/distill endpoints serve, without

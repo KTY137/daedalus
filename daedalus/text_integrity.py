@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical presentation-only integrity helpers for terminal text.
 
 Retained evidence stays verbatim.  A terminal is a separate, lossy projection:

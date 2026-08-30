@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The guard that catches a rewrite returning the WRONG FILE.
 
 MEASURED 2026-07-30, and the reason this file exists. Ten write-capable DeepSeek

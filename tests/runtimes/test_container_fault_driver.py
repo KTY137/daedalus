@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail-closed contract for the Linux container fault driver.
 
 Docker is mocked here: every test drives the driver through a stand-in for

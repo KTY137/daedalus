@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The issuer's refusal is a predicate now, not a constant. What it lets past.
 
 Before this suite, ``acquire_wave_offload_lease`` read

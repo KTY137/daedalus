@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Revision- and byte-bound inventory for provider-target receipt retention.
 
 The retained-receipt ledger introduced explicit Event-Store, SQLite schema, and

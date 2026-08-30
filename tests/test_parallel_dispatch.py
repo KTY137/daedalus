@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Parallel dispatch remains read-only until Forge workcells exist.
 
 Declared paths are routing hints, not an enforceable write boundary.  These

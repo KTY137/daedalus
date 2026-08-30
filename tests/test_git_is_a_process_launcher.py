@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Capturing the candidate's patch must not run the candidate's code.
 
 THE VECTOR, found by an adversarial sweep and measured on this box before any

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """shift_ticker.py — the pane a person watches while an agent works.
 
 Run it in tmux, screen, or any spare terminal:

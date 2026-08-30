@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import React, { useRef } from 'react';
 import './SpotlightCard.css';
 

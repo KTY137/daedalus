@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Promotion could be forged two ways. These are the two, plus their controls.
 
 FOUND BY AUDIT, 2026-07-29, against `daedalus/spine/bootstrap.py`. Both holes

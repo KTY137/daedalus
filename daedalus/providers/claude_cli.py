@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Claude CLI provider behind the persisted runtime-provider broker.
 
 The public provider method cannot invoke Claude from ambient authority. It

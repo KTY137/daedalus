@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """MIC write containment: the claims in the docstring, each one measured here.
 
 The module under test is `daedalus/spine/containment.py`. Its docstring lists

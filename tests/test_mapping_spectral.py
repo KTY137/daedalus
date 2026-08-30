@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Ground-truth tests for daedalus.mapping.spectral.
 
 THE ANTI-NUMEROLOGY RULE. Every metric in spectral.py is tested against a

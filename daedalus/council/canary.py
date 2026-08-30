@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The vendor canary -- a cheap, repeatable health check for every model lane.
 
 WHY THIS EXISTS (the incident, 2026-07-28)

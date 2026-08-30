@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Does one run's records actually JOIN, and do the old readers still work?
 
 ``daedalus/spine/envelope.py`` adds one field to three producers so that a run

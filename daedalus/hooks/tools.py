@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tool-event handlers: PreToolUse (Serena routing, Serena wrong-tree write
 guard) and PostToolUse (test-run fingerprint, docs-drift reminder).
 

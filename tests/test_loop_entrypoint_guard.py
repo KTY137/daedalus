@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """`python -m daedalus.loop` is a console door, and it must open like one.
 
 The codex round-2 security seat named the exact opening: ``daedalus/loop.py``

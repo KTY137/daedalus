@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Evidence-based accelerator inventory for optional RTX compute lanes.
 
 This module deliberately separates three questions that are often blurred:

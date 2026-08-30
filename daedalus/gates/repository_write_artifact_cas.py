@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only content-addressed resolution for repository-write artifacts.
 
 This module resolves one exact ``artifact-locator:sha256`` from a fixed local

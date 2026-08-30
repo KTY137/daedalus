@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """No second promotion path.
 
 The Phase-0 reachability receipt recorded that the checkpoint line's verifier

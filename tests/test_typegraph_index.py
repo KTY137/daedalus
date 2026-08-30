@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The type layer's INDEX WIRING — is it additive, and is it gated correctly?
 
 Stage 3 publishes three new keys (``types``, ``type_nodes``, ``type_edges``) out

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """LanguageSpec registry — declarative per-language facts, keyed by extension.
 
 Adding a language is *data*, not code: one ``LanguageSpec`` entry. Fields are

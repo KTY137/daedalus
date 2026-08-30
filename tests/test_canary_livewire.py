@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The canary's live-wire gate: no vendor lane is called without an explicit opt-in.
 
 WHY THIS FILE EXISTS.  ``daedalus council`` had this hole closed; ``daedalus

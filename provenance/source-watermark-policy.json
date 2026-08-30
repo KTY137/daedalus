@@ -1,0 +1,50 @@
+{
+  "schema": "daedalus-source-watermark-policy/1",
+  "copyright_header": "SPDX-FileCopyrightText: 2026 Kaya Yesilyurt",
+  "license_header": "SPDX-License-Identifier: Apache-2.0",
+  "license_identifier": "Apache-2.0",
+  "include": {
+    "prefixes": {
+      "apps/web/src/": [".css", ".js", ".mjs", ".ts", ".tsx"],
+      "apps/web/src-tauri/src/": [".rs"],
+      "apps/web/tests/": [".js", ".mjs", ".ts", ".tsx"],
+      "apps/web/tools/": [".js", ".mjs", ".ts", ".tsx"],
+      "daedalus/": [".js", ".py"],
+      "scripts/": [".js", ".mjs", ".ps1", ".py", ".sh", ".ts"],
+      "structcore-rs/src/": [".rs"],
+      "tests/": [".py"],
+      "tools/": [".js", ".mjs", ".ps1", ".py", ".sh", ".ts"]
+    },
+    "paths": [
+      ".github/workflows/source-provenance.yml",
+      "apps/web/index.html",
+      "apps/web/playwright.config.ts",
+      "apps/web/src-tauri/build.rs",
+      "apps/web/vite.config.ts",
+      "bench_run.ps1",
+      "bootstrap.ps1",
+      "bootstrap.sh"
+    ]
+  },
+  "exclude": {
+    "paths": [
+      "daedalus/kairos/archive.py"
+    ],
+    "prefixes": [
+      ".claude/proposals/",
+      ".claude/skills/",
+      ".claude/workflows/",
+      ".room/",
+      "apps/web/dist/",
+      "catalogue/",
+      "docs/design/prototypes/",
+      "experiments/",
+      "references/",
+      "runs/",
+      "tests/fixtures/",
+      "vault/",
+      "vscode-agent-env/"
+    ],
+    "reason": "Preserve third-party terms and mixed-provenance source, generated output, frozen experiments, byte-exact fixtures, runtime state, and retained evidence."
+  }
+}

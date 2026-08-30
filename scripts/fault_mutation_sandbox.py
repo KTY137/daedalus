@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Sandboxed pytest runner shared by the fault-matrix mutation campaigns.
 
 The measurement is only valid if the MUTATED module copy is the one pytest

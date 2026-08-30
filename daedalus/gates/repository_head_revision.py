@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Race-aware, process-free verification of a repository's exact Git HEAD.
 
 The verifier reads only ``.git/HEAD`` and the selected loose or packed ref

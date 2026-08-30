@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Derive the repository-write classification declaration from measurement.
 
 WHAT THIS PRODUCES, AND WHAT IT REFUSES TO CLAIM

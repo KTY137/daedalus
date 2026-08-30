@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical contracts for one revision-bound Fourfold Project Twin.
 
 This module supplies semantic contracts, not a second graph authority. Source

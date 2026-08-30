@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Hardening tests for thin-coverage load-bearing modules: sensitivity policy
 merging, verifier gates, token policy/monitor parsing, memory snapshots, the
 file bridge request layer, read-only provider enforcement, and metrics math.

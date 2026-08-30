@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Property-based invariants for daedalus.kairos.worktree (docs/ABSORPTION.md D1).
 
 WHY THIS FILE EXISTS, AND WHY WORKTREE.PY FIRST

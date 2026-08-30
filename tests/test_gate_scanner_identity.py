@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The repository-write scanner refuses ambiguous identity; it never crashes.
 
 Provenance: `docs/GATE0_V3_SCANNER_IDENTITY_DECISION.md` section 2.1 (the

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Conservative revision-bound inventory of production write-capable callsites.
 
 This inventory is discovery evidence, not a proof that a callsite targets the

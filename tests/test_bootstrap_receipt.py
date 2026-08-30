@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The promotion refusal, and the entry point that reaches it.
 
 WHAT THESE TESTS ARE FOR. ``daedalus.spine.bootstrap.gate_discrimination`` is

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyDraft, dismissDraft, getDraft, getDrafts, type DraftDetail, type DraftRow } from '../api';
 import { recordAutonomy, withinLimits, type AutonomyLevel } from './autonomy';

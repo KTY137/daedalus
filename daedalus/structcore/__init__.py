@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """structcore — the Universal Structural Core (Daedalus Movement I).
 
 A derived, regenerated (never hand-maintained) multi-language structural index:

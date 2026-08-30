@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The build vocabulary is bound to the canonical chain, not parallel to it.
 
 Master plan §7 fixes one chain -- ``MissionContract -> WorkItems -> Attempts ->

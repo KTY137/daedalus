@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Gate-0 regression tests for the canonical Hooks-v2 PreCompact path."""
 from __future__ import annotations
 

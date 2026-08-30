@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Codex point 1: the report path RUNS the six verifiers on raw inputs.
 
 Before this, the composition accepted stage reports somebody else had built and

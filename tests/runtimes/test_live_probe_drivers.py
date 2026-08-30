@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The two live probes, and the ways they must refuse to claim a pass.
 
 Both catalog rows expect ``refused-before-start``. The danger with a row whose

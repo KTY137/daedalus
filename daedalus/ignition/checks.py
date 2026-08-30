@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The three Gate-1 evaluators: tests, schema conformance, knowledge links.
 
 WHY THESE THREE AND NOT A GATE FUNCTION

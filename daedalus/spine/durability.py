@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Gate-0 durability profile for the canonical :class:`SpineLedger`.
 
 This module does not introduce another ledger or another state authority. It

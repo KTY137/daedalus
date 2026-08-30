@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The capability layer's contract: what a gate must refuse to do.
 
 Every test here pins an invariant from ``daedalus/tools/vet.py``'s docstring.

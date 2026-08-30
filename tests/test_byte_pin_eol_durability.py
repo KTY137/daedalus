@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Owner decision D7: the CRLF pin daemon has no next victim.
 
 WHAT WENT WRONG FOUR TIMES. ``core.autocrlf`` is true on the owner's host, so a

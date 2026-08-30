@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Revision-bound Gate-0 baseline and monotonic blocker assessment.
 
 The baseline is a deterministic, tamper-evident projection of one canonical

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Strict byte verification for repository-write inventory artifacts.
 
 The verifier accepts already-resolved immutable bytes, hashes and parses them,

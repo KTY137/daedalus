@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Agent Skills loader: inert text in, dataclass out, nothing executed.
 
 A skill is text written by a stranger that will sit next to a model that

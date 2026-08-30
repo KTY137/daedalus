@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Prove the acceptance checks can FAIL -- by actually breaking the system.
 
 A check that has never gone red is a claim, not a control. This repo learned

@@ -1,3 +1,6 @@
+/* SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+ * SPDX-License-Identifier: Apache-2.0 */
+
 /*
  * The Theme Studio panel. It uses the ACTIVE theme's own tokens, so editing a
  * theme changes the editor with it — if a palette makes text unreadable you

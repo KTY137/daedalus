@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """THE SHADOW RUN -- Daedalus attempts work on Daedalus, and promotes nothing.
 
 WHY THIS MODULE EXISTS, and why it is called a shadow run rather than a

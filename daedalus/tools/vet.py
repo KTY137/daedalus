@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """vet.py — the gate a tool must pass before an agent may be given it.
 
 WHY THIS EXISTS

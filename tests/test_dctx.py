@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """dctx -- the certified context artifact.
 
 A receipt is only worth minting if it can FAIL. These tests attack the four ways

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """daedalus.lanes.checks -- the shared write-lane baseline.
 
 MEASURED 2026-07-30: two guards (content substitution, invented first-party

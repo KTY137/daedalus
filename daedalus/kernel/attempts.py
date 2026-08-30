@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Compatibility surface for the isolated Attempt lifecycle kernel.
 
 The implementation is split by responsibility while this stable import path

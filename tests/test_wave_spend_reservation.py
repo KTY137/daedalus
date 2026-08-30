@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The leased spend ceiling, made of money instead of of declarations.
 
 FINDING F7 (measured 2026-08-22, agent_env_g0 HEAD 898ac110). A wave's Effect

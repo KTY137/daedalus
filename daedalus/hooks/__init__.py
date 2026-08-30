@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """daedalus.hooks — the Claude Code hooks of this repository, as one package.
 
 Why one package and one process per event

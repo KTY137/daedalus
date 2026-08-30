@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { BUILT_INS, BUILT_IN_IDS, DEFAULT_THEME_ID, builtIn } from './presets';
 import type { StoredTheme, ThemeSpec } from './types';
 

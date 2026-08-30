@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic verification of a generated project wiki.
 
 A model may write documentation. Whether that documentation is true about the

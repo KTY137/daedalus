@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """CLI entrypoint: ``python -m daedalus.eval [--tier2] [--arms] [--project NAME]
 [--gate | --update-baseline | --mint-commit SHA | --confirm-mint TASK_ID]``.
 

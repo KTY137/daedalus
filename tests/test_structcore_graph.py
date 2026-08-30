@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Regression — the code-map `graph` payload (index.py + report.py).
 
 ``build_index`` now additionally returns ``import_edges`` (unified rel->rel

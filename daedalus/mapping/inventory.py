@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """inventory -- the GENERATED feature census.
 
 ``docs/FEATURE_INVENTORY.json`` used to be typed by hand. It stamped the

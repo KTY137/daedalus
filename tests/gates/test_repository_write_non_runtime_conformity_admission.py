@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The row contract: what a ``central`` surface may hold instead of a receipt.
 
 Every test here needs a REAL retained execution -- a granted lease, a durable

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 # daedalus bootstrap (Linux/macOS) -- drop the repo on a machine and run this.
 #   ./bootstrap.sh
 set -euo pipefail

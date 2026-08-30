@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Trust-kernel capabilities introduced through Gate-0 work packets.
 
 Legacy modules remain import-compatible while new security boundaries are

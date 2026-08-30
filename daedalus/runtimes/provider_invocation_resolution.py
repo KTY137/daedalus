@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only resolution of signed provider invocation authority.
 
 This module composes the immutable invocation-registry manifest with the signed

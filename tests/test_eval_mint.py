@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """test_eval_mint.py -- independent-oracle task minting (daedalus.eval.mint).
 
 Every assertion here ultimately serves the ANTI-CIRCULARITY guarantee the

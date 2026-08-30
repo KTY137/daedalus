@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Did the evaluator actually score the CANDIDATE's code?
 
 ADR-015 Finding 1: the evolution runner called a bare ``pytest``, which put only

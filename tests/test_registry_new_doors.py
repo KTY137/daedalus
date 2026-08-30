@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Phase-4 door rows say what their code does, and can be made to lie.
 
 WHAT IS BEING GUARDED

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """daedalus.dotenv -- fills gaps in os.environ from a .env file, and refuses
 to load one git tracks.
 

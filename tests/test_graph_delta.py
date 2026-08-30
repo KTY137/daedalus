@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The measurement's own contract.
 
 The most important test in this file is ``test_a_comment_alone_does_not_move_the

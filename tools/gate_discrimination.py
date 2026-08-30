@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Does THE GATE (pytest over ``gate_paths``) actually reject bad patches?
 
 An audit measured the gate's rejection rate against the three known-bad

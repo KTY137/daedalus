@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Gate-1 evaluator bundle: what judged, named by its bytes.
 
 Two Codex reviews of the ignition slice (2026-08-23) ended INCONCLUSIVE for the

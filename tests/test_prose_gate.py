@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The prose lane's gate: fact preservation, the docref denominator, and the
 difference between a check that failed and a check that never ran.
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Daedalus chip-design support: RTL discovery, EDA tool registry and Tcl execution."""
 from .executor import ExecutionResult, execute_argv
 from .sources import SourceSpec, classify_source, discover_sources, is_rtl

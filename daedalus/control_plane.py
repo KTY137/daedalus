@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Control-plane projection for Daedalus + Claude Code projects.
 
 The app is not a Claude Code replacement. It reads and writes the source files

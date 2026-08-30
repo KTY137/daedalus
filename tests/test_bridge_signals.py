@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Report-arrival signal + watcher liveness (file_bridge status / heartbeat).
 
 Covers the 2026-07-13 hardening: unread-report ledger (inbox/.seen/),

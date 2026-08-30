@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The room mirror must compress, and must never lie about having compressed.
 
 Everything here runs against a temp directory (``DAEDALUS_STREAM_HOOK_DIR``);

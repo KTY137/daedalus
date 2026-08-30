@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The declaration generator may only declare what an anchor provably dominates.
 
 These tests pin the four properties that make the declaration honest rather

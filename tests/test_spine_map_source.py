@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The picker's GENERATED source: candidates derived from `daedalus map`.
 
 Why this source exists. The picker's only effective input used to be

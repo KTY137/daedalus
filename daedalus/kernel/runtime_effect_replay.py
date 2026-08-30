@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only replay projection for runtime-bound Effect-Lease executions.
 
 The generic effect replay reader authenticates the inner signed EffectLease and

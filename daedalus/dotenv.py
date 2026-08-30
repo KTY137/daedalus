@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """dotenv -- load ``.env`` into the process environment, and refuse to do it
 when loading would itself be the leak.
 

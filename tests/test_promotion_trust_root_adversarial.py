@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The five cases the trunk HMAC root FAILED, as regression tests.
 
 Source: ``docs/inventory/2026-08-21/preruling/trust_root_report.json``, Phase-0

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Reachability engine tests, driven by a synthetic mini-repo of known shape.
 
 The fixture is deliberately small and deliberately hostile: it contains one

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """BOOTSTRAP — Ikarus's brain gets a GATED distilled slice as project context.
 
 The freeform brain (Claude + local Ollama, both TRUSTED lanes) is injected with a

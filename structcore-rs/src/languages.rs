@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 //! LanguageSpec registry — mirrors `daedalus/structcore/languages.py` (subset).
 //! One entry per language: extensions, the tree-sitter grammar, the node types
 //! that count as a clone-able unit, and comment markers for normalization.

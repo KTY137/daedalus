@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """G1-IKARUS-01 acceptance matrix — the supervisor slice, all six rows.
 
 Work packet: docs/work-packets/G1-IKARUS-01-supervisor-slice.md.  Every test

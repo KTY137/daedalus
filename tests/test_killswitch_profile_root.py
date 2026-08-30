@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """F1b: the control root may not be relocated by an in-process env write.
 
 WHAT WENT WRONG, MEASURED ON THIS BOX (2026-08-22). ``control_root`` read

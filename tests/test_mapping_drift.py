@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Fixtures for every classification the architecture-drift gate can emit,
 plus the properties the gate lives or dies on: it consumes ONE analysis, an
 acceptance suppresses, an acceptance that outlived its reason comes back, and

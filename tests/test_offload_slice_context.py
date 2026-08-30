@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The slice→offload wire (Horizon Phase 2, static-only).
 
 The seam under test: ``offload()`` builds a GATED distilled slice of the

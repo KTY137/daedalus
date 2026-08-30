@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Non-executing exact target manifest for provider adapter implementations.
 
 This module extends an authenticated provider-invocation identity with exact

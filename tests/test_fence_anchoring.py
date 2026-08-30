@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Regressions for the fence path-anchoring repair group.
 
 Two confirmed defects are pinned here, each with the BLOCKED and the ALLOWED

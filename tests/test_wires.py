@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Wiring codex_cli and deepseek into ikarus_os's freeform 'brain' (`_llm`).
 
 No real subprocesses and no real network egress happen here: `subprocess.run`,

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The type/data-structure graph's TRIPWIRE suite — passes against UNMODIFIED code.
 
 This file contains no assertion about the type layer, because the type layer

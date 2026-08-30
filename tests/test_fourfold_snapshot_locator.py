@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """B1: the Fourfold evidence locator has to resolve to bytes somebody stored.
 
 WHAT WENT WRONG, MEASURED on the last Gate-1 receipt before this change

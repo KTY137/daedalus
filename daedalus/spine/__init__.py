@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """daedalus.spine -- Mission Spine light.
 
 The durable intent ledger for the self-improvement loop: intent is recorded and

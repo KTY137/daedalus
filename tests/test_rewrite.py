@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for the full-file-rewrite write path (OllamaProvider._run_rewrite).
 
 The live benchmark showed 7B models never emit write_file tool calls; the

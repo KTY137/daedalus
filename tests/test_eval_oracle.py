@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for the decontaminated eval oracle: label provenance, the A/B/C arms
 comparison (BM25 baseline C), and the advisory regression gate.
 

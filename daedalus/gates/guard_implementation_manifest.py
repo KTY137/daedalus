@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Authenticated guard-implementation manifest for repository-write evidence.
 
 This preparatory layer authenticates a short-lived, revision- and

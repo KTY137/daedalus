@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Run bounded Tree-sitter structural extraction over a pinned repository slice.
 
 The report is staged parser evidence only. It neither publishes a Forest nor

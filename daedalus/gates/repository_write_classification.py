@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Revision-bound classification contract for repository write surfaces.
 
 This module is deliberately preparatory.  It can bind reviewed declarations to

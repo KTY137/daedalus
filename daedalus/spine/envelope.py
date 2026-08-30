@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """spine/envelope.py -- one correlation id and one statement shape for six run formats.
 
 THE PROBLEM THIS EXISTS FOR

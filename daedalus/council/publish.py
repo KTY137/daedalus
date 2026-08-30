@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """publish.py -- the GitHub-PR bridge for the cross-vendor Council.
 
 THE BUS IS CANONICAL; THE PR IS A RENDERING

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Authenticated origin bundle for repository-write evidence materialization.
 
 The materialization layer proves exact CAS bytes and subject binding. This

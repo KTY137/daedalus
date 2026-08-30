@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only semantic verification for repository-write source anchors.
 
 The materialization and origin layers prove exact CAS bytes and an authenticated

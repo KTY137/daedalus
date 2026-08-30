@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Effect-Lease consumer against the /2 runtime-conformance shape.
 
 One production surface, zero runtime-conformance receipts, and a verified

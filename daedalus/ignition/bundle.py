@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Gate-1 evaluator bundle: everything that decides, named by its bytes.
 
 WHAT THIS CLOSES

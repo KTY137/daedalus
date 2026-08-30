@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Regression for Cerberus's CRITICAL: plaintext credentials must not leak into a
 slice on ANY lane, and the value-shape rule must not fire on ordinary kwargs.
 

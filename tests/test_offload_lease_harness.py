@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """One real, persisted ``python.offload`` Effect Lease per live call.
 
 WHY THIS FILE EXISTS, AND WHAT IT REPLACED. Four test modules used to exercise

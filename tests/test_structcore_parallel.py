@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Structural scan: parallel per-file pass + persistent cache.
 
 The bar for this work is DETERMINISM, not speed: the parallel and cached paths

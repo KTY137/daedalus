@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The self-policy must CONFINE writes, not merely describe confinement.
 
 WHY THIS FILE EXISTS. `docs/PROPOSED_SELF_POLICY.md` proposed a policy for

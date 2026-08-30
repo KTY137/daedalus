@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Era-3 #1: advisory drafts persist instead of evaporating.
 
 The free lane may propose, never merge -- so an accepted advisory offload must

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical contracts and shared invariants for isolated Attempt lifecycle."""
 from __future__ import annotations
 

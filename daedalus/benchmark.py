@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Legacy provider-routing cost estimator.
 
 This module answers one deliberately narrow question: given representative token

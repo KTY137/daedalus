@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """build_index — walk a repo, derive the multi-language structural index.
 
 Output (all derived, regenerate-anytime):

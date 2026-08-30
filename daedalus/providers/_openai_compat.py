@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Minimal OpenAI-compatible chat client built on the stdlib (no deps).
 
 Both DeepSeek and Ollama expose an OpenAI-style ``/chat/completions`` endpoint,

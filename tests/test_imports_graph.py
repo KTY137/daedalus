@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Movement I.5 / Moves 2 + 4 — all-language dependency graph + sharper symbols.
 
 Move 2: Java/Rust/JS internal imports resolve to real dependency edges + fan-in

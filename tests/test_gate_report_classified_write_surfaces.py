@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """GateReport-v5 repository-write counters come from CLASSIFIED surfaces.
 
 Before this wire, ``repository_write_failures`` was the raw syntactic scan:

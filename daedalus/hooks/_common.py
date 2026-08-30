@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Shared plumbing for the hooks package: payload, repository root, session
 state, ledger, budget. Pure stdlib; every function is safe to call with bad
 input and fails toward "do nothing" rather than toward an exception.

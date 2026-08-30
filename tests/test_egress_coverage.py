@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Which paths ship file BODIES to a third party without the secret floor?
 
 ``daedalus/sensitivity.py`` holds two independent egress rules:

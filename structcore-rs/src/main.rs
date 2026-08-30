@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 //! structcore-rs — the go-forward Rust code-intelligence engine.
 //!
 //! v0 mirrors the proven Python `daedalus/structcore` core: walk a repo,

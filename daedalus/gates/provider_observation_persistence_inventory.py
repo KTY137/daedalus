@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Revision-bound inventory delta for provider-observation persistence.
 
 The provider-observation authority introduced a durable SQLite binding ledger.

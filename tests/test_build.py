@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Offline tests for the build-session abstraction + wave planning
 (``daedalus.build``). Every model/routing seam is patched -- no live Ollama,
 no network, no real agent-role files needed. Run with:

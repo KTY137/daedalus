@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Boundary tests for the three fault-matrix collector doors wired 2026-08-18.
 
 Each of these ``main()`` entrypoints was inventory_only with a note saying its

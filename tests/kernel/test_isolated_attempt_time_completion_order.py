@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Council CHECK (c): measure the clock's completion-order window, do not deny it.
 
 ``AttemptLifecycleClock.now`` allocates its timestamp inside ``_lock`` and

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """imports.py — all-language import extraction + internal resolution.
 
 Movement I.5 / Move 2. Python keeps its precise ``parse.python_imports`` path

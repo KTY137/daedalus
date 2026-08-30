@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Authenticated external trust bundle for exact-head Gate-0 evidence.
 
 The evidence index is canonical but not authenticated by construction.  This

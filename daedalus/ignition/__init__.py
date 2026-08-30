@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Gate-1 Renovation ignition slice.
 
 :mod:`daedalus.ignition.gate1` is the Gate-1 slice as plan §10 states it -- one

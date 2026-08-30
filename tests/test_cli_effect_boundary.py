@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Gate-0 central-boundary probes for the wired cli.* family.
 
 Each wired CLI main must refuse fail-closed -- no output artifact, no state

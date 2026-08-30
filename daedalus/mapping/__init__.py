@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """mapping — the GENERATED half of the architecture artifact.
 
 Two halves, deliberately separated:

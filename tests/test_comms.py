@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Offline tests for the Phase 3 VS Code comms integration:
 
 - `init_repo` drops CLAUDE.md/AGENTS.md into the target repo (never overwrites)

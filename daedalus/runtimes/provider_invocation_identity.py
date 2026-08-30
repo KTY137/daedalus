@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only authentication projection for one exact provider invocation identity.
 
 This module composes the signed invocation-observation authority with the

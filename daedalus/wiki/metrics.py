@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Structural quality of a wiki, measured on the graph the wiki produces.
 
 A page can be well written, current and true about the tree and still buy the

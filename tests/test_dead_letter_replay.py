@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Dead-letter replay: the recovery path for a turn stream_hook.py could not
 chain when it happened.
 

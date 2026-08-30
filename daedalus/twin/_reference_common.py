@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Shared strict helpers for the bounded Fourfold reference compiler."""
 from __future__ import annotations
 

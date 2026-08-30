@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Reliable cancellation of child process *trees*.
 
 ``Popen.send_signal(signal.SIGINT)`` does not cancel a tree on win32: it is

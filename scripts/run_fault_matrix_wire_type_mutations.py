@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Targeted mutations for exact fault-contract wire scalar types."""
 from __future__ import annotations
 

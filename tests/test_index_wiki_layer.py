@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The wiki layer's index wiring: additive, gated, and its own relation.
 
 ``markdown.py`` could parse ``[[wikilinks]]`` and ``index.py`` never called

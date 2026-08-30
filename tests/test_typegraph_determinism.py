@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The type layer's DETERMINISM and REFUSE-TO-GUESS contract.
 
 Two processes must produce byte-identical output, and every name the layer

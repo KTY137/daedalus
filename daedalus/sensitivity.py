@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Egress, write-confinement and change-risk classification for provider routing.
 
 Three independent gates live here. They read **disjoint** config fields and

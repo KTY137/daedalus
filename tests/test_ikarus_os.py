@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """ikarus_os — deterministic intent layer + safe brain routing.
 
 No real LLM calls happen here: every case uses provider=None or an unwired

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Manifest-consistency checks for the VS Code extension in vscode-agent-env/.
 
 `tests/test_comms.py` already checks that package.json parses, that a fixed

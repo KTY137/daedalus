@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Handlers for the context-carrying events: SessionStart, UserPromptSubmit,
 SubagentStart/Stop, ConfigChange. Each handler is a pure function of
 (payload, root, sid) plus the session state it reads and updates, and returns

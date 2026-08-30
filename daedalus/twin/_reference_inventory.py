@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic AST, data-schema, and Markdown inventories."""
 from __future__ import annotations
 

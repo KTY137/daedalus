@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only verification of completed provider-target receipt retention.
 
 This module composes an exact completed admission/recovery identity with live

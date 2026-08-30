@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """GET /api/catalogue -- the GUI parts index, served read-only.
 
 ``daedalus/gui_catalogue.py`` was reachable from nothing but its own test. This

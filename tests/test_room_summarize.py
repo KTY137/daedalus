@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The room summariser: idempotent, crash-safe, floor-gated, honest.
 
 Every test here runs OFFLINE with an injected fake summariser and temp dirs.

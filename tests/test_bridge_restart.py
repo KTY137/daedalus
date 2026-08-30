@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """What happens when the watcher dies mid-request, and what happens on restart.
 
 `process_request` applies four side effects in a row -- report, arrival line,

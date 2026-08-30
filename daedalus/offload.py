@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The offload bridge -- the single seam that actually hands work to the free
 bench, verifies the result, and either accepts it or escalates to Claude.
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """spine/docrefs.py -- prose that contradicts the code it describes.
 
 THE PROBLEM THIS EXISTS FOR

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import type { ThemeSpec } from '../../theme/types';
 import type { Placed } from '../layout';
 

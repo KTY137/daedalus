@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for daedalus.spine.picker.
 
 Two properties carry this file. First, ORDER IS REPRODUCIBLE: the same inputs

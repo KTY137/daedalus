@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """`daedalus tokens` is a console door, and it has to actually open.
 
 The monitor was registered on the effect boundary and wired to

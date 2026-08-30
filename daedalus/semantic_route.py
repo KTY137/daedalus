@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Semantic stage-1 routing (semantic-router pattern, aurelio-labs) -- zero-dep.
 
 Keyword/path scoring is brittle on prose objectives ("make the plot legible").

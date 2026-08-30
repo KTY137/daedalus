@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The flywheel seam: a LANDED offload write mints its own eval task.
 
 ``daedalus.eval.mint.mint_task_from_landed_edit`` has existed for several

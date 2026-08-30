@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """correctness.py -- does the CHANGE work? A FAIL_TO_PASS / PASS_TO_PASS evaluator.
 
 WHAT THIS IS FOR, AND WHAT IT IS NOT

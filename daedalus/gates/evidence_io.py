@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Strict JSON boundary for Gate-0 exact-head evidence.
 
 Dataclass ``from_dict`` methods are useful for already typed internal values,

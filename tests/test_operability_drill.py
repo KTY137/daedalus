@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The drill decides whether autonomy is defensible, so the drill needs guards.
 
 `tools/operability_drill.py` is the instrument a human would read before letting

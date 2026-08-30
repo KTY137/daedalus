@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """One-UI-contract (Coffee-retro, Icarus-Jr's napkin): the VS Code webview and
 the React webapp must render the SAME dashboard shape, or they will drift into
 two products. Both are fed by core.get_dashboard -> this pins that single

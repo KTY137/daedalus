@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Point a tiered swarm of DeepSeek agents at something, get JSON back.
 
 An OPERATOR INSTRUMENT, not a Daedalus subsystem. It borrows exactly two things

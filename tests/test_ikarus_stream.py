@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """ikarus_os streaming brain + Ollama VRAM residency pin.
 
 No real LLM calls and no real subprocesses: every lane is mocked. Covers the

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonical Gate-0 contracts for the existing Daedalus kernel.
 
 These records give the event spine, runtime adapters, and artifact store one

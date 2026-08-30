@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Race-aware, read-only access to exact repository source bytes.
 
 This module centralizes the filesystem mechanics needed by Gate-0 semantic

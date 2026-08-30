@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The OUTCOME POLICY: does the ledger's RESULT change the next pick, or only
 the prose?
 

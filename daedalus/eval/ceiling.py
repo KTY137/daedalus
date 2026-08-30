@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """ceiling.py -- temporal co-change CEILING check over the eval corpus (lane A2).
 
 THE QUESTION THIS ANSWERS. The independent_diff corpus has miss tasks: minted

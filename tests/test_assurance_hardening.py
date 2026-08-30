@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The evaluator-assurance seal, and the three bindings that hold a set together.
 
 WHAT WAS WRONG. ``daedalus.spine.receipts.evaluator_assurance`` granted a gate

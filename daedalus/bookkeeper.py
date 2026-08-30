@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The bookkeeper -- keeps the living architecture artifact in sync with reality.
 
 After every build session (and on demand), it renders ``docs/ARCHITECTURE.md``

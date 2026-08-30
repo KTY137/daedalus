@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The run brief, built as a graph instead of as a line.
 
 WHAT THIS IS. ``daedalus.runbook.create_run`` composes a run brief in four

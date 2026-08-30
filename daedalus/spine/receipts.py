@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Canonicalise one finished spine attempt into the Gate-0 contracts.
 
 WHY THIS MODULE EXISTS

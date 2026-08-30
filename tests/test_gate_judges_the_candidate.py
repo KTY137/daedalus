@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The gate must run the CANDIDATE'S code, not the primary checkout's.
 
 WHY THIS FILE EXISTS. A sibling module in this repo -- `daedalus/kairos/evolution.py`,

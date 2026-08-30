@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Persisted execution accounting for the sealed promotion boundary.
 
 The canonical :class:`daedalus.schemas.PromotionReceipt` remains the owner-

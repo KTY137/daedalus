@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """A COLD embedding model is not a dead host -- and the latent route survives it.
 
 THE DEFECT THIS FILE EXISTS TO KEEP FIXED

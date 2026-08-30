@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """ikarus_os — talk to your Agent OS.
 
 A deterministic intent router with an AUTO-SELECTED, vendor-neutral LLM voice. Safe by

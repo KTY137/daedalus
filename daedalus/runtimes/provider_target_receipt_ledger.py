@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Restart-safe retention for authenticated provider-target receipts.
 
 A receipt is reverified against its signed target/invocation authority and exact

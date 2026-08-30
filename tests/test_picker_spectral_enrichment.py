@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The picker's spectral enrichment is evidence and NOTHING else.
 
 The load-bearing test in this file is

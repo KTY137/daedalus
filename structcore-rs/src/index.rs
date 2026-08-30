@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 //! Walk a repo and build the derived index. Mirrors
 //! `daedalus/structcore/index.py::build_index` (exact-clone tier).
 //! Uses a stdlib `std::fs` walk (no walkdir) to keep the dependency surface

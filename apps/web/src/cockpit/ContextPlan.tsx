@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCallback, useState } from 'react';
 import { getContextPlan } from '../api';
 import type { ContextPlanPayload } from '../types';

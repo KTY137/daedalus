@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Movement I.5 / Move 1 — clone precision: Type-2 (renamed) + Type-3 (near-miss).
 
 Runs stdlib-only (Python abstraction uses the ``tokenize`` lexer). Verifies that

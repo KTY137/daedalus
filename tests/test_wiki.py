@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The wiki's contract.
 
 Two halves matter most. ``VaultPathValidator`` pins the guard Momus named as the

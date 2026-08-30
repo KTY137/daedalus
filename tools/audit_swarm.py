@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """One full adversarial pass over daedalus/ through the cheap external lane.
 
 OPERATOR-AUTHORISED EGRESS, 2026-07-30. The standing default is that the

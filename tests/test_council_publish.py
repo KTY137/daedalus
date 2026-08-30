@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for the council's GitHub-PR bridge.
 
 NO NETWORK, NO gh. Every test injects a fake runner and asserts on exactly what

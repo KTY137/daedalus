@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """arch_memory.py — the compressed architecture an agent carries into every turn.
 
 WHAT THIS IS FOR

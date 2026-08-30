@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """conversation.py -- the chat seam's READ/WRITE FACADE over the canonical spine.
 
 WHAT THIS IS. ``daedalus/ikarus_os.py`` is the assistant seam: ``ask()`` /

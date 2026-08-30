@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Native Ollama ``/api/chat`` client (stdlib-only), for the local offload lane.
 
 Why a second client beside :mod:`_openai_compat`: Ollama's OpenAI-compat

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """reach — can a human or a tool actually GET to this module?
 
 structcore already answers "X imports Y". That is not the same question. A

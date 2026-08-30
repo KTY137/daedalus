@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Gate-0 report declares which inventory schema produced its evidence.
 
 Phase 4 of `docs/inventory/2026-08-21/GIGA_PLAN_2026-08-22.md` computes closure

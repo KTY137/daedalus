@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { Check, RotateCcw, Sparkles, X } from 'lucide-react';
 import type { Theme } from '../hooks/useTheme';
 import {

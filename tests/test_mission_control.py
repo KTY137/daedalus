@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Pin the Mission Control backend contract in daedalus/core.py.
 
 These tests lock the JSON shapes the Mission Control webview depends on:

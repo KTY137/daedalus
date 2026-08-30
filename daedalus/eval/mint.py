@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """mint.py -- independent-oracle task minting: labels the slicer did NOT choose.
 
 Every task in ``daedalus.eval.tasks`` today was hand-picked by a human who then

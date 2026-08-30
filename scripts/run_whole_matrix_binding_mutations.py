@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Bounded mutation campaign for the whole-matrix binding and its verdict contract.
 
 Every mutation below turns a refusal into a silent pass -- an unbound bundle that

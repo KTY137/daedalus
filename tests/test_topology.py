@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import patch
 
 from daedalus.structcore.topology import spectral_partition

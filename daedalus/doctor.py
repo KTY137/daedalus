@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Readiness check -- can daedalus actually offload real work right now?
 
 Answers the honest question: is the local bench able to execute, or does

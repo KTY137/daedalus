@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Assertions over a recorded lane run. Deterministic, free, exact.
 
 Layer 2 of the observation stack: **flight recorder -> invariants -> model.**

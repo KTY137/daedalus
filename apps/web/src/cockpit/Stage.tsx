@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ThemeSpec } from '../theme/types';
 import { shortLabel, type Neighbourhood } from './graph';

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Authenticated, persisted provider-observation authority for runtime effects.
 
 The signed authority is created before an external provider invocation and binds

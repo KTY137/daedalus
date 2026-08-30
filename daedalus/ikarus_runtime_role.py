@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Immutable runtime-role bindings for the Ikarus supervisor.
 
 This is a dispatch port, not another runtime, effect, policy, trust, provider,

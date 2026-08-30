@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Strict capability facade for non-runtime persisted Effect Leases.
 
 The existing :mod:`daedalus.kernel.effects` module remains the persistence and

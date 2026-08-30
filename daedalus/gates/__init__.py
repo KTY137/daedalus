@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Machine-readable delivery gate reporting.
 
 The gate package is a projection over canonical contracts and registries. It

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Per-repo structural ignore rules (``.daedalusignore``).
 
 WHY THIS EXISTS, AND WHY IT IS NOT ``_IGNORE_DIRS``

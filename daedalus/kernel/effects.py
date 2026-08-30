@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Persisted, scope-bounded Effect Leases for the Gate-0 trust kernel.
 
 The lease layer is deliberately inert with respect to real effects.  It

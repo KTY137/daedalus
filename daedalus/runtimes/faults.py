@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Compatibility import for the canonical runtime fault matrix contracts.
 
 The implementation moved to :mod:`daedalus.runtimes.fault_matrix` so the

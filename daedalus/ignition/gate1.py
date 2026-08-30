@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Gate-1 ignition slice, wired through the canonical kernel.
 
 WHAT THIS IS

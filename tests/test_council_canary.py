@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Offline tests for the vendor canary.
 
 NO network, NO Ollama, NO vendor CLI, NO CLI entry point: every lane is a fake

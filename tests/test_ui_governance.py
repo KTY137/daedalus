@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The promotion verdict must reach every surface, and must never read green.
 
 Three mechanisms landed in this repo -- the discrimination gate, the installed

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Desktop entrypoint for the packaged Daedalus backend.
 
 The Tauri shell copies the frozen backend into the user's app-data directory

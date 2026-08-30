@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Compatibility strangler for the sealed Kairos promotion seam.
 
 The historical gating implementation remains byte-identical as a non-importable

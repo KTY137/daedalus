@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The verify gate's test budget: configurable, honest, and never a silent pass.
 
 Background (MEASURED 2026-07-29): this repo's `.agentenv/agentenv.json` declared

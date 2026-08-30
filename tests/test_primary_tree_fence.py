@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The primary-checkout write fence: a write aimed at the checkout is refused,
 the SAME write aimed at a worktree is allowed.
 

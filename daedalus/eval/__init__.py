@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """daedalus.eval -- private, evidence-conscious distillation evaluation.
 
 Tier 1 and the deterministic A/B/C retrieval comparison live in

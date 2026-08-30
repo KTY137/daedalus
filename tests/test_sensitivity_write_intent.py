@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Owner decision D6: protected artifacts are matched on WRITE INTENT.
 
 The rule this file pins is narrow and has two halves, and the halves fail in

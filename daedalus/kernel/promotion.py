@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Sealed promotion authorization for Gate 0.
 
 The existing Kairos integration-worktree machinery is retained, but it may not

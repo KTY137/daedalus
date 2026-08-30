@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """THE THREE REGRESSION THERMOMETERS — the proof that the type layer is ADDITIVE.
 
 The plan calls these non-negotiable, and they are the only tests in the suite

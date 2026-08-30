@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """tools/watchdog.py -- background docs, work, and advisory-fleet watchdogs.
 
 Owner order 2026-08-22/23: a docs agent is always active, and a general work

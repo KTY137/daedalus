@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Run bounded trust-boundary mutations for repository-write Effect-Lease replay."""
 from __future__ import annotations
 

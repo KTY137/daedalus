@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Focused regression tests for the loop's finite safety-bound contract.
 
 Issue #249 demonstrated that IEEE-754 NaN/+Infinity can satisfy the historical

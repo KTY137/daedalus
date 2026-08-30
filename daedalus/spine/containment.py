@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """MIC WRITE CONTAINMENT for candidate code (Windows integrity levels).
 
 DELIBERATELY NOT CALLED A SANDBOX. Cross-vendor review insisted on the name and

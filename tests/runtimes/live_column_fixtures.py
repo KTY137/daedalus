@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Shared construction of a ``live-runtime`` conformance bundle for tests.
 
 These bundles are *live-shaped*, not live: nothing here observed a real provider

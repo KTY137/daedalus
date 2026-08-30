@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Council CHECK (a): a reconciliation deadline for ``started-unreconciled``.
 
 A durably STARTED effect whose external call already happened is retained for

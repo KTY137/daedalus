@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Verifier gate -- the cascade's quality check.
 
 Before a local-model result is *accepted*, it must pass cheap deterministic

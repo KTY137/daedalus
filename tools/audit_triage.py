@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Turn swarm claims into ranked, mechanically-checked findings. Local, free.
 
 Phase 3 of the audit chain, and the reason the chain has a phase 3 at all: a

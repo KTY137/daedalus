@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Deterministic source-language and data-format discovery registry.
 
 Discovery is intentionally weaker than semantic extraction. A detected suffix

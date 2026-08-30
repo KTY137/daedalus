@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """lint.py — turn "it looks like AI slop" into numbers.
 
 Reads a capture from ``probe.js`` and computes metrics over the DOM/CSSOM. No

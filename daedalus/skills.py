@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Agent Skills (``SKILL.md``) read as DATA. Nothing here runs anything.
 
 WHAT THIS IS, AND THE ONE THING THAT WAS ADOPTED

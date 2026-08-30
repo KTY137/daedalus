@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for the native Ollama /api/chat client and the context-window fail-loud
 rules it enables in the OllamaProvider.
 

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Issue signed attestations for retained Linux-host runtime-fault observations.
 
 The container fault driver retains observation records; it holds no signing key

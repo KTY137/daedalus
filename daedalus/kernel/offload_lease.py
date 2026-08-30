@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """The Effect-Lease issuer: which registry rows it may issue for, and why.
 
 WHICH ROWS. Until :func:`issuable_row` existed this module refused every row

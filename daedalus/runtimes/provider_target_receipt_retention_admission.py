@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Read-only persisted-lease and topology admission for receipt retention.
 
 This packet stops before the durable effect start and before receipt retention.

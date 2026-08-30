@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Stateless one-shot request port for Ikarus.
 
 Hermes exposes a useful one-shot invariant: small LLM requests run outside a

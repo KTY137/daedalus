@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """progress.py -- what is OBSERVED about in-flight work, versus what has
 merely been STARTED.
 

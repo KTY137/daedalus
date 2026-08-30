@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Offline tests for the Codex CLI provider, its lane wiring, and doctor.
 
 No test here invokes the real ``codex`` binary, touches the network, or needs

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """One real container run of a canonical Linux-host fault scenario.
 
 Everything else about the driver is covered with a mocked sandbox in

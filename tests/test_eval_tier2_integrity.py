@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Adversarial Tier-2 evaluator integrity tests.
 
 These tests pin two distinct failure classes:

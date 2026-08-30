@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Kaya Yesilyurt
+# SPDX-License-Identifier: Apache-2.0
+
 """Exact-head evidence index for Gate-0 report assembly.
 
 The existing :mod:`daedalus.gates.report` remains the delivery-gate projection.
