@@ -1,6 +1,9 @@
 name: Gate 1 Ikarus Tool Scope
 
 on:
+  push:
+    branches:
+      - g1/ikarus-tool-scope-05
   pull_request:
     branches:
       - main
