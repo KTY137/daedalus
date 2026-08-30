@@ -25,8 +25,10 @@ on:
       - ".github/workflows/tauri-desktop.yml"
   workflow_dispatch:
 
-# Validation is the default authority. Release credentials exist only in the
-# push-to-main release job after every platform build has completed.
+# Cost policy:
+# - pull requests validate one Linux desktop build only;
+# - trusted main pushes and explicit manual runs exercise the full platform matrix;
+# - release credentials exist only in the push-to-main publish job.
 permissions:
   contents: read
 
@@ -35,8 +37,89 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  desktop:
+  pr-linux:
+    name: Linux x86-64 PR validation
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install cockpit dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Build cockpit
+        working-directory: apps/web
+        run: npm run build
+
+      # 6.22.1 fixes GHSA-9fxf-4qw3-ghmr (2026-08-15). Keep this exact:
+      # packaging must not bake a known unsafe bootloader into a release.
+      - name: Install Python build/test dependencies
+        run: python -m pip install -e ".[test]" pyinstaller==6.22.1
+
+      - name: Build frozen Daedalus backend
+        run: python tools/build_tauri_sidecar.py --target "x86_64-unknown-linux-gnu"
+
+      - name: Smoke-test frozen backend and cockpit
+        run: python tools/smoke_tauri_sidecar.py
+
+      - name: Desktop packaging contract tests
+        run: python -m pytest -q tests/test_desktop_packaging.py
+
+      - name: Install pinned Tauri CLI
+        run: npm install --global @tauri-apps/cli@2.11.4
+
+      - name: Generate desktop icons
+        working-directory: apps/web
+        run: tauri icon src-tauri/icons/icon.svg
+
+      - name: Rust formatting
+        run: cargo fmt --manifest-path apps/web/src-tauri/Cargo.toml -- --check
+
+      - name: Build Linux validation desktop bundle
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: apps/web
+          tauriScript: tauri
+          args: --bundles appimage,deb
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: daedalus-desktop-pr-linux-[arch]-[bundle]
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
+
+  desktop-release:
     name: ${{ matrix.label }}
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
     strategy:
@@ -123,20 +206,7 @@ jobs:
       - name: Rust formatting
         run: cargo fmt --manifest-path apps/web/src-tauri/Cargo.toml -- --check
 
-      - name: Build validation desktop bundles
-        if: github.event_name != 'push'
-        uses: tauri-apps/tauri-action@v1
-        with:
-          projectPath: apps/web
-          tauriScript: tauri
-          args: ${{ matrix.tauri_args }}
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: daedalus-desktop-[platform]-[arch]-[bundle]
-          uploadUpdaterJson: false
-          uploadUpdaterSignatures: false
-
-      - name: Build trusted-main desktop bundles
-        if: github.event_name == 'push'
+      - name: Build desktop bundles
         uses: tauri-apps/tauri-action@v1
         with:
           projectPath: apps/web
@@ -150,7 +220,7 @@ jobs:
   release:
     name: Publish trusted-main prerelease
     if: github.event_name == 'push'
-    needs: desktop
+    needs: desktop-release
     runs-on: ubuntu-latest
     permissions:
       contents: write
