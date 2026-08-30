@@ -91,6 +91,9 @@ from daedalus.projects import list_projects, resolve_repo_root
 
 # agent_env repo root == parents[2] of this file (daedalus/eval/tasks.py).
 AGENT_ENV_ROOT = str(Path(__file__).resolve().parents[2])
+SUNNY_GARDEN_FIXTURE = str(
+    Path(__file__).resolve().parent / "fixtures" / "sunny_garden"
+)
 
 
 def resolve_task_repo(repo: str) -> str:
@@ -102,6 +105,8 @@ def resolve_task_repo(repo: str) -> str:
     """
     if repo == "agent_env":
         return AGENT_ENV_ROOT
+    if repo == "sunny_garden" and Path(SUNNY_GARDEN_FIXTURE).is_dir():
+        return SUNNY_GARDEN_FIXTURE
     if os.path.isabs(repo) and Path(repo).exists():
         return repo
     if repo in list_projects():

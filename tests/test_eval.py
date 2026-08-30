@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from daedalus.eval import harness, report
+from daedalus.eval import tasks as eval_tasks
 from daedalus.eval.tasks import TASKS, task_project_label
 
 
@@ -126,6 +127,14 @@ class EvalTier1Test(unittest.TestCase):
 
 class EvalBuiltinTasksTest(unittest.TestCase):
     """Validate the real labels on the tiny sunny_garden bucket (fast)."""
+
+    def test_sunny_garden_fixture_is_part_of_the_installable_eval_package(self):
+        root = Path(eval_tasks.SUNNY_GARDEN_FIXTURE).resolve()
+        package_root = Path(eval_tasks.__file__).resolve().parent
+        self.assertEqual(root.parent, package_root / "fixtures")
+        self.assertTrue((root / "garden" / "care.py").is_file())
+        self.assertTrue((root / "garden" / "cli.py").is_file())
+        self.assertTrue((root / "garden" / "plants.py").is_file())
 
     def test_sunny_garden_tasks_full_recall(self):
         tasks = [t for t in TASKS if task_project_label(t) == "sunny_garden"]

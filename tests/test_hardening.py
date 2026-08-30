@@ -418,12 +418,20 @@ class FileBridgeRequestTests(unittest.TestCase):
         seen: list[list[str]] = []
         real_replace = file_bridge.os.replace
 
+        observed_outbox: Path | None = None
+
         def spy(src, dst):
-            seen.append(sorted(p.name for p in Path(dst).parent.glob("*.json")))
+            # ``os`` is a shared module object. Other bridge threads exercised
+            # by the full suite may publish inbox/heartbeat files while this
+            # patch is active; they are not this enqueue operation's atomicity
+            # witness and must not pollute its observation.
+            if observed_outbox is not None and Path(dst).parent == observed_outbox:
+                seen.append(sorted(p.name for p in observed_outbox.glob("*.json")))
             return real_replace(src, dst)
 
         with tempfile.TemporaryDirectory() as d:
-            with patch.object(file_bridge, "OUTBOX", Path(d)), \
+            observed_outbox = Path(d)
+            with patch.object(file_bridge, "OUTBOX", observed_outbox), \
                     patch.object(file_bridge, "_stamp", lambda: "20260705T000000Z"), \
                     patch.object(file_bridge.os, "replace", spy):
                 file_bridge.enqueue("atomic", "/r", [], require_watcher=False)

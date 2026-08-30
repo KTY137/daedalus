@@ -578,6 +578,32 @@ def _legacy_state(repo_root: str | Path | None) -> tuple[Path, list[str]] | None
     return (legacy, found) if found else None
 
 
+def _literal_path_identity(path: str) -> str:
+    """Normalize DOS 8.3 spelling without following a reparse point.
+
+    ``os.path.realpath`` expands both short names and junctions on Windows.
+    Those are different facts: ``ADMINI~1`` and ``Administrator`` name the
+    same literal directory, while a junction redirects bytes elsewhere. The
+    Win32 long-path expansion removes only the former before the redirection
+    comparison, preserving the latter as a fail-closed mismatch.
+    """
+
+    if os.name != "nt":
+        return path
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        needed = kernel32.GetLongPathNameW(str(path), None, 0)
+        if needed <= 0:
+            return path
+        buffer = ctypes.create_unicode_buffer(needed + 1)
+        written = kernel32.GetLongPathNameW(str(path), buffer, len(buffer))
+        return buffer.value if written else path
+    except (AttributeError, OSError, ValueError):
+        return path
+
+
 def _verify_control_root_uncached(root: Path, repo_root: str | Path | None,
                                   check_legacy: bool) -> ControlRootCheck:
     literal = str(root)
@@ -596,7 +622,8 @@ def _verify_control_root_uncached(root: Path, repo_root: str | Path | None,
         return ControlRootCheck(
             False, f"the control root {literal} could not be resolved "
                    f"({type(e).__name__}: {e})", literal, literal)
-    if os.path.normcase(real) != os.path.normcase(literal):
+    literal_identity = _literal_path_identity(literal)
+    if os.path.normcase(real) != os.path.normcase(literal_identity):
         return ControlRootCheck(
             False,
             f"the control root is REDIRECTED: this process writes {literal} "
@@ -626,8 +653,8 @@ def _verify_control_root_uncached(root: Path, repo_root: str | Path | None,
                 literal, real, str(legacy_root))
     return ControlRootCheck(
         True,
-        f"the control root {literal} is literal and visible to another process",
-        literal, real)
+        f"the control root {literal_identity} is literal and visible to another process",
+        literal_identity, real)
 
 
 def verify_control_root(root: str | Path, *,

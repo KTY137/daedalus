@@ -12,6 +12,7 @@ import pytest
 
 from daedalus import budget
 from daedalus.council.vendors import CodexAdapter, RunResult
+from daedalus.langgraph_adapter import LangGraphUnavailable
 from daedalus.spine.killswitch import LoopHalted
 from experiments.opus_fleet_watchdog import core
 
@@ -199,7 +200,10 @@ def test_real_langgraph_plan_is_global_and_fair(
     config = tmp_path / "fair.json"
     config.write_text(json.dumps(payload), encoding="utf-8")
 
-    plan = core.dry_plan(config, runs_root=tmp_path / "runs")
+    try:
+        plan = core.dry_plan(config, runs_root=tmp_path / "runs")
+    except LangGraphUnavailable:
+        pytest.skip("optional orchestration dependency is not installed")
 
     assert plan["global_slots"] == 4
     assert [slot["project"] for slot in plan["slots"]] == [

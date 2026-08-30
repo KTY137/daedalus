@@ -2345,31 +2345,19 @@ _PHASE4_DOOR_ROWS: tuple[EntrypointSpec, ...] = (
         effects=(
             Effect.FILESYSTEM_WRITE,
             Effect.PROCESS_SPAWN,
-            Effect.NETWORK_EGRESS,
             Effect.SECRETS,
-            Effect.SPEND,
         ),
         guard_contracts=("budget.process_guard",),
         wiring=Wiring.CENTRAL,
         anchors=(GuardAnchor("daedalus.benchmark:main", "begin_effect"),),
         notes=(
-            "`daedalus benchmark` and the module tail. Without --live it is a "
-            "projection and writes nothing; with --live every task goes "
-            "through offload(live=True), so FILESYSTEM_WRITE (kairos.drafts:"
-            "save_draft mkdir/write_text), NETWORK_EGRESS (doctor:check -> "
-            "_ollama_models), PROCESS_SPAWN (structcore.churn:git_churn via "
-            "select_provider's reachability precheck) and SPEND (offload "
-            "dispatches the selected provider's run, and BILLABLE_SITES lists "
-            "those). SECRETS for the same reason cli.picker earns it: offload "
-            "reaches doctor:check, which pulls DEEPSEEK_API_KEY into THIS "
-            "process at doctor.py:93. A cost benchmark is the door most "
-            "likely to be run casually and least likely to be believed "
-            "expensive, which is the argument for the boundary sitting above "
-            "the flag rather than inside the --live branch. No "
-            "REPOSITORY_MUTATION: offload's write mode edits files in the "
-            "target checkout, and no reachable function creates a worktree or "
-            "writes a ref -- the derivation looked and found none, which is "
-            "why this row is shorter than cli.build_exec's."
+            "The legacy live benchmark path is retired: --live now refuses "
+            "and the command produces planning estimates only. NETWORK_EGRESS "
+            "and SPEND were therefore removed instead of left as painted "
+            "labels. The remaining effects are those reached through the "
+            "shared central start/process-guard machinery on this head; the "
+            "door stays registered so the compatibility CLI cannot regain a "
+            "live path outside the canonical matrix unnoticed."
         ),
         migration="complete for the cli.benchmark entrypoint",
     ),

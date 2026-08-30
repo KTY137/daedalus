@@ -1617,24 +1617,9 @@ def render(report: LoopReport) -> str:
 # CLI                                                                          #
 # --------------------------------------------------------------------------- #
 def main(argv: Sequence[str] | None = None) -> int:
-    # `.env` FIRST, then the ceiling -- the same order as cli.main, for the
-    # same reason: the guard's own configuration (the ceiling, the declared
-    # subscriptions, the trusted bench, OLLAMA_HOST) lives exactly there.
-    # MEASURED 2026-07-29, first live run: this entry point skipped the load,
-    # so the router saw no reachable local lane, escalated every docref task
-    # to the paid tier, and the free-lane gate bounced all three attempts with
-    # "belongs to the senior crew" -- a loop that could only refuse. The
-    # bounce was CORRECT; the blindness was the bug.
-    from .dotenv import DotEnvRefused, load as _load_dotenv
-
-    try:
-        _load_dotenv()
-    except DotEnvRefused as exc:
-        print(f"[daedalus] REFUSED: {exc}", file=sys.stderr)
-        return 2
-
     # THE CEILING GOES ON BEFORE ANYTHING ELSE IN THIS PROCESS, including
-    # argument parsing -- the same posture as every other spend entry point in
+    # dotenv's git-tracking probe and argument parsing -- the same posture as
+    # every other spend entry point in
     # this tree (tests/test_spend_coverage.py enforces it). A loop driver is
     # the entry point where forgetting it costs the most.
     from .budget import install_process_guard, process_guard_boundary_decision
@@ -1666,6 +1651,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         REGISTRY_BY_ID["cli.loop"].effects,
         (process_guard_boundary_decision(),),
     )
+
+    # Load operator declarations only after the canonical process boundary.
+    # ``dotenv.load`` checks tracking through git, which is itself a process
+    # spawn; loading first made the module tail perform an effect before the
+    # guard and before its registry receipt. The guard reads its live budget
+    # configuration when a priced call is attempted, so installing it before
+    # the declarations does not freeze stale values.
+    from .dotenv import DotEnvRefused, load as _load_dotenv
+
+    try:
+        _load_dotenv()
+    except DotEnvRefused as exc:
+        print(f"[daedalus] REFUSED: {exc}", file=sys.stderr)
+        return 2
 
     p = argparse.ArgumentParser(
         prog="python -m daedalus.loop",

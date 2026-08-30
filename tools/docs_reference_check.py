@@ -125,10 +125,14 @@ ALLOWED = {
     ("docs/ENGINE_PARITY.md", "docs/vendor/x.py"): "illustrative path in an example",
     (".claude/proposals/README.md", "vault/Sessions/YYYY-MM-DD.md"): "date template",
     (".claude/skills/vault-sync/SKILL.md", "vault/Sessions/YYYY-MM-DD.md"): "date template",
+    (".claude/proposals/README.md", ".claude/settings.local.json"):
+        "an optional operator-local file the proposal explicitly tells the reader to create",
     ("docs/DESKTOP.md", "projects/daedalus.json"):
         "runtime state seeded below the external profile root, not a repository file",
     ("docs/DESKTOP.md", "daedalus/openvscode-server"):
         "a local Docker image tag, not a repository path",
+    ("docs/architecture-narrative.md", "daedalus/hermes/"):
+        "named precisely as a removed bytecode husk in the same sentence",
     # Quoted precisely BECAUSE they are wrong: the page is about a tier that
     # invented plausible module paths. Repairing them would delete the evidence.
     (".claude/skills/funnel/SKILL.md", "daedalus/core/process.py"): "quoted hallucination",

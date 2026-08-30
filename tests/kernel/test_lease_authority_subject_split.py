@@ -169,8 +169,8 @@ def test_containment_is_measured_over_the_callers_planned_worktree_root(
         for d in granted.authorization.guard_decisions
         if d.contract == "containment.attempt"
     )
-    assert str(planned) in evidence
-    assert str(candidate) in evidence
+    assert str(planned.resolve()) in evidence
+    assert str(candidate.resolve()) in evidence
 
 
 def test_the_roots_helper_returns_the_callers_pair(tmp_path):
