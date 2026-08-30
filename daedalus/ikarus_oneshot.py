@@ -26,7 +26,7 @@ from .spine.envelope import canonical_sha
 
 
 IKARUS_ONESHOT_REQUEST_SCHEMA = "daedalus-ikarus-oneshot-request/1"
-IKARUS_ONESHOT_ADMISSION_SCHEMA = "daedalus-ikarus-oneshot-admission/1"
+IKARUS_ONESHOT_BINDING_SCHEMA = "daedalus-ikarus-oneshot-runtime-evidence-binding/1"
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -36,7 +36,7 @@ class OneShotContractError(ValueError):
 
 
 class OneShotRuntimeRefused(RuntimeError):
-    """The selected runtime cannot be admitted for the stateless one-shot seam."""
+    """The selected runtime cannot be bound to the stateless one-shot evidence seam."""
 
 
 def _identifier(value: Any, name: str) -> str:
@@ -200,8 +200,8 @@ class OneShotRequest:
 
 
 @dataclass(frozen=True)
-class OneShotRuntimeAdmission:
-    """Read-only projection binding one request to existing runtime evidence.
+class OneShotRuntimeEvidenceBinding:
+    """Read-only projection joining one request to existing runtime evidence.
 
     This is not a RuntimeConformanceReceipt, Effect Lease, provider authority or
     permission to execute.  It exists so Ikarus can retain one exact answer to
@@ -232,7 +232,7 @@ class OneShotRuntimeAdmission:
 
     def subject(self) -> dict[str, str]:
         return {
-            "schema": IKARUS_ONESHOT_ADMISSION_SCHEMA,
+            "schema": IKARUS_ONESHOT_BINDING_SCHEMA,
             "request_sha256": self.request_sha256,
             "role": self.role,
             "runtime_id": self.runtime_id,
@@ -247,7 +247,7 @@ class OneShotRuntimeAdmission:
         return canonical_sha(self.subject())
 
 
-def admit_oneshot_runtime(
+def bind_oneshot_runtime_evidence(
     request: OneShotRequest,
     binding: RuntimeRoleSnapshot,
     manifest: RuntimeManifest,
@@ -255,7 +255,7 @@ def admit_oneshot_runtime(
     *,
     now: datetime,
     max_conformance_age: timedelta = timedelta(days=7),
-) -> OneShotRuntimeAdmission:
+) -> OneShotRuntimeEvidenceBinding:
     """Bind a stateless request to current canonical runtime evidence.
 
     The selected manifest must match the exact Ikarus role binding.  Until the
@@ -304,7 +304,7 @@ def admit_oneshot_runtime(
         )
     if not manifest.capabilities.timeout:
         raise OneShotRuntimeRefused(
-            "one-shot runtime must have measured timeout capability"
+            "one-shot runtime manifest must declare timeout capability"
         )
     if (
         request.budget.max_cost_microusd is not None
@@ -326,7 +326,7 @@ def admit_oneshot_runtime(
             "canonical runtime conformance is not current and passed"
         ) from exc
 
-    return OneShotRuntimeAdmission(
+    return OneShotRuntimeEvidenceBinding(
         request_sha256=request.digest,
         role=binding.role,
         runtime_id=binding.runtime_id,
@@ -338,12 +338,12 @@ def admit_oneshot_runtime(
 
 
 __all__ = [
-    "IKARUS_ONESHOT_ADMISSION_SCHEMA",
+    "IKARUS_ONESHOT_BINDING_SCHEMA",
     "IKARUS_ONESHOT_REQUEST_SCHEMA",
     "OneShotContractError",
     "OneShotMessage",
     "OneShotRequest",
-    "OneShotRuntimeAdmission",
+    "OneShotRuntimeEvidenceBinding",
     "OneShotRuntimeRefused",
-    "admit_oneshot_runtime",
+    "bind_oneshot_runtime_evidence",
 ]
