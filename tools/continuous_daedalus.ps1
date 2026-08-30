@@ -13,6 +13,9 @@ level, with Task Scheduler's IgnoreNew policy. A human stop is sticky: scheduled
 runs use `--arm` without `--force`, so a stop marker prevents every later run
 from silently re-arming.
 
+Windows ignores LIMITED for the built-in RID-500 Administrator account. Install
+therefore refuses that principal before arming the kill switch or writing a task.
+
 Examples:
   powershell -ExecutionPolicy Bypass -File tools/continuous_daedalus.ps1 Install
   powershell -ExecutionPolicy Bypass -File tools/continuous_daedalus.ps1 Status
@@ -57,6 +60,21 @@ $ErrorActionPreference = 'Stop'
 $TaskPath = '\Daedalus\'
 $TaskName = 'GateLoop'
 $FullTaskName = "${TaskPath}${TaskName}"
+
+function Assert-SupportedTaskPrincipal {
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    if ($identity.User.IsWellKnown(
+            [System.Security.Principal.WellKnownSidType]::AccountAdministratorSid
+        )) {
+        throw (
+            "REFUSED: $FullTaskName cannot be installed for the built-in " +
+            "Administrator (RID 500). Windows ignores RunLevel=Limited for " +
+            "that principal, and a filtered token can also fail registration " +
+            "with 0x80070005. Sign in with a non-built-in operator account. " +
+            "No kill-switch or Task Scheduler state was changed."
+        )
+    }
+}
 
 function Resolve-RepoRoot {
     param([string]$Value)
@@ -160,19 +178,11 @@ $LoopArguments = New-LoopArgumentString $ResolvedRepoRoot
 
 switch ($Action) {
     'Install' {
+        # This must precede both Task Scheduler writes and kill-switch arming.
+        # A task labelled Limited but run as RID-500 Administrator is not a
+        # limited task on Windows, so refusing is the only truthful outcome.
+        Assert-SupportedTaskPrincipal
         Import-Module ScheduledTasks -ErrorAction Stop
-
-        # Arm deliberately, but never override a prior human stop unless the
-        # operator explicitly supplied -ForceRearm during this installation.
-        $armArgs = @('-m', 'daedalus.spine.killswitch', 'arm')
-        if ($ForceRearm) {
-            $armArgs += '--force'
-        }
-        $armArgs += 'continuous Gate 0 to Gate 2 nomination loop'
-        $armExit = Invoke-DaedalusModule $ResolvedPython $ResolvedRepoRoot $armArgs
-        if ($armExit -ne 0) {
-            throw "Kill switch did not arm (exit $armExit). A sticky human stop remains authoritative."
-        }
 
         $scheduledAction = New-ScheduledTaskAction `
             -Execute $ResolvedPython `
@@ -208,11 +218,45 @@ switch ($Action) {
             -Principal $principal `
             -Description 'Bounded Daedalus pick-attempt-gate-nominate loop. Never auto-merges or promotes.'
 
-        Register-ScheduledTask `
-            -TaskPath $TaskPath `
-            -TaskName $TaskName `
-            -InputObject $task `
-            -Force | Out-Null
+        # Construct the complete task before arming. That way a local cmdlet or
+        # validation failure cannot leave an armed loop without an installed
+        # task. Never override a prior human stop unless the operator supplied
+        # -ForceRearm during this installation.
+        $armArgs = @('-m', 'daedalus.spine.killswitch', 'arm')
+        if ($ForceRearm) {
+            $armArgs += '--force'
+        }
+        $armArgs += 'continuous Gate 0 to Gate 2 nomination loop'
+        $armExit = Invoke-DaedalusModule $ResolvedPython $ResolvedRepoRoot $armArgs
+        if ($armExit -ne 0) {
+            throw "Kill switch did not arm (exit $armExit). A sticky human stop remains authoritative."
+        }
+
+        try {
+            Register-ScheduledTask `
+                -TaskPath $TaskPath `
+                -TaskName $TaskName `
+                -InputObject $task `
+                -Force | Out-Null
+        }
+        catch {
+            $registrationError = $_.Exception.Message.Trim()
+            $stopExit = Invoke-DaedalusModule $ResolvedPython $ResolvedRepoRoot @(
+                '-m', 'daedalus.spine.killswitch', 'stop',
+                'continuous task registration failed'
+            )
+            if ($stopExit -ne 0) {
+                throw (
+                    "Task Scheduler registration failed and the fail-closed " +
+                    "kill-switch stop also failed (exit $stopExit): " +
+                    $registrationError
+                )
+            }
+            throw (
+                "Task Scheduler registration failed; the loop was left " +
+                "STOPPED: " + $registrationError
+            )
+        }
 
         Write-Host "Installed $FullTaskName"
         Write-Host "Interval: $IntervalMinutes minute(s)"

@@ -80,6 +80,42 @@ def test_task_is_limited_interactive_and_non_overlapping() -> None:
     assert "-MultipleInstances Parallel" not in text
 
 
+def test_install_refuses_rid500_before_arming_or_task_writes() -> None:
+    text = _text()
+    install = _section(text, "    'Install' {", "    'Uninstall' {")
+
+    assert "Assert-SupportedTaskPrincipal" in text
+    assert "AccountAdministratorSid" in text
+    assert "RID 500" in text
+    assert "RunLevel=Limited" in text
+    assert "0x80070005" in text
+    assert "No kill-switch or Task Scheduler state was changed" in text
+    assert install.index("Assert-SupportedTaskPrincipal") < install.index("$armArgs")
+    assert install.index("Assert-SupportedTaskPrincipal") < install.index(
+        "Register-ScheduledTask"
+    )
+    assert install.index("$task = New-ScheduledTask") < install.index("$armArgs")
+    assert install.index("$armArgs") < install.index("Register-ScheduledTask")
+
+    # UAC cannot repair the semantic defect: Windows ignores Limited for the
+    # built-in Administrator. The script must refuse, not self-elevate.
+    assert "-Verb RunAs" not in text
+
+
+def test_registration_failure_is_fail_closed() -> None:
+    install = _section(_text(), "    'Install' {", "    'Uninstall' {")
+    registration = _section(
+        install,
+        "        try {\n            Register-ScheduledTask",
+        "        Write-Host \"Installed $FullTaskName\"",
+    )
+
+    assert "continuous task registration failed" in registration
+    assert "daedalus.spine.killswitch', 'stop'" in registration
+    assert "the loop was left" in registration
+    assert "STOPPED" in registration
+
+
 def test_native_subprocess_wrapper_returns_only_the_integer_exit_code() -> None:
     text = _text()
     wrapper = _section(
@@ -125,3 +161,13 @@ def test_scheduler_does_not_contain_repository_mutation_commands() -> None:
     )
     for token in forbidden:
         assert token not in lowered
+
+
+def test_operator_docs_name_the_supported_windows_principal() -> None:
+    docs = (ROOT / "docs" / "CONTINUOUS_DAEDALUS.md").read_text(
+        encoding="utf-8"
+    )
+    assert "built-in Windows `Administrator` account (RID 500)" in docs
+    assert "Windows ignores `RunLevel=Limited`" in docs
+    assert "before arming the kill switch" in docs
+    assert "`Status` and" in docs and "`Stop` remain ordinary-shell" in docs

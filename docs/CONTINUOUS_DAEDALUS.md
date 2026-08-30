@@ -33,7 +33,8 @@ and that user is logged in; the installer stores no Windows password.
 
 ## Install
 
-From the repository root in an ordinary PowerShell terminal:
+From the repository root, while signed in as the non-built-in operator account
+that will run the task:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/continuous_daedalus.ps1 Install
@@ -54,6 +55,22 @@ Installation arms the existing fail-closed kill switch without forcing it. If a
 human previously stopped the loop, installation refuses. A deliberate override
 requires the visible `-ForceRearm` argument; scheduled executions never contain
 `--force`.
+
+The built-in Windows `Administrator` account (RID 500) is deliberately
+unsupported. Windows ignores `RunLevel=Limited` for that principal, so a task
+whose metadata says `Limited` can still execute elevated; under a filtered UAC
+token registration also fails with `0x80070005`. The installer refuses this
+account before arming the kill switch or writing Task Scheduler state. Use a
+non-built-in operator account. If that same account has a linked administrator
+token and local policy requires one setup-time UAC confirmation, registration
+does not change the task's `Interactive`, `Limited` runtime principal. Do not
+enter credentials for a different administrator: that would change the
+current-user principal. `Status` and `Stop` remain ordinary-shell operations.
+This follows Microsoft's documented
+[Task Scheduler UAC security contract](https://learn.microsoft.com/en-us/windows/win32/taskschd/security-contexts-for-running-tasks).
+
+Any other registration failure leaves the kill switch `STOPPED`; an
+armed-but-uninstalled partial state is not accepted.
 
 ## Operate
 
