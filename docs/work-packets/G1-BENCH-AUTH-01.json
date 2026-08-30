@@ -1,0 +1,81 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-BENCH-AUTH-01",
+  "title": "Retire the parallel live benchmark authority",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+  "owner_direction_issue": 239,
+  "primary_claim": "daedalus.benchmark remains a compatibility cost-estimate surface but can no longer execute or label its representative workload as comparative measurement; measured comparison authority stays in the canonical daedalus.eval/evidence line.",
+  "master_plan_alignment": [
+    "prefer deletion and consolidation over another benchmark subsystem",
+    "comparative claims require frozen tasks, equal budgets, declared model/hardware identity, repeated trials, uncertainty and retained failures",
+    "Gate 1 does not activate the later Gate-3 baseline laboratory early",
+    "no automatic merge, promotion, OwnerApproval or Gate transition"
+  ],
+  "baseline_finding": {
+    "module": "daedalus/benchmark.py",
+    "parallel_live_path": true,
+    "live_path_behavior": "iterated a representative TCT task list through offload(live=True), read runtime metrics, and printed MEASURED savings",
+    "missing_comparative_bindings": [
+      "revision-frozen task set",
+      "frozen evaluator",
+      "equal-budget baseline",
+      "model and hardware identity",
+      "seed/repetition policy",
+      "uncertainty",
+      "retained negative results"
+    ],
+    "canonical_existing_owner": "daedalus.eval"
+  },
+  "scope": {
+    "changed": [
+      "daedalus/benchmark.py"
+    ],
+    "added": [
+      "tests/test_benchmark_authority.py",
+      "docs/work-packets/G1-BENCH-AUTH-01.json"
+    ],
+    "forbidden": [
+      "daedalus/eval/",
+      "daedalus/kernel/",
+      "daedalus/runtimes/",
+      "daedalus/spine/",
+      ".github/",
+      ".agentenv/",
+      "docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+    ]
+  },
+  "changes": [
+    "delete the independent offload/live measurement loop and runtime metrics aggregation from daedalus.benchmark",
+    "retain run_live only as a typed compatibility refusal with an explicit removal condition",
+    "label every dry result as planning_estimate and comparative_evidence_eligible=false",
+    "publish all non-observed task/token/price/posture assumptions in the result",
+    "replace MEASURED/savings language with explicit estimated fields and terminal wording",
+    "retain the existing cli.benchmark effect-boundary entry rather than creating a new execution door"
+  ],
+  "acceptance": [
+    "run_live refuses without invoking offload or another evaluator",
+    "the module contains no independent live offload loop or metrics.summary measurement path",
+    "dry output is explicitly ineligible for comparative evidence and exposes its assumptions",
+    "the representative workload is immutable within a process",
+    "advisory estimates still include the declared frontier review/apply overhead",
+    "existing registered CLI boundary remains present"
+  ],
+  "verification_commands": [
+    "python -m py_compile daedalus/benchmark.py tests/test_benchmark_authority.py",
+    "python -m pytest -q tests/test_benchmark_authority.py",
+    "python -m pytest -q tests/test_effect_boundary_coverage.py tests/test_spend_coverage.py"
+  ],
+  "verification_status": "prepared_not_yet_executed",
+  "rollback": "restore daedalus/benchmark.py from the exact base revision and delete the focused test/work-packet files; retain this packet and PR history as evidence of the rejected consolidation if rolled back",
+  "claim_boundary": {
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "benchmark_win": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval_minted": false,
+    "gate_transition": false
+  }
+}
