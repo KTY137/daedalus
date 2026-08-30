@@ -1,42 +1,118 @@
-"""Narrow fail-closed guards for human/model text used by Tier-2 evaluation.
+"""Canonical fail-closed guards for human/model text used by Tier-2 evaluation.
 
 This module is intentionally small.  It hardens two presentation/semantic seams
 without rewriting canonical evidence:
 
 * an expected lexical token counts as asserted only when no occurrence of that
   token is negated, hedged, questioned, or subsequently rebutted;
-* terminal-facing metadata is rendered as one printable ASCII line, while the
-  retained result dictionaries keep the original strings untouched.
+* terminal-facing metadata is rendered as one bounded printable-ASCII line,
+  while retained result dictionaries keep the original strings untouched.
 
-The functions are installed into :mod:`daedalus.eval.tier2` by the package
-strangler in ``daedalus.eval.__init__`` so the historical import surface keeps
-working until the legacy evaluator module is collapsed.
+``daedalus.eval.tier2`` imports these functions directly. Compatibility
+surfaces delegate to Tier 2 at call time; no import-time monkeypatch is needed.
 """
 from __future__ import annotations
 
 import re
 
 
+TERMINAL_FIELD_MAX_CHARS = 160
+
+_NEGATION = re.compile(
+    r"\b(?:not|never|no|without|cannot|can't|can['\u2019]t|"
+    r"doesn't|doesn['\u2019]t|does\s+not|didn't|didn['\u2019]t|did\s+not|"
+    r"isn't|isn['\u2019]t|is\s+not|aren't|aren['\u2019]t|are\s+not|"
+    r"wasn't|wasn['\u2019]t|was\s+not|weren't|weren['\u2019]t|were\s+not|"
+    r"won't|won['\u2019]t|will\s+not|don't|don['\u2019]t|do\s+not|"
+    r"should\s+(?:not|never)|shouldn['\u2019]t|"
+    r"must\s+(?:not|never)|mustn['\u2019]t)\b",
+    re.IGNORECASE,
+)
+_HEDGE = re.compile(
+    r"\b(?:maybe|perhaps|possibly|probably|might|could|guess|unsure|"
+    r"uncertain|unclear|unknown)\b",
+    re.IGNORECASE,
+)
+_UNCERTAINTY = re.compile(
+    r"\b(?:i\s+(?:cannot|can't|can['\u2019]t)\s+tell|"
+    r"i\s+(?:do\s+not|don't|don['\u2019]t)\s+know|"
+    r"not\s+enough\s+information|cannot\s+determine|can't\s+determine)\b",
+    re.IGNORECASE,
+)
+_POST_NEGATION = re.compile(
+    r"^\W*(?:is|was|are|were|does|did|can|will)?\W*"
+    r"(?:not|never|isn't|isn['\u2019]t|wasn't|wasn['\u2019]t|"
+    r"aren't|aren['\u2019]t|doesn't|doesn['\u2019]t|cannot|"
+    r"can't|can['\u2019]t)\b",
+    re.IGNORECASE,
+)
+_POST_MODAL_NEGATION = re.compile(
+    r"^\W*(?:(?!(?:and|or|but)\b)[a-z_][\w-]*\W+)?(?:"
+    r"should\s+(?:not|never)|shouldn['\u2019]t|"
+    r"must\s+(?:not|never)|mustn['\u2019]t)\b",
+    re.IGNORECASE,
+)
 _REBUTTAL = re.compile(
     r"\b(?:false|incorrect|wrong|untrue|not\s+true)\b",
     re.IGNORECASE,
 )
 _FOLLOWUP_REBUTTAL = re.compile(
-    r"^\s*(?:[?!.,;:]\s*)?(?:"
+    r"^\s*(?:[^\w\s\n]+\s*)*(?:"
     r"no\b|false\b|incorrect\b|wrong\b|untrue\b|"
     r"but\b[^.!?\n]{0,64}\b(?:false|incorrect|wrong|untrue|not\s+true)\b"
     r")",
+    re.IGNORECASE,
+)
+_FOLLOWUP_CORRECTION = re.compile(
+    r"^\s*(?:[^.!?\n]{0,64}[.!?;]\s*)?(?:[^\w\s\n]+\s*)*(?:"
+    r"correction\b|actually\b|retraction\b|scratch\s+that\b|"
+    r"i\s+(?:hereby\s+)?(?:retract|withdraw)\b|"
+    r"(?:that|this|the\s+previous)\s+(?:claim|statement|answer)\b"
+    r"[^.!?\n]{0,48}\b(?:false|incorrect|wrong|untrue|retracted|withdrawn)\b"
+    r")",
+    re.IGNORECASE,
+)
+_FOLLOWUP_REPLACEMENT = re.compile(
+    r"^\s*[^.!?\n]{0,64}[.!?;]\s*(?:instead|rather)\b",
+    re.IGNORECASE,
+)
+_FOLLOWUP_ACTUAL_REPLACEMENT = re.compile(
+    r"^\s*(?:[,;]\s*)?but\s+actually\b"
+    r"(?P<replacement>[^.!?\n]{0,128})",
+    re.IGNORECASE,
+)
+_REJECTION_BEFORE = re.compile(
+    r"\b(?:forbid(?:s|den|ding)?|prohibit(?:s|ed|ing)?|"
+    r"disallow(?:s|ed|ing)?|ban(?:s|ned|ning)?|avoid(?:s|ed|ing)?|"
+    r"unnecessary)\b(?:\W+\w+){0,5}\W*$",
+    re.IGNORECASE,
+)
+_REJECTION_AFTER = re.compile(
+    r"^\W*(?:(?:is|are|was|were|be|being|become|becomes|became|"
+    r"remain|remains|remained|should|must)\W+){0,3}"
+    r"(?:prohibited|forbidden|disallowed|banned|avoided|unnecessary)\b",
     re.IGNORECASE,
 )
 _BOUNDARIES = ".;,?!\n"
 
 
 def safe_ascii_field(value: object) -> str:
-    """Return a single printable-ASCII terminal field without changing evidence."""
+    """Return one bounded printable-ASCII field without changing evidence."""
 
     text = " ".join(str(value).split())
     text = text.encode("ascii", "replace").decode("ascii")
-    return "".join(ch if 32 <= ord(ch) <= 126 else "?" for ch in text)
+    text = "".join(ch if 32 <= ord(ch) <= 126 else "?" for ch in text)
+    if len(text) > TERMINAL_FIELD_MAX_CHARS:
+        text = text[: TERMINAL_FIELD_MAX_CHARS - 3] + "..."
+    return text
+
+
+def _near(prefix: str, pattern: re.Pattern[str], words: int = 5) -> bool:
+    tokens = list(re.finditer(r"\b[\w'\u2019]+\b", prefix))
+    if not tokens:
+        return False
+    start = tokens[max(0, len(tokens) - words)].start()
+    return bool(pattern.search(prefix[start:]))
 
 
 def expected_asserted(answer: str, expected: str) -> bool:
@@ -46,8 +122,6 @@ def expected_asserted(answer: str, expected: str) -> bool:
     occurrence poisons the claim so contradictory text cannot become positive
     fitness evidence merely because an earlier mention looked affirmative.
     """
-
-    from . import tier2 as _tier2
 
     low = str(answer).lower()
     needle = str(expected).lower()
@@ -70,24 +144,39 @@ def expected_asserted(answer: str, expected: str) -> bool:
         rel_end = match.end() - left - 1
 
         rejected = (
-            _tier2._near(clause[:rel_start], _tier2._NEGATION)
-            or _tier2._near(clause[:rel_start], _tier2._HEDGE)
+            _near(clause[:rel_start], _NEGATION)
+            or _near(clause[:rel_start], _HEDGE)
+            or _near(clause[:rel_start], _REJECTION_BEFORE, words=7)
             or bool(
-                _tier2._POST_NEGATION.search(
+                _POST_NEGATION.search(" ".join(clause[rel_end:].split()[:5]))
+            )
+            or bool(
+                _POST_MODAL_NEGATION.search(
                     " ".join(clause[rel_end:].split()[:5])
                 )
             )
-            or bool(_tier2._UNCERTAINTY.search(clause))
+            or bool(_UNCERTAINTY.search(clause))
         )
 
         if right < len(low) and low[right] == "?":
             rejected = True
 
         local_after = " ".join(clause[rel_end:].split()[:8])
-        if _REBUTTAL.search(local_after):
+        if _REBUTTAL.search(local_after) or _REJECTION_AFTER.search(local_after):
             rejected = True
 
-        if _FOLLOWUP_REBUTTAL.match(low[match.end(): match.end() + 128]):
+        followup = low[match.end(): match.end() + 192]
+        if _FOLLOWUP_REBUTTAL.match(followup):
+            rejected = True
+        if _FOLLOWUP_CORRECTION.match(followup):
+            rejected = True
+        if _FOLLOWUP_REPLACEMENT.match(followup):
+            rejected = True
+        actual_replacement = _FOLLOWUP_ACTUAL_REPLACEMENT.match(followup)
+        if (
+            actual_replacement is not None
+            and needle not in actual_replacement.group("replacement")
+        ):
             rejected = True
 
         if rejected:
@@ -98,4 +187,8 @@ def expected_asserted(answer: str, expected: str) -> bool:
     return saw_positive and not saw_rejected
 
 
-__all__ = ["expected_asserted", "safe_ascii_field"]
+__all__ = [
+    "TERMINAL_FIELD_MAX_CHARS",
+    "expected_asserted",
+    "safe_ascii_field",
+]

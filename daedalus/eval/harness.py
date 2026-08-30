@@ -640,14 +640,11 @@ def run_arms(tasks: list[dict] | None = None) -> dict:
 # Tier 2 -- opt-in LLM task-success: distilled slice (A) vs whole concat (B)   #
 # --------------------------------------------------------------------------- #
 def _score(answer: str, answer_contains: list[str]) -> tuple[bool, float]:
-    """Success = every expected substring appears (case-insensitive). Also return
-    the fraction present for a softer signal."""
-    if not answer or not answer_contains:
-        return False, 0.0
-    low = answer.lower()
-    present = sum(1 for s in answer_contains if s.lower() in low)
-    frac = present / len(answer_contains)
-    return present == len(answer_contains), frac
+    """Compatibility delegate to the canonical Tier-2 scoring authority."""
+
+    from .tier2 import _score as canonical_score
+
+    return canonical_score(answer, answer_contains)
 
 
 def detect_provider(provider: str | None = None) -> dict | None:
@@ -677,107 +674,21 @@ def detect_provider(provider: str | None = None) -> dict | None:
     return {"kind": "ollama", "host": host, "model": model, "models": models}
 
 
-def _ask(prov: dict, question: str, context: str) -> str:
-    """Single text-only turn against the provider. Never raises to the caller."""
-    system = (
-        "You answer strictly from the provided CONTEXT. If the answer is not in "
-        "the context, say you cannot tell. Be brief and concrete."
-    )
-    user = f"CONTEXT:\n{context}\n\nQUESTION: {question}"
-    try:
-        from daedalus.providers._openai_compat import chat_completion
+def _ask(prov: dict, question: str, context: str) -> dict:
+    """Compatibility delegate to the canonical Tier-2 provider receipt path."""
 
-        txt = chat_completion(
-            base_url=prov["host"] + "/v1", model=prov["model"],
-            system=system, user=user, force_json=False, temperature=0.0, timeout_s=120,
-        )
-        return (txt or "").strip()
-    except Exception:
-        return ""
+    from .tier2 import _ask as canonical_ask
+
+    return canonical_ask(prov, question, context)
 
 
 def run_tier2(tasks: list[dict] | None = None, provider: str | None = None,
               cap_tokens: int = 120_000) -> dict:
-    """Opt-in Tier 2. Compares distilled-slice (A) vs whole-repo-concat (B) task
-    success + tokens. Cleanly skipped (never crashes) when no provider is up.
+    """Compatibility delegate to the canonical Tier-2 evaluator."""
 
-    B's tokens were ALREADY measured with the real tokenizer before this
-    change (``count_tokens`` is exact whenever tiktoken is installed) -- that
-    part was honest. What was NOT honest: B is capped at ``cap_tokens * 4``
-    chars before being measured, so ``tokens_B`` silently reflected a
-    TRUNCATED text, not the real whole-repo size. ``tokens_B_true`` (added
-    here) is the untruncated whole-repo token count, so a truncated B can
-    never be mistaken for the real baseline.
-    """
-    tasks = all_tasks() if tasks is None else tasks
-    prov = detect_provider(provider)
-    if prov is None:
-        return {
-            "tier": 2,
-            "skipped": True,
-            "reason": "no provider/runtime available (set OLLAMA_HOST to a "
-                      "running Ollama, or start one) -- Tier 1 is the deliverable.",
-        }
+    from .tier2 import run_tier2 as canonical_run_tier2
 
-    cap_chars = cap_tokens * 4
-    idx_cache: dict[str, dict] = {}
-    whole_cache: dict[str, tuple[str, bool]] = {}
-    whole_true_tokens_cache: dict[str, int] = {}
-    per_task: list[dict] = []
-    errored: list[dict] = []
-    for task in tasks:
-        if not task.get("question"):
-            continue
-        # Same per-task resolution guard as Tier 1/arms: a bad repo label or
-        # an unindexed target must not take down an opt-in, potentially
-        # long-running LLM run over the rest of the task set.
-        try:
-            repo = resolve_task_repo(task["repo"])
-            if repo not in idx_cache:
-                idx_cache[repo] = cached_index(repo)
-            if repo not in whole_cache:
-                whole_cache[repo] = _whole_repo_text(repo, cap_chars)
-            if repo not in whole_true_tokens_cache:
-                full_text, _ = _whole_repo_text(repo, cap_chars=None)
-                whole_true_tokens_cache[repo] = count_tokens(full_text)
-            res = semantic_slice(repo, task["target"], idx=idx_cache[repo])
-        except (ValueError, OSError) as exc:
-            errored.append(_task_error_row(task, exc))
-            continue
-        ctx_a = res["slice_text"]
-        ctx_b, truncated = whole_cache[repo]
-
-        ans_a = _ask(prov, task["question"], ctx_a)
-        ans_b = _ask(prov, task["question"], ctx_b)
-        ok_a, frac_a = _score(ans_a, task.get("answer_contains", []))
-        ok_b, frac_b = _score(ans_b, task.get("answer_contains", []))
-        per_task.append({
-            "id": task["id"],
-            "project": task_project_label(task),
-            "question": task["question"],
-            "success_A": ok_a, "frac_A": frac_a, "tokens_A": count_tokens(ctx_a),
-            "success_B": ok_b, "frac_B": frac_b, "tokens_B": count_tokens(ctx_b),
-            "b_truncated": truncated,
-            "tokens_B_true": whole_true_tokens_cache[repo],
-        })
-
-    n = len(per_task)
-    agg = {
-        "tier": 2,
-        "skipped": False,
-        "provider": {"kind": prov["kind"], "model": prov["model"], "host": prov["host"]},
-        "n_tasks": n,
-        "success_A": sum(t["success_A"] for t in per_task),
-        "success_B": sum(t["success_B"] for t in per_task),
-        "tokens_A": sum(t["tokens_A"] for t in per_task),
-        "tokens_B": sum(t["tokens_B"] for t in per_task),
-        "tokens_B_true": sum(t["tokens_B_true"] for t in per_task),
-        "b_truncated_any": any(t["b_truncated"] for t in per_task),
-        "per_task": per_task,
-        "n_errored_tasks": len(errored),
-        "errored": sorted(errored, key=lambda r: r["id"]),
-    }
-    return agg
+    return canonical_run_tier2(tasks, provider, cap_tokens)
 
 
 # --------------------------------------------------------------------------- #
