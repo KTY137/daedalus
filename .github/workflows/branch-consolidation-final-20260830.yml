@@ -27,5 +27,10 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - name: Fetch complete remote branch graph
+        shell: bash
+        run: |
+          gh auth setup-git
+          git fetch --no-tags --prune origin '+refs/heads/*:refs/remotes/origin/*'
       - name: Execute recovery-first consolidation
         run: python tools/branch_consolidate_20260830.py
