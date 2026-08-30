@@ -13,6 +13,53 @@ check the upstream contract rather than preserving accidental behavior.
 - Vivado Tcl command-line options / `-tclargs` are documented in AMD Vivado Tcl
   command references and launch-option documentation. Keep the Daedalus
   `-tclargs` mapping pinned to the currently supported Vivado CLI contract.
+- [Vivado Tcl Scripting (UG894): initializing Tcl scripts](https://docs.amd.com/r/2024.1-English/ug894-vivado-tcl-scripting/Initializing-Tcl-Scripts)
+  documents installation- and user-level startup Tcl. This is the upstream
+  basis for refusing ambient init files rather than assuming batch mode is
+  automatically free of startup state.
+- [Using Constraints (UG903): constraint-file order](https://docs.amd.com/r/en-US/ug903-vivado-using-constraints/Constraint-Files-Order)
+  establishes that ordered XDC inputs affect the design result.
+- [Using Constraints (UG903): entering XDC constraints](https://docs.amd.com/r/en-US/ug903-vivado-using-constraints/Entering-XDC-Constraints?contentId=eIp1udAqjJ9J8NVbdpKeWg)
+  documents XDC command execution and file properties. XDC is Tcl behavior,
+  not inert data or a security boundary.
+- [`config_ip_cache` Tcl command (UG835)](https://docs.amd.com/r/2024.1-English/ug835-vivado-tcl-commands/config_ip_cache)
+  is the command authority for explicitly disabling and verifying IP-cache use.
+- [Using Tcl commands to reset and generate target IP (UG896)](https://docs.amd.com/r/2025.1-English/ug896-vivado-ip/Using-Tcl-Commands-to-Reset-and-Generate-Target-IP)
+  and [`generate_target` (UG835)](https://docs.amd.com/r/2024.1-English/ug835-vivado-tcl-commands/generate_target)
+  anchor the reset/force-regeneration sequence.
+- [`IP_REPO_PATHS` property (UG912)](https://docs.amd.com/r/en-US/ug912-vivado-properties/IP_REPO_PATHS)
+  and [IP Packager XGUI Tcl outputs (UG1118)](https://docs.amd.com/r/2023.2-English/ug1118-vivado-creating-packaging-custom-ip/Outputs-from-IP-Packager)
+  show why a custom IP repository is executable/transitive input and is
+  refused until its complete catalog is content-bound.
+- [Synthesis include files (UG901)](https://docs.amd.com/r/en-US/ug901-vivado-synthesis/Include-Files)
+  and [memory initialization through file-I/O tasks (UG901)](https://docs.amd.com/r/en-US/ug901-vivado-synthesis/Loading-Memory-Contents-With-File-I/O-Tasks)
+  anchor the Gate-1 refusal of unclosed Verilog include and `$readmem*` inputs.
+- [Adding user boards to a repository (UG895)](https://docs.amd.com/r/2024.2-English/ug895-vivado-system-level-design-entry/Adding-User-Boards-to-a-Repository)
+  establishes the board catalog as a semantically active project input; a
+  mutable per-user board repository cannot be normalized away as relocation
+  metadata.
+- [`write_project_tcl` (UG835)](https://docs.amd.com/r/2024.2-English/ug835-vivado-tcl-commands/write_project_tcl)
+  and [Vivado project general settings (UG895)](https://docs.amd.com/r/en-US/ug895-vivado-system-level-design-entry/General-Settings)
+  are supporting references for FileSet/project configuration and reproducible
+  project state. They do not make XPR a stable public schema.
+
+The documentation version above establishes the launch contract; it is not a
+claim that report formats are identical across releases. The retained
+G1-EDA-01 bench evidence was produced by Vivado 2025.1.1. Native timing,
+utilization, DRC, methodology, route and message parsers are frozen against
+those retained shapes and must return `unparseable`, not guessed metrics, when
+a future format does not satisfy the contract.
+
+Vivado XPR is parsed as bounded, untrusted XML for the fields exercised by the
+retained project fixtures. Daedalus does not advertise a complete public XPR
+schema. New project-format variants require a fixture and a focused manifest
+test before the parser contract is widened.
+
+The repository-local implementation authority for this slice is
+[`G1-EDA-01_CANONICAL_VIVADO_PROJECT_RUN.md`](../work-packets/G1-EDA-01_CANONICAL_VIVADO_PROJECT_RUN.md).
+It requires package-owned Tcl, source/workspace separation, canonical effect
+admission and retained negative evidence; upstream vendor documentation does
+not replace those Daedalus policy boundaries.
 
 ## Quartus Prime
 

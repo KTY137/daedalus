@@ -55,3 +55,4 @@ exclude = ["tests*", "tools*"]
 
 [tool.setuptools.package-data]
 "daedalus.kairos" = ["_gated_writes_legacy.py.src"]
+"daedalus.chip_design" = ["tcl/*.tcl"]

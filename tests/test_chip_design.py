@@ -6,11 +6,17 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
+from unittest.mock import patch
 
 from daedalus.chip_design.cli import main as chip_main
 from daedalus.chip_design.executor import _MAX_CAPTURE_CHARS, _bounded, execute_argv
 from daedalus.chip_design.sources import classify_source, discover_sources
-from daedalus.chip_design.toolchains import build_rtl_lint_argv, build_tcl_argv
+from daedalus.chip_design.toolchains import (
+    build_rtl_lint_argv,
+    build_tcl_argv,
+    interpret_version_probe,
+    tool_status,
+)
 
 
 class SourceClassification(unittest.TestCase):
@@ -20,6 +26,9 @@ class SourceClassification(unittest.TestCase):
         self.assertEqual(classify_source("constraints/top.xdc").kind, "constraint")
         self.assertFalse(classify_source("constraints/top.xdc").synthesizable)
         self.assertEqual(classify_source("flow/build.tcl").role, "eda/automation")
+        self.assertEqual(classify_source("project/design.xpr").kind, "project")
+        self.assertEqual(classify_source("src/system.bd").kind, "block_design")
+        self.assertEqual(classify_source("ip/uart.xci").kind, "ip_config")
 
     def test_scan_is_stable_and_ignores_build_dirs(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -66,19 +75,19 @@ class TclInvocation(unittest.TestCase):
         try:
             self.assertEqual(
                 build_tcl_argv("vivado", "flow.tcl", repo_root=root, script_args=("PART=x",)),
-                ["vivado", "-mode", "batch", "-source", str(root / "flow.tcl"), "-tclargs", "PART=x"],
+                ["vivado", "-mode", "batch", "-source", str((root / "flow.tcl").resolve()), "-tclargs", "PART=x"],
             )
             self.assertEqual(
                 build_tcl_argv("quartus", "flow.tcl", repo_root=root, script_args=("Agilex",)),
-                ["quartus_sh", "-t", str(root / "flow.tcl"), "Agilex"],
+                ["quartus_sh", "-t", str((root / "flow.tcl").resolve()), "Agilex"],
             )
             self.assertEqual(
                 build_tcl_argv("yosys", "flow.tcl", repo_root=root),
-                ["yosys", "-c", str(root / "flow.tcl")],
+                ["yosys", "-c", str((root / "flow.tcl").resolve())],
             )
             self.assertEqual(
                 build_tcl_argv("openroad", "flow.tcl", repo_root=root),
-                ["openroad", "-no_init", "-exit", str(root / "flow.tcl")],
+                ["openroad", "-no_init", "-exit", str((root / "flow.tcl").resolve())],
             )
         finally:
             tmp.cleanup()
@@ -123,8 +132,36 @@ class RtlLint(unittest.TestCase):
             )
             self.assertEqual(argv[:3], ["verilator", "--lint-only", "-Wall"])
             self.assertIn("--top-module", argv)
-            self.assertIn(f"-I{root / 'inc'}", argv)
+            self.assertIn(f"-I{(root / 'inc').resolve()}", argv)
             self.assertIn("-DSIM=1", argv)
+
+
+class ToolDiscovery(unittest.TestCase):
+    def test_status_is_read_only_and_separates_discovery_from_probe(self):
+        with patch(
+            "daedalus.chip_design.toolchains.find_tool_path",
+            return_value=r"C:\\Xilinx\\2025.1\\Vivado\\bin\\vivado.bat",
+        ):
+            row = tool_status("vivado")
+        self.assertTrue(row["available"])
+        self.assertEqual(row["probe_status"], "not_run")
+        self.assertIsNone(row["version_probe_returncode"])
+
+    def test_vivado_nonzero_launcher_with_valid_banner_is_available_with_warning(self):
+        row = interpret_version_probe(
+            "vivado",
+            returncode=1,
+            stdout="Vivado v2025.1.1 (64-bit)\nSW Build 6140274",
+        )
+        self.assertEqual(row["probe_status"], "warning")
+        self.assertEqual(row["version"], "2025.1.1")
+        self.assertEqual(row["version_probe_returncode"], 1)
+        self.assertIn("exited 1", row["probe_warning"])
+
+    def test_unparseable_nonzero_probe_remains_failed(self):
+        row = interpret_version_probe("vivado", returncode=1, stderr="launcher failed")
+        self.assertEqual(row["probe_status"], "failed")
+        self.assertEqual(row["version"], "")
 
 
 class ExecutionReceipts(unittest.TestCase):
@@ -134,12 +171,14 @@ class ExecutionReceipts(unittest.TestCase):
             self.assertEqual(result.status, "planned")
             self.assertIsNone(result.returncode)
 
-    def test_live_missing_tool_is_explicit(self):
+    def test_live_missing_tool_cannot_bypass_canonical_admission(self):
         with tempfile.TemporaryDirectory() as tmp:
-            result = execute_argv(["definitely-not-an-eda-tool-9f2ce9", "--version"], cwd=tmp, dry_run=False)
-            self.assertEqual(result.status, "missing")
-            self.assertIsNone(result.returncode)
-            self.assertIn("not found on PATH", result.stderr)
+            with self.assertRaisesRegex(Exception, "NonRuntimeEffectAuthorization"):
+                execute_argv(
+                    ["definitely-not-an-eda-tool-9f2ce9", "--version"],
+                    cwd=tmp,
+                    dry_run=False,
+                )
 
     def test_capture_bound_includes_the_truncation_marker(self):
         text = "A" * (_MAX_CAPTURE_CHARS + 10_000) + "TAIL"
@@ -150,16 +189,76 @@ class ExecutionReceipts(unittest.TestCase):
         self.assertTrue(captured.startswith("A"))
         self.assertTrue(captured.endswith("TAIL"))
 
-    def test_timeout_returns_a_bounded_receipt(self):
+    def test_timeout_knob_does_not_open_an_unadmitted_live_path(self):
         with tempfile.TemporaryDirectory() as tmp:
-            result = execute_argv(
-                [sys.executable, "-c", "import time; time.sleep(1)"],
-                cwd=tmp,
-                timeout_s=0.02,
-                dry_run=False,
-            )
-            self.assertEqual(result.status, "timeout")
-            self.assertIsNone(result.returncode)
+            with self.assertRaisesRegex(Exception, "NonRuntimeEffectAuthorization"):
+                execute_argv(
+                    [sys.executable, "-c", "import time; time.sleep(1)"],
+                    cwd=tmp,
+                    timeout_s=0.02,
+                    dry_run=False,
+                )
+
+
+class CliLiveComposition(unittest.TestCase):
+    def test_raw_live_is_retired_in_favour_of_the_project_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "top.sv"
+            source.write_text("module top; endmodule\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as caught:
+                chip_main(
+                    [
+                        "lint",
+                        str(source),
+                        "--repo-root",
+                        str(root),
+                        "--live",
+                    ]
+                )
+            self.assertEqual(caught.exception.code, 2)
+            self.assertIn("live execution is disabled", stderr.getvalue())
+            self.assertIn("daedalus-chip run", stderr.getvalue())
+
+    def test_raw_live_refuses_even_when_legacy_authority_flags_are_complete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            authority = root / "authority"
+            project = root / "project"
+            workspace = root / "workspace"
+            authority.mkdir()
+            project.mkdir()
+            workspace.mkdir()
+            source = workspace / "top.sv"
+            source.write_text("module top; endmodule\n", encoding="utf-8")
+            stderr = io.StringIO()
+            with patch(
+                "daedalus.chip_design.cli.acquire_chip_eda_lease",
+                side_effect=AssertionError("raw live reached admission"),
+            ), patch(
+                "daedalus.chip_design.cli.run_admitted_eda",
+                side_effect=AssertionError("raw live reached execution"),
+            ), redirect_stderr(stderr), self.assertRaises(SystemExit) as caught:
+                chip_main(
+                    [
+                        "lint",
+                        str(source),
+                        "--repo-root",
+                        str(workspace),
+                        "--live",
+                        "--authority-root",
+                        str(authority),
+                        "--project-root",
+                        str(project),
+                        "--source-revision",
+                        "a" * 40,
+                        "--writable-path",
+                        ".",
+                    ]
+                )
+            self.assertEqual(caught.exception.code, 2)
+            self.assertIn("daedalus-chip run", stderr.getvalue())
 
 
 if __name__ == "__main__":

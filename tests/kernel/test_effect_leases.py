@@ -68,10 +68,19 @@ def scope(*, max_concurrency: int = 1) -> EffectScope:
     )
 
 
-def request(*, effect_scope: EffectScope | None = None, runtime: bool = False) -> EffectLeaseRequest:
+def request(
+    *,
+    effect_scope: EffectScope | None = None,
+    runtime: bool = False,
+    operation_sha256: str | None = None,
+) -> EffectLeaseRequest:
     runtime_manifest = "c" * 64 if runtime else None
     runtime_conformance = "d" * 64 if runtime else None
-    inputs = tuple(x for x in (runtime_manifest, runtime_conformance) if x)
+    inputs = tuple(
+        x
+        for x in (runtime_manifest, runtime_conformance, operation_sha256)
+        if x
+    )
     return EffectLeaseRequest(
         request_id="lease-request-1",
         mission_id="mission-1",
@@ -94,6 +103,7 @@ def request(*, effect_scope: EffectScope | None = None, runtime: bool = False) -
             input_digests=inputs,
             trace_id="mission-1",
         ),
+        operation_sha256=operation_sha256,
     )
 
 
@@ -133,7 +143,13 @@ def lease(*, req: EffectLeaseRequest | None = None, policy: PolicyDecision | Non
     )
 
 
-def execution(*, execution_id: str = "execution-1", idempotency_key: str = "idem-1", path: str = "workspace/out.txt"):
+def execution(
+    *,
+    execution_id: str = "execution-1",
+    idempotency_key: str = "idem-1",
+    path: str = "workspace/out.txt",
+    operation_sha256: str | None = None,
+):
     return EffectExecutionRequest(
         execution_id=execution_id,
         idempotency_key=idempotency_key,
@@ -147,6 +163,7 @@ def execution(*, execution_id: str = "execution-1", idempotency_key: str = "idem
         max_cost_microusd=100,
         kill_switch_ref="mission-kill",
         kill_switch_generation=7,
+        operation_sha256=operation_sha256,
     )
 
 
@@ -359,6 +376,37 @@ def test_scope_escalation_is_refused(tmp_path) -> None:
     )
     with pytest.raises(EffectLeaseScopeError, match="outside lease"):
         begin(ledger, value, req, policy, extra_effect)
+
+
+@pytest.mark.parametrize("execution_operation", (None, "f" * 64))
+def test_operation_bound_lease_refuses_missing_or_different_execution_operation(
+    tmp_path,
+    execution_operation: str | None,
+) -> None:
+    authorized_operation = "e" * 64
+    req = request(operation_sha256=authorized_operation)
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    ledger = EffectLeaseLedger(tmp_path / "leases.sqlite3")
+    grant(ledger, value, req, policy)
+
+    with pytest.raises(EffectLeaseScopeError, match="authorized operation"):
+        begin(
+            ledger,
+            value,
+            req,
+            policy,
+            execution(operation_sha256=execution_operation),
+        )
+
+    accepted = begin(
+        ledger,
+        value,
+        req,
+        policy,
+        execution(operation_sha256=authorized_operation),
+    )
+    assert accepted.execute is True
 
 
 def test_concurrency_ceiling_is_enforced_and_terminal_releases_slot(tmp_path) -> None:

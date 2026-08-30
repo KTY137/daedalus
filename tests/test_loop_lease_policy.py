@@ -180,6 +180,29 @@ def test_resolve_write_policy_reports_every_failure_mode_as_unusable(tmp_path):
     assert loaded.sha256 == hashlib.sha256(cfg.read_bytes()).hexdigest()
 
 
+def test_resolve_explicit_write_policy_is_authority_confined_and_byte_bound(tmp_path):
+    root = tmp_path / "authority"
+    policy = root / "control" / "chip.json"
+    policy.parent.mkdir(parents=True)
+    policy.write_text(
+        json.dumps({"policy": {"write_allow": ["."]}}), encoding="utf-8"
+    )
+
+    loaded = resolve_write_policy(root, policy_path="control/chip.json")
+
+    assert loaded.usable and loaded.confined
+    assert loaded.origin == str(policy.resolve())
+    assert loaded.sha256 == hashlib.sha256(policy.read_bytes()).hexdigest()
+
+    outside = tmp_path / "outside.json"
+    outside.write_text(
+        json.dumps({"policy": {"write_allow": ["."]}}), encoding="utf-8"
+    )
+    refused = resolve_write_policy(root, policy_path=outside)
+    assert not refused.usable
+    assert "outside" in refused.error
+
+
 # --------------------------------------------------------------------------- #
 # containment.attempt: derived, not asserted                                   #
 # --------------------------------------------------------------------------- #

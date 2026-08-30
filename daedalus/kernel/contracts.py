@@ -126,6 +126,10 @@ class EffectLeaseRequest(CanonicalContract):
     runtime_manifest_sha256: str | None
     runtime_conformance_sha256: str | None
     provenance: ContractProvenance
+    # Optional for generic compatibility.  A specialized non-runtime door may
+    # bind one concrete operation before the lease is signed.  Omitted values
+    # retain the historical wire bytes and digests.
+    operation_sha256: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -157,6 +161,12 @@ class EffectLeaseRequest(CanonicalContract):
             raise ValueError(
                 "runtime manifest and conformance digests must be supplied together"
             )
+        if self.operation_sha256 is not None:
+            object.__setattr__(
+                self,
+                "operation_sha256",
+                _sha256(self.operation_sha256, "operation_sha256"),
+            )
         if not self.effect_scope.has_effects:
             raise ValueError("effect lease request must carry a bounded effect scope")
         if not self.effect_scope.kill_switch_ref:
@@ -166,11 +176,19 @@ class EffectLeaseRequest(CanonicalContract):
             required.extend(
                 [self.runtime_manifest_sha256, self.runtime_conformance_sha256]
             )
+        if self.operation_sha256 is not None:
+            required.append(self.operation_sha256)
         _require_provenance_inputs(
             self.provenance,
             tuple(value for value in required if value is not None),
             "effect lease request",
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        body = super().to_dict()
+        if self.operation_sha256 is None:
+            body.pop("operation_sha256")
+        return body
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "EffectLeaseRequest":

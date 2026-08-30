@@ -176,15 +176,15 @@ def test_a_row_whose_contracts_this_issuer_cannot_run_is_refused_by_name():
         assert contract in contracts[0]
 
 
-def test_the_attempt_row_became_issuable_and_nothing_else_did():
-    """What 11dc0195 changed, pinned so the widening stays deliberate.
+def test_the_attempt_and_chip_rows_are_deliberately_issuable():
+    """Pin every row the shared issuer may mint, including the Gate-1 EDA door.
 
     ``python.attempt`` declared ``spine.intent_ledger`` and
     ``containment.worktree``; the issuer now runs both itself and the row also
     declares ``provider.write_policy``, without which ``issuer.effect_bounds``
     would still refuse its two write effects. The set of issuable rows is
     enumerated rather than spot-checked: a registry or issuer edit that admits a
-    sixth row fails here instead of silently minting a capability for it.
+    newly admitted row fails here instead of silently minting a capability for it.
 
     IT DID EXACTLY THAT, 2026-08-26, and the widening is recorded here rather
     than absorbed. Registering ``tools.docs_reference_check`` -- a docs reporter
@@ -199,6 +199,10 @@ def test_the_attempt_row_became_issuable_and_nothing_else_did():
     issuer's contract surface nor puts a write behind a reporter. Refusing it
     while admitting the identical two would have been an accident of order, not
     a rule.
+    G1-EDA-01 adds ``cli.daedalus_chip`` deliberately. It declares exactly
+    filesystem write, process spawn and process control, and the issuer runs
+    the corresponding write, containment and process-budget contracts. It has
+    no network, secret, spend or promotion effect.
     """
 
     spec, reasons = issuable_row("python.attempt")
@@ -209,6 +213,7 @@ def test_the_attempt_row_became_issuable_and_nothing_else_did():
         row_id for row_id in sorted(REGISTRY_BY_ID) if issuable_row(row_id)[0]
     )
     assert issuable == (
+        "cli.daedalus_chip",
         "cli.eval_ceiling",
         "python.attempt",
         "python.offload",

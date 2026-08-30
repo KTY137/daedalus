@@ -131,6 +131,10 @@ ALLOWED = {
         "runtime state seeded below the external profile root, not a repository file",
     ("docs/DESKTOP.md", "daedalus/openvscode-server"):
         "a local Docker image tag, not a repository path",
+    ("docs/chip-design/README.md", ".agentenv/chip-eda-policy.json"):
+        "an operator-owned authority-root policy path; the page explicitly records that it is absent here",
+    ("docs/chip-design/WORKFLOWS.md", ".agentenv/chip-eda-policy.json"):
+        "an operator-owned authority-root policy path; the retained dry run explicitly records its absence",
     ("docs/architecture-narrative.md", "daedalus/hermes/"):
         "named precisely as a removed bytecode husk in the same sentence",
     # Quoted precisely BECAUSE they are wrong: the page is about a tier that

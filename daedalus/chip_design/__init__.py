@@ -1,5 +1,37 @@
-"""Daedalus chip-design support: RTL discovery, EDA tool registry and Tcl execution."""
-from .executor import ExecutionResult, execute_argv
+"""Bounded chip-design inventory, planning, execution, and evidence APIs."""
+
+from .contracts import (
+    CHIP_RUN_SCHEMA,
+    ChipArtifact,
+    ChipRunReceipt,
+    build_chip_contracts,
+    build_evidence_packet,
+    default_dimensions,
+)
+from .executor import (
+    EdaExecutionAdmissionError,
+    EdaExecutionError,
+    EdaExecutionReconciliationRequired,
+    EdaExecutionStateError,
+    ExecutionArtifact,
+    ExecutionResult,
+    execute_argv,
+    run_admitted_eda,
+)
+from .execution_plan import (
+    EDA_EXECUTION_PLAN_SCHEMA,
+    EdaExecutionPlan,
+    environment_sha256,
+    sanitized_eda_environment,
+)
+from .manifest import (
+    MANIFEST_SCHEMA,
+    VivadoManifestError,
+    VivadoProjectManifest,
+    build_vivado_project_manifest,
+    canonical_path,
+    canonical_path_identity,
+)
 from .sources import SourceSpec, classify_source, discover_sources, is_rtl
 from .toolchains import (
     EdaToolSpec,
@@ -7,13 +39,68 @@ from .toolchains import (
     all_tool_status,
     build_rtl_lint_argv,
     build_tcl_argv,
+    find_tool_path,
     get_tool,
+    interpret_version_probe,
     tool_status,
+)
+from .vivado_reports import (
+    VivadoReportResult,
+    parse_vivado_message_counts_bytes,
+    parse_vivado_report,
+    vivado_artifact_identity,
+)
+from .vivado_tcl import (
+    TrustedVivadoTcl,
+    VivadoTclContractError,
+    build_vivado_flow_argv,
+    trusted_vivado_tcl,
 )
 
 __all__ = [
-    "EdaToolSpec", "ExecutionResult", "SourceSpec", "TOOLS",
-    "all_tool_status", "build_rtl_lint_argv", "build_tcl_argv",
-    "classify_source", "discover_sources", "execute_argv", "get_tool",
-    "is_rtl", "tool_status",
+    "CHIP_RUN_SCHEMA",
+    "MANIFEST_SCHEMA",
+    "TOOLS",
+    "ChipArtifact",
+    "ChipRunReceipt",
+    "EdaExecutionAdmissionError",
+    "EdaExecutionError",
+    "EdaExecutionReconciliationRequired",
+    "EdaExecutionStateError",
+    "EdaExecutionPlan",
+    "EDA_EXECUTION_PLAN_SCHEMA",
+    "EdaToolSpec",
+    "ExecutionArtifact",
+    "ExecutionResult",
+    "SourceSpec",
+    "TrustedVivadoTcl",
+    "VivadoManifestError",
+    "VivadoProjectManifest",
+    "VivadoReportResult",
+    "VivadoTclContractError",
+    "all_tool_status",
+    "build_chip_contracts",
+    "build_evidence_packet",
+    "build_rtl_lint_argv",
+    "build_tcl_argv",
+    "build_vivado_flow_argv",
+    "build_vivado_project_manifest",
+    "canonical_path",
+    "canonical_path_identity",
+    "classify_source",
+    "default_dimensions",
+    "discover_sources",
+    "execute_argv",
+    "environment_sha256",
+    "find_tool_path",
+    "get_tool",
+    "interpret_version_probe",
+    "is_rtl",
+    "parse_vivado_report",
+    "parse_vivado_message_counts_bytes",
+    "run_admitted_eda",
+    "sanitized_eda_environment",
+    "tool_status",
+    "trusted_vivado_tcl",
+    "vivado_artifact_identity",
 ]

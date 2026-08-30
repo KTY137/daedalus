@@ -9,7 +9,7 @@ stage equally well.
 
 | Role | Useful tools | Daedalus use |
 | --- | --- | --- |
-| RTL inventory | built-in `chip_design.sources` | classify RTL, headers, constraints and flow scripts without starting a tool |
+| RTL/project inventory | built-in `chip_design.sources` and `chip_design.manifest` | classify RTL/constraints, distinguish XPR/BD/XCI, and bind an existing Vivado project without starting a tool |
 | SystemVerilog style/parser tooling | Verible | cheap style/syntax feedback, formatting ecosystem |
 | Strong SystemVerilog front end | Surelog/UHDM | future richer parsing/elaboration metadata for complex SV designs |
 | Verilog/SystemVerilog lint/compile | Verilator | fast deterministic `--lint-only -Wall`; simulation/compiled models when needed |
@@ -20,12 +20,13 @@ stage equally well.
 | Open formal orchestration | SymbiYosys | property checking around Yosys + solver backends |
 | Open ASIC physical design | OpenROAD | Tcl-controlled physical implementation and timing-oriented flow stages |
 | Open RTL-to-GDS composition | OpenLane 2 | composes Yosys/OpenROAD/KLayout and related steps into broader flows |
-| AMD/Xilinx FPGA | Vivado | RTL synthesis, implementation, timing, reports, bitstream; Tcl automation |
+| AMD/Xilinx FPGA | Vivado | admitted existing-XPR inspection, synthesis, implementation, native reports and bitstream through static packaged Tcl |
 | Intel/Altera FPGA | Quartus Prime | analysis/synthesis, fitter, TimeQuest, programming files; Tcl automation |
 
 This table is a workflow map, not an instruction to install every tool on every
-machine. `daedalus-chip status` exposes which registered capabilities are
-actually present.
+machine. `daedalus-chip status` performs effect-free executable discovery.
+Version probing is a distinct admitted observation; discovery alone does not
+claim that a launcher ran successfully.
 
 ## RTL source intelligence
 
@@ -36,14 +37,21 @@ The dedicated hardware scanner recognizes:
 .sv         SystemVerilog RTL
 .vh/.svh    Verilog/SystemVerilog headers
 .vhd/.vhdl  VHDL RTL
-.xdc        Xilinx design/timing constraints
+.xdc        Xilinx design/timing constraints; executable Tcl when admitted by Vivado
 .sdc        Synopsys Design Constraints / timing constraints
 .qsf        Quartus settings/assignments
-.tcl        EDA automation
+.xpr        Vivado project XML
+.bd         Vivado block-design source
+.xci        Vivado IP configuration source
+.tcl        EDA automation; inventoried but refused as active project automation in G1
 .do         simulator automation (classified, not executed by the Tcl command)
 .sby        formal flow configuration
 .f          source filelist
 ```
+
+The XPR manifest additionally detects `.xcix`/`.xco` core-container
+references and refuses them as opaque inputs in Gate 1; that refusal is not a
+claim that the generic source scanner classifies those formats.
 
 This is deliberately separate from the existing generic StructCore language
 registry for the first slice. The next integration step should teach StructCore
@@ -137,19 +145,102 @@ Daedalus should report exactly what ran.
 
 ### Vivado
 
-The currently researched contract uses Vivado 2026.1 documentation for batch
-Tcl execution. The tool is appropriate for AMD/Xilinx device synthesis,
-implementation, timing, DRC and bitstream flows.
+The canonical G1-EDA-01 contract uses Vivado batch Tcl for an existing XPR, but
+does not execute a project-selected script. `inspect` first binds the source
+manifest without Vivado. `plan` selects the static packaged Tcl and constructs
+argv without effects. `run` compares a disjoint workspace XPR to the source
+Identity `/3`, which conservatively includes authored input order/bytes/scopes,
+project/fileset/file configuration and semantic run strategies while excluding
+relocation/activity state and compiler products below declared generated/cache/
+run roots. The exact workspace manifest still binds those product bytes.
+Active `.tcl`, `.bat`, `.cmd`, `.exe` and `.ps1`
+project automation and every active `FILE_TYPE=Tcl` file are refused. Declared
+`.xdc` is admitted only as `FILE_TYPE=XDC`, remains intentionally executable,
+and must be operator-trusted including any transitive Tcl behavior. It is not
+contained by the suffix/type guard, and no XDC guard is a security boundary.
 
-High-value parsed metrics for a future adapter:
+Manifest preflight fails closed on custom IP or board repositories,
+include-directory roots, path-bearing run arguments, FileSet/BD/XCI path
+escapes, unsafe `DefaultLaunch`/run/`GeneratedRun` paths, links/junctions or
+unbound dependency members, Verilog include directives and
+`$readmemh`/`$readmemb`, VHDL TextIO file input and opaque core
+containers. These conditions remain visible in read-only inspection but
+prevent planning and live admission until their inputs can be content-bound.
 
-- WNS/TNS and hold metrics;
-- unconstrained path counts;
+Live admission requires an operator-owned `--write-policy` path inside the
+authority root; `{"policy":{"write_allow":["."]}}` is the explicit
+whole-isolated-workspace form. Missing, malformed, empty/unconfined or denying
+policy material fails closed. `run` also requires a stable operator-supplied
+`--attempt-id` and exactly one `--writable-path .`. The execution request is
+bound to an exact `EdaExecutionPlan` covering argv, cwd, phase-exact native artifacts,
+authority-derived CAS root, timeout, sanitized environment, manifests, trusted
+Tcl, standard-install launcher bytes and, on Windows, the resolved system
+`cmd.exe` bytes. Its digest is signed into the
+specialized lease. Authority is rechecked immediately before spawn and while
+the managed process runs; terminal replay is inert, same-attempt lease
+reacquisition is refused, and a durable `STARTED` execution requires
+reconciliation. A safely proven pre-spawn failure may terminalize, but an
+ambiguous managed-process constructor/spawn exception or interrupt after
+`STARTED` stays pending because child existence cannot be disproved. Ambient
+startup Tcl and host tool/profile search paths are refused, but environment
+sanitization is not an OS network sandbox. Policy admission records the
+declared write scope; it does not OS-enforce that scope on Vivado.
+
+Byte-binding the launcher and command interpreter does not make the full
+vendor toolchain hermetic. Transitive Vivado binaries, device data and built-in
+IP/board catalogs remain trusted installation state and must be reported as
+residual trust.
+
+Source, workspace and authority roots are pairwise disjoint. CLI
+`--source-revision` is the authority checkout's exact lowercase 40-hex Git
+HEAD; the design manifest and Source Identity `/3` are distinct 64-hex
+SHA-256 identities.
+
+Plan and run outputs are restricted to proper descendants of the workspace
+`.daedalus-chip/` namespace. Runtime also rechecks the project default-launch
+and write roots and requires the selected synthesis/implementation run
+`DIRECTORY` values to be non-empty and workspace-local.
+
+Workspace separation is not an OS-level anti-tamper lock. An independent host
+process can still race Vivado between manifest/Tcl checks. Spawned phases
+retain an exact post-run workspace manifest and require unchanged authored
+Source Identity `/3` for success, but that end-state evidence cannot rule out a
+transient write-and-restore race. The operator must enforce single-writer use,
+and any known concurrent mutation invalidates the result.
+
+Synthesis-capable phases disable and verify IP-cache use, regenerate XCI/BD
+targets, reset all synthesis runs, and disable synthesis and implementation
+incremental checkpoint reuse. Implementation performs and retains its own
+fresh synthesis checkpoint before place/route. The strict summary binds
+the exact phase/project/part/top/runs, parseable Vivado version and completion
+facts; timing prose must agree with numeric slack and endpoint metrics.
+
+The current strict native-report adapter exposes:
+
+- WNS/TNS, hold and pulse-width metrics;
+- selected missing-clock/unconstrained endpoint counts;
 - LUT/FF/BRAM/DSP utilization;
 - route/implementation status;
-- DRC severity counts;
-- clock utilization/skew where relevant;
-- critical warnings.
+- DRC and methodology rule/severity counts;
+- cumulative Vivado message counts; and
+- byte identity for reports, checkpoints and bitstreams.
+
+Each parser reports `parsed`, `missing` or `unparseable`. A process return code
+or bitstream file is not substituted for a missing report. DRC/methodology
+passes require `checks_found=0` and every retained severity count to be zero;
+warnings do not pass. Clock
+utilization/skew, CDC/RDC and other unimplemented dimensions stay explicit
+future evidence rather than inferred success.
+
+The current `tdc_light_version` probe is intentionally incomplete. Read-only
+`inspect` emits its manifest and returns nonzero for `complete=false`; it finds
+a mutable per-user `BoardPartRepoPaths` for the Xilinx board store. Because the
+board flow affects design semantics and the catalog is not content-addressed,
+`plan` safely refuses pending a pinned board catalog. A recorded vendor-catalog
+MicroBlaze boot-loop resource remains explicit transitive installation trust.
+On 2026-08-30 the operator switch was `STOP` and the chip write policy was
+absent, so no canonical live rerun was admitted. The earlier Vivado 2025.1.1
+run used two cached OOC IP results and remains separate non-clean-room history.
 
 ### Quartus Prime
 
@@ -189,18 +280,24 @@ without coupling core Daedalus to them. Likely future capability classes are:
 Adapters should expose semantic operations and receipts while keeping the
 actual executable/license installation outside the Python package.
 
-## What to implement next
+## What remains after G1-EDA-01
 
-Priority order after the first slice:
+The existing-XPR manifest, static Tcl flow, canonical live admission, native
+Vivado parsers and shared chip evidence contracts form the current
+vertical-slice implementation. The packet remains an implementation packet
+until its required system verification, independent review and evidence
+handoff are complete. Later packets may address, in evidence-first order:
 
 1. integrate Verilog/SystemVerilog/VHDL/Tcl into StructCore indexing;
 2. parse Verilator/Verible diagnostics into structured findings;
 3. add simulator + cocotb run receipts;
 4. add Yosys synthesis report/netlist metrics;
-5. add Vivado report parsers (timing, utilization, DRC);
-6. add OpenROAD/OpenLane timing/area/DRC metric ingestion;
-7. add a generic `ChipRun` evidence model shared by FPGA and ASIC backends;
-8. add formal/CDC/equivalence gates as explicit optional dimensions.
+5. add OpenROAD/OpenLane timing/area/DRC metric ingestion; and
+6. add formal/CDC/equivalence gates as explicit optional dimensions.
 
 That order gives Daedalus useful RTL reasoning and deterministic verification
 before it starts optimizing expensive implementation flows.
+
+Vitis/XSCT/`v++` application builds, FPGA programming and hardware-in-the-loop
+are not implied by an XSA, bitstream or Vivado receipt. They require separate
+work packets, authority, artifact contracts and independent evidence.

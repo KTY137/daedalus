@@ -180,6 +180,41 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         notes="Console script installs the spend guard, then dispatches local subcommands.",
     ),
     EntrypointSpec(
+        id="cli.daedalus_chip",
+        surface=Surface.CLI,
+        target="daedalus.chip_design.cli:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+        ),
+        guard_contracts=(
+            "budget.process_guard",
+            "provider.write_policy",
+            "containment.attempt",
+        ),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.chip_design.cli:main", "run_admitted_eda"),
+            GuardAnchor(
+                "daedalus.chip_design.executor:run_admitted_eda",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "The daedalus-chip console owner delegates each admitted live EDA "
+            "run through run_admitted_eda with an injected non-runtime effect "
+            "authorization. One anchor proves the direct CLI delegation and "
+            "the second names the durable begin_effect consumption that owns "
+            "the workspace writes. Dry-run inspection is effect-free; the "
+            "live row grants neither network nor secrets."
+        ),
+        migration=(
+            "G1-EDA-01 central owner; live execution is mechanically anchored "
+            "at run_admitted_eda and its durable begin_effect"
+        ),
+    ),
+    EntrypointSpec(
         id="web.server",
         surface=Surface.WEB_API,
         target="daedalus.web_api:run",

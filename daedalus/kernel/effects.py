@@ -94,6 +94,7 @@ class EffectExecutionRequest:
     max_cost_microusd: int | None = 0
     kill_switch_ref: str = ""
     kill_switch_generation: int = 0
+    operation_sha256: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "execution_id", _identifier(self.execution_id, "execution_id"))
@@ -149,6 +150,12 @@ class EffectExecutionRequest:
             self.kill_switch_generation, int
         ) or self.kill_switch_generation < 0:
             raise ValueError("kill_switch_generation must be a non-negative integer")
+        if self.operation_sha256 is not None:
+            object.__setattr__(
+                self,
+                "operation_sha256",
+                _sha256(self.operation_sha256, "operation_sha256"),
+            )
         # Validate names against the canonical Effect enum without changing
         # their deterministic sorted representation.
         for value in self.requested_effects:
@@ -158,7 +165,13 @@ class EffectExecutionRequest:
                 raise ValueError(f"unknown requested effect {value!r}") from exc
 
     def to_dict(self) -> dict[str, object]:
-        return dataclasses.asdict(self)
+        body = dataclasses.asdict(self)
+        # Preserve the existing wire identity for generic consumers that do
+        # not yet bind an operation-specific plan. The chip entrypoint requires
+        # this field and therefore always carries it in its execution digest.
+        if self.operation_sha256 is None:
+            body.pop("operation_sha256")
+        return body
 
     @property
     def digest(self) -> str:
@@ -287,7 +300,18 @@ def _path_within(candidate: str, root: str) -> bool:
     return root_path == PurePosixPath(".") or candidate_path == root_path or root_path in candidate_path.parents
 
 
-def _validate_narrowed_scope(request: EffectExecutionRequest, lease: EffectLease) -> None:
+def _validate_narrowed_scope(
+    request: EffectExecutionRequest,
+    lease: EffectLease,
+    authorization_request: EffectLeaseRequest,
+) -> None:
+    if (
+        authorization_request.operation_sha256 is not None
+        and request.operation_sha256 != authorization_request.operation_sha256
+    ):
+        raise EffectLeaseScopeError(
+            "execution operation_sha256 does not match the authorized operation"
+        )
     granted_effects = set(lease.requested_effects)
     requested_effects = set(request.requested_effects)
     if not requested_effects <= granted_effects:
@@ -713,7 +737,7 @@ class EffectLeaseLedger:
             now=verification_instant,
             registry=registry,
         )
-        _validate_narrowed_scope(execution, lease)
+        _validate_narrowed_scope(execution, lease, request)
         registry_map = _registry_map(registry)
         boundary = begin_effect(
             lease.entrypoint_id,
