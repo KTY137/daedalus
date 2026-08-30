@@ -15,6 +15,7 @@ on:
   push:
     branches:
       - core/fourfold-v2
+      - exp/tensor-kernel-contract-01
     paths:
       - "daedalus/twin/**"
       - "tests/twin/**"
