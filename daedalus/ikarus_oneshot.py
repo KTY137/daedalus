@@ -8,9 +8,11 @@ template registry, provider client, or second runtime authority.
 
 This module is deliberately effect-free.  It does not call a model, open a
 network connection, read chat history, resolve credentials, or grant a tool.
-It only builds an immutable request and admits the selected runtime identity
-against already-existing canonical runtime-conformance evidence.  Real provider
-execution still has to pass through ``daedalus.runtimes.broker``.
+It only builds an immutable request and binds the selected runtime identity to
+already-existing canonical runtime-conformance evidence.  A tool-capable
+manifest may be observed here, but tool exposure remains empty on the request
+and requires a separate canonical-policy projection.  Real provider execution
+still has to pass through ``daedalus.runtimes.broker``.
 """
 from __future__ import annotations
 
@@ -97,7 +99,9 @@ class OneShotRequest:
     The request has no conversation/session/thread/memory identifier and no
     message-history parameter.  Its iteration limit is structurally one.  A
     caller may choose a runtime, prompt and canonical resource budget; it cannot
-    smuggle another turn or an ambient transcript into this contract.
+    smuggle another turn or an ambient transcript into this contract.  Tool
+    exposure is intentionally absent here and must be supplied by a separate
+    projection over canonical runtime and policy authority.
     """
 
     purpose: str
@@ -175,6 +179,9 @@ class OneShotRequest:
         rows: list[OneShotMessage] = []
         if self.instructions.strip():
             rows.append(OneShotMessage(role="system", content=self.instructions))
+        # Match the upstream one-shot shape: there is always exactly one user
+        # message, even when its content is empty and the instructions carry the
+        # whole prompt.
         rows.append(OneShotMessage(role="user", content=self.user_input))
         return tuple(rows)
 
@@ -198,7 +205,15 @@ class OneShotRequest:
 
 @dataclass(frozen=True)
 class OneShotRuntimeEvidenceBinding:
-    """Read-only projection joining one request to existing runtime evidence."""
+    """Read-only projection joining one request to existing runtime evidence.
+
+    This is not a RuntimeConformanceReceipt, Effect Lease, provider authority or
+    permission to execute.  It exists so Ikarus can retain one exact answer to
+    "which already-conformant runtime identity was selected for this stateless
+    request?" without creating a second trust contract.  It may bind a
+    tool-capable runtime manifest; that fact is capability evidence only and
+    grants no tool to this request.
+    """
 
     request_sha256: str
     role: str
@@ -247,6 +262,15 @@ def bind_oneshot_runtime_evidence(
     now: datetime,
     max_conformance_age: timedelta = timedelta(days=7),
 ) -> OneShotRuntimeEvidenceBinding:
+    """Bind a stateless request to current canonical runtime evidence.
+
+    The selected manifest must match the exact Ikarus role binding.  A manifest
+    may declare tools, but this seam does not expose them: ``OneShotRequest`` is
+    structurally tool-less and the separate policy-bound tool projection must
+    explicitly select any subset later.  Capability declaration never becomes
+    permission by appearing here.
+    """
+
     if type(request) is not OneShotRequest:
         raise OneShotRuntimeRefused("request must be an exact OneShotRequest")
     if type(binding) is not RuntimeRoleSnapshot:
@@ -264,8 +288,14 @@ def bind_oneshot_runtime_evidence(
         "request binding digest": (request.runtime_binding_sha256, binding.digest),
         "manifest runtime_id": (manifest.runtime_id, binding.runtime_id),
         "manifest adapter_id": (manifest.adapter_id, binding.adapter_id),
-        "manifest adapter_version": (manifest.adapter_version, binding.adapter_version),
-        "manifest source_revision": (manifest.source_revision, binding.source_revision),
+        "manifest adapter_version": (
+            manifest.adapter_version,
+            binding.adapter_version,
+        ),
+        "manifest source_revision": (
+            manifest.source_revision,
+            binding.source_revision,
+        ),
     }
     mismatch = sorted(
         label for label, (actual, expected) in comparisons.items() if actual != expected
@@ -275,15 +305,14 @@ def bind_oneshot_runtime_evidence(
             "one-shot runtime identity mismatch: " + ", ".join(mismatch)
         )
 
-    if manifest.declared_tools:
-        raise OneShotRuntimeRefused(
-            "one-shot tool scope is deny-by-default until canonical tool-scope projection lands"
-        )
     if not manifest.capabilities.timeout:
         raise OneShotRuntimeRefused(
             "one-shot runtime manifest must declare timeout capability"
         )
-    if request.budget.max_cost_microusd is not None and not manifest.capabilities.cost_reporting:
+    if (
+        request.budget.max_cost_microusd is not None
+        and not manifest.capabilities.cost_reporting
+    ):
         raise OneShotRuntimeRefused(
             "a cost-bounded one-shot requires runtime cost reporting"
         )
