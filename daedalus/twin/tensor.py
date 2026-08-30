@@ -153,7 +153,7 @@ class TensorView(CanonicalContract):
         object.__setattr__(self, "source_revision", _revision(self.source_revision, "source_revision"))
         object.__setattr__(self, "source_forest_sha256", _sha256(self.source_forest_sha256, "source_forest_sha256"))
         object.__setattr__(self, "source_fourfold_sha256", _sha256(self.source_fourfold_sha256, "source_fourfold_sha256"))
-        if self.status not in TENSOR_STATUSES:
+        if not isinstance(self.status, str) or self.status not in TENSOR_STATUSES:
             raise ValueError("tensor.status must be complete, partial, or absent")
 
         raw_axes = _bounded_sequence(self.axes, "tensor.axes", MAX_TENSOR_AXES)
@@ -195,6 +195,8 @@ class TensorView(CanonicalContract):
 
         object.__setattr__(self, "entries", tuple(sorted(entries, key=order)))
         reason = self.reason
+        if not isinstance(reason, str):
+            raise ValueError("tensor.reason must be a string")
         if reason:
             reason = _non_empty(reason, "tensor.reason", max_length=2000)
             object.__setattr__(self, "reason", reason)
