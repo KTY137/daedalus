@@ -3,12 +3,17 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
+import threading
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 from daedalus import budget as budget_kernel
+from daedalus import desktop_runtime as desktop_runtime_module
+from daedalus import file_bridge
 from daedalus import sensitivity
 from daedalus.limit_policy import (
     ExecutionLimitPolicy,
@@ -182,6 +187,292 @@ def test_defaults_autostart_bridge_and_local_ollama():
     }
     assert cfg["ollama"]["auto_start"] is True
     assert cfg["ollama"]["mode"] == "local"
+
+
+def test_bridge_pid_liveness_distinguishes_current_from_exited_process():
+    child = subprocess.Popen(
+        [sys.executable, "-c", "pass"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    child.wait(timeout=5.0)
+
+    assert desktop_runtime_module._pid_is_alive(os.getpid()) is True
+    assert desktop_runtime_module._pid_is_alive(child.pid) is False
+    assert desktop_runtime_module._pid_is_alive(None) is False
+    assert desktop_runtime_module._pid_is_alive(0x8000_0000) is False
+    assert desktop_runtime_module._pid_is_alive(0xFFFF_FFFF) is False
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows process exit-code semantics")
+def test_bridge_pid_liveness_does_not_confuse_exit_259_with_still_running():
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import sys; sys.exit(259)"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    assert child.wait(timeout=5.0) == 259
+
+    # Popen deliberately retains a process handle here, so OpenProcess can
+    # still find the terminated process.  WaitForSingleObject must classify
+    # it as signalled rather than trusting the ambiguous STILL_ACTIVE value.
+    assert desktop_runtime_module._pid_is_alive(child.pid) is False
+
+
+def test_bridge_watcher_lock_is_atomic_and_released(tmp_path):
+    lock_path = tmp_path / "bridge_watcher.lock"
+
+    with file_bridge._BridgeWatcherLock(lock_path):
+        with pytest.raises(file_bridge.WatcherOwnershipBusy):
+            with file_bridge._BridgeWatcherLock(lock_path):
+                pytest.fail("a second owner acquired the same OS lock")
+
+    with file_bridge._BridgeWatcherLock(lock_path):
+        pass
+
+
+def test_two_desktop_managers_racing_create_exactly_one_bridge_owner(
+    tmp_path, monkeypatch
+):
+    lock_path = tmp_path / "bridge_watcher.lock"
+    heartbeat: dict[str, object] = {}
+    heartbeat_lock = threading.Lock()
+
+    def heartbeat_status():
+        with heartbeat_lock:
+            return dict(heartbeat) if heartbeat else {"state": "none"}
+
+    def claimed_watch(
+        default_repo_root,
+        interval_s,
+        project=None,
+        *,
+        owner_token=None,
+        process_identity=None,
+        stop_event=None,
+    ):
+        with file_bridge._BridgeWatcherLock(lock_path):
+            with heartbeat_lock:
+                heartbeat.update(
+                    {
+                        "state": "alive",
+                        "pid": os.getpid(),
+                        "owner_token": owner_token,
+                        "process_identity": process_identity,
+                    }
+                )
+            stop_event.wait(5.0)
+
+    monkeypatch.setattr(file_bridge, "heartbeat_status", heartbeat_status)
+    monkeypatch.setattr(file_bridge, "watch", claimed_watch)
+    managers = [DesktopRuntimeManager(tmp_path), DesktopRuntimeManager(tmp_path)]
+    callers_ready = threading.Barrier(2)
+    results: list[dict[str, object] | None] = [None, None]
+
+    def start(index):
+        callers_ready.wait(timeout=5.0)
+        results[index] = managers[index].ensure_bridge()
+
+    callers = [threading.Thread(target=start, args=(index,)) for index in range(2)]
+    try:
+        for caller in callers:
+            caller.start()
+        for caller in callers:
+            caller.join(timeout=5.0)
+
+        assert not any(caller.is_alive() for caller in callers)
+        assert sum(bool(result and result["managed"]) for result in results) == 1
+        assert (
+            sum(
+                bool(manager._bridge and manager._bridge.is_alive())
+                for manager in managers
+            )
+            == 1
+        )
+    finally:
+        for manager in managers:
+            manager.close()
+        for manager in managers:
+            if manager._bridge:
+                manager._bridge.join(timeout=2.0)
+
+
+def test_bridge_start_post_takes_over_a_dead_persisted_heartbeat(
+    tmp_path, monkeypatch
+):
+    manager = DesktopRuntimeManager(tmp_path)
+    started = threading.Event()
+    release = threading.Event()
+    starts: list[int] = []
+    old_pid = os.getpid() + 100_000
+    owner: dict[str, str] = {}
+
+    def heartbeat_status():
+        if started.is_set():
+            return {
+                "state": "alive",
+                "pid": os.getpid(),
+                "project": "daedalus",
+                "repo_root": str(tmp_path),
+                "age_s": 0.0,
+                "owner_token": owner["token"],
+                "process_identity": owner["identity"],
+            }
+        return {
+            "state": "alive",
+            "pid": old_pid,
+            "project": "daedalus",
+            "repo_root": str(tmp_path),
+            "age_s": 1.0,
+        }
+
+    def watch_bridge(
+        default_repo_root,
+        interval_s,
+        project=None,
+        *,
+        owner_token=None,
+        process_identity=None,
+        stop_event=None,
+    ):
+        starts.append(threading.get_ident())
+        owner["token"] = owner_token
+        owner["identity"] = process_identity
+        started.set()
+        release.wait(5.0)
+
+    monkeypatch.setattr(file_bridge, "heartbeat_status", heartbeat_status)
+    monkeypatch.setattr(file_bridge, "watch", watch_bridge)
+
+    class BaseHandler:
+        path = ""
+
+        def _send_json(self, payload, status=200):
+            self.sent = (payload, status)
+
+        def _handle_post(self):
+            self.fell_through = True
+
+    web_api = SimpleNamespace(
+        DaedalusHandler=BaseHandler,
+        _read_body=lambda handler: {},
+        core=SimpleNamespace(envelope=lambda project, **payload: payload),
+    )
+    install_web_integration(web_api, manager)
+
+    try:
+        request = web_api.DaedalusHandler()
+        request.path = "/api/desktop/services/bridge/start"
+        request._handle_post()
+
+        service, status = request.sent
+        assert status == 200
+        assert service["service"]["managed"] is True
+        assert service["service"]["state"] == "alive"
+        assert service["service"]["pid"] == os.getpid()
+        assert starts and len(starts) == 1
+
+        first_thread = manager._bridge
+        repeated = manager.ensure_bridge()
+        assert repeated["managed"] is True
+        assert manager._bridge is first_thread
+        assert len(starts) == 1
+    finally:
+        release.set()
+        manager.close()
+        if manager._bridge:
+            manager._bridge.join(timeout=2.0)
+
+
+def test_live_external_bridge_owner_is_not_duplicated(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    external_pid = os.getpid() + 100_000
+    starts: list[str] = []
+    monkeypatch.setattr(
+        file_bridge,
+        "heartbeat_status",
+        lambda: {
+            "state": "alive",
+            "pid": external_pid,
+            "project": "other-owner",
+            "repo_root": str(tmp_path),
+            "age_s": 0.1,
+            "owner_token": "external-owner-token",
+            "process_identity": "external-process-identity",
+        },
+    )
+
+    def occupied_watch(*args, **kwargs):
+        starts.append(kwargs["owner_token"])
+        raise file_bridge.WatcherOwnershipBusy("synthetic external owner")
+
+    monkeypatch.setattr(file_bridge, "watch", occupied_watch)
+
+    try:
+        status = manager.ensure_bridge()
+        assert status["managed"] is False
+        assert status["pid"] == external_pid
+        assert manager._bridge is not None and not manager._bridge.is_alive()
+        assert len(starts) == 1
+        assert "external owner" in status["last_error"]
+    finally:
+        manager.close()
+
+
+def test_bridge_owner_token_and_process_identity_prevent_pid_reuse_adoption(
+    tmp_path,
+):
+    manager = DesktopRuntimeManager(tmp_path)
+    release = threading.Event()
+    manager._bridge_owner_token = "new-owner-token"
+    manager._bridge_process_identity = "new-process-identity"
+    manager._bridge = threading.Thread(target=lambda: release.wait(2.0), daemon=True)
+    manager._bridge.start()
+    try:
+        reused_pid_status = {
+            "state": "alive",
+            "pid": os.getpid(),
+            "owner_token": "old-owner-token",
+            "process_identity": "old-process-identity",
+        }
+        assert manager._bridge_status_is_managed(reused_pid_status) is False
+        assert manager._bridge_status_is_managed(
+            {
+                **reused_pid_status,
+                "owner_token": "new-owner-token",
+                "process_identity": "new-process-identity",
+            }
+        ) is True
+    finally:
+        release.set()
+        manager.close()
+        manager._bridge.join(timeout=2.0)
+
+
+def test_bridge_start_failure_never_reports_managed(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    monkeypatch.setattr(
+        file_bridge,
+        "heartbeat_status",
+        lambda: {"state": "none", "detail": "no heartbeat"},
+    )
+    monkeypatch.setattr(
+        file_bridge,
+        "watch",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            PermissionError("synthetic boundary refusal")
+        ),
+    )
+    try:
+        status = manager.ensure_bridge()
+        assert status["managed"] is False
+        assert status["state"] == "none"
+        assert "synthetic boundary refusal" in status["last_error"]
+        assert manager._bridge is not None and not manager._bridge.is_alive()
+    finally:
+        manager.close()
 
 
 @pytest.mark.parametrize(

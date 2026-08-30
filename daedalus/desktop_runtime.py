@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -175,6 +176,91 @@ def _numeric_host(value: str) -> str | None:
     if addr.is_unspecified or addr.is_multicast or addr.is_reserved or addr.is_link_local:
         return None
     return str(addr)
+
+
+def _pid_is_alive(value: Any) -> bool:
+    """Return whether a heartbeat PID still names a live process.
+
+    A bridge heartbeat is persistent runtime state, not an ownership lease.  In
+    particular it commonly survives the packaged backend that wrote it.  The
+    desktop may use it to avoid starting a second live watcher, but only after
+    checking the process named by the heartbeat.  ``os.kill(pid, 0)`` is not
+    used on Windows: Python maps non-console signals there to
+    ``TerminateProcess``, so a liveness read must go through a query handle.
+    """
+
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        return False
+    try:
+        pid = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if pid <= 0 or pid > 0xFFFF_FFFF:
+        return False
+    # POSIX ``pid_t`` is a signed C integer on every supported target.  Python
+    # raises OverflowError before issuing kill(2) for the upper DWORD half.
+    if os.name != "nt" and pid > 0x7FFF_FFFF:
+        return False
+    if pid == os.getpid():
+        return True
+
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            synchronize = 0x0010_0000
+            wait_object_0 = 0
+            wait_timeout = 258
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.argtypes = [
+                wintypes.DWORD,
+                wintypes.BOOL,
+                wintypes.DWORD,
+            ]
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel32.CloseHandle.restype = wintypes.BOOL
+
+            handle = kernel32.OpenProcess(
+                synchronize,
+                False,
+                pid,
+            )
+            if not handle:
+                # Access denied proves that a process owns the PID even though
+                # this user cannot inspect it.  ERROR_INVALID_PARAMETER is what
+                # OpenProcess reports for an exited/nonexistent PID; every
+                # other failure remains conservatively live so a query failure
+                # cannot create a second watcher.
+                return ctypes.get_last_error() != 87
+            try:
+                waited = kernel32.WaitForSingleObject(handle, 0)
+                if waited == wait_object_0:
+                    return False
+                if waited == wait_timeout:
+                    return True
+                # WAIT_FAILED or an unknown result is a query failure, not
+                # evidence that it is safe to create a second watcher.
+                return True
+            finally:
+                kernel32.CloseHandle(handle)
+        except (AttributeError, OSError, ValueError):
+            return True
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OverflowError:
+        return False
+    except OSError:
+        return True
+    return True
 
 
 def normalize_config(
@@ -357,6 +443,10 @@ class DesktopRuntimeManager:
         self.log_path = self.root / LOG_REL
         self._lock = threading.RLock()
         self._bridge: threading.Thread | None = None
+        self._bridge_owner_token: str | None = None
+        self._bridge_process_identity: str | None = None
+        self._bridge_start_error = ""
+        self._bridge_stop = threading.Event()
         self._tunnel: subprocess.Popen[bytes] | None = None
         self._ollama: subprocess.Popen[bytes] | None = None
         self._ide: subprocess.Popen[bytes] | None = None
@@ -690,36 +780,86 @@ class DesktopRuntimeManager:
 
     # Bridge ---------------------------------------------------------------
 
-    def _watch_bridge(self) -> None:
+    def _watch_bridge(
+        self,
+        owner_token: str,
+        process_identity: str,
+        stop_event: threading.Event,
+    ) -> None:
         from . import file_bridge
 
-        while not self._closed:
-            try:
-                file_bridge.watch(str(self.root), 2.0, project="daedalus")
-            except Exception as exc:
-                self._log(f"bridge failed: {type(exc).__name__}: {exc}")
-                if not self._closed:
-                    time.sleep(2)
+        try:
+            file_bridge.watch(
+                str(self.root),
+                2.0,
+                project="daedalus",
+                owner_token=owner_token,
+                process_identity=process_identity,
+                stop_event=stop_event,
+            )
+        except Exception as exc:
+            detail = f"{type(exc).__name__}: {exc}"
+            with self._lock:
+                if self._bridge_owner_token == owner_token:
+                    self._bridge_start_error = detail
+            self._log(f"bridge failed: {detail}")
+
+    def _bridge_status_is_managed(self, status: dict[str, Any]) -> bool:
+        return bool(
+            self._bridge
+            and self._bridge.is_alive()
+            and self._bridge_owner_token
+            and self._bridge_process_identity
+            and status.get("state") in {"alive", "busy", "wedged"}
+            and status.get("pid") == os.getpid()
+            and status.get("owner_token") == self._bridge_owner_token
+            and status.get("process_identity") == self._bridge_process_identity
+        )
 
     def ensure_bridge(self) -> dict[str, Any]:
         from . import file_bridge
 
-        status = file_bridge.heartbeat_status()
-        if status.get("state") in {"alive", "busy", "wedged"}:
-            return {"managed": bool(self._bridge and self._bridge.is_alive()), **status}
         with self._lock:
-            if not (self._bridge and self._bridge.is_alive()):
-                self._bridge = threading.Thread(
-                    target=self._watch_bridge, name="daedalus-file-bridge", daemon=True
+            if self._bridge and self._bridge.is_alive():
+                thread = self._bridge
+            else:
+                self._bridge_owner_token = uuid.uuid4().hex
+                self._bridge_process_identity = file_bridge.current_process_identity()
+                self._bridge_start_error = ""
+                self._bridge_stop = threading.Event()
+                thread = threading.Thread(
+                    target=self._watch_bridge,
+                    args=(
+                        self._bridge_owner_token,
+                        self._bridge_process_identity,
+                        self._bridge_stop,
+                    ),
+                    name="daedalus-file-bridge",
+                    daemon=True,
                 )
-                self._bridge.start()
+                self._bridge = thread
+                thread.start()
+
         end = time.monotonic() + 1.5
         while time.monotonic() < end:
             status = file_bridge.heartbeat_status()
-            if status.get("state") in {"alive", "busy", "wedged"}:
+            with self._lock:
+                if self._bridge_status_is_managed(status):
+                    return {**status, "managed": True, "last_error": ""}
+                start_error = self._bridge_start_error
+            if not thread.is_alive():
                 break
             time.sleep(0.05)
-        return {"managed": bool(self._bridge and self._bridge.is_alive()), **status}
+        status = file_bridge.heartbeat_status()
+        with self._lock:
+            managed = self._bridge_status_is_managed(status)
+            start_error = self._bridge_start_error
+        result = {**status, "managed": managed}
+        if start_error:
+            result["last_error"] = start_error
+        elif not managed:
+            result.setdefault("last_error", "bridge ownership/readiness not established")
+        return result
 
     # OpenVSCode Server ---------------------------------------------------
 
@@ -1432,6 +1572,7 @@ class DesktopRuntimeManager:
 
     def close(self, *, strict: bool = False, timeout: float = 8.0) -> None:
         self._closed = True
+        self._bridge_stop.set()
         cleanup_error: DesktopRuntimeError | None = None
         try:
             self.stop_ide(owned_only=True, strict=strict, timeout=timeout)
@@ -1549,6 +1690,7 @@ class DesktopRuntimeManager:
         from . import file_bridge
 
         ok, err = self._probe()
+        bridge_status = file_bridge.heartbeat_status()
         r = self.config["ollama"]["remote"]
         budget_status = self._budget_status()
         caps_status = {
@@ -1578,8 +1720,9 @@ class DesktopRuntimeManager:
             },
             "services": {
                 "bridge": {
-                    "managed": bool(self._bridge and self._bridge.is_alive()),
-                    **file_bridge.heartbeat_status(),
+                    **bridge_status,
+                    "managed": self._bridge_status_is_managed(bridge_status),
+                    "last_error": self._bridge_start_error,
                 },
                 "ollama": {
                     "mode": self.config["ollama"]["mode"],

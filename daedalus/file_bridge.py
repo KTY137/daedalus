@@ -692,12 +692,106 @@ def handle_poison_request(path: Path, exc: BaseException) -> Path | None:
 # -- watcher heartbeat ------------------------------------------------------
 
 _last_idle_beat = 0.0
+_process_identity_pid = os.getpid()
+_process_identity_nonce = uuid.uuid4().hex
+
+
+class WatcherOwnershipBusy(RuntimeError):
+    """Raised when another process already owns the bridge watch loop."""
+
+
+def current_process_identity() -> str:
+    """Return a process-lifetime identity that survives neither restart nor fork.
+
+    A PID by itself is reusable.  The per-process nonce makes a heartbeat from
+    an earlier process distinguishable even when the operating system assigns
+    its PID to the replacement backend.  Refresh after ``fork()`` because the
+    child inherits module globals while acquiring a different PID.
+    """
+
+    global _process_identity_pid, _process_identity_nonce
+    pid = os.getpid()
+    if pid != _process_identity_pid:
+        _process_identity_pid = pid
+        _process_identity_nonce = uuid.uuid4().hex
+    return f"{pid}:{_process_identity_nonce}"
+
+
+class _BridgeWatcherLock:
+    """One fail-closed OS lock for the single bridge consumer.
+
+    The fixed file is never replaced or unlinked while a process may have it
+    open.  The kernel releases the byte-range/flock ownership on crash, so PID
+    reuse and stale marker cleanup cannot create two owners of different
+    inodes.  This is local runtime state, not a second event authority.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+        self._fh: Any = None
+
+    def __enter__(self) -> "_BridgeWatcherLock":
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self._fh = self.path.open("a+b")
+            self._fh.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(self._fh.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(
+                    self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB
+                )
+        except OSError as exc:
+            if self._fh is not None:
+                try:
+                    self._fh.close()
+                except OSError:
+                    pass
+                self._fh = None
+            raise WatcherOwnershipBusy(
+                f"bridge watcher ownership is unavailable at {self.path}: {exc}"
+            ) from exc
+        return self
+
+    def __exit__(self, *exc: Any) -> bool:
+        if self._fh is None:
+            return False
+        try:
+            self._fh.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(self._fh.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            self._fh.close()
+        except OSError:
+            pass
+        self._fh = None
+        return False
+
+
+def _watcher_lock_path() -> Path:
+    # Derive this from HEARTBEAT_PATH at call time so tests and deployments
+    # which relocate the canonical bridge state relocate its lock as well.
+    return HEARTBEAT_PATH.with_name("bridge_watcher.lock")
 
 
 def write_heartbeat(project: str | None = None, repo_root: str | None = None,
                     interval_s: float | None = None,
                     current: dict[str, Any] | None = None,
-                    force: bool = False) -> None:
+                    force: bool = False,
+                    owner_token: str | None = None,
+                    process_identity: str | None = None) -> None:
     """Best-effort liveness marker written by the watch loop.
 
     Idle beats are throttled to one per IDLE_BEAT_EVERY_S; task start/finish
@@ -715,6 +809,8 @@ def write_heartbeat(project: str | None = None, repo_root: str | None = None,
         "repo_root": repo_root,
         "interval_s": interval_s,
         "current": current,
+        "owner_token": owner_token,
+        "process_identity": process_identity,
     }
     try:
         write_text_atomic(HEARTBEAT_PATH, json.dumps(payload, indent=2))
@@ -758,6 +854,8 @@ def heartbeat_status(now: float | None = None) -> dict[str, Any]:
         "project": hb.get("project"),
         "repo_root": hb.get("repo_root"),
         "current": hb.get("current"),
+        "owner_token": hb.get("owner_token"),
+        "process_identity": hb.get("process_identity"),
         "restart": restart_hint(hb),
     }
     current = hb.get("current")
@@ -942,7 +1040,9 @@ def _print_status(status: dict[str, Any]) -> None:
 
 
 def watch(default_repo_root: str | None, interval_s: float,
-          project: str | None = None) -> None:
+          project: str | None = None, *, owner_token: str | None = None,
+          process_identity: str | None = None,
+          stop_event: Any | None = None) -> None:
     from daedalus.budget import process_guard_boundary_decision
     from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
@@ -954,29 +1054,41 @@ def watch(default_repo_root: str | None, interval_s: float,
             process_guard_boundary_decision(),
         ),
     )
-    OUTBOX.mkdir(parents=True, exist_ok=True)
-    INBOX.mkdir(parents=True, exist_ok=True)
-    print("AGENT_BRIDGE_START", flush=True)
-    print(f"Watching {OUTBOX}", flush=True)
-    print("AGENT_BRIDGE_READY", flush=True)
+    token = owner_token or uuid.uuid4().hex
+    identity = process_identity or current_process_identity()
 
     def _beat(current: dict[str, Any] | None = None, force: bool = False) -> None:
         write_heartbeat(project=project, repo_root=default_repo_root,
-                        interval_s=interval_s, current=current, force=force)
+                        interval_s=interval_s, current=current, force=force,
+                        owner_token=token, process_identity=identity)
 
-    while True:
-        _beat()
-        for path in sorted(OUTBOX.glob("*.json")):
-            print(f"Processing {path.name}", flush=True)
-            _beat(current={"file": path.name, "started_epoch": time.time(),
-                           "started_ts": _now_iso()}, force=True)
-            try:
-                result = process_request(path, default_repo_root)
-                print(f"Wrote {result}", flush=True)
-            except Exception as exc:
-                handle_poison_request(path, exc)
-            _beat(force=True)
-        time.sleep(interval_s)
+    with _BridgeWatcherLock(_watcher_lock_path()):
+        OUTBOX.mkdir(parents=True, exist_ok=True)
+        INBOX.mkdir(parents=True, exist_ok=True)
+        # Publish the exact lock owner before advertising readiness.  A caller
+        # only reports managed=true when this token and process identity match.
+        _beat(force=True)
+        print("AGENT_BRIDGE_START", flush=True)
+        print(f"Watching {OUTBOX}", flush=True)
+        print("AGENT_BRIDGE_READY", flush=True)
+
+        while not (stop_event is not None and stop_event.is_set()):
+            _beat()
+            for path in sorted(OUTBOX.glob("*.json")):
+                print(f"Processing {path.name}", flush=True)
+                _beat(current={"file": path.name, "started_epoch": time.time(),
+                               "started_ts": _now_iso()}, force=True)
+                try:
+                    result = process_request(path, default_repo_root)
+                    print(f"Wrote {result}", flush=True)
+                except Exception as exc:
+                    handle_poison_request(path, exc)
+                _beat(force=True)
+            if stop_event is not None:
+                if stop_event.wait(interval_s):
+                    break
+            else:
+                time.sleep(interval_s)
 
 
 def main() -> None:
@@ -1035,8 +1147,12 @@ def main() -> None:
             (process_guard_boundary_decision(),),
         )
     if args.command == "watch":
-        watch(resolve_repo_root(args.repo_root, args.project), args.interval_s,
-              project=args.project)
+        try:
+            watch(resolve_repo_root(args.repo_root, args.project), args.interval_s,
+                  project=args.project)
+        except WatcherOwnershipBusy as exc:
+            print(f"REFUSED: {exc}", file=sys.stderr)
+            raise SystemExit(2) from None
     elif args.command == "enqueue":
         try:
             print(enqueue(args.objective, resolve_repo_root(args.repo_root, args.project),
