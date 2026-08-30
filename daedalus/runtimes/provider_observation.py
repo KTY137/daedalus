@@ -20,11 +20,22 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
 from daedalus.schemas import _identifier, _revision, _sha256, _utc_timestamp
 from daedalus.spine.envelope import canonical_sha
+
+
+if TYPE_CHECKING:
+    from daedalus.runtimes.provider_executable_pre_admission import (
+        ProviderExecutablePreAdmissionReceipt,
+    )
+    from daedalus.runtimes.provider_invocation_abi import ProviderInvocationABIContract
+    from daedalus.runtimes.provider_invocation_authority import (
+        ProviderInvocationObservationAuthority,
+    )
+    from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
 
 
 _MAX_AUTHORITY_TTL = timedelta(hours=24)
@@ -583,6 +594,36 @@ class ProviderObservationBindingLedger:
             execution=execution,
             lease_sha256=lease_sha256,
             source_revision=source_revision,
+            at=at,
+        )
+
+    def verify_invocation_abi_contract(
+        self,
+        contract: "ProviderInvocationABIContract",
+        authority: "ProviderInvocationObservationAuthority",
+        payload: "ProviderInvocationPayload",
+        pre_admission: "ProviderExecutablePreAdmissionReceipt",
+        *,
+        execution: EffectExecutionRequest,
+        at: datetime,
+    ) -> None:
+        """Verify one invocation ABI without exporting either private keyring."""
+
+        # Local import keeps the lower-level observation module free of an
+        # import-time cycle while the ledger remains the sole secret holder.
+        from daedalus.runtimes.provider_invocation_abi import (
+            verify_provider_invocation_abi_contract,
+        )
+
+        verify_provider_invocation_abi_contract(
+            contract,
+            authority,
+            payload,
+            pre_admission,
+            authority_id=self.authority_id,
+            authority_keyring=self._authority_keyring,
+            observation_keyring=self._observation_keyring,
+            execution=execution,
             at=at,
         )
 

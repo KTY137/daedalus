@@ -3,9 +3,9 @@
     "path": "provenance/source-watermark-allowed-signers",
     "sha256": "ae71134154dd1e8b08af2d82e827e850bcbaf92bde618bdbb4b2c4c2168d0ce9"
   },
-  "base_revision": "c773a94dce21f28d5d149fe3e984d4508292d793",
+  "base_revision": "98833bf71e53eec184a7db2a065aec1469a9b8c7",
   "copyright_header": "SPDX-FileCopyrightText: 2026 Kaya Yesilyurt",
-  "file_count": 1110,
+  "file_count": 1116,
   "files": [
     {
       "path": ".github/workflows/source-provenance.yml",
@@ -1308,6 +1308,10 @@
       "sha256": "670070e67c5fff2de12e4944dc4d504f29f8423cfcb57698f0bdb141857d0551"
     },
     {
+      "path": "daedalus/runtimes/provider_invocation_abi.py",
+      "sha256": "d27ec566b17d9cb85bbfa293bb4b9a3d254dfb25c61fced68bd00f76ca78a316"
+    },
+    {
       "path": "daedalus/runtimes/provider_invocation_authority.py",
       "sha256": "9afc45dfe04d7f35dbed1aae423387f2a6892b6a27fcd3452123fe0758863918"
     },
@@ -1329,7 +1333,7 @@
     },
     {
       "path": "daedalus/runtimes/provider_observation.py",
-      "sha256": "c3121463d9aec2ec8d1a20a89f6cfa5ba891c2ed59c0720801e2dbdde8eaf763"
+      "sha256": "41fc8b26b1046730b429dd247cbafc3957c8000415c1dee9cd329d0af301e234"
     },
     {
       "path": "daedalus/runtimes/provider_observation_store.py",
@@ -1342,6 +1346,10 @@
     {
       "path": "daedalus/runtimes/provider_runtime_executable_binding.py",
       "sha256": "14d0daf5c556ac5700e54da06ffde566d46c006065f70d360b5100fca3392e4e"
+    },
+    {
+      "path": "daedalus/runtimes/provider_runtime_invocation_binding.py",
+      "sha256": "43224413a0f1d9bf12e29400d2ffc79a35ade504cacff2e070efc2d6f633b64c"
     },
     {
       "path": "daedalus/runtimes/provider_target_receipt_ledger.py",
@@ -2900,6 +2908,14 @@
       "sha256": "0c7f283512e9039b93c005d7f0a652899dd6cac8c264ebec5be65ad5ed943194"
     },
     {
+      "path": "tests/runtimes/test_provider_invocation_abi.py",
+      "sha256": "df60dcb56c731c7247257c2fb8ceba94f5121b4e33815af2cd1f20dc672b51cd"
+    },
+    {
+      "path": "tests/runtimes/test_provider_invocation_abi_review.py",
+      "sha256": "2f4f901947bf70e9efd195f866922d50e9f4a660c3e1b6c3b61df49d8154d98e"
+    },
+    {
       "path": "tests/runtimes/test_provider_invocation_authority.py",
       "sha256": "67a245fef0361f4772d2cef40fc48cb3e55dfc50aca4ba559693c8fe5b02338b"
     },
@@ -2978,6 +2994,14 @@
     {
       "path": "tests/runtimes/test_provider_runtime_executable_binding_review.py",
       "sha256": "40bbdd17febfefe291d335d76bc77168545af97e337677fafdec8e796e798f8c"
+    },
+    {
+      "path": "tests/runtimes/test_provider_runtime_invocation_binding.py",
+      "sha256": "0a435331ccbce75e664c0e9950a016af9bd63feabd18c9f388df3d33e6ba18da"
+    },
+    {
+      "path": "tests/runtimes/test_provider_runtime_invocation_binding_review.py",
+      "sha256": "ec5d137ed84b32c8dd772503de361e40da45e95afdf7cc47e56fa7c61862d1fd"
     },
     {
       "path": "tests/runtimes/test_provider_target_receipt_ledger.py",
