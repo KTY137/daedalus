@@ -92,7 +92,7 @@ class SparseTensorEntry:
     def __post_init__(self) -> None:
         object.__setattr__(self, "coordinates", _coordinate(self.coordinates))
         object.__setattr__(self, "relation", _identifier(self.relation, "entry.relation"))
-        if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
+        if type(self.value) not in (int, float):
             raise ValueError("entry.value must be a finite number")
         try:
             value = float(self.value)
@@ -100,7 +100,7 @@ class SparseTensorEntry:
             raise ValueError("entry.value must be a finite number") from exc
         if not math.isfinite(value):
             raise ValueError("entry.value must be a finite number")
-        if isinstance(self.value, int) and int(value) != self.value:
+        if type(self.value) is int and int(value) != self.value:
             raise ValueError("entry.value integer must be exactly representable as binary64")
         if value == 0.0:
             value = 0.0
