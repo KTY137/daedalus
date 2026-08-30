@@ -1,14 +1,14 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-TENSOR-01B",
-  "title": "Bound sparse tensor evidence fan-in before canonicalization",
+  "title": "Close remaining sparse tensor pre-canonicalization bounds",
   "gate": 1,
   "classification": "EXPERIMENT",
   "parent_packet": "G1-TENSOR-01A",
   "campaign_issue": 239,
   "base_revision": "f6de10941e59efc7eacb8c5390aed6fcf0aedf1f",
-  "finding": "SparseTensorEntry.evidence_sha256s was the remaining unbounded high-cardinality construction surface. _sorted_strings iterated and sorted the entire caller sequence before any tensor-specific ceiling, so one sparse claim could consume unbounded construction work and retained memory despite the packet's bounded-construction claim.",
-  "primary_claim": "Each sparse tensor claim now refuses more than 64 evidence digests before reading, copying or sorting any element of an oversized evidence sequence.",
+  "finding": "Two related paths still violated the bounded-construction claim. SparseTensorEntry.evidence_sha256s flowed directly into _sorted_strings with no tensor ceiling, and TensorView.from_dict materialized every wire axis/entry with generator-to-tuple conversion before TensorView.__post_init__ could apply the existing axis/entry ceilings.",
+  "primary_claim": "All known high-cardinality tensor construction surfaces, including wire deserialization and per-entry evidence fan-in, now apply their existing bounded-sequence guard before element materialization, copying or sorting.",
   "scope": {
     "changed": [
       "daedalus/twin/tensor.py"
@@ -24,12 +24,15 @@
     "new_backend_dependency": false,
     "public_product_surface": false
   },
-  "gardener_decision": "Reuse the existing _bounded_sequence construction guard rather than introduce an evidence collection abstraction. The tensor remains a derived Fourfold/Forest projection and no authority moves into it.",
+  "gardener_decision": "Reuse the existing _bounded_sequence construction guard at the remaining call sites rather than introduce an evidence collection or wire-decoder abstraction. The tensor remains a derived Fourfold/Forest projection and no authority moves into it.",
   "acceptance": [
     "evidence digest count is checked before _sorted_strings can iterate or sort it",
-    "an oversized sized sequence is rejected without element access",
-    "the exact 64-digest ceiling remains accepted and canonically sorted",
-    "from_dict cannot bypass the same bound with a JSON list",
+    "an oversized evidence sequence is rejected without element access",
+    "the exact 64-digest evidence ceiling remains accepted and canonically sorted",
+    "SparseTensorEntry.from_dict cannot bypass the evidence bound with a JSON list",
+    "TensorView.from_dict checks raw axis count before constructing TensorAxis records",
+    "TensorView.from_dict checks raw entry count before constructing SparseTensorEntry records",
+    "oversized wire axis/entry sequences are refused without element access",
     "existing non-empty, duplicate-free sha256 validation remains delegated to the canonical schemas helper"
   ],
   "verification": {
@@ -46,7 +49,7 @@
     "archive_legacy_touched": false,
     "history_rewritten": false
   },
-  "rollback": "Revert the three G1-TENSOR-01B commits; canonical Forest/Fourfold artifacts and their identities are unchanged.",
+  "rollback": "Revert the G1-TENSOR-01B commits; canonical Forest/Fourfold artifacts and their identities are unchanged.",
   "authority_boundary": {
     "owner_approval_minted": false,
     "automatic_merge": false,
