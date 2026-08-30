@@ -1,17 +1,20 @@
 """Guarded in-process admission for revision-bound provider executable objects.
 
 The pre-admission packet proves *which* provider implementation and repository
-targets are authorized to be considered.  This module proves that the concrete
+targets are authorized to be considered. This module proves that the concrete
 Python function objects already present in the process still correspond to
-those exact targets and repository bytes.
+those exact targets, repository bytes, and a deliberately narrow ambient-global
+dependency closure.
 
 It intentionally does not import modules, execute provider code, start effects,
-or grant provider authority.  A later broker packet may consume this registry
-as the sole production source of executable objects; until then, an admission
-receipt remains evidence only.
+or grant provider authority. A later broker packet must still construct a
+sealed execution namespace before these objects can become executable; until
+then, an admission receipt remains evidence only.
 """
 from __future__ import annotations
 
+import builtins
+import dis
 import hashlib
 import inspect
 import marshal
@@ -246,6 +249,138 @@ def _verify_function_state(function: types.FunctionType, label: str) -> None:
         )
 
 
+def _walk_code_objects(code: types.CodeType):
+    yield code
+    for value in code.co_consts:
+        if type(value) is types.CodeType:
+            yield from _walk_code_objects(value)
+
+
+def _referenced_global_names(code: types.CodeType) -> tuple[str, ...]:
+    names: set[str] = set()
+    for nested in _walk_code_objects(code):
+        try:
+            instructions = dis.get_instructions(nested)
+        except (TypeError, ValueError) as exc:
+            raise ProviderExecutableObjectRegistryBindingError(
+                "provider bytecode globals could not be inspected"
+            ) from exc
+        for instruction in instructions:
+            if instruction.opname not in {"LOAD_GLOBAL", "LOAD_NAME"}:
+                continue
+            if type(instruction.argval) is not str or not instruction.argval:
+                raise ProviderExecutableObjectRegistryBindingError(
+                    "provider bytecode contains a malformed ambient global reference"
+                )
+            names.add(instruction.argval)
+    return tuple(sorted(names))
+
+
+def _verify_builtin_reference(function: types.FunctionType, name: str, label: str) -> None:
+    if function.__builtins__ is not builtins.__dict__:
+        raise ProviderExecutableObjectRegistryBindingError(
+            f"{label} function does not use the canonical builtins namespace"
+        )
+    value = builtins.__dict__.get(name)
+    if value is None and name not in builtins.__dict__:
+        raise ProviderExecutableObjectRegistryBindingError(
+            f"{label} references unresolved ambient name {name!r}"
+        )
+    if isinstance(value, type):
+        if value.__module__ != "builtins" or value.__name__ != name:
+            raise ProviderExecutableObjectRegistryBindingError(
+                f"{label} builtin reference {name!r} is not canonical"
+            )
+        return
+    if type(value) is types.BuiltinFunctionType:
+        if value.__module__ != "builtins" or value.__name__ != name:
+            raise ProviderExecutableObjectRegistryBindingError(
+                f"{label} builtin reference {name!r} is not canonical"
+            )
+        return
+    raise ProviderExecutableObjectRegistryBindingError(
+        f"{label} builtin reference {name!r} has unsupported ambient state"
+    )
+
+
+def _verify_function_ambient_dependencies(
+    function: types.FunctionType,
+    *,
+    source: bytes,
+    source_path: Path,
+    label: str,
+    visiting: set[int] | None = None,
+) -> None:
+    """Refuse executable semantics that depend on mutable ambient module state.
+
+    Admissible global resolution is intentionally narrow: canonical builtins or
+    direct same-module helper functions whose source, bytecode and own ambient
+    dependencies can be re-proved from the same authenticated source bytes.
+    Module objects, mutable containers, imported callables, aliases, constants,
+    and arbitrary objects fail closed. This is evidence hardening, not a loader:
+    execution remains forbidden until a later packet seals the namespace used by
+    the broker.
+    """
+
+    if type(function) is not types.FunctionType:
+        raise ProviderExecutableObjectRegistryShapeError(
+            f"{label} must be an exact Python function"
+        )
+    if function.__builtins__ is not builtins.__dict__:
+        raise ProviderExecutableObjectRegistryBindingError(
+            f"{label} function does not use the canonical builtins namespace"
+        )
+
+    active = set() if visiting is None else visiting
+    identity = id(function)
+    if identity in active:
+        return
+    active.add(identity)
+    try:
+        for name in _referenced_global_names(function.__code__):
+            if name not in function.__globals__:
+                _verify_builtin_reference(function, name, label)
+                continue
+
+            dependency = function.__globals__[name]
+            if type(dependency) is not types.FunctionType:
+                raise ProviderExecutableObjectRegistryBindingError(
+                    f"{label} ambient global {name!r} is not an admissible "
+                    "same-module helper function"
+                )
+            if dependency.__module__ != function.__module__:
+                raise ProviderExecutableObjectRegistryBindingError(
+                    f"{label} ambient helper {name!r} comes from another module"
+                )
+            if dependency.__qualname__ != name:
+                raise ProviderExecutableObjectRegistryBindingError(
+                    f"{label} ambient helper {name!r} is rebound or aliased"
+                )
+
+            dependency_label = f"{label} ambient helper {name!r}"
+            dependency_target = _canonical_function_target(
+                dependency,
+                dependency_label,
+            )
+            _verify_function_state(dependency, dependency_label)
+            _function_source_path(dependency, source_path, dependency_label)
+            expected_dependency = _compiled_target_code(source, dependency_target)
+            if _code_sha256(dependency.__code__) != _code_sha256(expected_dependency):
+                raise ProviderExecutableObjectRegistryBindingError(
+                    f"{dependency_label} loaded bytecode differs from authenticated "
+                    "repository source"
+                )
+            _verify_function_ambient_dependencies(
+                dependency,
+                source=source,
+                source_path=source_path,
+                label=dependency_label,
+                visiting=active,
+            )
+    finally:
+        active.remove(identity)
+
+
 @dataclass(frozen=True)
 class ProviderExecutableObjectAdmissionReceipt:
     """Evidence that exact loaded functions match one pre-admitted source subject."""
@@ -478,6 +613,20 @@ class ProviderExecutableObjectRegistry:
             raise ProviderExecutableObjectRegistryBindingError(
                 "output_digests repository source digest differs from pre-admission"
             )
+
+        _verify_function_ambient_dependencies(
+            invoke,
+            source=invoke_source,
+            source_path=invoke_path,
+            label="invoke",
+        )
+        _verify_function_ambient_dependencies(
+            output_digests,
+            source=output_source,
+            source_path=output_path,
+            label="output_digests",
+        )
+
         expected_invoke = _compiled_target_code(invoke_source, invoke_target)
         expected_output = _compiled_target_code(output_source, output_target)
         expected_invoke_sha = _code_sha256(expected_invoke)
