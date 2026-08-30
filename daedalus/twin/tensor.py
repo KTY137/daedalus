@@ -177,8 +177,11 @@ class TensorView(CanonicalContract):
         }
         seen: set[tuple[tuple[tuple[str, str], ...], str]] = set()
         for entry in entries:
-            coordinate = entry.coordinate_map
-            if tuple(sorted(coordinate)) != axis_names:
+            # SparseTensorEntry already canonicalizes coordinates by axis name.
+            # TensorView canonicalizes axes by the same key, so positional
+            # comparison is sufficient and avoids allocating one mapping per
+            # entry during construction.
+            if tuple(axis for axis, _ in entry.coordinates) != axis_names:
                 raise ValueError("every sparse entry must bind exactly the TensorView axes")
             for axis, label in entry.coordinates:
                 if label not in label_index[axis]:
@@ -188,8 +191,7 @@ class TensorView(CanonicalContract):
             seen.add(entry.semantic_key)
 
         def order(entry: SparseTensorEntry) -> tuple[Any, ...]:
-            coordinate = entry.coordinate_map
-            indices = tuple(label_index[name][coordinate[name]] for name in axis_names)
+            indices = tuple(label_index[axis][label] for axis, label in entry.coordinates)
             return indices, entry.relation, entry.masked, entry.value, entry.evidence_sha256s
 
         object.__setattr__(self, "entries", tuple(sorted(entries, key=order)))
