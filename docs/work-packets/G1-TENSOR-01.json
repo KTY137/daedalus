@@ -1,0 +1,99 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01",
+  "title": "Bounded internal sparse tensor contract",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+  "branch": "exp/tensor-kernel-contract-01",
+  "primary_claim": "A small standard-library-only typed sparse tensor view can represent algorithm-facing coordinates over one exact Fourfold/Forest pair without becoming a fifth semantic plane, graph authority, store, registry, scheduler, evaluator, or promotion surface.",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "master_plan_revision": 8,
+    "active_delivery_gate": "Gate 1 — Renovation ignition slice",
+    "fourfold_remains_authoritative": true,
+    "forest_source_artifact_remains_authoritative": true,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval_issuance": false,
+    "gate_transition": false
+  },
+  "scope": {
+    "adds": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_kernel.py",
+      "docs/work-packets/G1-TENSOR-01.json"
+    ],
+    "changes_existing_production_files": false,
+    "registers_contract_globally": false,
+    "exports_public_product_api": false,
+    "adds_dependency": false,
+    "adds_semantic_plane": false,
+    "adds_graph_authority": false,
+    "adds_state_store": false,
+    "adds_scheduler": false,
+    "adds_evaluator": false
+  },
+  "contract": {
+    "source_identity": [
+      "repository_id",
+      "exact source_revision",
+      "source_forest_sha256",
+      "source_fourfold_sha256",
+      "ContractProvenance"
+    ],
+    "projection_status": [
+      "complete",
+      "partial with reason",
+      "absent with reason"
+    ],
+    "representation": [
+      "immutable named axes",
+      "canonical finite label vocabularies",
+      "sparse named coordinates",
+      "typed relation identifiers",
+      "finite numeric values",
+      "explicit masks",
+      "per-entry evidence digests",
+      "deterministic canonical serialization and digest"
+    ],
+    "bounds": {
+      "max_axes": 16,
+      "max_labels_per_axis": 100000,
+      "max_entries": 1000000
+    }
+  },
+  "acceptance": [
+    "input axis, label, coordinate, evidence and entry order does not change canonical identity",
+    "digest is stable across Python hash seeds",
+    "duplicate coordinate/relation claims refuse rather than last-write-wins",
+    "unknown labels, incomplete coordinates, duplicate axis coordinates and non-finite values refuse",
+    "partial and absent projections retain explicit reasons; complete projections cannot carry an incompleteness reason",
+    "source revision and both canonical source digests are bound through ContractProvenance",
+    "strict parsing rejects unknown fields",
+    "named sparse slicing and deterministic integer coordinate projection are covered",
+    "construction has explicit finite axis, label and entry ceilings",
+    "no existing production file or public registry is modified"
+  ],
+  "requested_verification": [
+    "python -m py_compile daedalus/twin/tensor.py tests/twin/test_tensor_kernel.py",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin/test_tensor_kernel.py tests/twin/test_fourfold_contracts.py tests/twin/test_projection_verifier.py"
+  ],
+  "verification": {
+    "executed_in_connector_session": [],
+    "claim": "Source and focused tests are prepared; no green test or package claim is made until an executor records the commands on the exact head."
+  },
+  "deletion_or_fold_conditions": [
+    "Delete this module if equal-budget experiments show no measurable value over direct Fourfold/Forest queries.",
+    "Fold it into an existing canonical Twin contract if that contract gains the same sparse computational view without creating a second identity.",
+    "Do not add NumPy, PyTorch, a vector database, or another backend until a measured workload justifies an adapter and replacement path.",
+    "Do not activate Tensor-to-Fourfold conversion work until this experiment is reviewed and its source identity semantics survive adversarial tests."
+  ],
+  "residual_limits": [
+    "This packet does not define conversion from Fourfold/Forest; that is a separate dependent experiment.",
+    "It does not benchmark speed, memory, retrieval quality, model quality, CrewAI, or AlphaEvolve.",
+    "The Python tuple representation is a correctness contract, not a claim of numerical-kernel performance.",
+    "No Gate-2 authority is inferred from this Gate-1-contained experiment."
+  ],
+  "rollback": "Close the draft PR and delete the experiment branch after retaining review/evidence; no existing production file requires reversal."
+}
