@@ -37,12 +37,16 @@ def _write_adapter(
         source = (
             "CALLS = []\n"
             "\n"
-            "def invoke():\n"
-            "    CALLS.append('invoke')\n"
+            "def helper():\n"
             "    return 'ok'\n"
             "\n"
+            "def other_helper():\n"
+            "    return 'substituted'\n"
+            "\n"
+            "def invoke():\n"
+            "    return helper()\n"
+            "\n"
             "def output_digests(value):\n"
-            "    CALLS.append('output')\n"
             "    return ('a' * 64,)\n"
         )
     relative = Path(*module_name.split(".")).with_suffix(".py")
@@ -219,6 +223,89 @@ def test_registry_refuses_loaded_bytecode_substitution(
     ):
         registry.verify_registered(subject)
     assert module.CALLS == []
+
+
+def test_registry_refuses_rebound_ambient_helper_after_registration(
+    tmp_path: Path,
+) -> None:
+    module, _path, source_sha = _write_adapter(tmp_path)
+    subject = _pre_admission(
+        module_name=module.__name__,
+        source_sha256=source_sha,
+    )
+    registry = ProviderExecutableObjectRegistry(tmp_path)
+    registry.register(
+        subject,
+        invoke=module.invoke,
+        output_digests=module.output_digests,
+    )
+
+    module.helper = module.other_helper
+
+    with pytest.raises(
+        ProviderExecutableObjectRegistryBindingError,
+        match="ambient helper 'helper' is rebound or aliased",
+    ):
+        registry.verify_registered(subject)
+    assert module.CALLS == []
+
+
+def test_registry_refuses_mutable_referenced_module_global(tmp_path: Path) -> None:
+    source = (
+        "CALLS = []\n"
+        "\n"
+        "def invoke():\n"
+        "    CALLS.append('invoke')\n"
+        "    return 'ok'\n"
+        "\n"
+        "def output_digests(value):\n"
+        "    return ('a' * 64,)\n"
+    )
+    module, _path, source_sha = _write_adapter(tmp_path, source=source)
+    subject = _pre_admission(
+        module_name=module.__name__,
+        source_sha256=source_sha,
+    )
+
+    with pytest.raises(
+        ProviderExecutableObjectRegistryBindingError,
+        match="ambient global 'CALLS' is not an admissible same-module helper function",
+    ):
+        ProviderExecutableObjectRegistry(tmp_path).register(
+            subject,
+            invoke=module.invoke,
+            output_digests=module.output_digests,
+        )
+    assert module.CALLS == []
+
+
+def test_registry_refuses_constant_ambient_global_without_signed_dependency_manifest(
+    tmp_path: Path,
+) -> None:
+    source = (
+        "MODEL = 'example-model'\n"
+        "\n"
+        "def invoke():\n"
+        "    return MODEL\n"
+        "\n"
+        "def output_digests(value):\n"
+        "    return ('a' * 64,)\n"
+    )
+    module, _path, source_sha = _write_adapter(tmp_path, source=source)
+    subject = _pre_admission(
+        module_name=module.__name__,
+        source_sha256=source_sha,
+    )
+
+    with pytest.raises(
+        ProviderExecutableObjectRegistryBindingError,
+        match="ambient global 'MODEL' is not an admissible same-module helper function",
+    ):
+        ProviderExecutableObjectRegistry(tmp_path).register(
+            subject,
+            invoke=module.invoke,
+            output_digests=module.output_digests,
+        )
 
 
 def test_registry_refuses_contradictory_hashes_for_one_source_file(
