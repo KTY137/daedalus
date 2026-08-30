@@ -1,0 +1,63 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-LOOP-BOUNDS-249",
+  "title": "Finite Loop Safety Bounds",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "issue": 249,
+  "base_revision": "68721e3208194391d71b0ae64d24157fd1876207",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "master_plan_revision": 8,
+    "active_gate": "Gate 1 — Renovation ignition slice",
+    "invariant": "Bounded effects",
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval_issuance": false,
+    "gate_transition": false
+  },
+  "primary_claim": "Every LoopBounds safety ceiling is a positive finite value, count ceilings retain integer semantics, and CLI-parsed NaN/Infinity are refused before LoopDriver construction.",
+  "in_scope": [
+    "daedalus/loop.py",
+    "tests/test_loop_bound_safety.py",
+    "docs/work-packets/G1-LOOP-BOUNDS-249.json"
+  ],
+  "forbidden": [
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
+    "daedalus/spine/",
+    "daedalus/kairos/gated_writes.py",
+    "promotion or OwnerApproval paths",
+    "Gate state"
+  ],
+  "baseline": {
+    "finding": "LoopBounds historically checked only float(value) <= 0, which admits NaN and positive Infinity.",
+    "impact": [
+      "NaN can make wall-clock and spend comparisons permanently false",
+      "positive Infinity acts as an undocumented unlimited sentinel",
+      "non-finite bounds can leak into non-standard JSON receipts"
+    ]
+  },
+  "acceptance": [
+    "max_wall_clock_s and max_spend_usd reject NaN, positive Infinity and negative Infinity",
+    "max_iterations and max_attempts_per_candidate reject booleans and non-int programmatic values",
+    "positive finite bounds retain the existing public LoopBounds shape",
+    "LoopBounds.to_dict is serializable with json.dumps(..., allow_nan=false)",
+    "CLI nan/inf inputs return refusal before constructing LoopDriver",
+    "existing zero/negative/None refusal behavior remains intact"
+  ],
+  "verification": {
+    "focused": [
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_loop_bound_safety.py tests/test_loop.py",
+      "python -m py_compile daedalus/loop.py tests/test_loop_bound_safety.py"
+    ],
+    "executed_in_connector_session": [],
+    "hosted_ci": "No exact-head result may be claimed unless a workflow executes real steps; issue #67 remains relevant to absent/zero-step jobs."
+  },
+  "rollback": "Drop this packet branch; no persisted schema, runtime registry, approval, promotion or Gate state is changed.",
+  "review_questions": [
+    "Does validation fail closed before any LoopDriver/executor construction?",
+    "Are integer count bounds kept as integers rather than silently coerced?",
+    "Does the repair add no second budget or scheduling authority?"
+  ]
+}
