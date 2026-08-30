@@ -1,0 +1,83 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-GARDEN-BRANCHES-02",
+  "title": "Active delivery topology checkpoint and serialized reintegration plan",
+  "classification": "ALIGNED",
+  "gate": 1,
+  "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 8,
+    "version": "1.3.0",
+    "active_gate": "Gate 1 — Renovation ignition slice"
+  },
+  "primary_claim": "The inspected active delivery and research branches are classified without mutating refs, and each inspected delivery area has exactly one proposed serialized integration line or an explicit experiment-only non-integration boundary.",
+  "scope": {
+    "adds": [
+      "docs/recovery/GARDENER_BRANCH_TOPOLOGY_20260830.json",
+      "docs/work-packets/G1-GARDEN-BRANCHES-02.json",
+      "tests/test_gardener_branch_topology_20260830.py"
+    ],
+    "production_code_changed": false,
+    "git_refs_changed_by_packet": false,
+    "owner_approval_issued": false,
+    "promotion_performed": false,
+    "gate_transition_performed": false
+  },
+  "baseline": {
+    "main_head": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+    "findings": [
+      "PR #240 still contains the useful #229 scheduler ancestry but is 39 commits ahead and 107 behind current main; direct history merge is not the gardening choice",
+      "PRs #258, #260, #262, #265 and #267 are current-main lines with zero behind count at observation time",
+      "PR #255 is isolated experiment evidence and is one main commit behind",
+      "Ikarus is split into two Git lines: #257 -> #259 -> #263 and main -> #264 -> #266",
+      "comparing #263 to #264 gives a current-main merge base with #264 six commits ahead and twenty-three commits behind #263, so the stacks are siblings rather than one contained chain",
+      "local linked worktrees cannot be observed from the GitHub remote API and therefore remain unknown"
+    ]
+  },
+  "gardener_decisions": [
+    "do not merge stale #240 history; selectively re-port its useful operations surface onto current main",
+    "do not create a sibling loop.py fix for #250; stack it on #258 after review",
+    "do not create a sibling Tier-2 renderer fix for #268; stack it on #260",
+    "keep #255 and #262 isolated as experiments pending evidence",
+    "serialize the two Ikarus stacks into one line after independent review rather than merging sibling truths",
+    "retain closed #229 and stale/open #240 as evidence until the replacement current-main port exists"
+  ],
+  "acceptance": [
+    "topology JSON names the exact Masterplan revision and current main HEAD",
+    "every listed PR has exactly one allowed classification",
+    "PR numbers and proposed delivery-area names are unique",
+    "every inspected delivery area has exactly one proposed canonical-line record",
+    "all measured git comparisons contain status, ahead, behind and merge-base fields",
+    "the report explicitly marks local worktrees unknown instead of inferring cleanliness",
+    "the report records no automatic merge, rebase, force update, deletion, promotion, OwnerApproval or Gate transition",
+    "the Ikarus split-stack observation is retained with exact branch heads and merge base"
+  ],
+  "verification": {
+    "focused_test": "python -m pytest -q tests/test_gardener_branch_topology_20260830.py",
+    "fallback_direct": "python tests/test_gardener_branch_topology_20260830.py",
+    "connector_git_measurements": [
+      "main vs exp/tensor-latent-ceiling-01: diverged, ahead 4, behind 1, merge base 68721e3208194391d71b0ae64d24157fd1876207",
+      "main vs fix/loop-finite-bounds-249: ahead 4, behind 0, merge base current main",
+      "main vs nemesis/20260830-tier2-eval-integrity: ahead 5, behind 0, merge base current main",
+      "main vs exp/tensor-kernel-contract-01: ahead 4, behind 0, merge base current main",
+      "main vs g1/fourfold-projection-consolidation-main: ahead 4, behind 0, merge base current main",
+      "main vs g1/benchmark-authority-consolidation-01: ahead 3, behind 0, merge base current main",
+      "main vs ops/gardener-campaign-20260929: diverged, ahead 39, behind 107, merge base ab6ff3ef601089bef0f3c112295f0844e722cd2d",
+      "g1/ikarus-effect-bridge-06 vs g1/ikarus-provider-pre-admission-07a: diverged, provider stack ahead 6 and behind 23, merge base current main"
+    ],
+    "hosted_ci_claim": "none",
+    "full_suite_claim": "none"
+  },
+  "rollback": [
+    "close the draft PR if the topology observations are superseded",
+    "retain the JSON checkpoint as revision-bound historical evidence",
+    "perform no branch deletion as rollback"
+  ],
+  "next_packet_candidates": [
+    "G1-LOOP-RENDER-250 stacked on PR #258",
+    "Tier-2 terminal sanitization for issue #268 stacked on PR #260",
+    "current-main selective re-port of still-useful #240 gardener scheduler files",
+    "Ikarus stack serialization after review of #263 and #266"
+  ]
+}
