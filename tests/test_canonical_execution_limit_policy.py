@@ -38,6 +38,7 @@ from daedalus.spine.attempt import (
     TaskSpec,
 )
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.spine.ledger import SpineLedger
 from daedalus.spine.receipts import mission_contract_for_candidate
 
 
@@ -280,6 +281,18 @@ def test_gate1_descends_the_mission_policy_and_removes_every_gate_timeout(
     real_lease = gate1.acquire_attempt_lease
     switch = KillSwitch(tmp_path / "gate1-switch")
     switch.arm()
+    authority_ledger_path = tmp_path / "authority" / "spine.sqlite3"
+    authority_ledger = SpineLedger(authority_ledger_path)
+    authority_ledger.close()
+
+    # This test measures immutable policy descent, not whatever operational
+    # ledger happens to exist in the developer checkout.  Point the existing
+    # read-only issuer seam at a real, fresh canonical ledger so the assertion
+    # is identical in a clean clone and in a long-lived working tree.
+    monkeypatch.setattr(
+        "daedalus.spine.picker.resolve_spine_db_path",
+        lambda _root: (authority_ledger_path, None),
+    )
 
     def recording_check(*args, **kwargs):
         timeout_values.append(kwargs.get("timeout_s"))
