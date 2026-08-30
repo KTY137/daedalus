@@ -113,8 +113,8 @@ each inspected, unchanged by this reconstruction):
 
 ## 4. Who installs the ceiling
 
-The census excludes generated frozen-sidecar copies under
-`apps/web/src-tauri/backend/` and `apps/web/src-tauri/target/`. Measured on
+The census excludes the generated frozen-sidecar backend and Cargo target
+directories beneath `apps/web/src-tauri/`. Measured on
 2026-08-30 after a desktop build, scanning those outputs counted the same
 `daedalus/budget.py`, `cli.py`, `loop.py`, and sealed `claude_bridge.py` a
 second time. They are derived packaging artifacts, not independent executable
