@@ -93,6 +93,7 @@ from daedalus.schemas import (
 from daedalus.sensitivity import Policy
 from daedalus.spine.attempt import GateResult, RunnerContext, TaskAttempt, TaskSpec
 from daedalus.spine.envelope import canonical_sha
+from daedalus.spine.killswitch import KillSwitch
 from daedalus.spine.receipts import mission_contract_for_build_session
 from daedalus.storage import ArtifactStore
 from daedalus.twin import compile_reference_project
@@ -692,6 +693,7 @@ def run_gate1_ignition(
     collected_at: str | None = None,
     gate_timeout_s: int = 300,
     keep_workspace: bool = False,
+    switch: KillSwitch | None = None,
 ) -> IgnitionSliceResult:
     """Run the Gate-1 ignition slice once and write its receipt."""
 
@@ -883,6 +885,7 @@ def run_gate1_ignition(
                     subject_root=repo,
                     worktree_root=attempt._manager.worktree_root,
                     trace_id="gate1-voltage-ignition",
+                    switch=switch,
                     limit_policy=mission_limit_policy,
                 )
             except WaveLeaseKillSwitchEngaged as halt:

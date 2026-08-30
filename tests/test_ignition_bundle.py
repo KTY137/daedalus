@@ -18,8 +18,41 @@ import pytest
 from daedalus.ignition import bundle as ignition_bundle
 from daedalus.ignition import checks as ignition_checks
 from daedalus.ignition import gate1
+from daedalus.spine import picker as spine_picker
+from daedalus.spine.killswitch import KillSwitch
+from daedalus.spine.ledger import SpineLedger
 
 ROOT = Path(__file__).resolve().parents[1]
+_TEST_SWITCH: KillSwitch | None = None
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_ignition_switch(tmp_path_factory):
+    global _TEST_SWITCH
+    authority_state = tmp_path_factory.mktemp("bundle-authority")
+    switch = KillSwitch(authority_state / "permit")
+    switch.arm()
+    ledger_path = authority_state / "spine.sqlite3"
+    ledger = SpineLedger(ledger_path)
+    ledger.close()
+    patcher = pytest.MonkeyPatch()
+    patcher.setattr(
+        spine_picker,
+        "resolve_spine_db_path",
+        lambda *_args, **_kwargs: (ledger_path, None),
+    )
+    _TEST_SWITCH = switch
+    try:
+        yield
+    finally:
+        _TEST_SWITCH = None
+        patcher.undo()
+        switch.stop("test module complete")
+
+
+def _run_gate1(**kwargs):
+    assert _TEST_SWITCH is not None
+    return gate1.run_gate1_ignition(switch=_TEST_SWITCH, **kwargs)
 
 
 def _bundle(root: Path = ROOT, **kw):
@@ -430,8 +463,8 @@ def test_a_bundle_that_differs_only_in_the_environment_still_round_trips(monkeyp
 @pytest.fixture(scope="module")
 def two_runs(tmp_path_factory):
     receipts = tmp_path_factory.mktemp("bundle-replay")
-    first = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
-    second = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    first = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    second = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     return first, second
 
 
@@ -493,14 +526,14 @@ def test_a_predecessor_without_a_bundle_is_refused_and_told_apart(two_runs, tmp_
     import json as _json
 
     receipts = tmp_path / "no-bundle"
-    first = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    first = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     assert first.receipt["evaluator_bundle"]["digest"]
     path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
     body = _json.loads(path.read_text(encoding="utf-8"))
     del body["evaluator_bundle"]
     path.write_text(_json.dumps(body, indent=2, sort_keys=True) + chr(10), encoding="utf-8")
 
-    second = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    second = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     replay = second.receipt["replay"]
     assert replay["same_evaluator_bundle"] is False
     assert replay["previous_evaluator_bundle_digest"] is None
@@ -529,13 +562,13 @@ def test_a_replay_needs_two_complete_runs(tmp_path):
     import json as _json
 
     receipts = tmp_path / "incomplete"
-    first = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    first = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
     body = _json.loads(path.read_text(encoding="utf-8"))
     body["blockers"] = ["a blocker the previous run ended with"]
     path.write_text(_json.dumps(body, indent=2, sort_keys=True) + chr(10), encoding="utf-8")
 
-    second = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    second = _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     replay = second.receipt["replay"]
     assert replay["same_evaluator_bundle"] is True      # the bundle did not move
     assert replay["previous_run_complete"] is False
@@ -549,7 +582,7 @@ def test_two_receipts_without_a_bundle_do_not_read_as_the_same_bundle(tmp_path):
     import json as _json
 
     receipts = tmp_path / "bundleless"
-    gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    _run_gate1(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
     path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
     body = _json.loads(path.read_text(encoding="utf-8"))
     del body["evaluator_bundle"]

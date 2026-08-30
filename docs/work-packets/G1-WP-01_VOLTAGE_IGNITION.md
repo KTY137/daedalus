@@ -27,12 +27,9 @@
 | restart/replay | deterministic, unrecorded | receipt `replay` block: mission id, work item ids, base and candidate revisions, graph delta and check verdicts all stable; packet digest explicitly NOT stable (raw pytest output carries durations) |
 | no auto-merge | no promotion call | `promotion.status = "nominated, not promoted"`; no promotion module is imported |
 
-Open kernel gap, recorded in the receipt's `blocker` field: `TaskSpec` cannot
-declare which paths state its gate's criterion, so `evaluator_assurance` marks
-both attempt-level packets `unverified`/`inconclusive` even though each gate's
-criterion is provably outside the work item's `target_paths`. The Gate-1 packet
-derives its own assurance and binds the attempt packets with their real status
-rather than promoting their verdicts.
+The former criterion-binding gap is closed: `TaskSpec` records the criterion
+paths and command that actually ran, both attempt-level packets are conclusive,
+and the retained receipt has no blocker.
 
 ## Objective
 
@@ -82,3 +79,26 @@ base repository
 - automatic promotion;
 - Gate-0 closure or bypass;
 - large Polyglot repository validation.
+
+## Bounded receipt closure - 2026-08-30 [MEASURED]
+
+At trusted-main revision
+`9067e3b7e01b920fe9a36a025408e3798b908879`, the committed receipt has schema
+`daedalus-gate1-ignition-receipt/1`, two passed attempts, zero blockers, and
+EvidencePacket digest
+`49545215044e73765a4a43370eafba06eb3a58c942543f559f3717033e1c209e` with
+`evaluation_status = passed`. Its replay section records
+`replay_demonstrated = true` and `previous_run_complete = true`; promotion
+remains `nominated, not promoted`.
+
+A read-only verifier reloaded evaluator bundle
+`01c8b0c40d2fc73ec891e0ffccba42b887e4ae37ba7e4a858f38dc660ea16902`
+from its retained artifact, recomputed its digest, and verified all nine unique
+content-addressed locators and blobs named by the receipt. The focused ignition
+and bundle selection passes with an isolated test kill switch while the
+operator's real switch remains stopped: `94 passed in 136.28s` on the clean
+`704246eb` candidate.
+
+This closes this bounded ignition receipt only. It is not a Gate-1 transition,
+merge, promotion, or claim that the separate system-acceptance harness has
+passed.

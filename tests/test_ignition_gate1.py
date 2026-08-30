@@ -30,6 +30,43 @@ import pytest
 from daedalus.ignition import checks as ignition_checks
 from daedalus.ignition import gate1
 from daedalus.schemas import EvidencePacket, MissionContract
+from daedalus.spine import picker as spine_picker
+from daedalus.spine.killswitch import KillSwitch
+from daedalus.spine.ledger import SpineLedger
+
+
+_TEST_SWITCH: KillSwitch | None = None
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_ignition_switch(tmp_path_factory):
+    """Isolate both operator prerequisites used by the attempt-lease issuer."""
+
+    global _TEST_SWITCH
+    authority_state = tmp_path_factory.mktemp("ignition-authority")
+    switch = KillSwitch(authority_state / "permit")
+    switch.arm()
+    ledger_path = authority_state / "spine.sqlite3"
+    ledger = SpineLedger(ledger_path)
+    ledger.close()
+    patcher = pytest.MonkeyPatch()
+    patcher.setattr(
+        spine_picker,
+        "resolve_spine_db_path",
+        lambda *_args, **_kwargs: (ledger_path, None),
+    )
+    _TEST_SWITCH = switch
+    try:
+        yield
+    finally:
+        _TEST_SWITCH = None
+        patcher.undo()
+        switch.stop("test module complete")
+
+
+def _run_gate1(**kwargs):
+    assert _TEST_SWITCH is not None
+    return gate1.run_gate1_ignition(switch=_TEST_SWITCH, **kwargs)
 
 
 # --------------------------------------------------------------------------- #
@@ -38,7 +75,7 @@ from daedalus.schemas import EvidencePacket, MissionContract
 @pytest.fixture(scope="module")
 def slice_result(tmp_path_factory):
     receipts = tmp_path_factory.mktemp("ignition-receipts")
-    return gate1.run_gate1_ignition(
+    return _run_gate1(
         receipt_root=receipts,
         collected_at="2026-08-22T00:00:00Z",
     )
@@ -49,10 +86,10 @@ def replayed(tmp_path_factory):
     """The same inputs, run twice into the same receipt directory."""
 
     receipts = tmp_path_factory.mktemp("ignition-replay")
-    first = gate1.run_gate1_ignition(
+    first = _run_gate1(
         receipt_root=receipts, collected_at="2026-08-22T00:00:00Z"
     )
-    second = gate1.run_gate1_ignition(
+    second = _run_gate1(
         receipt_root=receipts, collected_at="2026-08-22T00:00:00Z"
     )
     return first, second
@@ -188,7 +225,7 @@ def test_a_refused_lease_is_a_blocker_not_a_silent_unleased_run(
 
     monkeypatch.setattr(gate1, "WaveLeaseDenied", _Denied)
     monkeypatch.setattr(gate1, "acquire_attempt_lease", lambda *a, **kw: _Denied())
-    result = gate1.run_gate1_ignition(
+    result = _run_gate1(
         receipt_root=tmp_path / "receipts",
         collected_at="2026-08-22T00:00:00Z",
     )
@@ -535,7 +572,7 @@ def test_a_half_finished_rename_is_refused_and_still_writes_a_receipt(
         )
 
     monkeypatch.setattr(gate1, "plan_work_items", crippled)
-    result = gate1.run_gate1_ignition(
+    result = _run_gate1(
         receipt_root=tmp_path / "receipts", collected_at="2026-08-22T00:00:00Z"
     )
     assert result.packet is None
@@ -722,7 +759,7 @@ def test_a_single_run_receipt_does_not_claim_replay(replayed, tmp_path):
     rather than let silence stand in for evidence (plan section 10 asks for
     restart/replay)."""
 
-    fresh = gate1.run_gate1_ignition(
+    fresh = _run_gate1(
         receipt_root=tmp_path / "fresh-receipts", collected_at="2026-08-23T00:00:00Z"
     )
     assert fresh.receipt["replay"]["is_replay"] is False
@@ -768,7 +805,11 @@ def test_the_fixture_is_byte_identical_in_every_checkout():
 
     offenders = []
     for path in sorted(gate1.DEFAULT_FIXTURE.rglob("*")):
-        if not path.is_file():
+        if (
+            not path.is_file()
+            or "__pycache__" in path.parts
+            or path.suffix in {".pyc", ".pyo"}
+        ):
             continue
         blob = path.read_bytes()
         if bytes([13]) in blob:  # a carriage return
