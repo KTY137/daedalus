@@ -7,6 +7,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 TAURI = ROOT / "apps" / "web" / "src-tauri"
+WORKFLOWS = ROOT / ".github" / "workflows"
 
 
 def test_tauri_desktop_has_no_parallel_frontend_or_updater() -> None:
@@ -36,9 +37,8 @@ def test_sidecar_builder_is_onedir_and_excludes_runtime_state() -> None:
 
 
 def test_release_workflow_builds_three_desktop_platforms_without_updater() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "tauri-desktop.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (WORKFLOWS / "tauri-desktop.yml").read_text(encoding="utf-8")
+    release = (WORKFLOWS / "tauri-desktop-release.yml").read_text(encoding="utf-8")
     for runner in ("windows-latest", "ubuntu-22.04", "macos-latest"):
         assert runner in workflow
     assert "tauri-apps/tauri-action@v1" in workflow
@@ -47,6 +47,26 @@ def test_release_workflow_builds_three_desktop_platforms_without_updater() -> No
     assert "uploadUpdaterSignatures: false" in workflow
     assert "prerelease: true" in workflow
     assert "pyinstaller==6.22.1" in workflow
+    assert "push:" in release
+    assert "contents: write" in release
+    assert "publish_release: true" in release
+
+
+def test_pull_request_validation_has_no_repository_write_authority() -> None:
+    validation = (WORKFLOWS / "tauri-desktop-validation.yml").read_text(
+        encoding="utf-8"
+    )
+    release = (WORKFLOWS / "tauri-desktop-release.yml").read_text(encoding="utf-8")
+    build = (WORKFLOWS / "tauri-desktop.yml").read_text(encoding="utf-8")
+
+    assert "pull_request:" in validation
+    assert "contents: read" in validation
+    assert "contents: write" not in validation
+    assert "publish_release: false" in validation
+    assert "pull_request:" not in release
+    assert "contents: write" in release
+    assert "persist-credentials: false" in build
+    assert "contents: write" not in build
 
 
 def test_desktop_release_versions_are_aligned() -> None:
