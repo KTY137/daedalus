@@ -87,6 +87,37 @@ def test_input_order_is_canonical_and_digest_stable() -> None:
     assert first.shape == (2, 2)
 
 
+def test_entry_validation_and_sorting_share_canonical_label_index() -> None:
+    tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=(
+            TensorAxis("plane", ("knowledge", "code")),
+            TensorAxis("node", ("src/c.py", "src/a.py", "src/b.py")),
+        ),
+        entries=(
+            entry("src/c.py", "knowledge", evidence="f"),
+            entry("src/b.py", "code", evidence="e"),
+            entry("src/a.py", "code"),
+        ),
+        provenance=provenance(),
+    )
+
+    assert tuple(item.coordinate_map["node"] for item in tensor.entries) == (
+        "src/a.py",
+        "src/b.py",
+        "src/c.py",
+    )
+    assert tuple(tensor.index_coordinate(item) for item in tensor.entries) == (
+        (0, 0),
+        (1, 0),
+        (2, 1),
+    )
+
+
 def test_sparse_entries_have_named_coordinates_and_deterministic_integer_projection() -> None:
     tensor = view()
     selected = tensor.select(node="src/a.py")
