@@ -25,8 +25,10 @@ on:
       - ".github/workflows/tauri-desktop.yml"
   workflow_dispatch:
 
+# Validation is the default authority. Release credentials exist only in the
+# push-to-main release job after every platform build has completed.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: tauri-desktop-${{ github.ref }}
@@ -35,6 +37,8 @@ concurrency:
 jobs:
   desktop:
     name: ${{ matrix.label }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -56,6 +60,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -120,8 +126,6 @@ jobs:
       - name: Build validation desktop bundles
         if: github.event_name != 'push'
         uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/web
           tauriScript: tauri
@@ -131,28 +135,68 @@ jobs:
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
 
-      - name: Build release desktop bundles
+      - name: Build trusted-main desktop bundles
         if: github.event_name == 'push'
         uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/web
           tauriScript: tauri
           args: ${{ matrix.tauri_args }}
-          tagName: desktop-v__VERSION__
-          releaseName: Daedalus Desktop v__VERSION__
-          releaseBody: |
-            Native Daedalus desktop bundles.
-
-            This release is intentionally a prerelease: Windows artifacts are
-            not Authenticode-signed and macOS is ad-hoc signed, not notarized.
-            The application updater is disabled until an updater signing trust
-            root is provisioned and validated.
-          releaseCommitish: ${{ github.sha }}
-          generateReleaseNotes: true
-          prerelease: true
           uploadWorkflowArtifacts: true
           workflowArtifactNamePattern: daedalus-desktop-[platform]-[arch]-[bundle]
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
+
+  release:
+    name: Publish trusted-main prerelease
+    if: github.event_name == 'push'
+    needs: desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download validated desktop bundles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: daedalus-desktop-*
+          path: desktop-artifacts
+          merge-multiple: true
+
+      - name: Read packaged version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path('apps/web/src-tauri/tauri.conf.json').read_text(encoding='utf-8'))['version'])
+          PY
+          )"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Publish prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mapfile -d '' assets < <(find desktop-artifacts -type f -print0)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No validated desktop artifacts were downloaded." >&2
+            exit 1
+          fi
+          TAG="desktop-v${VERSION}"
+          NOTES=$'Native Daedalus desktop bundles.\n\nThis release is intentionally a prerelease: Windows artifacts are not Authenticode-signed and macOS is ad-hoc signed, not notarized. The application updater is disabled until an updater signing trust root is provisioned and validated.'
+          gh release create "$TAG" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Daedalus Desktop v${VERSION}" \
+            --prerelease \
+            --generate-notes \
+            --notes "$NOTES"
