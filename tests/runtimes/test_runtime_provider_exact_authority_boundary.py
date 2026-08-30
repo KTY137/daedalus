@@ -11,7 +11,7 @@ from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
 )
-from tests.runtimes.runtime_provider_test_double import (
+from runtime_provider_test_double import (
     run_runtime_provider_test_double as run_runtime_provider,
 )
 from daedalus.runtimes.provider_observation import (

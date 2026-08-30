@@ -30,7 +30,7 @@ root = ["uproot==5.7.5"]
 # adapter pins langsmith tracing off explicitly rather than trusting that no
 # environment variable on the machine turns it on.
 orchestration = ["langgraph>=1.2,<2"]
-# Test-time only: nothing under daedalus/ imports either of these, only tests/.
+# Test-time only: nothing under daedalus/ imports these, only tests/.
 # The core stays zero-dependency; this extra is what `python -m pytest tests/`
 # (the runner README.md documents) actually needs.
 #   pytest      -- required by 116 of 254 files in tests/ (MEASURED 2026-08-25,
@@ -43,7 +43,16 @@ orchestration = ["langgraph>=1.2,<2"]
 #   hypothesis  -- property-based tests (docs/ABSORPTION.md D1). MPL-2.0 -- see
 #                  ABSORPTION.md D1 bar 3 for why that licence attaches to
 #                  nothing here (imported, never modified/redistributed).
-test = ["pytest>=8", "hypothesis>=6.163"]
+#   jsonschema  -- unconditional Draft 2020-12 contract checks under tests/gates
+#                  and tests/runtimes; intentionally remains outside core.
+#   pytest-asyncio -- executes the unconditional asyncio-marked adapter and
+#                  evolution tests instead of silently skipping coroutines.
+test = [
+    "pytest>=8",
+    "hypothesis>=6.163",
+    "jsonschema>=4.23",
+    "pytest-asyncio>=0.23.5",
+]
 
 [project.scripts]
 daedalus = "daedalus.cli:main"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import secrets
@@ -28,9 +29,6 @@ from daedalus.kernel.runtime_effects import (
 )
 from daedalus.runtimes.broker import (
     RuntimeProviderTrustFenceError,
-)
-from tests.runtimes.runtime_provider_test_double import (
-    run_runtime_provider_test_double as run_runtime_provider,
 )
 from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
 from daedalus.runtimes.provider_observation import (
@@ -78,6 +76,30 @@ _PROBE_SHA256 = "4" * 64
 _CONFORMANCE_SHA256 = "5" * 64
 _ENVELOPE_SHA256 = "6" * 64
 _MAX_RAW_EVIDENCE_BYTES = 64 * 1024
+
+
+def _load_test_broker():
+    """Load the callback fixture without making ``tests`` a Python package."""
+
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "runtimes"
+        / "runtime_provider_test_double.py"
+    )
+    name = "daedalus_runtime_provider_test_double_fixture"
+    module = sys.modules.get(name)
+    if module is not None:
+        return module.run_runtime_provider_test_double
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load runtime provider test double: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module.run_runtime_provider_test_double
+
+
+run_runtime_provider = _load_test_broker()
 
 
 class RuntimeTrustContentionFaultError(RuntimeError):
