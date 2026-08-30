@@ -2,7 +2,7 @@
   "schema": "daedalus.work-packet/1",
   "id": "G1-LOOP-TERMINAL-250",
   "title": "Loop terminal renderer trust-boundary repair",
-  "status": "implementation_complete_verification_pending",
+  "status": "implementation_complete_verification_blocked",
   "authority": {
     "plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
     "revision": 8,
@@ -10,6 +10,7 @@
     "active_gate": "Gate 1 — Renovation ignition slice"
   },
   "issue": 250,
+  "pull_request": 306,
   "canonical_branch": "g1/gardener-post-release-containment-03",
   "branch_policy": {
     "new_remote_branch_created": false,
@@ -48,7 +49,16 @@
       "python -m pytest -q tests/test_loop_terminal_rendering.py tests/test_loop_bound_safety.py"
     ],
     "local_execution": "NOT_EXECUTED_IN_CONNECTOR_SESSION",
-    "hosted_ci": "PENDING_EXACT_HEAD_CHECK",
+    "hosted_ci": {
+      "run_id": 33301115166,
+      "workflow": "Tauri Desktop",
+      "head_sha": "31dc18ab7290054d40ea33b4b232a1362eaf823d",
+      "conclusion": "failure",
+      "linux_job_id": 99229335067,
+      "linux_job_conclusion": "failure",
+      "linux_steps": [],
+      "classification": "ZERO_STEP_INFRASTRUCTURE_FAILURE_NOT_PRODUCT_EVIDENCE"
+    },
     "claims": {
       "focused_tests_green": false,
       "full_suite_green": false,
