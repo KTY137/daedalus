@@ -1,0 +1,92 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TWIN-GARDEN-01R",
+  "title": "Re-port canonical Fourfold projection identity consolidation onto current main",
+  "gate": 1,
+  "classification": "ALIGNED",
+  "owner_direction_issue": 239,
+  "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+  "branch": "g1/fourfold-projection-consolidation-main",
+  "supersedes_pull_request": 244,
+  "superseded_head": "932fff0a80019807d8bef7b7411289b9d92cbfff",
+  "primary_claim": "The reviewed Fourfold projection-identity consolidation from stale PR #244 is selectively re-ported onto current main without carrying its obsolete branch ancestry: projection_verifier reuses FOURFOLD_PLANES and CrossPlaneBinding.semantic_key, and the focused regression test is retained byte-identically.",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "master_plan_revision": 8,
+    "master_plan_version": "1.3.0",
+    "active_gate": "Gate 1 — Renovation ignition slice",
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval_issuance": false,
+    "gate_transition": false
+  },
+  "containment": {
+    "source_pr": 244,
+    "source_head": "932fff0a80019807d8bef7b7411289b9d92cbfff",
+    "projection_verifier_blob_sha": "b02462d3e8416d475d7e785bad44505b4997026c",
+    "focused_test_blob_sha": "0f953b148246674aab097baeff3abdad406a2690",
+    "statement": "The production file and focused regression are Git-blob-identical to the reviewed versions in PR #244; only the Work-Packet metadata is renewed for the current main base. This retains the old packet's useful evidence while discarding stale branch ancestry."
+  },
+  "baseline_review": {
+    "current_main": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+    "finding": "Current main still duplicates the constitutional four-plane tuple in two verifier buckets and reconstructs a five-field cross-plane key even though CrossPlaneBinding.semantic_key already owns six-field semantic identity including source_revision.",
+    "gardener_decision": "selective port, not merge: reuse the exact reviewed production/test blobs from #244 and do not import unrelated historical commits"
+  },
+  "scope": {
+    "changes": [
+      "daedalus/twin/projection_verifier.py"
+    ],
+    "adds": [
+      "tests/twin/test_fourfold_gardening.py",
+      "docs/work-packets/G1-TWIN-GARDEN-01R.json"
+    ],
+    "deletes": [
+      "projection_verifier._binding_key duplicate helper",
+      "two duplicated literal four-plane enumerations",
+      "unused typing.Iterable import"
+    ],
+    "new_production_modules": 0,
+    "new_public_symbols": 0,
+    "new_compatibility_shims": 0,
+    "new_registry_or_store": false,
+    "new_semantic_plane": false,
+    "wire_schema_changed": false
+  },
+  "acceptance": [
+    "projection verifier uses FOURFOLD_PLANES for all per-plane buckets",
+    "snapshot-side cross-plane identity is taken from CrossPlaneBinding.semantic_key",
+    "Forest-side binding keys include the exact Fourfold source revision and match the six-field semantic identity shape",
+    "the duplicate _binding_key helper and unused Iterable import are absent",
+    "the focused architecture test prevents a second four-plane tuple or binding-key authority from regrowing",
+    "the reference fixture remains deterministic and an exact Forest projection"
+  ],
+  "verification": {
+    "executed_in_connector_session": [
+      "GitHub blob identity check: daedalus/twin/projection_verifier.py == b02462d3e8416d475d7e785bad44505b4997026c, identical to PR #244 reviewed blob",
+      "GitHub blob identity check: tests/twin/test_fourfold_gardening.py == 0f953b148246674aab097baeff3abdad406a2690, identical to PR #244 reviewed blob"
+    ],
+    "prepared": [
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin/test_fourfold_contracts.py tests/twin/test_projection_verifier.py tests/twin/test_reference_hardening.py tests/twin/test_fourfold_gardening.py",
+      "python -m py_compile daedalus/twin/projection_verifier.py tests/twin/test_fourfold_gardening.py"
+    ],
+    "claim": "exact source containment is verified; no exact-head pytest, package, wheel, platform, benchmark, Gate, merge or promotion claim is made until executable evidence exists"
+  },
+  "gardening_metrics": {
+    "production_additions": 8,
+    "production_deletions": 24,
+    "net_production_lines": -16,
+    "duplicate_plane_enumerations_removed": 2,
+    "duplicate_binding_key_helpers_removed": 1
+  },
+  "rollback": [
+    "revert the projection_verifier change and focused gardening test together",
+    "retain PR #244 and this Work Packet as provenance for the selective-port decision"
+  ],
+  "non_goals": [
+    "merging the stale PR #244 branch history",
+    "changing Fourfold wire schemas or trust semantics",
+    "implementing or promoting the tensor kernel",
+    "activating Gate 2",
+    "issuing OwnerApproval or promotion"
+  ]
+}

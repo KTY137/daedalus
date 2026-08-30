@@ -1,0 +1,100 @@
+name: Gate 1 Ikarus Unified Runtime Admission
+
+on:
+  push:
+    branches:
+      - g1/ikarus-unified-runtime-admission-07
+  pull_request:
+    branches:
+      - g1/ikarus-effect-bridge-06
+      - main
+    paths:
+      - "daedalus/ikarus_effect_bridge.py"
+      - "daedalus/ikarus_oneshot.py"
+      - "daedalus/ikarus_tool_scope.py"
+      - "daedalus/runtimes/provider_executable_pre_admission.py"
+      - "daedalus/runtimes/provider_executable_object_registry.py"
+      - "daedalus/runtimes/provider_runtime_executable_binding.py"
+      - "daedalus/runtimes/provider_invocation_payload.py"
+      - "tests/test_ikarus_effect_bridge.py"
+      - "tests/test_ikarus_oneshot.py"
+      - "tests/test_ikarus_tool_scope.py"
+      - "tests/runtimes/test_provider_executable_pre_admission.py"
+      - "tests/runtimes/test_provider_executable_pre_admission_review.py"
+      - "tests/runtimes/test_provider_executable_object_registry.py"
+      - "tests/runtimes/test_provider_executable_object_registry_review.py"
+      - "tests/runtimes/test_provider_runtime_executable_binding.py"
+      - "tests/runtimes/test_provider_runtime_executable_binding_review.py"
+      - "tests/runtimes/test_provider_invocation_payload.py"
+      - "tests/runtimes/test_provider_invocation_payload_review.py"
+      - "docs/research/hermes-agent-v2026.8.19-provenance.json"
+      - "docs/work-packets/G1-IKARUS-07S_PROVIDER_STACK_SERIALIZATION.md"
+      - "docs/work-packets/G1-IKARUS-07D1_PROVIDER_INVOCATION_PAYLOAD.md"
+      - ".github/workflows/g1-ikarus-unified-runtime-admission.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g1-ikarus-unified-runtime-admission-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: >-
+          python -m py_compile
+          daedalus/ikarus_effect_bridge.py
+          daedalus/ikarus_oneshot.py
+          daedalus/ikarus_tool_scope.py
+          daedalus/runtimes/provider_executable_pre_admission.py
+          daedalus/runtimes/provider_executable_object_registry.py
+          daedalus/runtimes/provider_runtime_executable_binding.py
+          daedalus/runtimes/provider_invocation_payload.py
+          tests/test_ikarus_effect_bridge.py
+          tests/test_ikarus_oneshot.py
+          tests/test_ikarus_tool_scope.py
+          tests/runtimes/test_provider_executable_pre_admission.py
+          tests/runtimes/test_provider_executable_object_registry.py
+          tests/runtimes/test_provider_runtime_executable_binding.py
+          tests/runtimes/test_provider_invocation_payload.py
+          tests/runtimes/test_provider_invocation_payload_review.py
+      - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
+      - run: >-
+          python -m pytest -q -p no:cacheprovider
+          tests/test_ikarus_effect_bridge.py
+          tests/test_ikarus_oneshot.py
+          tests/test_ikarus_tool_scope.py
+          tests/test_ikarus_runtime_role.py
+          tests/kernel/test_runtime_conformance_harness.py
+          tests/runtimes/test_runtime_conformance_profiles.py
+          tests/runtimes/test_provider_executable_pre_admission.py
+          tests/runtimes/test_provider_executable_pre_admission_review.py
+          tests/runtimes/test_provider_executable_object_registry.py
+          tests/runtimes/test_provider_executable_object_registry_review.py
+          tests/runtimes/test_provider_runtime_executable_binding.py
+          tests/runtimes/test_provider_runtime_executable_binding_review.py
+          tests/runtimes/test_provider_invocation_payload.py
+          tests/runtimes/test_provider_invocation_payload_review.py
+          tests/runtimes/test_provider_invocation_authority.py
+          tests/runtimes/test_runtime_provider_exact_authority_boundary.py
+          tests/runtimes/test_provider_observation_authority_review.py

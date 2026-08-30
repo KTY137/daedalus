@@ -1,0 +1,95 @@
+{
+  "schema": "daedalus-hermes-delta-provenance/1",
+  "captured_at": "2026-08-30T06:10:00Z",
+  "upstream_repository": "NousResearch/hermes-agent",
+  "purpose": "Freshness delta only. This record does not replace the full v2026.8.19 source/archive provenance used by existing Ikarus packets.",
+  "base": {
+    "version": "0.20.5",
+    "tag": "v2026.8.19",
+    "tag_object_sha": "b05e680e63d39d5a8e3ec0f5842a41d1c4209c03",
+    "commit_sha": "fcbd1076a93841fa88855acce810e342a5b78101"
+  },
+  "target": {
+    "version": "0.20.6",
+    "tag": "v2026.8.27",
+    "tag_object_sha": "fcebd62163497e77e5de00d26d2ed86cb4ef8761",
+    "commit_sha": "5fc308a70719a83cccdbba4c0e39c23f5a8239d5",
+    "tree_sha": "222ec43b5237deb643277bc2f64fa4b873dd7f28",
+    "published_at": "2026-08-27T12:06:53Z"
+  },
+  "release_window": {
+    "upstream_summary": "Patch release rolling up approximately 525 merged PRs / 1313 commits since v0.20.5; full curated notes deferred to v0.21.0.",
+    "reported_highlights": [
+      "consent-gated real-profile browsing",
+      "desktop browser OS window and managed SSH remote-update/fleet profile support",
+      "remote MCP catalog expansion",
+      "TTL result caching for web_search/web_extract",
+      "lean-tail compression as default",
+      "multi-query tool_search with stemming",
+      "opt-in OS-keychain encryption for stored secrets",
+      "safer updater/control-socket behavior",
+      "durable cron incident acknowledgements and clearer code-skew failures",
+      "shared Docker container identities",
+      "pluggable terminal environment backends",
+      "new model picker entries"
+    ]
+  },
+  "existing_parity_anchor_delta": [
+    {
+      "path": "run_agent.py",
+      "v2026_8_19_blob_sha": "62377381419da168397bb11151ec6877476cf729",
+      "v2026_8_27_blob_sha": "c6638b6cacde57824e1bab243c3daba9deb4d678",
+      "status": "changed",
+      "action": "review agent-loop deltas before refreshing any loop-parity claim"
+    },
+    {
+      "path": "agent/oneshot.py",
+      "v2026_8_19_blob_sha": "9ab92cf150e3478fd422a6c1cd6fcf2651704a50",
+      "v2026_8_27_blob_sha": "9ab92cf150e3478fd422a6c1cd6fcf2651704a50",
+      "status": "unchanged",
+      "action": "existing one-shot source anchor remains byte-stable across the release delta"
+    },
+    {
+      "path": "acp_adapter/events.py",
+      "v2026_8_19_blob_sha": "ab82c0e7e3d5ff1653dcc6a2f0ca1d3d611acbfa",
+      "v2026_8_27_blob_sha": "ab82c0e7e3d5ff1653dcc6a2f0ca1d3d611acbfa",
+      "status": "unchanged",
+      "action": "existing callback/event-correlation source anchor remains byte-stable across the release delta"
+    },
+    {
+      "path": "tools/registry.py",
+      "v2026_8_19_blob_sha": "16fbc071a80589e8403b97fc3c5b3be642dbb51a",
+      "v2026_8_27_blob_sha": "bf6d52f2ee637a56bf1b6d24d5f13e3dbbd0dd92",
+      "status": "changed",
+      "action": "review registry/tool-search deltas before refreshing any tool-scope parity claim"
+    }
+  ],
+  "daedalus_mapping": {
+    "source_stable_now": [
+      "stateless one-shot behavior already adapted in G1-IKARUS-04",
+      "ACP event/call-correlation behavior already adapted in G1-IKARUS-03"
+    ],
+    "requires_source_delta_review": [
+      "agent loop behavior in run_agent.py",
+      "tool registry/search behavior in tools/registry.py"
+    ],
+    "release_level_candidates_for_later_bounded_assessment": [
+      "lean-tail context compression -> Ariadne/context-budget responsibility",
+      "multi-query/stemmed tool search -> canonical retrieval/tool discovery responsibility",
+      "TTL web-result caching -> retrieval/evidence cache responsibility"
+    ],
+    "deliberate_non_copy_control_plane_examples": [
+      "remote MCP catalog authority",
+      "OS keychain/secret authority",
+      "cron scheduler authority",
+      "terminal environment authority",
+      "gateway/update control plane"
+    ]
+  },
+  "limitations": [
+    "No v0.20.6 archive hash is recorded here.",
+    "Only the four pre-existing source anchors were blob-compared in this packet.",
+    "Release-note highlights are discovery leads, not source-proven capability claims.",
+    "This delta record must not silently retarget older receipts whose evidence subject is v2026.8.19."
+  ]
+}
