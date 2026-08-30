@@ -2,21 +2,82 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
+import plistlib
 import re
+import stat
+import struct
 import tarfile
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from tools.select_desktop_release_assets import (
+    _is_link_or_reparse,
     archive_macos_app,
     select_release_assets,
+    verify_macos_arm64_bundle,
 )
-
 
 ROOT = Path(__file__).resolve().parents[1]
 TAURI = ROOT / "apps" / "web" / "src-tauri"
 WORKFLOW = ROOT / ".github" / "workflows" / "tauri-desktop.yml"
+ARM64_CPU_TYPE = 0x0100000C
+X86_64_CPU_TYPE = 0x01000007
+MH_MAGIC_64 = 0xFEEDFACF
+MH_EXECUTE = 0x2
+MH_DYLIB = 0x6
+LC_UUID = 0x1B
+
+
+def _macho_bytes(
+    cpu_type: int = ARM64_CPU_TYPE,
+    *,
+    file_type: int = MH_EXECUTE,
+    magic: int = MH_MAGIC_64,
+) -> bytes:
+    command = struct.pack("<II16s", LC_UUID, 24, b"\x00" * 16)
+    return struct.pack(
+        "<IiiIIIII",
+        magic,
+        cpu_type,
+        0,
+        file_type,
+        1,
+        len(command),
+        0,
+        0,
+    ) + command
+
+
+def _write_macho(
+    path: Path,
+    cpu_type: int = ARM64_CPU_TYPE,
+    *,
+    file_type: int = MH_EXECUTE,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(_macho_bytes(cpu_type, file_type=file_type))
+
+
+def _arm64_bundle_fixture(tmp_path: Path) -> tuple[Path, Path, tuple[Path, ...]]:
+    app_root = tmp_path / "macos"
+    app = app_root / "Daedalus.app"
+    app_binary = app / "Contents" / "MacOS" / "daedalus-desktop"
+    metadata = app / "Contents" / "Info.plist"
+    metadata.parent.mkdir(parents=True, exist_ok=True)
+    metadata.write_bytes(
+        plistlib.dumps({"CFBundleExecutable": app_binary.name}, fmt=plistlib.FMT_BINARY)
+    )
+    source_backend = tmp_path / "backend"
+    source_sidecar = source_backend / "daedalus-web-api"
+    bundled_backend = app / "Contents" / "Resources" / "backend"
+    bundled_sidecar = bundled_backend / "daedalus-web-api"
+    for binary in (app_binary, source_sidecar, bundled_sidecar):
+        _write_macho(binary)
+    for marker in (source_backend / "BUILD_TARGET", bundled_backend / "BUILD_TARGET"):
+        marker.write_text("aarch64-apple-darwin\n", encoding="utf-8")
+    return app_root, source_backend, (app_binary, source_sidecar, bundled_sidecar)
 
 
 def test_tauri_desktop_has_no_parallel_frontend_or_updater() -> None:
@@ -121,6 +182,13 @@ def test_release_workflow_builds_three_desktop_platforms_without_updater() -> No
     assert "Archive exactly one macOS application bundle" in release_matrix
     assert "actions/upload-artifact@v4" in release_matrix
     assert "Daedalus_${VERSION}_aarch64.app.tar.gz" in release_matrix
+    assert "Verify macOS arm64 bundle architecture" in release_matrix
+    assert "select_desktop_release_assets.py verify-macos-arm64" in release_matrix
+    assert '"$RUNNER_ARCH"' in release_matrix
+    assert '"${{ matrix.target }}"' in release_matrix
+    assert release_matrix.index("Build desktop bundles") < release_matrix.index(
+        "Verify macOS arm64 bundle architecture"
+    ) < release_matrix.index("Archive exactly one macOS application bundle")
 
 
 def test_desktop_shipping_paths_and_project_tests_are_in_both_ci_lanes() -> None:
@@ -163,6 +231,300 @@ def test_macos_app_archive_contains_one_top_level_bundle_and_keeps_modes(
     assert archived_executable.mode == source_mode
     if os.name != "nt":
         assert archived_executable.mode & 0o111
+
+
+def test_macos_arm64_bundle_verification_binds_runner_target_app_and_sidecar(
+    tmp_path: Path,
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+
+    assert verify_macos_arm64_bundle(
+        app_root,
+        source_backend,
+        runner_arch="ARM64",
+        rust_target="aarch64-apple-darwin",
+        host_system="Darwin",
+        host_machine="arm64",
+    ) == binaries
+
+
+@pytest.mark.parametrize(
+    ("runner_arch", "host_system", "host_machine", "rust_target", "message"),
+    (
+        ("X64", "Darwin", "arm64", "aarch64-apple-darwin", "runner architecture"),
+        ("ARM64", "Linux", "arm64", "aarch64-apple-darwin", "requires Darwin"),
+        ("ARM64", "Darwin", "x86_64", "aarch64-apple-darwin", "runner machine"),
+        ("ARM64", "Darwin", "arm64", "x86_64-apple-darwin", "Rust target"),
+    ),
+)
+def test_macos_arm64_bundle_verification_refuses_wrong_execution_context(
+    tmp_path: Path,
+    runner_arch: str,
+    host_system: str,
+    host_machine: str,
+    rust_target: str,
+    message: str,
+) -> None:
+    app_root, source_backend, _ = _arm64_bundle_fixture(tmp_path)
+
+    with pytest.raises(ValueError, match=message):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch=runner_arch,
+            rust_target=rust_target,
+            host_system=host_system,
+            host_machine=host_machine,
+        )
+
+
+@pytest.mark.parametrize(
+    ("binary_index", "label"),
+    (
+        (0, "Tauri app binary"),
+        (1, "PyInstaller source sidecar"),
+        (2, "bundled PyInstaller sidecar"),
+    ),
+)
+def test_macos_arm64_bundle_verification_refuses_any_non_arm64_binary(
+    tmp_path: Path, binary_index: int, label: str
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+    _write_macho(binaries[binary_index], X86_64_CPU_TYPE)
+
+    with pytest.raises(ValueError, match=label):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
+
+
+def test_macos_arm64_bundle_verification_refuses_fat_binary_and_target_drift(
+    tmp_path: Path,
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+    binaries[0].write_bytes(b"\xca\xfe\xba\xbe" + b"\x00" * 12)
+    with pytest.raises(ValueError, match="thin arm64 Mach-O"):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
+
+    _write_macho(binaries[0])
+    (source_backend / "BUILD_TARGET").write_text(
+        "x86_64-apple-darwin\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="source sidecar BUILD_TARGET"):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
+
+
+def test_macos_arm64_bundle_verification_recognizes_windows_reparse_metadata() -> None:
+    metadata = SimpleNamespace(
+        st_mode=stat.S_IFDIR,
+        st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+    )
+    assert _is_link_or_reparse(metadata)
+
+
+@pytest.mark.parametrize(
+    "linked_component",
+    (
+        "app_root",
+        "app",
+        "contents",
+        "macos",
+        "app_binary",
+        "resources",
+        "bundled_backend",
+        "bundled_sidecar",
+        "source_root",
+        "source_sidecar",
+    ),
+)
+def test_macos_arm64_bundle_verification_refuses_symlink_ancestors(
+    tmp_path: Path, linked_component: str
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+    app = app_root / "Daedalus.app"
+    components = {
+        "app_root": (app_root, True),
+        "app": (app, True),
+        "contents": (app / "Contents", True),
+        "macos": (app / "Contents" / "MacOS", True),
+        "app_binary": (binaries[0], False),
+        "resources": (app / "Contents" / "Resources", True),
+        "bundled_backend": (app / "Contents" / "Resources" / "backend", True),
+        "bundled_sidecar": (binaries[2], False),
+        "source_root": (source_backend, True),
+        "source_sidecar": (binaries[1], False),
+    }
+    linked, is_directory = components[linked_component]
+    external = tmp_path / f"external-{linked_component}"
+    linked.rename(external)
+    try:
+        linked.symlink_to(external, target_is_directory=is_directory)
+    except OSError as exc:
+        pytest.skip(f"host cannot create test symlink: {exc}")
+
+    with pytest.raises(ValueError, match="symlink or reparse point"):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
+    assert all(path.exists() for path in binaries)
+
+
+def test_macos_arm64_bundle_verification_refuses_truncated_macho_header(
+    tmp_path: Path,
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+    binaries[0].write_bytes(b"\xcf\xfa\xed\xfe" + ARM64_CPU_TYPE.to_bytes(4, "little"))
+
+    with pytest.raises(ValueError, match="truncated 64-bit Mach-O header"):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
+
+
+def test_macos_arm64_bundle_verification_refuses_non_executable_macho(
+    tmp_path: Path,
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+    _write_macho(binaries[0], file_type=MH_DYLIB)
+
+    with pytest.raises(ValueError, match="MH_EXECUTE"):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
+
+
+def test_macos_arm64_bundle_verification_refuses_swapped_macho_header(
+    tmp_path: Path,
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+    command = struct.pack(">II16s", LC_UUID, 24, b"\x00" * 16)
+    binaries[0].write_bytes(
+        struct.pack(
+            ">IiiIIIII",
+            MH_MAGIC_64,
+            ARM64_CPU_TYPE,
+            0,
+            MH_EXECUTE,
+            1,
+            len(command),
+            0,
+            0,
+        )
+        + command
+    )
+
+    with pytest.raises(ValueError, match="little-endian"):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
+
+
+@pytest.mark.parametrize(
+    "magic",
+    (
+        b"\xca\xfe\xba\xbe",
+        b"\xbe\xba\xfe\xca",
+        b"\xca\xfe\xba\xbf",
+        b"\xbf\xba\xfe\xca",
+    ),
+)
+def test_macos_arm64_bundle_verification_refuses_every_fat_macho_magic(
+    tmp_path: Path, magic: bytes
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+    binaries[0].write_bytes(magic + b"\x00" * 28)
+
+    with pytest.raises(ValueError, match="thin arm64 Mach-O"):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
+
+
+@pytest.mark.parametrize("boundary_case", ("past_eof", "unfilled", "zero_commands"))
+def test_macos_arm64_bundle_verification_refuses_invalid_load_command_boundary(
+    tmp_path: Path, boundary_case: str
+) -> None:
+    app_root, source_backend, binaries = _arm64_bundle_fixture(tmp_path)
+    command = struct.pack("<II16s", LC_UUID, 24, b"\x00" * 16)
+    if boundary_case == "past_eof":
+        command_count, command_size, payload = 1, len(command) + 8, command
+        message = "extend past end of file"
+    elif boundary_case == "unfilled":
+        command_count, command_size, payload = (
+            1,
+            len(command) + 8,
+            command + b"\x00" * 8,
+        )
+        message = "do not fill the declared boundary"
+    else:
+        command_count, command_size, payload = 0, 0, b""
+        message = "load-command count/size"
+    header = struct.pack(
+        "<IiiIIIII",
+        MH_MAGIC_64,
+        ARM64_CPU_TYPE,
+        0,
+        MH_EXECUTE,
+        command_count,
+        command_size,
+        0,
+        0,
+    )
+    binaries[0].write_bytes(header + payload)
+
+    with pytest.raises(ValueError, match=message):
+        verify_macos_arm64_bundle(
+            app_root,
+            source_backend,
+            runner_arch="ARM64",
+            rust_target="aarch64-apple-darwin",
+            host_system="Darwin",
+            host_machine="arm64",
+        )
 
 
 def test_macos_app_archive_refuses_missing_duplicate_or_existing_output(

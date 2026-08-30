@@ -237,6 +237,19 @@ jobs:
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
 
+      - name: Verify macOS arm64 bundle architecture
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          # PyInstaller is a native build. Refuse an Intel runner or a mixed
+          # target/app/sidecar bundle instead of publishing an ARM-labelled app
+          # whose embedded backend cannot execute on Apple Silicon.
+          python tools/select_desktop_release_assets.py verify-macos-arm64 \
+            apps/web/src-tauri/target/aarch64-apple-darwin/release/bundle/macos \
+            apps/web/src-tauri/backend \
+            "$RUNNER_ARCH" \
+            "${{ matrix.target }}"
+
       - name: Archive exactly one macOS application bundle
         if: startsWith(matrix.platform, 'macos')
         id: macos_archive
