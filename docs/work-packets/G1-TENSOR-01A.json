@@ -1,0 +1,55 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01A",
+  "title": "Tensor construction bounds before canonicalization",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01",
+  "campaign_issue": 239,
+  "finding": "The experimental tensor contract checked axis-label, axis-count and entry-count ceilings only after sorting or tuple conversion on some construction paths. That bounded retained state but did not bound work or memory consumed while canonicalizing oversized caller input.",
+  "primary_claim": "Every high-cardinality tensor construction surface now refuses an oversized or unsized input before iterating, sorting or copying its elements.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py"
+    ],
+    "added": [
+      "tests/twin/test_tensor_construction_bounds.py",
+      "docs/work-packets/G1-TENSOR-01A.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false
+  },
+  "acceptance": [
+    "axis label count is checked before _sorted_strings can iterate or sort labels",
+    "coordinate count is checked before coordinate parsing",
+    "TensorView axis count is checked before tuple construction",
+    "TensorView entry count is checked before tuple construction",
+    "unsized iterables are refused rather than consumed without a mechanical ceiling",
+    "normal sequence-based canonical contracts retain the existing deterministic representation"
+  ],
+  "adversarial_evidence": {
+    "strategy": "ExplodingSequence exposes length but raises on every element access; each oversized case must refuse while accessed remains false",
+    "focused_test": "tests/twin/test_tensor_construction_bounds.py"
+  },
+  "verification": {
+    "requested": [
+      "python -m py_compile daedalus/twin/tensor.py tests/twin/test_tensor_construction_bounds.py tests/twin/test_tensor_kernel.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin/test_tensor_construction_bounds.py tests/twin/test_tensor_kernel.py tests/twin/test_fourfold_contracts.py tests/twin/test_projection_verifier.py"
+    ],
+    "executed_in_connector_session": [],
+    "claim": "source-level hardening and focused regression preparation only; no green test or performance claim without executed exact-head evidence"
+  },
+  "rollback": "Revert this packet without changing the canonical Fourfold/Forest contracts; the tensor module remains an isolated experimental projection.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
