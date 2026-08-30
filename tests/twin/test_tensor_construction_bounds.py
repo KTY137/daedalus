@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+import pytest
+
+from daedalus.schemas import ContractProvenance
+from daedalus.twin.tensor import (
+    MAX_AXIS_LABELS,
+    MAX_TENSOR_AXES,
+    MAX_TENSOR_ENTRIES,
+    SparseTensorEntry,
+    TensorAxis,
+    TensorView,
+)
+
+REVISION = "a" * 40
+FOREST = "b" * 64
+FOURFOLD = "c" * 64
+NOW = "2026-08-30T05:59:00Z"
+
+
+class ExplodingSequence(Sequence[object]):
+    """A sized sequence that proves refusal happened before element access."""
+
+    def __init__(self, length: int) -> None:
+        self.length = length
+        self.accessed = False
+
+    def __len__(self) -> int:
+        return self.length
+
+    def __getitem__(self, index: int) -> object:
+        self.accessed = True
+        raise AssertionError(f"oversized input was consumed at index {index}")
+
+
+def provenance() -> ContractProvenance:
+    return ContractProvenance(
+        origin="test.tensor.bounds",
+        source_revision=REVISION,
+        created_at=NOW,
+        input_digests=(FOREST, FOURFOLD),
+        trace_id="tensor-construction-bounds",
+    )
+
+
+def test_axis_label_limit_refuses_before_sort_or_element_access() -> None:
+    labels = ExplodingSequence(MAX_AXIS_LABELS + 1)
+
+    with pytest.raises(ValueError, match="axis.labels exceeds bounded limit"):
+        TensorAxis("node", labels)  # type: ignore[arg-type]
+
+    assert labels.accessed is False
+
+
+def test_coordinate_limit_refuses_before_coordinate_parsing() -> None:
+    coordinates = ExplodingSequence(MAX_TENSOR_AXES + 1)
+
+    with pytest.raises(ValueError, match="entry.coordinates exceeds bounded limit"):
+        SparseTensorEntry(
+            coordinates=coordinates,  # type: ignore[arg-type]
+            relation="membership",
+            evidence_sha256s=("d" * 64,),
+        )
+
+    assert coordinates.accessed is False
+
+
+def test_axis_count_limit_refuses_before_copying_records() -> None:
+    axes = ExplodingSequence(MAX_TENSOR_AXES + 1)
+
+    with pytest.raises(ValueError, match="tensor.axes exceeds bounded limit"):
+        TensorView(
+            repository_id="KTY137/daedalus",
+            source_revision=REVISION,
+            source_forest_sha256=FOREST,
+            source_fourfold_sha256=FOURFOLD,
+            status="complete",
+            axes=axes,  # type: ignore[arg-type]
+            entries=(),
+            provenance=provenance(),
+        )
+
+    assert axes.accessed is False
+
+
+def test_entry_count_limit_refuses_before_copying_records() -> None:
+    entries = ExplodingSequence(MAX_TENSOR_ENTRIES + 1)
+
+    with pytest.raises(ValueError, match="tensor.entries exceeds bounded limit"):
+        TensorView(
+            repository_id="KTY137/daedalus",
+            source_revision=REVISION,
+            source_forest_sha256=FOREST,
+            source_fourfold_sha256=FOURFOLD,
+            status="absent",
+            axes=(),
+            entries=entries,  # type: ignore[arg-type]
+            provenance=provenance(),
+            reason="projection intentionally absent",
+        )
+
+    assert entries.accessed is False
+
+
+def test_unsized_iterables_are_not_silently_consumed() -> None:
+    consumed = False
+
+    def labels():
+        nonlocal consumed
+        consumed = True
+        yield "a"
+
+    with pytest.raises(ValueError, match="axis.labels must be a bounded sequence"):
+        TensorAxis("node", labels())  # type: ignore[arg-type]
+
+    assert consumed is False
