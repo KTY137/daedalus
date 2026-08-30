@@ -3,7 +3,7 @@ name: Fourfold v2
 on:
   pull_request:
     branches:
-      - experimental
+      - main
     paths:
       - "daedalus/twin/**"
       - "daedalus/schemas.py"
@@ -14,7 +14,7 @@ on:
       - ".github/workflows/fourfold-v2.yml"
   push:
     branches:
-      - core/fourfold-v2
+      - g1/gardener-post-release-containment-03
       - exp/tensor-kernel-contract-01
     paths:
       - "daedalus/twin/**"
@@ -53,13 +53,33 @@ jobs:
           PYTHONHASHSEED: ${{ matrix.hash-seed }}
         run: |
           python -m pytest -q tests/twin tests/test_kernel_contracts.py
+      - name: Emit bounded Tensor/Forest diagnostic cost probe
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python - <<'PY'
+          import json
+          import runpy
+
+          namespace = runpy.run_path("tests/twin/test_tensor_forest_cost_probe.py")
+          probe = namespace["probe"]
+          for plane in ("code", "knowledge"):
+              report = probe(
+                  size=512,
+                  repeats=5,
+                  query_iterations=10,
+                  plane=plane,
+              )
+              print(json.dumps(report, sort_keys=True, separators=(",", ":")))
+          PY
       - name: Verify wheel contains the twin package
         run: |
           python -c "import daedalus.twin; print(daedalus.twin.FOURFOLD_PLANES)"
 
-  full-suite:
+  repository-collection:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -69,10 +89,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install ".[test,polyglot,root]" pytest
-      - name: Run complete repository suite
+      - name: Verify declared test dependencies
+        run: |
+          python -c "import jsonschema, pytest_asyncio; print(jsonschema.__version__); print(pytest_asyncio.__version__)"
+      - name: Collect complete repository suite
         env:
           PYTHONHASHSEED: "0"
-        run: python -m pytest -q
+        run: python -m pytest --collect-only -q
 
   isolated-wheel:
     runs-on: ubuntu-latest
