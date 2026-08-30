@@ -1,0 +1,62 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01C",
+  "title": "Canonicalize sparse tensor scalar identity",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01B",
+  "campaign_issue": 239,
+  "base_revision": "ed8de5f9b67162534e4e16264bdcc6026c34171f",
+  "finding": "SparseTensorEntry already refused bools, strings and non-int/float objects and rejected non-finite values, but IEEE-754 negative zero survived float conversion. Python canonical JSON preserves the -0.0 spelling, so numerically equivalent +0.0 and -0.0 tensor claims could retain different serialized bytes and contract digests. The existing scalar refusal behavior also lacked a focused regression test.",
+  "primary_claim": "Sparse tensor scalar identity now normalizes both signs of zero to one canonical 0.0 representation before TensorView ordering and CanonicalContract serialization, while the existing no-implicit-coercion boundary is pinned by focused tests.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py"
+    ],
+    "added": [
+      "tests/twin/test_tensor_scalar_contract.py",
+      "docs/work-packets/G1-TENSOR-01C.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Normalize signed zero at the existing SparseTensorEntry scalar boundary rather than add a numeric wrapper, serializer fork or tensor-value abstraction. Forest and Fourfold remain authoritative and tensor remains a derived computational projection.",
+  "acceptance": [
+    "bool scalar values remain rejected rather than coercing to 0.0 or 1.0",
+    "numeric strings remain rejected rather than being parsed implicitly",
+    "objects implementing __float__ remain rejected rather than executing arbitrary coercion",
+    "integer scalars remain accepted and canonicalize to float",
+    "negative zero is stored with a positive sign",
+    "+0.0 and -0.0 TensorViews serialize to identical canonical JSON",
+    "+0.0 and -0.0 TensorViews have identical contract digests",
+    "NaN and infinities remain rejected by the existing finite-number guard"
+  ],
+  "verification": {
+    "requested": [
+      "python -m py_compile daedalus/twin/tensor.py tests/twin/test_tensor_scalar_contract.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin/test_tensor_scalar_contract.py tests/twin/test_tensor_evidence_bounds.py tests/twin/test_tensor_construction_bounds.py tests/twin/test_tensor_kernel.py tests/twin/test_fourfold_contracts.py tests/twin/test_projection_verifier.py"
+    ],
+    "executed_in_connector_session": [],
+    "claim": "source-level canonicalization plus focused regression preparation only until exact-head executable evidence exists"
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01C commits; canonical Forest/Fourfold artifacts and their identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
