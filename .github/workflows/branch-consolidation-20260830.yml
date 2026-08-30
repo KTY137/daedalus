@@ -22,7 +22,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Consolidate remote refs with recovery manifest
+      - name: Archive and consolidate remote refs
         shell: bash
         run: |
           set -euo pipefail
@@ -49,6 +49,9 @@ jobs:
               "g2/knowledge-correlation-bootstrap",
           ]
           keep_set = set(keep)
+          archive_prefix = "archive/branches/20260830"
+          manifest_path = "docs/recovery/REMOTE_BRANCH_CONSOLIDATION_20260830.json"
+
           if len(keep) != 11 or len(keep_set) != 11 or "main" not in keep_set:
               raise SystemExit("invalid canonical keep-set")
 
@@ -88,6 +91,33 @@ jobs:
                   out.append((int(number), head, base))
               return out
 
+          def ref_sha(ref):
+              cp = run(["gh", "api", f"repos/{repo}/git/ref/{ref}"], check=False)
+              if cp.returncode != 0:
+                  text = cp.stdout + cp.stderr
+                  if "404" in text or "Not Found" in text:
+                      return None
+                  print(text, file=sys.stderr)
+                  raise SystemExit(f"cannot read ref {ref}")
+              return json.loads(cp.stdout)["object"]["sha"]
+
+          def ensure_archive_tag(name, sha):
+              tag = f"{archive_prefix}/{name}"
+              ref = f"tags/{tag}"
+              existing = ref_sha(ref)
+              if existing is None:
+                  run([
+                      "gh", "api", "-X", "POST", f"repos/{repo}/git/refs",
+                      "-f", f"ref=refs/{ref}",
+                      "-f", f"sha={sha}",
+                  ])
+                  existing = ref_sha(ref)
+              if existing != sha:
+                  raise SystemExit(
+                      f"archive tag mismatch for {name}: expected {sha}, got {existing}"
+                  )
+              return tag
+
           before = branches()
           missing = [name for name in keep if name not in before]
           if missing:
@@ -105,8 +135,15 @@ jobs:
                   archive_prs.append({"number": number, "head": head, "base": base})
 
           retire = {name: sha for name, sha in before.items() if name not in keep_set}
+          retired_manifest = {
+              name: {
+                  "sha": sha,
+                  "archive_tag": f"{archive_prefix}/{name}",
+              }
+              for name, sha in sorted(retire.items())
+          }
           manifest = {
-              "schema": "daedalus-remote-branch-consolidation/1",
+              "schema": "daedalus-remote-branch-consolidation/2",
               "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
               "repository": repo,
               "trigger_sha": os.environ.get("GITHUB_SHA"),
@@ -115,13 +152,14 @@ jobs:
                   "force_updates": False,
                   "history_rewrites": False,
                   "delete_only_after_manifest": True,
+                  "delete_only_after_archive_tag": True,
+                  "archive_namespace": archive_prefix,
               },
               "keep_branches": {name: before[name] for name in keep},
-              "retired_branches": dict(sorted(retire.items())),
+              "retired_branches": retired_manifest,
               "open_prs_to_archive": archive_prs,
           }
 
-          manifest_path = "docs/recovery/REMOTE_BRANCH_CONSOLIDATION_20260830.json"
           payload = json.dumps(manifest, indent=2, sort_keys=True).encode() + b"\n"
           encoded = base64.b64encode(payload).decode()
           existing = run(
@@ -131,39 +169,58 @@ jobs:
           cmd = [
               "gh", "api", "-X", "PUT",
               f"repos/{repo}/contents/{manifest_path}",
-              "-f", "message=chore: snapshot remote branches before consolidation",
+              "-f", "message=chore: snapshot and tag remote branches before consolidation",
               "-f", f"content={encoded}",
               "-f", "branch=main",
           ]
           if existing.returncode == 0:
               existing_sha = json.loads(existing.stdout)["sha"]
               cmd += ["-f", f"sha={existing_sha}"]
-          elif "404" not in (existing.stderr + existing.stdout):
+          elif "404" not in (existing.stderr + existing.stdout) and "Not Found" not in (existing.stderr + existing.stdout):
               raise SystemExit("could not determine recovery-manifest state")
           run(cmd)
           print(f"persisted recovery manifest for {len(before)} branches; retiring {len(retire)}")
 
-          # Fail closed on races after the recovery commit. Only main may advance because
-          # persisting the manifest itself creates one main commit.
+          # No branch deletion occurs until every retiring tip has a durable Git ref.
+          # The manifest commit may advance main; every other branch must remain unchanged.
           after_manifest = branches()
           if set(after_manifest) != set(before):
-              raise SystemExit("branch set changed after inventory; refusing deletion")
+              raise SystemExit("branch set changed after inventory; refusing archival/deletion")
           for name, sha in before.items():
               if name != "main" and after_manifest.get(name) != sha:
                   raise SystemExit(f"branch moved after inventory: {name}")
 
-          # Archive every still-open PR whose head is being retired. Kept heads must already
-          # point only at canonical bases; never silently retarget in this destructive run.
+          for name, sha in sorted(retire.items()):
+              current = ref_sha(f"heads/{name}")
+              if current != sha:
+                  raise SystemExit(
+                      f"branch moved before archive tagging: {name}: expected {sha}, got {current}"
+                  )
+              tag = ensure_archive_tag(name, sha)
+              current_after_tag = ref_sha(f"heads/{name}")
+              if current_after_tag != sha:
+                  raise SystemExit(
+                      f"branch moved while archive tag was created: {name}: expected {sha}, got {current_after_tag}"
+                  )
+              print(f"ARCHIVE {name} {sha} -> refs/tags/{tag}")
+
+          # Only after every retiring branch has a durable tag may its open PR be archived.
           for number, head, base in open_prs():
               if head in keep_set:
                   if base not in keep_set:
                       raise SystemExit(f"PR #{number} gained retiring base {base}")
                   continue
+              sha = retire.get(head)
+              if sha is None:
+                  raise SystemExit(f"open PR #{number} uses unknown retiring head {head}")
+              tag = f"{archive_prefix}/{head}"
+              if ref_sha(f"tags/{tag}") != sha:
+                  raise SystemExit(f"PR #{number} head lacks exact archive tag: {head}")
               body = (
                   "Repository branch consolidation: this PR is archived without merge. "
-                  f"Its head `{head}` and exact pre-deletion SHA are preserved in "
+                  f"Its exact head `{head}` at `{sha}` is preserved as Git tag `{tag}` and in "
                   f"`{manifest_path}`. This is not a claim that the code was integrated; "
-                  "unverified unique work remains selectively recoverable/portable from the recorded SHA. "
+                  "unique unverified work remains selectively recoverable/portable from the archival ref. "
                   "The active repository topology is being reduced to the owner-approved 11 canonical lines under #42."
               )
               run([
@@ -181,15 +238,31 @@ jobs:
                   raise SystemExit(f"unsafe open PR remains: #{number} {head}->{base}")
 
           failures = []
-          for name in sorted(retire):
+          for name, sha in sorted(retire.items()):
+              tag = f"{archive_prefix}/{name}"
+              if ref_sha(f"tags/{tag}") != sha:
+                  failures.append({"branch": name, "reason": "archive-tag-mismatch"})
+                  continue
+              current = ref_sha(f"heads/{name}")
+              if current is None:
+                  print(f"already retired after archival: {name}")
+                  continue
+              if current != sha:
+                  failures.append({
+                      "branch": name,
+                      "reason": "branch-moved-before-delete",
+                      "expected": sha,
+                      "actual": current,
+                  })
+                  continue
               cp = run(
                   ["gh", "api", "-X", "DELETE", f"repos/{repo}/git/refs/heads/{name}"],
                   check=False,
               )
               if cp.returncode != 0:
-                  failures.append({"branch": name, "stderr": cp.stderr[-1000:]})
+                  failures.append({"branch": name, "reason": "delete-failed", "stderr": cp.stderr[-1000:]})
               else:
-                  print(f"deleted branch: {name}")
+                  print(f"deleted branch after archival: {name}")
 
           final = branches()
           if failures:
