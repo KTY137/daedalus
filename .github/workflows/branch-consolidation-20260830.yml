@@ -1,0 +1,207 @@
+name: One-shot branch consolidation 2026-08-30
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/branch-consolidation-20260830.trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: branch-consolidation-20260830
+  cancel-in-progress: false
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Consolidate remote refs with recovery manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import datetime as dt
+          import json
+          import os
+          import subprocess
+          import sys
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          keep = [
+              "main",
+              "g1/ikarus-runtime-invocation-binding-07d3",
+              "nemesis/20260830-tier2-evidence-hardening-r2",
+              "g1/gardener-post-release-containment-03",
+              "exp/tensor-latent-ceiling-01",
+              "exp/tensor-kernel-contract-01",
+              "feature/chip-design-rtl-tcl",
+              "experiment/deepseek-lab",
+              "ops/gardener-campaign-20260929",
+              "worktree-wiki-generation-gate",
+              "g2/knowledge-correlation-bootstrap",
+          ]
+          keep_set = set(keep)
+          if len(keep) != 11 or len(keep_set) != 11 or "main" not in keep_set:
+              raise SystemExit("invalid canonical keep-set")
+
+          def run(args, *, check=True):
+              cp = subprocess.run(args, text=True, capture_output=True)
+              if check and cp.returncode != 0:
+                  print(cp.stdout)
+                  print(cp.stderr, file=sys.stderr)
+                  raise SystemExit(f"command failed: {args}")
+              return cp
+
+          def paged_tsv(path, jq):
+              cp = run(["gh", "api", "--paginate", path, "--jq", jq])
+              return [line for line in cp.stdout.splitlines() if line.strip()]
+
+          def branches():
+              rows = paged_tsv(
+                  f"repos/{repo}/branches?per_page=100",
+                  '.[] | [.name, .commit.sha] | @tsv',
+              )
+              out = {}
+              for row in rows:
+                  name, sha = row.split("\t", 1)
+                  if name in out:
+                      raise SystemExit(f"duplicate branch returned: {name}")
+                  out[name] = sha
+              return out
+
+          def open_prs():
+              rows = paged_tsv(
+                  f"repos/{repo}/pulls?state=open&per_page=100",
+                  '.[] | [(.number|tostring), .head.ref, .base.ref] | @tsv',
+              )
+              out = []
+              for row in rows:
+                  number, head, base = row.split("\t", 2)
+                  out.append((int(number), head, base))
+              return out
+
+          before = branches()
+          missing = [name for name in keep if name not in before]
+          if missing:
+              raise SystemExit(f"missing canonical branches: {missing}")
+
+          prs_before = open_prs()
+          archive_prs = []
+          for number, head, base in prs_before:
+              if head in keep_set:
+                  if base not in keep_set:
+                      raise SystemExit(
+                          f"open PR #{number} keeps head {head} but depends on retiring base {base}"
+                      )
+              else:
+                  archive_prs.append({"number": number, "head": head, "base": base})
+
+          retire = {name: sha for name, sha in before.items() if name not in keep_set}
+          manifest = {
+              "schema": "daedalus-remote-branch-consolidation/1",
+              "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+              "repository": repo,
+              "trigger_sha": os.environ.get("GITHUB_SHA"),
+              "policy": {
+                  "target_branch_count": 11,
+                  "force_updates": False,
+                  "history_rewrites": False,
+                  "delete_only_after_manifest": True,
+              },
+              "keep_branches": {name: before[name] for name in keep},
+              "retired_branches": dict(sorted(retire.items())),
+              "open_prs_to_archive": archive_prs,
+          }
+
+          manifest_path = "docs/recovery/REMOTE_BRANCH_CONSOLIDATION_20260830.json"
+          payload = json.dumps(manifest, indent=2, sort_keys=True).encode() + b"\n"
+          encoded = base64.b64encode(payload).decode()
+          existing = run(
+              ["gh", "api", f"repos/{repo}/contents/{manifest_path}?ref=main"],
+              check=False,
+          )
+          cmd = [
+              "gh", "api", "-X", "PUT",
+              f"repos/{repo}/contents/{manifest_path}",
+              "-f", "message=chore: snapshot remote branches before consolidation",
+              "-f", f"content={encoded}",
+              "-f", "branch=main",
+          ]
+          if existing.returncode == 0:
+              existing_sha = json.loads(existing.stdout)["sha"]
+              cmd += ["-f", f"sha={existing_sha}"]
+          elif "404" not in (existing.stderr + existing.stdout):
+              raise SystemExit("could not determine recovery-manifest state")
+          run(cmd)
+          print(f"persisted recovery manifest for {len(before)} branches; retiring {len(retire)}")
+
+          # Fail closed on races after the recovery commit. Only main may advance because
+          # persisting the manifest itself creates one main commit.
+          after_manifest = branches()
+          if set(after_manifest) != set(before):
+              raise SystemExit("branch set changed after inventory; refusing deletion")
+          for name, sha in before.items():
+              if name != "main" and after_manifest.get(name) != sha:
+                  raise SystemExit(f"branch moved after inventory: {name}")
+
+          # Archive every still-open PR whose head is being retired. Kept heads must already
+          # point only at canonical bases; never silently retarget in this destructive run.
+          for number, head, base in open_prs():
+              if head in keep_set:
+                  if base not in keep_set:
+                      raise SystemExit(f"PR #{number} gained retiring base {base}")
+                  continue
+              body = (
+                  "Repository branch consolidation: this PR is archived without merge. "
+                  f"Its head `{head}` and exact pre-deletion SHA are preserved in "
+                  f"`{manifest_path}`. This is not a claim that the code was integrated; "
+                  "unverified unique work remains selectively recoverable/portable from the recorded SHA. "
+                  "The active repository topology is being reduced to the owner-approved 11 canonical lines under #42."
+              )
+              run([
+                  "gh", "api", "-X", "POST", f"repos/{repo}/issues/{number}/comments",
+                  "-f", f"body={body}",
+              ])
+              run([
+                  "gh", "api", "-X", "PATCH", f"repos/{repo}/pulls/{number}",
+                  "-f", "state=closed",
+              ])
+              print(f"archived PR #{number}: {head} -> {base}")
+
+          for number, head, base in open_prs():
+              if head not in keep_set or base not in keep_set:
+                  raise SystemExit(f"unsafe open PR remains: #{number} {head}->{base}")
+
+          failures = []
+          for name in sorted(retire):
+              cp = run(
+                  ["gh", "api", "-X", "DELETE", f"repos/{repo}/git/refs/heads/{name}"],
+                  check=False,
+              )
+              if cp.returncode != 0:
+                  failures.append({"branch": name, "stderr": cp.stderr[-1000:]})
+              else:
+                  print(f"deleted branch: {name}")
+
+          final = branches()
+          if failures:
+              print(json.dumps({"delete_failures": failures}, indent=2), file=sys.stderr)
+          if set(final) != keep_set or len(final) != 11:
+              extra = sorted(set(final) - keep_set)
+              missing_final = sorted(keep_set - set(final))
+              raise SystemExit(
+                  f"final topology mismatch: count={len(final)} extra={extra} missing={missing_final}"
+              )
+
+          print("branch consolidation complete: exactly 11 canonical remote branches remain")
+          for name in keep:
+              print(f"KEEP {name} {final[name]}")
+          PY
