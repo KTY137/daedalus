@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 import pytest
 
-from daedalus.twin.tensor import MAX_ENTRY_EVIDENCE_DIGESTS, SparseTensorEntry
+from daedalus.twin.tensor import (
+    MAX_ENTRY_EVIDENCE_DIGESTS,
+    MAX_TENSOR_AXES,
+    MAX_TENSOR_ENTRIES,
+    SparseTensorEntry,
+    TensorView,
+)
 
 
-class ExplodingSequence(Sequence[str]):
+class ExplodingSequence(Sequence[object]):
     """Sized adversarial input that records any attempted element access."""
 
     def __init__(self, size: int) -> None:
@@ -17,13 +24,29 @@ class ExplodingSequence(Sequence[str]):
     def __len__(self) -> int:
         return self.size
 
-    def __getitem__(self, index: int) -> str:
+    def __getitem__(self, index: int) -> object:
         self.accessed = True
-        raise AssertionError(f"oversized evidence input was accessed at {index}")
+        raise AssertionError(f"oversized tensor input was accessed at {index}")
 
 
 def _digest(index: int) -> str:
     return f"{index:064x}"
+
+
+def _tensor_wire_payload(*, axes: Any = (), entries: Any = ()) -> dict[str, Any]:
+    return {
+        "contract_type": TensorView.CONTRACT_TYPE,
+        "contract_version": TensorView.CONTRACT_VERSION,
+        "repository_id": "KTY137/daedalus",
+        "source_revision": "a" * 40,
+        "source_forest_sha256": "b" * 64,
+        "source_fourfold_sha256": "c" * 64,
+        "status": "complete",
+        "axes": axes,
+        "entries": entries,
+        "provenance": {},
+        "reason": "",
+    }
 
 
 def test_oversized_evidence_fan_in_refuses_before_element_access() -> None:
@@ -63,3 +86,21 @@ def test_wire_payload_cannot_bypass_evidence_bound() -> None:
 
     with pytest.raises(ValueError, match="entry.evidence_sha256s exceeds bounded limit"):
         SparseTensorEntry.from_dict(payload)
+
+
+def test_wire_axis_count_refuses_before_record_materialization() -> None:
+    axes = ExplodingSequence(MAX_TENSOR_AXES + 1)
+
+    with pytest.raises(ValueError, match="tensor.axes exceeds bounded limit"):
+        TensorView.from_dict(_tensor_wire_payload(axes=axes))
+
+    assert axes.accessed is False
+
+
+def test_wire_entry_count_refuses_before_record_materialization() -> None:
+    entries = ExplodingSequence(MAX_TENSOR_ENTRIES + 1)
+
+    with pytest.raises(ValueError, match="tensor.entries exceeds bounded limit"):
+        TensorView.from_dict(_tensor_wire_payload(entries=entries))
+
+    assert entries.accessed is False
