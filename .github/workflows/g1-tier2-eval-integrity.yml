@@ -1,4 +1,4 @@
-# Exact-head evidence for Tier-2 evaluator integrity (#252 / #253).
+# Exact-head evidence for Tier-2 evaluator integrity (#252 / #253 / #268).
 # The broader eval corpus has a separate non-hermetic sunny_garden defect (#261),
 # so this gate intentionally runs the changed Tier-2 surface plus its historical
 # no-provider compatibility test instead of laundering that fixture failure.
@@ -12,6 +12,7 @@ on:
       - "daedalus/eval/**"
       - "tests/test_eval.py"
       - "tests/test_eval_tier2_integrity.py"
+      - "tests/test_eval_tier2_text_evidence_nemesis.py"
       - ".github/workflows/g1-tier2-eval-integrity.yml"
   workflow_dispatch:
 
@@ -37,16 +38,19 @@ jobs:
         run: >-
           python -m py_compile
           daedalus/eval/__init__.py
+          daedalus/eval/_text_integrity.py
           daedalus/eval/harness.py
           daedalus/eval/report.py
           daedalus/eval/tasks.py
           daedalus/eval/tier2.py
           tests/test_eval.py
           tests/test_eval_tier2_integrity.py
+          tests/test_eval_tier2_text_evidence_nemesis.py
       - name: Adversarial Tier-2 integrity regressions
         env:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
         run: >-
           python -m pytest -q
           tests/test_eval_tier2_integrity.py
+          tests/test_eval_tier2_text_evidence_nemesis.py
           tests/test_eval.py::EvalTier1Test::test_tier2_skips_cleanly_without_provider
