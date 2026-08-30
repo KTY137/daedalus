@@ -300,6 +300,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: ${{ github.workspace }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           # The macOS runner has already archived exactly one top-level `.app`
