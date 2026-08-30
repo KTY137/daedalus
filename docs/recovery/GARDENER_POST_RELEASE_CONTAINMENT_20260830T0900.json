@@ -1,0 +1,125 @@
+{
+  "schema": "daedalus-gardener-post-release-containment/1",
+  "observed_at": "2026-08-30T09:00:40+02:00",
+  "timezone": "Europe/Berlin",
+  "authority": {
+    "master_plan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 8,
+    "version": "1.3.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation ignition slice",
+    "classification": "ALIGNED"
+  },
+  "repository": {
+    "main_sha": "e5f55840a12dcfb1a50935c6080f06306a8854a8",
+    "main_branch_protected": false,
+    "local_linked_worktrees": "unknown",
+    "local_worktree_reason": "GitHub remote metadata cannot establish the cleanliness, containment, or existence of worktrees on the owner host"
+  },
+  "resolved_delivery": [
+    {
+      "issue": 249,
+      "delivery_pr": 258,
+      "delivery_state": "merged",
+      "merge_commit": "799f9bc708d5c1ddd1d95b8611db4db557a182f3",
+      "current_main_evidence": {
+        "path": "daedalus/loop.py",
+        "blob_sha": "0ba77b7d23e193de2cbd2552df959b2e08194aff",
+        "finding": "LoopBounds rejects non-positive or non-finite wall-clock/spend values and requires exact positive integer count bounds"
+      },
+      "recommended_issue_action": "close_completed"
+    },
+    {
+      "issue": 271,
+      "delivery_pr": 275,
+      "delivery_state": "merged",
+      "merge_commit": "5564959af625ba973a8e138612f217930cd6460d",
+      "current_main_evidence": {
+        "path": ".github/workflows/tauri-desktop.yml",
+        "blob_sha": "3d20cac6a6f12b767d54c3a1068e066b01d36397",
+        "finding": "pull-request desktop validation is contents:read with checkout credential persistence disabled; contents:write exists only in the push-only release job after needs:desktop"
+      },
+      "recommended_issue_action": "close_completed"
+    }
+  ],
+  "integrated_gardening": [
+    {
+      "pr": 265,
+      "subject": "Fourfold projection identity consolidation",
+      "state": "merged",
+      "merge_commit": "be839c58960171bd8ce4e8da132af41c75530711"
+    },
+    {
+      "pr": 267,
+      "subject": "retire parallel live benchmark authority",
+      "state": "merged",
+      "merge_commit": "2298dd539a876ec66ebab1fe6d726b2eac877ffc"
+    }
+  ],
+  "retained_open_lines": [
+    {
+      "pr": 255,
+      "classification": "experiment",
+      "reason": "latent/Tensor headroom evidence remains isolated and must not become production authority without the preregistered measurement threshold"
+    },
+    {
+      "pr": 262,
+      "classification": "experiment",
+      "reason": "bounded sparse Tensor view remains an internal experimental projection and carries explicit deletion/fold-in criteria"
+    },
+    {
+      "pr": 277,
+      "classification": "active_candidate",
+      "reason": "serialized Ikarus provider-admission line still diverges from current main; commit or blob containment is not yet established for its complete head",
+      "measured_compare": {
+        "base": "d9244822d5f6df76c82189c02a0f24a082882ab8",
+        "head": "main",
+        "status": "diverged",
+        "main_ahead_by": 48,
+        "candidate_unique_commits": 27,
+        "merge_base": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2"
+      }
+    },
+    {
+      "pr": 291,
+      "classification": "active_candidate",
+      "reason": "Tier-2 semantic/terminal hardening is the current focused evaluator repair and remains independent of loop renderer issue #250"
+    }
+  ],
+  "superseded_checkpoint": {
+    "pr": 273,
+    "head": "7874366f82613035b047f4ab7a6ed97e7974f68f",
+    "classification": "historical_evidence",
+    "reason": "its serialization predates the release consolidation and still describes #258, #265, #267 and #275 as future integration lines although those packets are now merged",
+    "recommended_pr_action": "close_without_deleting_branch"
+  },
+  "next_priority": [
+    {
+      "issue": 250,
+      "subject": "sanitize human-facing loop renderer without mutating canonical JSON evidence",
+      "dependency_state": "finite-bound predecessor is on current main",
+      "action": "next narrow code packet"
+    },
+    {
+      "issue": 278,
+      "subject": "authenticated provider invocation ABI before broker cutover",
+      "dependency_state": "keep on the serialized Ikarus line; do not create a second provider authority",
+      "action": "active after exact containment/rebase decision"
+    },
+    {
+      "issue": 241,
+      "subject": "protect main with required status checks",
+      "dependency_state": "main is still reported protected=false",
+      "action": "owner/repository governance packet"
+    }
+  ],
+  "authority_boundary": {
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "owner_approval_issued": false,
+    "gate_transition": false,
+    "branch_deleted": false,
+    "force_ref_update": false,
+    "benchmark_superiority_claim": false
+  }
+}
