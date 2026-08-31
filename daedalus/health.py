@@ -84,21 +84,25 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
+from .kernel.contracts.observations import (
+    ABSENT,
+    DEGRADED,
+    OBSERVATION_STATES as STATES,
+    PRESENT,
+    UNKNOWN,
+    WORKING,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 
 # --------------------------------------------------------------------------- #
 # the vocabulary -- closed on purpose                                          #
 # --------------------------------------------------------------------------- #
-WORKING = "working"
-PRESENT = "present"
-DEGRADED = "degraded"
-ABSENT = "absent"
-UNKNOWN = "unknown"
-
 #: The ONLY five words a probe may return. There is no "skipped", no "n/a" and
 #: no "ok": each of those is a way of not answering that has historically been
 #: read as an answer.
-STATES = (WORKING, PRESENT, DEGRADED, ABSENT, UNKNOWN)
+#: The tuple is defined once in the neutral observation contract and reexported
+#: here as the stable health API.
 
 #: States that mean "this run did not establish that the thing works".
 NOT_PROVEN = (PRESENT, UNKNOWN, ABSENT)

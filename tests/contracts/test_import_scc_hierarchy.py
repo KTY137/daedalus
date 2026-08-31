@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
+import json
 import subprocess
 from pathlib import Path
 
@@ -41,6 +43,12 @@ REMAINING_CROSS_DOMAIN_COMPONENT = OLD_CROSS_DOMAIN_COMPONENT - {
     KERNEL_LEASE,
     RUNTIME_EGRESS,
 }
+CURRENT_CROSS_DOMAIN_COMPONENT = REMAINING_CROSS_DOMAIN_COMPONENT - {
+    "daedalus.conversation",
+}
+CURRENT_COMPONENTS_SHA256 = (
+    "36d80ea6d701892c1cbb08057c2715477fbfcad972aa36b9f331d3065f3434a1"
+)
 
 
 def _module_name(path: str) -> str:
@@ -113,16 +121,35 @@ def test_intent_ledger_port_breaks_the_selected_cross_domain_scc() -> None:
     components = nontrivial_components(graph)
     component_sets = tuple(frozenset(component) for component in components)
 
-    assert len(graph) == 419
-    assert sum(len(targets) for targets in graph.values()) == 1574
-    assert len(components) == 12
-    assert max(map(len, components)) == 19
     assert OLD_CROSS_DOMAIN_COMPONENT not in component_sets
-    assert REMAINING_CROSS_DOMAIN_COMPONENT in component_sets
 
     cyclic_modules = frozenset().union(*component_sets)
     assert KERNEL_LEASE not in cyclic_modules
     assert RUNTIME_EGRESS not in cyclic_modules
+
+
+def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
+    graph = _tracked_module_graph()
+    components = nontrivial_components(graph)
+    component_sets = tuple(frozenset(component) for component in components)
+
+    assert len(graph) == 420
+    assert sum(len(targets) for targets in graph.values()) == 1575
+    assert len(components) == 12
+    assert max(map(len, components)) == 18
+    component_bytes = json.dumps(
+        components,
+        ensure_ascii=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    assert hashlib.sha256(component_bytes).hexdigest() == CURRENT_COMPONENTS_SHA256
+    assert REMAINING_CROSS_DOMAIN_COMPONENT not in component_sets
+    assert CURRENT_CROSS_DOMAIN_COMPONENT in component_sets
+    assert "daedalus.conversation" not in frozenset().union(*component_sets)
+    assert "daedalus.health" not in graph["daedalus.conversation"]
+    assert "daedalus.kernel.contracts.observations" in graph[
+        "daedalus.conversation"
+    ]
 
 
 def test_kernel_lease_has_no_spine_picker_import_or_dynamic_escape() -> None:

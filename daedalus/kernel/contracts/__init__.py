@@ -55,6 +55,7 @@ _MODULES = frozenset(
         "evidence",
         "evaluation",
         "missions",
+        "observations",
         "policy",
         "promotion",
         "registry",

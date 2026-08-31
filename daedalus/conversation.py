@@ -69,8 +69,9 @@ THE HONESTY CONSTRAINT, made structural
 ----------------------------------------
 ``daedalus.health`` distinguishes WORKING / PRESENT / DEGRADED / ABSENT /
 UNKNOWN and refuses a sixth word that could render as a pass. A dispatched piece
-of work is reported here in exactly that vocabulary -- imported from
-:mod:`daedalus.health`, not re-declared -- so "patch produced, not applied" is
+of work is reported here in exactly that vocabulary. Both surfaces re-export
+the one :mod:`daedalus.kernel.contracts.observations` contract rather than
+declaring parallel copies -- so "patch produced, not applied" is
 representable as ``outcome_state=PRESENT, summary="patch produced, not
 applied"`` and can never collapse into a bare "done". A turn's own status is a
 separate, smaller closed set (:data:`TURN_STATUSES`): ``proposed`` (an action
@@ -112,7 +113,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .health import ABSENT, DEGRADED, PRESENT, STATES as OUTCOME_STATES, UNKNOWN, WORKING
+from .kernel.contracts.observations import (
+    ABSENT,
+    DEGRADED,
+    OBSERVATION_STATES as OUTCOME_STATES,
+    PRESENT,
+    UNKNOWN,
+    WORKING,
+)
 from .spine.durability import open_gate0_spine_writer
 from .spine.ledger import (
     DEFAULT_BUSY_TIMEOUT_MS,
@@ -546,8 +554,9 @@ class ConversationStore:
         anything twice and its once-only rule stays intact.
 
         ``outcome_state`` must be one of :data:`daedalus.health.STATES` --
-        imported, not re-declared, so this can never drift from the repo's one
-        closed vocabulary for "did it actually work".
+        reexported there and here from the neutral observation contract, not
+        re-declared, so this can never drift from the repo's one closed
+        vocabulary for "did it actually work".
 
         ``source_event_id`` is optional. When present, it is the idempotency
         identity of the durable event being projected (for example one fixed
