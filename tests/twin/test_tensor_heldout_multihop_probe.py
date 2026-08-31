@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import runpy
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -34,28 +35,34 @@ HELDOUT_WORKLOAD_SHA256 = hashlib.sha256(
     json.dumps(HELDOUT_WORKLOAD_SPEC, sort_keys=True, separators=(",", ":")).encode("utf-8")
 ).hexdigest()
 
+RelationMaps = tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]
+_RELATION_BUCKET = {
+    ("imports", "code", "code"): 0,
+    ("declares", "code", "type"): 1,
+    ("documents", "code", "knowledge"): 2,
+    ("mentions_type", "knowledge", "type"): 3,
+}
+
 
 def _heldout_forest(size: int) -> KnowledgeForest:
     if type(size) is not int or not 1 <= size <= MAX_HELDOUT_SUBJECTS:
         raise ValueError(f"size must be an integer in [1, {MAX_HELDOUT_SUBJECTS}]")
 
-    source_ids = tuple(f"src/module_{index:05d}.py" for index in range(size))
-    dependency_ids = tuple(f"src/dependency_{index:05d}.py" for index in range(size))
-    type_ids = tuple(f"type:Contract{index:05d}" for index in range(size))
-    document_ids = tuple(f"docs/module_{index:05d}.md" for index in range(size))
-
+    sources = tuple(f"src/module_{index:05d}.py" for index in range(size))
+    dependencies = tuple(f"src/dependency_{index:05d}.py" for index in range(size))
+    types = tuple(f"type:Contract{index:05d}" for index in range(size))
+    documents = tuple(f"docs/module_{index:05d}.md" for index in range(size))
     nodes = tuple(
-        [ForestNode(node_id, "source_file") for node_id in source_ids]
-        + [ForestNode(node_id, "source_file") for node_id in dependency_ids]
-        + [ForestNode(node_id, "type") for node_id in type_ids]
-        + [ForestNode(node_id, "document") for node_id in document_ids]
+        [ForestNode(node_id, "source_file") for node_id in sources + dependencies]
+        + [ForestNode(node_id, "type") for node_id in types]
+        + [ForestNode(node_id, "document") for node_id in documents]
     )
 
     edges: list[ForestEdge] = []
     for index, (source, dependency, type_id, document) in enumerate(
-        zip(source_ids, dependency_ids, type_ids, document_ids)
+        zip(sources, dependencies, types, documents)
     ):
-        mentioned_type = type_id if index % 2 == 0 else type_ids[(index + 1) % size]
+        mentioned_type = type_id if index % 2 == 0 else types[(index + 1) % size]
         for relation, edge_source, edge_target in (
             ("imports", source, dependency),
             ("declares", dependency, type_id),
@@ -89,25 +96,11 @@ def _heldout_forest(size: int) -> KnowledgeForest:
 
 
 def _plane_for_kind(kind: str) -> str:
-    return {
-        "source_file": "code",
-        "type": "type",
-        "document": "knowledge",
-    }[kind]
+    return {"source_file": "code", "type": "type", "document": "knowledge"}[kind]
 
 
-def _heldout_tensor(
-    forest: KnowledgeForest,
-    fourfold: FourfoldSnapshot,
-) -> TensorView:
+def _heldout_tensor(forest: KnowledgeForest, fourfold: FourfoldSnapshot) -> TensorView:
     plane_by_node = {node.id: _plane_for_kind(node.kind) for node in forest.nodes}
-    provenance = ContractProvenance(
-        origin="test.tensor-heldout-multihop-probe",
-        source_revision=REVISION,
-        created_at=NOW,
-        input_digests=(forest.content_sha256, fourfold.digest),
-        trace_id="tensor-heldout-multihop-probe",
-    )
     return TensorView(
         repository_id="KTY137/daedalus",
         source_revision=REVISION,
@@ -140,16 +133,27 @@ def _heldout_tensor(
             )
             for edge in forest.edges
         ),
-        provenance=provenance,
+        provenance=ContractProvenance(
+            origin="test.tensor-heldout-multihop-probe",
+            source_revision=REVISION,
+            created_at=NOW,
+            input_digests=(forest.content_sha256, fourfold.digest),
+            trace_id="tensor-heldout-multihop-probe",
+        ),
     )
 
 
-def _query_from_relation_maps(
-    imports: dict[str, str],
-    declarations: dict[str, str],
-    documents: dict[str, str],
-    mentions: dict[str, str],
-) -> tuple[str, ...]:
+def _relation_maps(rows: Iterable[tuple[str, str, str, str, str]]) -> RelationMaps:
+    maps: RelationMaps = ({}, {}, {}, {})
+    for relation, source, source_plane, target, target_plane in rows:
+        bucket = _RELATION_BUCKET.get((relation, source_plane, target_plane))
+        if bucket is not None:
+            maps[bucket][source] = target
+    return maps
+
+
+def _query_relation_maps(maps: RelationMaps) -> tuple[str, ...]:
+    imports, declarations, documents, mentions = maps
     result: list[str] = []
     for source, dependency in imports.items():
         document = documents.get(source)
@@ -160,80 +164,47 @@ def _query_from_relation_maps(
     return tuple(sorted(result))
 
 
+def _heldout_forest_index(subject: KnowledgeForest) -> RelationMaps:
+    plane_by_node = {node.id: _plane_for_kind(node.kind) for node in subject.nodes}
+    return _relation_maps(
+        (
+            edge.relation,
+            edge.source,
+            plane_by_node[edge.source],
+            edge.target,
+            plane_by_node[edge.target],
+        )
+        for edge in subject.edges
+    )
+
+
 def _heldout_forest_query(subject: KnowledgeForest) -> tuple[str, ...]:
-    imports: dict[str, str] = {}
-    declarations: dict[str, str] = {}
-    documents: dict[str, str] = {}
-    mentions: dict[str, str] = {}
-    for edge in subject.edges:
-        if edge.relation == "imports":
-            imports[edge.source] = edge.target
-        elif edge.relation == "declares":
-            declarations[edge.source] = edge.target
-        elif edge.relation == "documents":
-            documents[edge.source] = edge.target
-        elif edge.relation == "mentions_type":
-            mentions[edge.source] = edge.target
-    return _query_from_relation_maps(imports, declarations, documents, mentions)
-
-
-def _heldout_forest_index(
-    subject: KnowledgeForest,
-) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
-    imports: dict[str, str] = {}
-    declarations: dict[str, str] = {}
-    documents: dict[str, str] = {}
-    mentions: dict[str, str] = {}
-    for edge in subject.edges:
-        target = edge.target
-        if edge.relation == "imports":
-            imports[edge.source] = target
-        elif edge.relation == "declares":
-            declarations[edge.source] = target
-        elif edge.relation == "documents":
-            documents[edge.source] = target
-        elif edge.relation == "mentions_type":
-            mentions[edge.source] = target
-    return imports, declarations, documents, mentions
+    return _query_relation_maps(_heldout_forest_index(subject))
 
 
 def _heldout_preindexed_query(
-    subject: tuple[
-        KnowledgeForest,
-        FourfoldSnapshot,
-        tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]],
-    ],
+    subject: tuple[KnowledgeForest, FourfoldSnapshot, RelationMaps],
 ) -> tuple[str, ...]:
-    _, _, relation_maps = subject
-    return _query_from_relation_maps(*relation_maps)
+    return _query_relation_maps(subject[2])
 
 
 def _heldout_tensor_query(subject: TensorView) -> tuple[str, ...]:
     positions = {axis.name: index for index, axis in enumerate(subject.axes)}
-    source_position = positions["source"]
-    source_plane_position = positions["source_plane"]
-    target_position = positions["target"]
-    target_plane_position = positions["target_plane"]
-
-    imports: dict[str, str] = {}
-    declarations: dict[str, str] = {}
-    documents: dict[str, str] = {}
-    mentions: dict[str, str] = {}
-    for entry in subject.entries:
-        source = entry.coordinates[source_position][1]
-        source_plane = entry.coordinates[source_plane_position][1]
-        target = entry.coordinates[target_position][1]
-        target_plane = entry.coordinates[target_plane_position][1]
-        relation_shape = (entry.relation, source_plane, target_plane)
-        if relation_shape == ("imports", "code", "code"):
-            imports[source] = target
-        elif relation_shape == ("declares", "code", "type"):
-            declarations[source] = target
-        elif relation_shape == ("documents", "code", "knowledge"):
-            documents[source] = target
-        elif relation_shape == ("mentions_type", "knowledge", "type"):
-            mentions[source] = target
-    return _query_from_relation_maps(imports, declarations, documents, mentions)
+    source = positions["source"]
+    source_plane = positions["source_plane"]
+    target = positions["target"]
+    target_plane = positions["target_plane"]
+    maps = _relation_maps(
+        (
+            entry.relation,
+            entry.coordinates[source][1],
+            entry.coordinates[source_plane][1],
+            entry.coordinates[target][1],
+            entry.coordinates[target_plane][1],
+        )
+        for entry in subject.entries
+    )
+    return _query_relation_maps(maps)
 
 
 def heldout_probe(
@@ -246,15 +217,11 @@ def heldout_probe(
         raise ValueError(f"size must be an integer in [1, {MAX_HELDOUT_SUBJECTS}]")
 
     reference_forest = _heldout_forest(size)
-    reference_fourfold = _fourfold(
-        reference_forest,
-        trace_id="tensor-heldout-multihop-probe",
-    )
+    reference_fourfold = _fourfold(reference_forest, trace_id="tensor-heldout-multihop-probe")
 
     def build_forest_arm() -> tuple[KnowledgeForest, FourfoldSnapshot]:
         forest = _heldout_forest(size)
-        fourfold = _fourfold(forest, trace_id="tensor-heldout-multihop-probe")
-        return forest, fourfold
+        return forest, _fourfold(forest, trace_id="tensor-heldout-multihop-probe")
 
     forest_metrics, forest_result = _measure(
         build_forest_arm,
@@ -263,11 +230,7 @@ def heldout_probe(
         query_iterations=query_iterations,
     )
 
-    def build_preindexed_arm() -> tuple[
-        KnowledgeForest,
-        FourfoldSnapshot,
-        tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]],
-    ]:
+    def build_preindexed_arm() -> tuple[KnowledgeForest, FourfoldSnapshot, RelationMaps]:
         forest = _heldout_forest(size)
         fourfold = _fourfold(forest, trace_id="tensor-heldout-multihop-probe")
         return forest, fourfold, _heldout_forest_index(forest)
