@@ -109,6 +109,15 @@
       "removal_criteria": "The replacement CLI is packaged and effect-registry plus wheel audits show no remaining legacy target."
     },
     {
+      "import_path": "daedalus.providers.base",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.contracts"
+      ],
+      "kind": "contract_reexport_facade",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining legacy contract import after one supported compatibility release."
+    },
+    {
       "import_path": "daedalus.providers.claude_cli",
       "owner": "runtimes-providers",
       "targets": [
