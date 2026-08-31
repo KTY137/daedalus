@@ -233,9 +233,9 @@ class CatalogueRouteStaysOffTheLatentPathTest(unittest.TestCase):
         a real effect. do_GET declares none, so this route must pass
         use_latent=False explicitly. A future edit that flips it, or that
         drops the keyword and inherits a changed default, fails here."""
-        from daedalus import web_api
+        from daedalus.interfaces.http import read
 
-        tree = ast.parse(inspect.getsource(web_api))
+        tree = ast.parse(inspect.getsource(read))
         calls = [
             node for node in ast.walk(tree)
             if isinstance(node, ast.Call)

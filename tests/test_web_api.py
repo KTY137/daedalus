@@ -475,11 +475,11 @@ class LatentSearchRouteTest(unittest.TestCase):
         import inspect
         import re
 
-        from daedalus import web_api
+        from daedalus.interfaces.http import effects, read
 
-        source = inspect.getsource(web_api)
+        source = inspect.getsource(read) + inspect.getsource(effects)
         routes = re.findall(r'path == "([^"]*)"', source)
-        self.assertTrue(routes, "expected route literals in web_api")
+        self.assertTrue(routes, "expected route literals in HTTP route owners")
         for route in routes:
             self.assertTrue(
                 route.startswith("/") and "\\" not in route,
