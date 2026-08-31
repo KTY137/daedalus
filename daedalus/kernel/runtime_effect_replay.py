@@ -17,6 +17,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from daedalus.kernel.contracts import (
+    RuntimeTrustPortError,
+    RuntimeTrustRecordPort,
+)
 from daedalus.kernel.effect_replay import (
     EffectExecutionReplaySnapshot,
     EffectReplayProjectionError,
@@ -29,7 +33,6 @@ from daedalus.kernel.runtime_effects import (
     RuntimeLeaseAdmissionError,
     verify_runtime_bound_effect_lease,
 )
-from daedalus.runtimes.trust_store import RuntimeTrustRecord, RuntimeTrustStoreError
 
 
 class RuntimeEffectReplayProjectionError(EffectReplayProjectionError):
@@ -41,14 +44,14 @@ class RuntimeEffectExecutionReplaySnapshot:
     """Exact persisted effect state plus its active runtime-trust subject."""
 
     execution: EffectExecutionReplaySnapshot
-    runtime_trust_record: RuntimeTrustRecord
+    runtime_trust_record: RuntimeTrustRecordPort
     verified_at: str
 
     def __post_init__(self) -> None:
         if not isinstance(self.execution, EffectExecutionReplaySnapshot):
             raise ValueError("execution snapshot type is invalid")
-        if not isinstance(self.runtime_trust_record, RuntimeTrustRecord):
-            raise ValueError("runtime trust record type is invalid")
+        if not isinstance(self.runtime_trust_record, RuntimeTrustRecordPort):
+            raise ValueError("runtime trust record port type is invalid")
         try:
             verified = _parse_utc(self.verified_at, "verified_at")
         except Exception as exc:
@@ -125,7 +128,7 @@ def inspect_runtime_effect_execution(
             now=start_instant,
             registry=authorization.registry,
         )
-    except (RuntimeLeaseAdmissionError, RuntimeTrustStoreError, ValueError) as exc:
+    except (RuntimeLeaseAdmissionError, RuntimeTrustPortError, ValueError) as exc:
         raise RuntimeEffectReplayProjectionError(
             "runtime-bound capability failed historical start verification"
         ) from exc

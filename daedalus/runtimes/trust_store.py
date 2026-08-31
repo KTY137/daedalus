@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
+from daedalus.kernel.contracts import RuntimeTrustPortError
 from daedalus.schemas import _identifier, _non_empty, _revision, _sha256, _utc_timestamp
 from daedalus.spine.envelope import canonical_sha
 
@@ -30,7 +31,7 @@ _ACTIVE = "ACTIVE"
 _QUARANTINED = "QUARANTINED"
 
 
-class RuntimeTrustStoreError(RuntimeError):
+class RuntimeTrustStoreError(RuntimeTrustPortError):
     """Base class for persisted runtime-trust failures."""
 
 

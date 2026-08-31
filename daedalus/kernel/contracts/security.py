@@ -8,7 +8,8 @@ mechanical rewrite of the legacy schema module in the same security packet.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar, Mapping
+from datetime import datetime
+from typing import Any, ClassVar, Mapping, Protocol, runtime_checkable
 
 from daedalus.kernel.contracts.canonical import (
     CanonicalContract,
@@ -22,6 +23,39 @@ from daedalus.kernel.contracts.canonical import (
     _utc_timestamp,
 )
 from daedalus.spine.envelope import canonical_sha
+
+
+class RuntimeTrustPortError(RuntimeError):
+    """Neutral failure domain for injected runtime-trust authorities."""
+
+
+@runtime_checkable
+class RuntimeTrustRecordPort(Protocol):
+    """Authenticated runtime-trust record fields consumed by the kernel."""
+
+    runtime_id: str
+    envelope_sha256: str
+    conformance_receipt_sha256: str
+    runtime_manifest_sha256: str
+    source_revision: str
+    expires_at: str
+    record_sha256: str
+
+
+@runtime_checkable
+class RuntimeTrustLedgerPort(Protocol):
+    """Read-only active-trust lookup required by runtime effect admission."""
+
+    def require_active(
+        self,
+        *,
+        runtime_id: str,
+        envelope_sha256: str,
+        runtime_manifest_sha256: str,
+        conformance_receipt_sha256: str,
+        source_revision: str,
+        now: datetime,
+    ) -> RuntimeTrustRecordPort: ...
 
 
 @dataclass(frozen=True)

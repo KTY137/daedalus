@@ -1,0 +1,24 @@
+{
+  "schema": "daedalus-compatibility-shim-register/1",
+  "packet_id": "G1-RUNTIME-02",
+  "classification": "ALIGNED",
+  "gate": 1,
+  "source_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+  "shims": [
+    {
+      "legacy_module": "daedalus.kernel.runtime_authorization_issuer",
+      "owner": "runtime-admission",
+      "target_module": "daedalus.runtimes.admission",
+      "loading": "pep-562-lazy",
+      "object_identity": "required",
+      "duplicate_implementation_allowed": false,
+      "removal_criteria": [
+        "source import audit finds no legacy consumers",
+        "runtime-string dispatch audit finds no legacy targets",
+        "isolated wheel import audit finds no legacy requirement",
+        "documentation audit finds no supported legacy reference",
+        "pickle and global-reference audit finds no legacy module identity"
+      ]
+    }
+  ]
+}

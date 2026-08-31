@@ -15,7 +15,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import ClassVar, Iterable, Mapping, Sequence
 
-from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.contracts import (
+    EffectLease,
+    EffectLeaseRequest,
+    RuntimeTrustLedgerPort,
+    RuntimeTrustRecordPort,
+)
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
@@ -26,7 +31,6 @@ from daedalus.kernel.effects import (
     issue_effect_lease,
     verify_effect_lease,
 )
-from daedalus.runtimes.trust_store import RuntimeTrustLedger, RuntimeTrustRecord
 from daedalus.schemas import (
     CanonicalContract,
     ContractProvenance,
@@ -211,8 +215,18 @@ class RuntimeBoundEffectLease(CanonicalContract):
         return cls(**body)
 
 
+def _require_runtime_trust_ledger_port(
+    value: object,
+) -> RuntimeTrustLedgerPort:
+    if not isinstance(value, RuntimeTrustLedgerPort):
+        raise TypeError(
+            "runtime_trust_ledger must implement RuntimeTrustLedgerPort"
+        )
+    return value
+
+
 def _require_runtime_record(
-    ledger: RuntimeTrustLedger,
+    ledger: RuntimeTrustLedgerPort,
     *,
     runtime_id: str,
     envelope_sha256: str,
@@ -220,8 +234,8 @@ def _require_runtime_record(
     conformance_sha256: str,
     source_revision: str,
     now: datetime,
-) -> RuntimeTrustRecord:
-    return ledger.require_active(
+) -> RuntimeTrustRecordPort:
+    record = ledger.require_active(
         runtime_id=runtime_id,
         envelope_sha256=envelope_sha256,
         runtime_manifest_sha256=manifest_sha256,
@@ -229,6 +243,11 @@ def _require_runtime_record(
         source_revision=source_revision,
         now=now,
     )
+    if not isinstance(record, RuntimeTrustRecordPort):
+        raise RuntimeLeaseBindingMismatch(
+            "runtime trust ledger returned an invalid RuntimeTrustRecordPort"
+        )
+    return record
 
 
 def issue_runtime_bound_effect_lease(
@@ -239,7 +258,7 @@ def issue_runtime_bound_effect_lease(
     lease_issuer_key_id: str,
     lease_issuer_secret: bytes | str,
     runtime_envelope_sha256: str,
-    runtime_trust_ledger: RuntimeTrustLedger,
+    runtime_trust_ledger: RuntimeTrustLedgerPort,
     runtime_authority_key_id: str,
     runtime_authority_secret: bytes | str,
     issued_at: datetime,
@@ -248,6 +267,7 @@ def issue_runtime_bound_effect_lease(
 ) -> RuntimeBoundEffectLease:
     """Issue a runtime lease only from one exact active persisted trust record."""
 
+    trust_ledger = _require_runtime_trust_ledger_port(runtime_trust_ledger)
     issued = _as_utc(issued_at, "issued_at")
     expires = _as_utc(expires_at, "expires_at")
     lease = issue_effect_lease(
@@ -272,7 +292,7 @@ def issue_runtime_bound_effect_lease(
         runtime_envelope_sha256, "runtime_envelope_sha256"
     )
     record = _require_runtime_record(
-        runtime_trust_ledger,
+        trust_ledger,
         runtime_id=lease.runtime_id,
         envelope_sha256=envelope_digest,
         manifest_sha256=request.runtime_manifest_sha256,
@@ -330,13 +350,14 @@ def verify_runtime_bound_effect_lease(
     policy_decision: PolicyDecision,
     lease_keyring: Mapping[str, bytes | str],
     runtime_authority_keyring: Mapping[str, bytes | str],
-    runtime_trust_ledger: RuntimeTrustLedger,
+    runtime_trust_ledger: RuntimeTrustLedgerPort,
     current_kill_switch_generation: int,
     now: datetime,
     registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = REGISTRY_BY_ID,
-) -> RuntimeTrustRecord:
+) -> RuntimeTrustRecordPort:
     """Authenticate both authorities and require the exact runtime record active."""
 
+    trust_ledger = _require_runtime_trust_ledger_port(runtime_trust_ledger)
     secret = runtime_authority_keyring.get(capability.issuer_key_id)
     if secret is None:
         raise RuntimeLeaseSignatureError("runtime lease authority key is unknown")
@@ -376,7 +397,7 @@ def verify_runtime_bound_effect_lease(
             "runtime-bound request mismatch: " + ", ".join(mismatches)
         )
     record = _require_runtime_record(
-        runtime_trust_ledger,
+        trust_ledger,
         runtime_id=capability.runtime_id,
         envelope_sha256=capability.runtime_envelope_sha256,
         manifest_sha256=capability.runtime_manifest_sha256,
@@ -410,7 +431,7 @@ class RuntimeBoundEffectAuthorization:
     request: EffectLeaseRequest
     policy_decision: PolicyDecision
     effect_ledger: EffectLeaseLedger
-    runtime_trust_ledger: RuntimeTrustLedger
+    runtime_trust_ledger: RuntimeTrustLedgerPort
     lease_keyring: Mapping[str, bytes | str] = field(repr=False)
     runtime_authority_keyring: Mapping[str, bytes | str] = field(repr=False)
     guard_decisions: tuple[GuardDecision, ...]
@@ -421,6 +442,7 @@ class RuntimeBoundEffectAuthorization:
     )
 
     def __post_init__(self) -> None:
+        _require_runtime_trust_ledger_port(self.runtime_trust_ledger)
         if self.capability.lease.request_sha256 != self.request.digest:
             raise EffectLeaseBindingMismatch(
                 "runtime authorization request does not match its lease"
@@ -439,7 +461,7 @@ class RuntimeBoundEffectAuthorization:
             self, "runtime_authority_keyring", dict(self.runtime_authority_keyring)
         )
 
-    def _verify_at(self, instant: datetime) -> RuntimeTrustRecord:
+    def _verify_at(self, instant: datetime) -> RuntimeTrustRecordPort:
         return verify_runtime_bound_effect_lease(
             self.capability,
             request=self.request,
@@ -452,7 +474,7 @@ class RuntimeBoundEffectAuthorization:
             registry=self.registry,
         )
 
-    def verify(self) -> RuntimeTrustRecord:
+    def verify(self) -> RuntimeTrustRecordPort:
         """Require the exact runtime trust record active at the facade clock."""
 
         return self._verify_at(_utc_now())

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import daedalus.kernel.runtime_effects as runtime_effects
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
@@ -299,6 +300,33 @@ def test_runtime_lease_cannot_be_issued_without_persisted_active_trust(
     )
     with pytest.raises(RuntimeTrustNotFound, match="not admitted"):
         issue(trust_ledger)
+
+
+def test_invalid_runtime_trust_port_refuses_before_effect_lease_issuance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    req = request()
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("invalid runtime trust port reached lease issuance")
+
+    monkeypatch.setattr(runtime_effects, "issue_effect_lease", forbidden)
+
+    with pytest.raises(TypeError, match="RuntimeTrustLedgerPort"):
+        issue_runtime_bound_effect_lease(
+            req,
+            decision(req),
+            lease_id="runtime-lease-invalid-port",
+            lease_issuer_key_id="lease-key-1",
+            lease_issuer_secret=LEASE_KEY,
+            runtime_envelope_sha256=ENVELOPE_SHA,
+            runtime_trust_ledger=object(),  # type: ignore[arg-type]
+            runtime_authority_key_id="runtime-authority-1",
+            runtime_authority_secret=AUTHORITY_KEY,
+            issued_at=NOW + timedelta(seconds=1),
+            expires_at=NOW + timedelta(minutes=30),
+            registry=registry(),
+        )
 
 
 def test_runtime_identity_revision_and_receipt_repackaging_fail_closed(
