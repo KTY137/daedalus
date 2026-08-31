@@ -18,6 +18,7 @@ from typing import Any
 from .atomic import write_text_atomic
 from .interfaces.bridge import journal as bridge_journal
 from .interfaces.bridge import projection as bridge_projection
+from .interfaces.bridge import queue as bridge_queue
 from .memory import record_from_bridge_report
 from .projects import resolve_repo_root
 from .spine import envelope
@@ -633,18 +634,10 @@ def _archive_once(path: Path, key: str) -> bool:
 def codex_inline_brief_warning(objective: str, lane: str) -> str | None:
     """Return a warning string when a codex-lane objective smells like an
     inline task brief, else None. Never blocks the enqueue."""
-    if lane != "codex":
-        return None
-    if len(objective) <= CODEX_INLINE_BRIEF_CHARS:
-        return None
-    if "codex_queue" in objective.lower().replace(" ", "_"):
-        return None
-    return (
-        f"codex-lane objective is {len(objective)} chars with no CODEX_QUEUE.md "
-        "reference -- inline briefs bounce on this lane (protocol lesson "
-        "2026-07-11). Put the full brief in docs/CODEX_QUEUE.md in the target "
-        'repo and enqueue a short pointer instead, e.g. '
-        '"Execute task C9 from docs/CODEX_QUEUE.md".'
+    return bridge_queue.codex_inline_brief_warning(
+        objective,
+        lane,
+        character_limit=CODEX_INLINE_BRIEF_CHARS,
     )
 
 
@@ -704,75 +697,27 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
         REGISTRY_BY_ID["file_bridge.enqueue"].effects,
         (_crash_journal_decision(f"enqueue objective={objective[:40]!r}"),),
     )
-    OUTBOX.mkdir(parents=True, exist_ok=True)
-    slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in objective)[:48].strip("-")
-    # UNIQUENESS FROM THE NAME ITSELF, not from looking first.
-    #
-    # Two earlier versions were both wrong, and the second was mine:
-    #   * `{stamp}-{slug}.json` with SECOND resolution -- two enqueues of one
-    #     objective inside a second produced the same path and the later one
-    #     silently overwrote the earlier. A queue that drops a task under load.
-    #   * then an existence check with a counter, which is check-then-use: two
-    #     PARALLEL producers both see the same free name and both write it.
-    #     Serial callers never notice, which is exactly why the acceptance
-    #     check (which enqueues serially) went green over it.
-    # A uuid cannot collide and needs nobody to look. The stamp and slug stay
-    # because they are what makes the outbox readable to a human.
-    base = f"{_stamp()}-{slug or 'task'}-{uuid.uuid4().hex[:8]}"
-    path = OUTBOX / f"{base}.json"
-    payload = {
-        "objective": objective,
-        "repo_root": repo_root,
-        "paths": paths,
-        "model": model,
-        "source": source,
-        # Ikarus strategy:
-        #   single -> route this one task through Ikarus
-        #   spawn  -> let Ikarus decompose the objective and dispatch the bench
-        "strategy": strategy,
-        # Which lane the watcher may dispatch to:
-        #   auto       -> route; run on the free bench when eligible, else Claude
-        #   local      -> same as auto (prefer the bench), else fall back to Claude
-        #   local_only -> local bench only; never fall back to Claude
-        #   claude     -> always the trusted Claude lane
-        #   codex      -> always the Codex CLI (external, egress-gated; no fallback)
-        "lane": lane,
-    }
-    if project:
-        payload["project"] = project
-    if category:
-        # Additive metadata only -- the role-category tag of the routed/owning
-        # agent, carried through for the UI/bus/reports. Never consulted by
-        # the lane gate in core.process_bridge_payload.
-        payload["category"] = category
-    # Additive, and OMITTED when there is no run in scope -- an untraced
-    # enqueue writes byte-for-byte the request it always wrote, so every
-    # existing reader of the outbox (including a watcher from an older
-    # checkout) is unaffected in both directions.
-    payload = envelope.stamp(payload, trace_id=trace_id)
-    # PUBLISH ATOMICALLY. `write_text` is not one operation to a reader: the
-    # watcher polls this directory, and a plain write lets it glob a file that
-    # is half a JSON document. Writing to a name the watcher's `*.json` glob
-    # cannot match and then `os.replace`-ing it means the request either is not
-    # there or is there complete -- there is no observable in-between.
-    write_text_atomic(path, json.dumps(payload, indent=2))
-    return path
+    return bridge_queue.publish_request(
+        outbox=OUTBOX,
+        objective=objective,
+        repo_root=repo_root,
+        paths=paths,
+        model=model,
+        lane=lane,
+        project=project,
+        source=source,
+        strategy=strategy,
+        category=category,
+        trace_id=trace_id,
+        clock=_stamp,
+        unique_hex=lambda: uuid.uuid4().hex,
+        stamp_trace=envelope.stamp,
+        write_text=write_text_atomic,
+    )
 
 
 def _read_request(path: Path, default_repo_root: str | None) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if "objective" not in payload:
-        raise ValueError("request needs an objective")
-    if "repo_root" not in payload:
-        if not default_repo_root:
-            raise ValueError("request needs repo_root or bridge needs --repo-root")
-        payload["repo_root"] = default_repo_root
-    payload.setdefault("paths", [])
-    payload.setdefault("model", "sonnet")
-    payload.setdefault("lane", "local_only")  # fail-closed: an unlabeled file (hand-dropped/legacy) never spends unattended
-    payload.setdefault("source", "unknown")
-    payload.setdefault("strategy", "single")
-    return payload
+    return bridge_queue.read_request(path, default_repo_root)
 
 
 def _reported_result(report: dict[str, Any]) -> tuple[str | None, str]:

@@ -39,10 +39,11 @@
       "owner": "interfaces-bridge",
       "targets": [
         "daedalus.interfaces.bridge.journal",
-        "daedalus.interfaces.bridge.projection"
+        "daedalus.interfaces.bridge.projection",
+        "daedalus.interfaces.bridge.queue"
       ],
       "kind": "registered_effect_facade",
-      "removal_criteria": "Queue, Dispatch, Conversation, and Watcher owners have landed and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining implementation caller."
+      "removal_criteria": "Dispatch, Conversation, and Watcher owners have landed and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining implementation caller."
     },
     {
       "import_path": "daedalus.ikarus",
