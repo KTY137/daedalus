@@ -81,12 +81,13 @@ jobs:
           print(json.dumps(report, sort_keys=True, separators=(",", ":")))
 
           heldout_namespace = runpy.run_path("tests/twin/test_tensor_heldout_multihop_probe.py")
-          heldout_report = heldout_namespace["heldout_probe"](
-              size=256,
-              repeats=5,
-              query_iterations=10,
-          )
-          print(json.dumps(heldout_report, sort_keys=True, separators=(",", ":")))
+          for heldout_size in (64, 256, 512):
+              heldout_report = heldout_namespace["heldout_probe"](
+                  size=heldout_size,
+                  repeats=2,
+                  query_iterations=10,
+              )
+              print(json.dumps(heldout_report, sort_keys=True, separators=(",", ":")))
           PY
       - name: Verify wheel contains the twin package
         run: |
