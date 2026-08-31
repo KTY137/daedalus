@@ -99,11 +99,11 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
   }, [refresh]);
 
   const start = useCallback(async () => {
-    if (desktopApi !== 'available' || service?.available !== true || !project?.repo_root) return;
+    if (desktopApi !== 'available' || service?.available !== true || !project?.name) return;
     setStarting(true);
     setError('');
     try {
-      const started = await startDesktopIde(project?.repo_root || '');
+      const started = await startDesktopIde(project.name);
       const immediate = serviceFrom(started);
       if (immediate) setService(immediate);
       const measured = await getDesktopStatus();
@@ -121,7 +121,7 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
       setStarting(false);
       setLoading(false);
     }
-  }, [desktopApi, project?.repo_root, service?.available]);
+  }, [desktopApi, project?.name, service?.available]);
 
   const installed = service?.installed ?? service?.available;
   const reachable = service?.reachable ?? (service?.running === true && Boolean(service?.endpoint));

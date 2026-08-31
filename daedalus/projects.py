@@ -355,6 +355,67 @@ def load_project(name: str) -> dict[str, Any]:
     return data
 
 
+def resolve_registered_project_root(project: object) -> str:
+    """Resolve one exact registry row to an available native directory.
+
+    This is the authorization seam for callers which are about to expose a
+    checkout to an effectful local service.  Request text names a registry
+    row, never a filesystem path.  Foreign-platform and stale rows remain
+    valid inventory, but cannot be reinterpreted as relative host paths.
+
+    The first enumeration avoids creating registry lock state for
+    unknown/invalid input.  The row read under the canonical registry lock
+    binds the returned root to one complete row as observed by cooperating
+    writers.
+    """
+    project_name = _project_row_name(project)
+    try:
+        known_projects = list_projects()
+    except OSError as exc:
+        raise ProjectRegistryUnavailable(
+            "project registry rows cannot be enumerated"
+        ) from exc
+    if project_name not in known_projects:
+        known = ", ".join(known_projects) or "none"
+        raise ProjectRowNotFound(
+            f"unknown project '{project_name}'. Known projects: {known}"
+        )
+    try:
+        with ExclusiveFileLock(
+            _registry_lock_path(),
+            timeout_s=PROJECT_REGISTRY_LOCK_TIMEOUT_S,
+            label="project registry lock",
+        ):
+            _, data = _load_project_row_for_rewrite_locked(project_name)
+            raw_root = data.get("repo_root")
+            if not isinstance(raw_root, str):
+                raise ProjectRegistryUnavailable(
+                    f"project registry row '{project_name}.json' has no valid repo_root"
+                )
+            native_path = Path(raw_root)
+            if not native_path.is_absolute():
+                raise ProjectRegistrationError(
+                    f"registered project '{project_name}' is unavailable: "
+                    "registered repo_root is not absolute on this host"
+                )
+            try:
+                root = _canonical_repo_root(raw_root)
+            except ProjectRegistrationError as exc:
+                raise ProjectRegistrationError(
+                    f"registered project '{project_name}' is unavailable: {exc}"
+                ) from exc
+
+            if _registered_root_key(data) != _path_key(root):
+                raise ProjectRegistryUnavailable(
+                    f"project registry row '{project_name}.json' changed root identity"
+                )
+            return str(root)
+    except FileLockUnavailable as exc:
+        raise ProjectRegistryUnavailable(
+            f"project registry is temporarily unavailable: {exc}"
+        ) from exc
+
+
 def resolve_repo_root(repo_root: str | None = None, project: str | None = None) -> str:
     if repo_root:
         return repo_root

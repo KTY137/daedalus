@@ -118,10 +118,10 @@ export function getDesktopStatus() {
   return request<DesktopStatusPayload>('/api/desktop/settings');
 }
 
-export function startDesktopIde(repoRoot: string) {
+export function startDesktopIde(projectName: string) {
   return request<DesktopStatusPayload>('/api/desktop/services/ide/start', {
     method: 'POST',
-    body: JSON.stringify({ project: repoRoot })
+    body: JSON.stringify({ project: projectName })
   }, 70_000);
 }
 

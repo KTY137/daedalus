@@ -325,7 +325,7 @@ test.describe('IDE and project registration', () => {
     await expect(page.getByRole('link', { name: 'Extern öffnen' })).toHaveAttribute('href', src.toString());
   });
 
-  test('an unreachable IDE stays honest and starts through the desktop service with the selected root', async ({ page }) => {
+  test('an unreachable IDE starts through the desktop service with the registered project name', async ({ page }) => {
     await stubQuietCockpit(page);
     let reachable = false;
     let startBody: unknown;
@@ -354,7 +354,7 @@ test.describe('IDE and project registration', () => {
 
     await page.getByRole('button', { name: 'IDE starten' }).click();
     await expect(page.getByTitle(`OpenVSCode – ${project.name}`)).toBeVisible();
-    expect(startBody).toEqual({ project: project.repo_root });
+    expect(startBody).toEqual({ project: project.name });
   });
 
   test('a missing desktop IDE capability does not expose a start action or raw endpoint error', async ({ page }) => {

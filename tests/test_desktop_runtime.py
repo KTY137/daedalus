@@ -14,6 +14,7 @@ import pytest
 from daedalus import budget as budget_kernel
 from daedalus import desktop_runtime as desktop_runtime_module
 from daedalus import file_bridge
+from daedalus import projects
 from daedalus import sensitivity
 from daedalus.limit_policy import (
     ExecutionLimitPolicy,
@@ -1832,9 +1833,18 @@ def test_strict_docker_cleanup_refuses_replacement_container_id(
         manager.stop_ide(strict=True)
 
 
-def test_web_integration_exposes_ide_start_and_stop_routes():
+def test_web_integration_resolves_registered_ide_name_before_manager(
+    tmp_path, monkeypatch
+):
+    registry = tmp_path / "projects"
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(projects, "PROJECT_DIR", registry)
+    projects.register_project(repo, "demo")
+
     class BaseHandler:
         path = ""
+        body = None
 
         def _send_json(self, payload, status=200):
             self.sent = (payload, status)
@@ -1844,13 +1854,13 @@ def test_web_integration_exposes_ide_start_and_stop_routes():
 
     class Manager:
         def __init__(self):
-            self.started = None
+            self.started = []
             self.stopped = False
             self.closed = False
             self.close_error = False
 
         def ensure_ide(self, project=None):
-            self.started = project
+            self.started.append(project)
             return {"ui_url": "http://127.0.0.1:3000/"}
 
         def stop_ide(self, **kwargs):
@@ -1867,16 +1877,34 @@ def test_web_integration_exposes_ide_start_and_stop_routes():
     manager = Manager()
     web_api = SimpleNamespace(
         DaedalusHandler=BaseHandler,
-        _read_body=lambda handler: {"project": r"C:\work\demo"},
+        _read_body=lambda handler: handler.body,
         core=SimpleNamespace(envelope=lambda project, **payload: payload),
     )
     install_web_integration(web_api, manager)
 
     start = web_api.DaedalusHandler()
     start.path = "/api/desktop/services/ide/start"
+    start.body = {"project": "demo"}
     start._handle_post()
-    assert manager.started == r"C:\work\demo"
+    assert manager.started == [str(repo.resolve())]
     assert start.sent == ({"service": {"ui_url": "http://127.0.0.1:3000/"}}, 200)
+
+    for unregistered in (str(repo), "../demo", "missing", "", None, {"name": "demo"}):
+        rejected = web_api.DaedalusHandler()
+        rejected.path = "/api/desktop/services/ide/start"
+        rejected.body = {"project": unregistered}
+        rejected._handle_post()
+        assert rejected.sent[1] == 400
+        assert rejected.sent[0]["ok"] is False
+        assert manager.started == [str(repo.resolve())]
+
+    (registry / "broken.json").write_text("{not-json", encoding="utf-8")
+    unavailable = web_api.DaedalusHandler()
+    unavailable.path = "/api/desktop/services/ide/start"
+    unavailable.body = {"project": "broken"}
+    unavailable._handle_post()
+    assert unavailable.sent[1] == 503
+    assert manager.started == [str(repo.resolve())]
 
     stop = web_api.DaedalusHandler()
     stop.path = "/api/desktop/services/ide/stop"

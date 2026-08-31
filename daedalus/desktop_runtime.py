@@ -32,6 +32,7 @@ from .limit_policy import (
     MODE_CUSTOM,
     store_in_env as store_limit_policy_in_env,
 )
+from .projects import ProjectRegistryUnavailable, resolve_registered_project_root
 from .spine.cancel import ManagedProcess
 
 CONFIG_REL = Path("config/connections.json")
@@ -1946,7 +1947,8 @@ def install_web_integration(web_api: Any, manager: DesktopRuntimeManager) -> Non
                     body = web_api._read_body(self)
                     if not isinstance(body, dict):
                         raise DesktopRuntimeError("request body must be a JSON object")
-                    result = manager.ensure_ide(body.get("project"))
+                    project_root = resolve_registered_project_root(body.get("project"))
+                    result = manager.ensure_ide(project_root)
                 elif path == "/api/desktop/services/ide/stop":
                     manager.stop_ide(strict=True)
                     result = manager.snapshot()["services"]["ide"]
@@ -1954,6 +1956,8 @@ def install_web_integration(web_api: Any, manager: DesktopRuntimeManager) -> Non
                     super()._handle_post()
                     return
                 self._send_json(web_api.core.envelope(None, service=result))
+            except ProjectRegistryUnavailable as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=503)
             except (ValueError, DesktopRuntimeError) as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=400)
 
