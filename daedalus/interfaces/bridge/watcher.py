@@ -10,6 +10,7 @@ import errno
 import json
 import os
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, ContextManager
 
@@ -23,6 +24,23 @@ RestartHintPort = Callable[[dict[str, Any] | None], str]
 SleepPort = Callable[[float], None]
 WatcherLockPort = Callable[[Path], ContextManager[Any]]
 WriteTextPort = Callable[[Path, str], None]
+
+
+@dataclass(frozen=True)
+class PoisonHandlingPorts:
+    """Recovery operations used after ordinary request processing failed."""
+
+    settle_grace_s: float
+    inbox: Path
+    looks_unfinished: Callable[[Path, BaseException], bool]
+    quarantine_request: Callable[[Path, str, str], Path]
+    quarantine_dir: Callable[[], Path]
+    request_key: Callable[[Path], str]
+    conversation_projection_pending: type[BaseException]
+    conversation_projection_failed: type[BaseException]
+    quarantine_move_pending: type[BaseException]
+    terminal_report_preserved: type[BaseException]
+    emit: Callable[..., None]
 
 
 class WatcherOwnershipBusy(RuntimeError):
@@ -226,6 +244,68 @@ def heartbeat_status(
         return out
     out["state"] = "alive" if age <= stale_after_s else "stale"
     return out
+
+
+def looks_unfinished(
+    path: Path,
+    exc: BaseException,
+    *,
+    settle_grace_s: float,
+    now_epoch: NowEpochPort,
+) -> bool:
+    """Return whether malformed bytes still belong to a settling producer."""
+
+    if not isinstance(exc, (json.JSONDecodeError, UnicodeDecodeError)):
+        return False
+    try:
+        age = now_epoch() - path.stat().st_mtime
+    except OSError:
+        return False
+    return age < settle_grace_s
+
+
+def handle_poison_request(
+    path: Path,
+    exc: BaseException,
+    *,
+    ports: PoisonHandlingPorts,
+) -> Path | None:
+    """Quarantine poison without allowing recovery to kill the watch loop."""
+
+    if ports.looks_unfinished(path, exc):
+        ports.emit(
+            f"SETTLING {path.name}: not valid JSON yet and modified "
+            f"<{ports.settle_grace_s:.0f}s ago -- retrying next poll",
+            flush=True,
+        )
+        return None
+    ports.emit(f"FAILED {path.name}: {exc}", flush=True)
+    try:
+        result = ports.quarantine_request(path, type(exc).__name__, str(exc))
+        ports.emit(
+            f"QUARANTINED {path.name} -> {ports.quarantine_dir()}",
+            flush=True,
+        )
+        return result
+    except ports.conversation_projection_pending as inner:
+        ports.emit(f"PROJECTION PENDING {path.name}: {inner}", flush=True)
+        return ports.inbox / f"{ports.request_key(path)}.report.json"
+    except ports.conversation_projection_failed as inner:
+        ports.emit(
+            f"QUARANTINED {path.name} -> {ports.quarantine_dir()}",
+            flush=True,
+        )
+        ports.emit(f"PROJECTION ERROR {path.name}: {inner}", flush=True)
+        return ports.inbox / f"{ports.request_key(path)}.report.json"
+    except ports.quarantine_move_pending as inner:
+        ports.emit(f"QUARANTINE MOVE PENDING {path.name}: {inner}", flush=True)
+        return ports.inbox / f"{ports.request_key(path)}.report.json"
+    except ports.terminal_report_preserved as inner:
+        ports.emit(f"REPORT PRESERVED {path.name}: {inner}", flush=True)
+        return inner.report_path
+    except Exception as inner:  # recovery must never terminate the loop
+        ports.emit(f"QUARANTINE FAILED {path.name}: {inner}", flush=True)
+        return None
 
 
 def watch_loop(

@@ -958,13 +958,12 @@ def _looks_unfinished(path: Path, exc: BaseException) -> bool:
     worse outcome than one extra poll of latency. A structural complaint
     (missing objective, missing repo_root) is not a partial write and is not
     excused here."""
-    if not isinstance(exc, (json.JSONDecodeError, UnicodeDecodeError)):
-        return False
-    try:
-        age = time.time() - path.stat().st_mtime
-    except OSError:
-        return False
-    return age < SETTLE_GRACE_S
+    return bridge_watcher.looks_unfinished(
+        path,
+        exc,
+        settle_grace_s=SETTLE_GRACE_S,
+        now_epoch=time.time,
+    )
 
 
 def handle_poison_request(path: Path, exc: BaseException) -> Path | None:
@@ -979,34 +978,23 @@ def handle_poison_request(path: Path, exc: BaseException) -> Path | None:
         catches everything, not just OSError.
 
     Returns the report path, or None when nothing was written."""
-    if _looks_unfinished(path, exc):
-        print(f"SETTLING {path.name}: not valid JSON yet and modified "
-              f"<{SETTLE_GRACE_S:.0f}s ago -- retrying next poll", flush=True)
-        return None
-    print(f"FAILED {path.name}: {exc}", flush=True)
-    try:
-        result = quarantine_request(path, type(exc).__name__, str(exc))
-        print(f"QUARANTINED {path.name} -> {_quarantine_dir()}", flush=True)
-        return result
-    except ConversationProjectionPending as inner:
-        print(f"PROJECTION PENDING {path.name}: {inner}", flush=True)
-        return INBOX / f"{_request_key(path)}.report.json"
-    except ConversationProjectionFailed as inner:
-        # quarantine_request already wrote the report, sidecar and journal and
-        # evicted the poison request. Surface the projection disagreement, but
-        # do not call quarantine a failure or leave the item spinning.
-        print(f"QUARANTINED {path.name} -> {_quarantine_dir()}", flush=True)
-        print(f"PROJECTION ERROR {path.name}: {inner}", flush=True)
-        return INBOX / f"{_request_key(path)}.report.json"
-    except QuarantineMovePending as inner:
-        print(f"QUARANTINE MOVE PENDING {path.name}: {inner}", flush=True)
-        return INBOX / f"{_request_key(path)}.report.json"
-    except TerminalReportPreserved as inner:
-        print(f"REPORT PRESERVED {path.name}: {inner}", flush=True)
-        return inner.report_path
-    except Exception as inner:  # noqa: BLE001 -- never let recovery kill the loop
-        print(f"QUARANTINE FAILED {path.name}: {inner}", flush=True)
-        return None
+    return bridge_watcher.handle_poison_request(
+        path,
+        exc,
+        ports=bridge_watcher.PoisonHandlingPorts(
+            settle_grace_s=SETTLE_GRACE_S,
+            inbox=INBOX,
+            looks_unfinished=_looks_unfinished,
+            quarantine_request=quarantine_request,
+            quarantine_dir=_quarantine_dir,
+            request_key=_request_key,
+            conversation_projection_pending=ConversationProjectionPending,
+            conversation_projection_failed=ConversationProjectionFailed,
+            quarantine_move_pending=QuarantineMovePending,
+            terminal_report_preserved=TerminalReportPreserved,
+            emit=print,
+        ),
+    )
 
 
 # -- watcher heartbeat ------------------------------------------------------

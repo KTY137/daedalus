@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 
 from daedalus import file_bridge
@@ -49,6 +50,8 @@ def test_legacy_watcher_functions_delegate_to_the_hierarchy_owner() -> None:
         "write_heartbeat": "write_heartbeat",
         "restart_hint": "restart_hint",
         "heartbeat_status": "heartbeat_status",
+        "_looks_unfinished": "looks_unfinished",
+        "handle_poison_request": "handle_poison_request",
         "watch": "watch_loop",
     }
     for facade_name, owner_name in owners.items():
@@ -103,6 +106,43 @@ def test_process_identity_refreshes_only_when_pid_changes() -> None:
         new_nonce=lambda: "child-process",
     )
     assert (identity, pid, nonce) == ("42:child-process", 42, "child-process")
+
+
+def test_settling_classification_uses_the_injected_clock(tmp_path) -> None:
+    request = tmp_path / "partial.json"
+    request.write_text("{", encoding="utf-8")
+    modified = request.stat().st_mtime
+    failure = json.JSONDecodeError("partial", "{", 1)
+
+    assert watcher.looks_unfinished(
+        request,
+        failure,
+        settle_grace_s=5.0,
+        now_epoch=lambda: modified + 4.9,
+    ) is True
+    assert watcher.looks_unfinished(
+        request,
+        failure,
+        settle_grace_s=5.0,
+        now_epoch=lambda: modified + 5.0,
+    ) is False
+
+
+def test_poison_facade_contains_no_recovery_state_machine_calls() -> None:
+    wrapper = _function(FACADE, "handle_poison_request")
+    direct_calls = {
+        child.func.id
+        for child in ast.walk(wrapper)
+        if isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
+    }
+
+    assert not {
+        "_looks_unfinished",
+        "quarantine_request",
+        "_quarantine_dir",
+        "_request_key",
+        "print",
+    } & direct_calls
 
 
 def test_structure_packet_does_not_change_effect_registry() -> None:
