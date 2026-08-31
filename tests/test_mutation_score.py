@@ -19,10 +19,13 @@ working repository.
 from __future__ import annotations
 
 import ast
+import json
 import sys
 import textwrap
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
@@ -131,9 +134,11 @@ class _FakeRunner:
         self.baseline = baseline
         self.per_call = list(per_call)
         self.calls = 0
+        self.selections: list[tuple[str, ...]] = []
 
     def __call__(self, root, test_paths, timeout):
         self.calls += 1
+        self.selections.append(tuple(test_paths))
         if self.calls == 1:
             return ms.RunResult(returncode=0 if not self.baseline else 1,
                                 failing=set(self.baseline))
@@ -237,6 +242,113 @@ class AnchorTests(unittest.TestCase):
         self.assertIsNone(ms.Mutation.patch("m.py", "a", "a").apply("a = 1\n"))
 
 
+class ExplicitSpecTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+
+        self.tmp = Path(tempfile.mkdtemp(prefix="msspec-"))
+        build_fixture_repo(self.tmp)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _write_spec(self, *, find: str = "size > 1024") -> Path:
+        path = self.tmp / "spec.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "spec_id": "fixture",
+                    "packet_id": "TEST-MUT-01",
+                    "jobs": [
+                        {
+                            "module": "goodmod.py",
+                            "tests": ["t/test_goodmod.py"],
+                            "timeout_s": 30,
+                            "mutations": [
+                                {
+                                    "id": "break-size-limit",
+                                    "find": find,
+                                    "replace": "size > 999999",
+                                    "tests": [
+                                        "t/test_goodmod.py::test_big_denied"
+                                    ],
+                                    "expect_test": "test_big_denied",
+                                    "rule": "the size limit is enforced",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_spec_loads_exact_anchored_mutations(self):
+        spec = ms.load_explicit_spec(self.tmp, self._write_spec())
+        self.assertEqual(spec.spec_id, "fixture")
+        self.assertEqual(spec.jobs[0].module, "goodmod.py")
+        self.assertEqual(spec.jobs[0].mutations[0].id, "break-size-limit")
+
+    def test_spec_refuses_an_ambiguous_anchor(self):
+        with self.assertRaisesRegex(ms.MutationSpecError, "found 3"):
+            ms.load_explicit_spec(self.tmp, self._write_spec(find="return False"))
+
+    def test_spec_refuses_paths_outside_the_repository(self):
+        payload = json.loads(self._write_spec().read_text(encoding="utf-8"))
+        payload["jobs"][0]["module"] = "../outside.py"
+        path = self.tmp / "spec.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        with self.assertRaisesRegex(ms.MutationSpecError, "within the repository"):
+            ms.load_explicit_spec(self.tmp, path)
+
+    def test_spec_scoring_requires_the_named_test_to_kill_the_mutant(self):
+        spec = ms.load_explicit_spec(self.tmp, self._write_spec())
+        runner = _FakeRunner(
+            baseline=set(),
+            per_call=[{"t/test_goodmod.py::test_big_denied"}],
+        )
+        report = ms.score_explicit_spec(self.tmp, spec, runner=runner)
+        self.assertEqual(report["verdict"], "NO_SURVIVORS")
+        self.assertEqual(report["n_caught"], 1)
+        self.assertEqual(report["n_survived"], 0)
+        self.assertEqual(runner.selections[0], ("t/test_goodmod.py",))
+        self.assertEqual(
+            runner.selections[1],
+            ("t/test_goodmod.py::test_big_denied",),
+        )
+
+    def test_spec_list_mode_is_read_only_and_does_not_score(self):
+        path = self._write_spec()
+        before = {item: item.read_bytes() for item in self.tmp.rglob("*") if item.is_file()}
+        self.assertEqual(
+            ms.main(["--repo", str(self.tmp), "--spec", str(path), "--list"]),
+            0,
+        )
+        after = {item: item.read_bytes() for item in self.tmp.rglob("*") if item.is_file()}
+        self.assertEqual(before, after)
+
+    def test_repository_tree_wrapper_is_a_thin_spec_caller(self):
+        root = Path(__file__).resolve().parents[1]
+        spec = ms.load_explicit_spec(
+            root,
+            root / "configs/mutations/repository-tree.json",
+        )
+        self.assertEqual(spec.packet_id, "G1-MUT-01")
+        self.assertEqual(len(spec.jobs), 1)
+        self.assertEqual(len(spec.jobs[0].mutations), 8)
+        wrapper = (root / "scripts/run_repository_tree_mutations.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("tools.mutation_score", wrapper)
+        self.assertIn("repository-tree.json", wrapper)
+        self.assertNotIn("write_text", wrapper)
+        self.assertNotIn("subprocess", wrapper)
+
+
 # --------------------------------------------------------------------------- #
 # reading the runner's output -- a coloured FAILED is still a failure          #
 # --------------------------------------------------------------------------- #
@@ -279,6 +391,21 @@ class OutputParsingTests(unittest.TestCase):
         import inspect
         self.assertIn('"--color=no"', inspect.getsource(ms.pytest_runner))
 
+    def test_the_runner_refuses_bytecode_and_external_plugins(self):
+        """Equal-length mutants must not reuse a previous subprocess' pyc.
+
+        The repository-tree shadow exposed this on Windows: several explicit
+        guard deletions add the same number of bytes, so timestamp/size based
+        bytecode validation could execute the preceding mutant instead.
+        """
+        completed = SimpleNamespace(returncode=0, stdout="1 passed\n", stderr="")
+        with mock.patch.object(ms.subprocess, "run", return_value=completed) as run:
+            result = ms.pytest_runner(Path("."), ["t/test_x.py"], 1)
+        self.assertTrue(result.green)
+        env = run.call_args.kwargs["env"]
+        self.assertEqual(env["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertEqual(env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"], "1")
+
 
 # --------------------------------------------------------------------------- #
 # classification, without paying for real pytest                              #
@@ -320,6 +447,32 @@ class ClassificationTests(unittest.TestCase):
                              per_call=[{"t/test_goodmod.py::test_big_denied"}])
         rep = ms.score(self.tmp, "goodmod.py", ["t"], mutations=[m], runner=runner)
         self.assertEqual(rep["results"][0]["status"], ms.CAUGHT)
+
+    def test_expected_test_runner_error_is_inconclusive_not_a_survivor(self):
+        m = ms.Mutation.patch(
+            "goodmod.py",
+            "size > 1024",
+            "size > 999999",
+            rule="the size ceiling",
+            expect_test="test_big_denied",
+        )
+
+        def runner(root, test_paths, timeout):
+            if test_paths == ["t"]:
+                return ms.RunResult(returncode=0)
+            return ms.RunResult(returncode=4, output="node not found")
+
+        m = ms.Mutation.patch(
+            m.rel_path,
+            m.before,
+            m.after,
+            rule=m.rule,
+            expect_test=m.expect_test,
+            test_paths=("t/test_goodmod.py::missing",),
+        )
+        rep = ms.score(self.tmp, "goodmod.py", ["t"], mutations=[m], runner=runner)
+        self.assertEqual(rep["results"][0]["status"], ms.INCONCLUSIVE)
+        self.assertEqual(rep["n_survived"], 0)
 
     def test_inapplicable_mutation_is_not_counted_as_a_survivor(self):
         m = ms.Mutation.patch("goodmod.py", "this text is not in the file", "x")

@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "spec_id": "repository-tree",
+  "packet_id": "G1-MUT-01",
+  "jobs": [
+    {
+      "module": "daedalus/gates/repository_tree.py",
+      "tests": [
+        "tests/gates/test_repository_tree.py"
+      ],
+      "timeout_s": 30,
+      "mutations": [
+        {
+          "id": "allow-drive-path",
+          "find": "(?![A-Za-z]:/)",
+          "replace": "",
+          "tests": [
+            "tests/gates/test_repository_tree.py::test_path_grammar_fails_closed"
+          ],
+          "expect_test": "test_path_grammar_fails_closed",
+          "rule": "drive-qualified paths remain outside repository-relative grammar"
+        },
+        {
+          "id": "allow-symlink-component",
+          "find": "if stat.S_ISLNK(component.st_mode):",
+          "replace": "if False and stat.S_ISLNK(component.st_mode):",
+          "tests": [
+            "tests/gates/test_repository_tree.py::test_symlink_root_file_and_parent_are_refused"
+          ],
+          "expect_test": "test_symlink_root_file_and_parent_are_refused",
+          "rule": "symlink components are refused"
+        },
+        {
+          "id": "ignore-before-open-identity",
+          "find": "if (before.st_dev, before.st_ino, before.st_size) != (",
+          "replace": "if False and (before.st_dev, before.st_ino, before.st_size) != (",
+          "tests": [
+            "tests/gates/test_repository_tree.py::test_file_replacement_before_open_is_detected"
+          ],
+          "expect_test": "test_file_replacement_before_open_is_detected",
+          "rule": "pre-open identity remains bound"
+        },
+        {
+          "id": "ignore-read-identity",
+          "find": "if (\n        identity_before != identity_after\n        or identity_after != identity_path\n    ):",
+          "replace": "if False and (\n        identity_before != identity_after\n        or identity_after != identity_path\n    ):",
+          "tests": [
+            "tests/gates/test_repository_tree.py::test_descriptor_identity_change_is_detected"
+          ],
+          "expect_test": "test_descriptor_identity_change_is_detected",
+          "rule": "descriptor identity changes are detected"
+        },
+        {
+          "id": "ignore-incomplete-read",
+          "find": "if len(source) != before.st_size:",
+          "replace": "if False and len(source) != before.st_size:",
+          "tests": [
+            "tests/gates/test_repository_tree.py::test_incomplete_descriptor_read_is_detected"
+          ],
+          "expect_test": "test_incomplete_descriptor_read_is_detected",
+          "rule": "descriptor reads must be complete"
+        },
+        {
+          "id": "allow-invalid-utf8",
+          "find": "source.decode(\"utf-8\", errors=\"strict\")",
+          "replace": "source.decode(\"utf-8\", errors=\"ignore\")",
+          "tests": [
+            "tests/gates/test_repository_tree.py::test_nul_and_non_utf8_sources_are_refused"
+          ],
+          "expect_test": "test_nul_and_non_utf8_sources_are_refused",
+          "rule": "repository sources require strict UTF-8"
+        },
+        {
+          "id": "allow-nul-source",
+          "find": "if b\"\\x00\" in source:",
+          "replace": "if False and b\"\\x00\" in source:",
+          "tests": [
+            "tests/gates/test_repository_tree.py::test_nul_and_non_utf8_sources_are_refused"
+          ],
+          "expect_test": "test_nul_and_non_utf8_sources_are_refused",
+          "rule": "NUL-bearing source is refused"
+        },
+        {
+          "id": "detach-snapshot-digest",
+          "find": "if self.source_sha256 != expected:",
+          "replace": "if False and self.source_sha256 != expected:",
+          "tests": [
+            "tests/gates/test_repository_tree.py::test_snapshot_rejects_detached_digest_or_size"
+          ],
+          "expect_test": "test_snapshot_rejects_detached_digest_or_size",
+          "rule": "snapshot identity remains bound to source bytes"
+        }
+      ]
+    }
+  ]
+}
