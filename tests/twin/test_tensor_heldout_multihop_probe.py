@@ -59,6 +59,21 @@ _RELATION_BUCKET = {
     ("documents", "code", "knowledge"): 2,
     ("mentions_type", "knowledge", "type"): 3,
 }
+INDEPENDENT_INDEX_SPEC = {
+    "version": 1,
+    "kind": "four-independent-relation-indices",
+    "relations": tuple(
+        {
+            "relation": relation,
+            "source_plane": source_plane,
+            "target_plane": target_plane,
+        }
+        for relation, source_plane, target_plane in sorted(_RELATION_BUCKET)
+    ),
+}
+INDEPENDENT_INDEX_SPEC_SHA256 = hashlib.sha256(
+    json.dumps(INDEPENDENT_INDEX_SPEC, sort_keys=True, separators=(",", ":")).encode("utf-8")
+).hexdigest()
 
 
 def _heldout_forest(size: int) -> KnowledgeForest:
@@ -260,18 +275,6 @@ def _heldout_tensor_suite_query(subject: TensorView) -> tuple[str, ...]:
     return _query_relation_suite(_heldout_tensor_maps(subject))
 
 
-def _heldout_tensor_preindexed_query(
-    subject: tuple[KnowledgeForest, FourfoldSnapshot, TensorView, RelationMaps],
-) -> tuple[str, ...]:
-    return _query_relation_maps(subject[3])
-
-
-def _heldout_tensor_preindexed_suite_query(
-    subject: tuple[KnowledgeForest, FourfoldSnapshot, TensorView, RelationMaps],
-) -> tuple[str, ...]:
-    return _query_relation_suite(subject[3])
-
-
 def _break_even_query_count(
     challenger: dict[str, int],
     baseline: dict[str, int],
@@ -334,29 +337,7 @@ def heldout_probe(
         query_iterations=query_iterations,
     )
 
-    def build_tensor_preindexed_arm() -> tuple[
-        KnowledgeForest,
-        FourfoldSnapshot,
-        TensorView,
-        RelationMaps,
-    ]:
-        forest = _heldout_forest(size)
-        fourfold = _fourfold(forest, trace_id="tensor-heldout-multihop-probe")
-        tensor = _heldout_tensor(forest, fourfold)
-        return forest, fourfold, tensor, _heldout_tensor_maps(tensor)
-
-    tensor_preindexed_metrics, tensor_preindexed_result = _measure(
-        build_tensor_preindexed_arm,
-        _heldout_tensor_preindexed_query,
-        repeats=repeats,
-        query_iterations=query_iterations,
-    )
-
-    if (
-        forest_result != preindexed_result
-        or forest_result != tensor_result
-        or forest_result != tensor_preindexed_result
-    ):
+    if forest_result != preindexed_result or forest_result != tensor_result:
         raise AssertionError("held-out comparison arm changed the direct Forest query subject")
 
     forest_suite_metrics, forest_suite_result = _measure(
@@ -377,27 +358,22 @@ def heldout_probe(
         repeats=repeats,
         query_iterations=query_iterations,
     )
-    tensor_preindexed_suite_metrics, tensor_preindexed_suite_result = _measure(
-        build_tensor_preindexed_arm,
-        _heldout_tensor_preindexed_suite_query,
-        repeats=repeats,
-        query_iterations=query_iterations,
-    )
-    if (
-        forest_suite_result != preindexed_suite_result
-        or forest_suite_result != tensor_suite_result
-        or forest_suite_result != tensor_preindexed_suite_result
-    ):
+    if forest_suite_result != preindexed_suite_result or forest_suite_result != tensor_suite_result:
         raise AssertionError("query-suite arm changed the direct Forest subject")
 
     return {
-        "schema": "daedalus-tensor-heldout-multihop-cost-probe/3",
+        "schema": "daedalus-tensor-heldout-multihop-cost-probe/4",
         "authority": "diagnostic-only",
         "claim": "none",
         "held_out": True,
         "workload": HELDOUT_WORKLOAD_SPEC["name"],
         "workload_spec_sha256": HELDOUT_WORKLOAD_SHA256,
         "construction_basis": "forest+fourfold",
+        "independent_index_baseline": {
+            "kind": INDEPENDENT_INDEX_SPEC["kind"],
+            "index_count": len(_RELATION_BUCKET),
+            "spec_sha256": INDEPENDENT_INDEX_SPEC_SHA256,
+        },
         "source_forest_sha256": reference_forest.content_sha256,
         "source_fourfold_sha256": reference_fourfold.digest,
         "subject_count": size,
@@ -413,7 +389,6 @@ def heldout_probe(
             "forest_direct": forest_metrics,
             "forest_preindexed": preindexed_metrics,
             "forest_plus_tensor": tensor_metrics,
-            "forest_plus_tensor_preindexed": tensor_preindexed_metrics,
         },
         "query_suite": {
             "queries": HELDOUT_QUERY_SUITE_SPEC["queries"],
@@ -426,7 +401,6 @@ def heldout_probe(
                 "forest_direct": forest_suite_metrics,
                 "forest_preindexed": preindexed_suite_metrics,
                 "forest_plus_tensor": tensor_suite_metrics,
-                "forest_plus_tensor_preindexed": tensor_preindexed_suite_metrics,
             },
             "tensor_break_even_query_suites": {
                 "vs_forest_direct": _break_even_query_count(
@@ -436,14 +410,6 @@ def heldout_probe(
                     tensor_suite_metrics, preindexed_suite_metrics
                 ),
             },
-            "tensor_preindexed_break_even_query_suites": {
-                "vs_forest_direct": _break_even_query_count(
-                    tensor_preindexed_suite_metrics, forest_suite_metrics
-                ),
-                "vs_forest_preindexed": _break_even_query_count(
-                    tensor_preindexed_suite_metrics, preindexed_suite_metrics
-                ),
-            },
         },
     }
 
@@ -451,12 +417,15 @@ def heldout_probe(
 def test_heldout_multihop_probe_preserves_exact_subject() -> None:
     result = heldout_probe(size=64, repeats=1, query_iterations=2)
 
-    assert result["schema"] == "daedalus-tensor-heldout-multihop-cost-probe/3"
+    assert result["schema"] == "daedalus-tensor-heldout-multihop-cost-probe/4"
     assert result["authority"] == "diagnostic-only"
     assert result["claim"] == "none"
     assert result["held_out"] is True
     assert result["construction_basis"] == "forest+fourfold"
     assert len(result["workload_spec_sha256"]) == 64
+    assert result["independent_index_baseline"]["kind"] == "four-independent-relation-indices"
+    assert result["independent_index_baseline"]["index_count"] == 4
+    assert len(result["independent_index_baseline"]["spec_sha256"]) == 64
     assert len(result["source_forest_sha256"]) == 64
     assert len(result["source_fourfold_sha256"]) == 64
     assert result["node_count"] == 256
@@ -467,7 +436,6 @@ def test_heldout_multihop_probe_preserves_exact_subject() -> None:
         "forest_direct",
         "forest_preindexed",
         "forest_plus_tensor",
-        "forest_plus_tensor_preindexed",
     }
 
     suite = result["query_suite"]
@@ -479,22 +447,13 @@ def test_heldout_multihop_probe_preserves_exact_subject() -> None:
         "forest_direct",
         "forest_preindexed",
         "forest_plus_tensor",
-        "forest_plus_tensor_preindexed",
     }
     assert set(suite["tensor_break_even_query_suites"]) == {
         "vs_forest_direct",
         "vs_forest_preindexed",
     }
-    assert set(suite["tensor_preindexed_break_even_query_suites"]) == {
-        "vs_forest_direct",
-        "vs_forest_preindexed",
-    }
-    for break_even in (
-        suite["tensor_break_even_query_suites"],
-        suite["tensor_preindexed_break_even_query_suites"],
-    ):
-        for value in break_even.values():
-            assert value is None or (type(value) is int and value >= 0)
+    for value in suite["tensor_break_even_query_suites"].values():
+        assert value is None or (type(value) is int and value >= 0)
 
 
 def test_heldout_probe_bounds_subject_size() -> None:
