@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "registry_id": "G1-UI-01-surface-shims",
+  "entries": [
+    {
+      "id": "classic-query-surface",
+      "query_values": [
+        "classic",
+        "legacy"
+      ],
+      "owner": "apps/web/src/app/SurfaceRoot.tsx",
+      "target": "apps/web/src/App.tsx",
+      "kind": "lazy_compatibility_surface",
+      "removal_criteria": "Cockpit owns runtime and provider status, control-plane inspection, Mission Control, and the draft inbox; their browser contracts pass through the Cockpit route; source and built-chunk audits find no remaining classic-only caller or stylesheet dependency."
+    }
+  ]
+}
