@@ -47,7 +47,10 @@ KNOWN_SUBJECTS = {
     "tests/fixtures/unknown_outcome_reconciliation_fault_executor.py",
 }
 
-_SOURCE_PATH_RE = re.compile(r'^_SOURCE_PATH\s*=\s*["\']([^"\']+)["\']', re.M)
+_SOURCE_PATH_RE = re.compile(
+    r'^[A-Z_][A-Z0-9_]*SOURCE_PATH\s*=\s*["\']([^"\']+)["\']',
+    re.M,
+)
 _RETAINED_RE = re.compile(r'^_RETAINED_SOURCE_NAME\s*=\s*["\']([^"\']+)["\']', re.M)
 _SELF_HASH_MARKERS = (
     "Path(__file__).read_bytes()",
@@ -77,10 +80,11 @@ def _iter_sources():
 def _census() -> set[str]:
     """Files whose working-tree bytes become an identity.
 
-    Three detectors, matching the three shapes that exist today: a gate
-    inventory naming another module in ``_SOURCE_PATH``; a package resource
-    named in ``_RETAINED_SOURCE_NAME``; and a module or fixture that hashes its
-    own ``__file__``.
+    Three detectors, matching the three shapes that exist today: a neutral
+    contract or gate inventory naming another module in an uppercase
+    ``*SOURCE_PATH`` constant; a package resource named in
+    ``_RETAINED_SOURCE_NAME``; and a module or fixture that hashes its own
+    ``__file__``.
     """
     found: set[str] = set()
     for path in _iter_sources():

@@ -107,6 +107,7 @@ runs/watchdog/mission-20260823/suite-run2-head-at-start.txt -text
 # 2026-08-24, B6 run 5 baseline_red). Same daemon, same cure as above.
 scripts/run_repository_head_revision_mutations.py -text
 configs/schemas/repository-head-revision-receipt.schema.json -text
+daedalus/resources/schemas/repository-head-revision-receipt.schema.json -text
 daedalus/gates/repository_head_revision.py -text
 tests/gates/test_repository_head_revision.py -text
 tests/gates/test_repository_head_revision_review.py -text

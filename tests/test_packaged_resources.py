@@ -94,6 +94,10 @@ def test_categories_read_packaged_seed_and_defaults_are_read_only(monkeypatch) -
 def test_packaged_json_schema_is_addressed_by_name() -> None:
     payload = json.loads(schema_text("attempt-start-v1.schema.json"))
     assert payload["$schema"].startswith("https://json-schema.org/")
+    packet_index = json.loads(schema_text("work-packet-index-v1.schema.json"))
+    assert packet_index["properties"]["schema"]["const"] == (
+        "daedalus-work-packet-index/1"
+    )
     with pytest.raises(ValueError):
         schema_text("../attempt-start-v1.schema.json")
     with pytest.raises(ValueError):
