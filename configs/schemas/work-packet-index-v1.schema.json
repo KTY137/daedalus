@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/work-packet-index-v1.schema.json",
+  "title": "Daedalus tracked Work Packet index v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "authority",
+    "counts",
+    "legacy_baseline",
+    "packets",
+    "post_index_contracts",
+    "registry_artifacts",
+    "schema",
+    "unassigned_artifacts"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "../../configs/schemas/work-packet-index-v1.schema.json"
+    },
+    "schema": {
+      "const": "daedalus-work-packet-index/1"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "active_gate",
+        "automatic_merge",
+        "automatic_promotion",
+        "classification",
+        "master_plan_revision",
+        "master_plan_sha256"
+      ],
+      "properties": {
+        "active_gate": { "const": 1 },
+        "automatic_merge": { "const": false },
+        "automatic_promotion": { "const": false },
+        "classification": { "const": "ALIGNED" },
+        "master_plan_revision": { "const": 11 },
+        "master_plan_sha256": {
+          "const": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assigned_artifacts",
+        "legacy_artifacts",
+        "packet_artifacts",
+        "packet_ids",
+        "post_index_artifacts",
+        "registry_artifacts",
+        "tracked_files",
+        "unassigned_artifacts"
+      ],
+      "properties": {
+        "assigned_artifacts": { "$ref": "#/$defs/count" },
+        "legacy_artifacts": { "$ref": "#/$defs/count" },
+        "packet_artifacts": { "$ref": "#/$defs/count" },
+        "packet_ids": { "$ref": "#/$defs/count" },
+        "post_index_artifacts": { "$ref": "#/$defs/count" },
+        "registry_artifacts": { "$ref": "#/$defs/count" },
+        "tracked_files": { "$ref": "#/$defs/count" },
+        "unassigned_artifacts": { "$ref": "#/$defs/count" }
+      }
+    },
+    "legacy_baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_count", "paths", "paths_sha256", "revision"],
+      "properties": {
+        "path_count": { "const": 204 },
+        "paths": {
+          "type": "array",
+          "minItems": 204,
+          "maxItems": 204,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/artifact_path" }
+        },
+        "paths_sha256": {
+          "const": "9b657c0b81e8ce37812af1e3649429dc850528f2f0936de687662a6c9ebc1775"
+        },
+        "revision": {
+          "const": "151b8d180e321cfba48b4c7d62f9be56579d52a5"
+        }
+      }
+    },
+    "packets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/packet" }
+    },
+    "post_index_contracts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/post_index_contract" }
+    },
+    "registry_artifacts": {
+      "const": ["docs/work-packets/index.json"]
+    },
+    "unassigned_artifacts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/artifact_path" }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "artifact_path": {
+      "type": "string",
+      "pattern": "^docs/work-packets/(?:[^/]+/)*[^/]+\\.(?:md|json)$"
+    },
+    "packet_id": {
+      "type": "string",
+      "pattern": "^G[0-9]+(?:-[A-Z][A-Z0-9]*)+-[0-9]+[A-Z0-9]*$"
+    },
+    "metadata_value": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "integer", "minimum": 0 }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "active_gate",
+        "base_revision",
+        "classification",
+        "dependencies",
+        "owner"
+      ],
+      "properties": {
+        "active_gate": { "$ref": "#/$defs/metadata_value" },
+        "base_revision": { "$ref": "#/$defs/metadata_value" },
+        "classification": { "$ref": "#/$defs/metadata_value" },
+        "dependencies": { "$ref": "#/$defs/metadata_value" },
+        "owner": { "$ref": "#/$defs/metadata_value" }
+      }
+    },
+    "metadata_conflicts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_gate": { "$ref": "#/$defs/conflict_values" },
+        "base_revision": { "$ref": "#/$defs/conflict_values" },
+        "classification": { "$ref": "#/$defs/conflict_values" },
+        "dependencies": { "$ref": "#/$defs/conflict_values" },
+        "owner": { "$ref": "#/$defs/conflict_values" }
+      }
+    },
+    "conflict_values": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/metadata_value" }
+    },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifacts",
+        "metadata",
+        "metadata_conflicts",
+        "origin",
+        "packet_id",
+        "primary_artifact"
+      ],
+      "properties": {
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/artifact_path" }
+        },
+        "metadata": { "$ref": "#/$defs/metadata" },
+        "metadata_conflicts": { "$ref": "#/$defs/metadata_conflicts" },
+        "origin": {
+          "enum": ["legacy", "post_index", "mixed"]
+        },
+        "packet_id": { "$ref": "#/$defs/packet_id" },
+        "primary_artifact": {
+          "anyOf": [
+            { "$ref": "#/$defs/artifact_path" },
+            { "const": "unknown" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "origin": { "const": "post_index" } },
+            "required": ["origin"]
+          },
+          "then": {
+            "properties": {
+              "metadata": {
+                "properties": {
+                  "active_gate": { "type": "integer", "minimum": 0 },
+                  "base_revision": { "$ref": "#/$defs/revision" },
+                  "classification": {
+                    "enum": ["ALIGNED", "AMENDMENT", "EXPERIMENT"]
+                  },
+                  "dependencies": {
+                    "type": "string",
+                    "minLength": 1,
+                    "not": { "const": "unknown" }
+                  },
+                  "owner": {
+                    "type": "string",
+                    "minLength": 1,
+                    "not": { "const": "unknown" }
+                  }
+                }
+              },
+              "primary_artifact": { "$ref": "#/$defs/artifact_path" }
+            }
+          }
+        }
+      ]
+    },
+    "post_index_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_role",
+        "format",
+        "packet_id",
+        "path",
+        "sections"
+      ],
+      "properties": {
+        "artifact_role": {
+          "enum": ["primary", "companion"]
+        },
+        "format": {
+          "enum": ["json", "markdown"]
+        },
+        "packet_id": { "$ref": "#/$defs/packet_id" },
+        "path": { "$ref": "#/$defs/artifact_path" },
+        "sections": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "primary_acceptance_claim",
+              "scope",
+              "contracts_and_behavior",
+              "acceptance_matrix",
+              "migration_and_rollback",
+              "evidence_expected_failures_and_review"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

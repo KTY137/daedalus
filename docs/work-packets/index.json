@@ -1,0 +1,2576 @@
+{
+  "$schema": "../../configs/schemas/work-packet-index-v1.schema.json",
+  "authority": {
+    "active_gate": 1,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "classification": "ALIGNED",
+    "master_plan_revision": 11,
+    "master_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
+  },
+  "counts": {
+    "assigned_artifacts": 203,
+    "legacy_artifacts": 204,
+    "packet_artifacts": 205,
+    "packet_ids": 141,
+    "post_index_artifacts": 1,
+    "registry_artifacts": 1,
+    "tracked_files": 206,
+    "unassigned_artifacts": 2
+  },
+  "legacy_baseline": {
+    "path_count": 204,
+    "paths": [
+      "docs/work-packets/G0-APR-11_AUTHENTICATED_APPROVAL_CONSUMPTION.md",
+      "docs/work-packets/G0-ATT-13A_SOURCE_TREE_CAS_PORT.md",
+      "docs/work-packets/G0-ATT-13B3_EVENT_TIME_WINDOW.md",
+      "docs/work-packets/G0-ATT-13B4_WORKSPACE_ROOT_AUTHORITY.md",
+      "docs/work-packets/G0-ATT-13B_EFFECT_INVENTORY.json",
+      "docs/work-packets/G0-ATT-13B_ISOLATED_ATTEMPT_LIFECYCLE.md",
+      "docs/work-packets/G0-ATT-13C_ATTEMPT_EFFECT_INVENTORY.md",
+      "docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.json",
+      "docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.md",
+      "docs/work-packets/G0-BL-19_GATE_BASELINE_V2.json",
+      "docs/work-packets/G0-BL-19_GATE_BASELINE_V2.md",
+      "docs/work-packets/G0-EFX-09A_NON_RUNTIME_AUTHORIZATION_PORT.md",
+      "docs/work-packets/G0-ES-14_EVENT_STORE_DURABILITY.json",
+      "docs/work-packets/G0-ES-14_EVENT_STORE_DURABILITY.md",
+      "docs/work-packets/G0-ES-16_EVENT_STORE_WRITER_FACTORY.json",
+      "docs/work-packets/G0-ES-16_EVENT_STORE_WRITER_FACTORY.md",
+      "docs/work-packets/G0-ES-17_EVENT_STORE_WRITER_INVENTORY.json",
+      "docs/work-packets/G0-ES-17_EVENT_STORE_WRITER_INVENTORY.md",
+      "docs/work-packets/G0-EVD-08E_EVIDENCE_INDEX_CANONICAL_WIRE.md",
+      "docs/work-packets/G0-EVD-08F_TRUST_BUNDLE_CANONICAL_WIRE.md",
+      "docs/work-packets/G0-EVD-10_FOURFOLD_OWNER_BINDING.md",
+      "docs/work-packets/G0-FLT-07A_ADVERSARIAL_REVIEW_FINDINGS.md",
+      "docs/work-packets/G0-FLT-07A_CANONICAL_FAULT_MATRIX_CONTRACT.json",
+      "docs/work-packets/G0-FLT-07A_CANONICAL_FAULT_MATRIX_CONTRACT.md",
+      "docs/work-packets/G0-GOV-25_EXECUTION_PROJECTION_R3_FROZEN_RETENTION_PREFLIGHT.json",
+      "docs/work-packets/G0-GOV-25_EXECUTION_PROJECTION_R3_FROZEN_RETENTION_PREFLIGHT.md",
+      "docs/work-packets/G0-GR-18_GATE_REPORT_WRITER_INVENTORY.json",
+      "docs/work-packets/G0-GR-18_GATE_REPORT_WRITER_INVENTORY.md",
+      "docs/work-packets/G0-GR-20_REPOSITORY_WRITE_BOUND_GATE_REPORT_V3.json",
+      "docs/work-packets/G0-GR-20_REPOSITORY_WRITE_BOUND_GATE_REPORT_V3.md",
+      "docs/work-packets/G0-GR-21_REPOSITORY_WRITE_ARTIFACT_EVIDENCE.json",
+      "docs/work-packets/G0-GR-21_REPOSITORY_WRITE_ARTIFACT_EVIDENCE.md",
+      "docs/work-packets/G0-GR-22_REPOSITORY_WRITE_ARTIFACT_BYTE_VERIFICATION.json",
+      "docs/work-packets/G0-GR-22_REPOSITORY_WRITE_ARTIFACT_BYTE_VERIFICATION.md",
+      "docs/work-packets/G0-GR-23_REPOSITORY_WRITE_ARTIFACT_CAS_RESOLUTION.json",
+      "docs/work-packets/G0-GR-23_REPOSITORY_WRITE_ARTIFACT_CAS_RESOLUTION.md",
+      "docs/work-packets/G0-GR-24_REPOSITORY_WRITE_ARTIFACT_ADMISSION.json",
+      "docs/work-packets/G0-GR-24_REPOSITORY_WRITE_ARTIFACT_ADMISSION.md",
+      "docs/work-packets/G0-HOOK-01_POWERSHELL_POSTTOOL_PARITY.md",
+      "docs/work-packets/G0-OPUS-FLEET-ADVISORY-EXPERIMENT.md",
+      "docs/work-packets/G0-PRM-12A_PERSISTED_PROMOTION_AUTHORIZATION.md",
+      "docs/work-packets/G0-PRM-12B_LIVE_PROMOTION_SEAM.md",
+      "docs/work-packets/G0-PRM-12C_PROMOTION_RECEIPT_AUTHORITY.md",
+      "docs/work-packets/G0-PRM-19_PROMOTION_EXECUTION_EVENT_SPINE.json",
+      "docs/work-packets/G0-PRM-19_PROMOTION_EXECUTION_EVENT_SPINE.md",
+      "docs/work-packets/G0-PRM-21_PROMOTION_EXECUTION_RAW_PROJECTION.json",
+      "docs/work-packets/G0-PRM-21_PROMOTION_EXECUTION_RAW_PROJECTION.md",
+      "docs/work-packets/G0-RCP-04A_FOURFOLD_EVIDENCE_BINDING.md",
+      "docs/work-packets/G0-RPT-08A_EXACT_HEAD_EVIDENCE_INDEX.md",
+      "docs/work-packets/G0-RPT-08B_AUTHENTICATED_EVIDENCE_TRUST_BUNDLE.md",
+      "docs/work-packets/G0-RPT-08C_AUTHENTICATED_RELEASE_ASSESSMENT.md",
+      "docs/work-packets/G0-RTC-06A_OFFLINE_RUNTIME_CONFORMANCE.md",
+      "docs/work-packets/G0-RTC-06B_RUNTIME_TRUST_LEDGER.md",
+      "docs/work-packets/G0-RTC-06C_RUNTIME_LEASE_ADMISSION.md",
+      "docs/work-packets/G0-RTC-06D_RUNTIME_PROVIDER_BROKER.md",
+      "docs/work-packets/G0-RTC-06E_RUNTIME_TERMINAL_FENCE.md",
+      "docs/work-packets/G0-RTC-06F_CLAUDE_PROVIDER_BROKER.md",
+      "docs/work-packets/G0-RTC-06F_RUNTIME_FAULT_CATALOG.md",
+      "docs/work-packets/G0-RTC-06G_RUNTIME_FAULT_ATTESTATIONS.md",
+      "docs/work-packets/G0-RTC-06H_LINUX_HOST_FAULT_RUNNER.md",
+      "docs/work-packets/G0-RTC-06I_LINUX_PROCESS_FAULTS.md",
+      "docs/work-packets/G0-RTC-06J_SANDBOX_UNAVAILABLE_FAULT.md",
+      "docs/work-packets/G0-RTC-06K_EFFECT_LEDGER_CONTENTION_FAULT.md",
+      "docs/work-packets/G0-RTC-06L_CONTAINER_OOM_FAULT.md",
+      "docs/work-packets/G0-RTC-06M_UNAUTHORIZED_EGRESS_FAULT.md",
+      "docs/work-packets/G0-RTC-06N_UNDECLARED_SECRET_FAULT.md",
+      "docs/work-packets/G0-RTC-06O_RUNTIME_TRUST_CONTENTION_FAULT.md",
+      "docs/work-packets/G0-RTC-06P_UNKNOWN_OUTCOME_RECONCILIATION.md",
+      "docs/work-packets/G0-RTC-06Q_POST_PROVIDER_UNKNOWN_OUTCOME.json",
+      "docs/work-packets/G0-RTC-06Q_POST_PROVIDER_UNKNOWN_OUTCOME.md",
+      "docs/work-packets/G0-RTC-06R_PROVIDER_OBSERVATION_AUTHORITY.json",
+      "docs/work-packets/G0-RTC-06R_PROVIDER_OBSERVATION_AUTHORITY.md",
+      "docs/work-packets/G0-RTC-06T_PROVIDER_INVOCATION_SUBJECT.json",
+      "docs/work-packets/G0-RTC-06T_PROVIDER_INVOCATION_SUBJECT.md",
+      "docs/work-packets/G0-RTC-06U_PROVIDER_OBSERVATION_PERSISTENCE_INVENTORY.json",
+      "docs/work-packets/G0-RTC-06U_PROVIDER_OBSERVATION_PERSISTENCE_INVENTORY.md",
+      "docs/work-packets/G0-RTC-06V_PROVIDER_OBSERVATION_PREPROVISIONED_STORE.json",
+      "docs/work-packets/G0-RTC-06V_PROVIDER_OBSERVATION_PREPROVISIONED_STORE.md",
+      "docs/work-packets/G0-RTC-06W_PROVIDER_INVOCATION_OBSERVATION_AUTHORITY.json",
+      "docs/work-packets/G0-RTC-06W_PROVIDER_INVOCATION_OBSERVATION_AUTHORITY.md",
+      "docs/work-packets/G0-RTC-06X_PROVIDER_INVOCATION_REGISTRY_MANIFEST.json",
+      "docs/work-packets/G0-RTC-06X_PROVIDER_INVOCATION_REGISTRY_MANIFEST.md",
+      "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_IDENTITY.json",
+      "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_IDENTITY.md",
+      "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_RESOLUTION.json",
+      "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_RESOLUTION.md",
+      "docs/work-packets/G0-RTC-06Z_PROVIDER_OBSERVATION_STORE_OPERATION_CONTRACT.json",
+      "docs/work-packets/G0-RTC-06Z_PROVIDER_OBSERVATION_STORE_OPERATION_CONTRACT.md",
+      "docs/work-packets/G0-RTC-07A_PROVIDER_INVOCATION_EXACT_AUTHORITY_INTEGRATION.json",
+      "docs/work-packets/G0-RTC-07A_PROVIDER_INVOCATION_EXACT_AUTHORITY_INTEGRATION.md",
+      "docs/work-packets/G0-RTC-07B_PROVIDER_EXECUTABLE_TARGET_MANIFEST.json",
+      "docs/work-packets/G0-RTC-07B_PROVIDER_EXECUTABLE_TARGET_MANIFEST.md",
+      "docs/work-packets/G0-RTC-07C_PROVIDER_EXECUTABLE_STRUCTURE_RECEIPT.json",
+      "docs/work-packets/G0-RTC-07C_PROVIDER_EXECUTABLE_STRUCTURE_RECEIPT.md",
+      "docs/work-packets/G0-RTC-07C_PROVIDER_TARGET_SOURCE_VERIFICATION.json",
+      "docs/work-packets/G0-RTC-07C_PROVIDER_TARGET_SOURCE_VERIFICATION.md",
+      "docs/work-packets/G0-RTC-07D_PROVIDER_TARGET_RECEIPT_RETENTION.json",
+      "docs/work-packets/G0-RTC-07D_PROVIDER_TARGET_RECEIPT_RETENTION.md",
+      "docs/work-packets/G0-RTC-07D_REPOSITORY_HEAD_REVISION_RECEIPT.json",
+      "docs/work-packets/G0-RTC-07D_REPOSITORY_HEAD_REVISION_RECEIPT.md",
+      "docs/work-packets/G0-RTC-07E_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY.json",
+      "docs/work-packets/G0-RTC-07E_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY.md",
+      "docs/work-packets/G0-RTC-07F_PROVIDER_TARGET_RECEIPT_RETENTION_CONTRACT.json",
+      "docs/work-packets/G0-RTC-07F_PROVIDER_TARGET_RECEIPT_RETENTION_CONTRACT.md",
+      "docs/work-packets/G0-RTC-07G_PROVIDER_TARGET_RECEIPT_RETENTION_TOPOLOGY_HARDENING.json",
+      "docs/work-packets/G0-RTC-07G_PROVIDER_TARGET_RECEIPT_RETENTION_TOPOLOGY_HARDENING.md",
+      "docs/work-packets/G0-RTC-07H_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY_REFRESH.json",
+      "docs/work-packets/G0-RTC-07H_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY_REFRESH.md",
+      "docs/work-packets/G0-RTC-07I_REPOSITORY_HEAD_RECEIPT_INTEGRATION.json",
+      "docs/work-packets/G0-RTC-07I_REPOSITORY_HEAD_RECEIPT_INTEGRATION.md",
+      "docs/work-packets/G0-RTC-07J_PROVIDER_TARGET_RECEIPT_RETENTION_PREFLIGHT.json",
+      "docs/work-packets/G0-RTC-07J_PROVIDER_TARGET_RECEIPT_RETENTION_PREFLIGHT.md",
+      "docs/work-packets/G0-RTC-07K_PROVIDER_TARGET_RECEIPT_RETENTION_ADMISSION.json",
+      "docs/work-packets/G0-RTC-07K_PROVIDER_TARGET_RECEIPT_RETENTION_ADMISSION.md",
+      "docs/work-packets/G0-RTC-07L_PROVIDER_TARGET_RECEIPT_RETENTION_RECOVERY_DECISION.json",
+      "docs/work-packets/G0-RTC-07L_PROVIDER_TARGET_RECEIPT_RETENTION_RECOVERY_DECISION.md",
+      "docs/work-packets/G0-RTC-07M_PROVIDER_TARGET_RECEIPT_RETENTION_COMPLETED_EVIDENCE.json",
+      "docs/work-packets/G0-RTC-07M_PROVIDER_TARGET_RECEIPT_RETENTION_COMPLETED_EVIDENCE.md",
+      "docs/work-packets/G0-RTC-07N_PROVIDER_TARGET_RECEIPT_RETENTION_EFFECT_TERMINAL_EVIDENCE.json",
+      "docs/work-packets/G0-RTC-07N_PROVIDER_TARGET_RECEIPT_RETENTION_EFFECT_TERMINAL_EVIDENCE.md",
+      "docs/work-packets/G0-RTC-09B_RUNTIME_TERMINAL_BINDING.md",
+      "docs/work-packets/G0-RTC-09C_RUNTIME_AUTHORIZATION_CLOCK.md",
+      "docs/work-packets/G0-RWI-20A_REPOSITORY_WRITE_STDLIB_DELTA.json",
+      "docs/work-packets/G0-RWI-20A_REPOSITORY_WRITE_STDLIB_DELTA.md",
+      "docs/work-packets/G0-RWI-20B_REPOSITORY_WRITE_CANONICAL_V2.json",
+      "docs/work-packets/G0-RWI-20B_REPOSITORY_WRITE_CANONICAL_V2.md",
+      "docs/work-packets/G0-RWI-20C_REPOSITORY_WRITE_CLASSIFICATION.json",
+      "docs/work-packets/G0-RWI-20C_REPOSITORY_WRITE_CLASSIFICATION.md",
+      "docs/work-packets/G0-RWI-20D_REPOSITORY_WRITE_EVIDENCE_MATERIALIZATION.json",
+      "docs/work-packets/G0-RWI-20D_REPOSITORY_WRITE_EVIDENCE_MATERIALIZATION.md",
+      "docs/work-packets/G0-RWI-20E_REPOSITORY_WRITE_EVIDENCE_ORIGIN.json",
+      "docs/work-packets/G0-RWI-20E_REPOSITORY_WRITE_EVIDENCE_ORIGIN.md",
+      "docs/work-packets/G0-RWI-20F_REPOSITORY_WRITE_SOURCE_ANCHOR_SEMANTICS.json",
+      "docs/work-packets/G0-RWI-20F_REPOSITORY_WRITE_SOURCE_ANCHOR_SEMANTICS.md",
+      "docs/work-packets/G0-RWI-20G_GUARD_IMPLEMENTATION_MANIFEST.json",
+      "docs/work-packets/G0-RWI-20G_GUARD_IMPLEMENTATION_MANIFEST.md",
+      "docs/work-packets/G0-RWI-20H_REPOSITORY_TREE_READER.json",
+      "docs/work-packets/G0-RWI-20H_REPOSITORY_TREE_READER.md",
+      "docs/work-packets/G0-RWI-20I_PYTHON_TARGET_STRUCTURE.json",
+      "docs/work-packets/G0-RWI-20I_PYTHON_TARGET_STRUCTURE.md",
+      "docs/work-packets/G0-RWI-20J_REPOSITORY_WRITE_GUARD_STRUCTURE.json",
+      "docs/work-packets/G0-RWI-20J_REPOSITORY_WRITE_GUARD_STRUCTURE.md",
+      "docs/work-packets/G0-RWI-20K_REPOSITORY_WRITE_RUNTIME_CONFORMANCE.json",
+      "docs/work-packets/G0-RWI-20K_REPOSITORY_WRITE_RUNTIME_CONFORMANCE.md",
+      "docs/work-packets/G0-RWI-20L_EFFECT_REPLAY_INTEGRATION.json",
+      "docs/work-packets/G0-RWI-20L_EFFECT_REPLAY_INTEGRATION.md",
+      "docs/work-packets/G0-RWI-20M_RUNTIME_EFFECT_REPLAY.json",
+      "docs/work-packets/G0-RWI-20M_RUNTIME_EFFECT_REPLAY.md",
+      "docs/work-packets/G0-RWI-20N_REPOSITORY_WRITE_EFFECT_LEASE.json",
+      "docs/work-packets/G0-RWI-20N_REPOSITORY_WRITE_EFFECT_LEASE.md",
+      "docs/work-packets/G0-RWI-20_REPOSITORY_WRITE_SURFACE_INVENTORY.json",
+      "docs/work-packets/G0-RWI-20_REPOSITORY_WRITE_SURFACE_INVENTORY.md",
+      "docs/work-packets/G0-VET-01_ENV_EGRESS_PIN_IDENTITY.md",
+      "docs/work-packets/G0-WP-02_OWNER_APPROVAL.md",
+      "docs/work-packets/G0-WP-03_EFFECT_LEASES.md",
+      "docs/work-packets/G0-WP-04_SEALED_PROMOTION_RUNTIME_SANDBOX.md",
+      "docs/work-packets/G1-ARIADNE-01_CANONICAL_CAMPAIGN_REHEARSAL.md",
+      "docs/work-packets/G1-ATT-13B_WINDOWS_STABLE_SOURCE_TREE_CAS.md",
+      "docs/work-packets/G1-BENCH-AUTH-01.json",
+      "docs/work-packets/G1-BUDGET-12_DESKTOP_SPEND_CONTROLS.md",
+      "docs/work-packets/G1-CAPS-13_EXECUTION_CAP_MENU.md",
+      "docs/work-packets/G1-CODEX-10_SAFE_STATE_IMPORT.md",
+      "docs/work-packets/G1-CODEX-11_HOOKS_MCP.md",
+      "docs/work-packets/G1-DESKTOP-14_ORPHAN_SAFE_BACKEND_STARTUP.json",
+      "docs/work-packets/G1-DESKTOP-PRERELEASE-011.md",
+      "docs/work-packets/G1-DESKTOP-PRERELEASE-012.md",
+      "docs/work-packets/G1-DESKTOP-STARTUP-NONCE-270.json",
+      "docs/work-packets/G1-EDA-01_CANONICAL_VIVADO_PROJECT_RUN.md",
+      "docs/work-packets/G1-EDA-02_SUPPORTED_INTERPRETER_LEASE_IMPORT.md",
+      "docs/work-packets/G1-GRAPH-09_FULL_NETWORK_LIMIT.md",
+      "docs/work-packets/G1-IDE-10_OPENVSCODE_EXPERIMENT.md",
+      "docs/work-packets/G1-IDE-11_CANONICAL_PROJECT_REGISTRATION_IDENTITY.md",
+      "docs/work-packets/G1-IDE-12_CANONICAL_PROJECT_ROW_REWRITE_TRANSACTION.md",
+      "docs/work-packets/G1-IGNITION-02_OUTER_EFFECT_BOUNDARY.md",
+      "docs/work-packets/G1-IKARUS-01-supervisor-slice.md",
+      "docs/work-packets/G1-IKARUS-02_VENDOR_NEUTRAL_ROLE_RUNTIME_PORT.md",
+      "docs/work-packets/G1-IKARUS-03_RUNTIME_EVENT_PROJECTION.md",
+      "docs/work-packets/G1-IKARUS-04_STATELESS_ONESHOT_PORT.md",
+      "docs/work-packets/G1-IKARUS-05_POLICY_BOUND_TOOL_SCOPE.md",
+      "docs/work-packets/G1-IKARUS-06_CANONICAL_EFFECT_BRIDGE.md",
+      "docs/work-packets/G1-IKARUS-07A_PROVIDER_EXECUTABLE_PRE_ADMISSION.md",
+      "docs/work-packets/G1-IKARUS-07B_PROVIDER_EXECUTABLE_OBJECT_REGISTRY.md",
+      "docs/work-packets/G1-IKARUS-07C1_PROVIDER_AMBIENT_DEPENDENCY_HARDENING.md",
+      "docs/work-packets/G1-IKARUS-07C_PROVIDER_RUNTIME_EXECUTABLE_BINDING.md",
+      "docs/work-packets/G1-IKARUS-07D1_PROVIDER_INVOCATION_PAYLOAD.md",
+      "docs/work-packets/G1-IKARUS-07D2_PROVIDER_INVOCATION_ABI.md",
+      "docs/work-packets/G1-IKARUS-07D3_RUNTIME_INVOCATION_BINDING.md",
+      "docs/work-packets/G1-IKARUS-07D4_SEALED_BROKER_CUTOVER.md",
+      "docs/work-packets/G1-IKARUS-07S_PROVIDER_STACK_SERIALIZATION.md",
+      "docs/work-packets/G1-IKARUS-08_PORTABLE_CLI_DISCOVERY.md",
+      "docs/work-packets/G1-IKARUS-09_CONVERSATIONAL_HANDOFF.md",
+      "docs/work-packets/G1-IKARUS-10_LEASED_QUEUE_EXECUTION.md",
+      "docs/work-packets/G1-IKARUS-11_CONVERSATION_DISPATCH_OUTCOME.md",
+      "docs/work-packets/G1-IKARUS-12_PROJECT_READINESS.md",
+      "docs/work-packets/G1-IKARUS-13_HERMES_KERNEL_RUNTIME_ADAPTER.md",
+      "docs/work-packets/G1-LEASE-01-ignition-crosses-its-boundary.md",
+      "docs/work-packets/G1-LOOP-BOUNDS-249.json",
+      "docs/work-packets/G1-LOOP-TERMINAL-250.json",
+      "docs/work-packets/G1-OPS-04_BRANCH_CONSOLIDATION_ROLLBACK.md",
+      "docs/work-packets/G1-OPS-05_LOCAL_BRANCH_CONSOLIDATION.md",
+      "docs/work-packets/G1-TAURI-CI-AUTH-271.json",
+      "docs/work-packets/G1-TWIN-GARDEN-01R.json",
+      "docs/work-packets/G1-WP-01_VOLTAGE_IGNITION.md",
+      "docs/work-packets/G1_ACTIVATION_CHECKLIST.md"
+    ],
+    "paths_sha256": "9b657c0b81e8ce37812af1e3649429dc850528f2f0936de687662a6c9ebc1775",
+    "revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5"
+  },
+  "packets": [
+    {
+      "artifacts": [
+        "docs/work-packets/G0-APR-11_AUTHENTICATED_APPROVAL_CONSUMPTION.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-APR-11",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ATT-13A_SOURCE_TREE_CAS_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ATT-13A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ATT-13B_EFFECT_INVENTORY.json",
+        "docs/work-packets/G0-ATT-13B_ISOLATED_ATTEMPT_LIFECYCLE.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ATT-13B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ATT-13B3_EVENT_TIME_WINDOW.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ATT-13B3",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ATT-13B4_WORKSPACE_ROOT_AUTHORITY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ATT-13B4",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ATT-13C_ATTEMPT_EFFECT_INVENTORY.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ATT-13C",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.json",
+        "docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ATT-15",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-BL-19_GATE_BASELINE_V2.json",
+        "docs/work-packets/G0-BL-19_GATE_BASELINE_V2.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-BL-19",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-EFX-09A_NON_RUNTIME_AUTHORIZATION_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "9ad9bab822d625ed3c4516a1353b033279811588",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-EFX-09A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ES-14_EVENT_STORE_DURABILITY.json",
+        "docs/work-packets/G0-ES-14_EVENT_STORE_DURABILITY.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ES-14",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ES-16_EVENT_STORE_WRITER_FACTORY.json",
+        "docs/work-packets/G0-ES-16_EVENT_STORE_WRITER_FACTORY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ES-16",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-ES-17_EVENT_STORE_WRITER_INVENTORY.json",
+        "docs/work-packets/G0-ES-17_EVENT_STORE_WRITER_INVENTORY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-ES-17",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-EVD-08E_EVIDENCE_INDEX_CANONICAL_WIRE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-EVD-08E",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-EVD-08F_TRUST_BUNDLE_CANONICAL_WIRE.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-EVD-08F",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-EVD-10_FOURFOLD_OWNER_BINDING.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-EVD-10",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-FLT-07A_ADVERSARIAL_REVIEW_FINDINGS.md",
+        "docs/work-packets/G0-FLT-07A_CANONICAL_FAULT_MATRIX_CONTRACT.json",
+        "docs/work-packets/G0-FLT-07A_CANONICAL_FAULT_MATRIX_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-FLT-07A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-GOV-25_EXECUTION_PROJECTION_R3_FROZEN_RETENTION_PREFLIGHT.json",
+        "docs/work-packets/G0-GOV-25_EXECUTION_PROJECTION_R3_FROZEN_RETENTION_PREFLIGHT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-GOV-25",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-GR-18_GATE_REPORT_WRITER_INVENTORY.json",
+        "docs/work-packets/G0-GR-18_GATE_REPORT_WRITER_INVENTORY.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-GR-18",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-GR-20_REPOSITORY_WRITE_BOUND_GATE_REPORT_V3.json",
+        "docs/work-packets/G0-GR-20_REPOSITORY_WRITE_BOUND_GATE_REPORT_V3.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-GR-20",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-GR-21_REPOSITORY_WRITE_ARTIFACT_EVIDENCE.json",
+        "docs/work-packets/G0-GR-21_REPOSITORY_WRITE_ARTIFACT_EVIDENCE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-GR-21",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-GR-22_REPOSITORY_WRITE_ARTIFACT_BYTE_VERIFICATION.json",
+        "docs/work-packets/G0-GR-22_REPOSITORY_WRITE_ARTIFACT_BYTE_VERIFICATION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-GR-22",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-GR-23_REPOSITORY_WRITE_ARTIFACT_CAS_RESOLUTION.json",
+        "docs/work-packets/G0-GR-23_REPOSITORY_WRITE_ARTIFACT_CAS_RESOLUTION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-GR-23",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-GR-24_REPOSITORY_WRITE_ARTIFACT_ADMISSION.json",
+        "docs/work-packets/G0-GR-24_REPOSITORY_WRITE_ARTIFACT_ADMISSION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-GR-24",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-HOOK-01_POWERSHELL_POSTTOOL_PARITY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "5f6bfc06f4cbcccbb2d0e6f770ce58ae24209c41",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "Codex implementation lane; merge and promotion remain owner decisions"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-HOOK-01",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-PRM-12A_PERSISTED_PROMOTION_AUTHORIZATION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-PRM-12A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-PRM-12B_LIVE_PROMOTION_SEAM.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-PRM-12B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-PRM-12C_PROMOTION_RECEIPT_AUTHORITY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "e3853cf42e03250768a8b649b4f6aa8a3205ddd9",
+        "classification": "architecture/security hardening",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-PRM-12C",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-PRM-19_PROMOTION_EXECUTION_EVENT_SPINE.json",
+        "docs/work-packets/G0-PRM-19_PROMOTION_EXECUTION_EVENT_SPINE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "00282247032c9cb64f5801ce223a22a07468e690",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-PRM-19",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-PRM-21_PROMOTION_EXECUTION_RAW_PROJECTION.json",
+        "docs/work-packets/G0-PRM-21_PROMOTION_EXECUTION_RAW_PROJECTION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "b4670c9c6c0cfb08da52d4a4db05c47bead2df93",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-PRM-21",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RCP-04A_FOURFOLD_EVIDENCE_BINDING.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RCP-04A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RPT-08A_EXACT_HEAD_EVIDENCE_INDEX.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RPT-08A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RPT-08B_AUTHENTICATED_EVIDENCE_TRUST_BUNDLE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RPT-08B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RPT-08C_AUTHENTICATED_RELEASE_ASSESSMENT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RPT-08C",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06A_OFFLINE_RUNTIME_CONFORMANCE.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06B_RUNTIME_TRUST_LEDGER.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06C_RUNTIME_LEASE_ADMISSION.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06C",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06D_RUNTIME_PROVIDER_BROKER.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06D",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06E_RUNTIME_TERMINAL_FENCE.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06E",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06F_CLAUDE_PROVIDER_BROKER.md",
+        "docs/work-packets/G0-RTC-06F_RUNTIME_FAULT_CATALOG.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06F",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06G_RUNTIME_FAULT_ATTESTATIONS.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06G",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06H_LINUX_HOST_FAULT_RUNNER.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06H",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06I_LINUX_PROCESS_FAULTS.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06I",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06J_SANDBOX_UNAVAILABLE_FAULT.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06J",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06K_EFFECT_LEDGER_CONTENTION_FAULT.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06K",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06L_CONTAINER_OOM_FAULT.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06L",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06M_UNAUTHORIZED_EGRESS_FAULT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06M",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06N_UNDECLARED_SECRET_FAULT.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06N",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06O_RUNTIME_TRUST_CONTENTION_FAULT.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06O",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06P_UNKNOWN_OUTCOME_RECONCILIATION.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06P",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06Q_POST_PROVIDER_UNKNOWN_OUTCOME.json",
+        "docs/work-packets/G0-RTC-06Q_POST_PROVIDER_UNKNOWN_OUTCOME.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06Q",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06R_PROVIDER_OBSERVATION_AUTHORITY.json",
+        "docs/work-packets/G0-RTC-06R_PROVIDER_OBSERVATION_AUTHORITY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06R",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06T_PROVIDER_INVOCATION_SUBJECT.json",
+        "docs/work-packets/G0-RTC-06T_PROVIDER_INVOCATION_SUBJECT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06T",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06U_PROVIDER_OBSERVATION_PERSISTENCE_INVENTORY.json",
+        "docs/work-packets/G0-RTC-06U_PROVIDER_OBSERVATION_PERSISTENCE_INVENTORY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06U",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06V_PROVIDER_OBSERVATION_PREPROVISIONED_STORE.json",
+        "docs/work-packets/G0-RTC-06V_PROVIDER_OBSERVATION_PREPROVISIONED_STORE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06V",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06W_PROVIDER_INVOCATION_OBSERVATION_AUTHORITY.json",
+        "docs/work-packets/G0-RTC-06W_PROVIDER_INVOCATION_OBSERVATION_AUTHORITY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06W",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06X_PROVIDER_INVOCATION_REGISTRY_MANIFEST.json",
+        "docs/work-packets/G0-RTC-06X_PROVIDER_INVOCATION_REGISTRY_MANIFEST.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06X",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_IDENTITY.json",
+        "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_IDENTITY.md",
+        "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_RESOLUTION.json",
+        "docs/work-packets/G0-RTC-06Y_PROVIDER_INVOCATION_RESOLUTION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06Y",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-06Z_PROVIDER_OBSERVATION_STORE_OPERATION_CONTRACT.json",
+        "docs/work-packets/G0-RTC-06Z_PROVIDER_OBSERVATION_STORE_OPERATION_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-06Z",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07A_PROVIDER_INVOCATION_EXACT_AUTHORITY_INTEGRATION.json",
+        "docs/work-packets/G0-RTC-07A_PROVIDER_INVOCATION_EXACT_AUTHORITY_INTEGRATION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07B_PROVIDER_EXECUTABLE_TARGET_MANIFEST.json",
+        "docs/work-packets/G0-RTC-07B_PROVIDER_EXECUTABLE_TARGET_MANIFEST.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07C_PROVIDER_EXECUTABLE_STRUCTURE_RECEIPT.json",
+        "docs/work-packets/G0-RTC-07C_PROVIDER_EXECUTABLE_STRUCTURE_RECEIPT.md",
+        "docs/work-packets/G0-RTC-07C_PROVIDER_TARGET_SOURCE_VERIFICATION.json",
+        "docs/work-packets/G0-RTC-07C_PROVIDER_TARGET_SOURCE_VERIFICATION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07C",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07D_PROVIDER_TARGET_RECEIPT_RETENTION.json",
+        "docs/work-packets/G0-RTC-07D_PROVIDER_TARGET_RECEIPT_RETENTION.md",
+        "docs/work-packets/G0-RTC-07D_REPOSITORY_HEAD_REVISION_RECEIPT.json",
+        "docs/work-packets/G0-RTC-07D_REPOSITORY_HEAD_REVISION_RECEIPT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "4d67a562343d920da589d75cfecc8109657061fa",
+        "classification": "ALIGNED",
+        "dependencies": "[\"G0-RTC-07C_PROVIDER_TARGET_SOURCE_VERIFICATION\"]",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07D",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07E_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY.json",
+        "docs/work-packets/G0-RTC-07E_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07E",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07F_PROVIDER_TARGET_RECEIPT_RETENTION_CONTRACT.json",
+        "docs/work-packets/G0-RTC-07F_PROVIDER_TARGET_RECEIPT_RETENTION_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07F",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07G_PROVIDER_TARGET_RECEIPT_RETENTION_TOPOLOGY_HARDENING.json",
+        "docs/work-packets/G0-RTC-07G_PROVIDER_TARGET_RECEIPT_RETENTION_TOPOLOGY_HARDENING.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07G",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07H_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY_REFRESH.json",
+        "docs/work-packets/G0-RTC-07H_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY_REFRESH.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07H",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07I_REPOSITORY_HEAD_RECEIPT_INTEGRATION.json",
+        "docs/work-packets/G0-RTC-07I_REPOSITORY_HEAD_RECEIPT_INTEGRATION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07I",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07J_PROVIDER_TARGET_RECEIPT_RETENTION_PREFLIGHT.json",
+        "docs/work-packets/G0-RTC-07J_PROVIDER_TARGET_RECEIPT_RETENTION_PREFLIGHT.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07J",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07K_PROVIDER_TARGET_RECEIPT_RETENTION_ADMISSION.json",
+        "docs/work-packets/G0-RTC-07K_PROVIDER_TARGET_RECEIPT_RETENTION_ADMISSION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07K",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07L_PROVIDER_TARGET_RECEIPT_RETENTION_RECOVERY_DECISION.json",
+        "docs/work-packets/G0-RTC-07L_PROVIDER_TARGET_RECEIPT_RETENTION_RECOVERY_DECISION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07L",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07M_PROVIDER_TARGET_RECEIPT_RETENTION_COMPLETED_EVIDENCE.json",
+        "docs/work-packets/G0-RTC-07M_PROVIDER_TARGET_RECEIPT_RETENTION_COMPLETED_EVIDENCE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07M",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-07N_PROVIDER_TARGET_RECEIPT_RETENTION_EFFECT_TERMINAL_EVIDENCE.json",
+        "docs/work-packets/G0-RTC-07N_PROVIDER_TARGET_RECEIPT_RETENTION_EFFECT_TERMINAL_EVIDENCE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-07N",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-09B_RUNTIME_TERMINAL_BINDING.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-09B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RTC-09C_RUNTIME_AUTHORIZATION_CLOCK.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RTC-09C",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20_REPOSITORY_WRITE_SURFACE_INVENTORY.json",
+        "docs/work-packets/G0-RWI-20_REPOSITORY_WRITE_SURFACE_INVENTORY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "cc870c84b210b392aa18dde2c6596839996b0241",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20A_REPOSITORY_WRITE_STDLIB_DELTA.json",
+        "docs/work-packets/G0-RWI-20A_REPOSITORY_WRITE_STDLIB_DELTA.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "9bd52bf7bc09ac7c5dbfee4884442bb024174a01",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20B_REPOSITORY_WRITE_CANONICAL_V2.json",
+        "docs/work-packets/G0-RWI-20B_REPOSITORY_WRITE_CANONICAL_V2.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20C_REPOSITORY_WRITE_CLASSIFICATION.json",
+        "docs/work-packets/G0-RWI-20C_REPOSITORY_WRITE_CLASSIFICATION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20C",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20D_REPOSITORY_WRITE_EVIDENCE_MATERIALIZATION.json",
+        "docs/work-packets/G0-RWI-20D_REPOSITORY_WRITE_EVIDENCE_MATERIALIZATION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20D",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20E_REPOSITORY_WRITE_EVIDENCE_ORIGIN.json",
+        "docs/work-packets/G0-RWI-20E_REPOSITORY_WRITE_EVIDENCE_ORIGIN.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20E",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20F_REPOSITORY_WRITE_SOURCE_ANCHOR_SEMANTICS.json",
+        "docs/work-packets/G0-RWI-20F_REPOSITORY_WRITE_SOURCE_ANCHOR_SEMANTICS.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20F",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20G_GUARD_IMPLEMENTATION_MANIFEST.json",
+        "docs/work-packets/G0-RWI-20G_GUARD_IMPLEMENTATION_MANIFEST.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20G",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20H_REPOSITORY_TREE_READER.json",
+        "docs/work-packets/G0-RWI-20H_REPOSITORY_TREE_READER.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20H",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20I_PYTHON_TARGET_STRUCTURE.json",
+        "docs/work-packets/G0-RWI-20I_PYTHON_TARGET_STRUCTURE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20I",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20J_REPOSITORY_WRITE_GUARD_STRUCTURE.json",
+        "docs/work-packets/G0-RWI-20J_REPOSITORY_WRITE_GUARD_STRUCTURE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20J",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20K_REPOSITORY_WRITE_RUNTIME_CONFORMANCE.json",
+        "docs/work-packets/G0-RWI-20K_REPOSITORY_WRITE_RUNTIME_CONFORMANCE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20K",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20L_EFFECT_REPLAY_INTEGRATION.json",
+        "docs/work-packets/G0-RWI-20L_EFFECT_REPLAY_INTEGRATION.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20L",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20M_RUNTIME_EFFECT_REPLAY.json",
+        "docs/work-packets/G0-RWI-20M_RUNTIME_EFFECT_REPLAY.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20M",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-RWI-20N_REPOSITORY_WRITE_EFFECT_LEASE.json",
+        "docs/work-packets/G0-RWI-20N_REPOSITORY_WRITE_EFFECT_LEASE.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-RWI-20N",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-VET-01_ENV_EGRESS_PIN_IDENTITY.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "21c6016e1f84bea0a9bdb609ec33522856037f85",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-VET-01",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-WP-02_OWNER_APPROVAL.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-WP-02",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-WP-03_EFFECT_LEASES.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-WP-03",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G0-WP-04_SEALED_PROMOTION_RUNTIME_SANDBOX.md"
+      ],
+      "metadata": {
+        "active_gate": 0,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G0-WP-04",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-01_CANONICAL_CAMPAIGN_REHEARSAL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5f7b065c54779cafd6a35b2411eeb5e84",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-ARIADNE-01",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ATT-13B_WINDOWS_STABLE_SOURCE_TREE_CAS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5f7b065c54779cafd6a35b2411eeb5e84",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-ATT-13B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-BENCH-AUTH-01.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-BENCH-AUTH-01",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-BUDGET-12_DESKTOP_SPEND_CONTROLS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "98833bf7",
+        "classification": "`AMENDMENT` with implementation aligned to accepted Revision 9",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-BUDGET-12",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-CAPS-13_EXECUTION_CAP_MENU.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-CAPS-13",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-CODEX-10_SAFE_STATE_IMPORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-CODEX-10",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-CODEX-11_HOOKS_MCP.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-CODEX-11",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-DESKTOP-14_ORPHAN_SAFE_BACKEND_STARTUP.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5f7b065c54779cafd6a35b2411eeb5e84",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-DESKTOP-14",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-DESKTOP-PRERELEASE-011.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-DESKTOP-PRERELEASE-011",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-DESKTOP-PRERELEASE-012.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-DESKTOP-PRERELEASE-012",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-DESKTOP-STARTUP-NONCE-270.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "98833bf71e53eec184a7db2a065aec1469a9b8c7",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-DESKTOP-STARTUP-NONCE-270",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EDA-01_CANONICAL_VIVADO_PROJECT_RUN.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "98833bf71e53eec184a7db2a065aec1469a9b8c7",
+        "classification": "ALIGNED",
+        "dependencies": "scoped Gate-0 closure and the canonical Effect-Lease and Artifact",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-EDA-01",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EDA-02_SUPPORTED_INTERPRETER_LEASE_IMPORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "2a2f7d8748b0fb62fb72b53d1bac6bcd264499fb",
+        "classification": "ALIGNED",
+        "dependencies": "the G1-EDA-01 project-aware live surface and the canonical",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-EDA-02",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-GRAPH-09_FULL_NETWORK_LIMIT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "98833bf7",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-GRAPH-09",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IDE-10_OPENVSCODE_EXPERIMENT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "98833bf71e53eec184a7db2a065aec1469a9b8c7",
+        "classification": "EXPERIMENT",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IDE-10",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IDE-11_CANONICAL_PROJECT_REGISTRATION_IDENTITY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "repository owner; no automatic merge, promotion, or Gate transition"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IDE-11",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IDE-12_CANONICAL_PROJECT_ROW_REWRITE_TRANSACTION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "repository owner; no automatic merge, promotion, or Gate transition"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IDE-12",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IGNITION-02_OUTER_EFFECT_BOUNDARY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5f7b065c54779cafd6a35b2411eeb5e84",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IGNITION-02",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-01-supervisor-slice.md"
+      ],
+      "metadata": {
+        "active_gate": "1 (aktiv seit Revision 8). **Owner-Anweisung:** \u201eOrchestration und",
+        "base_revision": "`9e05ed98`.",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-01",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-02_VENDOR_NEUTRAL_ROLE_RUNTIME_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": "1. **Base revision:** `749ee3deb57e03bc02726c4373e4f90a4aeeb1af`.",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-02",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-03_RUNTIME_EVENT_PROJECTION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-03",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-04_STATELESS_ONESHOT_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": "1. **Authoring base:** `68721e3208194391d71b0ae64d24157fd1876207`. **Reconciled main:** `24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2`.",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-04",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-05_POLICY_BOUND_TOOL_SCOPE.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-05",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-06_CANONICAL_EFFECT_BRIDGE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-06",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07A_PROVIDER_EXECUTABLE_PRE_ADMISSION.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07A",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07B_PROVIDER_EXECUTABLE_OBJECT_REGISTRY.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07B",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07C_PROVIDER_RUNTIME_EXECUTABLE_BINDING.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07C",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07C1_PROVIDER_AMBIENT_DEPENDENCY_HARDENING.md"
+      ],
+      "metadata": {
+        "active_gate": "unknown",
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07C1",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07D1_PROVIDER_INVOCATION_PAYLOAD.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07D1",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07D2_PROVIDER_INVOCATION_ABI.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "`ALIGNED` canonical-kernel security/evidence hardening",
+        "dependencies": "unknown",
+        "owner": "repository owner; merge, promotion, and Gate decisions remain explicit"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07D2",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07D3_RUNTIME_INVOCATION_BINDING.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "`ALIGNED` canonical-kernel composition/security hardening",
+        "dependencies": "unknown",
+        "owner": "repository owner; merge, promotion, and Gate decisions remain explicit"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07D3",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07D4_SEALED_BROKER_CUTOVER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "98833bf71e53eec184a7db2a065aec1469a9b8c7",
+        "classification": "ALIGNED",
+        "dependencies": "merged 07D1/07D2/07D3 evidence, executable-object registry,",
+        "owner": "repository owner; no automatic merge, promotion, or Gate transition"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07D4",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-07S_PROVIDER_STACK_SERIALIZATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-07S",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-08_PORTABLE_CLI_DISCOVERY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "98833bf7",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-08",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-09_CONVERSATIONAL_HANDOFF.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5",
+        "classification": "ALIGNED",
+        "dependencies": "the canonical Ikarus Voice/Hand split, file bridge, durable",
+        "owner": "repository owner; no automatic merge, promotion, or Gate transition"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-09",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-10_LEASED_QUEUE_EXECUTION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "repository owner; no automatic merge, promotion, or Gate transition"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-10",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-11_CONVERSATION_DISPATCH_OUTCOME.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "repository owner; no automatic merge, promotion, or Gate transition"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-11",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-12_PROJECT_READINESS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "repository owner; no automatic merge, promotion, or Gate transition"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-12",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-13_HERMES_KERNEL_RUNTIME_ADAPTER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "52b4baa5f7b065c54779cafd6a35b2411eeb5e84",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-02 through 07D4, G1-IKARUS-09 through 12,",
+        "owner": "repository owner; no automatic merge, promotion, or Gate transition"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-IKARUS-13",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-LEASE-01-ignition-crosses-its-boundary.md"
+      ],
+      "metadata": {
+        "active_gate": "0 (Gate-1 rehearsal per master-plan Revision 3 item 3).",
+        "base_revision": "`4f71c020`. **Owner:** repository owner.",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-LEASE-01",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-LOOP-BOUNDS-249.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "68721e3208194391d71b0ae64d24157fd1876207",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-LOOP-BOUNDS-249",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-LOOP-TERMINAL-250.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "47229f0a230111ad1be29cbd5f976dcc31c02859",
+        "classification": "ALIGNED",
+        "dependencies": "[\"LoopReport and IterationResult schema 2\",\"G1-GARDEN-CONTAINMENT-03 branch history\",\"issue #250 terminal rendering containment\"]",
+        "owner": "repository owner; merge and promotion require an explicit owner decision"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-LOOP-TERMINAL-250",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-OPS-04_BRANCH_CONSOLIDATION_ROLLBACK.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-OPS-04",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-OPS-05_LOCAL_BRANCH_CONSOLIDATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-OPS-05",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-TAURI-CI-AUTH-271.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-TAURI-CI-AUTH-271",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-TWIN-GARDEN-01R.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+        "classification": "ALIGNED",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-TWIN-GARDEN-01R",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-WP-01_VOLTAGE_IGNITION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "unknown",
+        "classification": "unknown",
+        "dependencies": "unknown",
+        "owner": "unknown"
+      },
+      "metadata_conflicts": {},
+      "origin": "legacy",
+      "packet_id": "G1-WP-01",
+      "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "the frozen Gate-1 archive parent and Master Plan Revision 11",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-WP-INDEX-01",
+      "primary_artifact": "docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md"
+    }
+  ],
+  "post_index_contracts": [
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-WP-INDEX-01",
+      "path": "docs/work-packets/G1-WP-INDEX-01_TRACKED_WORK_PACKET_REGISTRY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    }
+  ],
+  "registry_artifacts": [
+    "docs/work-packets/index.json"
+  ],
+  "schema": "daedalus-work-packet-index/1",
+  "unassigned_artifacts": [
+    "docs/work-packets/G0-OPUS-FLEET-ADVISORY-EXPERIMENT.md",
+    "docs/work-packets/G1_ACTIVATION_CHECKLIST.md"
+  ]
+}
