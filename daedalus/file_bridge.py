@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import errno
-import hashlib
 import inspect
 import json
 import os
@@ -17,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .atomic import write_text_atomic
+from .interfaces.bridge import journal as bridge_journal
 from .interfaces.bridge import projection as bridge_projection
 from .memory import record_from_bridge_report
 from .projects import resolve_repo_root
@@ -347,17 +347,20 @@ def _request_key(path: Path) -> str:
 
     Safe as a key only because enqueue() embeds a uuid in the name -- the
     older second-resolution stamp was not unique, so neither was this."""
-    return path.stem
+    return bridge_journal.request_key(path)
 
 
 def _request_sha256(payload: dict[str, Any]) -> str:
     """Canonical identity of the normalized request body behind one key."""
-    return envelope.canonical_sha(payload)
+    return bridge_journal.request_sha256(
+        payload,
+        canonical_sha=envelope.canonical_sha,
+    )
 
 
 def _raw_request_sha256(path: Path) -> str:
     """Byte identity used when poison input cannot be normalized as JSON."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return bridge_journal.raw_request_sha256(path)
 
 
 def _report_request_binding(report: dict[str, Any], key: str) -> str:
@@ -369,31 +372,11 @@ def _report_request_binding(report: dict[str, Any], key: str) -> str:
     or malformed artifact suppress real work; ignoring a valid binding would
     let replay overwrite the original terminal outcome.  Both are fail-closed.
     """
-    status = report.get("bridge_status")
-    if not isinstance(status, str) or not status.strip():
-        raise ValueError("existing report has no terminal bridge_status")
-    report_key = report.get("request_file")
-    if report_key is not None and report_key != key:
-        raise ValueError(
-            f"existing report is bound to request_file {report_key!r}, "
-            f"not {key!r}")
-
-    explicit = report.get("request_sha256")
-    if explicit is not None and (
-            not isinstance(explicit, str)
-            or not re.fullmatch(r"[0-9a-f]{64}", explicit)):
-        raise ValueError("existing report request_sha256 is malformed")
-    embedded = report.get("request")
-    embedded_sha256 = (
-        _request_sha256(embedded) if isinstance(embedded, dict) else None)
-    if explicit is not None and embedded_sha256 is not None \
-            and explicit != embedded_sha256:
-        raise ValueError(
-            "existing report request_sha256 contradicts its request body")
-    bound = explicit or embedded_sha256
-    if bound is None:
-        raise ValueError("existing report has no provable request identity")
-    return bound
+    return bridge_journal.report_request_binding(
+        report,
+        key,
+        request_sha=_request_sha256,
+    )
 
 
 def _quarantine_request_identity_conflict(
@@ -469,61 +452,25 @@ def _effect_identity_for(key: str, entry: dict[str, Any]) -> dict[str, str]:
     if the effect ledger already knows them, changed lease bytes conflict and
     fail closed instead of authorising a second provider call.
     """
-    digest = hashlib.sha256(
-        f"daedalus.file-bridge.effect:{key}".encode("utf-8")
-    ).hexdigest()
-    expected_attempt = f"file-bridge-{digest[:32]}"
-    expected_lease = f"file-bridge-{digest[:32]}-lease"
-    existing = entry.get("effect_identity")
-    if existing is None:
-        return {
-            "attempt_id": expected_attempt,
-            "lease_id": expected_lease,
-            "issued_at": datetime.now(timezone.utc).isoformat(
-                timespec="microseconds"
-            ),
-        }
-    if not isinstance(existing, dict):
-        raise ValueError("journal effect_identity must be an object")
-    if (
-        existing.get("attempt_id") != expected_attempt
-        or existing.get("lease_id") != expected_lease
-    ):
-        raise ValueError(
-            "journal effect_identity does not match the request filename key"
-        )
-    issued_text = existing.get("issued_at")
-    if not isinstance(issued_text, str) or not issued_text.strip():
-        raise ValueError("journal effect_identity issued_at is missing")
-    try:
-        issued = datetime.fromisoformat(issued_text.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise ValueError("journal effect_identity issued_at is malformed") from exc
-    if issued.tzinfo is None:
-        raise ValueError("journal effect_identity issued_at must include a timezone")
-    canonical = issued.astimezone(timezone.utc).isoformat(timespec="microseconds")
-    if issued_text != canonical:
-        raise ValueError("journal effect_identity issued_at is not canonical UTC")
-    return {
-        "attempt_id": expected_attempt,
-        "lease_id": expected_lease,
-        "issued_at": issued_text,
-    }
+    return bridge_journal.effect_identity_for(
+        key,
+        entry,
+        now=lambda: datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+    )
 
 
 def _journal_dir() -> Path:
     """Per-request processing journal. Derived from ARCHIVE at call time so a
     test that patches ARCHIVE gets a matching journal for free."""
-    return ARCHIVE / ".journal"
+    return bridge_journal.journal_dir(ARCHIVE)
 
 
 def _mission_projection_dir(key: str) -> Path:
     """Internal disposable projection path derived only from the file key."""
-
-    digest = hashlib.sha256(
-        f"daedalus.file-bridge.mission-projection:{key}".encode("utf-8")
-    ).hexdigest()
-    return _journal_dir() / "mission-supervisor" / digest
+    return bridge_journal.mission_projection_dir(
+        key,
+        journal=_journal_dir(),
+    )
 
 
 def _accepts_keyword(callable_object: Any, keyword: str) -> bool:
@@ -581,20 +528,16 @@ def _read_journal(key: str) -> dict[str, Any]:
     A truncated/corrupt journal reads as empty, i.e. as 'nothing has happened
     yet'. That direction is the safe one: it can cost a repeated step, whereas
     trusting garbage would skip a step that never ran."""
-    try:
-        entry = json.loads(_journal_path(key).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        return {}
-    return entry if isinstance(entry, dict) else {}
+    return bridge_journal.read_journal(key, path_for=_journal_path)
 
 
 def _journal_path(key: str) -> Path:
-    return _journal_dir() / f"{key}.json"
+    return bridge_journal.journal_path(key, journal=_journal_dir())
 
 
 def _request_lock_path(key: str) -> Path:
     """Cross-process claim for one filename-derived request identity."""
-    return _journal_dir() / f"{key}.process.lock"
+    return bridge_journal.request_lock_path(key, journal=_journal_dir())
 
 
 def _crash_journal_decision(detail: str):
@@ -607,18 +550,21 @@ def _crash_journal_decision(detail: str):
     """
     from daedalus.spine.effect_boundary import GuardDecision
 
-    journal = _journal_dir()
-    journal.mkdir(parents=True, exist_ok=True)
-    allowed = journal.is_dir()
-    evidence = f"journal={journal}; {detail}"
-    if not allowed:
-        evidence = "journal directory unavailable; " + evidence
+    allowed, evidence = bridge_journal.crash_journal_state(
+        detail,
+        journal=_journal_dir(),
+    )
     return GuardDecision("file_bridge.crash_journal", allowed, evidence)
 
 
 def _write_journal(key: str, entry: dict[str, Any]) -> None:
-    entry["updated"] = _now_iso()
-    _write_json_atomic(_journal_path(key), entry)
+    bridge_journal.write_journal(
+        key,
+        entry,
+        now=_now_iso,
+        path_for=_journal_path,
+        write_json=_write_json_atomic,
+    )
 
 
 def _completed_report(result_path: Path) -> dict[str, Any] | None:

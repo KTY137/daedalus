@@ -1,5 +1,5 @@
 """File-bridge implementation owners behind the stable legacy facade."""
 
-from . import projection
+from . import journal, projection
 
-__all__ = ["projection"]
+__all__ = ["journal", "projection"]
