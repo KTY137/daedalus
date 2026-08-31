@@ -12,7 +12,12 @@ from typing import Any
 
 from . import core
 from .claude_detect import detect_claude_crew
-from .projects import load_project
+from .projects import (
+    ProjectRegistryUnavailable,
+    ProjectRowUpdateError,
+    load_project,
+    rewrite_project_team,
+)
 from .router import load_agents
 
 AUTONOMY_MODES = ("manual", "semi_auto", "autonomous")
@@ -229,17 +234,35 @@ def unified_profiles(project: str) -> dict[str, Any]:
 
 
 def save_autonomy(project: str, patch: dict[str, Any]) -> dict[str, Any]:
-    from .projects import PROJECT_DIR
+    if not isinstance(patch, dict):
+        raise ProjectRowUpdateError("autonomy patch must be a JSON object")
 
-    path = PROJECT_DIR / f"{project}.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    team = data.setdefault("team", {})
-    autonomy = team.setdefault("autonomy", {})
+    changes: dict[str, Any] = {}
     if "default" in patch:
-        autonomy["default"] = _norm_mode(patch["default"], "manual")
+        changes["default"] = _norm_mode(patch["default"], "manual")
     if "agents" in patch:
-        autonomy["agents"] = dict(patch["agents"] or {})
+        try:
+            changes["agents"] = dict(patch["agents"] or {})
+        except (TypeError, ValueError) as exc:
+            raise ProjectRowUpdateError("autonomy agents must be an object") from exc
     if "capabilities" in patch:
-        autonomy["capabilities"] = dict(patch["capabilities"] or {})
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        try:
+            changes["capabilities"] = dict(patch["capabilities"] or {})
+        except (TypeError, ValueError) as exc:
+            raise ProjectRowUpdateError(
+                "autonomy capabilities must be an object"
+            ) from exc
+
+    def mutate(team: dict[str, Any]) -> None:
+        autonomy = team.get("autonomy")
+        if autonomy is None:
+            autonomy = {}
+            team["autonomy"] = autonomy
+        elif not isinstance(autonomy, dict):
+            raise ProjectRegistryUnavailable(
+                "project registry row has invalid team autonomy data"
+            )
+        autonomy.update(changes)
+
+    rewrite_project_team(project, mutate)
     return unified_profiles(project)

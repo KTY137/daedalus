@@ -77,18 +77,14 @@
 .decision-acts button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .decision-acts button.quiet { background: transparent; border-color: transparent; color: var(--ink2); text-decoration: underline; }
 .decision-acts button:disabled { opacity: 0.5; cursor: default; }
-/* Automatic-apply notes and refusals used to render as plain body text —
-   indistinguishable from the paragraph above them, for a sentence that is
-   actually reporting an autonomous action or its refusal. Both now carry a
-   dot and their tone, the same grammar the status line uses for a finding
-   that is not a plain fact. */
-.decision-auto, .decision-error {
+/* The decision card reports only an explicit user handoff. Errors therefore
+   carry the same distinct instrument grammar as any other failed action. */
+.decision-error {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: var(--fs-sm);
 }
-.decision-auto { color: var(--live); }
 .decision-error { color: var(--bad); }
 .decision-why { margin-top: var(--u2); border-top: var(--border) solid var(--line2); padding-top: var(--u2); font-size: var(--fs-sm); }
 .decision-summary { white-space: pre-wrap; }
@@ -106,6 +102,7 @@
   font-size: var(--fs-xs);
   color: var(--ink2);
 }
+.status-details-toggle { display: none; }
 /* Two deliberate rows, not an accidental wrap: scope+trust first, index and
    liveness second. Each row wraps on its own if it must — a wrapped SECOND
    row then reads as "more detail below", not as a fact orphaned mid-sentence. */

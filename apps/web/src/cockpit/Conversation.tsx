@@ -1,6 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { askIkarus, getConversation, getRuntimeStatus, isBackendDown, newConversation, queueTask, streamIkarus } from '../api';
+import {
+  ApiError,
+  cancelConversationTurn,
+  createConversationTurn,
+  getConversation,
+  getEditorContext,
+  getRuntimeStatus,
+  newConversation,
+  observeConversationTurn,
+  queueTask,
+  streamTask
+} from '../api';
+import type {
+  ConversationCancellation,
+  ConversationCancellationStatus,
+  ConversationDispatch,
+  ConversationTurnRequest,
+  EditorContextReceipt,
+  TaskSnapshot
+} from '../api';
 import type { IkarusAskAction, IkarusAskPayload, RuntimeRow } from '../types';
 import {
   armVariants,
@@ -45,6 +64,12 @@ export interface TurnOrigin {
 export interface Turn {
   role: 'you' | 'ikarus';
   text: string;
+  /** Browser-local identity; dispatch progress is joined to this, never an index. */
+  localId?: string;
+  /** Canonical conversation-spine identity for this exact exchange. */
+  backendTurnId?: number;
+  /** Whether the backend proved that this exchange reached the durable spine. */
+  conversationPersisted?: boolean;
   /**
    * The origin is STORED, the stamp is DERIVED at render.
    *
@@ -56,7 +81,7 @@ export interface Turn {
    * cause, as the citations below.
    */
   origin?: TurnOrigin;
-  /** the reader stopped this turn before the backend reported anything */
+  /** the browser stopped observing this turn; backend cancellation is unproven */
   halted?: boolean;
   /**
    * How long this answer took, measured in this browser. Absent means NOT
@@ -70,6 +95,97 @@ export interface Turn {
   offer?: IkarusAskAction;
   /** what happened to that offer, once something happened */
   offerOutcome?: string;
+  /** live measured state of the task this exact turn launched */
+  dispatch?: TaskSnapshot;
+  /** Canonical id of the generation request, separate from the persisted turn. */
+  requestId?: number;
+  /** An explicit server cancellation request is a separate fact from closing observation. */
+  cancellation?: ConversationCancellationStatus;
+  /** Project-bound editor artifacts actually attached to this request. */
+  contextRefs?: string[];
+}
+
+function taskStateLabel(task: TaskSnapshot): string {
+  if (task.stalled) return 'festgefahren';
+  if (task.timed_out) return 'unklar';
+  const state = task.state.toLowerCase();
+  if (state === 'dispatched') return 'übergeben';
+  if (state === 'queued') return 'eingereiht';
+  if (state === 'running' || state === 'claimed') return 'läuft';
+  if (state === 'done' || state === 'completed' || state === 'succeeded') return 'fertig';
+  if (state === 'failed' || state === 'quarantined') return 'fehlgeschlagen';
+  return 'unklar';
+}
+
+function handoffLabel(applied: boolean | null): string {
+  // Older task reports name this field `applied`. In the conversation it is
+  // only an observed handoff result, never proof that a repository changed or
+  // that promotion happened.
+  return applied === true ? 'bestätigt' : applied === false ? 'nicht bestätigt' : 'unklar';
+}
+
+function cancellationLabel(status: ConversationCancellationStatus): string {
+  switch (status) {
+    case 'requested': return 'Abbruch angefordert – Bestätigung steht aus';
+    case 'confirmed': return 'Abbruch bestätigt';
+    case 'not_supported': return 'Server unterstützt keinen Abbruch-Request';
+    case 'already_terminal': return 'Turn war bereits abgeschlossen';
+    default: return 'Abbruchzustand unbekannt';
+  }
+}
+
+function clientId(prefix: string): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return `${prefix}_${crypto.randomUUID()}`;
+  } catch { /* a timestamp fallback remains an idempotency key for this page */ }
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
+
+type EditorAttachment =
+  | { state: 'idle' }
+  | { state: 'loading'; ref: string }
+  | { state: 'attached'; ref: string; context: EditorContextReceipt }
+  | { state: 'withheld'; ref: string; reason: string; context?: EditorContextReceipt }
+  | { state: 'unavailable'; ref: string; reason: string };
+
+function editorContextRefFromUrl(): string {
+  try { return new URLSearchParams(window.location.search).get('context_ref')?.trim() || ''; } catch { return ''; }
+}
+
+function positiveTurnId(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+function resumedDispatch(dispatch: ConversationDispatch): TaskSnapshot | undefined {
+  const id = typeof dispatch.link?.dispatch_ref === 'string' ? dispatch.link.dispatch_ref : '';
+  if (!id) return undefined;
+  const latest = dispatch.latest;
+  const detail = latest?.detail && typeof latest.detail === 'object' ? latest.detail : {};
+  const text = (key: string): string | null =>
+    typeof detail[key] === 'string' && detail[key] ? String(detail[key]) : null;
+  const providers = Array.isArray(detail.actual_providers)
+    ? detail.actual_providers.filter((provider): provider is string => typeof provider === 'string' && Boolean(provider))
+    : [];
+  const bridgeStatus = text('bridge_status');
+  const outcome = String(latest?.outcome_state || '').toUpperCase();
+  const state = latest?.lifecycle === 'dispatched'
+    ? 'dispatched'
+    : bridgeStatus || (outcome === 'PRESENT' ? 'done' : outcome === 'DEGRADED' ? 'failed' : 'unknown');
+  return {
+    id,
+    found: true,
+    state,
+    source: 'conversation_spine',
+    lane: text('lane'),
+    requested_lane: text('requested_lane'),
+    actual_providers: providers,
+    summary: typeof latest?.summary === 'string' && latest.summary ? latest.summary : null,
+    error: text('error'),
+    applied: typeof detail.applied === 'boolean' ? detail.applied : null,
+    applied_reason: text('application_reason'),
+    stalled: false,
+    timed_out: false
+  };
 }
 
 /** One identifier Ikarus named, and the module on the map it resolves to. */
@@ -632,6 +748,12 @@ export function Conversation({
   const [elapsed, setElapsed] = useState(0);
   /** what actually served the last turn, so a canned answer can say it was canned */
   const [lastProvider, setLastProvider] = useState('');
+  const [editorAttachment, setEditorAttachment] = useState<EditorAttachment>({ state: 'idle' });
+  const [activeRequest, setActiveRequest] = useState<{
+    conversationId: string;
+    requestId: number;
+    localTurnId: string;
+  } | null>(null);
   /** what every route has cost so far, timed here, keyed by the route that served */
   const [waits, setWaits] = useState<WaitLedger>({});
   /** when the turn currently out was sent, so its own wait can be recorded */
@@ -657,6 +779,17 @@ export function Conversation({
    */
   const freshFrom = useRef(0);
   const stream = useRef<{ close: () => void } | null>(null);
+  /** Invalidates chat callbacks that outlive their project or thread. */
+  const chatScope = useRef(0);
+  /** Synchronous claim: React's `busy` state cannot close a same-render double submit. */
+  const chatSendClaim = useRef<symbol | null>(null);
+  /** Every queued task has its own one-shot stream until final/error/teardown. */
+  const taskStreams = useRef<Map<string, { close: () => void }>>(new Map());
+  /** Invalidates a queue response that arrives after its thread/project left. */
+  const taskScope = useRef(0);
+  const turnSerial = useRef(0);
+  /** Synchronous claim guard: React state alone cannot stop a double-click. */
+  const claimedOffers = useRef<Set<string>>(new Set());
   const autonomyRef = useRef(autonomy);
   autonomyRef.current = autonomy;
   /* `settle` must not be rebuilt every time the project string changes — it is
@@ -696,7 +829,26 @@ export function Conversation({
     if (!busy) composer.current?.focus();
   }, [busy, project]);
 
-  useEffect(() => () => stream.current?.close(), []);
+  const closeTaskStreams = useCallback(() => {
+    taskScope.current += 1;
+    taskStreams.current.forEach((taskStream) => taskStream.close());
+    taskStreams.current.clear();
+  }, []);
+
+  const invalidateChat = useCallback(() => {
+    chatScope.current += 1;
+    chatSendClaim.current = null;
+    stream.current?.close();
+    stream.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      invalidateChat();
+      closeTaskStreams();
+    },
+    [closeTaskStreams, invalidateChat]
+  );
 
   /**
    * WHO CAN ANSWER — and this request is itself slow enough to fail.
@@ -751,6 +903,43 @@ export function Conversation({
     };
   }, []);
 
+  /* The editor owns the selection artifact; chat only reads its public receipt.
+     A URL ref that belongs to another checkout is shown as withheld and is never
+     sent across the project boundary. */
+  useEffect(() => {
+    const ref = editorContextRefFromUrl();
+    if (!ref) {
+      setEditorAttachment({ state: 'idle' });
+      return;
+    }
+    if (!project) {
+      setEditorAttachment({ state: 'withheld', ref, reason: 'Kein Projekt für den Editor-Anhang ausgewählt.' });
+      return;
+    }
+    let alive = true;
+    setEditorAttachment({ state: 'loading', ref });
+    getEditorContext(ref)
+      .then((payload) => {
+        if (!alive) return;
+        const context = payload.context;
+        if (!context || context.context_ref !== ref) {
+          setEditorAttachment({ state: 'unavailable', ref, reason: 'Der Editor-Anhang hat keine prüfbare Referenz geliefert.' });
+        } else if (context.project !== project) {
+          setEditorAttachment({ state: 'withheld', ref, context, reason: `Der Anhang gehört zu Projekt ${context.project}, nicht zu ${project}.` });
+        } else if (context.expired) {
+          setEditorAttachment({ state: 'withheld', ref, context, reason: 'Der Editor-Anhang ist abgelaufen und wird nicht gesendet.' });
+        } else if (context.inclusion_report?.accepted === false) {
+          setEditorAttachment({ state: 'withheld', ref, context, reason: context.inclusion_report.reason || 'Der Kontext wurde bei der Prüfung nicht aufgenommen.' });
+        } else {
+          setEditorAttachment({ state: 'attached', ref, context });
+        }
+      })
+      .catch(() => {
+        if (alive) setEditorAttachment({ state: 'unavailable', ref, reason: 'Der Editor-Anhang konnte nicht gelesen werden und wird nicht gesendet.' });
+      });
+    return () => { alive = false; };
+  }, [project]);
+
   // A running clock while a turn is out. 45 seconds of blinking caret reads as
   // a hang; 45 seconds of a counter reads as work.
   useEffect(() => {
@@ -765,8 +954,22 @@ export function Conversation({
 
   /* ---- the thread: resume it, or mint one lazily ---- */
   useEffect(() => {
-    if (!project) return;
+    invalidateChat();
+    closeTaskStreams();
+    claimedOffers.current.clear();
+    setBusy(false);
+    setActiveRequest(null);
+    setResuming(false);
+    setError('');
+    setLastProvider('');
+    if (!project) {
+      setTurns([]);
+      setThread('');
+      return;
+    }
     let alive = true;
+    const resumeProject = project;
+    const isCurrentResume = () => alive && projectRef.current === resumeProject;
     const known = loadThreadId(project);
     setTurns([]);
     setThread(known);
@@ -777,7 +980,7 @@ export function Conversation({
     setResuming(true);
     getConversation(known)
       .then((payload) => {
-        if (!alive) return;
+        if (!isCurrentResume()) return;
         const rows = payload.conversation?.turns || [];
         // Everything already in the store was not just said; it does not arrive.
         freshFrom.current = rows.length * 2;
@@ -788,42 +991,57 @@ export function Conversation({
            turn itself, so it can never claim a route that thread never used. */
         const lastRow = rows[rows.length - 1];
         if (lastRow?.provider_used) setLastProvider(lastRow.provider_used);
+        const dispatchByTurn = new Map<number, TaskSnapshot>();
+        for (const dispatch of payload.conversation?.dispatches || []) {
+          const turnId = positiveTurnId(dispatch.link?.turn_id);
+          const snapshot = resumedDispatch(dispatch);
+          if (turnId !== undefined && snapshot) dispatchByTurn.set(turnId, snapshot);
+        }
         setTurns(
-          rows.flatMap<Turn>((t) => [
-            { role: 'you', text: t.user_message },
-            {
-              role: 'ikarus',
-              text: t.assistant_text || '',
-              // Stored verbatim; the stamp and the citations are derived at
-              // render, once the runtime list and the map have arrived.
-              origin: t.provider_used
-                ? { intent: t.intent, provider_used: t.provider_used, model_used: t.model_used }
-                : undefined
-            }
-          ])
+          rows.flatMap<Turn>((t, index) => {
+            const backendTurnId = positiveTurnId(t.id);
+            return [
+              { role: 'you', text: t.user_message, localId: `stored-${known}-${index}-you` },
+              {
+                role: 'ikarus',
+                text: t.assistant_text || '',
+                localId: `stored-${known}-${index}-ikarus`,
+                backendTurnId,
+                conversationPersisted: backendTurnId !== undefined,
+                dispatch: backendTurnId !== undefined ? dispatchByTurn.get(backendTurnId) : undefined,
+                // Stored verbatim; the stamp and the citations are derived at
+                // render, once the runtime list and the map have arrived.
+                origin: t.provider_used
+                  ? { intent: t.intent, provider_used: t.provider_used, model_used: t.model_used }
+                  : undefined
+              }
+            ];
+          })
         );
       })
       .catch(() => {
         // A thread that cannot be read is not a thread that never existed, and
         // the difference is worth one line rather than a silently empty page.
-        if (alive) setError('Der bisherige Verlauf konnte nicht gelesen werden. Neue Turns laufen trotzdem.');
+        if (isCurrentResume()) setError('Der bisherige Verlauf konnte nicht gelesen werden. Neue Turns laufen trotzdem.');
       })
       .finally(() => {
-        if (alive) setResuming(false);
+        if (isCurrentResume()) setResuming(false);
       });
 
     return () => {
       alive = false;
+      closeTaskStreams();
     };
     // resolveModule changes identity with the map; the thread does not need to
     // be re-read for that.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project]);
+  }, [closeTaskStreams, invalidateChat, project]);
 
-  const ensureThread = useCallback(async (): Promise<string> => {
+  const ensureThread = useCallback(async (scope: number): Promise<string> => {
     if (thread) return thread;
     try {
       const payload = await newConversation();
+      if (scope !== chatScope.current || projectRef.current !== project) return '';
       const id = payload.conversation_id;
       setThread(id);
       saveThreadId(project, id);
@@ -837,12 +1055,130 @@ export function Conversation({
 
   /* ---- offered actions ---- */
 
+  const updateDispatch = useCallback((turnId: string, dispatch: TaskSnapshot) => {
+    setTurns((prev) => prev.map((turn) => (turn.localId === turnId ? { ...turn, dispatch } : turn)));
+  }, []);
+
   const runAction = useCallback(
-    async (action: IkarusAskAction, automatic: boolean, threadId: string) => {
+    async (
+      action: IkarusAskAction,
+      automatic: boolean,
+      threadId: string,
+      localTurnId: string,
+      backendTurnId?: number,
+      conversationPersisted?: boolean
+    ) => {
       const objective = action.args?.objective || '';
       const lane = action.args?.lane || 'local_only';
+      const scope = taskScope.current;
+      // `project` can change during the queue await before the project effect
+      // gets a chance to bump `taskScope`. The render-time ref closes that
+      // window; both identities must still match before this request may touch
+      // the currently visible conversation or its task-stream registry.
+      const requestProject = project;
+      const actionProject = action.args?.project || requestProject;
+      const isCurrentRequest = () => (
+        scope === taskScope.current && projectRef.current === requestProject
+      );
+      const durableTurnId = positiveTurnId(backendTurnId);
+      const hasDurableAttribution = conversationPersisted === true
+        && Boolean(threadId)
+        && durableTurnId !== undefined;
       try {
-        await queueTask(action.args?.project || project, objective, lane, threadId || undefined);
+        const queued = await queueTask(
+          actionProject,
+          objective,
+          lane,
+          hasDurableAttribution ? threadId : undefined,
+          hasDurableAttribution ? durableTurnId : undefined
+        );
+        if (!isCurrentRequest()) return null;
+        const taskId = typeof queued.id === 'string' ? queued.id : '';
+        const link = queued.conversation_link;
+        const linkedAsRequested = hasDurableAttribution
+          && Boolean(taskId)
+          && link?.linked === true
+          && link.conversation_id === threadId
+          && link.turn_id === durableTurnId
+          && link.dispatch_ref === taskId;
+        let attributionNote = '';
+        if (!hasDurableAttribution) {
+          attributionNote = ' · ohne dauerhafte Turn-Zuordnung';
+        } else if (!linkedAsRequested) {
+          attributionNote = ` · dauerhafte Turn-Zuordnung fehlgeschlagen${link?.error ? `: ${link.error}` : ''}`;
+        } else if (link?.projection_pending || link?.projection?.state === 'pending') {
+          attributionNote = ' · Turn-Zuordnung gespeichert; Ergebnisprojektion wartet';
+        } else if (link?.projection?.state === 'error') {
+          attributionNote = ` · Turn-Zuordnung gespeichert; Ergebnisprojektion fehlgeschlagen${link.projection.error ? `: ${link.projection.error}` : ''}`;
+        }
+        if (!taskId) {
+          if (!isCurrentRequest()) return null;
+          updateDispatch(localTurnId, {
+            id: '', found: false, state: 'unknown', source: 'queue_response', lane,
+            requested_lane: lane, actual_providers: [],
+            summary: null, error: 'Die Queue hat keine Task-ID zurückgegeben.',
+            applied: null, applied_reason: null, stalled: false, timed_out: false
+          });
+          if (isCurrentRequest()) onDispatched?.();
+          return `eingereiht; Fortschritt nicht adressierbar · Lane ${lane}${attributionNote}`;
+        }
+
+        let latest: TaskSnapshot = {
+          id: taskId, found: true, state: 'queued', source: 'queue_response', lane,
+          requested_lane: lane, actual_providers: [],
+          summary: null, error: null, applied: null, applied_reason: 'noch nicht abgeschlossen',
+          stalled: false, timed_out: false
+        };
+        if (!isCurrentRequest()) return null;
+        updateDispatch(localTurnId, latest);
+
+        const receive = (snapshot: TaskSnapshot) => {
+          if (!isCurrentRequest()) return;
+          latest = snapshot;
+          updateDispatch(localTurnId, snapshot);
+        };
+        try {
+          const taskStream = streamTask(taskId, {
+            onHello: receive,
+            onProgress: receive,
+            onFinal: (snapshot) => {
+              if (!isCurrentRequest()) return;
+              taskStreams.current.delete(taskId);
+              receive(snapshot);
+              if (isCurrentRequest()) onDispatched?.();
+            },
+            onError: (streamError) => {
+              if (!isCurrentRequest()) return;
+              taskStreams.current.delete(taskId);
+              updateDispatch(localTurnId, {
+                ...latest,
+                state: 'unknown',
+                source: 'stream_error',
+                error: `Fortschritt nicht mehr erreichbar: ${streamError.message}`,
+                applied: null,
+                applied_reason: 'Der Task kann weiterlaufen; sein Ergebnis ist hier nicht belegt.',
+                timed_out: false
+              });
+            }
+          });
+          if (!isCurrentRequest()) {
+            taskStream.close();
+            return null;
+          }
+          taskStreams.current.get(taskId)?.close();
+          taskStreams.current.set(taskId, taskStream);
+        } catch (streamError) {
+          if (!isCurrentRequest()) return null;
+          updateDispatch(localTurnId, {
+            ...latest,
+            state: 'unknown',
+            source: 'stream_error',
+            error: `Fortschritt nicht erreichbar: ${streamError instanceof Error ? streamError.message : 'unbekannter Fehler'}`,
+            applied: null,
+            applied_reason: 'Der Task wurde eingereiht; sein Ergebnis ist hier nicht belegt.'
+          });
+        }
+        if (!isCurrentRequest()) return null;
         if (automatic) {
           recordAutonomy({
             what: 'Aufgabe eingereiht',
@@ -850,27 +1186,73 @@ export function Conversation({
             level: autonomyRef.current
           });
         }
-        onDispatched?.();
-        return automatic ? `automatisch eingereiht · Lane ${lane}` : `eingereiht · Lane ${lane}`;
+        if (isCurrentRequest()) onDispatched?.();
+        return automatic
+          ? `automatisch eingereiht · Lane ${lane}${attributionNote}`
+          : `eingereiht · Lane ${lane}${attributionNote}`;
       } catch (e) {
-        return `nicht eingereiht: ${e instanceof Error ? e.message : 'unbekannter Fehler'}`;
+        if (!isCurrentRequest()) return null;
+        return `Einreihung nicht bestätigt: ${e instanceof Error ? e.message : 'unbekannter Fehler'}. `
+          + 'Nicht automatisch wiederholt; der Server könnte die Aufgabe bereits angenommen haben.';
       }
     },
-    [onDispatched, project]
+    [onDispatched, project, updateDispatch]
   );
 
   const answerOffer = useCallback(
     async (index: number, accept: boolean) => {
       const turn = turns[index];
       if (!turn?.offer) return;
-      const outcome = accept ? await runAction(turn.offer, false, thread) : 'abgelehnt';
-      setTurns((prev) => prev.map((t, i) => (i === index ? { ...t, offer: undefined, offerOutcome: outcome } : t)));
+      const action = turn.offer;
+      const localTurnId = turn.localId || '';
+      const claimKey = localTurnId || `offer-index-${index}`;
+      if (claimedOffers.current.has(claimKey)) return;
+      claimedOffers.current.add(claimKey);
+
+      // Clear the offer before any network await. The ref above closes the
+      // same-render double-click window before React can paint this change.
+      setTurns((prev) => prev.map((t, i) => (
+        (localTurnId ? t.localId === localTurnId : i === index)
+          ? { ...t, offer: undefined, offerOutcome: accept ? 'wird eingereiht …' : 'abgelehnt' }
+          : t
+      )));
+      if (!accept) {
+        claimedOffers.current.delete(claimKey);
+        return;
+      }
+
+      try {
+        const outcome = await runAction(
+          action,
+          false,
+          thread,
+          localTurnId,
+          turn.backendTurnId,
+          turn.conversationPersisted
+        );
+        if (outcome === null) return;
+        setTurns((prev) => prev.map((t, i) => (
+          (localTurnId ? t.localId === localTurnId : i === index) ? { ...t, offerOutcome: outcome } : t
+        )));
+      } finally {
+        claimedOffers.current.delete(claimKey);
+      }
     },
     [runAction, thread, turns]
   );
 
   const settle = useCallback(
-    (payload: IkarusAskPayload, threadId: string) => {
+    (
+      payload: IkarusAskPayload,
+      threadId: string,
+      localTurnId: string,
+      scope: number,
+      requestProject: string,
+      sendClaim: symbol
+    ) => {
+      if (chatSendClaim.current === sendClaim) chatSendClaim.current = null;
+      if (scope !== chatScope.current || projectRef.current !== requestProject) return;
+      stream.current = null;
       const route = payload.provider_used || '';
       setLastProvider(route);
       /* The wait is timed here and nowhere else. `sentAt` is set the moment
@@ -892,17 +1274,24 @@ export function Conversation({
        * NOT covered here — see Decision.tsx and autonomy.ts.
        */
       const auto = Boolean(action) && autonomyRef.current !== 'aus';
+      // Read directly from this final envelope. Waiting for the state update
+      // below would race the automatic action against React's next render.
+      const backendTurnId = positiveTurnId(payload.turn_id);
+      const conversationPersisted = payload.conversation_persisted;
 
       setTurns((prev) => {
         const next = [...prev];
-        const last = next[next.length - 1];
-        if (last && last.role === 'ikarus') {
-          next[next.length - 1] = {
-            ...last,
-            text: payload.assistant || last.text,
+        const index = next.findIndex((turn) => turn.localId === localTurnId);
+        const target = next[index];
+        if (target && target.role === 'ikarus') {
+          next[index] = {
+            ...target,
+            text: payload.assistant || target.text,
             origin: { intent: payload.intent, provider_used: payload.provider_used, model_used: payload.model_used },
             seconds,
             streaming: false,
+            backendTurnId,
+            conversationPersisted,
             offer: action && !auto ? action : undefined
           };
         }
@@ -911,23 +1300,27 @@ export function Conversation({
       setBusy(false);
 
       if (action && auto) {
-        void runAction(action, true, threadId).then((outcome) =>
-          setTurns((prev) => prev.map((t, i) => (i === prev.length - 1 ? { ...t, offerOutcome: outcome } : t)))
-        );
+        void runAction(
+          action,
+          true,
+          threadId,
+          localTurnId,
+          backendTurnId,
+          conversationPersisted
+        ).then((outcome) => {
+          if (outcome === null || scope !== chatScope.current || projectRef.current !== requestProject) return;
+          setTurns((prev) => prev.map((t) => (
+            t.localId === localTurnId ? { ...t, offerOutcome: outcome } : t
+          )));
+        });
       }
     },
     [runAction]
   );
 
-  /**
-   * STOP. Taken from Agentic-J (arXiv 2606.02080), whose chat panel offers a
-   * Stop "if the agent is heading in the wrong direction or is taking too
-   * long" — the one control this conversation was missing. Closing the stream
-   * is also the thing that must happen anyway: an EventSource auto-reconnects
-   * on close, and this endpoint re-runs (and re-spends) the whole turn if it
-   * does. `settle()` in api.ts guarantees exactly one close.
-   */
-  const stop = useCallback(() => {
+  /** Close only this browser's observation. The generation request remains
+   * server-owned; cancelling it is an explicit, separately recorded POST. */
+  const closeObservation = useCallback(() => {
     stream.current?.close();
     stream.current = null;
     setBusy(false);
@@ -939,16 +1332,46 @@ export function Conversation({
           ...last,
           streaming: false,
           halted: true,
-          text: last.text || 'Abgebrochen, bevor eine Antwort kam.'
+          text: last.text || 'Die Beobachtung wurde geschlossen; ob der Server weiterarbeitet, ist hier nicht bestätigt.'
         };
       }
       return next;
     });
   }, []);
 
+  const requestCancellation = useCallback(async () => {
+    const target = activeRequest;
+    if (!target) return;
+    const mark = (status: ConversationCancellationStatus) => {
+      setTurns((prev) => prev.map((turn) => (
+        turn.localId === target.localTurnId ? { ...turn, cancellation: status } : turn
+      )));
+    };
+    try {
+      const payload = await cancelConversationTurn(
+        target.conversationId,
+        target.requestId,
+        clientId('cancel')
+      );
+      const status = payload.cancellation?.status || 'unknown';
+      mark(status);
+      if (status === 'already_terminal' || status === 'unknown') setActiveRequest(null);
+    } catch (reason) {
+      const notSupported = reason instanceof ApiError
+        && reason.kind === 'notfound'
+        && /unknown endpoint|kennt .* nicht/i.test(reason.message);
+      const status: ConversationCancellationStatus = notSupported ? 'not_supported' : 'unknown';
+      mark(status);
+      if (status !== 'not_supported') setActiveRequest(null);
+    }
+  }, [activeRequest]);
+
   /** A fresh thread. The old one stays in the store; this stops carrying it. */
   const newThread = useCallback(() => {
-    stop();
+    closeObservation();
+    closeTaskStreams();
+    claimedOffers.current.clear();
+    setActiveRequest(null);
     setTurns([]);
     setThread('');
     setError('');
@@ -958,11 +1381,18 @@ export function Conversation({
     } catch {
       /* storage blocked — the fresh thread still holds for this session */
     }
-  }, [project, stop]);
+  }, [closeObservation, closeTaskStreams, project]);
 
   const send = useCallback(async () => {
     const message = draft.trim();
-    if (!message || busy || !project) return;
+    if (!message || busy || chatSendClaim.current !== null || !project) return;
+    const scope = chatScope.current;
+    const requestProject = project;
+    const sendClaim = Symbol('ikarus-chat-send');
+    chatSendClaim.current = sendClaim;
+    const releaseSendClaim = () => {
+      if (chatSendClaim.current === sendClaim) chatSendClaim.current = null;
+    };
     setDraft('');
     setError('');
     setBusy(true);
@@ -983,52 +1413,164 @@ export function Conversation({
      * it first meant the sentence vanished out of the box and nothing at all
      * appeared in its place for as long as that took.
      */
-    setTurns((prev) => [...prev, { role: 'you', text: message }, { role: 'ikarus', text: '', streaming: true }]);
+    turnSerial.current += 1;
+    const exchangeId = `turn-${turnSerial.current}`;
+    const replyId = `${exchangeId}-ikarus`;
+    setTurns((prev) => [
+      ...prev,
+      { role: 'you', text: message, localId: `${exchangeId}-you` },
+      { role: 'ikarus', text: '', streaming: true, localId: replyId }
+    ]);
 
-    const threadId = await ensureThread();
+    const threadId = await ensureThread(scope);
+    if (scope !== chatScope.current || projectRef.current !== requestProject) {
+      releaseSendClaim();
+      return;
+    }
 
-    stream.current = streamIkarus(
-      project,
-      message,
-      provider,
-      undefined,
-      undefined,
-      {
-        onDelta: (text) =>
+    if (!threadId) {
+      releaseSendClaim();
+      setBusy(false);
+      setTurns((prev) => prev.map((turn) => (
+        turn.localId === replyId
+          ? { ...turn, streaming: false, halted: true, text: 'Der Verlauf konnte nicht angelegt werden; es wurde keine Anfrage gestartet.' }
+          : turn
+      )));
+      setError('Ikarus-Turn nicht gestartet, weil kein dauerhafter Verlauf verfügbar ist.');
+      return;
+    }
+
+    const contextRefs = editorAttachment.state === 'attached' ? [editorAttachment.ref] : [];
+    const isCurrent = () => scope === chatScope.current && projectRef.current === requestProject;
+    const failCreation = (creationError: Error) => {
+      releaseSendClaim();
+      if (!isCurrent()) return;
+      setBusy(false);
+      setTurns((prev) => prev.map((turn) => (
+        turn.localId === replyId
+          ? {
+              ...turn,
+              streaming: false,
+              halted: true,
+              text: turn.text || 'Der Turn konnte nicht eindeutig angelegt werden; sein Serverzustand ist unbekannt.'
+            }
+          : turn
+      )));
+      setError(
+        `Ikarus-Turn konnte nicht bestätigt werden (${creationError.message}). Die POST-Anfrage wird nicht automatisch wiederholt.`
+      );
+    };
+
+    try {
+      // This is the single effectful transition. Its client_request_id binds
+      // retries to the same canonical request; EventSource below only observes
+      // the returned request id and can safely reconnect without another POST.
+      const created = await createConversationTurn(threadId, {
+        client_request_id: clientId('turn'),
+        project: requestProject,
+        message,
+        provider,
+        context_refs: contextRefs
+      });
+      const request = created.turn_request;
+      if (!isCurrent()) {
+        releaseSendClaim();
+        return;
+      }
+      if (!request || !Number.isSafeInteger(request.request_id) || request.request_id <= 0) {
+        throw new Error('Der Server hat keine gültige Turn-Request-ID geliefert.');
+      }
+      setActiveRequest({ conversationId: threadId, requestId: request.request_id, localTurnId: replyId });
+      setTurns((prev) => prev.map((turn) => (
+        turn.localId === replyId ? { ...turn, requestId: request.request_id, contextRefs } : turn
+      )));
+
+      stream.current = observeConversationTurn(threadId, request.request_id, {
+        onDelta: (text) => {
+          if (!isCurrent()) return;
           setTurns((prev) => {
             const next = [...prev];
-            const last = next[next.length - 1];
-            if (last && last.role === 'ikarus') next[next.length - 1] = { ...last, text: last.text + text };
+            const index = next.findIndex((turn) => turn.localId === replyId);
+            const target = next[index];
+            if (target && target.role === 'ikarus') next[index] = { ...target, text: target.text + text };
             return next;
-          }),
-        onFinal: (payload) => settle(payload, threadId),
-        onError: async () => {
-          // The stream died. Fall back to the blocking call rather than leaving
-          // a half-written answer on screen pretending to still be arriving.
-          try {
-            const payload = await askIkarus(project, message, provider, undefined, undefined, threadId || undefined);
-            settle(payload, threadId);
-          } catch (e) {
+          });
+        },
+        onFinal: (payload) => {
+          setActiveRequest((current) => current?.requestId === request.request_id ? null : current);
+          settle(payload, threadId, replyId, scope, requestProject, sendClaim);
+        },
+        onCancelled: (cancellation) => {
+          releaseSendClaim();
+          if (!isCurrent()) return;
+          stream.current = null;
+          setActiveRequest((current) => current?.requestId === request.request_id ? null : current);
+          setBusy(false);
+          setTurns((prev) => prev.map((turn) => (
+            turn.localId === replyId
+              ? {
+                  ...turn,
+                  streaming: false,
+                  halted: true,
+                  cancellation: cancellation.status,
+                  text: turn.text || 'Der Server hat den Abbruch bestätigt.'
+                }
+              : turn
+          )));
+        },
+        onError: (observationError) => {
+          releaseSendClaim();
+          if (!isCurrent()) return;
+          stream.current = null;
+          setActiveRequest((current) => current?.requestId === request.request_id ? null : current);
+          setBusy(false);
+          setTurns((prev) => prev.map((turn) => (
+            turn.localId === replyId
+              ? {
+                  ...turn,
+                  streaming: false,
+                  halted: true,
+                  text: turn.text || 'Der Server meldet für diesen Turn keinen bestätigten Abschluss.'
+                }
+              : turn
+          )));
+          setError(`Ikarus-Turn beendet mit unbestätigtem Ergebnis: ${observationError.message}`);
+        },
+        onState: (status) => {
+          if (!isCurrent()) return;
+          if (status.cancellation?.status) {
+            setTurns((prev) => prev.map((turn) => (
+              turn.localId === replyId ? { ...turn, cancellation: status.cancellation!.status } : turn
+            )));
+          }
+          if (status.state === 'final' && status.final) {
+            setActiveRequest((current) => current?.requestId === request.request_id ? null : current);
+            settle(status.final, threadId, replyId, scope, requestProject, sendClaim);
+          } else if (status.state === 'cancelled') {
+            releaseSendClaim();
+            setActiveRequest((current) => current?.requestId === request.request_id ? null : current);
             setBusy(false);
-            setTurns((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last && last.role === 'ikarus' && !last.text) next.pop();
-              return next;
-            });
-            setError(
-              isBackendDown(e)
-                ? 'Die Daedalus-API antwortet nicht. Nichts auf diesem Bildschirm wurde von ihr gelesen.'
-                : e instanceof Error
-                  ? e.message
-                  : 'Ikarus hat nicht geantwortet.'
-            );
+            setTurns((prev) => prev.map((turn) => (
+              turn.localId === replyId
+                ? { ...turn, streaming: false, halted: true, cancellation: 'confirmed', text: turn.text || 'Der Server hat den Abbruch bestätigt.' }
+                : turn
+            )));
+          } else if (status.state === 'unknown') {
+            releaseSendClaim();
+            setActiveRequest((current) => current?.requestId === request.request_id ? null : current);
+            setBusy(false);
+            setTurns((prev) => prev.map((turn) => (
+              turn.localId === replyId
+                ? { ...turn, streaming: false, halted: true, cancellation: status.cancellation?.status || 'unknown', text: turn.text || 'Der Turn-Zustand ist nach der Beobachtung unbekannt.' }
+                : turn
+            )));
           }
         }
-      },
-      threadId || undefined
-    );
-  }, [busy, draft, ensureThread, project, provider, settle]);
+      });
+    } catch (creationError) {
+      failCreation(creationError instanceof Error ? creationError : new Error('Der Turn konnte nicht angelegt werden.'));
+    }
+  }, [busy, draft, editorAttachment, ensureThread, project, provider, settle]);
 
   /** Nothing said yet — the page becomes an invitation rather than a form. */
   const empty = !resuming && turns.length === 0;
@@ -1057,7 +1599,7 @@ export function Conversation({
       turns.map((t) => {
         if (t.role !== 'ikarus') return { stamp: undefined, cites: [] as Citation[] };
         const stamp: Stamp | undefined = t.halted
-          ? { word: 'ABGEBROCHEN', kind: 'failed' }
+          ? { word: 'ANZEIGE BEENDET', kind: 'failed' }
           : t.origin
             ? stampFor(t.origin, labelOf)
             : undefined;
@@ -1144,7 +1686,7 @@ export function Conversation({
 
         {turns.map((t, i) => (
           <motion.article
-            key={i}
+            key={t.localId || i}
             className={`turn ${t.role}`}
             data-motion="bubble"
             variants={t.role === 'you' ? youArrive : ikarusArrive}
@@ -1178,6 +1720,23 @@ export function Conversation({
                   >
                     {copiedTurn === i ? 'Kopiert' : 'Antwort kopieren'}
                   </button>
+                </div>
+              )}
+
+              {t.role === 'ikarus' && (t.requestId || t.cancellation || t.contextRefs?.length) && (
+                <div className="turn-request" aria-label="Turn-Request-Status">
+                  {t.requestId && <span>Request <code>{t.requestId}</code></span>}
+                  {t.contextRefs?.length ? <span>· Editor-Anhang übergeben</span> : null}
+                  {t.cancellation && <span className={`turn-cancellation ${t.cancellation}`}>· {cancellationLabel(t.cancellation)}</span>}
+                  {activeRequest?.requestId === t.requestId && (
+                    <button
+                      type="button"
+                      onClick={() => void requestCancellation()}
+                      disabled={t.cancellation === 'requested'}
+                    >
+                      {t.cancellation === 'requested' ? 'Abbruch angefordert' : 'Abbruch anfordern'}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1235,6 +1794,30 @@ export function Conversation({
                 </motion.div>
               )}
               {t.offerOutcome && <span className="offer-outcome">{t.offerOutcome}</span>}
+
+              {t.dispatch && (
+                <div className="offer" role="status" aria-label={`Aufgabenstatus: ${taskStateLabel(t.dispatch)}`}>
+                  <span className="offer-eyebrow">Aufgabe · {taskStateLabel(t.dispatch)}</span>
+                  {t.dispatch.summary && <p className="offer-what">{t.dispatch.summary}</p>}
+                  {t.dispatch.error && <p className="offer-what">Fehler: {t.dispatch.error}</p>}
+                  <p className="offer-where">
+                    Task <code>{t.dispatch.id || 'ohne ID'}</code>
+                    {t.dispatch.requested_lane && (
+                      <> · angefordert <code>{t.dispatch.requested_lane}</code></>
+                    )}
+                    {!t.dispatch.requested_lane && t.dispatch.lane && (
+                      <> · Lane <code>{t.dispatch.lane}</code></>
+                    )}
+                    {t.dispatch.actual_providers.length > 0 && (
+                      <> · ausgeführt über <code>{t.dispatch.actual_providers.join(', ')}</code></>
+                    )}
+                    {' · '}Übergabe: {handoffLabel(t.dispatch.applied)}
+                  </p>
+                  {t.dispatch.applied_reason && t.dispatch.applied_reason !== 'not finished yet' && (
+                    <p className="offer-where">{t.dispatch.applied_reason}</p>
+                  )}
+                </div>
+              )}
 
               {showNudge && t.role === 'ikarus' && i === turns.length - 1 && (
                 <p className="turn-nudge">
@@ -1295,9 +1878,9 @@ export function Conversation({
           autoComplete="off"
           disabled={!project}
         />
-        {/* Send and stop are one button in one place. While a turn is out the
-            only useful thing this slot can do is end it, and a second Stopp
-            elsewhere on the page would just be the same idea twice. */}
+        {/* Send and observation-close share one stable slot. A server cancel is
+            deliberately separate on the request receipt, because closing this
+            browser view is not evidence that provider work stopped. */}
         <motion.button
           type={busy ? 'button' : 'submit'}
           className={busy ? 'composer-send stopping' : 'composer-send'}
@@ -1306,9 +1889,10 @@ export function Conversation({
           initial={false}
           animate={armed || busy ? 'armed' : 'idle'}
           whileTap={pressProps(reduced)}
-          onClick={busy ? stop : undefined}
+          onClick={busy ? closeObservation : undefined}
           disabled={!armed && !busy}
-          aria-label={busy ? 'Antwort stoppen' : 'Senden'}
+          aria-label={busy ? 'Beobachtung schließen' : 'Senden'}
+          title={busy ? 'Schließt nur diese Browser-Beobachtung. Ein Server-Abbruch wird separat angefordert.' : undefined}
         >
           {busy ? <StopGlyph /> : <SendGlyph />}
         </motion.button>
@@ -1347,6 +1931,34 @@ export function Conversation({
             >
               Einfügen
             </button>
+          </div>
+        )}
+
+        {editorAttachment.state !== 'idle' && (
+          <div
+            className={`editor-attachment ${editorAttachment.state}`}
+            role={editorAttachment.state === 'attached' || editorAttachment.state === 'loading' ? 'status' : 'note'}
+            aria-label="Editor-Anhang"
+          >
+            <span className="editor-attachment-label">Editor-Anhang</span>
+            {editorAttachment.state === 'loading' ? (
+              <span>Kontext wird geprüft …</span>
+            ) : editorAttachment.state === 'attached' ? (
+              <>
+                <code title={editorAttachment.context.path}>{shortLabel(editorAttachment.context.path)}</code>
+                <span>{editorAttachment.context.selection_chars} Zeichen</span>
+                <span className="editor-attachment-status">
+                  Inclusion-Status: akzeptiert · {editorAttachment.context.inclusion_report?.reason || 'validierter lokaler Kontext'}
+                </span>
+              </>
+            ) : (
+              <>
+                {'context' in editorAttachment && editorAttachment.context?.path && (
+                  <code title={editorAttachment.context.path}>{shortLabel(editorAttachment.context.path)}</code>
+                )}
+                <span className="editor-attachment-status">Inclusion-Status: nicht enthalten · {editorAttachment.reason}</span>
+              </>
+            )}
           </div>
         )}
 

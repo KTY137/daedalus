@@ -6,7 +6,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.effect_replay import PersistedEffectLeaseSubject
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
@@ -17,14 +19,17 @@ from daedalus.kernel.effects import (
     EffectLeaseScopeError,
     EffectLeaseSignatureError,
     EffectLeaseStateError,
+    LeasedEffectAuthorization,
     issue_effect_lease,
     verify_effect_lease,
 )
+from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import (
     Effect,
     EntrypointSpec,
     GuardDecision,
+    REGISTRY_BY_ID,
     Surface,
     Wiring,
 )
@@ -33,6 +38,27 @@ REVISION = "a" * 40
 POLICY_SHA = "b" * 64
 SECRET = b"effect-lease-kernel-secret-material-32-bytes-minimum"
 NOW = datetime(2026, 8, 1, 21, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize(
+    "authorization_type",
+    (
+        LeasedEffectAuthorization,
+        NonRuntimeEffectAuthorization,
+        PersistedEffectLeaseSubject,
+        RuntimeBoundEffectAuthorization,
+    ),
+)
+def test_authorization_registry_uses_a_cross_version_safe_factory_default(
+    authorization_type: type,
+) -> None:
+    registry_field = {
+        item.name: item for item in dataclasses.fields(authorization_type)
+    }["registry"]
+
+    assert registry_field.default is dataclasses.MISSING
+    assert registry_field.default_factory is not dataclasses.MISSING
+    assert registry_field.default_factory() is REGISTRY_BY_ID
 
 
 def central_spec(*, runtime_id: str = "") -> EntrypointSpec:

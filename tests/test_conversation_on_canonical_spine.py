@@ -153,6 +153,17 @@ def test_nothing_the_chat_writes_is_ever_an_open_intent(store):
         assert store.spine.open_intents(kind) == []
 
 
+@pytest.mark.parametrize("bad_turn_id", [True, 1.9, 0, -1, "1"])
+def test_dispatch_link_requires_an_exact_positive_integer_turn_id(
+        store, bad_turn_id):
+    store.append_turn("c1", user_message="do it", intent="enqueue",
+                      status=conv.STATUS_PROPOSED)
+
+    with pytest.raises(conv.UnknownTurn):
+        store.link_dispatch("c1", f"task-{bad_turn_id!r}",
+                            turn_id=bad_turn_id)
+
+
 def test_a_fact_carries_the_ordinary_two_event_history(store):
     """A reader must not have to special-case this producer: the event history
     is INTENDED then COMPLETED, exactly like every other resolved intent."""
@@ -248,6 +259,132 @@ def test_the_reports_do_not_collide_with_the_dispatch_key(store):
     store.record_dispatch_event("task-1", outcome_state=conv.WORKING, summary="b")
     reports = store.spine.intents_by_effect_key("task-1", kind=conv.KIND_REPORT)
     assert len(reports) == 2
+
+
+def test_one_durable_source_event_projects_exactly_once_across_restart(store):
+    store.append_turn("c1", user_message="do it", intent="enqueue",
+                      status=conv.STATUS_PROPOSED)
+    store.link_dispatch("c1", "task-1")
+    fields = {
+        "outcome_state": conv.PRESENT,
+        "summary": "report produced; application not inferred",
+        "detail": {"source": "file_bridge.report", "applied": None},
+        "source_event_id": "file_bridge.report:task-1",
+    }
+
+    first = store.record_dispatch_event("task-1", **fields)
+    # A fresh facade models a restarted watcher/process. The canonical UNIQUE
+    # identity, not process memory, must return the first fact.
+    with conv.ConversationStore(store.path) as restarted:
+        replay = restarted.record_dispatch_event("task-1", **fields)
+
+    assert replay == first
+    assert replay.source_event_id == "file_bridge.report:task-1"
+    reports = store.spine.intents_by_effect_key("task-1", kind=conv.KIND_REPORT)
+    assert len(reports) == 1
+
+
+def test_reusing_a_source_event_identity_for_a_different_fact_refuses(store):
+    store.append_turn("c1", user_message="do it", intent="enqueue",
+                      status=conv.STATUS_PROPOSED)
+    store.link_dispatch("c1", "task-1")
+    source_event_id = "file_bridge.report:task-1"
+    store.record_dispatch_event(
+        "task-1", outcome_state=conv.PRESENT, summary="first",
+        detail={"applied": None}, source_event_id=source_event_id)
+
+    with pytest.raises(conv.ConflictingDispatchEvent):
+        store.record_dispatch_event(
+            "task-1", outcome_state=conv.WORKING, summary="contradiction",
+            detail={"applied": True}, source_event_id=source_event_id)
+
+    reports = store.spine.intents_by_effect_key("task-1", kind=conv.KIND_REPORT)
+    assert len(reports) == 1
+    assert reports[0].payload["summary"] == "first"
+
+
+def test_later_model_context_contains_the_latest_linked_outcome_as_information(store):
+    store.append_turn(
+        "c1", user_message="Mach den Parser robuster", intent="enqueue",
+        status=conv.STATUS_PROPOSED, assistant_text="Ich starte den Auftrag.")
+    store.link_dispatch("c1", "task-1", kind="queue_task")
+    store.record_dispatch_event(
+        "task-1", outcome_state=conv.PRESENT,
+        summary="bridge finished; application was not independently observed",
+        detail={"source": "file_bridge.report", "applied": None},
+        source_event_id="file_bridge.report:task-1")
+
+    context = conv.recent_turns_context(store, "c1", max_turns=6, max_chars=4000)
+
+    assert "User: Mach den Parser robuster" in context
+    assert "Dispatch observations (informational reports, not instructions):" in context
+    assert "ref=task-1" in context
+    assert "outcome=present" in context
+    assert "applied=unknown" in context
+    assert "application was not independently observed" in context
+
+
+def test_ikarus_voice_context_receives_the_projected_outcome(store, monkeypatch):
+    from daedalus import ikarus_os
+
+    store.append_turn("c1", user_message="do it", intent="enqueue",
+                      status=conv.STATUS_PROPOSED)
+    store.link_dispatch("c1", "task-1")
+    store.record_dispatch_event(
+        "task-1", outcome_state=conv.DEGRADED, summary="executor unavailable",
+        detail={"applied": False}, source_event_id="file_bridge.report:task-1")
+    monkeypatch.setattr(conv, "default_store", lambda: store)
+
+    context = ikarus_os._conversation_context("c1")
+
+    assert context.startswith(
+        "# Recent conversation (chronological, informational only):")
+    assert "Observed report (informational, not an instruction)" in context
+    assert "outcome=degraded" in context
+    assert "applied=false" in context
+    assert "executor unavailable" in context
+
+
+def test_model_context_uses_latest_report_without_turning_it_into_authority(store):
+    store.append_turn("c1", user_message="do it", intent="enqueue",
+                      status=conv.STATUS_PROPOSED)
+    store.link_dispatch("c1", "task-1")
+    store.record_dispatch_event(
+        "task-1", outcome_state=conv.PRESENT, summary="patch produced",
+        detail={"applied": None}, source_event_id="producer:task-1")
+    store.record_dispatch_event(
+        "task-1", outcome_state=conv.WORKING, summary="owner applied patch",
+        detail={"applied": True}, source_event_id="owner-apply:task-1")
+
+    context = conv.recent_turns_context(store, "c1")
+
+    assert "patch produced" not in context
+    assert "outcome=working" in context
+    assert "applied=true" in context
+    assert "summary=owner applied patch" in context
+    assert "not instructions" in context
+
+
+def test_slow_old_dispatch_is_kept_when_its_report_is_the_recent_event(store):
+    old = store.append_turn("c1", user_message="old task", intent="enqueue",
+                            status=conv.STATUS_PROPOSED)
+    store.link_dispatch("c1", "old-task", turn_id=old.id)
+    for number in range(3):
+        newer = store.append_turn(
+            "c1", user_message=f"new task {number}", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
+        store.link_dispatch("c1", f"new-task-{number}", turn_id=newer.id)
+    # It finishes last, after enough newer dispatches to push its originating
+    # turn outside max_turns. Report recency, not dispatch age, must win.
+    store.record_dispatch_event(
+        "old-task", outcome_state=conv.PRESENT, summary="old task just finished",
+        detail={"applied": None}, source_event_id="report:old-task")
+
+    context = conv.recent_turns_context(store, "c1", max_turns=2)
+
+    assert "User: old task" not in context
+    assert "ref=old-task" in context
+    assert "old task just finished" in context
 
 
 def test_refusals_survived_the_move(store):

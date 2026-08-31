@@ -45,8 +45,8 @@ from daedalus.kernel.offload_lease import (
     load_chip_eda_publication,
     read_issuer_keyring,
     rebuild_effect_lease_authorization,
-    record_chip_eda_publication,
-    retain_chip_eda_terminal_artifact,
+    _record_chip_eda_publication,
+    _retain_chip_eda_terminal_artifact,
     verify_chip_eda_publication_graph,
     write_evidence_root,
     write_root_identity_sha256,
@@ -63,8 +63,6 @@ from .contracts import (
     build_chip_contracts,
     build_chip_runtime_manifest,
     build_evidence_packet,
-    default_dimensions,
-    utc_now,
 )
 from .executor import (
     EdaExecutionError,
@@ -88,6 +86,7 @@ from .manifest import (
     canonical_path,
     canonical_path_identity,
 )
+from .publication import derive_chip_publication
 from .sources import classify_source, discover_sources
 from .toolchains import (
     all_tool_status,
@@ -95,13 +94,6 @@ from .toolchains import (
     build_tcl_argv,
     find_trusted_vendor_tool_path,
     trusted_launcher_sha256,
-    tool_status,
-)
-from .vivado_reports import (
-    VivadoReportResult,
-    parse_vivado_message_counts_bytes,
-    parse_vivado_report,
-    parse_vivado_report_bytes,
 )
 from .vivado_tcl import (
     build_vivado_flow_argv,
@@ -114,22 +106,7 @@ PLAN_SCHEMA = "daedalus-chip-vivado-plan/1"
 RUN_SCHEMA = "daedalus-chip-vivado-run-result/1"
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
-_SUMMARY_KEY = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
-_VIVADO_SHORT_VERSION = re.compile(
-    r"\bVivado\s+v\d{4}\.\d+(?:\.\d+)?\b", re.IGNORECASE
-)
 _PHASES = ("inspect", "synth", "impl")
-_LIMITATIONS = (
-    "A successful Vivado process or generated bitstream is not FPGA signoff.",
-    "Simulation, formal, CDC/RDC, equivalence, power, Vitis software, hardware-in-loop, and FPGA programming were not run.",
-    "The in-process guard and isolated workspace are not an operating-system sandbox.",
-    "The kernel lease requests no egress endpoint, but this does not prove offline or no-egress execution.",
-    "Declared XDC is executable Tcl; Vivado, XDC, and vendor support processes retain ambient host filesystem, network, and secret access outside OS confinement.",
-    "Vivado support binaries and vendor catalog resources are a trusted-but-unbound vendor TCB beyond the byte-bound launcher.",
-    "The authority HEAD receipt does not bind the imported Python adapter/parser bytes, commit object, or worktree cleanliness.",
-    "Concurrent host mutation outside the retained source/workspace snapshots can invalidate conclusions.",
-    "No merge or promotion is authorized by this evidence.",
-)
 
 
 class _RetainedLeaseReconciliation(RuntimeError):
@@ -811,567 +788,11 @@ def _expected_outputs(root: Path, output_dir: Path, phase: str) -> tuple[str, ..
     return expected_vivado_output_paths(root, output_dir, phase)
 
 
-def _retained_absolute_path_identity(value: str | Path) -> str:
-    """Compare plan-bound absolute path text without consulting the live FS."""
-
-    text = os.fspath(value)
-    if not text or "\x00" in text or not os.path.isabs(text):
-        raise ValueError("retained path identity must be an absolute non-NUL path")
-    return os.path.normcase(os.path.normpath(text))
-
-
-def _read_summary(
-    path: Path,
-    *,
-    phase: str,
-    project_file: str | Path,
-    part: str,
-    board_part: str,
-    top: str,
-    synth_run: str,
-    impl_run: str,
-    jobs: int,
-    retained_payload: bytes | None = None,
-) -> dict[str, Any]:
-    """Parse one exact package-owned flow summary from one byte snapshot."""
-
-    display = str(path)
-    try:
-        if retained_payload is None:
-            if path.is_symlink() or not path.is_file():
-                status = "missing" if not path.exists() else "unparseable"
-                return {
-                    "identity": {
-                        "kind": "flow_summary",
-                        "status": status,
-                        "path": display,
-                        "sha256": None,
-                        "byte_length": None,
-                        "metrics": {},
-                        "error": (
-                            "flow summary is not a regular non-symlink file"
-                        ),
-                    },
-                    "values": {},
-                }
-            with path.open("rb") as handle:
-                before = os.fstat(handle.fileno())
-                if before.st_size > 1024 * 1024:
-                    raise ValueError("flow summary exceeds the parser bound")
-                payload = handle.read(1024 * 1024 + 1)
-                after = os.fstat(handle.fileno())
-            before_identity = (
-                before.st_dev,
-                before.st_ino,
-                before.st_size,
-                before.st_mtime_ns,
-            )
-            after_identity = (
-                after.st_dev,
-                after.st_ino,
-                after.st_size,
-                after.st_mtime_ns,
-            )
-            if (
-                before_identity != after_identity
-                or len(payload) != after.st_size
-                or len(payload) > 1024 * 1024
-            ):
-                raise ValueError("flow summary changed while it was read")
-        else:
-            if not isinstance(retained_payload, bytes):
-                raise TypeError("retained flow summary payload must be bytes")
-            payload = retained_payload
-            if len(payload) > 1024 * 1024:
-                raise ValueError("flow summary exceeds the parser bound")
-        text = payload.decode("utf-8-sig")
-    except (OSError, TypeError, UnicodeError, ValueError) as exc:
-        return {
-            "identity": {
-                "kind": "flow_summary",
-                "status": "unparseable",
-                "path": display,
-                "sha256": None,
-                "byte_length": None,
-                "metrics": {},
-                "error": str(exc),
-            },
-            "values": {},
-            "error": str(exc),
-        }
-    digest = hashlib.sha256(payload).hexdigest()
-    byte_length = len(payload)
-
-    def unparseable(error: str) -> dict[str, Any]:
-        return {
-            "identity": {
-                "kind": "flow_summary",
-                "status": "unparseable",
-                "path": display,
-                "sha256": digest,
-                "byte_length": byte_length,
-                "metrics": {},
-                "error": error,
-            },
-            "values": {},
-            "error": error,
-        }
-
-    identity = {
-        "kind": "flow_summary",
-        "status": "parsed",
-        "path": display,
-        "sha256": digest,
-        "byte_length": byte_length,
-        "metrics": {},
-        "error": "",
-    }
-    values: dict[str, str] = {}
-    for line in text.splitlines():
-        if not line:
-            continue
-        if "=" not in line:
-            return unparseable("flow summary contains a malformed line")
-        key, value = line.split("=", 1)
-        if not _SUMMARY_KEY.fullmatch(key):
-            return unparseable("flow summary contains an invalid key")
-        if key in values:
-            return unparseable(f"flow summary repeats key {key}")
-        values[key] = value
-
-    common = {
-        "schema": "daedalus-vivado-flow-summary/1",
-        "phase": phase,
-        "part": str(part),
-        "board_part": str(board_part),
-        "top": str(top),
-        "synth_run": str(synth_run),
-        "impl_run": str(impl_run),
-    }
-    for key, expected in common.items():
-        if values.get(key) != expected:
-            return unparseable(
-                f"flow summary {key} does not match the execution plan"
-            )
-    tool = values.get("tool", "")
-    if not _VIVADO_SHORT_VERSION.search(tool):
-        return unparseable("flow summary has no parseable Vivado version")
-    try:
-        path_identity = (
-            _retained_absolute_path_identity
-            if retained_payload is not None
-            else canonical_path_identity
-        )
-        if path_identity(values.get("project", "")) != path_identity(project_file):
-            return unparseable(
-                "flow summary project does not match the execution plan"
-            )
-    except (OSError, TypeError, ValueError):
-        return unparseable("flow summary project path is invalid")
-
-    phase_keys = {
-        "inspect": {
-            "synth_status",
-            "synth_progress",
-            "impl_status",
-            "impl_progress",
-            "ip_count",
-            "locked_ip_count",
-        },
-        "synth": {
-            "ip_cache",
-            "regenerated_ip_source_count",
-            "status",
-            "progress",
-            "jobs",
-        },
-        "impl": {
-            "fresh_synthesis",
-            "ip_cache",
-            "regenerated_ip_source_count",
-            "synth_status",
-            "synth_progress",
-            "status",
-            "progress",
-            "jobs",
-        },
-    }
-    common_keys = set(common) | {"tool", "project"}
-    expected_keys = common_keys | phase_keys[phase]
-    if set(values) != expected_keys:
-        return unparseable(
-            "flow summary keys do not match the package-owned phase schema"
-        )
-
-    if phase == "inspect":
-        for key in (
-            "synth_status",
-            "synth_progress",
-            "impl_status",
-            "impl_progress",
-        ):
-            if not values[key]:
-                return unparseable(f"flow summary {key} is empty")
-        for key in ("ip_count", "locked_ip_count"):
-            if not values[key].isdigit():
-                return unparseable(f"flow summary {key} is not an integer")
-        if int(values["locked_ip_count"]) > int(values["ip_count"]):
-            return unparseable("flow summary locked IP count exceeds total IP count")
-    else:
-        if values["ip_cache"] != "disabled":
-            return unparseable("flow summary does not prove disabled IP cache")
-        if not values["regenerated_ip_source_count"].isdigit():
-            return unparseable(
-                "flow summary regenerated IP source count is not an integer"
-            )
-        if values["jobs"] != str(jobs):
-            return unparseable("flow summary jobs does not match the execution plan")
-        if "complete" not in values["status"].casefold() or values["progress"] != "100%":
-            return unparseable("flow summary phase did not reach Complete/100%")
-        if phase == "impl" and (
-            values["fresh_synthesis"] != "1"
-            or "complete" not in values["synth_status"].casefold()
-            or values["synth_progress"] != "100%"
-        ):
-            return unparseable(
-                "flow summary does not prove fresh synthesis Complete/100%"
-            )
-    return {"identity": identity, "values": dict(sorted(values.items()))}
-
-
-def _parse_phase_reports(
-    output_dir: Path,
-    phase: str,
-    *,
-    project_file: str | Path,
-    part: str,
-    board_part: str,
-    top: str,
-    synth_run: str,
-    impl_run: str,
-    jobs: int,
-) -> tuple[dict[str, VivadoReportResult], dict[str, Any]]:
-    summary = _read_summary(
-        output_dir / f"{phase}_summary.txt",
-        phase=phase,
-        project_file=project_file,
-        part=part,
-        board_part=board_part,
-        top=top,
-        synth_run=synth_run,
-        impl_run=impl_run,
-        jobs=jobs,
-    )
-    if phase == "inspect":
-        return {}, summary
-    reports: dict[str, VivadoReportResult] = {
-        "utilization": parse_vivado_report("utilization", output_dir / "utilization.rpt"),
-        "timing": parse_vivado_report("timing", output_dir / "timing_summary.rpt"),
-        "drc": parse_vivado_report("drc", output_dir / "drc.rpt"),
-        "methodology": parse_vivado_report("methodology", output_dir / "methodology.rpt"),
-    }
-    if phase == "impl":
-        reports["route_status"] = parse_vivado_report(
-            "route_status", output_dir / "route_status.rpt"
-        )
-    return reports, summary
-
-
-def _retained_native_payload(
-    store: ArtifactStore,
-    result: ExecutionResult,
-    filename: str,
-) -> tuple[bytes | None, str]:
-    unexpected = set(result.unexpected_artifact_paths)
-    matches = tuple(
-        artifact
-        for artifact in result.artifacts
-        if artifact.path not in unexpected and Path(artifact.path).name == filename
-    )
-    missing = tuple(
-        path for path in result.missing_artifact_paths if Path(path).name == filename
-    )
-    if not matches and len(missing) == 1:
-        return None, f"retained-missing:{missing[0]}"
-    if len(matches) != 1 or missing:
-        raise EdaExecutionError(
-            f"retained EDA result has no unique output state for {filename!r}"
-        )
-    artifact = matches[0]
-    locator = store.verify(
-        store.load_locator(_locator_digest(artifact.locator))
-    )
-    if (
-        locator.artifact_sha256 != artifact.sha256
-        or locator.byte_length != artifact.byte_length
-    ):
-        raise EdaExecutionError(
-            f"retained EDA locator disagrees with {filename!r} identity"
-        )
-    payload = store.get_bytes(locator.artifact_sha256)
-    return payload, artifact.locator
-
-
-def _parse_retained_phase_reports(
-    store: ArtifactStore,
-    result: ExecutionResult,
-    phase: str,
-    *,
-    project_file: str | Path,
-    part: str,
-    board_part: str,
-    top: str,
-    synth_run: str,
-    impl_run: str,
-    jobs: int,
-) -> tuple[dict[str, VivadoReportResult], dict[str, Any]]:
-    summary_payload, summary_display = _retained_native_payload(
-        store,
-        result,
-        f"{phase}_summary.txt",
-    )
-    if summary_payload is None:
-        summary = {
-            "identity": {
-                "kind": "flow_summary",
-                "status": "missing",
-                "path": summary_display,
-                "sha256": None,
-                "byte_length": None,
-                "metrics": {},
-                "error": "declared Vivado summary was not retained",
-            },
-            "values": {},
-        }
-    else:
-        summary = _read_summary(
-            Path(summary_display),
-            phase=phase,
-            project_file=project_file,
-            part=part,
-            board_part=board_part,
-            top=top,
-            synth_run=synth_run,
-            impl_run=impl_run,
-            jobs=jobs,
-            retained_payload=summary_payload,
-        )
-    if phase == "inspect":
-        return {}, summary
-    reports: dict[str, VivadoReportResult] = {}
-    for kind in ("utilization", "timing", "drc", "methodology"):
-        filename = _REPORT_FILENAMES[kind]
-        payload, display = _retained_native_payload(store, result, filename)
-        reports[kind] = (
-            VivadoReportResult(
-                kind=kind,
-                status="missing",
-                path=display,
-                sha256=None,
-                byte_length=None,
-                error="declared Vivado report was not retained",
-            )
-            if payload is None
-            else parse_vivado_report_bytes(kind, payload, display_path=display)
-        )
-    if phase == "impl":
-        filename = _REPORT_FILENAMES["route_status"]
-        payload, display = _retained_native_payload(store, result, filename)
-        reports["route_status"] = (
-            VivadoReportResult(
-                kind="route_status",
-                status="missing",
-                path=display,
-                sha256=None,
-                byte_length=None,
-                error="declared Vivado report was not retained",
-            )
-            if payload is None
-            else parse_vivado_report_bytes(
-                "route_status",
-                payload,
-                display_path=display,
-            )
-        )
-    return reports, summary
-
-
-_REPORT_FILENAMES = {
-    "utilization": "utilization.rpt",
-    "timing": "timing_summary.rpt",
-    "drc": "drc.rpt",
-    "methodology": "methodology.rpt",
-    "route_status": "route_status.rpt",
-}
-
-
-def _phase_artifact_binding(
-    *,
-    phase: str,
-    result: ExecutionResult,
-    reports: Mapping[str, VivadoReportResult],
-    summary: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Prove parsed identities equal the already-retained native bytes."""
-
-    by_leaf: dict[str, list[Any]] = {}
-    unexpected = set(result.unexpected_artifact_paths)
-    for artifact in result.artifacts:
-        if artifact.path in unexpected:
-            continue
-        by_leaf.setdefault(Path(artifact.path).name, []).append(artifact)
-    checks: dict[str, Any] = {}
-    checks["unexpected_outputs"] = {
-        "status": "passed" if not unexpected else "failed",
-        "paths": sorted(unexpected),
-    }
-
-    def bind(name: str, filename: str, identity: Mapping[str, Any]) -> None:
-        retained = by_leaf.get(filename, [])
-        parsed_sha = identity.get("sha256")
-        parsed_size = identity.get("byte_length")
-        passed = (
-            len(retained) == 1
-            and identity.get("status") == "parsed"
-            and isinstance(parsed_sha, str)
-            and parsed_sha == retained[0].sha256
-            and isinstance(parsed_size, int)
-            and parsed_size == retained[0].byte_length
-        )
-        checks[name] = {
-            "status": "passed" if passed else "failed",
-            "filename": filename,
-            "parsed_sha256": parsed_sha,
-            "parsed_byte_length": parsed_size,
-            "retained_sha256": retained[0].sha256 if len(retained) == 1 else None,
-            "retained_byte_length": (
-                retained[0].byte_length if len(retained) == 1 else None
-            ),
-            "retained_matches": len(retained),
-        }
-
-    summary_identity = summary.get("identity", {})
-    bind(
-        "summary",
-        f"{phase}_summary.txt",
-        summary_identity if isinstance(summary_identity, Mapping) else {},
-    )
-    for name, report in reports.items():
-        if name == "messages":
-            passed = (
-                isinstance(result.stdout_sha256, str)
-                and report.sha256 == result.stdout_sha256
-            )
-            checks[name] = {
-                "status": "passed" if passed else "failed",
-                "parsed_sha256": report.sha256,
-                "retained_sha256": result.stdout_sha256,
-                "retained_locator": result.stdout_locator,
-            }
-            continue
-        filename = _REPORT_FILENAMES.get(name)
-        if filename is not None:
-            bind(name, filename, report.to_dict())
-    return {
-        "status": (
-            "passed"
-            if checks and all(row["status"] == "passed" for row in checks.values())
-            else "failed"
-        ),
-        "checks": dict(sorted(checks.items())),
-    }
-
-
-def _rule_report_passed(report: VivadoReportResult) -> bool:
-    if report.status != "parsed":
-        return False
-    checks_found = report.metrics.get("checks_found")
-    if isinstance(checks_found, bool) or not isinstance(checks_found, int):
-        return False
-    if checks_found != 0:
-        return False
-    counts = report.metrics.get("severity_counts", {})
-    if not isinstance(counts, Mapping):
-        return False
-    return not any(int(value or 0) > 0 for value in counts.values())
-
-
-def _verdict_and_dimensions(
-    phase: str,
-    result: ExecutionResult,
-    reports: Mapping[str, VivadoReportResult],
-) -> tuple[str, dict[str, str]]:
-    dimensions = default_dimensions(phase)
-    pending = tuple(name for name, value in dimensions.items() if value == "pending")
-    if result.status in {"timeout", "cancelled"}:
-        replacement = "cancelled" if result.executed else "not_run"
-        for name in pending:
-            dimensions[name] = replacement
-        return "cancelled", dimensions
-    if result.status in {"missing", "error"}:
-        replacement = "failed" if result.executed else "not_run"
-        for name in pending:
-            dimensions[name] = replacement
-        return "error", dimensions
-    if result.status != "ok":
-        replacement = "failed" if result.executed else "not_run"
-        for name in pending:
-            dimensions[name] = replacement
-        return "failed", dimensions
-    if phase == "inspect":
-        return "inconclusive", dimensions
-
-    dimensions["synthesis"] = "passed"
-    timing = reports["timing"]
-    if timing.status == "parsed":
-        checks = timing.metrics.get("check_timing", {})
-        checks_clean = isinstance(checks, Mapping) and not any(
-            int(value or 0) > 0 for value in checks.values()
-        )
-        dimensions["timing"] = (
-            "passed"
-            if bool(timing.metrics.get("constraints_met")) and checks_clean
-            else "failed"
-        )
-    else:
-        dimensions["timing"] = "failed"
-
-    dimensions["drc"] = "passed" if _rule_report_passed(reports["drc"]) else "failed"
-    dimensions["methodology"] = (
-        "passed" if _rule_report_passed(reports["methodology"]) else "failed"
-    )
-    if phase == "impl":
-        route = reports["route_status"]
-        dimensions["implementation"] = (
-            "passed"
-            if route.status == "parsed" and bool(route.metrics.get("complete"))
-            else "failed"
-        )
-    failed = any(value == "failed" for value in dimensions.values())
-    # Even an entirely clean build remains inconclusive until the explicitly
-    # not-run assurance dimensions have independent evidence.
-    return ("failed" if failed else "inconclusive"), dimensions
-
-
 def _locator_digest(uri: str) -> str:
     prefix = "artifact-locator:sha256:"
     if not str(uri).startswith(prefix):
         raise ValueError(f"invalid artifact locator URI: {uri}")
     return str(uri)[len(prefix) :]
-
-
-def _stored_artifact(
-    store: ArtifactStore,
-    payload: bytes,
-    *,
-    name: str,
-    role: str,
-    media_type: str,
-    provenance: ContractProvenance,
-    expected_sha256: str | None = None,
-    local_path: str = "",
-) -> ChipArtifact:
-    raise RuntimeError("legacy unleased artifact publication path is retired")
 
 
 def _terminal_stored_artifact(
@@ -1389,7 +810,7 @@ def _terminal_stored_artifact(
     provenance: ContractProvenance,
     expected_sha256: str,
 ) -> ChipArtifact:
-    locator = retain_chip_eda_terminal_artifact(
+    locator = _retain_chip_eda_terminal_artifact(
         authority_root=authority_root,
         source_revision=authority_source_revision,
         authorization=authorization,
@@ -1433,202 +854,6 @@ def _artifact_from_locator(
         media_type=media_type,
         local_path=local_path,
     )
-
-
-def _retained_artifacts(
-    *,
-    store: ArtifactStore,
-    source_manifest: VivadoProjectManifest,
-    post_source_manifest: VivadoProjectManifest,
-    workspace_manifest: VivadoProjectManifest,
-    post_workspace_manifest: VivadoProjectManifest,
-    trusted_payload: bytes,
-    trusted_sha256: str,
-    mission: Any,
-    attempt: Any,
-    runtime_manifest: Any,
-    execution_plan: EdaExecutionPlan,
-    lease: Any,
-    result: ExecutionResult,
-    created_at: str,
-) -> list[ChipArtifact]:
-    source_revision = source_manifest.source_identity_sha256
-    common = ContractProvenance(
-        origin="daedalus.chip_design.cli",
-        source_revision=source_revision,
-        created_at=created_at,
-        input_digests=tuple(
-            sorted(
-                {
-                    source_manifest.project.sha256,
-                    source_manifest.sha256,
-                    post_source_manifest.sha256,
-                    workspace_manifest.sha256,
-                    post_workspace_manifest.sha256,
-                    trusted_sha256,
-                    runtime_manifest.digest,
-                    execution_plan.digest,
-                }
-            )
-        ),
-    )
-    artifacts = [
-        _stored_artifact(
-            store,
-            source_manifest.canonical_bytes,
-            name="source-manifest.json",
-            role="authoritative_manifest",
-            media_type="application/json",
-            provenance=common,
-            expected_sha256=source_manifest.sha256,
-        ),
-        _stored_artifact(
-            store,
-            workspace_manifest.canonical_bytes,
-            name="workspace-manifest.json",
-            role="workspace_manifest",
-            media_type="application/json",
-            provenance=common,
-            expected_sha256=workspace_manifest.sha256,
-        ),
-        _stored_artifact(
-            store,
-            trusted_payload,
-            name="vivado_project_flow.tcl",
-            role="trusted_tcl",
-            media_type="text/x-tcl",
-            provenance=common,
-            expected_sha256=trusted_sha256,
-        ),
-        _stored_artifact(
-            store,
-            runtime_manifest.to_json().encode("ascii"),
-            name="runtime-manifest.json",
-            role="runtime_manifest",
-            media_type="application/json",
-            provenance=runtime_manifest.provenance,
-            expected_sha256=runtime_manifest.digest,
-        ),
-        _stored_artifact(
-            store,
-            canonical_json(execution_plan.to_dict()).encode("ascii"),
-            name="eda-execution-plan.json",
-            role="execution_plan",
-            media_type="application/json",
-            provenance=common,
-            expected_sha256=execution_plan.digest,
-        ),
-        _stored_artifact(
-            store,
-            mission.to_json().encode("ascii"),
-            name="mission.json",
-            role="mission_contract",
-            media_type="application/json",
-            provenance=mission.provenance,
-            expected_sha256=mission.digest,
-        ),
-        _stored_artifact(
-            store,
-            attempt.to_json().encode("ascii"),
-            name="attempt.json",
-            role="attempt_contract",
-            media_type="application/json",
-            provenance=attempt.provenance,
-            expected_sha256=attempt.digest,
-        ),
-        _stored_artifact(
-            store,
-            lease.policy_decision.to_json().encode("ascii"),
-            name="policy-decision.json",
-            role="policy_decision",
-            media_type="application/json",
-            provenance=lease.policy_decision.provenance,
-            expected_sha256=lease.policy_decision.digest,
-        ),
-    ]
-    post_manifest_rows = (
-        (
-            "post-source-manifest.json",
-            "post_authoritative_manifest",
-            post_source_manifest,
-            result.post_authoritative_manifest_locator,
-            result.post_authoritative_manifest_sha256,
-        ),
-        (
-            "post-workspace-manifest.json",
-            "post_workspace_manifest",
-            post_workspace_manifest,
-            result.post_workspace_manifest_locator,
-            result.post_workspace_manifest_sha256,
-        ),
-    )
-    for name, role, manifest, uri, digest in post_manifest_rows:
-        if uri is not None and digest is not None:
-            if digest != manifest.sha256:
-                raise ValueError(
-                    f"{name} result digest does not match the recomputed manifest"
-                )
-            artifacts.append(
-                _artifact_from_locator(
-                    store,
-                    name=name,
-                    role=role,
-                    locator_uri=uri,
-                    expected_sha256=digest,
-                    expected_payload=manifest.canonical_bytes,
-                    media_type="application/json",
-                )
-            )
-        else:
-            artifacts.append(
-                _stored_artifact(
-                    store,
-                    manifest.canonical_bytes,
-                    name=name,
-                    role=role,
-                    media_type="application/json",
-                    provenance=common,
-                    expected_sha256=manifest.sha256,
-                )
-            )
-    unexpected_native = set(result.unexpected_artifact_paths)
-    for native in result.artifacts:
-        artifacts.append(
-            _artifact_from_locator(
-                store,
-                name=Path(native.path).name,
-                role=(
-                    "vivado_unexpected_output"
-                    if native.path in unexpected_native
-                    else "vivado_native_output"
-                ),
-                locator_uri=native.locator,
-                expected_sha256=native.sha256,
-                local_path=native.path,
-            )
-        )
-    console_rows = (
-        ("vivado-stdout.log", "console_stdout", result.stdout_locator, result.stdout_sha256),
-        ("vivado-stderr.log", "console_stderr", result.stderr_locator, result.stderr_sha256),
-        (
-            "eda-execution-receipt.json",
-            "execution_receipt",
-            result.receipt_locator,
-            result.receipt_sha256,
-        ),
-    )
-    for name, role, uri, digest in console_rows:
-        if uri and digest:
-            artifacts.append(
-                _artifact_from_locator(
-                    store,
-                    name=name,
-                    role=role,
-                    locator_uri=uri,
-                    expected_sha256=digest,
-                )
-            )
-    return artifacts
 
 
 def _media_provenance(
@@ -2371,36 +1596,7 @@ def _finalize_phase_publication(
             require_complete=False,
         )
 
-    reports, summary = _parse_retained_phase_reports(
-        store,
-        result,
-        phase,
-        project_file=plan.argv[11],
-        part=plan.argv[13],
-        board_part=plan.argv[14],
-        top=plan.argv[15],
-        synth_run=plan.argv[16],
-        impl_run=plan.argv[17],
-        jobs=int(plan.argv[18]),
-    )
-    if result.stdout_sha256 is None:
-        raise EdaExecutionError("terminal EDA result lacks retained stdout")
-    reports["messages"] = parse_vivado_message_counts_bytes(
-        store.get_bytes(result.stdout_sha256),
-        display_path=result.stdout_locator or "retained:vivado-stdout",
-    )
-    artifact_binding = _phase_artifact_binding(
-        phase=phase,
-        result=result,
-        reports=reports,
-        summary=summary,
-    )
-    verdict, dimensions = _verdict_and_dimensions(phase, result, reports)
-    if artifact_binding["status"] != "passed" and verdict not in {
-        "error",
-        "cancelled",
-    }:
-        verdict = "failed"
+    derivation = derive_chip_publication(result, plan, store)
 
     runtime_manifest = build_chip_runtime_manifest(
         source_revision=authority_source_revision,
@@ -2442,61 +1638,7 @@ def _finalize_phase_publication(
         retained=retained,
         created_at=created_at,
     )
-    report_payload = {name: report.to_dict() for name, report in reports.items()}
-    metrics = {
-        "source_manifest_sha256": source_manifest.sha256,
-        "workspace_manifest_sha256": workspace_manifest.sha256,
-        "post_authoritative_manifest_sha256": (
-            None if post_source_manifest is None else post_source_manifest.sha256
-        ),
-        "post_authoritative_source_identity_sha256": (
-            None
-            if post_source_manifest is None
-            else post_source_manifest.body["source_identity_sha256"]
-        ),
-        "authoritative_source_unchanged": (
-            post_source_manifest is not None
-            and post_source_manifest.sha256 == source_manifest.sha256
-        ),
-        "post_workspace_manifest_sha256": (
-            None if post_workspace_manifest is None else post_workspace_manifest.sha256
-        ),
-        "post_source_identity_sha256": (
-            None
-            if post_workspace_manifest is None
-            else post_workspace_manifest.body["source_identity_sha256"]
-        ),
-        "authored_source_identity_unchanged": (
-            post_workspace_manifest is not None
-            and post_workspace_manifest.body["source_identity_sha256"]
-            == source_manifest.body["source_identity_sha256"]
-        ),
-        "runtime_manifest_sha256": runtime_manifest.digest,
-        "summary": summary,
-        "reports": report_payload,
-        "messages": reports["messages"].to_dict(),
-        "artifact_binding": artifact_binding,
-        "execution_plan": plan.to_dict(),
-        "execution_plan_sha256": plan.digest,
-        "missing_artifact_paths": list(result.missing_artifact_paths),
-        "unexpected_artifact_paths": list(result.unexpected_artifact_paths),
-        "publication_inputs": "authenticated-ledger-and-cas-only",
-    }
-    summary_values = summary.get("values", {})
-    reported_version = (
-        str(summary_values.get("tool", ""))
-        if isinstance(summary_values, Mapping)
-        else ""
-    )
-    tool = {
-        "id": "vivado",
-        "label": "AMD Vivado",
-        "selected_command": str(plan.argv[0]),
-        "launcher_sha256": plan.launcher_sha256,
-        "reported_version": reported_version,
-        "ambient_probe_status": "not_run",
-        "security_boundary_claimed": False,
-    }
+    metrics = derivation.metrics(runtime_manifest_sha256=runtime_manifest.digest)
     receipt = ChipRunReceipt(
         run_id=run_id,
         mission_id=mission_id,
@@ -2505,15 +1647,15 @@ def _finalize_phase_publication(
         source_revision=plan.source_manifest_sha256,
         manifest_sha256=plan.source_manifest_sha256,
         trusted_tcl_sha256=plan.trusted_tcl_sha256,
-        tool=tool,
+        tool=derivation.tool,
         execution=result.to_dict(),
         effect_start=result.start_receipt.to_dict(),
         effect_terminal=terminal.to_dict(),
         artifacts=tuple(artifacts),
         metrics=metrics,
-        dimensions=dimensions,
-        verdict=verdict,
-        limitations=_LIMITATIONS,
+        dimensions=derivation.dimensions,
+        verdict=derivation.verdict,
+        limitations=derivation.limitations,
         created_at=created_at,
     )
     receipt_inputs = [
@@ -2526,7 +1668,7 @@ def _finalize_phase_publication(
         authorization.policy_decision.digest,
         *(artifact.artifact_sha256 for artifact in artifacts),
     ]
-    receipt_locator = retain_chip_eda_terminal_artifact(
+    receipt_locator = _retain_chip_eda_terminal_artifact(
         authority_root=authority_root,
         source_revision=authority_source_revision,
         authorization=authorization,
@@ -2553,7 +1695,7 @@ def _finalize_phase_publication(
         attempt=attempt,
         policy_decision_sha256=authorization.policy_decision.digest,
     )
-    evidence_locator = retain_chip_eda_terminal_artifact(
+    evidence_locator = _retain_chip_eda_terminal_artifact(
         authority_root=authority_root,
         source_revision=authority_source_revision,
         authorization=authorization,
@@ -2574,7 +1716,7 @@ def _finalize_phase_publication(
         raise EdaExecutionError(
             "EDA publication adapter changed while evidence was finalized"
         )
-    publication_record = record_chip_eda_publication(
+    publication_record = _record_chip_eda_publication(
         authority_root=authority_root,
         evidence_root=write_evidence_root(authority_root, authority_source_revision),
         source_revision=authority_source_revision,
@@ -2609,8 +1751,8 @@ def _finalize_phase_publication(
         "execution_process_spawned": result.executed,
         "recovered": recovered,
         "publication_status": "complete",
-        "verdict": verdict,
-        "dimensions": dimensions,
+        "verdict": receipt.verdict,
+        "dimensions": dict(receipt.dimensions),
         "metrics": metrics,
         "manifest_sha256": source_manifest.sha256,
         "source_identity_sha256": source_manifest.body["source_identity_sha256"],

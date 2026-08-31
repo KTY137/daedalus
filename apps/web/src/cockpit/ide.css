@@ -29,8 +29,22 @@
   font-size: var(--fs-xs);
 }
 .ide-toolbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ide-toolbar a { flex: none; min-height: 36px; display: inline-flex; align-items: center; color: var(--accent); font-weight: 600; text-decoration: none; }
+.ide-toolbar a { flex: none; min-height: 44px; display: inline-flex; align-items: center; color: var(--accent); font-weight: 600; text-decoration: none; }
 .ide-toolbar a:hover { text-decoration: underline; }
+.ide-handoff-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--u4);
+  border: var(--border) solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.ide-handoff-link:hover { filter: brightness(1.06); }
 
 .ide-notice {
   position: absolute;

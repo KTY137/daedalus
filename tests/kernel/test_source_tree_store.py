@@ -217,3 +217,19 @@ def test_shared_artifact_locator_authority_is_not_redefined() -> None:
 
     assert source_trees.artifact_locator is artifacts.artifact_locator
     assert not hasattr(source_trees, "locator_sha256")
+
+
+def test_windows_creation_time_is_not_used_as_a_stability_clock() -> None:
+    import daedalus.kernel.source_trees as source_trees
+
+    windows_file = source_trees._stable_metadata_fields("nt", directory=False)
+    windows_directory = source_trees._stable_metadata_fields("nt", directory=True)
+    posix_file = source_trees._stable_metadata_fields("posix", directory=False)
+    posix_directory = source_trees._stable_metadata_fields("posix", directory=True)
+
+    assert "st_ctime_ns" not in windows_file
+    assert "st_ctime_ns" not in windows_directory
+    assert "st_ctime_ns" in posix_file
+    assert "st_ctime_ns" in posix_directory
+    assert windows_file == ("st_dev", "st_ino", "st_mtime_ns", "st_size")
+    assert windows_directory == ("st_dev", "st_ino", "st_mtime_ns")

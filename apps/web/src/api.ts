@@ -267,6 +267,8 @@ export function updateCategory(project: string, category: string, patch: Record<
 /* ---- Conversations: the chat that survives a reload ---- */
 
 export interface ConversationTurn {
+  /** Canonical conversation-spine identity for this exchange. */
+  id?: number;
   user_message: string;
   assistant_text: string | null;
   intent?: string;
@@ -283,7 +285,21 @@ export interface ConversationView {
   narrative?: string;
   turns: ConversationTurn[];
   turns_returned: number;
-  open_dispatches?: Array<Record<string, unknown>>;
+  dispatches?: ConversationDispatch[];
+  open_dispatches?: ConversationDispatch[];
+}
+
+export interface ConversationDispatch {
+  link?: {
+    turn_id?: number;
+    dispatch_ref?: string;
+  } | null;
+  latest?: {
+    lifecycle?: string;
+    summary?: string;
+    outcome_state?: string | null;
+    detail?: Record<string, unknown> | null;
+  } | null;
 }
 
 /**
@@ -305,15 +321,337 @@ export function getConversation(id: string, limit = 40) {
   );
 }
 
-export function queueTask(project: string, objective: string, lane: string, conversationId?: string) {
-  // `conversation_id` is the link between a dispatch and the turn that asked
-  // for it — the thread's own record of what it set running.
+/** Immutable editor selection metadata. The selection itself stays server-side;
+ * this public receipt says exactly which project-bound artifact may be attached
+ * to an Ikarus turn. */
+export interface EditorContextReceipt {
+  context_ref: string;
+  project: string;
+  path: string;
+  range?: { start_line: number; start_column: number; end_line: number; end_column: number } | null;
+  selection_chars: number;
+  expires_at: string;
+  expired: boolean;
+  sensitivity: string;
+  inclusion_report?: { accepted?: boolean; reason?: string } | null;
+}
+
+export function getEditorContext(contextRef: string) {
+  return request<ApiEnvelope & { context: EditorContextReceipt }>(
+    `/api/editor/contexts/${encodeURIComponent(contextRef)}`
+  );
+}
+
+export type ConversationCancellationStatus =
+  | 'requested'
+  | 'confirmed'
+  | 'not_supported'
+  | 'already_terminal'
+  | 'unknown';
+
+export interface ConversationCancellation {
+  cancellation_id?: number;
+  request_id?: number;
+  client_cancel_id?: string;
+  status: ConversationCancellationStatus;
+  created_at?: string;
+  resolved_at?: string | null;
+}
+
+/** The canonical, idempotent request for one generation turn. POST creates
+ * exactly once under `client_request_id`; all later reading uses its request id. */
+export interface ConversationTurnRequest {
+  request_id: number;
+  conversation_id: string;
+  client_request_id: string;
+  project: string;
+  state: 'streaming' | 'cancel_requested' | 'final' | 'cancelled' | 'error' | 'unknown';
+  created_at?: string;
+  resolved_at?: string | null;
+  turn_id?: number | null;
+  final?: IkarusAskPayload | null;
+  error?: string | null;
+  cancellation?: ConversationCancellation | null;
+}
+
+export interface CreateConversationTurnPayload extends ApiEnvelope {
+  turn_request: ConversationTurnRequest;
+  created: boolean;
+  status_url?: string;
+  events_url?: string;
+}
+
+export function createConversationTurn(
+  conversationId: string,
+  input: {
+    client_request_id: string;
+    project: string;
+    message: string;
+    provider?: string;
+    model?: string;
+    effort?: EffortLevel;
+    context_refs?: string[];
+  }
+) {
+  const body: Record<string, unknown> = {
+    client_request_id: input.client_request_id,
+    project: input.project,
+    message: input.message,
+    context_refs: input.context_refs || []
+  };
+  if (input.provider) body.provider = input.provider;
+  if (input.model?.trim()) body.model = input.model.trim();
+  if (input.effort) body.effort = input.effort;
+  return request<CreateConversationTurnPayload>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/turns`,
+    { method: 'POST', body: JSON.stringify(body) },
+    30_000
+  );
+}
+
+export function cancelConversationTurn(
+  conversationId: string,
+  requestId: number,
+  clientCancelId: string
+) {
+  return request<ApiEnvelope & { cancellation: ConversationCancellation }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/turns/${encodeURIComponent(String(requestId))}/cancel-requests`,
+    { method: 'POST', body: JSON.stringify({ client_cancel_id: clientCancelId }) },
+    30_000
+  );
+}
+
+/** Read-only SSE observation of an already-created generation request. A
+ * reconnect repeats only this GET, never the effectful creation POST. */
+export function observeConversationTurn(
+  conversationId: string,
+  requestId: number,
+  handlers: {
+    onStart?: (data: { intent?: string; provider_used?: string }) => void;
+    onDelta?: (text: string) => void;
+    onFinal?: (payload: IkarusAskPayload) => void;
+    onCancelled?: (cancellation: ConversationCancellation) => void;
+    onError?: (error: Error) => void;
+    onState?: (status: ConversationTurnRequest) => void;
+  }
+): { close: () => void } {
+  const es = new EventSource(
+    `/api/conversations/${encodeURIComponent(conversationId)}/turns/${encodeURIComponent(String(requestId))}/events`
+  );
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    es.close();
+  };
+  const read = (event: Event): Record<string, unknown> => {
+    const value: unknown = JSON.parse((event as MessageEvent).data);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('malformed conversation observation frame');
+    return value as Record<string, unknown>;
+  };
+
+  es.addEventListener('start', (event) => {
+    try { handlers.onStart?.(read(event)); } catch { /* start is advisory */ }
+  });
+  es.addEventListener('delta', (event) => {
+    try {
+      const text = read(event).text;
+      if (typeof text === 'string' && text) handlers.onDelta?.(text);
+    } catch { /* one malformed delta must not discard the observed request */ }
+  });
+  es.addEventListener('final', (event) => {
+    try {
+      handlers.onFinal?.(read(event) as unknown as IkarusAskPayload);
+      close();
+    } catch {
+      handlers.onError?.(new Error('malformed final observation frame'));
+      close();
+    }
+  });
+  es.addEventListener('cancelled', (event) => {
+    try {
+      const data = read(event);
+      handlers.onCancelled?.({ status: data.status === 'confirmed' ? 'confirmed' : 'unknown', request_id: requestId });
+    } catch {
+      handlers.onCancelled?.({ status: 'unknown', request_id: requestId });
+    }
+    close();
+  });
+  es.addEventListener('error', (event) => {
+    // EventSource uses the same DOM event name for a transport interruption
+    // and for the server's named `event: error` frame. Only the latter carries
+    // MessageEvent data and is terminal; the former must remain reconnectable
+    // observation and, crucially, must never trigger another POST.
+    if (!(event instanceof MessageEvent) || typeof event.data !== 'string') return;
+    try {
+      const error = read(event).error;
+      handlers.onError?.(new Error(typeof error === 'string' ? error : 'Ikarus-Request fehlgeschlagen'));
+    } catch {
+      handlers.onError?.(new Error('malformed conversation error frame'));
+    }
+    close();
+  });
+  es.addEventListener('state', (event) => {
+    try {
+      const status = read(event) as unknown as ConversationTurnRequest;
+      handlers.onState?.(status);
+      if (['final', 'cancelled', 'error', 'unknown'].includes(status.state)) close();
+    } catch {
+      handlers.onError?.(new Error('malformed conversation status frame'));
+      close();
+    }
+  });
+  // Native EventSource reconnects after an interrupted GET. That is safe here:
+  // it observes this fixed request id and cannot invoke the creation POST.
+  es.onerror = () => { /* transport reconnect is observation-only */ };
+  return { close };
+}
+
+export interface QueueTaskPayload extends ApiEnvelope {
+  /** Address for GET /api/queue/<id> and its one-shot progress stream. */
+  id: string;
+  queued?: string;
+  conversation_link?: {
+    conversation_id?: string;
+    turn_id?: number;
+    dispatch_ref?: string;
+    linked: boolean;
+    error?: string;
+    projection_pending?: boolean;
+    projection_retry_queued?: boolean;
+    projection?: {
+      state?: string;
+      event_id?: string;
+      outcome_state?: string;
+      error?: string;
+    };
+  };
+}
+
+export function queueTask(
+  project: string,
+  objective: string,
+  lane: string,
+  conversationId?: string,
+  turnId?: number
+) {
+  // Attribution is an atomic pair. A current backend rejects either half on
+  // its own; omitting both also keeps this client safe against an older backend
+  // that inferred "latest turn" and could attach a delayed offer to a newer
+  // exchange. An unlinked task is safer than a falsely linked one.
   const body: Record<string, unknown> = { project, objective, lane, source: 'agent-os', strategy: 'single' };
-  if (conversationId) body.conversation_id = conversationId;
-  return request<ApiEnvelope & { task?: Record<string, unknown> }>('/api/queue', {
+  if (conversationId && typeof turnId === 'number' && Number.isSafeInteger(turnId) && turnId > 0) {
+    body.conversation_id = conversationId;
+    body.turn_id = turnId;
+  }
+  return request<QueueTaskPayload>('/api/queue', {
     method: 'POST',
     body: JSON.stringify(body)
   });
+}
+
+/** The measured fields pushed by GET /api/queue/<id>/events. */
+export interface TaskSnapshot {
+  id: string;
+  found: boolean;
+  state: string;
+  source: string;
+  lane: string | null;
+  requested_lane: string | null;
+  actual_providers: string[];
+  summary: string | null;
+  error: string | null;
+  applied: boolean | null;
+  applied_reason: string | null;
+  stalled: boolean;
+  timed_out: boolean;
+}
+
+function taskSnapshot(value: unknown, expectedId: string): TaskSnapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('malformed task progress frame');
+  }
+  const row = value as Record<string, unknown>;
+  const id = typeof row.id === 'string' && row.id ? row.id : expectedId;
+  if (id !== expectedId) throw new Error('task progress id mismatch');
+  return {
+    id,
+    found: row.found === true,
+    state: typeof row.state === 'string' && row.state ? row.state : 'unknown',
+    source: typeof row.source === 'string' && row.source ? row.source : 'unknown',
+    lane: typeof row.lane === 'string' ? row.lane : null,
+    requested_lane: typeof row.requested_lane === 'string' ? row.requested_lane : null,
+    actual_providers: Array.isArray(row.actual_providers)
+      ? row.actual_providers.filter((provider): provider is string => typeof provider === 'string' && Boolean(provider))
+      : [],
+    summary: typeof row.summary === 'string' && row.summary ? row.summary : null,
+    error: typeof row.error === 'string' && row.error ? row.error : null,
+    applied: typeof row.applied === 'boolean' ? row.applied : null,
+    applied_reason: typeof row.applied_reason === 'string' && row.applied_reason ? row.applied_reason : null,
+    stalled: row.stalled === true,
+    timed_out: row.timed_out === true
+  };
+}
+
+/**
+ * Follow one queued task until the backend emits `final` or the transport
+ * fails. This endpoint is one-shot: leaving EventSource reconnect enabled
+ * would replay a completed task forever, so every terminal path shares the
+ * same guarded close.
+ */
+export function streamTask(
+  taskId: string,
+  handlers: {
+    onHello?: (snapshot: TaskSnapshot) => void;
+    onProgress?: (snapshot: TaskSnapshot) => void;
+    onFinal: (snapshot: TaskSnapshot) => void;
+    onError: (error: Error) => void;
+  }
+): { close: () => void } {
+  const es = new EventSource(`/api/queue/${encodeURIComponent(taskId)}/events`);
+  let done = false;
+  const settle = (fn?: () => void) => {
+    if (done) return;
+    done = true;
+    es.close();
+    fn?.();
+  };
+
+  const read = (event: Event): TaskSnapshot =>
+    taskSnapshot(JSON.parse((event as MessageEvent).data), taskId);
+
+  es.addEventListener('hello', (event) => {
+    if (done) return;
+    try {
+      handlers.onHello?.(read(event));
+    } catch {
+      settle(() => handlers.onError(new Error('malformed task hello frame')));
+    }
+  });
+
+  es.addEventListener('progress', (event) => {
+    if (done) return;
+    try {
+      handlers.onProgress?.(read(event));
+    } catch {
+      settle(() => handlers.onError(new Error('malformed task progress frame')));
+    }
+  });
+
+  es.addEventListener('final', (event) => {
+    let snapshot: TaskSnapshot;
+    try {
+      snapshot = read(event);
+    } catch {
+      settle(() => handlers.onError(new Error('malformed task final frame')));
+      return;
+    }
+    settle(() => handlers.onFinal(snapshot));
+  });
+
+  es.onerror = () => settle(() => handlers.onError(new Error('task progress stream interrupted')));
+
+  return { close: () => settle() };
 }
 
 export function chatIkarus(project: string, message: string, apply = false) {
@@ -388,8 +726,10 @@ export function openEventStream(
  * and **re-runs the entire chat turn — re-spending tokens and money, forever**.
  * So every terminal path here closes exactly once, via `settle()`.
  *
- * Falls back to nothing on its own: if the stream dies before `final`, the
- * caller is told via `onError` and should retry with the blocking `askIkarus`.
+ * Falls back to nothing on its own. A missing `final` does not prove the server
+ * did no work: it may have persisted the turn and lost only the last frame.
+ * The caller is told via `onError` and must not automatically replay the
+ * request without a server-owned idempotency key.
  */
 export function streamIkarus(
   project: string,
@@ -749,9 +1089,15 @@ export function getLoopArchitecture(project?: string) {
  * repo can take up to ~60s while the server indexes it — callers should show a
  * loading state. `refresh` forces a re-index server-side.
  */
-export function getStructure(project: string, refresh = false): Promise<StructurePayload> {
-  const q = `project=${encodeURIComponent(project)}${refresh ? '&refresh=1' : ''}`;
-  return request<StructurePayload>(`/api/structure?${q}`, undefined, 70_000);
+export function getStructure(
+  project: string,
+  refresh = false,
+  graphNodes?: number | 'all'
+): Promise<StructurePayload> {
+  const q = new URLSearchParams({ project });
+  if (refresh) q.set('refresh', '1');
+  if (graphNodes !== undefined) q.set('graph_nodes', String(graphNodes));
+  return request<StructurePayload>(`/api/structure?${q.toString()}`, undefined, 70_000);
 }
 
 /** Distill a target module/symbol down to a minimal review slice. */

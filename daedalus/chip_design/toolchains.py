@@ -143,6 +143,8 @@ _POSIX_TOOL_GLOBS: Mapping[str, tuple[str, ...]] = {
 }
 
 _VIVADO_VERSION_RE = re.compile(r"\bVivado\s+v(?P<version>\d{4}\.\d+(?:\.\d+)?)\b", re.IGNORECASE)
+_NUMERIC_INSTALL_VERSION_RE = re.compile(r"[0-9]+(?:\.[0-9]+)*\Z")
+_NUMERIC_AMD_INSTALL_TOOLS = frozenset({"vivado", "vitis", "xsct"})
 
 
 def get_tool(tool_id: str) -> EdaToolSpec:
@@ -201,6 +203,47 @@ def _path_within(root: Path, candidate: Path) -> bool:
     return os.path.normcase(common) == os.path.normcase(str(root))
 
 
+def _vendor_install_version(tool_id: str, path: str | Path) -> tuple[int, ...] | None:
+    """Extract a numeric release from one package-known install layout.
+
+    Discovery admits both AMD's unified ``<release>/<product>`` layout and
+    its legacy ``<product>/<release>`` layout.  Keep this parser coupled to
+    those layouts so unrelated digits elsewhere in an absolute path cannot
+    influence launcher selection.
+    """
+
+    launcher = Path(path)
+    product = "vitis" if tool_id in {"vitis", "xsct"} else tool_id
+    install_dir = launcher.parent.parent
+    if install_dir.name.casefold() == product:
+        release = install_dir.parent.name
+    elif install_dir.parent.name.casefold() == product:
+        release = install_dir.name
+    else:
+        return None
+    if not _NUMERIC_INSTALL_VERSION_RE.fullmatch(release):
+        return None
+    try:
+        return tuple(int(component) for component in release.split("."))
+    except ValueError:
+        # Python limits exceptionally long integer strings.  Such a directory
+        # is not a credible vendor release and must not outrank a valid one.
+        return None
+
+
+def _vendor_tool_path_sort_key(
+    tool_id: str,
+    path: str,
+) -> tuple[int, tuple[int, ...], str, str]:
+    """Rank valid numeric releases first, with a stable path tie-breaker."""
+
+    version = _vendor_install_version(tool_id, path)
+    lexical = (path.casefold(), path)
+    if version is None:
+        return (0, (), *lexical)
+    return (1, version, *lexical)
+
+
 def trusted_vendor_tool_paths(tool_id: str) -> tuple[str, ...]:
     """Return launchers under package-known vendor installation layouts.
 
@@ -229,15 +272,31 @@ def trusted_vendor_tool_paths(tool_id: str) -> tuple[str, ...]:
             resolved_candidate = candidate.resolve(strict=True)
             if not _path_within(resolved_root, resolved_candidate):
                 continue
+            if (
+                tool_id in _NUMERIC_AMD_INSTALL_TOOLS
+                and _vendor_install_version(tool_id, resolved_candidate) is None
+            ):
+                continue
             paths.add(str(resolved_candidate))
-    return tuple(sorted(paths, key=str.casefold))
+    return tuple(
+        sorted(paths, key=lambda path: _vendor_tool_path_sort_key(tool_id, path))
+    )
 
 
 def find_trusted_vendor_tool_path(tool_id: str) -> str:
-    """Select the newest lexical package-known vendor install, if present."""
+    """Select the newest numeric package-known vendor install, if present.
+
+    Malformed AMD release directory names are not trusted install identities.
+    Equal numeric releases are resolved by a deterministic full-path
+    tie-breaker.
+    """
 
     paths = trusted_vendor_tool_paths(tool_id)
-    return paths[-1] if paths else ""
+    return (
+        max(paths, key=lambda path: _vendor_tool_path_sort_key(tool_id, path))
+        if paths
+        else ""
+    )
 
 
 def is_trusted_vendor_tool_path(tool_id: str, path: str | Path) -> bool:

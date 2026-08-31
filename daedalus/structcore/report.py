@@ -27,7 +27,7 @@ def _clone_rows(clusters: list, limit: int, extra: tuple = ()) -> list:
     return rows
 
 
-def _graph(idx: dict, max_nodes: int, max_edges: int) -> dict:
+def _graph(idx: dict, max_nodes: int | None, max_edges: int | None) -> dict:
     """Module dependency graph for the code map: nodes carry the churn x
     complexity heat, edges are the unified rel->rel import edges.
 
@@ -65,7 +65,8 @@ def _graph(idx: dict, max_nodes: int, max_edges: int) -> dict:
             all_edges.append((src, tgt))
             graph_fan_in[tgt] = graph_fan_in.get(tgt, 0) + 1
 
-    kept = {h["module"] for h in heat[:max_nodes]}
+    visible_heat = heat if max_nodes is None else heat[:max_nodes]
+    kept = {h["module"] for h in visible_heat}
     nodes = [{
         "module": h["module"],
         "language": (modules.get(h["module"]) or {}).get("language", ""),
@@ -73,10 +74,11 @@ def _graph(idx: dict, max_nodes: int, max_edges: int) -> dict:
         "score": h["score"],
         "churn": h["churn"],
         "fan_in": graph_fan_in.get(h["module"], 0),
-    } for h in heat[:max_nodes]]
+    } for h in visible_heat]
 
     eligible = [(s, t) for s, t in all_edges if s in kept and t in kept]
-    edges = [{"source": s, "target": t} for s, t in eligible[:max_edges]]
+    visible_edges = eligible if max_edges is None else eligible[:max_edges]
+    edges = [{"source": s, "target": t} for s, t in visible_edges]
 
     return {
         "nodes": nodes,
@@ -98,7 +100,8 @@ def _graph(idx: dict, max_nodes: int, max_edges: int) -> dict:
 def structure_summary(idx: dict, *, top_hotspots: int = 25, top_clones: int = 40,
                       top_windows: int = 25, top_fanin: int = 20,
                       top_renamed: int = 25, top_near: int = 25,
-                      max_graph_nodes: int = 2000, max_graph_edges: int = 8000) -> dict:
+                      max_graph_nodes: int | None = 2000,
+                      max_graph_edges: int | None = 8000) -> dict:
     dup = idx.get("duplication", {})
     units = dup.get("unit_clusters", [])
     renamed = dup.get("renamed_clusters", [])

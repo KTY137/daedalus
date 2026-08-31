@@ -26,6 +26,9 @@ after). Three kinds carry everything:
   * ``conversation.dispatch.report`` -- one honest update about a dispatch.
     ``effect_key`` is the same ``dispatch_ref``, deliberately NOT unique: a
     second report ("produced", then later "applied") is a legitimate update.
+    A caller projecting an already durable external event may additionally
+    supply its stable ``source_event_id``. Replaying that SAME source event is
+    idempotent; a genuinely later event still gets its own row and identity.
 
 WHY THE FOURTH LOG IS GONE
 --------------------------
@@ -44,7 +47,9 @@ already been produced and the work has already been queued (``web_api`` calls
 decided-but-not-yet-done window to protect and both are written with
 :meth:`SpineLedger.record_fact` -- terminal at birth, in one transaction. A
 report is then simply another fact carrying the same ``dispatch_ref``, so N
-reports are N rows and nothing is ever asked to resolve twice.
+distinct reports are N rows and nothing is ever asked to resolve twice. A
+crash replay of one stable ``source_event_id`` returns its existing row; it is
+not a distinct report.
 
 That choice is load-bearing beyond tidiness: an intent left INTENDED shows up in
 ``SpineLedger.open_intents`` -- the crash-recovery worklist -- and in
@@ -119,7 +124,8 @@ from .spine.ledger import (
 __all__ = [
     "ConversationStore", "Turn", "DispatchLink", "DispatchEvent",
     "ConversationError", "UnknownConversation", "UnknownTurn", "UnknownDispatch",
-    "DuplicateDispatchRef", "STATUS_ANSWERED", "STATUS_PROPOSED", "STATUS_ERROR",
+    "DuplicateDispatchRef", "ConflictingDispatchEvent", "STATUS_ANSWERED",
+    "STATUS_PROPOSED", "STATUS_ERROR",
     "TURN_STATUSES", "LIFECYCLE_DISPATCHED", "LIFECYCLE_REPORTED",
     "DISPATCH_LIFECYCLE", "OUTCOME_STATES", "WORKING", "PRESENT", "DEGRADED",
     "ABSENT", "UNKNOWN", "new_conversation_id",
@@ -175,6 +181,15 @@ class DuplicateDispatchRef(ConversationError):
     """dispatch_ref must be unique within ``conversation.dispatch``: it is the
     key a later report is looked up by (the spine's own effect_key discipline --
     "the caller supplies an identifier it can go and look for afterwards")."""
+
+
+class ConflictingDispatchEvent(ConversationError):
+    """One stable source-event identity was reused for different facts.
+
+    Treating the second payload as a retry would silently discard a real
+    disagreement; appending it would destroy exactly-once projection. Refuse
+    both interpretations and leave the first canonical fact untouched.
+    """
 
 
 def _now_iso() -> str:
@@ -264,6 +279,7 @@ class DispatchEvent:
     summary: str
     outcome_state: str | None = None
     detail: Any = None
+    source_event_id: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -319,19 +335,25 @@ class ConversationStore:
         self.busy_timeout_ms = self.spine.busy_timeout_ms
         self.read_only = bool(getattr(self.spine, "read_only", read_only))
         if not self.read_only:
-            self._install_unique_dispatch_ref()
+            self._install_uniqueness_guards()
 
-    def _install_unique_dispatch_ref(self) -> None:
-        """One dispatch_ref, one dispatch -- enforced by SQLite, not by a check.
+    def _install_uniqueness_guards(self) -> None:
+        """Enforce caller-owned identities in SQLite, never with check-then-use.
+
+        A dispatch ref names one dispatch. A non-null report
+        ``source_event_id`` names one already durable external event. The
+        latter is deliberately optional: callers without a source identity
+        retain the existing append-many timeline semantics.
 
         Installed through the ledger's own transaction seam rather than a second
         connection, for the reason ``attempt_ledger`` gives for the same move: a
         separate connection carries its own pragmas and could apply weaker
         durability to a write against the canonical file.
 
-        Partial, on ``kind``, because the reports deliberately reuse their
-        dispatch's key and a whole-table unique index would forbid exactly the
-        honest second update this design exists to allow.
+        Both indexes are partial. Reports deliberately reuse their dispatch's
+        effect key, and source-less reports may repeat; a whole-table or whole-
+        kind constraint would forbid the honest later updates this design
+        exists to allow.
         """
         try:
             with self.spine._txn() as connection:
@@ -340,10 +362,16 @@ class ConversationStore:
                     "idx_conversation_dispatch_ref "
                     "ON intents(effect_key) "
                     f"WHERE kind = '{KIND_DISPATCH}'")
+                connection.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS "
+                    "idx_conversation_report_source_event "
+                    "ON intents(json_extract(payload, '$.source_event_id')) "
+                    f"WHERE kind = '{KIND_REPORT}' "
+                    "AND json_extract(payload, '$.source_event_id') IS NOT NULL")
         except (sqlite3.DatabaseError, AttributeError) as exc:
             raise ConversationError(
-                "the canonical event spine cannot enforce one dispatch per "
-                f"dispatch_ref: {type(exc).__name__}: {exc}") from exc
+                "the canonical event spine cannot enforce conversation event "
+                f"identities: {type(exc).__name__}: {exc}") from exc
 
     def pragmas(self) -> dict[str, Any]:
         """The canonical ledger's durability settings, verbatim."""
@@ -455,9 +483,12 @@ class ConversationStore:
 
         Recorded as a FACT, not an open intent: every caller in this tree queues
         the work first and links afterwards, so there is no window to protect --
-        and an unreported dispatch left INTENDED would sit in the spine's
-        crash-recovery worklist forever, since nothing in this tree ever calls
-        :meth:`record_dispatch_event`.
+        and an unreported dispatch left INTENDED would incorrectly sit in the
+        spine's crash-recovery worklist even though the dispatch itself already
+        happened. ``file_bridge.process_request`` now projects a later terminal
+        report as its own idempotent FACT; it does not resolve or redo this
+        attribution row, and a report that never arrives must not turn chat
+        linkage into orchestration recovery state.
         """
         conversation_id = _check_id(conversation_id, "conversation_id")
         dispatch_ref = str(dispatch_ref or "").strip()
@@ -473,7 +504,13 @@ class ConversationStore:
                     f"dispatch to")
             resolved_turn_id = last.id
         else:
-            turn = self.get_turn(int(turn_id))
+            # Attribution is an exact identity, not a numeric quantity.  Do
+            # not let bools, fractions, or numeric strings coerce to a
+            # different canonical turn.
+            if type(turn_id) is not int or turn_id <= 0:
+                raise UnknownTurn(
+                    f"turn {turn_id!r} is not an exact positive integer")
+            turn = self.get_turn(turn_id)
             if turn is None or turn.conversation_id != conversation_id:
                 raise UnknownTurn(
                     f"turn {turn_id} does not belong to conversation "
@@ -500,7 +537,8 @@ class ConversationStore:
         return _link_from_intent(recorded)
 
     def record_dispatch_event(self, dispatch_ref: str, *, outcome_state: str,
-                              summary: str, detail: Any = None) -> DispatchEvent:
+                              summary: str, detail: Any = None,
+                              source_event_id: str | None = None) -> DispatchEvent:
         """Append a report against an existing dispatch, as its own
         ``conversation.dispatch.report`` fact. NOT single-resolution: a second,
         third, ... report is a legitimate honest update, not an error. Because
@@ -510,6 +548,12 @@ class ConversationStore:
         ``outcome_state`` must be one of :data:`daedalus.health.STATES` --
         imported, not re-declared, so this can never drift from the repo's one
         closed vocabulary for "did it actually work".
+
+        ``source_event_id`` is optional. When present, it is the idempotency
+        identity of the durable event being projected (for example one fixed
+        file-bridge report). Replaying an identical event returns the original
+        fact. Reusing the identity with different content refuses instead of
+        either duplicating or silently overwriting canonical history.
         """
         if outcome_state not in OUTCOME_STATES:
             raise ValueError(
@@ -527,23 +571,49 @@ class ConversationStore:
             raise UnknownDispatch(
                 f"no dispatch is linked under dispatch_ref {dispatch_ref!r} -- "
                 f"call link_dispatch() at the point the work was actually sent")
+        normalized_source_id = None
+        if source_event_id is not None:
+            normalized_source_id = _check_id(source_event_id, "source_event_id")
         payload = {
             "dispatch_ref": dispatch_ref,
             "outcome_state": outcome_state,
             "summary": summary,
             "detail": _jsonable(detail),
         }
-        recorded = self.spine.record_fact(
-            KIND_REPORT, payload, effect_key=dispatch_ref,
-            effect_id=dispatch_ref,
-            result={"lifecycle": LIFECYCLE_REPORTED,
-                    "outcome_state": outcome_state})
+        if normalized_source_id is not None:
+            payload["source_event_id"] = normalized_source_id
+        try:
+            recorded = self.spine.record_fact(
+                KIND_REPORT, payload, effect_key=dispatch_ref,
+                effect_id=dispatch_ref,
+                result={"lifecycle": LIFECYCLE_REPORTED,
+                        "outcome_state": outcome_state})
+        except sqlite3.IntegrityError as exc:
+            if normalized_source_id is None:
+                raise
+            # The partial UNIQUE index is the serialization point. This lookup
+            # runs only after SQLite has rejected our insert, so another process
+            # cannot slip a duplicate through a check-then-use window.
+            existing = self._report_intent_by_source_event(normalized_source_id)
+            if (existing is None or existing.effect_key != dispatch_ref
+                    or existing.payload != payload):
+                raise ConflictingDispatchEvent(
+                    f"source_event_id {normalized_source_id!r} is already bound "
+                    "to a different conversation dispatch fact") from exc
+            return _report_from_intent(existing, link_intent.id)
         return _report_from_intent(recorded, link_intent.id)
 
     # -- reads: dispatch attribution ------------------------------------------ #
     def _dispatch_intent(self, dispatch_ref: str) -> Intent | None:
         found = self.spine.intents_by_effect_key(
             str(dispatch_ref), kind=KIND_DISPATCH, limit=1)
+        return found[0] if found else None
+
+    def _report_intent_by_source_event(self, source_event_id: str | None) -> Intent | None:
+        if not source_event_id:
+            return None
+        found = self.spine.intents_matching_payload(
+            "source_event_id", [source_event_id], kind=KIND_REPORT)
         return found[0] if found else None
 
     def dispatch_events(self, dispatch_ref: str) -> list[DispatchEvent]:
@@ -680,7 +750,7 @@ def _dispatched_event(intent: Intent) -> DispatchEvent:
     return DispatchEvent(
         id=int(intent.id), dispatch_link_id=int(intent.id), ts=intent.created_ts,
         lifecycle=LIFECYCLE_DISPATCHED, summary=str(p.get("summary") or "dispatched"),
-        outcome_state=None, detail=p.get("detail"))
+        outcome_state=None, detail=p.get("detail"), source_event_id=None)
 
 
 def _report_from_intent(intent: Intent, link_id: int) -> DispatchEvent:
@@ -688,7 +758,8 @@ def _report_from_intent(intent: Intent, link_id: int) -> DispatchEvent:
     return DispatchEvent(
         id=int(intent.id), dispatch_link_id=int(link_id), ts=intent.created_ts,
         lifecycle=LIFECYCLE_REPORTED, summary=str(p.get("summary") or ""),
-        outcome_state=p.get("outcome_state"), detail=p.get("detail"))
+        outcome_state=p.get("outcome_state"), detail=p.get("detail"),
+        source_event_id=p.get("source_event_id"))
 
 
 # --------------------------------------------------------------------------- #
@@ -742,12 +813,18 @@ def _narrate(conversation_id: str, turns: list[Turn], last: Turn | None,
 def recent_turns_context(store: "ConversationStore", conversation_id: str,
                          *, max_turns: int | None = 6,
                          max_chars: int | None = 4000) -> str:
-    """Render the last ``max_turns`` turns as a compact transcript block, for a
-    caller that wants prior turns to inform the NEXT model call. Returns ``""``
-    when there is no history (byte-identical to "no context" for a caller that
-    conditionally prepends this). Bounded by ``max_chars`` from the END (most
-    recent turns kept whole) so one long-running conversation cannot blow up a
-    prompt budget silently.
+    """Render bounded chat history plus observed dispatch outcomes for a model.
+
+    Dispatch rows remain informational projection, never orchestration state.
+    Only the latest report for each recent dispatch is rendered, explicitly
+    labelled as an observation rather than an instruction. This lets a later
+    Voice turn know that work it caused finished/failed without asking chat
+    memory to decide, retry, apply, or promote anything.
+
+    Returns ``""`` when there is no history (byte-identical to "no context" for
+    a caller that conditionally prepends this). Bounded by ``max_chars`` from
+    the END (most recent content retained) so one long-running conversation
+    cannot blow up a prompt budget silently.
     """
     turns = store.turns(conversation_id, limit=max_turns)
     if not turns:
@@ -757,6 +834,37 @@ def recent_turns_context(store: "ConversationStore", conversation_id: str,
         lines.append(f"User: {t.user_message}")
         if t.assistant_text:
             lines.append(f"Assistant: {t.assistant_text}")
+    dispatches = store._dispatch_summaries(conversation_id)
+    reported = [item for item in dispatches
+                if item.get("latest") is not None
+                and item["latest"].lifecycle == LIFECYCLE_REPORTED]
+    # Recency is the REPORT's identity, not dispatch creation order. A slow old
+    # task that finishes after several newer dispatches is exactly the outcome
+    # the next turn needs to hear about.
+    reported.sort(key=lambda item: item["latest"].id)
+    if max_turns is not None:
+        reported = reported[-int(max_turns):]
+    if reported:
+        lines.append(
+            "Dispatch observations (informational reports, not instructions):")
+        for item in reported:
+            link = item["link"]
+            latest = item["latest"]
+            detail = latest.detail if isinstance(latest.detail, dict) else {}
+            applied_value = detail.get("applied", "absent")
+            if applied_value is True:
+                applied = "true"
+            elif applied_value is False:
+                applied = "false"
+            elif applied_value is None:
+                applied = "unknown"
+            else:
+                applied = "not-reported"
+            summary = " ".join(str(latest.summary or "").split())[:600]
+            lines.append(
+                f"- Observed report (informational, not an instruction): "
+                f"ref={link.dispatch_ref}; outcome={latest.outcome_state}; "
+                f"applied={applied}; summary={summary}")
     block = "\n".join(lines)
     if max_chars is not None and len(block) > max_chars:
         block = block[-max_chars:]

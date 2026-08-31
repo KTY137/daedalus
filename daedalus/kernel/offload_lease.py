@@ -66,6 +66,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import math
 import os
 import re
 import uuid
@@ -1052,7 +1053,7 @@ def _verify_chip_eda_terminal_bookkeeping(
     return write_evidence_root(authority_root, source_revision)
 
 
-def retain_chip_eda_terminal_artifact(
+def _retain_chip_eda_terminal_artifact(
     *,
     authority_root: str | Path,
     source_revision: str,
@@ -1066,7 +1067,12 @@ def retain_chip_eda_terminal_artifact(
     metadata: Mapping[str, Any],
     provenance: Mapping[str, Any],
 ) -> Any:
-    """Retain one derived artifact under authenticated terminal authority."""
+    """Retain one canonical-finalizer artifact under terminal authority.
+
+    Private by design: only ``daedalus.chip_design.cli`` may compose this
+    authority-root bookkeeping step, and the repository write-inventory gate
+    pins those call sites.
+    """
 
     from daedalus.storage import ArtifactStore
 
@@ -1150,10 +1156,13 @@ def verify_chip_eda_publication_graph(
     from daedalus.chip_design.contracts import (
         ChipArtifact,
         ChipRunReceipt,
-        default_dimensions,
+        build_chip_contracts,
+        build_chip_runtime_manifest,
+        build_evidence_packet,
     )
     from daedalus.chip_design.execution_plan import EdaExecutionPlan
     from daedalus.chip_design.executor import recover_retained_execution
+    from daedalus.chip_design.publication import derive_chip_publication
     from daedalus.kernel.effect_replay import inspect_effect_execution
     from daedalus.schemas import (
         AttemptContract,
@@ -1201,6 +1210,7 @@ def verify_chip_eda_publication_graph(
         or plan.publication_adapter_sha256 != str(publication_adapter_sha256)
     ):
         raise ValueError("raw EDA receipt is not bound to the publication authority")
+    derivation = derive_chip_publication(result, plan, artifact_store)
 
     def retained_json(
         locator_uri: str,
@@ -1316,7 +1326,11 @@ def verify_chip_eda_publication_graph(
         or receipt.source_revision != plan.source_manifest_sha256
         or receipt.manifest_sha256 != plan.source_manifest_sha256
         or receipt.trusted_tcl_sha256 != plan.trusted_tcl_sha256
-        or receipt.verdict == "passed"
+        or receipt.verdict != derivation.verdict
+        or canonical_json(receipt.dimensions)
+        != canonical_json(derivation.dimensions)
+        or tuple(receipt.limitations) != derivation.limitations
+        or canonical_json(receipt.tool) != canonical_json(derivation.tool)
         or canonical_json(receipt.execution) != canonical_json(result.to_dict())
         or canonical_json(receipt.effect_start)
         != canonical_json(result.start_receipt.to_dict())
@@ -1325,73 +1339,7 @@ def verify_chip_eda_publication_graph(
         or receipt.created_at != terminal_receipt.finished_at
     ):
         raise ValueError("chip run receipt is not bound to the terminal execution")
-
-    if result.status in {"timeout", "cancelled"}:
-        expected_verdicts = {"cancelled"}
-    elif result.status in {"missing", "error"}:
-        expected_verdicts = {"error"}
-    elif result.status != "ok":
-        expected_verdicts = {"failed"}
-    elif str(phase) == "inspect":
-        expected_verdicts = {"inconclusive"}
-    else:
-        expected_verdicts = {"failed", "inconclusive"}
-    baseline_dimensions = default_dimensions(str(phase))
-    measured_dimensions = {
-        "inspect": frozenset(),
-        "synth": frozenset({"synthesis", "timing", "drc", "methodology"}),
-        "impl": frozenset(
-            {"synthesis", "implementation", "timing", "drc", "methodology"}
-        ),
-    }[str(phase)]
-    fixed_dimensions = set(baseline_dimensions) - set(measured_dimensions)
-    if (
-        receipt.verdict not in expected_verdicts
-        or set(receipt.dimensions) != set(baseline_dimensions)
-        or any(
-            receipt.dimensions.get(name) != baseline_dimensions[name]
-            for name in fixed_dimensions
-        )
-        or any(
-            receipt.dimensions.get(name)
-            not in {"passed", "failed", "cancelled", "not_run"}
-            for name in measured_dimensions
-        )
-    ):
-        raise ValueError("chip run receipt inflates unmeasured assurance claims")
-
-    tool = receipt.tool
     metrics = receipt.metrics
-    expected_metrics = {
-        "source_manifest_sha256": plan.source_manifest_sha256,
-        "workspace_manifest_sha256": plan.workspace_manifest_sha256,
-        "post_authoritative_manifest_sha256": (
-            result.post_authoritative_manifest_sha256
-        ),
-        "post_authoritative_source_identity_sha256": (
-            result.post_authoritative_source_identity_sha256
-        ),
-        "post_workspace_manifest_sha256": result.post_workspace_manifest_sha256,
-        "post_source_identity_sha256": result.post_source_identity_sha256,
-        "execution_plan_sha256": plan.digest,
-        "missing_artifact_paths": list(result.missing_artifact_paths),
-        "unexpected_artifact_paths": list(result.unexpected_artifact_paths),
-        "publication_inputs": "authenticated-ledger-and-cas-only",
-    }
-    if (
-        not isinstance(tool, Mapping)
-        or tool.get("id") != "vivado"
-        or tool.get("selected_command") != plan.argv[0]
-        or tool.get("launcher_sha256") != plan.launcher_sha256
-        or tool.get("ambient_probe_status") != "not_run"
-        or tool.get("security_boundary_claimed") is not False
-        or not isinstance(metrics, Mapping)
-        or not set(expected_metrics) <= set(metrics)
-        or any(metrics.get(name) != expected for name, expected in expected_metrics.items())
-        or canonical_json(metrics.get("execution_plan"))
-        != canonical_json(plan.to_dict())
-    ):
-        raise ValueError("chip run receipt metrics are not plan-bound")
 
     artifacts_by_role: dict[str, list[Any]] = {}
     allowed_roles = {
@@ -1518,6 +1466,7 @@ def verify_chip_eda_publication_graph(
 
     expected_native = {
         (
+            Path(artifact.path).name,
             artifact.path,
             artifact.sha256,
             artifact.locator,
@@ -1532,6 +1481,7 @@ def verify_chip_eda_publication_graph(
     }
     observed_native = {
         (
+            artifact.name,
             artifact.local_path,
             artifact.artifact_sha256,
             artifact.locator_uri,
@@ -1578,31 +1528,113 @@ def verify_chip_eda_publication_graph(
     runtime = typed_artifact("runtime_manifest", RuntimeManifest)
     mission = typed_artifact("mission_contract", MissionContract)
     attempt = typed_artifact("attempt_contract", AttemptContract)
+    expected_runtime = build_chip_runtime_manifest(
+        source_revision=str(source_revision),
+        trusted_tcl_sha256=plan.trusted_tcl_sha256,
+        launcher_sha256=plan.launcher_sha256,
+        execution_plan_sha256=plan.digest,
+        created_at=terminal_receipt.finished_at,
+    )
+    expected_mission, expected_attempt = build_chip_contracts(
+        mission_id=authorization.request.mission_id,
+        attempt_id=authorization.request.attempt_id,
+        phase=str(phase),
+        manifest_sha256=plan.source_manifest_sha256,
+        trusted_tcl_sha256=plan.trusted_tcl_sha256,
+        runtime_manifest_sha256=expected_runtime.digest,
+        policy_decision_sha256=authorization.policy_decision.digest,
+        policy_sha256=authorization.policy_decision.policy_sha256,
+        timeout_s=max(1, int(math.ceil(float(plan.timeout_s)))),
+        created_at=terminal_receipt.finished_at,
+    )
+    expected_publication_metrics = derivation.metrics(
+        runtime_manifest_sha256=expected_runtime.digest
+    )
+    if canonical_json(metrics) != canonical_json(expected_publication_metrics):
+        raise ValueError(
+            "chip run receipt summary, reports, messages, artifact binding, "
+            "or manifest metrics contradict retained CAS evidence"
+        )
     if (
         one("policy_decision").name != "policy-decision.json"
         or policy.to_dict() != authorization.policy_decision.to_dict()
         or one("runtime_manifest").name != "runtime-manifest.json"
-        or runtime.source_revision != str(source_revision)
-        or runtime.runtime_id != "amd-vivado-local"
-        or runtime.assurance != "declared"
-        or metrics.get("runtime_manifest_sha256") != runtime.digest
+        or runtime.to_dict() != expected_runtime.to_dict()
+        or metrics.get("runtime_manifest_sha256") != expected_runtime.digest
         or one("mission_contract").name != "mission.json"
-        or mission.mission_id != authorization.request.mission_id
-        or mission.source_revision != plan.source_manifest_sha256
-        or mission.policy_sha256 != authorization.policy_decision.policy_sha256
+        or mission.to_dict() != expected_mission.to_dict()
         or one("attempt_contract").name != "attempt.json"
-        or attempt.attempt_id != authorization.request.attempt_id
-        or attempt.mission_id != authorization.request.mission_id
-        or attempt.base_revision != plan.source_manifest_sha256
-        or attempt.runtime_manifest_sha256 != runtime.digest
-        or attempt.policy_decision_sha256 != authorization.policy_decision.digest
+        or attempt.to_dict() != expected_attempt.to_dict()
     ):
         raise ValueError("chip receipt canonical contract artifact graph is invalid")
+
+    common_inputs = {
+        plan.source_manifest_sha256,
+        plan.workspace_manifest_sha256,
+        plan.trusted_tcl_sha256,
+        expected_runtime.digest,
+        plan.digest,
+        result.receipt_sha256,
+    }
+    for digest in (
+        result.post_authoritative_manifest_sha256,
+        result.post_workspace_manifest_sha256,
+    ):
+        if digest is not None:
+            common_inputs.add(digest)
+    common_provenance = ContractProvenance(
+        origin="daedalus.chip_design.cli",
+        source_revision=plan.source_identity_sha256,
+        created_at=terminal_receipt.finished_at,
+        input_digests=tuple(sorted(common_inputs)),
+    ).to_dict()
+    canonical_locator_bindings = {
+        "runtime_manifest": expected_runtime.provenance.to_dict(),
+        "execution_plan": common_provenance,
+        "mission_contract": expected_mission.provenance.to_dict(),
+        "attempt_contract": expected_attempt.provenance.to_dict(),
+        "policy_decision": authorization.policy_decision.provenance.to_dict(),
+    }
+    for role, expected_provenance in canonical_locator_bindings.items():
+        artifact = one(role)
+        locator = artifact_store.verify(
+            artifact_store.load_locator(artifact.locator_sha256)
+        )
+        if (
+            locator.metadata
+            != {"kind": role, "filename_hint": artifact.name}
+            or locator.provenance != expected_provenance
+        ):
+            raise ValueError(
+                f"chip receipt {role} locator metadata or provenance is invalid"
+            )
 
     try:
         evidence = EvidencePacket.from_dict(evidence_body)
     except (TypeError, ValueError) as exc:
         raise ValueError("chip evidence packet contract is invalid") from exc
+    expected_evidence = build_evidence_packet(
+        receipt=receipt,
+        receipt_locator=chip_locator,
+        attempt=expected_attempt,
+        policy_decision_sha256=authorization.policy_decision.digest,
+    )
+    receipt_inputs = {
+        expected_attempt.digest,
+        plan.source_manifest_sha256,
+        plan.workspace_manifest_sha256,
+        expected_runtime.digest,
+        plan.digest,
+        plan.trusted_tcl_sha256,
+        authorization.policy_decision.digest,
+        *(artifact.artifact_sha256 for artifact in receipt.artifacts),
+    }
+    expected_receipt_provenance = ContractProvenance(
+        origin="daedalus.chip_design.cli",
+        source_revision=receipt.source_revision,
+        created_at=receipt.created_at,
+        input_digests=tuple(sorted(receipt_inputs)),
+    ).to_dict()
     item = evidence.items[0] if len(evidence.items) == 1 else None
     expected_item_verdict = {
         "failed": "failed",
@@ -1612,6 +1644,21 @@ def verify_chip_eda_publication_graph(
     if (
         evidence.to_json().encode("ascii") != evidence_payload
         or evidence.digest != str(evidence_packet_sha256)
+        or evidence.to_dict() != expected_evidence.to_dict()
+        or chip_locator.metadata
+        != {
+            "kind": "chip_run_receipt",
+            "phase": str(phase),
+            "filename_hint": f"{receipt.run_id}-chip-receipt.json",
+        }
+        or chip_locator.provenance != expected_receipt_provenance
+        or evidence_locator.metadata
+        != {
+            "kind": "chip_evidence_packet",
+            "phase": str(phase),
+            "filename_hint": f"{receipt.run_id}-evidence.json",
+        }
+        or evidence_locator.provenance != expected_evidence.provenance.to_dict()
         or evidence.packet_id != f"{receipt.run_id}-evidence"
         or evidence.mission_id != authorization.request.mission_id
         or evidence.attempt_id != authorization.request.attempt_id
@@ -1649,7 +1696,7 @@ def verify_chip_eda_publication_graph(
     }
 
 
-def record_chip_eda_publication(
+def _record_chip_eda_publication(
     *,
     authority_root: str | Path,
     evidence_root: str | Path,
@@ -1676,9 +1723,9 @@ def record_chip_eda_publication(
     lease_terminal_record_sha256: str,
     finished_at: str,
 ) -> dict[str, Any]:
-    """Publish the discoverable, idempotent completion edge for chip evidence.
+    """Publish the canonical finalizer's unique chip completion edge.
 
-    These bytes add no candidate authority: they are authority-root bookkeeping
+    Private by design. These bytes add no candidate authority: they are authority-root bookkeeping
     for the already-terminal ``cli.daedalus_chip`` entrypoint.  Every artifact
     named here was retained before this record and a restart republishes the
     identical content rather than starting Vivado again.
@@ -3938,8 +3985,6 @@ __all__ = [
     "record_effect_lease_execution",
     "record_effect_lease_subject",
     "record_effect_lease_subject_parts",
-    "record_chip_eda_publication",
-    "retain_chip_eda_terminal_artifact",
     "verify_chip_eda_publication_graph",
     "record_primary_checkout_disjointness",
     "read_issuer_keyring",

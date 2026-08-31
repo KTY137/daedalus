@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { HealthPayload } from '../api';
 import type { GovernancePayload, StructurePayload, TopologyPayload } from '../types';
 
@@ -68,6 +69,17 @@ export function StatusLine({
   streamLive,
   onOpenHealth
 }: StatusLineProps) {
+  const [compact, setCompact] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 900px)');
+    const update = () => setCompact(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
   const h = healthWord(health, healthError);
   const s = structure?.structure;
   const graph = s?.graph;
@@ -110,7 +122,17 @@ export function StatusLine({
         </span>
       </div>
 
-      <div className="status-row secondary">
+      <button
+        type="button"
+        className="status-details-toggle"
+        aria-expanded={!compact || detailsOpen}
+        aria-controls="cockpit-status-details"
+        onClick={() => setDetailsOpen((open) => !open)}
+      >
+        {!compact || detailsOpen ? 'Statusdetails ausblenden' : 'Statusdetails anzeigen'}
+      </button>
+
+      <div id="cockpit-status-details" className="status-row secondary" hidden={compact && !detailsOpen}>
         <span className="status-group">
           {s ? (
             <>

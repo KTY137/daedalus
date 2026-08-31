@@ -415,7 +415,7 @@ def test_terminal_chip_publication_rejects_incomplete_graph_before_index(
         EdaExecutionError,
         match="retained EDA execution receipt has unexpected fields",
     ):
-        offload_lease.record_chip_eda_publication(
+        offload_lease._record_chip_eda_publication(
             authority_root=authority_root,
             evidence_root=granted.evidence_root,
             source_revision="a" * 40,

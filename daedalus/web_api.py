@@ -19,7 +19,9 @@ from . import (
     agents_registry,
     categories,
     control_plane,
+    conversation_requests,
     core,
+    editor_context,
     hierarchy,
     ikarus_chat,
     runtime_registry,
@@ -29,6 +31,9 @@ from .context_plan import plan_context
 from .env import env_status, load_env
 from .projects import (
     ProjectRegistrationError,
+    ProjectRegistryUnavailable,
+    ProjectRowNotFound,
+    ProjectRowUpdateError,
     list_projects,
     register_project,
     resolve_repo_root,
@@ -111,12 +116,49 @@ def _project_list() -> dict[str, Any]:
             data = load_project(name)
         except ValueError:
             data = {}
-        rows.append({"name": name, "repo_root": data.get("repo_root", ""), "team": data.get("team") or {}})
+        repo_root = str(data.get("repo_root") or "")
+        try:
+            reachable = bool(repo_root) and Path(repo_root).is_dir()
+        except OSError:
+            reachable = False
+        rows.append({
+            "name": name,
+            "repo_root": repo_root,
+            "team": data.get("team") or {},
+            # Registered is not the same fact as present on THIS machine.
+            # Additive so older clients ignore it and newer clients can avoid
+            # silently selecting a checkout that cannot be read.
+            "reachable": reachable,
+        })
     return core.envelope(None, projects=rows)
 
 
 def _provider_status() -> dict[str, Any]:
     return core.envelope(None, providers=core.provider_health(None).get("providers", []))
+
+
+def _host_capabilities(
+        host_mode: str = "browser", desktop: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Measured host affordances, separate from workflow authority.
+
+    The plain web server cannot start or claim a desktop editor.  The managed
+    desktop handler passes its observational service snapshot here; no probe is
+    inferred from whether an iframe happened to render.
+    """
+    ide = ((desktop or {}).get("services") or {}).get("ide") or {}
+    managed = host_mode == "desktop"
+    return {
+        "host_mode": host_mode,
+        "can_manage_openvscode": bool(managed and ide.get("available") is True),
+        "can_open_external_editor": bool(
+            managed and ide.get("reachable") is True and ide.get("ui_url")),
+        # Navigation requires a live, nonce-bound adapter session.  Supporting
+        # the route is not itself evidence that such a session exists.
+        "can_send_editor_commands": False,
+        "editor_commands_require_session": True,
+        "measured_at": core.now_iso(),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -493,9 +535,10 @@ def _loop_architecture(project: str | None) -> dict[str, Any]:
 #         (kairos/drafts.py) for a human/Claude to apply later.
 #       - the codex lane is advisory-only BY CONSTRUCTION and says so on its
 #         own report (``mutation_blocked``, core.py ``_codex_report``).
-#       - the direct claude lane (claude_bridge.ask_claude) writes with NO
-#         verify/rollback wrapper at all, so there is no on-disk signal to
-#         confirm from here -- it is reported as unknown, never assumed true.
+#       - the canonical queue currently refuses a direct claude lane before
+#         invocation because its caller does not yet own the required broker
+#         authority. Historical direct-lane reports carry no verify/rollback
+#         signal and therefore remain unknown rather than assumed true.
 #     ``_derive_applied`` below reads whichever of these signals a report
 #     actually carries and returns ``None`` (not ``True``) when it cannot
 #     tell -- the same discipline health.py applies to its own five-state
@@ -576,8 +619,13 @@ def _task_report_fields(report: dict[str, Any]) -> tuple[str | None, str]:
             continue
         ar = a.get("result") if isinstance(a.get("result"), dict) else {}
         ar_report = ar.get("report") if isinstance(ar.get("report"), dict) else {}
-        if ar_report:
-            return ar_report.get("status"), str(ar_report.get("summary") or "")
+        status = str(a.get("status") or ar_report.get("status") or "").strip()
+        summary = str(ar_report.get("summary") or a.get("reason") or "").strip()
+        if status == "gated_held":
+            held = "candidate passed its gate and is held; not applied to the primary checkout"
+            summary = f"{held}: {summary}" if summary else held
+        if status or summary:
+            return status or None, summary
     return None, str(report.get("error") or "")
 
 
@@ -586,50 +634,8 @@ def _derive_applied(report: dict[str, Any]) -> tuple[bool | None, str]:
     the evidence for saying so. Returns ``None`` (not ``True``) whenever the
     report does not carry enough to tell -- see the section docstring above
     for why the three lanes need three different readings."""
-    if not isinstance(report, dict):
-        return None, "no report to inspect"
-    bridge_status = report.get("bridge_status")
-    if bridge_status in ("failed", "quarantined"):
-        return False, f"bridge_status={bridge_status}: the run did not complete"
-    mutation_blocked = report.get("mutation_blocked")
-    if mutation_blocked:
-        return False, _clip(str(mutation_blocked), LOOP_VALUE_CHARS)
-    result = report.get("result") if isinstance(report.get("result"), dict) else {}
-    assignments = result.get("assignments") if isinstance(result.get("assignments"), list) else []
-    verdicts: list[bool | None] = []
-    reasons: list[str] = []
-    for a in assignments:
-        if not isinstance(a, dict):
-            continue
-        status = a.get("status")
-        ar = a.get("result") if isinstance(a.get("result"), dict) else {}
-        owner = str(a.get("owner") or "?")
-        if status == "escalated_after_verify_fail":
-            verdicts.append(False)
-            reasons.append(f"{owner}: verification failed, changes rolled back")
-        elif status == "offloaded":
-            if ar.get("draft"):
-                verdicts.append(False)
-                reasons.append(f"{owner}: saved as advisory draft {ar['draft']}, not applied")
-            else:
-                verdicts.append(True)
-                reasons.append(f"{owner}: verified before/after disk diff, kept")
-        else:
-            verdicts.append(None)
-            reasons.append(f"{owner}: status={status!r}, no verify signal")
-    if verdicts:
-        reason = _clip("; ".join(reasons), LOOP_VALUE_CHARS)
-        if any(v is False for v in verdicts):
-            return False, reason
-        if all(v is True for v in verdicts):
-            return True, reason
-        return None, reason
-    if bridge_status == "done":
-        return None, ("no verify/rollback signal in this report -- this lane "
-                      "(e.g. the direct Claude path) does not produce one, so "
-                      "whether the change actually landed on disk cannot be "
-                      "confirmed from here")
-    return None, "insufficient information to determine whether anything was applied"
+    applied, reason = file_bridge.report_application_truth(report)
+    return applied, _clip(reason, LOOP_VALUE_CHARS)
 
 
 def _task_snapshot(task_id: str) -> dict[str, Any]:
@@ -669,6 +675,7 @@ def _task_snapshot(task_id: str) -> dict[str, Any]:
             "id": task_id, "found": False, "state": "unknown", "source": "none",
             "observed_at": core.now_iso(), "age_s": None,
             "lane": None, "project": None, "objective": None,
+            "requested_lane": None, "actual_providers": [],
             "bridge_status": None, "report_status": None, "summary": None,
             "error": None, "applied": None,
             "applied_reason": ("no task with this id was found on the file bus "
@@ -686,12 +693,19 @@ def _task_snapshot(task_id: str) -> dict[str, Any]:
         bridge_status = report.get("bridge_status")
         report_status, summary = _task_report_fields(report)
         applied, applied_reason = _derive_applied(report)
+        requested_lane = report.get("requested_lane") or request.get("lane")
+        actual_providers = (
+            list(report.get("actual_providers") or [])
+            if isinstance(report.get("actual_providers"), list) else []
+        )
         return {
             "id": task_id, "found": True,
             "state": bridge_status or ("done" if prog.terminal else "unknown"),
             "source": "inbox_report",
             "observed_at": progress_dict["observed_at"], "age_s": progress_dict["age_s"],
-            "lane": report.get("lane") or request.get("lane"),
+            "lane": report.get("lane") or requested_lane,
+            "requested_lane": requested_lane,
+            "actual_providers": actual_providers,
             "project": request.get("project"),
             "objective": _clip(request.get("objective") or "", 400) or None,
             "bridge_status": bridge_status,
@@ -709,6 +723,7 @@ def _task_snapshot(task_id: str) -> dict[str, Any]:
             "id": task_id, "found": True, "state": "unknown", "source": "archive",
             "observed_at": progress_dict["observed_at"], "age_s": progress_dict["age_s"],
             "lane": None, "project": None, "objective": None,
+            "requested_lane": None, "actual_providers": [],
             "bridge_status": None, "report_status": None,
             "summary": ("the request is archived but its report is missing -- "
                        "state cannot be determined from the file bus"),
@@ -727,6 +742,7 @@ def _task_snapshot(task_id: str) -> dict[str, Any]:
         "source": "outbox",
         "observed_at": progress_dict["observed_at"], "age_s": progress_dict["age_s"],
         "lane": payload.get("lane"), "project": payload.get("project"),
+        "requested_lane": payload.get("lane"), "actual_providers": [],
         "objective": _clip(payload.get("objective") or "", 400) or None,
         "bridge_status": None, "report_status": None, "summary": None,
         "error": None, "applied": None, "applied_reason": "not finished yet",
@@ -802,20 +818,24 @@ def _task_artifacts(task_id: str) -> dict[str, Any]:
 # vocabulary event trail -- queued/claimed/generating/.../done, never a
 # fabricated percentage, never "running" read as "progressing".
 #
-# What is wired below, and what is deliberately left for the modules' own
-# owners: this file starts conversations, appends turns via ikarus_os's
-# opt-in ``conversation_id`` kwarg, links a queued task to the turn that
-# proposed it, and reads all of that back. It does NOT call
-# ``conversation.record_dispatch_event`` anywhere -- the module's own
-# docstring is explicit that the call site for "a report landed" belongs to
-# whoever owns that path (file_bridge.py's ``process_request``, not this
-# file), and calling it speculatively from inside a GET handler here would
-# make this file a second writer racing that eventual real one. So
-# GET /api/conversations/<id> can legitimately show a dispatch stuck at
-# "dispatched" even after the underlying task is long finished --
-# GET /api/queue/<id> (this section's own endpoint, above) is what still
-# tells the truth about that, read straight from the file bus every time,
-# whether or not any conversation ever linked it.
+# What is wired below, and what remains owned by the report path: this file
+# starts conversations, appends turns via ikarus_os's opt-in
+# ``conversation_id`` kwarg, links a queued task to the turn that proposed it,
+# and reads all of that back. It does NOT project outcomes from a GET handler.
+# ``file_bridge.process_request`` owns that write: after the fixed, terminal
+# report is durable, it calls ``conversation.record_dispatch_event`` with the
+# queue request key as both dispatch ref and stable source-event identity. The
+# canonical spine's partial unique index makes crash/restart replay return the
+# same fact rather than append a duplicate; no browser state or second journal
+# becomes authoritative. A projection failure does not retract or relabel the
+# terminal bridge report and never re-runs the provider. On the normal report
+# path it leaves only cleanup unfinalized so the watcher retries idempotently;
+# the narrow post-link reconciliation below returns the same archived request
+# to the canonical outbox for projection-only retry when necessary, and reports
+# pending/error separately without rewriting a successful link as false. Thus
+# this read can briefly show ``dispatched`` while projection is pending, while
+# GET /api/queue/<id> remains the live task truth read directly from the file
+# bus in every case.
 _CONVERSATION_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,160}\Z")  # \Z, not $: see _TASK_ID_RE
 
 
@@ -878,11 +898,12 @@ def _dispatch_status_view(task_id: str) -> dict[str, Any] | None:
     when this id was never linked -- most tasks, including everything queued
     before this shipped, and every task queued without a conversation_id.
 
-    NOT a live status feed -- see the section docstring above on why nothing
-    here calls ``record_dispatch_event``. For the live ground truth, this
-    response's sibling field (``task``, from :func:`_task_snapshot`) always
-    reflects the file bus directly, whether or not a conversation link
-    exists."""
+    NOT a live status feed -- see the section comment above: terminal outcomes
+    are projected exactly once by ``file_bridge.process_request``, never by
+    this read handler. For the live ground truth, this response's sibling field
+    (``task``, from :func:`_task_snapshot`) always reflects the file bus
+    directly, whether or not a conversation link exists and even while a
+    conversation projection retry is pending."""
     from . import conversation as conv
 
     try:
@@ -910,7 +931,10 @@ class DaedalusHandler(BaseHTTPRequestHandler):
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "http://127.0.0.1:5173")
         self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization, X-Daedalus-Editor-Token, Last-Event-ID",
+        )
         super().end_headers()
 
     def do_OPTIONS(self) -> None:
@@ -984,6 +1008,12 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 (self._bind_decision(),),
             )
             self._handle_put()
+        except ProjectRowNotFound as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=404)
+        except ProjectRowUpdateError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=400)
+        except ProjectRegistryUnavailable as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=503)
         except Exception as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=500)
 
@@ -1000,6 +1030,10 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 (self._bind_decision(),),
             )
             self._handle_post()
+        except editor_context.UnknownEditorSession as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=404)
+        except editor_context.EditorContextError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=400)
         except Exception as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=500)
 
@@ -1257,11 +1291,100 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError, OSError):
                 return
 
+    def _handle_conversation_request_events(
+            self, conversation_id: str, request_id: int, qs: dict) -> None:
+        """Observe one existing generation request without ever starting it.
+
+        Reopening this endpoint is safe: creation lives exclusively on the POST
+        route and the canonical request id is already fixed. ``Last-Event-ID``
+        resumes the process-local frame sequence when it is available; after a
+        restart the durable terminal/unknown projection is returned instead of
+        replaying provider work.
+        """
+        manager = conversation_requests.default_manager()
+        try:
+            status = manager.status(request_id)
+        except conversation_requests.UnknownConversationRequest as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=404)
+            return
+        if status["conversation_id"] != conversation_id:
+            self._send_json({"ok": False, "error": "turn request belongs to another conversation"}, status=404)
+            return
+        raw_after = (qs.get("after") or [self.headers.get("Last-Event-ID", "0")])[0]
+        try:
+            after = max(0, int(raw_after or 0))
+        except (TypeError, ValueError):
+            self._send_json({"ok": False, "error": "after must be an integer"}, status=400)
+            return
+
+        self.close_connection = True
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+        except OSError:
+            return
+
+        def emit(name: str, data: Any, sequence: int | None = None) -> None:
+            prefix = f"id: {sequence}\n" if sequence is not None else ""
+            frame = prefix + f"event: {name}\ndata: {json.dumps(data, default=str)}\n\n"
+            self.wfile.write(frame.encode("utf-8"))
+            self.wfile.flush()
+
+        try:
+            while True:
+                projection = manager.events(request_id, after=after, wait_s=15.0)
+                rows = projection["events"]
+                for row in rows:
+                    sequence = int(row["sequence"])
+                    after = max(after, sequence)
+                    emit(str(row["event"]), row["data"], sequence)
+                if projection["terminal"]:
+                    if not rows:
+                        emit("state", projection["status"])
+                    return
+                if not rows:
+                    emit("heartbeat", {"request_id": request_id, "state": projection["status"]["state"]})
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
     def _handle_get(self) -> None:
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         path = parsed.path
-        if path == "/api/desktop-ready":
+        if path == "/api/host/capabilities":
+            self._send_json(core.envelope(
+                None, host_capabilities=_host_capabilities()))
+        elif path.startswith("/api/editor/contexts/"):
+            context_ref = unquote(path[len("/api/editor/contexts/"):])
+            try:
+                context = editor_context.get_context(context_ref)
+            except editor_context.UnknownEditorContext as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=404)
+                return
+            self._send_json(core.envelope(context.get("project"), context=context))
+        elif path.startswith("/api/editor/sessions/") and path.endswith("/events"):
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            if len(parts) != 5:
+                self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                return
+            try:
+                after = int((qs.get("after") or ["0"])[0])
+                wait_s = float((qs.get("wait_s") or ["0"])[0])
+                rows = editor_context.SESSIONS.events(
+                    parts[3], self.headers.get("X-Daedalus-Editor-Token", ""),
+                    after=after, wait_s=wait_s)
+            except editor_context.UnknownEditorSession as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=404)
+                return
+            except (ValueError, editor_context.EditorContextError) as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            self._send_json(core.envelope(None, events=rows))
+        elif path == "/api/desktop-ready":
             nonce = getattr(self.server, "daedalus_desktop_startup_nonce", "") or ""
             if not nonce:
                 self._send_json({"ok": False, "error": "not found"}, status=404)
@@ -1380,7 +1503,39 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 return
             refresh = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
             idx = _structure_index(project, refresh)
-            self._send_json(core.envelope(project, structure=structure_summary(idx)))
+            graph_nodes_raw = (qs.get("graph_nodes") or [""])[0].strip().lower()
+            graph_nodes: int | None = 2000
+            graph_edges: int | None = 8000
+            if graph_nodes_raw:
+                if graph_nodes_raw == "all":
+                    graph_nodes = None
+                else:
+                    try:
+                        graph_nodes = int(graph_nodes_raw)
+                    except ValueError:
+                        self._send_json(
+                            {"ok": False, "error": "graph_nodes must be a positive integer or 'all'"},
+                            status=400,
+                        )
+                        return
+                    if graph_nodes < 1:
+                        self._send_json(
+                            {"ok": False, "error": "graph_nodes must be a positive integer or 'all'"},
+                            status=400,
+                        )
+                        return
+                # When the owner explicitly chooses a node projection, include
+                # every edge whose endpoints are in it. Otherwise an `all`
+                # node view could still be an 8000-edge partial graph.
+                graph_edges = None
+            self._send_json(core.envelope(
+                project,
+                structure=structure_summary(
+                    idx,
+                    max_graph_nodes=graph_nodes,
+                    max_graph_edges=graph_edges,
+                ),
+            ))
         elif path == "/api/topology":
             project = (qs.get("project") or [None])[0]
             if not project:
@@ -1637,6 +1792,31 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 self._handle_task_events(task_id)
                 return
             self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+        elif path.startswith("/api/conversations/") and "/turns/" in path:
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            if len(parts) not in {5, 6} or parts[:2] != ["api", "conversations"] or parts[3] != "turns":
+                self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                return
+            conversation_id = parts[2]
+            if not _CONVERSATION_ID_RE.match(conversation_id):
+                self._send_json({"ok": False, "error": "invalid conversation id"}, status=400)
+                return
+            try:
+                request_id = int(parts[4])
+                status = conversation_requests.default_manager().status(request_id)
+            except (ValueError, conversation_requests.UnknownConversationRequest) as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=404)
+                return
+            if status["conversation_id"] != conversation_id:
+                self._send_json({"ok": False, "error": "turn request belongs to another conversation"}, status=404)
+                return
+            if len(parts) == 6:
+                if parts[5] != "events":
+                    self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                    return
+                self._handle_conversation_request_events(conversation_id, request_id, qs)
+                return
+            self._send_json(core.envelope(status["project"], turn_request=status))
         elif path.startswith("/api/conversations/"):
             # GET /api/conversations/<id>[?limit=] -> resumable summary +
             # bounded turn list (see _conversation_view).
@@ -1728,6 +1908,128 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 )
                 return
             raise
+        if path == "/api/editor/contexts":
+            if not isinstance(body, dict):
+                self._send_json({"ok": False, "error": "JSON body must be an object"}, status=400)
+                return
+            try:
+                context = editor_context.create_context(
+                    project=body.get("project"),
+                    source=body.get("source"),
+                    path=body.get("path"),
+                    selection=body.get("selection", ""),
+                    range=body.get("range"),
+                    diagnostics=body.get("diagnostics"),
+                    base_revision=body.get("base_revision"),
+                )
+            except editor_context.EditorContextError as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            self._send_json(
+                core.envelope(context["project"], context=context), status=201)
+            return
+        if path == "/api/editor/sessions":
+            from .sensitivity import is_loopback_host
+
+            client_host = str((self.client_address or ("",))[0])
+            if not is_loopback_host(client_host):
+                self._send_json(
+                    {"ok": False, "error": "editor sessions are loopback-only"},
+                    status=403)
+                return
+            if not isinstance(body, dict):
+                self._send_json({"ok": False, "error": "JSON body must be an object"}, status=400)
+                return
+            try:
+                session = editor_context.SESSIONS.create(
+                    project=body.get("project"),
+                    adapter=body.get("adapter"),
+                    capabilities=body.get("capabilities"),
+                    base_revision=body.get("base_revision"),
+                )
+            except editor_context.EditorContextError as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            self._send_json(core.envelope(session["project"], session=session), status=201)
+            return
+        if path.startswith("/api/editor/sessions/") and path.endswith("/commands"):
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            if len(parts) != 5:
+                self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                return
+            try:
+                event = editor_context.SESSIONS.command(
+                    parts[3], self.headers.get("X-Daedalus-Editor-Token", ""),
+                    body.get("command") if isinstance(body, dict) else None,
+                    body.get("payload") if isinstance(body, dict) else None,
+                )
+            except editor_context.UnknownEditorSession as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=404)
+                return
+            except editor_context.EditorContextError as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            self._send_json(core.envelope(None, event=event), status=202)
+            return
+        if path.startswith("/api/conversations/") and path.endswith("/turns"):
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            if len(parts) != 4 or parts[:2] != ["api", "conversations"]:
+                self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                return
+            conversation_id = parts[2]
+            try:
+                status, created = conversation_requests.default_manager().create(
+                    conversation_id=conversation_id,
+                    client_request_id=body.get("client_request_id") if isinstance(body, dict) else None,
+                    project=body.get("project") if isinstance(body, dict) else None,
+                    message=body.get("message") if isinstance(body, dict) else None,
+                    provider=body.get("provider") if isinstance(body, dict) else None,
+                    model=body.get("model") if isinstance(body, dict) else None,
+                    effort=body.get("effort") if isinstance(body, dict) else None,
+                    context_refs=body.get("context_refs") if isinstance(body, dict) else None,
+                )
+            except conversation_requests.ConflictingConversationRequest as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=409)
+                return
+            except (ValueError, conversation_requests.ConversationRequestError) as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            self._send_json(
+                core.envelope(
+                    status["project"], turn_request=status,
+                    created=created,
+                    status_url=f"/api/conversations/{conversation_id}/turns/{status['request_id']}",
+                    events_url=f"/api/conversations/{conversation_id}/turns/{status['request_id']}/events",
+                ),
+                status=202 if created else 200,
+            )
+            return
+        if (path.startswith("/api/conversations/")
+                and path.endswith("/cancel-requests") and "/turns/" in path):
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            if len(parts) != 6 or parts[:2] != ["api", "conversations"] or parts[3] != "turns":
+                self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                return
+            conversation_id = parts[2]
+            try:
+                request_id = int(parts[4])
+                manager = conversation_requests.default_manager()
+                current = manager.status(request_id)
+                if current["conversation_id"] != conversation_id:
+                    raise conversation_requests.UnknownConversationRequest(str(request_id))
+                cancellation = manager.cancel(
+                    request_id,
+                    client_cancel_id=(body.get("client_cancel_id")
+                                      if isinstance(body, dict) else None),
+                )
+            except (ValueError, conversation_requests.UnknownConversationRequest) as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=404)
+                return
+            except conversation_requests.ConversationRequestError as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            self._send_json(core.envelope(None, cancellation=cancellation), status=202)
+            return
         if path == "/api/projects":
             if not isinstance(body, dict):
                 self._send_json({"ok": False, "error": "JSON body must be an object"}, status=400)
@@ -1738,6 +2040,9 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 )
             except ProjectRegistrationError as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            except ProjectRegistryUnavailable as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=503)
                 return
             self._send_json(core.envelope(
                 registered["name"],
@@ -1753,6 +2058,26 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             objective = str(body.get("objective") or "").strip()
             if not project or not objective:
                 self._send_json({"ok": False, "error": "project and objective are required"}, status=400)
+                return
+            # Durable chat attribution is an exact pair. Never infer "the
+            # latest turn": an older offer can be clicked after a newer reply,
+            # and concurrent completions make recency inherently ambiguous.
+            conversation_id = str(body.get("conversation_id") or "").strip() or None
+            raw_turn_id = body.get("turn_id")
+            linked_turn_id: int | None = None
+            if conversation_id is not None:
+                if type(raw_turn_id) is not int or raw_turn_id <= 0:
+                    self._send_json({
+                        "ok": False,
+                        "error": "conversation_id requires an explicit positive turn_id",
+                    }, status=400)
+                    return
+                linked_turn_id = raw_turn_id
+            elif raw_turn_id is not None:
+                self._send_json({
+                    "ok": False,
+                    "error": "turn_id requires conversation_id",
+                }, status=400)
                 return
             result = core.queue_task(
                 project,
@@ -1770,27 +2095,55 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             # callers see no difference.
             task_id = Path(str(result.get("queued") or "")).stem or None
             result["id"] = task_id
-            # Optional: attribute this dispatch to the conversation turn that
-            # proposed it (daedalus.conversation.ConversationStore
-            # .link_dispatch). Additive and best-effort, same fail-open
-            # posture as ikarus_os._persist_turn: a caller that never sends
-            # conversation_id sees nothing here, and a link failure (unknown
-            # conversation, unknown turn_id) is REPORTED on the response, not
-            # allowed to fail an enqueue that has already, actually happened.
-            conversation_id = body.get("conversation_id")
+            # Optional: attribute this dispatch to the exact conversation turn
+            # that proposed it. The pair was validated before enqueue; a link
+            # failure after the queue write is reported rather than pretending
+            # the already-published task did not happen.
             if task_id and conversation_id:
-                turn_id = body.get("turn_id")
                 try:
                     from . import conversation as conv
 
                     link = conv.default_store().link_dispatch(
                         str(conversation_id), task_id,
-                        turn_id=(int(turn_id) if turn_id is not None else None),
+                        turn_id=linked_turn_id,
                         kind="queue_task")
-                    result["conversation_link"] = {
+                    link_view = {
                         "conversation_id": link.conversation_id,
                         "turn_id": link.turn_id, "dispatch_ref": link.dispatch_ref,
                         "linked": True}
+                    result["conversation_link"] = link_view
+                    # Close the narrow enqueue->link race through the REPORT
+                    # OWNER. A very fast watcher may have atomically published
+                    # and archived the terminal report before this link became
+                    # visible. Reconciliation reads only that fixed report and
+                    # uses the same source_event_id as process_request, so a
+                    # concurrent normal projection still yields one spine fact.
+                    try:
+                        projected = file_bridge.reconcile_conversation_report(task_id)
+                        if projected is None:
+                            link_view["projection"] = {"state": "awaiting_report"}
+                        else:
+                            link_view["projection"] = {
+                                "state": "reported", "event_id": projected.id,
+                                "outcome_state": projected.outcome_state,
+                            }
+                    except file_bridge.ConversationProjectionPending as exc:
+                        # Linking succeeded. Do not rewrite that fact as false
+                        # merely because its informational outcome projection
+                        # needs the report-owner's idempotent retry.
+                        link_view["projection_pending"] = True
+                        link_view["projection_retry_queued"] = bool(exc.retry_queued)
+                        link_view["projection"] = {
+                            "state": "pending",
+                            "error": f"{type(exc.cause).__name__}: {exc.cause}",
+                        }
+                    except Exception as exc:
+                        # A malformed/mismatched terminal artifact is also
+                        # separate from whether the dispatch link was recorded.
+                        link_view["projection"] = {
+                            "state": "error",
+                            "error": f"{type(exc).__name__}: {exc}",
+                        }
                 except Exception as exc:
                     result["conversation_link"] = {
                         "conversation_id": str(conversation_id), "linked": False,
@@ -1833,12 +2186,23 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 conversation_id=str(conversation_id) if conversation_id else None,
             ))
             return
-        if path.startswith("/api/drafts/") and (path.endswith("/apply") or path.endswith("/dismiss")):
+        if path.startswith("/api/drafts/") and (
+                path.endswith("/handoff") or path.endswith("/apply")
+                or path.endswith("/dismiss")):
             parts = [unquote(p) for p in path.strip("/").split("/")]
             draft_id, verb = parts[2], parts[3]
-            if verb == "apply":
-                packet = drafts.apply_payload(draft_id)
-                self._send_json(core.envelope(None, applied=packet) if packet else
+            if verb in {"handoff", "apply"}:
+                packet = drafts.handoff_payload(draft_id)
+                payload = core.envelope(
+                    None,
+                    handoff=packet,
+                    draft_status="handed_off",
+                    repository_changed=False,
+                ) if packet else None
+                if payload is not None and verb == "apply":
+                    payload["deprecated_endpoint"] = "/api/drafts/<id>/apply"
+                    payload["replacement_endpoint"] = "/api/drafts/<id>/handoff"
+                self._send_json(payload if payload is not None else
                                 {"ok": False, "error": f"unknown draft {draft_id}"},
                                 status=200 if packet else 404)
             else:

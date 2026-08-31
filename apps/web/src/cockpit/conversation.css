@@ -631,6 +631,7 @@
   grid-template-areas:
     'line line line'
     'brain stage ask'
+    'attachment attachment attachment'
     'plan plan plan';
   align-items: center;
   gap: var(--u1) var(--u2);
@@ -752,6 +753,28 @@
 }
 .composer-stage button:hover,
 .composer-stage button:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+
+/* An editor selection is an explicit artifact attachment, not invisible prompt
+   decoration. Its inclusion receipt stays next to Send and wraps before it can
+   push the composer beyond a narrow viewport. */
+.editor-attachment {
+  grid-area: attachment;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--u1) var(--u2);
+  min-width: 0;
+  padding: var(--u1) var(--u2);
+  border-left: 2px solid var(--line);
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+}
+.editor-attachment.attached { border-color: var(--ok); }
+.editor-attachment.withheld,
+.editor-attachment.unavailable { border-color: var(--live); color: var(--ink3); }
+.editor-attachment-label { color: var(--ink3); font-weight: var(--label-weight); letter-spacing: var(--label-tracking); text-transform: uppercase; }
+.editor-attachment code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.editor-attachment-status { overflow-wrap: anywhere; }
 
 /* --------------------------------------------------------- context plan */
 
@@ -923,6 +946,15 @@
 .md-codeblock pre code { color: var(--ink); font-size: var(--fs-sm); line-height: 1.55; }
 .turn-actions { min-height: 1.5rem; display: flex; align-items: center; gap: var(--u2); opacity: 0.72; }
 .turn-actions button { padding: 0; font-size: var(--fs-xs); }
+.turn-request { display: flex; flex-wrap: wrap; align-items: center; gap: var(--u1); margin-top: var(--u2); color: var(--ink3); font-size: var(--fs-xs); }
+.turn-request code { color: var(--ink2); }
+.turn-request button { min-height: 44px; padding: 0 var(--u2); border: var(--border) solid var(--line); border-radius: var(--radius-sm); background: transparent; color: var(--ink2); font: inherit; font-size: var(--fs-xs); cursor: pointer; }
+.turn-request button:hover:not(:disabled),
+.turn-request button:focus-visible:not(:disabled) { color: var(--bad); border-color: var(--bad); outline: none; }
+.turn-request button:disabled { cursor: default; opacity: 0.65; }
+.turn-cancellation.confirmed { color: var(--ok); }
+.turn-cancellation.not_supported,
+.turn-cancellation.unknown { color: var(--live); }
 .convo-suggestions { display: flex; flex-wrap: wrap; gap: var(--u2); max-width: 62ch; }
 .convo-suggestions button { text-align: left; padding: var(--u2) var(--u3); border: 1px solid var(--line); border-radius: 999px; color: var(--ink2); background: color-mix(in srgb, var(--surface) 72%, transparent); }
 .thinking { display: inline-flex; align-items: center; gap: 0.28em; color: var(--ink3) !important; }

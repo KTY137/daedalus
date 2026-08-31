@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSION_DIR = ROOT / "vscode-agent-env"
 PACKAGE_JSON_PATH = EXTENSION_DIR / "package.json"
 MAIN_JS_PATH = EXTENSION_DIR / "extension.js"
+OPENVSCODE_DOCKERFILE = ROOT / "packaging" / "openvscode" / "Dockerfile"
 
 # --- source regexes -------------------------------------------------------
 # Each pattern targets one specific VS Code (or local-helper) API call, not
@@ -262,6 +263,92 @@ class MainEntryPointTests(unittest.TestCase):
     def test_files_array_entries_exist(self):
         for rel in MANIFEST.get("files", []):
             self.assertTrue((EXTENSION_DIR / rel).exists(), f"'files' entry {rel!r} listed in package.json does not exist on disk")
+
+
+class EditorContextAdapterTests(unittest.TestCase):
+    """The VS Code adapter may capture explicit editor context, but must not
+    turn it into a provider, queue, policy, or filesystem authority."""
+
+    def test_ask_ikarus_uses_the_fixed_loopback_context_contract(self):
+        self.assertIn('apiPost("/api/editor/contexts", {', SOURCE)
+        self.assertIn("source: editorAdapterKind()", SOURCE)
+        self.assertIn("path: relativePath", SOURCE)
+        self.assertIn("start_line: range.start.line + 1", SOURCE)
+        self.assertIn("start_column: range.start.character + 1", SOURCE)
+        self.assertIn("end_line: range.end.line + 1", SOURCE)
+        self.assertIn("end_column: range.end.character + 1", SOURCE)
+        self.assertIn("response.body && response.body.context", SOURCE)
+        self.assertIn("createdContext.context_ref", SOURCE)
+        self.assertNotIn("relative_path:", SOURCE)
+        self.assertNotIn("selection_truncated:", SOURCE)
+        self.assertIn("const WEB_HOST = \"127.0.0.1\"", SOURCE)
+
+    def test_oversize_editor_selection_is_visibly_refused_not_truncated(self):
+        self.assertIn("if (selection.length > MAX_EDITOR_SELECTION_CHARS)", SOURCE)
+        self.assertIn("above the ${MAX_EDITOR_SELECTION_CHARS}-character limit", SOURCE)
+        self.assertNotIn("rawSelection.slice(0, MAX_EDITOR_SELECTION_CHARS)", SOURCE)
+
+    def test_editor_context_never_uses_the_clipboard_or_project_json_writer(self):
+        self.assertNotIn("vscode.env.clipboard.writeText", SOURCE)
+        self.assertNotIn("fs.writeFileSync(project.path", SOURCE)
+
+    def test_vsix_build_and_pinned_image_wire_the_same_local_adapter(self):
+        scripts = MANIFEST.get("scripts", {})
+        self.assertIn("build:vsix", scripts)
+        self.assertIn("daedalus-vscode.vsix", scripts["build:vsix"])
+        dockerfile = OPENVSCODE_DOCKERFILE.read_text(encoding="utf-8")
+        self.assertIn("vscode-agent-env/dist/daedalus-vscode.vsix", dockerfile)
+        self.assertIn("--install-extension /tmp/daedalus-vscode.vsix", dockerfile)
+
+
+class EditorSessionAdapterTests(unittest.TestCase):
+    """The transient editor session is restricted to exact UI navigation."""
+
+    def test_session_contract_is_fixed_loopback_and_capability_allowlisted(self):
+        self.assertIn('apiPost("/api/editor/sessions", body, 3000)', SOURCE)
+        self.assertIn("body.base_revision = revision", SOURCE)
+        self.assertIn('capabilities: ["reveal_location", "open_diff"]', SOURCE)
+        self.assertIn('path: `/api/editor/sessions/${encodeURIComponent(session.id)}/events?${query.toString()}`', SOURCE)
+        self.assertIn('wait_s: "25"', SOURCE)
+        self.assertIn('"X-Daedalus-Editor-Token": session.token', SOURCE)
+        self.assertIn("response.body && response.body.session", SOURCE)
+        self.assertIn("created.session_token", SOURCE)
+        self.assertIn('const editorSessions = new Map()', SOURCE)
+
+    def test_session_event_handler_can_only_reveal_or_open_a_diff(self):
+        start = SOURCE.index("async function applyEditorNavigation")
+        end = SOURCE.index("function scheduleEditorSessionReconnect")
+        handler = SOURCE[start:end]
+        self.assertIn('event.command === "reveal_location"', handler)
+        self.assertIn('event.command === "open_diff"', handler)
+        self.assertIn("payload.path", handler)
+        self.assertIn("payload.range", handler)
+        self.assertIn('vscode.window.showTextDocument', handler)
+        self.assertIn('"vscode.diff"', handler)
+        self.assertNotIn("terminal(", handler)
+        self.assertNotIn("enqueue(", handler)
+        self.assertNotIn("writeFile", handler)
+
+    def test_session_events_fail_closed_on_project_revision_and_path(self):
+        self.assertIn("created.project !== project.name", SOURCE)
+        self.assertIn("baseRevision !== revision", SOURCE)
+        self.assertIn("function editorSessionRevisionMatches", SOURCE)
+        self.assertIn("revision === session.baseRevision", SOURCE)
+        self.assertIn('typeof event.created_at !== "string"', SOURCE)
+        self.assertIn("function exactProjectFile", SOURCE)
+        self.assertIn("fs.realpathSync", SOURCE)
+        self.assertIn("relativePathWithin(root, candidate) === relativePath", SOURCE)
+
+    def test_reconnect_reuses_only_memory_token_for_observation(self):
+        start = SOURCE.index("function scheduleEditorSessionReconnect")
+        end = SOURCE.index("async function ensureEditorSession")
+        observer = SOURCE[start:end]
+        self.assertIn("observeEditorSession(session)", observer)
+        self.assertIn("session.after = event.sequence", observer)
+        self.assertNotIn("apiPost(", observer)
+        self.assertNotIn("globalState", SOURCE)
+        self.assertNotIn("workspaceState", SOURCE)
+        self.assertNotIn("secrets.store", SOURCE)
 
 
 class EngineVersionTests(unittest.TestCase):

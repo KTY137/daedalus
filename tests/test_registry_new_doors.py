@@ -129,8 +129,21 @@ LATE_ROWS: dict[str, str] = {
     "tools.docs_reference_check": "tools.docs_reference_check:main",
 }
 
+#: Post-renovation doors whose effects are visible to the repository-local
+#: closure above, but whose thin wrapper is not rediscovered by the deliberately
+#: conservative Gate-0 entrypoint scanner. Keep this distinction explicit: the
+#: exact effect derivation still runs over the row, while conformance records
+#: the expected ``entrypoint.not_rediscovered`` REVIEW finding.
+STATIC_ONLY_ROWS: dict[str, str] = {
+    "cli.ignition": "daedalus.ignition.__main__:main",
+}
+
 #: Every row this file derives, both groups.
-NEW_ROWS: dict[str, str] = {**PHASE4_ROWS, **LATE_ROWS}
+NEW_ROWS: dict[str, str] = {
+    **PHASE4_ROWS,
+    **LATE_ROWS,
+    **STATIC_ONLY_ROWS,
+}
 
 #: The four candidates that were examined and deliberately got NO row, with the
 #: claim each refusal rests on.  Tested, so a refusal cannot quietly rot into a
@@ -819,6 +832,11 @@ def test_the_new_rows_add_no_conformance_blocker():
             f"{target} stopped being rediscovered by the scanner; its row can "
             f"no longer be checked against a discovery and this probe's "
             f"accounting is stale"
+        )
+    for target in STATIC_ONLY_ROWS.values():
+        assert target in not_rediscovered, (
+            f"{target} is now rediscovered by the scanner -- good news, but "
+            f"this probe's accounting is stale"
         )
 
 

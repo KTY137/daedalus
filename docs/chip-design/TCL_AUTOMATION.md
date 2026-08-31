@@ -86,6 +86,12 @@ The template:
 - disables and verifies Vivado IP-cache use, resets/force-regenerates active
   XCI/BD output products, resets all synthesis runs and disables incremental
   checkpoint reuse for synthesis and implementation;
+- after target generation, uses `get_files -quiet` in that same Vivado process
+  to re-enumerate vendor-generated HDL and other active files and rechecks the
+  expanded graph before synthesis. These derived same-process inputs do not
+  make the vendor generator, device data or built-in catalog independently
+  verified, and the query is not a complete inventory of generator-internal
+  support files; those components and unenumerated inputs remain vendor TCB;
 - reruns fresh synthesis inside `impl` and retains `synth_design.dcp` before
   implementation;
 - writes native reports/checkpoints/bitstream with stable declared names;
@@ -210,6 +216,12 @@ environment, both manifests and the trusted Tcl/launcher digests into the
 execution operation. The specialized issuer signs that operation digest into
 the lease request. It never arms the kill switch itself.
 
+The plan's publication-adapter fingerprint covers the on-disk `daedalus`
+package Python inventory and declared Python/platform fields. It can detect
+covered disk drift before retained publication, but it does not identify
+already-loaded Python code, attest a clean checkout, or bind those files to the
+authority Git commit.
+
 The authority root is also disjoint from both design roots.
 `--source-revision` must equal its current Git HEAD as lowercase 40-hex; it is
 not either 64-hex design-manifest/Source-Identity digest.
@@ -228,8 +240,11 @@ Windows both that launcher and the resolved system `cmd.exe` used for the
 vendor batch file are byte-bound. The binaries, device data and IP/board
 catalogs loaded transitively from the Vivado installation are not completely
 content-addressed and remain explicit vendor-installation trust. Environment
-sanitization is not an operating-system network sandbox, and this packet makes
-no such security claim.
+sanitization is not an operating-system network or secret sandbox. The lease
+requests no kernel network or secret capability, but that fact does not prove
+offline, no-egress or no-secret execution. Vivado, trusted XDC and vendor
+components retain ambient host access permitted by the OS, and this packet
+makes no contrary security claim.
 
 The packaged Tcl and Python manifest checks also do not lock the workspace
 against an unrelated host writer. Revalidation catches changes at covered
@@ -240,14 +255,41 @@ checks do not prove bytes could not change and be restored while Vivado
 consumes them. The operator must provide an exclusive workspace; known
 concurrent tamper invalidates the evidence.
 
-For the supplied `tdc_light_version` XPR, read-only `inspect` emits the manifest
-and returns nonzero for `complete=false`; it finds a mutable per-user
-`BoardPartRepoPaths`. Because board flow affects project semantics, `plan`
-safely refuses until that catalog is pinned and bound. The manifest also
-retains a vendor-catalog MicroBlaze boot-loop resource as explicit transitive
-installation trust. With the operator switch at `STOP` and the chip policy
-absent on 2026-08-30, no canonical live command was admitted; the older
-cache-assisted Vivado run stays separate non-clean-room history.
+For the supplied `tdc_light_version` material, keep two XPR identities
+separate. The immutable ZIP SHA-256 is
+`2170893265CAE54678E217BA9777ADA278D826C02923A5D237082F7E251DD517`;
+its original XPR is 69,273 bytes with SHA-256
+`17E03D70D41990130258CF5DA111A9C0259508E8068170CABEAAC510187C5977`.
+It records Vivado 2025.1, `impl_1 LaunchOptions=-jobs 14` and automatic
+incremental synthesis reuse of `system_wrapper.dcp`.
+The later Vivado-rewritten working XPR is 68,712 bytes with SHA-256
+`DEF8FC6B833B5C0A962BD497FF3116A01E598FCB90140E37DA9B2CB8D2A367A4`.
+It records Vivado 2025.1.1, `impl_1 LaunchOptions=-jobs 4` and disabled
+automatic incremental reuse, while the DCP remains an active project file.
+Read-only `inspect` of the latter emits the manifest and returns nonzero for
+`complete=false`. Exactly three active refusal classes remain: mutable
+per-user `BoardPartRepoPaths`, non-empty `impl_1`
+`LaunchOptions=-jobs 4`, and active
+`tdc_light_version.srcs/utils_1/imports/synth_1/system_wrapper.dcp`.
+Historical `ImportPath` attributes remain reported provenance, not followed
+inputs or a fourth refusal when their current project-local file resolves. The
+manifest also retains a vendor-catalog MicroBlaze boot-loop resource as
+explicit transitive installation trust. Those three refusals apply only to the
+original/later-working project. The separately derived source at
+`C:\daedalus_eda\tdc_daedalus_source_21708932` and disjoint workspace at
+`C:\daedalus_eda\tdc_daedalus_workspace_21708932` both inspect complete with
+manifest SHA-256
+`46df6acdded3791436a2c094b407ee111402d55f1c5dbc9cac640e26acd31a1d`
+and Source Identity `/3`
+`842a21fc7be9aac430e9c22c9a594e28af992bf47107c8878aec8e7c670c2601`.
+Their sanitized XPR SHA-256 is
+`69ED07B6AA5E1DA051DA314F6289BC1A6FFFD3BEC39B010060DE09F085C02155`,
+and static full planning accepts synthesis plus implementation.
+
+With the operator switch at `STOP`
+and the chip policy absent on 2026-08-30, no canonical live command was
+admitted; the older cache-assisted Vivado run stays separate non-clean-room
+history.
 
 ## Recommended Tcl structure for non-canonical future adapters
 

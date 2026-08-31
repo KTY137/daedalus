@@ -67,7 +67,7 @@ class NonRuntimeEffectAuthorization:
     guard_decisions: tuple[GuardDecision, ...]
     kill_switch_generation_reader: Callable[[], int] = field(repr=False)
     registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = field(
-        default=REGISTRY_BY_ID,
+        default_factory=lambda: REGISTRY_BY_ID,
         repr=False,
     )
     # Frozen at lease issuance. Consumers use this typed snapshot instead of

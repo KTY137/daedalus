@@ -262,6 +262,76 @@ def test_offload_receives_the_wave_lease(switch):
     assert result.results[0]["status"] == "offloaded"
 
 
+def test_single_bridge_task_reaches_offload_through_the_wave_lease(
+        switch, tmp_path, monkeypatch):
+    """The shipping queue consumer uses the same lease-bearing wave seam.
+
+    Provider work is mocked below ``offload`` so the public entrypoint still
+    has to consume the real persisted lease.  No model, process, or network
+    call can occur in this test.
+    """
+    from types import SimpleNamespace
+
+    from daedalus import budget, core, progress
+
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    monkeypatch.setenv(
+        "DAEDALUS_BUDGET_LEDGER", str(tmp_path / "budget-ledger.json")
+    )
+    budget.reset_default_ledger()
+    monkeypatch.setattr(
+        progress, "_DEFAULT_LOG", progress.ProgressLog(tmp_path / "progress.jsonl")
+    )
+
+    decision = SimpleNamespace(
+        provider="ollama", persona="Lucia", mode="advisory",
+        reason="mocked trusted local route",
+    )
+    payload = {
+        "objective": "Review the documentation wording",
+        "repo_root": REPO_ROOT,
+        "paths": ["docs/x.md"],
+        "model": "sonnet",
+        "lane": "local_only",
+        "strategy": "single",
+    }
+    try:
+        with mock.patch(
+            "daedalus.core._availability_from_doctor",
+            return_value={
+                "claude_cli": True, "ollama": True,
+                "deepseek": True, "codex_cli": True,
+            },
+        ), mock.patch(
+            "daedalus.kairos.scheduler.route_and_select",
+            return_value=({"name": "docs-dev"}, decision),
+        ), mock.patch(
+            "daedalus.offload._offload_impl",
+            return_value={
+                "action": "offloaded", "provider": "ollama", "wrote": []
+            },
+        ) as impl:
+            report = core.process_bridge_payload(payload)
+    finally:
+        budget.reset_default_ledger()
+
+    assert impl.call_count == 1
+    row = report["result"]["assignments"][0]
+    assert report["bridge_status"] == "done"
+    assert report["lane"] == "local_only"
+    assert report["requested_lane"] == "local_only"
+    assert report["actual_providers"] == ["ollama"]
+    assert row["status"] == "offloaded"
+    assert row["status"] != "effect_lease_required"
+    assert row["effect_lease"]["lease_id"]
+    # These receipts are attached only after public offload consumes the
+    # authorization and exact execution request handed down by WaveExecutor.
+    start_receipt = row["result"]["effect_start_receipt"]
+    terminal_receipt = row["result"]["effect_terminal_receipt"]
+    assert start_receipt["execution_id"] == terminal_receipt["execution_id"]
+    assert terminal_receipt["outcome"] == "COMPLETED"
+
+
 def test_run_one_never_reaches_the_issuer(switch):
     """The entrypoint consumes a capability; it never discovers one.
 

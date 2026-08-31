@@ -1,12 +1,12 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 10
-Version: 2.1.0
+Revision: 11
+Version: 2.2.0
 Status: adopted  
-Date: 2026-08-02
+Date: 2026-08-31
 Owner: repository owner  
-Active delivery gate: Gate 1 — Renovation ignition slice  
+Active delivery gate: Gate 1 — Renovation and owner-directed Genesis  
 Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`
 
 This is the sole semantic authority for Daedalus architecture, product order,
@@ -68,16 +68,19 @@ Daedalus has two product modes:
 
 - **Renovation** — understand, repair, refactor, synchronize, and evolve an
   existing repository.
-- **Genesis** — compile a user-approved product specification and visual design
-  contract into a new repository, then prove by round-trip distillation that
-  the materialized source satisfies the intended four-plane structure.
+- **Genesis** — compile a versioned product specification and visual design
+  contract, approved individually or admitted under an owner-approved
+  `GenesisAutonomyPolicy`, into a new repository, then prove by round-trip
+  distillation that the materialized source satisfies the intended four-plane
+  structure.
 
-The long-term user experience is natural-language software construction:
-Ikarus turns intent into an inspectable target Project Twin and bounded mission;
-Daedalus materializes and verifies candidates; Ariadne improves the reusable
-motifs, operators, retrieval policies, and orchestration recipes that produced
-them. “One prompt to software” is an outcome of verified composition and repair
-loops, not permission to skip specifications, evidence, or owner review.
+The user experience is natural-language software construction: Ikarus turns
+intent into an inspectable target Project Twin and bounded mission; Daedalus
+materializes and verifies candidates; Ariadne improves the reusable motifs,
+operators, retrieval policies, and orchestration recipes that produced them.
+“One prompt to software” is an outcome of verified composition and repair loops,
+not permission to skip versioned specifications, evidence, or owner-controlled
+release approval.
 
 The research ambition is to outperform AlphaEvolve and other relevant systems
 on openly specified, budget-equal evaluations. That is a target, never an
@@ -259,6 +262,37 @@ workflow database. Product memory (preferences, projects, explanations) and
 research adaptive memory (operators, priors, trial outcomes) are separate,
 versioned, provenance-bearing stores with explicit projection rules.
 
+### 7.1 Owner-directed Genesis autonomy
+
+A versioned, owner-approved `GenesisAutonomyPolicy` may authorize Ikarus to
+compile a freely phrased construction request into a versioned `ProductSpec`
+and immediately start an isolated Genesis Mission without a requirements
+interview or per-spec approval. Omitted details are closed only through visible,
+provenance-bearing defaults: an ambiguous target is a Web application for one
+local user, without login or telemetry, with local-first storage, no paid
+services, and a responsive WCAG 2.2 AA interface. Contradictory requirements,
+required secrets, or an explicitly requested but unavailable toolchain produce
+a precise blocked result rather than invented authority.
+
+A structured-output runtime worker may produce an advisory
+`BuildIntentProposal` and stack suggestion. Deterministic admission removes any
+model-selected authority and derives product mode, lane, budget, secret access,
+evaluator, and release targets from system policy. The admitted
+`ToolchainManifest` pins versions, lockfiles, and build, test, run, and package
+commands; deterministic checks cover tool availability, dependencies, licenses,
+egress, budget, and sandbox policy. When the user did not require a stack, an
+inadmissible proposal falls back to the policy-owned Web, desktop, mobile, or
+CLI default. An explicitly required unavailable stack blocks honestly.
+
+Genesis production supports Web, Windows/macOS/Linux desktop, Android/iOS
+mobile, and CLI targets. A green candidate may receive an automatic isolated
+preview. Public publishing is never implied by autonomy: it requires a one-use
+`OwnerApproval` that exactly binds candidate, `EvidencePacket`, current
+revision, and deployment target matrix. After that approval, the bound
+`DeploymentPlan` may execute all configured targets automatically. Missing
+runners, signing keys, or store accounts terminate publishing as
+`blocked_external`; credentials remain local and outside model context and CAS.
+
 ## 8. Ariadne and the evolution layer
 
 The orchestration layer executes one bounded software mission. The evolution
@@ -304,7 +338,16 @@ evaluators, and orchestration do not silently co-evolve in one campaign.
 
 Generation is not a single model call. The canonical pipeline is:
 
-`intent -> ProductSpec -> TargetTwin -> GraphProposal -> verified operations -> MaterializationPlan -> source candidate -> rebuilt Twin -> RoundTripReport`
+`intent -> BuildIntentProposal -> ProductSpec -> DesignContract -> TargetFourfoldSpec -> GraphProposal -> verified operations -> MaterializationPlan -> ToolchainManifest -> source candidate -> rebuilt Twin -> RoundTripReport -> DeploymentPlan -> DeploymentReceipt`
+
+`BuildIntentProposal` is advisory; the deterministic admission result and the
+versioned artifacts are authoritative. `ProductSpec`, `DesignContract`,
+`TargetFourfoldSpec`, `GraphProposal`, `MaterializationPlan`,
+`ToolchainManifest`, `RoundTripReport`, `DeploymentPlan`, and
+`DeploymentReceipt` use strict canonical serialization and bind their digests,
+lineage, source revision, and provenance. Each conversational follow-up creates
+a new spec and candidate revision in the same lineage; it does not mutate a
+previous revision in place.
 
 A `GraphProposal` is an LLM- or algorithm-produced hypothesis bound to an exact
 base or target snapshot, model/runtime manifest, context capsule, budget, and
@@ -431,12 +474,26 @@ Deliver:
 Exit only when a fault-injection matrix demonstrates fail-closed protected
 effects and fail-open read-only inspection.
 
-### Gate 1 — Renovation ignition slice (active)
+### Gate 1 — Renovation and owner-directed Genesis (active)
 
 Prove one vertical Renovation mission: propagate `Event.voltage -> bias_voltage` across
 Python, Markdown, and CSV. Ikarus produces one MissionContract; the four planes
 produce two typed WorkItems; attempts run in isolation; restart/replay works;
 tests, schema checks, and link checks produce an EvidencePacket. No auto-merge.
+
+Without declaring that Renovation slice complete, Gate 1 also permits an
+owner-directed Genesis production strand governed by section 7.1. It must use
+the same canonical Mission, Attempt, WorkItem, EffectLease, artifact, evidence,
+cancellation, and kill paths; represent the absent base repository explicitly;
+materialize only isolated content-addressed candidate trees; and keep models
+from policy, evaluators, release secrets, and promotion authority. Build, test,
+preview, rendered or transcript inspection, target-versus-actual comparison,
+and bounded repair are typed WorkItems of one Mission. The production surface
+activates only after its complete acceptance matrix is green.
+
+This strand establishes product availability only. It neither closes Gate 1's
+Renovation obligation nor satisfies or waives the Gate-3 scientific baseline
+and Genesis research obligations or Gate-5 public-claim obligations.
 
 ### Gate 2 — Forest v2 and corpus seed
 
@@ -456,12 +513,14 @@ archive/MAP-Elites, and a transparent AlphaEvolve-like proxy. Measure success
 rate, best-so-far AUC, wall time, tokens, compute, variance, diversity,
 regressions, and human intervention.
 
-Only after that baseline harness is sealed, prove one bounded Genesis slice:
-compile an owner-approved ProductSpec and visual contract for a small software
-application into a target Twin, retrieve declared motifs, materialize an
-isolated repository, build/run it, inspect rendered output where relevant,
-rebuild its Twin, and emit a RoundTripReport. The slice may require repair
-iterations but may not change its evaluator, target, or budget mid-run.
+Only after that baseline harness is sealed, prove one bounded Genesis research
+slice eligible to support comparative or architectural claims: compile an
+owner-approved ProductSpec and visual contract for a small software application
+into a target Twin, retrieve declared motifs, materialize an isolated repository,
+build/run it, inspect rendered output where relevant, rebuild its Twin, and emit
+a RoundTripReport. The slice may require repair iterations but may not change
+its evaluator, target, or budget mid-run. Gate-1 Genesis product availability is
+not baseline evidence and does not satisfy this obligation.
 
 ### Gate 4 — One research hypothesis
 
@@ -483,13 +542,15 @@ state the narrower proxy/task result.
 
 ## 12. Current priority
 
-Until Gate 0 exits, the default answer to new feature work is: wire it through
-the canonical kernel or keep it as a disposable, isolated experiment. The
-active implementation sequence is Fourfold snapshot contracts, conservative
-legacy projection, GraphProposal/verification, atomic compiler, Data Plane,
-round-trip reporting, then the Gate 1 Renovation slice. Genesis, the corpus,
-motif learning, graph ML, and autonomous evolution do not become production
-paths early merely because their interfaces can be sketched.
+During Gate 1, new effectful product work must wire through the canonical
+kernel or remain a disposable, isolated experiment. The Renovation ignition
+slice remains an active obligation. In parallel, the owner-directed Genesis
+production strand proceeds as separate, dependency-ordered Work Packets for
+contracts, request idempotency, execution, toolchains, UI/preview, and release
+adapters, with production activation only after the combined acceptance matrix
+is green. Product availability does not advance the scientific gates. Corpus
+scaling, motif learning, graph ML, and autonomous evolution remain later-gate
+work unless isolated as bounded experiments.
 
 ### Revision 3 — Sealed Gate-0 promotion and bounded Gate-1 rehearsal
 
@@ -559,6 +620,23 @@ reported, not claimed away. Ariadne campaign controls are policy preparation
 only until the live path has a campaign producer. The decision, migration,
 alternatives, rollback and acceptance matrix are recorded in
 `docs/AMENDMENT_PROPOSAL_010_EXECUTION_CAP_MENU.md`.
+
+### Revision 11 — Owner-directed Genesis product strand (2026-08-31)
+
+By explicit owner approval of the exact amendment, Gate 1 includes a production
+Genesis strand for dialog-based Web, desktop, mobile, and CLI construction. A
+pre-approved `GenesisAutonomyPolicy` may close omitted requirements through
+visible defaults and admit an isolated build without per-spec approval. Model
+outputs remain proposals; deterministic policy owns authority, validation,
+evidence, and release targets.
+
+This amendment separates product availability from research claims. Gate-3 and
+Gate-5 baselines, ablations, budget equality, negative evidence, and public-claim
+rules remain mandatory for scientific claims, but are not prerequisites for
+making a verified product candidate and preview available. One kernel,
+isolation, the evidence boundary, cancellation and kill paths, sealed one-use
+owner release approval, and the prohibitions on automatic merge and promotion
+remain unchanged.
 
 ## 13. Forbidden default directions
 

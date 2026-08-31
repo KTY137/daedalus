@@ -28,7 +28,13 @@ class MayActAllowsTest(unittest.TestCase):
                     "add a health probe for the bench",
                     "write the readme",
                     "run the tests",
-                    "refactor the router"):
+                    "refactor the router",
+                    "mach den Parser robuster",
+                    "baue eine Einstellungsseite",
+                    "füge einen Healthcheck hinzu",
+                    "prüf die Tests und repariere den Fehler",
+                    "schau dir core.py an",
+                    "analysiere den fehlgeschlagenen Lauf"):
             with self.subTest(msg=msg):
                 d = may_act(msg)
                 self.assertTrue(d.allowed, d)
@@ -60,7 +66,10 @@ class MayActRefusesTest(unittest.TestCase):
 
     def test_plain_chat_is_quiet(self):
         for msg in ("hello, who are you?", "what's running?", "thanks!",
-                    "how does the machine work"):
+                    "how does the machine work", "Test coverage is low.",
+                    "Start time is slow.", "Bauen ist kompliziert.",
+                    "Testen ist wichtig.", "Analysieren braucht Zeit.",
+                    "Starten dauert lange.", "Machst du das morgen"):
             with self.subTest(msg=msg):
                 d = may_act(msg)
                 self.assertFalse(d.allowed)
@@ -90,6 +99,15 @@ class MayActSuspectsTest(unittest.TestCase):
         self.assertIn("German", d.signal)
         self.assertEqual(d.objective, "kannst du das mal bauen")
 
+    def test_german_discussion_is_not_an_action_request(self):
+        d = may_act("was machen wir jetzt?")
+        self.assertFalse(d.allowed)
+        self.assertFalse(d.suspected)
+
+        statement = may_act("ich prüfe das später")
+        self.assertFalse(statement.allowed)
+        self.assertFalse(statement.suspected)
+
     def test_directed_and_interrogative_forms(self):
         for msg, needle in (("can you build a thing?", "directed"),
                             ("could you fix the parser", "directed"),
@@ -107,11 +125,14 @@ class MayActSuspectsTest(unittest.TestCase):
             with self.subTest(msg=msg):
                 self.assertFalse(may_act(msg).allowed)
 
-    def test_german_cue_is_a_whole_token_not_a_stem(self):
+    def test_german_imperative_is_exact_and_machine_is_not_a_stem_match(self):
         # "mach" must not match inside "machine" -- a stem match here would turn
         # every question about this machine into a suspected build request.
         self.assertFalse(may_act("what does the machine do").suspected)
-        self.assertTrue(may_act("mach das bitte fertig").suspected)
+        decision = may_act("mach das bitte fertig")
+        self.assertTrue(decision.allowed)
+        self.assertFalse(decision.suspected)
+        self.assertIn("German", decision.signal)
 
 
 class ConfirmationTest(unittest.TestCase):

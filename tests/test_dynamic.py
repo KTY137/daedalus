@@ -6,6 +6,7 @@ made. Run with:  python -m unittest discover tests
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -87,8 +88,7 @@ class IkarusSpawnTests(unittest.TestCase):
 
 
 class BridgeLaneRoutingTests(unittest.TestCase):
-    """process_request must send lane='claude' to ask_claude and local-capable
-    lanes through Ikarus -- both fully mocked."""
+    """Queue lanes use the leased Ikarus path or fail closed, fully mocked."""
 
     def _write_request(self, tmp: Path, lane: str) -> Path:
         req = tmp / "req.json"
@@ -101,24 +101,27 @@ class BridgeLaneRoutingTests(unittest.TestCase):
         }), encoding="utf-8")
         return req
 
-    def test_claude_lane_calls_ask_claude_not_offload(self):
+    def test_claude_lane_refuses_without_caller_held_broker_authority(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             req = self._write_request(tmp, lane="claude")
-            claude_result = {"agent": "ui-ux-dev", "report": {"status": "done", "summary": "ok"}}
             with patch.object(file_bridge, "INBOX", tmp / "inbox"), \
                     patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
                     patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
-                    patch("daedalus.core.ask_claude", return_value=claude_result) as ask, \
+                    patch("daedalus.claude_bridge.ask_claude",
+                          side_effect=AssertionError(
+                              "queue bridge must not directly call Claude")) as ask, \
                     patch("daedalus.offload.offload",
                           side_effect=AssertionError("offload must not run on the claude lane")) as off:
                 out_path = file_bridge.process_request(req)
-            ask.assert_called_once()
+            ask.assert_not_called()
             off.assert_not_called()
             report = json.loads(out_path.read_text(encoding="utf-8"))
-        self.assertEqual(report["bridge_status"], "done")
+        self.assertEqual(report["bridge_status"], "failed")
         self.assertEqual(report["lane"], "claude")
-        self.assertEqual(report["report"]["status"], "done")
+        self.assertEqual(report["requested_lane"], "claude")
+        self.assertEqual(report["actual_providers"], [])
+        self.assertIn("broker authorization", report["error"])
 
     def test_unknown_or_missing_lane_fails_closed_not_claude(self):
         """A typo'd or absent lane must never reach a paid provider unattended."""
@@ -148,7 +151,7 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                     patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
                     patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
                     patch("daedalus.core._try_ikarus", return_value=None), \
-                    patch("daedalus.core.ask_claude",
+                    patch("daedalus.claude_bridge.ask_claude",
                           side_effect=AssertionError("lane-less file must not reach Claude")):
                 out_path = file_bridge.process_request(req)
             report = json.loads(out_path.read_text(encoding="utf-8"))
@@ -160,8 +163,12 @@ class BridgeLaneRoutingTests(unittest.TestCase):
             tmp = Path(d)
             req = self._write_request(tmp, lane="local")
             doctor_ready = {"claude_cli": True, "can_offload_local": True, "deepseek_key": False}
-            offload_result = {"owner": "ui-ux-dev", "provider": "ollama", "action": "offloaded",
-                              "report": {"status": "done", "summary": "bench did it"}}
+            wave_result = SimpleNamespace(results=[{
+                "worker": "Noah-local", "lane": "ollama", "mode": "write",
+                "owner": "ui-ux-dev", "status": "gated_held", "wrote": [],
+                "result": {"provider": "ollama"},
+                "effect_lease": {"lease_id": "mocked-lease"},
+            }])
             decision = SimpleNamespace(provider="ollama", persona="Noah-local",
                                        mode="write", reason="low-risk local task")
             with patch.object(file_bridge, "INBOX", tmp / "inbox"), \
@@ -170,30 +177,237 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                     patch("daedalus.doctor.check", return_value=doctor_ready), \
                     patch("daedalus.kairos.scheduler.route_and_select",
                           return_value=({"name": "ui-ux-dev"}, decision)), \
-                    patch("daedalus.offload.offload", return_value=offload_result) as off, \
-                    patch("daedalus.core.ask_claude",
+                    patch("daedalus.core._head_sha_safe", return_value="a" * 40), \
+                    patch("daedalus.build_exec.WaveExecutor.run_wave",
+                          return_value=wave_result) as run_wave, \
+                    patch("daedalus.offload.offload",
+                          side_effect=AssertionError(
+                              "core must not bypass WaveExecutor")) as off, \
+                    patch("daedalus.claude_bridge.ask_claude",
                           side_effect=AssertionError("claude must not run for an eligible local task")) as ask:
                 out_path = file_bridge.process_request(req)
-            off.assert_called_once()
+            run_wave.assert_called_once()
+            off.assert_not_called()
             ask.assert_not_called()
-            # offload was invoked live, on the bench, with the doctor availability.
-            _, kwargs = off.call_args
-            self.assertTrue(kwargs.get("live"))
             report = json.loads(out_path.read_text(encoding="utf-8"))
         self.assertEqual(report["bridge_status"], "done")
         self.assertEqual(report["lane"], "local")
+        self.assertEqual(report["requested_lane"], "local")
+        self.assertEqual(report["assigned_providers"], ["ollama"])
+        self.assertEqual(report["actual_providers"], ["ollama"])
         self.assertEqual(report["orchestrator"], "ikarus")
-        self.assertEqual(report["result"]["assignments"][0]["status"], "offloaded")
+        self.assertEqual(report["result"]["assignments"][0]["status"], "gated_held")
 
-    def test_local_lane_ineligible_falls_through_to_claude(self):
+    def test_effect_lease_denial_is_reported_without_claude_fallback(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            req = self._write_request(tmp, lane="local")
+            decision = SimpleNamespace(
+                provider="ollama", persona="Noah-local",
+                mode="advisory", reason="local review",
+            )
+            wave_result = SimpleNamespace(results=[{
+                "worker": "Noah-local", "lane": "ollama",
+                "mode": "advisory", "owner": "ui-ux-dev",
+                "status": "effect_lease_denied",
+                "reason": "operator permit is not armed",
+            }])
+            with patch.object(file_bridge, "INBOX", tmp / "inbox"), \
+                    patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
+                    patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
+                    patch("daedalus.doctor.check", return_value={
+                        "claude_cli": True, "can_offload_local": True,
+                        "deepseek_key": False, "codex_cli": False,
+                    }), \
+                    patch("daedalus.kairos.scheduler.route_and_select",
+                          return_value=({"name": "ui-ux-dev"}, decision)), \
+                    patch("daedalus.core._head_sha_safe", return_value="a" * 40), \
+                    patch("daedalus.build_exec.WaveExecutor.run_wave",
+                          return_value=wave_result), \
+                    patch("daedalus.claude_bridge.ask_claude",
+                          side_effect=AssertionError(
+                              "an Effect denial must not be bypassed")) as ask:
+                out_path = file_bridge.process_request(req)
+            ask.assert_not_called()
+            report = json.loads(out_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["bridge_status"], "failed")
+        self.assertEqual(report["lane"], "local")
+        self.assertEqual(report["assigned_providers"], ["ollama"])
+        self.assertEqual(report["actual_providers"], [])
+        self.assertIn("permit", report["error"])
+        self.assertEqual(
+            report["result"]["assignments"][0]["status"],
+            "effect_lease_denied",
+        )
+
+    def test_terminal_wave_failure_never_dispatches_a_second_provider(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            req = self._write_request(tmp, lane="auto")
+            decision = SimpleNamespace(
+                provider="ollama", persona="Noah-local",
+                mode="write", reason="local write",
+            )
+            wave_result = SimpleNamespace(results=[{
+                "worker": "Noah-local", "lane": "ollama",
+                "mode": "write", "owner": "ui-ux-dev",
+                "status": "write_gate_failed",
+                "reason": "verification failed after the leased attempt",
+                "provider_receipt": {
+                    "action": "escalated_after_verify_fail",
+                },
+            }])
+            with patch.object(file_bridge, "INBOX", tmp / "inbox"), \
+                    patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
+                    patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
+                    patch("daedalus.doctor.check", return_value={
+                        "claude_cli": True, "can_offload_local": True,
+                        "deepseek_key": False, "codex_cli": False,
+                    }), \
+                    patch("daedalus.kairos.scheduler.route_and_select",
+                          return_value=({"name": "ui-ux-dev"}, decision)), \
+                    patch("daedalus.core._head_sha_safe", return_value="a" * 40), \
+                    patch("daedalus.build_exec.WaveExecutor.run_wave",
+                          return_value=wave_result), \
+                    patch("daedalus.claude_bridge.ask_claude",
+                          side_effect=AssertionError(
+                              "a terminal wave failure must not dispatch again")) as ask:
+                out_path = file_bridge.process_request(req)
+            ask.assert_not_called()
+            report = json.loads(out_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["bridge_status"], "failed")
+        self.assertEqual(report["lane"], "auto")
+        self.assertEqual(report["requested_lane"], "auto")
+        self.assertEqual(report["actual_providers"], [])
+        self.assertIn("verification failed", report["error"])
+        self.assertEqual(
+            report["result"]["assignments"][0]["status"],
+            "write_gate_failed",
+        )
+
+    def test_lost_gated_artifact_still_reports_the_observed_provider(self):
+        from daedalus import core
+
+        assigned, actual = core._ikarus_provider_facts([{
+            "lane": "ollama",
+            "status": "gated_artifact_lost",
+            "provider_receipt": {"provider": "ollama", "action": "offloaded"},
+        }])
+
+        self.assertEqual(assigned, ["ollama"])
+        self.assertEqual(actual, ["ollama"])
+
+    def test_spawn_strategy_is_refused_before_any_unleased_dispatch(self):
+        from daedalus import core
+
+        payload = {
+            "objective": "Split and edit several modules",
+            "repo_root": "/repo",
+            "paths": ["a.py", "b.py"],
+            "model": "sonnet",
+            "lane": "local",
+            "strategy": "spawn",
+        }
+        with patch.object(
+            KairosScheduler, "spawn",
+            side_effect=AssertionError("spawn must not dispatch outside WaveExecutor"),
+        ) as spawn, patch(
+            "daedalus.core._ask_claude_report",
+            side_effect=AssertionError("a refused bypass must not fall back"),
+        ) as ask:
+            report = core.process_bridge_payload(payload)
+        spawn.assert_not_called()
+        ask.assert_not_called()
+        self.assertEqual(report["bridge_status"], "failed")
+        self.assertIn("no canonical leased multi-task adapter", report["error"])
+
+    def test_local_only_exposes_only_reachable_trusted_ollama(self):
+        from daedalus import core
+
+        doctor_ready = {
+            "claude_cli": True, "can_offload_local": True,
+            "deepseek_key": True, "codex_cli": True,
+        }
+        with patch("daedalus.doctor.check", return_value=doctor_ready), \
+                patch.dict(os.environ, {
+                    "OLLAMA_HOST": "http://127.0.0.1:11434",
+                }, clear=True):
+            availability = core._ikarus_availability("local_only")
+        self.assertEqual(availability, {
+            "claude_cli": False,
+            "ollama": True,
+            "deepseek": False,
+            "codex_cli": False,
+        })
+
+    def test_local_only_refuses_an_untrusted_remote_ollama_endpoint(self):
+        from daedalus import core
+
+        doctor_ready = {
+            "claude_cli": True, "can_offload_local": True,
+            "deepseek_key": True, "codex_cli": True,
+        }
+        with patch("daedalus.doctor.check", return_value=doctor_ready), \
+                patch.dict(os.environ, {
+                    "OLLAMA_HOST": "http://203.0.113.9:11434",
+                    # Exact endpoint consent admits the egress lane; it does
+                    # not turn a remote endpoint into local_only authority.
+                    "DAEDALUS_OLLAMA_REMOTE_OK": "http://203.0.113.9:11434",
+                }, clear=True):
+            availability = core._ikarus_availability("local_only")
+        self.assertEqual(availability, {
+            "claude_cli": False,
+            "ollama": False,
+            "deepseek": False,
+            "codex_cli": False,
+        })
+
+    def test_auto_report_names_external_provider_without_relabelling_lane(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            req = self._write_request(tmp, lane="auto")
+            decision = SimpleNamespace(
+                provider="deepseek", persona="Dora",
+                mode="advisory", reason="mocked external assignment",
+            )
+            wave_result = SimpleNamespace(results=[{
+                "worker": "Dora", "lane": "deepseek", "mode": "advisory",
+                "owner": "docs-dev", "status": "offloaded", "wrote": [],
+                "result": {"provider": "deepseek", "draft": "draft-1"},
+            }])
+            with patch.object(file_bridge, "INBOX", tmp / "inbox"), \
+                    patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
+                    patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
+                    patch("daedalus.doctor.check", return_value={
+                        "claude_cli": True, "can_offload_local": True,
+                        "deepseek_key": True, "codex_cli": False,
+                    }), \
+                    patch("daedalus.kairos.scheduler.route_and_select",
+                          return_value=({"name": "docs-dev"}, decision)), \
+                    patch("daedalus.core._head_sha_safe", return_value="a" * 40), \
+                    patch("daedalus.build_exec.WaveExecutor.run_wave",
+                          return_value=wave_result), \
+                    patch("daedalus.claude_bridge.ask_claude",
+                          side_effect=AssertionError(
+                              "successful leased work must not dispatch again")) as ask:
+                out_path = file_bridge.process_request(req)
+            ask.assert_not_called()
+            report = json.loads(out_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["bridge_status"], "done")
+        self.assertEqual(report["lane"], "auto")
+        self.assertEqual(report["requested_lane"], "auto")
+        self.assertEqual(report["assigned_providers"], ["deepseek"])
+        self.assertEqual(report["actual_providers"], ["deepseek"])
+
+    def test_local_lane_ineligible_refuses_unbrokered_claude_fallback(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             req = self._write_request(tmp, lane="local")
             doctor_ready = {"claude_cli": True, "can_offload_local": True, "deepseek_key": False}
-            # Route lands on the senior lane -> not a FREE lane -> fall through.
+            # Route lands on the senior lane -> not a FREE lane -> refuse. The
+            # bridge has no authority to turn that bounce into a direct call.
             decision = SimpleNamespace(provider="claude_cli", persona="Adam",
                                        mode="advisory", reason="senior lane")
-            claude_result = {"agent": "hardware-dev", "report": {"status": "done", "summary": "senior"}}
             with patch.object(file_bridge, "INBOX", tmp / "inbox"), \
                     patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
                     patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
@@ -202,13 +416,18 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                           return_value=({"name": "hardware-dev"}, decision)), \
                     patch("daedalus.offload.offload",
                           side_effect=AssertionError("offload must not run for a senior-lane route")) as off, \
-                    patch("daedalus.core.ask_claude", return_value=claude_result) as ask:
+                    patch("daedalus.claude_bridge.ask_claude",
+                          side_effect=AssertionError(
+                              "ineligible route must not directly call Claude")) as ask:
                 out_path = file_bridge.process_request(req)
             off.assert_not_called()
-            ask.assert_called_once()
+            ask.assert_not_called()
             report = json.loads(out_path.read_text(encoding="utf-8"))
-        self.assertEqual(report["lane"], "claude")
-        self.assertEqual(report["bridge_status"], "done")
+        self.assertEqual(report["lane"], "local")
+        self.assertEqual(report["requested_lane"], "local")
+        self.assertEqual(report["bridge_status"], "failed")
+        self.assertEqual(report["actual_providers"], [])
+        self.assertIn("broker authorization", report["error"])
 
     def test_local_only_lane_never_falls_through_to_claude(self):
         with tempfile.TemporaryDirectory() as d:
@@ -225,15 +444,16 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                           return_value=({"name": "hardware-dev"}, decision)), \
                     patch("daedalus.offload.offload",
                           side_effect=AssertionError("offload must not run for a senior-lane route")) as off, \
-                    patch("daedalus.core.ask_claude",
+                    patch("daedalus.claude_bridge.ask_claude",
                           side_effect=AssertionError("local_only must not call Claude")) as ask:
                 out_path = file_bridge.process_request(req)
             off.assert_not_called()
             ask.assert_not_called()
             report = json.loads(out_path.read_text(encoding="utf-8"))
-        self.assertEqual(report["lane"], "local")
+        self.assertEqual(report["lane"], "local_only")
+        self.assertEqual(report["requested_lane"], "local_only")
         self.assertEqual(report["bridge_status"], "failed")
-        self.assertIn("Claude fallback skipped", report["error"])
+        self.assertIn("external fallback is prohibited", report["error"])
 
 
 if __name__ == "__main__":

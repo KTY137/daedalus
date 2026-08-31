@@ -1,9 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getDesktopStatus, startDesktopIde } from '../api';
+import { ApiError, getDesktopStatus, startDesktopIde } from '../api';
 import type { DesktopIdeService, DesktopStatusPayload, ProjectRow } from '../types';
 
 function serviceFrom(payload: DesktopStatusPayload): DesktopIdeService | undefined {
   return payload.desktop?.services?.ide as DesktopIdeService | undefined || payload.service;
+}
+
+function useMobileViewport(): boolean {
+  const [mobile, setMobile] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 640px)');
+    const update = () => setMobile(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  return mobile;
 }
 
 /** OpenVSCode is a local desktop surface. Refuse to embed an endpoint which a
@@ -56,6 +70,8 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
+  const [desktopApi, setDesktopApi] = useState<'loading' | 'available' | 'unavailable' | 'error'>('loading');
+  const mobile = useMobileViewport();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -63,9 +79,16 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
     try {
       const payload = await getDesktopStatus();
       setService(serviceFrom(payload));
+      setDesktopApi('available');
     } catch (reason) {
       setService(undefined);
-      setError(reason instanceof Error ? reason.message : 'Der Desktop-Status der IDE konnte nicht gelesen werden.');
+      if (reason instanceof ApiError && reason.kind === 'notfound') {
+        setDesktopApi('unavailable');
+        setError('');
+      } else {
+        setDesktopApi('error');
+        setError(reason instanceof Error ? reason.message : 'Der Desktop-Status der IDE konnte nicht gelesen werden.');
+      }
     } finally {
       setLoading(false);
     }
@@ -76,6 +99,7 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
   }, [refresh]);
 
   const start = useCallback(async () => {
+    if (desktopApi !== 'available' || service?.available !== true || !project?.repo_root) return;
     setStarting(true);
     setError('');
     try {
@@ -84,13 +108,20 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
       if (immediate) setService(immediate);
       const measured = await getDesktopStatus();
       setService(serviceFrom(measured) || immediate);
+      setDesktopApi('available');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'OpenVSCode Server konnte nicht gestartet werden.');
+      if (reason instanceof ApiError && reason.kind === 'notfound') {
+        setDesktopApi('unavailable');
+        setError('');
+      } else {
+        setDesktopApi('error');
+        setError(reason instanceof Error ? reason.message : 'OpenVSCode Server konnte nicht gestartet werden.');
+      }
     } finally {
       setStarting(false);
       setLoading(false);
     }
-  }, [project?.repo_root]);
+  }, [desktopApi, project?.repo_root, service?.available]);
 
   const installed = service?.installed ?? service?.available;
   const reachable = service?.reachable ?? (service?.running === true && Boolean(service?.endpoint));
@@ -100,6 +131,7 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
     () => ideServiceUrlFor(service, project?.repo_root || ''),
     [project?.repo_root, service]
   );
+  const canStart = desktopApi === 'available' && service?.available === true && !reachable;
 
   if (!project) {
     return (
@@ -112,6 +144,16 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
   }
 
   if (reachable && frameUrl) {
+    if (mobile) {
+      return (
+        <main className="cockpit-body ide" aria-label={`IDE für ${project.name}`}>
+          <IdeNotice title="IDE auf einem Desktop fortsetzen">
+            <p>Der integrierte Editor braucht mehr Platz als diese Ansicht bietet. Öffne das bereits ausgewählte Projekt auf einem Desktop.</p>
+            <a className="ide-handoff-link" href={frameUrl} target="_blank" rel="noreferrer">Auf Desktop öffnen</a>
+          </IdeNotice>
+        </main>
+      );
+    }
     return (
       <main className="cockpit-body ide" aria-label={`IDE für ${project.name}`}>
         <div className="ide-toolbar">
@@ -123,17 +165,21 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
     );
   }
 
-  const endpointInvalid = reachable && Boolean(service?.endpoint) && !frameUrl;
+  const endpointInvalid = desktopApi === 'available' && reachable && Boolean(service?.endpoint) && !frameUrl;
   const title = loading
     ? 'IDE-Status wird geprüft'
-    : missingInstallation
-      ? 'OpenVSCode Server ist nicht installiert'
+    : desktopApi === 'unavailable' || (desktopApi === 'available' && !service)
+      ? 'IDE-Integration nicht verfügbar'
+      : missingInstallation
+        ? 'OpenVSCode Server ist nicht installiert'
       : endpointInvalid
         ? 'Der gemeldete IDE-Endpunkt ist nicht lokal'
         : 'OpenVSCode Server ist nicht erreichbar';
   const detail = reportedDetail
     || (loading
       ? 'Der Desktop-Dienst wird abgefragt.'
+      : desktopApi === 'unavailable' || (desktopApi === 'available' && !service)
+        ? 'Dieses Backend stellt keine Desktop-IDE-Steuerung bereit. Im Browser kann hier keine IDE gestartet werden; öffne Daedalus Desktop mit einem kompatiblen Backend.'
       : missingInstallation
         ? 'Die IDE wurde auf diesem Desktop nicht gefunden. Der Startversuch meldet den genauen Installationsfehler.'
         : endpointInvalid
@@ -147,11 +193,13 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
       <IdeNotice title={title} live>
         <p>{detail}</p>
         <p className="ide-project-path"><span>Ordner</span><code>{project.repo_root}</code></p>
-        {!loading && (
+        {!loading && (canStart || desktopApi === 'available') && (
           <div className="ide-actions">
-            <button type="button" onClick={() => void start()} disabled={starting}>
-              {starting ? 'IDE startet …' : 'IDE starten'}
-            </button>
+            {canStart && (
+              <button type="button" onClick={() => void start()} disabled={starting}>
+                {starting ? 'IDE startet …' : 'IDE starten'}
+              </button>
+            )}
             <button type="button" className="quiet" onClick={() => void refresh()} disabled={starting}>
               Status neu prüfen
             </button>

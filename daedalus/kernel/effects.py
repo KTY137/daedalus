@@ -948,7 +948,8 @@ class LeasedEffectAuthorization:
     guard_decisions: tuple[GuardDecision, ...]
     current_kill_switch_generation: int
     registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = field(
-        default=REGISTRY_BY_ID, repr=False
+        default_factory=lambda: REGISTRY_BY_ID,
+        repr=False,
     )
 
     def __post_init__(self) -> None:

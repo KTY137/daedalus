@@ -35,8 +35,33 @@ from daedalus.schemas import (
 
 MANDATORY_IGNORED_ROOTS = (".daedalus", ".git")
 _READ_CHUNK_BYTES = 1024 * 1024
-_STABLE_FILE_FIELDS = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
-_STABLE_DIRECTORY_FIELDS = ("st_dev", "st_ino", "st_mtime_ns", "st_ctime_ns")
+def _stable_metadata_fields(platform_name: str, *, directory: bool) -> tuple[str, ...]:
+    """Metadata that is stable enough to compare around one descriptor read.
+
+    ``st_ctime_ns`` is useful on POSIX because it changes with inode metadata.
+    On Windows it describes creation time (and is deprecated for that purpose
+    since Python 3.12), not a content-change clock.  More importantly, supported
+    CPython 3.12/3.13 builds have been observed returning different
+    ``st_ctime_ns`` values for consecutive ``fstat`` calls on the *same open
+    descriptor*.  Treating that value as a mutation signal rejects unchanged
+    CAS objects nondeterministically.  Device/inode identity, size, mtime and
+    the mandatory content digest still fail closed around replacement or byte
+    changes.
+
+    The platform is an argument so the policy is deterministic and testable on
+    every CI host rather than being covered only by a Windows-only branch.
+    """
+
+    fields = ("st_dev", "st_ino", "st_mtime_ns")
+    if not directory:
+        fields += ("st_size",)
+    if platform_name != "nt":
+        fields += ("st_ctime_ns",)
+    return fields
+
+
+_STABLE_FILE_FIELDS = _stable_metadata_fields(os.name, directory=False)
+_STABLE_DIRECTORY_FIELDS = _stable_metadata_fields(os.name, directory=True)
 
 
 class SourceTreeStoreError(RuntimeError):

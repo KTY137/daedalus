@@ -328,27 +328,12 @@ class BothSurfacesRenderItTests(unittest.TestCase):
         # ...and the thing it embeds must itself render the verdict.
         self.test_web_app_renders_the_promotion_verdict()
 
-    def test_dead_mission_control_template_is_labelled_not_believed(self):
-        """`dashboardHtml` is unreachable. It must SAY so, or the next reader
-        counts it as a shipping surface -- two test files already describe it
-        as one. If someone revives it, this test fails until they either
-        correct the label or render the verdict there too."""
+    def test_dead_mission_control_template_is_not_an_extension_surface(self):
+        """The legacy HTML dashboard is retired; only the React cockpit ships."""
         src = EXTENSION_JS.read_text(encoding="utf-8", errors="replace")
-        defs = len(re.findall(r"function\s+dashboardHtml\s*\(", src))
-        self.assertEqual(defs, 1, "dashboardHtml was renamed or duplicated")
-        calls = len(re.findall(r"(?<!function )\bdashboardHtml\s*\(", src))
-        if calls == 0:
-            head = src[:src.index("function dashboardHtml")]
-            self.assertIn(
-                "UNREACHABLE", head[-1800:],
-                "dashboardHtml has no callers but is not labelled unreachable, "
-                "so it reads as a live product surface")
-        else:
-            self.assertIn(
-                "renderGovernance", src,
-                "dashboardHtml was wired back up as a real surface, so it must "
-                "render the promotion verdict like every other surface -- and "
-                "the UNREACHABLE comment above it is now a lie")
+        self.assertNotRegex(src, r"function\s+dashboardHtml\s*\(")
+        self.assertIn("function agentOsHtml", src)
+        self.assertIn("<iframe", src)
 
     def test_web_app_renders_the_promotion_verdict(self):
         hits = [p for p in WEBAPP_SRC.rglob("*.ts*")

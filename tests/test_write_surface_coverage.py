@@ -327,6 +327,11 @@ tarfile.open('a.tar', 'w:gz')
 # path; none of these modules is an entrypoint of its own.
 KERNEL_FILE_SURFACES: dict[str, dict[tuple[str, str, str], int]] = {
     "daedalus/atomic.py": {
+        (
+            "ambiguous_binding",
+            "self.path.parent.mkdir",
+            "rebound-or-conflicting-binding",
+        ): 1,
         ("ambiguous_binding", "target.parent.mkdir", "rebound-or-conflicting-binding"): 3,
         ("ambiguous_binding", "tmp.unlink", "rebound-or-conflicting-binding"): 1,
         ("ambiguous_binding", "tmp.write_bytes", "rebound-or-conflicting-binding"): 1,
@@ -336,6 +341,7 @@ KERNEL_FILE_SURFACES: dict[str, dict[tuple[str, str, str], int]] = {
         ("filesystem_mutation", "os.replace", "replace"): 1,
         ("filesystem_mutation", "os.unlink", "unlink"): 1,
         ("write_mode_open", "tmp.open", "xb"): 1,
+        ("write_mode_open", "self.path.open", "a+b"): 1,
     },
     "daedalus/kernel/promotion_trust_root.py": {
         ("ambiguous_binding", "path.parent.mkdir", "rebound-or-conflicting-binding"): 2,

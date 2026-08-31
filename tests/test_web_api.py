@@ -5,12 +5,46 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
-from daedalus import control_plane, hierarchy, ikarus_chat, runtime_registry
+from daedalus import (
+    control_plane,
+    conversation as conversation_mod,
+    file_bridge,
+    hierarchy,
+    ikarus_chat,
+    runtime_registry,
+    web_api,
+)
 from daedalus.bootstrap_prompt import claude_bootstrap_prompt
 from daedalus.env import env_status, load_env
 from daedalus.web_api import _json_safe
+
+
+class HostCapabilitiesContractTest(unittest.TestCase):
+    def test_plain_web_host_does_not_claim_desktop_affordances(self) -> None:
+        caps = web_api._host_capabilities()
+        self.assertEqual(caps["host_mode"], "browser")
+        self.assertFalse(caps["can_manage_openvscode"])
+        self.assertFalse(caps["can_open_external_editor"])
+        self.assertFalse(caps["can_send_editor_commands"])
+        self.assertTrue(caps["editor_commands_require_session"])
+        self.assertTrue(caps["measured_at"])
+
+    def test_managed_host_projects_only_measured_ide_affordances(self) -> None:
+        caps = web_api._host_capabilities("desktop", {
+            "services": {"ide": {
+                "available": True,
+                "reachable": True,
+                "ui_url": "http://127.0.0.1:3000/",
+            }}
+        })
+        self.assertEqual(caps["host_mode"], "desktop")
+        self.assertTrue(caps["can_manage_openvscode"])
+        self.assertTrue(caps["can_open_external_editor"])
+        # Route availability alone is not evidence of a nonce-bound session.
+        self.assertFalse(caps["can_send_editor_commands"])
 
 
 class EnvRedactionTest(unittest.TestCase):
@@ -104,6 +138,184 @@ class WebApiSerializationTest(unittest.TestCase):
         data = _json_safe(payload).decode("utf-8")
         self.assertIn('"path"', data)
         self.assertNotIn("Path(", data)
+
+
+class TaskOutcomeTruthTest(unittest.TestCase):
+    @staticmethod
+    def _report(assignment: dict) -> dict:
+        return {
+            "bridge_status": "done",
+            "lane": "auto",
+            "requested_lane": "auto",
+            "actual_providers": ["deepseek"],
+            "request": {"lane": "auto", "project": "p", "objective": "work"},
+            "result": {"assignments": [assignment]},
+        }
+
+    def test_advisory_result_is_not_applied_even_when_draft_persistence_failed(self) -> None:
+        for draft in ("draft-1", None):
+            with self.subTest(draft=draft):
+                report = self._report({
+                    "status": "offloaded", "mode": "advisory", "wrote": [],
+                    "owner": "docs-dev",
+                    "result": {"draft": draft, "verify": {"ok": True}},
+                })
+                applied, reason = web_api._derive_applied(report)
+                self.assertFalse(applied)
+                self.assertIn("advisory", reason)
+                if draft is None:
+                    self.assertIn("no persisted draft", reason)
+
+    def test_gated_candidate_is_held_not_applied_and_summary_says_so(self) -> None:
+        report = self._report({
+            "status": "gated_held", "mode": "write", "wrote": [],
+            "owner": "core-dev", "result": {},
+        })
+        applied, reason = web_api._derive_applied(report)
+        self.assertFalse(applied)
+        self.assertIn("held", reason)
+
+        status, summary = web_api._task_report_fields(report)
+        self.assertEqual(status, "gated_held")
+        self.assertIn("not applied", summary)
+
+        reported_status, reported_summary = file_bridge._reported_result(report)
+        self.assertEqual(reported_status, "gated_held")
+        self.assertIn("not applied", reported_summary)
+        _, projected_summary, detail = file_bridge._conversation_report_fields(
+            "task-1", report)
+        self.assertFalse(detail["applied"])
+        self.assertIn("not applied", projected_summary)
+
+    def test_write_needs_disk_diff_and_passed_gate_before_applied_true(self) -> None:
+        assignment = {
+            "status": "offloaded", "mode": "write", "wrote": ["x.py"],
+            "owner": "core-dev", "result": {"verify": {"ok": True}},
+        }
+        applied, reason = web_api._derive_applied(self._report(assignment))
+        self.assertTrue(applied)
+        self.assertIn("verification gate passed", reason)
+
+        assignment["result"] = {}
+        applied, reason = web_api._derive_applied(self._report(assignment))
+        self.assertIsNone(applied)
+        self.assertIn("passed verification gate", reason)
+
+    def test_failed_verify_with_unreverted_paths_is_loudly_unknown(self) -> None:
+        report = self._report({
+            "status": "write_gate_failed", "mode": "write",
+            "owner": "core-dev",
+            "provider_receipt": {
+                "action": "escalated_after_verify_fail",
+                "wrote": ["x.py"], "verify": {"ok": False},
+            },
+        })
+        report["bridge_status"] = "failed"
+
+        applied, reason = web_api._derive_applied(report)
+        self.assertIsNone(applied)
+        self.assertIn("unreverted", reason)
+        self.assertIn("manual cleanup", reason)
+
+        outcome, summary, detail = file_bridge._conversation_report_fields(
+            "task-dirty", report)
+        self.assertEqual(outcome, conversation_mod.DEGRADED)
+        self.assertIsNone(detail["applied"])
+        self.assertIn("manual cleanup", detail["application_reason"])
+        self.assertIn("manual cleanup", summary)
+
+    def test_failed_verify_with_measured_empty_writes_is_not_applied(self) -> None:
+        report = self._report({
+            "status": "write_gate_failed", "mode": "write",
+            "owner": "core-dev",
+            "provider_receipt": {
+                "action": "escalated_after_verify_fail", "wrote": [],
+            },
+        })
+        report["bridge_status"] = "failed"
+
+        applied, reason = web_api._derive_applied(report)
+        self.assertFalse(applied)
+        self.assertIn("no unreverted", reason)
+
+    def test_outer_empty_write_default_cannot_hide_dirty_receipt(self) -> None:
+        report = self._report({
+            "status": "write_gate_failed", "mode": "write", "wrote": [],
+            "owner": "core-dev",
+            "provider_receipt": {
+                "action": "escalated_after_verify_fail", "wrote": ["x.py"],
+            },
+        })
+        report["bridge_status"] = "failed"
+
+        applied, reason = web_api._derive_applied(report)
+        self.assertIsNone(applied)
+        self.assertIn("unreverted", reason)
+
+    def test_dirty_failure_receipt_outranks_contradictory_held_status(self) -> None:
+        report = self._report({
+            "status": "gated_held", "mode": "write", "wrote": [],
+            "owner": "core-dev",
+            "provider_receipt": {
+                "action": "escalated_after_verify_fail", "wrote": ["x.py"],
+            },
+        })
+
+        applied, reason = web_api._derive_applied(report)
+        self.assertIsNone(applied)
+        self.assertIn("unreverted", reason)
+        self.assertIn("manual cleanup", reason)
+
+    def test_conflicting_verify_evidence_cannot_claim_applied(self) -> None:
+        report = self._report({
+            "status": "offloaded", "mode": "write", "wrote": ["x.py"],
+            "owner": "core-dev", "verify": {"ok": True},
+            "result": {"verify": {"ok": False}},
+        })
+
+        applied, reason = web_api._derive_applied(report)
+        self.assertIsNone(applied)
+        self.assertIn("passed verification gate", reason)
+
+    def test_mixed_applied_and_unapplied_assignments_are_partial_unknown(self) -> None:
+        report = self._report({
+            "status": "offloaded", "mode": "write", "wrote": ["x.py"],
+            "owner": "core-dev", "result": {"verify": {"ok": True}},
+        })
+        report["result"]["assignments"].append({
+            "status": "gated_held", "mode": "write", "wrote": [],
+            "owner": "ui-dev", "result": {},
+        })
+
+        applied, reason = web_api._derive_applied(report)
+        self.assertIsNone(applied)
+        self.assertIn("verification gate passed", reason)
+        self.assertIn("held", reason)
+
+    def test_terminal_task_snapshot_keeps_requested_lane_and_actual_provider(self) -> None:
+        report = self._report({
+            "status": "offloaded", "mode": "advisory", "wrote": [],
+            "owner": "docs-dev", "result": {"draft": "draft-1"},
+        })
+        progress = SimpleNamespace(
+            terminal=True,
+            stalled=False,
+            to_dict=lambda: {
+                "observed_at": "2026-08-31T00:00:00+00:00", "age_s": 0.0,
+            },
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox = Path(tmp)
+            (inbox / "task-1.report.json").write_text(
+                json.dumps(report), encoding="utf-8")
+            with mock.patch.object(file_bridge, "INBOX", inbox), mock.patch(
+                "daedalus.progress_sources.snapshot_from_bridge",
+                return_value=progress,
+            ):
+                snapshot = web_api._task_snapshot("task-1")
+        self.assertEqual(snapshot["lane"], "auto")
+        self.assertEqual(snapshot["requested_lane"], "auto")
+        self.assertEqual(snapshot["actual_providers"], ["deepseek"])
 
 
 class RuntimeRegistryTest(unittest.TestCase):

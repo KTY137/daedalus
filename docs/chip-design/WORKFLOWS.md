@@ -106,6 +106,7 @@ kernel.
 | Workspace XPR/root | isolated execution copy; Vivado may write here | Must be disjoint from source/authority and have the same Source Identity `/3` before admission; exact manifest may change as products regenerate |
 | Authority checkout | operator-owned policy/evidence root | Pairwise disjoint; CLI `--source-revision` must equal its current Git HEAD as lowercase 40-hex |
 | Trusted Tcl | static package resource | Path, byte length and SHA-256 of `daedalus/chip_design/tcl/vivado_project_flow.tcl` |
+| Publication adapter | on-disk Daedalus package Python inventory | Canonical inventory/Python/platform fingerprint; detects covered disk drift but is not loaded-code identity, clean-worktree attestation or commit binding |
 | Post-run workspace manifest | final exact workspace observation | Retained after a spawned phase; successful result requires complete manifest and unchanged authored Source Identity `/3` |
 | Reports/checkpoints/bitstream | derived run artifacts | Retained by byte SHA-256 with provenance; never replace source identity |
 
@@ -135,10 +136,12 @@ output roots are intentionally excluded from authored Source Identity `/3`.
 It is not a general similarity check: an authored RTL, XDC, BD/XCI or semantic
 run-strategy change must change the identity or make the comparison refuse.
 
-Historical `ImportPath` entries and references outside the declared root are
-reported rather than silently followed. An active input that is missing,
-unreadable, unresolved or outside the root makes the active manifest
-incomplete. Paths outside the root are not opened merely to hash them.
+Historical `ImportPath` entries are reported rather than silently followed.
+They are provenance metadata, not an active refusal when the corresponding
+current `File Path` resolves inside the project. An active current reference
+that is missing, unreadable, unresolved or outside the root still makes the
+manifest incomplete. Paths outside the root are not opened merely to hash
+them.
 
 Gate 1 also refuses project semantics whose transitive bytes are not closed by
 Source Identity `/3`: custom IP/board repositories, include-directory roots,
@@ -256,7 +259,10 @@ host `PATH` with the minimal system path, pins `TEMP`/`TMP` to the workspace,
 and redirects `HOME`/`USERPROFILE`/`APPDATA` to a fresh phase/output-specific
 workspace leaf. Installation startup Tcl and pre-existing profile leaves are
 refused. That reduces accidental secret and host-state inheritance; it is not
-an OS network sandbox. The lease grants no network capability, and
+an OS network or secret sandbox. The lease requests no kernel network or
+secret capability, but those authority fields do not prove offline, no-egress
+or no-secret execution. Vivado, trusted XDC and vendor components retain
+ambient filesystem, network and secret access allowed by the host OS.
 `security_boundary_claimed` remains false.
 
 The launcher file and Windows command interpreter are byte-bound inputs, not a
@@ -303,6 +309,14 @@ trusts a stale Complete/100% synthesis status. A CLI `full` run therefore has
 two independently leased/evidenced phases and intentionally repeats synthesis
 inside `impl`.
 
+IP/BD target generation may materialize or register vendor-generated HDL and
+other active files. The packaged Tcl re-enumerates that expanded graph with
+`get_files -quiet` and repeats its invariant checks in the same Vivado process
+before synthesis. This is a same-process runtime check over derived inputs; it
+does not turn the vendor generator, device database or built-in catalog into
+independently verified or pre-run content-addressed source. They remain vendor
+TCB, as do generator-internal support files not exposed by `get_files -quiet`.
+
 Console output, the exact native files and the structured execution receipt
 are hashed and stored in the authority-root-derived content-addressed Artifact
 Store before the effect is terminalized. A declared output missing after exit
@@ -317,6 +331,11 @@ changes may still change its exact manifest SHA-256.
 Restarting
 the same mission/attempt cannot mint a new chip lease; its deterministic lease
 identity reaches the canonical replay refusal before another process exists.
+Post-terminal publication/recovery additionally checks the plan-bound
+publication-adapter fingerprint against the current on-disk `daedalus` package
+Python inventory. That guard does not prove that already-loaded modules equal
+the observed files, that the worktree is clean, or that those bytes belong to
+the authority Git revision.
 
 ### 2.5 Evidence is not signoff
 
@@ -329,7 +348,9 @@ completion/cache fields. Timing includes setup/hold/pulse-width values and
 selected `check_timing` counts; its prose verdict must agree with slack,
 negative-slack totals and failing endpoints. Utilization covers
 LUT/register/BRAM/DSP, and DRC, methodology, route status and cumulative
-message counts retain their native byte identities.
+message counts retain their native byte identities. The cumulative console
+summary must parse with zero critical warnings and zero errors before its
+artifact-binding check can pass.
 
 Even a routed, timing-met design with a bitstream is only evidence for the
 checks that actually ran. G1-EDA-01 leaves lint, elaboration, simulation,
@@ -339,21 +360,53 @@ exit zero cannot upgrade those dimensions.
 
 ### 2.6 Current supplied-project status
 
-The supplied `tdc_light_version` XPR can be inspected read-only: the CLI emits
-the manifest and then returns nonzero to signal `complete=false`. Inspection
-finds a per-user `BoardPartRepoPaths` value pointing at the mutable Xilinx
-board store. The board part is a semantically active Vivado input, so the
-catalog cannot be discarded as relocation-only metadata. The manifest also
-records a vendor-catalog MicroBlaze boot-loop resource; its transitive bytes
-remain declared installation trust rather than hermetic source identity.
-Because the custom board-catalog bytes are not content-addressed, the
-effect-free `plan` command refuses. That refusal is the expected Gate-1 result
-pending a pinned board catalog; inspect-plus-plan end to end is not an accepted
-claim today.
+The supplied archive has SHA-256
+`2170893265CAE54678E217BA9777ADA278D826C02923A5D237082F7E251DD517`.
+Its original `tdc_light_version/tdc_light_version.xpr` entry is 69,273 bytes
+with SHA-256
+`17E03D70D41990130258CF5DA111A9C0259508E8068170CABEAAC510187C5977`.
+It records Vivado 2025.1, `impl_1 LaunchOptions=-jobs 14` and automatic
+incremental synthesis reuse of `system_wrapper.dcp`.
+The XPR inspected after the earlier Vivado activity is a different,
+Vivado-rewritten 68,712-byte working file with SHA-256
+`DEF8FC6B833B5C0A962BD497FF3116A01E598FCB90140E37DA9B2CB8D2A367A4`.
+It records Vivado 2025.1.1, `impl_1 LaunchOptions=-jobs 4` and disabled
+automatic incremental reuse, while the DCP remains an active project file.
+The two identities must not be conflated.
+
+Read-only `inspect` of the working XPR emits its manifest and then returns
+nonzero for `complete=false`. Exactly three active refusal classes remain:
+
+1. per-user `BoardPartRepoPaths` points at the mutable Xilinx board store;
+2. `impl_1` has the non-empty run override `LaunchOptions=-jobs 4`; and
+3. `tdc_light_version.srcs/utils_1/imports/synth_1/system_wrapper.dcp` is an
+   active checkpoint input in `utils_1`.
+
+The board catalog is a semantically active Vivado input, project-selected
+launch options are outside the canonical argv contract, and an active DCP
+carries compiled design state. Historical `ImportPath` attributes are reported
+but not followed and are not a fourth refusal when their current project-local
+file resolves. The manifest also records a vendor-catalog MicroBlaze boot-loop
+resource; its transitive bytes remain declared installation trust rather than
+hermetic source identity. The effect-free `plan` command therefore refuses the
+original/later-working project.
+
+A separate non-destructive source at
+`C:\daedalus_eda\tdc_daedalus_source_21708932` and disjoint workspace at
+`C:\daedalus_eda\tdc_daedalus_workspace_21708932` remove those three active
+inputs only in the derived copies. Both inspect complete with manifest SHA-256
+`46df6acdded3791436a2c094b407ee111402d55f1c5dbc9cac640e26acd31a1d`
+and Source Identity `/3`
+`842a21fc7be9aac430e9c22c9a594e28af992bf47107c8878aec8e7c670c2601`;
+the sanitized XPR SHA-256 is
+`69ED07B6AA5E1DA051DA314F6289BC1A6FFFD3BEC39B010060DE09F085C02155`.
+Static `plan --phase full --jobs 1` accepts synthesis and implementation, so
+the static inspect-plus-plan portion is complete for the derivation.
 
 As measured on 2026-08-30, the operator kill switch was `STOP` and the expected
 `.agentenv/chip-eda-policy.json` did not exist. No canonical live process was
-therefore admitted. A separate earlier Vivado 2025.1.1 synthesis/
+therefore admitted; the canonical live portion remains operator-blocked. A
+separate earlier Vivado 2025.1.1 synthesis/
 implementation run emitted a bitstream but restored two cached out-of-context
 IP results and did not traverse the canonical effect boundary. It remains
 useful, explicitly non-clean-room historical evidence, not proof that this

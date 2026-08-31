@@ -65,6 +65,11 @@ material separate from the general agent/runtime documentation.
   phase requires a complete post-run manifest with unchanged authored Source
   Identity `/3`; its exact manifest SHA-256 may change as generated products
   change.
+- Restart publication is bound to a canonical fingerprint of the on-disk
+  `daedalus` package Python inventory and declared Python/platform fields. That
+  detects covered disk drift between execution and publication; it is not an
+  identity of Python code already loaded in memory, proof of a clean checkout,
+  or proof that the bytes belong to the authority Git revision.
 - Repository-relative path validation for RTL files, Tcl scripts and include
   directories; this is admission logic, not OS filesystem enforcement.
 
@@ -231,11 +236,13 @@ behavior, Vitis software, hardware-in-the-loop and signoff explicitly
 
 The slice does not program an FPGA, execute a Vitis/XSCT/`v++` application,
 auto-promote a result, or claim that Python path checks or the sanitized child
-environment form an operating-system or network sandbox. The lease grants no
-network capability,
-but this packet does not install an OS-level network boundary. Foundry
-signoff, analog/mixed-signal support, power-integrity signoff and DFT/ATPG
-closure remain outside this slice.
+environment form an operating-system or network sandbox. The lease requests
+no kernel network or secret capability. Those fields describe Daedalus
+authority; they do not prove OS-enforced offline, no-egress or no-secret
+execution. Vivado, operator-trusted XDC and vendor components retain whatever
+ambient filesystem, network and secret access the host operating system makes
+available. Foundry signoff, analog/mixed-signal support, power-integrity
+signoff and DFT/ATPG closure remain outside this slice.
 
 For synthesis-capable canonical phases, the package Tcl disables Vivado's IP
 synthesis cache, verifies that state, resets and force-regenerates active XCI
@@ -244,16 +251,58 @@ both synthesis and implementation, and records the relevant completion/cache
 facts in the strict phase summary. Summary identity and timing prose must agree
 with the exact run inputs and parsed numeric timing fields.
 
-The supplied `tdc_light_version` project can currently be inspected read-only,
-but its XPR declares a mutable per-user `BoardPartRepoPaths` entry for the
-Xilinx board store. Because the selected board part affects Vivado semantics
-and that catalog is not yet content-addressed, the manifest is intentionally
-incomplete and `plan` refuses. `inspect --json` still emits the full read-only
-manifest, then returns nonzero to signal `complete=false`; this is not an
-Exit-0 acceptance claim. The manifest also records a vendor-catalog MicroBlaze
-boot-loop resource, whose transitive bytes remain declared installation trust.
-This is the expected safe result until the board catalog is pinned and bound.
-On 2026-08-30 the operator kill switch was also `STOP` and
+Target generation can add vendor-generated HDL and other active files. The
+same Vivado process therefore re-enumerates the expanded graph with
+`get_files -quiet` and rechecks its path, file-mode, repository, run and write
+invariants before synthesis. Those generated products are derived inputs of
+that process, not independently verified authored source. Their generator,
+device data, built-in catalog and any support files not exposed by
+`get_files -quiet` remain explicit vendor TCB.
+
+The supplied archive has SHA-256
+`2170893265CAE54678E217BA9777ADA278D826C02923A5D237082F7E251DD517`.
+Its original `tdc_light_version/tdc_light_version.xpr` entry is 69,273 bytes
+with SHA-256
+`17E03D70D41990130258CF5DA111A9C0259508E8068170CABEAAC510187C5977`.
+It records Vivado 2025.1, `impl_1 LaunchOptions=-jobs 14` and automatic
+incremental synthesis reuse of `system_wrapper.dcp`.
+The later Vivado-rewritten XPR that was actually inspected is a different
+68,712-byte file with SHA-256
+`DEF8FC6B833B5C0A962BD497FF3116A01E598FCB90140E37DA9B2CB8D2A367A4`.
+It records Vivado 2025.1.1, `impl_1 LaunchOptions=-jobs 4` and disabled
+automatic incremental reuse, while the DCP remains an active project file.
+Do not attribute working-file observations to the immutable ZIP entry.
+
+Inspection of that working XPR has exactly three active refusal classes:
+mutable per-user `BoardPartRepoPaths`, `impl_1` with the non-empty run override
+`LaunchOptions=-jobs 4`, and active checkpoint
+`tdc_light_version.srcs/utils_1/imports/synth_1/system_wrapper.dcp`. The board
+catalog is unbound, project-selected launch options are outside the canonical
+argv contract, and an active DCP carries compiled design state, so the
+manifest is intentionally incomplete and `plan` refuses. Historical absolute
+`ImportPath` attributes are reported as provenance but not followed; they are
+not a fourth refusal when the current project-relative `File Path` resolves.
+`inspect --json` still emits the full read-only manifest, then returns nonzero
+to signal `complete=false`; this is not an Exit-0 acceptance claim. The
+manifest also records a vendor-catalog MicroBlaze boot-loop resource, whose
+transitive bytes remain declared installation trust.
+Those refusals describe the immutable original and the later rewritten working
+project; they do not describe the separate sanitized derivation. Daedalus
+preserved both and created an authoritative copy at
+`C:\daedalus_eda\tdc_daedalus_source_21708932` plus a disjoint workspace at
+`C:\daedalus_eda\tdc_daedalus_workspace_21708932`. In those copies only, the
+mutable board selection/repository, project launch override and active utility
+DCP were removed while the exact part and XDC bytes were retained. Their XPR
+SHA-256 is
+`69ED07B6AA5E1DA051DA314F6289BC1A6FFFD3BEC39B010060DE09F085C02155`;
+both inspect complete with manifest SHA-256
+`46df6acdded3791436a2c094b407ee111402d55f1c5dbc9cac640e26acd31a1d`
+and Source Identity `/3`
+`842a21fc7be9aac430e9c22c9a594e28af992bf47107c8878aec8e7c670c2601`.
+Static `plan --phase full --jobs 1` accepts the ordered synthesis and
+implementation steps.
+
+On 2026-08-30 the operator kill switch was nevertheless `STOP` and
 `.agentenv/chip-eda-policy.json` was absent, so no canonical live rerun was
 admitted.
 

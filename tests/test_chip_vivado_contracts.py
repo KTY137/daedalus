@@ -17,6 +17,10 @@ from daedalus.chip_design.manifest import (
     build_vivado_project_manifest,
     canonical_path_identity,
 )
+from daedalus.chip_design.publication import (
+    vivado_message_report_passed,
+    vivado_rule_report_passed,
+)
 from daedalus.chip_design.vivado_reports import (
     parse_vivado_drc,
     parse_vivado_message_counts,
@@ -1991,13 +1995,14 @@ def test_native_report_parsers_preserve_zero_missing_and_unparseable_states(
     assert utilization.metrics["resources"]["bram_tile"]["util_percent"] == 90.0
     assert drc.metrics["checks_found"] == 7
     assert drc.metrics["severity_counts"] == {"warning": 7}
-    assert chip_cli._rule_report_passed(drc) is False
+    assert vivado_rule_report_passed(drc) is False
     assert methodology.metrics["checks_found"] == 0
     assert methodology.metrics["rules"] == ()
-    assert chip_cli._rule_report_passed(methodology) is True
+    assert vivado_rule_report_passed(methodology) is True
     assert route.metrics["complete"] is True
     assert messages.metrics["errors"] == 0
     assert messages.metrics["summary_count"] == 2
+    assert vivado_message_report_passed(messages) is True
     retained_payload = (
         b"194 Infos, 102 Warnings, 6 Critical Warnings and 0 Errors encountered."
     )
@@ -2007,6 +2012,7 @@ def test_native_report_parsers_preserve_zero_missing_and_unparseable_states(
     assert retained_messages.status == "parsed"
     assert retained_messages.sha256 == hashlib.sha256(retained_payload).hexdigest()
     assert retained_messages.metrics["critical_warnings"] == 6
+    assert vivado_message_report_passed(retained_messages) is False
 
     missing = parse_vivado_timing_summary(tmp_path / "absent.rpt")
     malformed_path = _write(tmp_path / "malformed.rpt", "Timing Summary Report")

@@ -1,0 +1,149 @@
+{
+  "attempts": [
+    {
+      "attempt_contract_sha256": "befaee89ac4291e6cb80e3ed65357c84d364b4814b78b9c41717916ef2172048",
+      "attempt_id": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-15320b",
+      "attempt_receipt_sha256": "649128e8712ac059805920c35f6b941f22842204537aef73da2a8decf75c604b",
+      "branch": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-15320b",
+      "changed_paths": [
+        "src/ignition_app/models.py",
+        "src/ignition_app/repository.py"
+      ],
+      "contracts_error": null,
+      "evidence_assurance": [
+        "deterministic"
+      ],
+      "evidence_packet_sha256": "a62bdcc7e025e418ea01a21d54d097ad5e14e8cfd61e6550150323e1b5e77550",
+      "evidence_status": "passed",
+      "gate_command": [
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "--no-header",
+        "tests/test_event_field.py::test_type_exposes_the_renamed_field"
+      ],
+      "gate_criterion_paths": [
+        "tests/test_event_field.py"
+      ],
+      "gate_ms": 203,
+      "gate_name": "ignition-code-type",
+      "gate_output_sha256": "4bcefcc9f6c645923b9993ccf73ad92e6b400ca25458ea14e095857fc2131342",
+      "gate_passed": true,
+      "lease_error": null,
+      "lease_id": "mission-gate1-voltage-ignition-python.attempt-daedalus-attempt-wi-000-c41495030c8f-b26ca597-15320b-91583e02",
+      "lease_outcome": "COMPLETED",
+      "mission_id": "mission-gate1-voltage-ignition",
+      "patch_locator": "artifact-locator:sha256:d4fa1d9f5c021b919d41e2727996a0d82b9f96e80fafa34e0ec64541e6edc76f",
+      "patch_sha256": "cc040292b7ec9834adab83b9aa8423a19bde38338246106f58ff2a07e85b075d",
+      "policy_decision_sha256": "cffe847d01669af75e5dab93c4c8ccb2437fa17e9881836057c621af6d11ae14",
+      "policy_verdict": "allow",
+      "runtime_manifest_sha256": "a04bfae046b0b1fd57813225de58a7466f77c1fcb06f9e9ec86194aea4bf14c8",
+      "state": "clean",
+      "target_paths": [
+        "src/ignition_app/models.py",
+        "src/ignition_app/repository.py"
+      ],
+      "work_item_id": "wi-000-c41495030c8f",
+      "worktree_removed": true
+    },
+    {
+      "attempt_contract_sha256": "82fa2d33807ace27cbd100fc39eef03d12eb76382a3d98e169c8a69150028414",
+      "attempt_id": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-7284aa",
+      "attempt_receipt_sha256": "6ead5c7ab2392fafb64f9faa1f43beea7613cf0e593698cff4230125ed94c40b",
+      "branch": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-7284aa",
+      "changed_paths": [
+        "data/events.csv",
+        "fourfold.json",
+        "schemas/event.schema.json",
+        "wiki/Event.md"
+      ],
+      "contracts_error": null,
+      "evidence_assurance": [
+        "deterministic"
+      ],
+      "evidence_packet_sha256": "287fe0295ce3d51cd79a584412b01d8868ecf33cc18d2c77b6bba66a25837d49",
+      "evidence_status": "passed",
+      "gate_command": [
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "--no-header",
+        "tests/test_event_field.py::test_csv_header_carries_the_renamed_field",
+        "tests/test_event_field.py::test_wiki_documents_the_renamed_field",
+        "tests/test_event_field.py::test_wiki_links_resolve",
+        "ignition-schema-check",
+        "ignition-link-check"
+      ],
+      "gate_criterion_paths": [
+        "tests/test_event_field.py"
+      ],
+      "gate_ms": 203,
+      "gate_name": "ignition-data-knowledge",
+      "gate_output_sha256": "d167585f73aa98c963148c7a1216cff9123f80b3b64511641d54c2951874fd48",
+      "gate_passed": true,
+      "lease_error": null,
+      "lease_id": "mission-gate1-voltage-ignition-python.attempt-daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-7284aa-11362af6",
+      "lease_outcome": "COMPLETED",
+      "mission_id": "mission-gate1-voltage-ignition",
+      "patch_locator": "artifact-locator:sha256:312d9e2296b3f39e1368b500c88b0be103b76692161c939d1c1690a5c22af87f",
+      "patch_sha256": "85fad7cf86a3bf32099eb0eb65e38ae041ce531b06e25de540d28dd2d497bbc0",
+      "policy_decision_sha256": "d379f52c62478155e1985f84157a5430bab6e82944cac3968e5756ebe9e781a1",
+      "policy_verdict": "allow",
+      "runtime_manifest_sha256": "ee1278a51c2c91f980d01e591593c1f540aa8006bc3017f7fc1dc0077016ac10",
+      "state": "clean",
+      "target_paths": [
+        "data/events.csv",
+        "fourfold.json",
+        "schemas/event.schema.json",
+        "wiki/Event.md"
+      ],
+      "work_item_id": "wi-001-c8c563f2c0da",
+      "worktree_removed": true
+    }
+  ],
+  "check_reports": {
+    "kinds": [
+      "link",
+      "pytest",
+      "schema"
+    ],
+    "reports": [
+      {
+        "evaluator": "ignition-pytest-code-type",
+        "kind": "pytest",
+        "output_sha256": "4bcefcc9f6c645923b9993ccf73ad92e6b400ca25458ea14e095857fc2131342",
+        "passed": true,
+        "report_sha256": "9f170e76a200832b0db0e852c9807cfd8e446c7b770473ba67e4a1e39240c5d0"
+      },
+      {
+        "evaluator": "ignition-pytest-data-knowledge",
+        "kind": "pytest",
+        "output_sha256": "e0a6ea218ea5d725ce7272da8d68d45a029e489423e03af6960c7bff0f7fe414",
+        "passed": true,
+        "report_sha256": "c23501f98b6945d7d559bf20fd4c676dfd335121f60a90d85e7bdee6d27e18a7"
+      },
+      {
+        "evaluator": "ignition-link-check",
+        "kind": "link",
+        "output_sha256": "641ce025fd271ad0bc6b53e2d0ec9626424442e7456ac126c691169791b171e5",
+        "passed": true,
+        "report_sha256": "d3065bff455b0019d307605ea3901d55324561d8fefe5a3ed204be1b9c0f82ca"
+      },
+      {
+        "evaluator": "ignition-schema-check",
+        "kind": "schema",
+        "output_sha256": "8eaa6eb6fbcbb434c210d9f8da13534860627dc621828a3b7f77d8e8dac4b8da",
+        "passed": true,
+        "report_sha256": "f487bdb1b2073fe8e4b38623b34fa6d8306bb0ba3ba4409f234179f0fdc45804"
+      }
+    ]
+  },
+  "mission_id": "mission-gate1-voltage-ignition",
+  "mission_sha256": "429fb23bf7fa1b0142d061a099da09a67146f3810d47308798766b49c4a4fce8",
+  "schema": "daedalus-ignition-attempt-binding/1",
+  "total_gate_ms": 406
+}

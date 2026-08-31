@@ -19,7 +19,9 @@ Tauri process
 The Tauri shell deliberately exposes **no JavaScript shell/process capability**.
 The backend process path is fixed in Rust and a pre-existing listener on port
 8765 is treated as a startup error rather than silently adopted. Closing the app
-terminates the child it spawned.
+uses the nonce-authenticated backend shutdown route; desktop-owned provider
+processes are contained as trees, so an Ollama runner cannot survive merely
+because its immediate parent exits first.
 
 ## Integrated IDE on Windows
 
@@ -50,31 +52,67 @@ the image, project label, canonical mount source and loopback port binding.
 ## Runtime layout
 
 CI freezes the Python backend with PyInstaller in `onedir` mode and embeds that
-directory as a Tauri resource. At first launch (and after upgrades) Tauri copies
-packaged backend files into its per-user application-data directory. It copies
-with overwrite but never deletes state that is absent from the package.
+directory as a Tauri resource. The build writes a deterministic SHA-256
+`BUNDLE_ID` plus a strictly sorted `BUNDLE_FILES` manifest; the Rust host is
+compiled against that exact identity and refuses a mismatched resource before
+copying or spawning anything. Only manifest-listed files are verified and
+copied. This is intentional because an in-place NSIS upgrade can leave files
+from an older resource directory behind: unlisted installer residue is inert
+and can never enter an executable generation.
+
+At launch, Tauri installs a bundle once through a private staging directory into
+`backend-generations/<BUNDLE_ID>`. An existing generation is validated and is
+never refreshed in place. This matters on Windows: a resident native provider
+can hold DLL image mappings open, but those files are no longer overwrite
+targets for a later package. The active marker is changed only after the new
+backend has returned the exact startup nonce; the WebView is created only after
+that commit point.
 
 The frozen backend seeds `projects/daedalus.json` once. Existing Daedalus
 repository-root semantics then place mutable state beside the frozen package:
 
 ```text
-<app-local-data>/backend/
-├─ daedalus-web-api[.exe]
-├─ desktop-backend.log
-└─ _internal/
-   ├─ daedalus/
-   ├─ apps/web/{dist,src}/
-   ├─ projects/daedalus.json
-   ├─ runs/
-   ├─ inbox/
-   ├─ outbox/
-   ├─ memory/
-   └─ .env                 # optional; never shipped
+<app-local-data>/
+|-- backend-current                         # active BUNDLE_ID
+|-- desktop-startup.log                     # stable native startup failures
+|-- desktop-backend.log                     # stable Python backend output
+|-- backend/                                # retained legacy 0.1.3 layout
+`-- backend-generations/
+    `-- <BUNDLE_ID>/
+        |-- BUNDLE_ID
+        |-- BUNDLE_FILES
+        |-- daedalus-web-api[.exe]
+        `-- _internal/
+            |-- daedalus/
+            |-- apps/web/{dist,src}/
+            |-- projects/daedalus.json
+            |-- runs/
+            |-- inbox/
+            |-- outbox/
+            |-- memory/
+            `-- .env                        # optional; never shipped
 ```
 
-This is intentional: packaged resources are immutable inputs, while the copied
-runtime is user-owned. No `.env`, `runs/`, queue contents, memory or machine-
-specific project definitions are put into release artifacts.
+No `.env`, `runs/`, queue contents, memory or machine-specific project
+definitions are put into release artifacts. When a new generation is staged,
+only those allowlisted state paths are migrated from the last ready generation
+(or the legacy layout), and only where the target is missing. Links, special
+files and type conflicts fail closed. Older generations are retained as
+inactive migration snapshots; they are not a second live state authority, and
+rollback requires explicit forward reconciliation rather than blindly treating
+an old snapshot as current. The launcher refuses an already-installed inactive
+generation. A freshly installed generation that fails before activation is
+removed after its child exits, so a retry starts from the current state again.
+The sidecar also rebinds only its schema-marked `projects/daedalus.json` record
+to the new generation; operator-owned project records are left byte-for-byte
+untouched.
+
+On frozen Windows builds, external Ollama startup temporarily clears
+PyInstaller's process DLL directory, removes bundle-rooted entries from the
+child `PATH`, and restores the Python process immediately after creation.
+Ollama starts in `runs/services/ollama` and is suspended until the existing
+Daedalus process-tree container has assigned it to a kill-on-close Job Object.
+A reachable Ollama that Daedalus did not start remains unowned and untouched.
 
 ## Local build
 

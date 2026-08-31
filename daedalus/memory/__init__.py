@@ -216,10 +216,19 @@ def record_from_bridge_report(report: dict[str, Any]) -> dict[str, Any]:
     todos = inner.get("todos") or []
     if report.get("bridge_status") == "failed" and not todos:
         todos = ["Inspect failed bridge report and retry if needed."]
+    observed = report.get("actual_providers")
+    providers = [
+        str(provider).strip() for provider in observed
+        if str(provider or "").strip()
+    ] if isinstance(observed, list) else []
+    # The requested lane and historical ``agent`` label are routing metadata,
+    # not proof that Claude (or any provider) ran.  Memory provenance must use
+    # the same explicit execution evidence as the task/conversation surfaces.
+    provider_source = "+".join(dict.fromkeys(providers)) or "none"
     return append_event(
         MemoryEvent(
             kind="bridge_report",
-            source=f"claude:{report.get('agent', 'unknown')}",
+            source=f"file_bridge:{provider_source}",
             repo_root=request.get("repo_root"),
             project=request.get("project"),
             trust=inner.get("trust") or request.get("trust"),

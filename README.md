@@ -203,11 +203,13 @@ daedalus-chip lint --tool verilator --top top rtl/top.sv
 daedalus-chip tcl vivado flow/build.tcl
 ```
 
-Lint/Tcl execution is dry-run first; add `--live` only after reviewing the
-planned argv. A generated bitstream, report, or GDS artifact is not by itself a
-pass signal: hardware confidence is built through staged lint/elaboration,
-verification, synthesis, timing, implementation/physical checks and retained
-receipts.
+`lint` and `tcl` are planning-only surfaces in G1-EDA-01; their raw `--live`
+form is refused. The only admitted live Vivado surface is the project-aware
+`daedalus-chip run` flow documented in
+[`docs/chip-design/README.md`](docs/chip-design/README.md). A generated
+bitstream, report, or GDS artifact is not by itself a pass signal: hardware
+confidence is built through staged lint/elaboration, verification, synthesis,
+timing, implementation/physical checks and retained receipts.
 
 ## Documentation discipline
 

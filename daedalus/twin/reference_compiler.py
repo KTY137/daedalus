@@ -11,7 +11,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
-from ..schemas import ContractProvenance, _identifier, _revision
+from ..schemas import ContractProvenance, _identifier, _revision, _sha256
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import KnowledgeForest
 from ._reference_claims import verify_claims
@@ -39,6 +39,7 @@ class ReferenceCompileResult:
     manifest_sha256: str
     source_bundle_sha256: str
     file_sha256s: tuple[tuple[str, str], ...]
+    source_tree_sha256: str | None = None
 
     @property
     def file_digest_map(self) -> Mapping[str, str]:
@@ -53,10 +54,16 @@ def compile_reference_project(
     manifest_name: str = "fourfold.json",
     trace_id: str | None = None,
     limits: ReferenceLimits = DEFAULT_REFERENCE_LIMITS,
+    source_tree_sha256: str | None = None,
 ) -> ReferenceCompileResult:
     if not isinstance(limits, ReferenceLimits):
         raise ValueError("limits must be a ReferenceLimits record")
     revision = _revision(source_revision, "source_revision")
+    source_tree_digest = (
+        _sha256(source_tree_sha256, "source_tree_sha256")
+        if source_tree_sha256 is not None
+        else None
+    )
     project_root = Path(root).resolve()
     manifest_rel = safe_relpath(manifest_name, "manifest_name")
     manifest_bytes = read_file(
@@ -141,17 +148,24 @@ def compile_reference_project(
         "knowledge_files": list(knowledge_files),
         "claims": sorted(canonical_claims, key=canonical_sha),
     })
+    forest_provenance = {
+        "compiler": "daedalus.twin.reference_compiler",
+        "manifest_sha256": manifest_sha,
+        "source_bundle_sha256": source_bundle_sha,
+        "source_revision": revision,
+    }
+    if source_tree_digest is not None:
+        # The source tree, not this graph, is candidate identity. Keeping the
+        # CAS digest in compiled provenance makes that authority relationship
+        # mechanically checkable without changing legacy snapshot identities
+        # when no source-tree reference is supplied.
+        forest_provenance["source_tree_sha256"] = source_tree_digest
     forest = KnowledgeForest(
         root=".",
         nodes=tuple(sorted(inv.nodes, key=lambda n: n.id)),
         edges=tuple(sorted(inv.edges, key=lambda e: (e.source, e.target, e.relation, canonical_sha(e.to_dict())))),
         hyperedges=(),
-        provenance={
-            "compiler": "daedalus.twin.reference_compiler",
-            "manifest_sha256": manifest_sha,
-            "source_bundle_sha256": source_bundle_sha,
-            "source_revision": revision,
-        },
+        provenance=forest_provenance,
     )
     forest_digest = forest.content_sha256
     node_plane = {node: plane for plane, nodes in inv.plane_nodes.items() for node in nodes}
@@ -188,6 +202,7 @@ def compile_reference_project(
             *file_sha.values(),
             *(p.digest for p in planes),
             *(b.digest for b in bindings),
+            *((source_tree_digest,) if source_tree_digest is not None else ()),
         }),
         trace_id=trace_id,
     )
@@ -205,6 +220,7 @@ def compile_reference_project(
         manifest_sha256=manifest_sha,
         source_bundle_sha256=source_bundle_sha,
         file_sha256s=tuple(sorted(file_sha.items())),
+        source_tree_sha256=source_tree_digest,
     )
 
 

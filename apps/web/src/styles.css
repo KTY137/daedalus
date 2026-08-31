@@ -1423,6 +1423,22 @@ p { color: var(--muted); font-size: 12px; line-height: 1.5; }
 }
 .sheet-body .codemap-panel { overflow: hidden; }
 .codemap-panel .panel-head { align-items: center; flex: none; }
+.graph-limit {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dim);
+  font-size: 11px;
+}
+.graph-limit select {
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+}
+.graph-limit + .struct-refresh { margin-left: 0; }
 
 /* ---- bounded-view banner: no silent caps, ever ---- */
 .map-truncated,

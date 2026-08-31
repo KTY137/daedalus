@@ -27,6 +27,13 @@ check the upstream contract rather than preserving accidental behavior.
 - [Using Tcl commands to reset and generate target IP (UG896)](https://docs.amd.com/r/2025.1-English/ug896-vivado-ip/Using-Tcl-Commands-to-Reset-and-Generate-Target-IP)
   and [`generate_target` (UG835)](https://docs.amd.com/r/2024.1-English/ug835-vivado-tcl-commands/generate_target)
   anchor the reset/force-regeneration sequence.
+- [`get_runs` (UG835)](https://docs.amd.com/r/en-US/ug835-vivado-tcl-commands/get_runs)
+  is the command authority for enumerating and selecting Vivado run objects.
+- [Vivado synthesis: linter with OOC runs and `SRCSET`](https://docs.amd.com/r/2025.1-English/ug901-vivado-synthesis/Linter-with-OOC-Runs)
+  documents source-set association in a run workflow, while
+  [`create_run` (UG835)](https://docs.amd.com/r/2021.1-English/ug835-vivado-tcl-commands/create_run)
+  documents explicit run creation. These support retaining and checking the
+  selected source/run dependency graph rather than inferring it from run names.
 - [`IP_REPO_PATHS` property (UG912)](https://docs.amd.com/r/en-US/ug912-vivado-properties/IP_REPO_PATHS)
   and [IP Packager XGUI Tcl outputs (UG1118)](https://docs.amd.com/r/2023.2-English/ug1118-vivado-creating-packaging-custom-ip/Outputs-from-IP-Packager)
   show why a custom IP repository is executable/transitive input and is

@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyDraft, dismissDraft, getDraft, getDrafts, type DraftDetail, type DraftRow } from '../api';
-import { recordAutonomy, withinLimits, type AutonomyLevel } from './autonomy';
 
 /**
  * The one thing waiting for a person.
  *
  * This card exists only when a draft is actually pending. There is no
- * placeholder decision, no demo attempt, and no disabled Annehmen button
+ * placeholder decision, no demo attempt, and no disabled Übergabe-Schalter
  * standing in for one — five review rounds died on affordances that were
  * pictures of affordances. When nothing is pending the card says so in one
  * line and offers nothing to press.
  *
  * "Warum" is not a tooltip. It fetches the draft's own report — what it
- * changed, what it ran, what it flagged as a risk — because "accept" without a
- * readable proposal is just a button that writes to your repository.
+ * changed, what it ran, what it flagged as a risk — because a handoff without
+ * a readable proposal is just an opaque state transition.
  *
  * THE DRAFT STORE IS SHARED, THE CARD IS NOT.
  *
@@ -41,13 +40,9 @@ export interface DecisionProps {
   onChanged?: () => void;
   /** how many drafts are pending, so the navigation can say so */
   onCount?: (n: number) => void;
-  /** how much may happen without a click */
-  autonomy?: AutonomyLevel;
-  /** something was applied automatically, so the log view can re-read */
-  onAutomatic?: () => void;
 }
 
-export function Decision({ project, signal = 0, onChanged, onCount, autonomy = 'aus', onAutomatic }: DecisionProps) {
+export function Decision({ project, signal = 0, onChanged, onCount }: DecisionProps) {
   const [pending, setPending] = useState<DraftRow[]>([]);
   /** `null` until proven otherwise — see the file doc comment. Only a
    *  resolved path makes `pending` this project's to show or act on. */
@@ -58,12 +53,6 @@ export function Decision({ project, signal = 0, onChanged, onCount, autonomy = '
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
-  const [autoNote, setAutoNote] = useState('');
-  const autonomyRef = useRef(autonomy);
-  autonomyRef.current = autonomy;
-  /** drafts this session already decided about automatically, so a failed
-   *  apply is never retried in a loop */
-  const handled = useRef<Set<string>>(new Set());
 
   /**
    * Which `load()` call is still the one that matters.
@@ -76,8 +65,7 @@ export function Decision({ project, signal = 0, onChanged, onCount, autonomy = '
    * timeout landing AFTER the real answer would overwrite a correct,
    * honestly-scoped result with a wrong error. Only the most recently
    * STARTED call is allowed to write state, independent of which one
-   * finishes first — the same shape as the `alive` guard the auto-apply
-   * effect below already uses for the same reason.
+   * finishes first. The local `alive` guard below follows the same rule.
    */
   const loadId = useRef(0);
 
@@ -115,59 +103,6 @@ export function Decision({ project, signal = 0, onChanged, onCount, autonomy = '
     setDetail(undefined);
   }, [current?.id]);
 
-  /**
-   * APPLYING A DRAFT WITHOUT ASKING.
-   *
-   * Only at `entwuerfe` and `alles`, only once per draft per session, and at
-   * `entwuerfe` only when the draft's own report clears the limits in
-   * autonomy.ts. Every automatic apply is written to the log; a refusal is
-   * written to the card, in the reason's own words, so "it did not do it" is
-   * never silent either.
-   */
-  useEffect(() => {
-    const level = autonomyRef.current;
-    if (!current || level === 'aus' || level === 'vorschlaege') return;
-    if (handled.current.has(current.id)) return;
-    handled.current.add(current.id);
-
-    let alive = true;
-    (async () => {
-      try {
-        const full = await getDraft(current.id);
-        if (!alive) return;
-        const report = full.draft?.report;
-        const shape = {
-          files: report?.files_changed || [],
-          risks: report?.risks || [],
-          status: report?.status
-        };
-        const verdict = level === 'alles' ? { ok: true, why: '' } : withinLimits(shape);
-        if (!verdict.ok) {
-          setAutoNote(`Nicht automatisch angewandt — ${verdict.why}. Entscheide selbst.`);
-          return;
-        }
-        await applyDraft(current.id);
-        if (!alive) return;
-        recordAutonomy({
-          what: 'Entwurf angewandt',
-          detail: `${current.objective || current.id} · ${shape.files.length} Datei(en)`,
-          level
-        });
-        setAutoNote('');
-        onAutomatic?.();
-        await load();
-        onChanged?.();
-      } catch (e) {
-        if (alive) setAutoNote(`Automatisch anwenden fehlgeschlagen: ${e instanceof Error ? e.message : 'unbekannt'}`);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id]);
-
   const why = useCallback(async () => {
     if (!current) return;
     setOpen((v) => !v);
@@ -181,12 +116,16 @@ export function Decision({ project, signal = 0, onChanged, onCount, autonomy = '
   }, [current, detail]);
 
   const act = useCallback(
-    async (kind: 'apply' | 'dismiss') => {
+    async (kind: 'handoff' | 'dismiss') => {
       if (!current) return;
       setBusy(kind);
       setError('');
       try {
-        if (kind === 'apply') await applyDraft(current.id);
+        // The existing API calls this historical state "apply". In this
+        // cockpit it means only that the reviewed draft was handed to the
+        // canonical Daedalus path; it is not evidence of a repository write,
+        // successful evaluation, or promotion.
+        if (kind === 'handoff') await applyDraft(current.id);
         else await dismissDraft(current.id);
         await load();
         onChanged?.();
@@ -260,13 +199,14 @@ export function Decision({ project, signal = 0, onChanged, onCount, autonomy = '
       <h2 className="decision-title">{current.objective || current.id}</h2>
       <p className="decision-sub">
         Von <b>{current.agent || 'unbekannt'}</b>
-        {current.paths?.length ? ` · ${current.paths.length} Pfad(e)` : ''} · angelegt {current.created}. Annehmen
-        schreibt in dein Repository; Ablehnen legt den Entwurf zur Seite.
+        {current.paths?.length ? ` · ${current.paths.length} Pfad(e)` : ''} · angelegt {current.created}. Eine explizite
+        Bestätigung übergibt den Entwurf an den bestehenden Daedalus-Pfad; sie belegt keine Repository-Änderung,
+        Auswertung oder Promotion. Ablehnen legt den Entwurf zur Seite.
       </p>
 
       <div className="decision-acts">
-        <button type="button" className="primary" onClick={() => void act('apply')} disabled={busy !== ''}>
-          {busy === 'apply' ? 'Wird angewandt …' : 'Annehmen'}
+        <button type="button" className="primary" onClick={() => void act('handoff')} disabled={busy !== ''}>
+          {busy === 'handoff' ? 'Übergabe wird bestätigt …' : 'Übergabe bestätigen'}
         </button>
         <button type="button" onClick={() => void act('dismiss')} disabled={busy !== ''}>
           {busy === 'dismiss' ? 'Wird abgelegt …' : 'Ablehnen'}
@@ -276,12 +216,6 @@ export function Decision({ project, signal = 0, onChanged, onCount, autonomy = '
         </button>
       </div>
 
-      {autoNote && (
-        <p className="decision-auto">
-          <span className="dot warn" aria-hidden="true" />
-          {autoNote}
-        </p>
-      )}
       {error && (
         <p className="decision-error" role="alert">
           <span className="dot bad" aria-hidden="true" />

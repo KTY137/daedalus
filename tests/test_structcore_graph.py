@@ -179,6 +179,15 @@ class GraphInvariantsTest(unittest.TestCase):
             self.assertIn(e["source"], node_ids)
             self.assertIn(e["target"], node_ids)
 
+    def test_none_caps_return_the_whole_network(self):
+        g = structure_summary(
+            self.idx, max_graph_nodes=None, max_graph_edges=None
+        )["graph"]
+        self.assertEqual(len(g["nodes"]), g["n_nodes_total"])
+        self.assertEqual(len(g["edges"]), g["n_edges_total"])
+        self.assertEqual(g["n_edges_offmap"], 0)
+        self.assertFalse(g["truncated"])
+
 
 class ScoreModulesAndHotspotsTest(unittest.TestCase):
     """20 modules -> module_heat must rank all 20; hotspots is just the top 15

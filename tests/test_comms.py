@@ -284,7 +284,8 @@ class MissionControlEndpointTests(unittest.TestCase):
             report = core.process_bridge_payload(payload)
         ask.assert_not_called()
         self.assertEqual(report["bridge_status"], "failed")
-        self.assertIn("Claude fallback skipped", report["error"])
+        self.assertEqual(report["lane"], "local_only")
+        self.assertIn("external fallback is prohibited", report["error"])
 
     def test_models_handles_no_server(self):
         with patch("daedalus.core.urllib.request.urlopen", side_effect=OSError("offline")):

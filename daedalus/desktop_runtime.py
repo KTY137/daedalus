@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -22,6 +23,7 @@ from typing import Any
 from urllib.parse import urlencode, urlsplit
 
 from . import budget as budget_kernel
+from . import runtime_registry
 from .limit_policy import (
     ENV_EXECUTION_LIMIT_POLICY,
     ExecutionLimitPolicy,
@@ -30,6 +32,7 @@ from .limit_policy import (
     MODE_CUSTOM,
     store_in_env as store_limit_policy_in_env,
 )
+from .spine.cancel import ManagedProcess
 
 CONFIG_REL = Path("config/connections.json")
 KNOWN_HOSTS_REL = Path("config/known_hosts")
@@ -89,6 +92,108 @@ _IDE_DOCKER_IMAGE_RE = re.compile(
     r"|@sha256:[0-9a-f]{64})$"
 )
 _DOCKER_CONTAINER_ID_RE = re.compile(r"^[0-9a-f]{64}$")
+_DLL_DIRECTORY_LOCK = threading.Lock()
+
+
+def _frozen_windows_runtime_root() -> Path | None:
+    """Return PyInstaller's DLL root only for a frozen Windows process."""
+
+    raw = getattr(sys, "_MEIPASS", "")
+    if os.name != "nt" or not isinstance(raw, (str, os.PathLike)) or not str(raw):
+        return None
+    return Path(raw).resolve()
+
+
+def _path_is_within(path: str, root: Path) -> bool:
+    """Compare PATH entries without treating a similarly named sibling as nested."""
+
+    candidate = path.strip().strip('"')
+    if not candidate:
+        return False
+    try:
+        normalized_root = os.path.normcase(os.path.abspath(str(root)))
+        normalized_candidate = os.path.normcase(os.path.abspath(candidate))
+        return os.path.commonpath((normalized_root, normalized_candidate)) == normalized_root
+    except (OSError, ValueError):
+        return False
+
+
+def _ollama_child_environment(
+    environ: dict[str, str] | os._Environ[str],
+    frozen_root: Path | None,
+) -> dict[str, str]:
+    """Copy the environment without exposing packaged DLLs to Ollama children."""
+
+    child = dict(environ)
+    if frozen_root is None:
+        return child
+    entries = child.get("PATH", "").split(os.pathsep)
+    child["PATH"] = os.pathsep.join(
+        entry for entry in entries if not _path_is_within(entry, frozen_root)
+    )
+    return child
+
+
+def _set_windows_dll_directory(path: str | None) -> None:
+    """Set the process DLL directory and fail closed when Windows refuses."""
+
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    setter = kernel32.SetDllDirectoryW
+    setter.argtypes = [ctypes.c_wchar_p]
+    setter.restype = ctypes.c_int
+    if not setter(path):
+        code = ctypes.get_last_error()
+        raise OSError(code, f"SetDllDirectoryW({path!r}) failed")
+
+
+def _spawn_ollama_process(
+    argv: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    stdout: Any,
+    stderr: Any,
+    frozen_root: Path | None,
+) -> ManagedProcess:
+    """Spawn Ollama without leaking PyInstaller's DLL search path.
+
+    ``SetDllDirectoryW`` changes process-global state, so the reset, spawn and
+    restoration are one critical section.  The managed child is closed if the
+    restoration itself fails; returning a running child after corrupting the
+    parent's DLL search state would be unsafe.
+    """
+
+    def spawn() -> ManagedProcess:
+        return ManagedProcess(
+            argv,
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+    if frozen_root is None:
+        return spawn()
+
+    with _DLL_DIRECTORY_LOCK:
+        _set_windows_dll_directory(None)
+        managed: ManagedProcess | None = None
+        try:
+            managed = spawn()
+        finally:
+            try:
+                _set_windows_dll_directory(str(frozen_root))
+            except BaseException:
+                if managed is not None:
+                    try:
+                        managed.close(grace_s=0.0)
+                    except BaseException:
+                        pass
+                raise
+        return managed
 
 
 class DesktopRuntimeError(RuntimeError):
@@ -448,7 +553,7 @@ class DesktopRuntimeManager:
         self._bridge_start_error = ""
         self._bridge_stop = threading.Event()
         self._tunnel: subprocess.Popen[bytes] | None = None
-        self._ollama: subprocess.Popen[bytes] | None = None
+        self._ollama: ManagedProcess | None = None
         self._ide: subprocess.Popen[bytes] | None = None
         self._ide_docker_managed_id: str | None = None
         self._tunnel_log = None
@@ -671,10 +776,12 @@ class DesktopRuntimeManager:
             # service stop, file write, environment mutation, or ledger read.
             old_route = (
                 self.config["ollama"]["mode"],
+                self.config["ollama"]["local_host"],
                 json.dumps(self.config["ollama"]["remote"], sort_keys=True),
             )
             new_route = (
                 new["ollama"]["mode"],
+                new["ollama"]["local_host"],
                 json.dumps(new["ollama"]["remote"], sort_keys=True),
             )
             old_ide_route = (
@@ -690,7 +797,7 @@ class DesktopRuntimeManager:
                 new["ide"]["docker_image"],
             )
             if old_route != new_route:
-                self.stop_ollama_transport()
+                self.stop_ollama()
             if old_ide_route != new_ide_route:
                 self.stop_ide()
             previous = self.config
@@ -1355,19 +1462,39 @@ class DesktopRuntimeManager:
             return {"mode": "local", "running": True, "reachable": True, "detail": ""}
         with self._lock:
             if not (self._ollama and self._ollama.poll() is None):
-                exe = shutil.which("ollama")
+                resolved = runtime_registry.resolve_runtime_command("ollama_cli")
+                exe = str(Path(resolved).resolve()) if resolved else ""
                 if not exe:
                     raise DesktopRuntimeError(
-                        "Ollama is offline and the 'ollama' executable is not on PATH"
+                        "Ollama is offline and its executable was not found on PATH "
+                        "or a supported install location"
                     )
+                service_cwd = self.root / "runs" / "services" / "ollama"
+                try:
+                    service_cwd.mkdir(parents=True, exist_ok=True)
+                except OSError as exc:
+                    raise DesktopRuntimeError(
+                        f"cannot prepare the local Ollama service directory: {exc}"
+                    ) from exc
+                frozen_root = _frozen_windows_runtime_root()
+                child_env = _ollama_child_environment(os.environ, frozen_root)
                 self._ollama_log = self._child_log("local ollama")
-                self._ollama = subprocess.Popen(
-                    [exe, "serve"],
-                    stdin=subprocess.DEVNULL,
-                    stdout=self._ollama_log,
-                    stderr=self._ollama_log,
-                    creationflags=self._creationflags(),
-                )
+                try:
+                    self._ollama = _spawn_ollama_process(
+                        [exe, "serve"],
+                        cwd=service_cwd,
+                        env=child_env,
+                        stdout=self._ollama_log,
+                        stderr=self._ollama_log,
+                        frozen_root=frozen_root,
+                    )
+                except Exception as exc:
+                    try:
+                        self._ollama_log.close()
+                    except OSError:
+                        pass
+                    self._ollama_log = None
+                    raise DesktopRuntimeError(f"cannot start local Ollama: {exc}") from exc
             proc = self._ollama
         end = time.monotonic() + 6
         while proc and proc.poll() is None and time.monotonic() < end:
@@ -1570,6 +1697,28 @@ class DesktopRuntimeManager:
                     pass
                 self._tunnel_log = None
 
+    def stop_ollama(self) -> None:
+        """Stop only Ollama processes whose lifecycle this desktop owns."""
+
+        self.stop_ollama_transport()
+        with self._lock:
+            proc, self._ollama = self._ollama, None
+            try:
+                # Always close the ManagedProcess.  On Windows releasing its
+                # Job Object kills descendants even when the direct parent has
+                # already exited, which is the exact orphan-server failure mode.
+                if proc is not None:
+                    proc.close(grace_s=2.0)
+            except Exception as exc:
+                self._log(f"local Ollama stop failed: {exc}")
+            finally:
+                if self._ollama_log:
+                    try:
+                        self._ollama_log.close()
+                    except OSError:
+                        pass
+                    self._ollama_log = None
+
     def close(self, *, strict: bool = False, timeout: float = 8.0) -> None:
         self._closed = True
         self._bridge_stop.set()
@@ -1578,24 +1727,7 @@ class DesktopRuntimeManager:
             self.stop_ide(owned_only=True, strict=strict, timeout=timeout)
         except DesktopRuntimeError as exc:
             cleanup_error = exc
-        self.stop_ollama_transport()
-        with self._lock:
-            proc, self._ollama = self._ollama, None
-            if proc and proc.poll() is None:
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=2)
-                except (OSError, subprocess.SubprocessError):
-                    try:
-                        proc.kill()
-                    except OSError:
-                        pass
-            if self._ollama_log:
-                try:
-                    self._ollama_log.close()
-                except OSError:
-                    pass
-                self._ollama_log = None
+        self.stop_ollama()
         if strict and cleanup_error is not None:
             raise cleanup_error
 
@@ -1748,7 +1880,27 @@ def install_web_integration(web_api: Any, manager: DesktopRuntimeManager) -> Non
 
     class ManagedHandler(base):
         def _handle_get(self) -> None:
-            if urlsplit(self.path).path == "/api/desktop/settings":
+            path = urlsplit(self.path).path
+            if path == "/api/host/capabilities":
+                snapshot = manager.snapshot()
+                projector = getattr(web_api, "_host_capabilities", None)
+                capabilities = (
+                    projector("desktop", snapshot)
+                    if callable(projector)
+                    else {
+                        "host_mode": "desktop",
+                        "can_manage_openvscode": bool(
+                            snapshot.get("services", {}).get("ide", {}).get("available") is True),
+                        "can_open_external_editor": bool(
+                            snapshot.get("services", {}).get("ide", {}).get("reachable") is True),
+                        "can_send_editor_commands": False,
+                        "editor_commands_require_session": True,
+                    }
+                )
+                self._send_json(web_api.core.envelope(
+                    None, host_capabilities=capabilities))
+                return
+            if path == "/api/desktop/settings":
                 self._send_json(web_api.core.envelope(None, desktop=manager.snapshot()))
                 return
             super()._handle_get()
@@ -1787,7 +1939,8 @@ def install_web_integration(web_api: Any, manager: DesktopRuntimeManager) -> Non
                     result = manager.ensure_ollama()
                     web_api.runtime_registry.reset_status_cache()
                 elif path == "/api/desktop/services/ollama/stop":
-                    manager.stop_ollama_transport()
+                    manager.stop_ollama()
+                    web_api.runtime_registry.reset_status_cache()
                     result = manager.snapshot()["services"]["ollama"]
                 elif path == "/api/desktop/services/ide/start":
                     body = web_api._read_body(self)

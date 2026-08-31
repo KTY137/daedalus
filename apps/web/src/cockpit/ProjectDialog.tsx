@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { createProject } from '../api';
 
+function nativeFolderPickerAvailable(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  if (!('__TAURI_INTERNALS__' in window)) return false;
+  // The Tauri capability is intentionally granted only on Windows/macOS.
+  // This is UI affordance detection, not an authority boundary; Tauri still
+  // enforces the capability when the dialog command is invoked.
+  return /^(win|mac)/i.test(navigator.platform || '');
+}
+
 export function ProjectDialog({
   open,
   onClose,
@@ -16,10 +25,13 @@ export function ProjectDialog({
   const [choosing, setChoosing] = useState(false);
   const [error, setError] = useState('');
   const rootInput = useRef<HTMLInputElement>(null);
+  const hasNativeFolderPicker = nativeFolderPickerAvailable();
 
   useEffect(() => {
-    if (!open) return;
-    setError('');
+    if (!open) {
+      setError('');
+      return;
+    }
     window.setTimeout(() => rootInput.current?.focus(), 0);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !busy) onClose();
@@ -42,7 +54,7 @@ export function ProjectDialog({
       });
       if (typeof selected === 'string') setRepoRoot(selected);
     } catch {
-      setError('Der native Ordnerdialog ist nur in der Daedalus-Desktop-App verfügbar. Du kannst den Pfad hier weiterhin direkt eintragen.');
+      setError('Der native Ordnerdialog konnte nicht geöffnet werden. Du kannst den Pfad hier weiterhin direkt eintragen.');
       rootInput.current?.focus();
     } finally {
       setChoosing(false);
@@ -95,12 +107,18 @@ export function ProjectDialog({
                 autoComplete="off"
                 required
               />
-              <button type="button" className="folder-picker" onClick={() => void chooseFolder()} disabled={busy || choosing}>
-                {choosing ? 'Öffnet …' : 'Durchsuchen …'}
-              </button>
+              {hasNativeFolderPicker && (
+                <button type="button" className="folder-picker" onClick={() => void chooseFolder()} disabled={busy || choosing}>
+                  {choosing ? 'Öffnet …' : 'Durchsuchen …'}
+                </button>
+              )}
             </div>
           </label>
-          <p className="project-dialog-hint">Der Ordner bleibt an seinem Platz. Es wird keine Upload-Kopie angelegt.</p>
+          <p className="project-dialog-hint">
+            {hasNativeFolderPicker
+              ? 'Der Ordner bleibt an seinem Platz. Es wird keine Upload-Kopie angelegt.'
+              : 'Trag den vollständigen lokalen Pfad direkt ein. Auf dieser Oberfläche steht kein nativer Ordnerdialog zur Verfügung; der Ordner bleibt an seinem Platz.'}
+          </p>
           <label>
             <span>Name <small>(optional)</small></span>
             <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Wird sonst aus dem Ordnernamen abgeleitet" autoComplete="off" />

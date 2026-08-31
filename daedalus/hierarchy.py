@@ -1,12 +1,10 @@
 """Hierarchy graph projection for the Agent OS webapp."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 from . import core
-from .projects import load_project
+from .projects import ProjectRowUpdateError, load_project, rewrite_project_team
 from .router import load_agents
 
 CAPABILITIES = [
@@ -166,13 +164,23 @@ def hierarchy(project: str) -> dict[str, Any]:
 
 
 def save_team(project: str, patch: dict[str, Any]) -> dict[str, Any]:
-    from .projects import PROJECT_DIR
+    if not isinstance(patch, dict):
+        raise ProjectRowUpdateError("team patch must be a JSON object")
+    changes = {
+        key: patch[key]
+        for key in (
+            "max_workers",
+            "default_lane",
+            "active_agents",
+            "squads",
+            "model_assignments",
+            "semi_auto",
+        )
+        if key in patch
+    }
 
-    path = PROJECT_DIR / f"{project}.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    team = data.setdefault("team", {})
-    for key in ("max_workers", "default_lane", "active_agents", "squads", "model_assignments", "semi_auto"):
-        if key in patch:
-            team[key] = patch[key]
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    def mutate(team: dict[str, Any]) -> None:
+        team.update(changes)
+
+    rewrite_project_team(project, mutate)
     return core.envelope(project, team=core.team_config(project))

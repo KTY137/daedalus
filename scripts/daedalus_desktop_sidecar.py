@@ -18,6 +18,12 @@ from pathlib import Path
 import sys
 from typing import Any
 
+DESKTOP_PROJECT_SCHEMA = "daedalus-desktop-self-project/1"
+DESKTOP_PROJECT_COMMENT = (
+    "Generated once by the Tauri desktop sidecar. The repository root is "
+    "the writable packaged runtime, not the source checkout."
+)
+
 
 def bundled_root() -> Path:
     """Return the root that mirrors the repository inside the frozen app."""
@@ -38,11 +44,41 @@ def _desktop_project(root: Path) -> dict[str, Any]:
             "deny": [".env", "configs/secrets", "runs/", "inbox/", "outbox/"],
             "allow": ["daedalus/", "apps/web/src/", "docs/", ".md"],
         },
-        "_desktop_comment": (
-            "Generated once by the Tauri desktop sidecar. The repository root is "
-            "the writable packaged runtime, not the source checkout."
-        ),
+        "_desktop_schema": DESKTOP_PROJECT_SCHEMA,
+        "_desktop_comment": DESKTOP_PROJECT_COMMENT,
     }
+
+
+def _prepare_desktop_project(project_file: Path, runtime: Path) -> None:
+    """Seed or relocate only the sidecar-owned self-project record."""
+
+    from daedalus.atomic import write_text_atomic
+
+    if not project_file.exists():
+        payload = _desktop_project(runtime)
+    else:
+        try:
+            existing = json.loads(project_file.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return
+        if not isinstance(existing, dict) or not (
+            existing.get("_desktop_schema") == DESKTOP_PROJECT_SCHEMA
+            or existing.get("_desktop_comment") == DESKTOP_PROJECT_COMMENT
+        ):
+            return
+        payload = dict(existing)
+        payload["repo_root"] = str(runtime)
+        payload["_desktop_schema"] = DESKTOP_PROJECT_SCHEMA
+        payload["_desktop_comment"] = DESKTOP_PROJECT_COMMENT
+        if payload == existing:
+            return
+
+    write_text_atomic(
+        project_file,
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+        newline="",
+    )
 
 
 def prepare_runtime(root: Path | None = None) -> Path:
@@ -52,11 +88,7 @@ def prepare_runtime(root: Path | None = None) -> Path:
         (runtime / relative).mkdir(parents=True, exist_ok=True)
 
     project_file = runtime / "projects" / "daedalus.json"
-    if not project_file.exists():
-        project_file.write_text(
-            json.dumps(_desktop_project(runtime), indent=2) + "\n",
-            encoding="utf-8",
-        )
+    _prepare_desktop_project(project_file, runtime)
     return runtime
 
 
@@ -93,4 +125,10 @@ def main(argv: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
+    # Frozen Windows multiprocessing children re-enter this executable with
+    # ``--multiprocessing-fork``. Dispatch them before our web-API argparse sees
+    # those private arguments.
+    import multiprocessing
+
+    multiprocessing.freeze_support()
     main()

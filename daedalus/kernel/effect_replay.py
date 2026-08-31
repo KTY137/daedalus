@@ -323,7 +323,7 @@ class PersistedEffectLeaseSubject:
     effect_ledger: EffectLeaseLedger
     lease_keyring: Mapping[str, bytes | str] = field(repr=False)
     registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = field(
-        default=REGISTRY_BY_ID,
+        default_factory=lambda: REGISTRY_BY_ID,
         repr=False,
     )
 

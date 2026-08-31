@@ -183,8 +183,17 @@ reconciliation. A safely proven pre-spawn failure may terminalize, but an
 ambiguous managed-process constructor/spawn exception or interrupt after
 `STARTED` stays pending because child existence cannot be disproved. Ambient
 startup Tcl and host tool/profile search paths are refused, but environment
-sanitization is not an OS network sandbox. Policy admission records the
+sanitization is not an OS network or secret sandbox. The lease requests no
+kernel network or secret capability, but that is not proof of offline,
+no-egress or no-secret execution. Vivado, trusted XDC and vendor components
+retain ambient host access allowed by the OS. Policy admission records the
 declared write scope; it does not OS-enforce that scope on Vivado.
+
+The plan also binds a publication-adapter fingerprint over the on-disk
+`daedalus` package Python inventory and declared Python/platform fields. It is
+a disk-drift guard for retained publication, not an identity of already-loaded
+Python code, a clean-worktree attestation, or a binding to the authority Git
+commit.
 
 Byte-binding the launcher and command interpreter does not make the full
 vendor toolchain hermetic. Transitive Vivado binaries, device data and built-in
@@ -214,6 +223,11 @@ incremental checkpoint reuse. Implementation performs and retains its own
 fresh synthesis checkpoint before place/route. The strict summary binds
 the exact phase/project/part/top/runs, parseable Vivado version and completion
 facts; timing prose must agree with numeric slack and endpoint metrics.
+Target generation can register vendor-generated HDL and other active files;
+the same Vivado process re-enumerates them with `get_files -quiet` and rechecks
+the expanded graph before synthesis. These are derived same-process inputs,
+not independently verified authored source, and the generator/catalog/device
+data plus support files not exposed by that query remain vendor TCB.
 
 The current strict native-report adapter exposes:
 
@@ -228,16 +242,46 @@ The current strict native-report adapter exposes:
 Each parser reports `parsed`, `missing` or `unparseable`. A process return code
 or bitstream file is not substituted for a missing report. DRC/methodology
 passes require `checks_found=0` and every retained severity count to be zero;
-warnings do not pass. Clock
+warnings do not pass. Console artifact binding also requires a parsed
+cumulative Vivado message summary with zero critical warnings and zero errors.
+Clock
 utilization/skew, CDC/RDC and other unimplemented dimensions stay explicit
 future evidence rather than inferred success.
 
-The current `tdc_light_version` probe is intentionally incomplete. Read-only
-`inspect` emits its manifest and returns nonzero for `complete=false`; it finds
-a mutable per-user `BoardPartRepoPaths` for the Xilinx board store. Because the
-board flow affects design semantics and the catalog is not content-addressed,
-`plan` safely refuses pending a pinned board catalog. A recorded vendor-catalog
-MicroBlaze boot-loop resource remains explicit transitive installation trust.
+The current `tdc_light_version` probe is intentionally incomplete. The
+immutable ZIP has SHA-256
+`2170893265CAE54678E217BA9777ADA278D826C02923A5D237082F7E251DD517`;
+its original XPR is 69,273 bytes with SHA-256
+`17E03D70D41990130258CF5DA111A9C0259508E8068170CABEAAC510187C5977`.
+It records Vivado 2025.1, `impl_1 LaunchOptions=-jobs 14` and automatic
+incremental synthesis reuse of `system_wrapper.dcp`.
+The later inspected, Vivado-rewritten XPR is separately identified as 68,712
+bytes and
+`DEF8FC6B833B5C0A962BD497FF3116A01E598FCB90140E37DA9B2CB8D2A367A4`.
+It records Vivado 2025.1.1, `impl_1 LaunchOptions=-jobs 4` and disabled
+automatic incremental reuse, while the DCP remains an active project file.
+Read-only `inspect` emits the working manifest and returns nonzero for
+`complete=false`. Its exact active refusal classes are the mutable per-user
+`BoardPartRepoPaths`, the non-empty `impl_1` override
+`LaunchOptions=-jobs 4`, and active
+`tdc_light_version.srcs/utils_1/imports/synth_1/system_wrapper.dcp`.
+Historical `ImportPath` attributes are reported but not followed and are not a
+fourth active refusal when their current project-local file resolves. A
+recorded vendor-catalog MicroBlaze boot-loop resource remains explicit
+transitive installation trust.
+These three refusals apply to the original/later-working project, not the
+separate sanitized source at
+`C:\daedalus_eda\tdc_daedalus_source_21708932` and disjoint workspace at
+`C:\daedalus_eda\tdc_daedalus_workspace_21708932`. Both derived trees inspect
+complete with manifest SHA-256
+`46df6acdded3791436a2c094b407ee111402d55f1c5dbc9cac640e26acd31a1d`
+and Source Identity `/3`
+`842a21fc7be9aac430e9c22c9a594e28af992bf47107c8878aec8e7c670c2601`;
+their sanitized XPR SHA-256 is
+`69ED07B6AA5E1DA051DA314F6289BC1A6FFFD3BEC39B010060DE09F085C02155`.
+Static full planning accepts synthesis followed by implementation, and numeric
+host discovery selects Vivado/Vitis 2025.1.1.
+
 On 2026-08-30 the operator switch was `STOP` and the chip write policy was
 absent, so no canonical live rerun was admitted. The earlier Vivado 2025.1.1
 run used two cached OOC IP results and remains separate non-clean-room history.

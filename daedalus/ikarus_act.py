@@ -3,10 +3,9 @@
 THE SECOND PREDICATE, AND DELIBERATELY NOT THE FIRST ONE.
 
 :func:`daedalus.ikarus_os.classify` answers exactly one question — *which
-intent is this*, so the UI can pick an affordance — and it still answers it
-with the same substring table it always did, unchanged. What it must never
-become is a CAPABILITY GATE, because the two questions have opposite error
-costs:
+intent is this*, so the UI can pick an affordance — using a broad bilingual
+keyword table. What it must never become is a CAPABILITY GATE, because the two
+questions have opposite error costs:
 
   * classify wrong  -> the user sees the wrong panel. Cheap, visible, undone by
     typing again.
@@ -33,7 +32,8 @@ one extra turn), a wrongly-cleared one does not.
 ALLOWED requires ALL of:
 
   * the FIRST significant word (leading politeness/filler stripped) is an
-    imperative act verb from :data:`ACT_VERBS`, and
+    exact English or German imperative act verb from :data:`ACT_VERBS` or
+    :data:`_GERMAN_ACT`, and
   * the message is not interrogative — no trailing ``?``, no leading question
     word (English or German).
 
@@ -46,7 +46,8 @@ the cases this budget was written for (see tests/test_ikarus_act.py):
     "does that make sense"        REFUSED, quiet      "make" is not first, "does" leads a question
     "build a settings dialog?"    REFUSED, suspected  leading act verb, but interrogative
     "can you build a thing?"      REFUSED, suspected  directed request, interrogative
-    "kannst du das mal bauen"     REFUSED, suspected  German act cue, no allow rule matches
+    "mach den Parser robuster"    ALLOWED             leading German act verb
+    "kannst du das mal bauen"     REFUSED, suspected  German question, not an imperative
     "hello, who are you?"         REFUSED, quiet      nothing act-shaped
     "yes"  (no pending offer)     REFUSED, quiet      a bare affirmative clears nothing on its own
 
@@ -113,20 +114,33 @@ _QUESTION_LEADS = frozenset({
     "wie", "warum", "wieso", "wer", "wo", "wann", "welche", "welcher",
 })
 
-#: German act cues, matched as WHOLE TOKENS. Deliberately exact forms rather
-#: than stems: a stem like ``mach*`` would also match the English "machine",
-#: which would make every question about this machine read as a build request.
+#: Unambiguous German imperative act cues, matched as WHOLE TOKENS. Infinitives,
+#: participles and indicative forms do not belong in the allow set: ``Bauen ist
+#: kompliziert`` and ``Machst du das morgen`` are statements/questions, not
+#: clearance for an autonomous executor. Deliberately exact forms rather than
+#: stems: a stem like ``mach*`` would also match the English "machine".
 _GERMAN_ACT = frozenset({
-    "bau", "baue", "bauen", "baust", "gebaut",
-    "mach", "mache", "machen", "machst",
-    "erstell", "erstelle", "erstellen",
-    "schreib", "schreibe", "schreiben",
-    "implementier", "implementiere", "implementieren",
-    "repariere", "reparier", "reparieren", "behebe", "beheben",
-    "füge", "fuege", "hinzufügen", "hinzufuegen",
-    "ändere", "aendere", "ändern", "aendern",
-    "lösche", "loesche", "löschen", "loeschen",
-    "umbenennen", "generiere", "generieren", "refaktoriere",
+    "bau", "baue", "mach", "mache", "erstell", "erstelle", "schreib",
+    "schreibe", "implementier", "implementiere", "reparier", "repariere",
+    "beheb", "behebe", "füg", "füge", "fueg", "fuege", "ändere",
+    "aendere", "lösche", "loesche", "benenne", "generiere", "refaktoriere",
+    "prüf", "prüfe", "pruef", "pruefe", "teste", "analysier",
+    "analysiere", "untersuch", "untersuche", "schau", "such", "suche",
+    "lies", "lese", "führ", "führe", "fuehr", "fuehre", "starte",
+    "installier", "installiere", "aktualisier", "aktualisiere",
+    "dokumentier", "dokumentiere", "optimier", "optimiere",
+})
+
+# Broader conjugations are useful only for recognizing a directed or modal
+# request such as ``kannst du das bauen``. They may make a refusal explainable,
+# but never clear a leading token on their own.
+_GERMAN_REQUEST_FORMS = _GERMAN_ACT | frozenset({
+    "bauen", "baust", "gebaut", "machen", "machst", "erstellen", "schreiben",
+    "implementieren", "reparieren", "beheben", "hinzufügen", "hinzufuegen",
+    "ändern", "aendern", "löschen", "loeschen", "umbenennen", "generieren",
+    "prüfen", "pruefen", "testen", "analysieren", "untersuchen", "ansehen",
+    "suchen", "lesen", "führen", "fuehren", "starten", "installieren",
+    "aktualisieren", "dokumentieren", "optimieren",
 })
 
 #: A confirmation is the WHOLE message, compared after normalisation — never a
@@ -159,6 +173,15 @@ _DIRECTED_RE = re.compile(
 _WANT_RE = re.compile(
     r"\b(?:i|we)\s+(?:want|need|would\s+like)\b"
     r"[^.?!]{0,60}?\b(?:" + _ALT + r")\b", re.IGNORECASE)
+_GERMAN_ALT = "|".join(sorted(re.escape(word) for word in _GERMAN_REQUEST_FORMS))
+_GERMAN_DIRECTED_RE = re.compile(
+    r"\b(?:kannst|koenntest|könntest|wuerdest|würdest|willst)\s+du\b"
+    r"[^.?!]{0,80}?\b(?:" + _GERMAN_ALT + r")\b", re.IGNORECASE)
+_GERMAN_WANT_RE = re.compile(
+    r"\b(?:ich|wir)\s+(?:will|wollen|möchte|moechte|möchten|moechten)\b"
+    r"[^.?!]{0,80}?\bdu\b[^.?!]{0,80}?\b(?:" + _GERMAN_ALT + r")\b",
+    re.IGNORECASE,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -267,15 +290,16 @@ def _suspect_signal(message: str, words: list[str]) -> str:
     can widen what is allowed — it can only make a refusal more explicable.
     """
     first = words[0] if words else ""
-    if first in ACT_VERBS:
+    if first in ACT_VERBS or first in _GERMAN_ACT:
         return f"leading act verb '{first}' in a question"
     if _DIRECTED_RE.search(message):
         return "directed request: 'can/could you <act verb>'"
     if _WANT_RE.search(message):
         return "stated want: 'i/we want|need … <act verb>'"
-    hits = sorted(set(words) & _GERMAN_ACT)
-    if hits:
-        return "German act cue: " + ", ".join(hits)
+    if _GERMAN_DIRECTED_RE.search(message):
+        return "German directed request: '<modal> du … <act verb>'"
+    if _GERMAN_WANT_RE.search(message):
+        return "German stated want: 'ich/wir … du … <act verb>'"
     return ""
 
 
@@ -307,9 +331,11 @@ def may_act(message: str, intent: str = "", conversation=None) -> ActDecision:
 
     words = _significant_words(text)
     first = words[0] if words else ""
-    if first in ACT_VERBS and not _is_interrogative(text, first):
+    if ((first in ACT_VERBS or first in _GERMAN_ACT)
+            and not _is_interrogative(text, first)):
+        language = "German " if first in _GERMAN_ACT else ""
         return ActDecision(True, "imperative act request",
-                           signal=f"leading act verb '{first}'",
+                           signal=f"leading {language}act verb '{first}'",
                            objective=text, intent=intent)
 
     signal = _suspect_signal(text, words)

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -63,6 +64,20 @@ grandchild = sys.argv[2]
 with open(target + ".ppid", "w") as fh:
     fh.write(str(os.getpid()))
 subprocess.Popen([sys.executable, grandchild, target])
+while True:
+    time.sleep(0.05)
+"""
+
+_ABRUPT_OWNER_SRC = """
+import sys
+import time
+from pathlib import Path
+
+from daedalus.spine.cancel import ManagedProcess
+
+parent, target, grandchild, ready = sys.argv[1:]
+managed = ManagedProcess([sys.executable, parent, target, grandchild])
+Path(ready).write_text(str(managed.pid), encoding="utf-8")
 while True:
     time.sleep(0.05)
 """
@@ -228,6 +243,75 @@ def test_close_is_idempotent():
     proc.wait(timeout=10)
     assert proc.close() is None  # nothing left to cancel
     assert proc.close() is None
+
+
+@pytest.mark.skipif(not _IS_WINDOWS, reason="Windows Job Object integration")
+def test_job_kill_on_close_reaps_tree_after_owner_process_is_force_killed(tmp_path):
+    """A crashed packaged backend must not leave its provider runner behind."""
+
+    grandchild = _write(tmp_path, "grandchild.py", _GRANDCHILD_SRC)
+    parent = _write(tmp_path, "parent.py", _PARENT_SRC)
+    owner = _write(tmp_path, "owner.py", _ABRUPT_OWNER_SRC)
+    target = tmp_path / "abrupt-ticks.txt"
+    ready = tmp_path / "owner-ready.txt"
+    repository = Path(__file__).resolve().parents[1]
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        part
+        for part in (str(repository), env.get("PYTHONPATH", ""))
+        if part
+    )
+    helper = subprocess.Popen(
+        [
+            sys.executable,
+            str(owner),
+            str(parent),
+            str(target),
+            str(grandchild),
+            str(ready),
+        ],
+        cwd=repository,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    parent_pid: int | None = None
+    grandchild_pid: int | None = None
+    try:
+        parent_pid_file = tmp_path / "abrupt-ticks.txt.ppid"
+        grandchild_pid_file = tmp_path / "abrupt-ticks.txt.gcpid"
+        assert _wait_until(
+            lambda: ready.exists()
+            and parent_pid_file.exists()
+            and grandchild_pid_file.exists()
+            and target.exists()
+            and target.stat().st_size > 2,
+            timeout=10.0,
+        ), "managed tree did not become ready"
+        parent_pid = int(parent_pid_file.read_text(encoding="utf-8"))
+        grandchild_pid = int(grandchild_pid_file.read_text(encoding="utf-8"))
+        assert _pid_alive(parent_pid)
+        assert _pid_alive(grandchild_pid)
+
+        helper.kill()
+        helper.wait(timeout=10)
+
+        assert _wait_until(
+            lambda: not _pid_alive(parent_pid) and not _pid_alive(grandchild_pid),
+            timeout=10.0,
+        ), "closing the crashed owner's Job handle did not reap its process tree"
+        assert _size_is_stable(target)
+    finally:
+        if helper.poll() is None:
+            helper.kill()
+            helper.wait(timeout=10)
+        for pid in (parent_pid, grandchild_pid):
+            if pid is not None and _pid_alive(pid):
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except OSError:
+                    pass
 
 
 # --------------------------------------------------------------------------

@@ -312,60 +312,25 @@ class CodexLaneBridgeTests(unittest.TestCase):
         payload.update(overrides)
         return payload
 
-    def test_codex_lane_dispatches_to_provider(self):
-        out = {"provider": "codex_cli", "persona": "Cody", "agent": "docs-dev",
-               "report": VALID_REPORT}
+    def test_codex_lane_fails_closed_until_provider_is_brokered(self):
         with patch.object(CodexCLIProvider, "available", return_value=True), \
-                patch.object(CodexCLIProvider, "run", return_value=out) as run:
-            report = core.process_bridge_payload(self._payload())
-        run.assert_called_once()
-        self.assertEqual(report["bridge_status"], "done")
-        self.assertEqual(report["lane"], "codex")
-        self.assertEqual(report["report"]["status"], "done")
-        # no project policy loaded -> fail-closed: read-only sandbox
-        self.assertFalse(run.call_args.kwargs["writable"])
-
-    def test_codex_lane_remains_read_only_until_forge(self):
-        out = {"provider": "codex_cli", "persona": "Riley", "agent": "ui-ux-dev",
-               "report": VALID_REPORT}
-        payload = self._payload(project="project_tct",
-                                objective="Draft docstrings for the scan panel",
-                                paths=["TCT_app/gui/scan_panel.py"])
-        with patch.object(CodexCLIProvider, "available", return_value=True), \
-                patch.object(CodexCLIProvider, "run", return_value=out) as run:
-            report = core.process_bridge_payload(payload)
-        self.assertEqual(report["bridge_status"], "done")
-        self.assertFalse(run.call_args.kwargs["writable"])
-        self.assertIsNotNone(run.call_args.kwargs["policy"])
-        self.assertIn("advisory-only", report["mutation_blocked"])
-
-    def test_codex_lane_refuses_denied_path_before_dispatch(self):
-        payload = self._payload(project="project_tct",
-                                paths=["TCT_app/devices/motor_grbl.py"])
-        with patch.object(CodexCLIProvider, "run", MagicMock()) as run, \
-                patch.object(CodexCLIProvider, "available", return_value=True):
-            report = core.process_bridge_payload(payload)
-        run.assert_not_called()
-        self.assertEqual(report["bridge_status"], "failed")
-        self.assertEqual(report["lane"], "codex")
-        self.assertIn("egress policy refused", report["error"])
-
-    def test_codex_lane_never_falls_back_to_claude(self):
-        with patch.object(CodexCLIProvider, "available", return_value=True), \
-                patch.object(CodexCLIProvider, "run", side_effect=RuntimeError("boom")), \
-                patch("daedalus.core._ask_claude_report") as ask:
-            report = core.process_bridge_payload(self._payload())
-        ask.assert_not_called()
-        self.assertEqual(report["bridge_status"], "failed")
-        self.assertEqual(report["lane"], "codex")
-
-    def test_codex_lane_reports_missing_cli(self):
-        with patch.object(CodexCLIProvider, "available", return_value=False), \
                 patch.object(CodexCLIProvider, "run", MagicMock()) as run:
             report = core.process_bridge_payload(self._payload())
         run.assert_not_called()
         self.assertEqual(report["bridge_status"], "failed")
-        self.assertIn("not on PATH", report["error"])
+        self.assertEqual(report["lane"], "codex")
+        self.assertIn("Effect Lease", report["error"])
+        self.assertIn("broker", report["error"])
+
+    def test_codex_lane_never_falls_back_to_claude(self):
+        with patch.object(CodexCLIProvider, "available", return_value=True), \
+                patch.object(CodexCLIProvider, "run", MagicMock()) as run, \
+                patch("daedalus.core._ask_claude_report") as ask:
+            report = core.process_bridge_payload(self._payload())
+        run.assert_not_called()
+        ask.assert_not_called()
+        self.assertEqual(report["bridge_status"], "failed")
+        self.assertEqual(report["lane"], "codex")
 
     def test_availability_from_doctor_includes_codex(self):
         ready = {"claude_cli": True, "can_offload_local": False,

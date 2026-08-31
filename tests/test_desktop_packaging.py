@@ -12,6 +12,17 @@ from types import SimpleNamespace
 
 import pytest
 
+from scripts.daedalus_desktop_sidecar import (
+    DESKTOP_PROJECT_COMMENT,
+    DESKTOP_PROJECT_SCHEMA,
+    prepare_runtime,
+)
+from tools.build_tauri_sidecar import (
+    BUNDLE_FILES_NAME,
+    BUNDLE_ID_NAME,
+    bundle_files,
+    bundle_identity,
+)
 from tools.select_desktop_release_assets import (
     _is_link_or_reparse,
     archive_macos_app,
@@ -124,17 +135,42 @@ def test_desktop_rust_shell_uses_loopback_and_owns_child_lifecycle() -> None:
     assert "TcpStream::connect_timeout" not in wait_source
     assert "child.kill()" in source
     assert "WebviewWindowBuilder::new" in source
+    assert 'env!("DAEDALUS_BACKEND_BUNDLE_ID")' in source
+    assert "backend-generations" in source
+    assert "verify_resource_identity" in source
+    assert "copy_plain_file_new" in source
+    assert ".create_new(true)" in source
+    assert "append_startup_error" in source
+    assert "failed to build Daedalus desktop application" not in source
+
+    startup = source.split("fn start_desktop_inner", 1)[1].split(
+        "fn start_desktop(", 1
+    )[0]
+    assert startup.index("wait_until_ready") < startup.index(
+        "activate_backend"
+    ) < startup.index("WebviewWindowBuilder::new") < startup.index("app.manage")
+    setup = source.split("fn start_desktop(", 1)[1].split(
+        "fn request_backend_shutdown", 1
+    )[0]
+    assert "append_startup_error" in setup
+    assert "Err(error) =>" in setup
+    assert "std::process::exit(1)" in setup
+    assert "return Err(error)" not in setup
 
 
 def test_desktop_backend_readiness_is_child_nonce_bound() -> None:
     web_api = (ROOT / "daedalus" / "web_api.py").read_text(encoding="utf-8")
     smoke = (ROOT / "tools" / "smoke_tauri_sidecar.py").read_text(encoding="utf-8")
+    sidecar = (ROOT / "scripts" / "daedalus_desktop_sidecar.py").read_text(
+        encoding="utf-8"
+    )
     assert 'DESKTOP_STARTUP_NONCE_ENV = "DAEDALUS_DESKTOP_STARTUP_NONCE"' in web_api
     assert 'path == "/api/desktop-ready"' in web_api
     assert 'r"[0-9a-f]{64}"' in web_api
     assert '"nonce": nonce' in web_api
     assert "DAEDALUS_DESKTOP_STARTUP_NONCE" in smoke
     assert "/api/desktop-ready" in smoke
+    assert "multiprocessing.freeze_support()" in sidecar
 
 
 def test_sidecar_builder_is_onedir_and_excludes_runtime_state() -> None:
@@ -144,6 +180,151 @@ def test_sidecar_builder_is_onedir_and_excludes_runtime_state() -> None:
     data_section = source.split("DATA_PATHS = (", 1)[1].split(")\n\n\ndef build", 1)[0]
     for forbidden in ('"runs"', '"inbox"', '"outbox"', '"memory"', '"projects"', '".env"'):
         assert forbidden not in data_section
+    assert "bundle_identity(BACKEND_DIR)" in source
+    assert 'BUNDLE_ID_NAME = "BUNDLE_ID"' in source
+    assert 'BUNDLE_FILES_NAME = "BUNDLE_FILES"' in source
+    assert "bundle_files(BACKEND_DIR)" in source
+    assert "BUNDLE_FILES_NAME).write_bytes" in source
+
+
+def test_release_native_host_is_compiled_against_the_bundled_backend_identity() -> None:
+    build_rs = (TAURI / "build.rs").read_text(encoding="utf-8")
+    assert 'const BUNDLE_ID_PATH: &str = "backend/BUNDLE_ID"' in build_rs
+    assert 'const BUNDLE_FILES_PATH: &str = "backend/BUNDLE_FILES"' in build_rs
+    assert "cargo:rerun-if-changed={BUNDLE_ID_PATH}" in build_rs
+    assert "cargo:rerun-if-changed={BUNDLE_FILES_PATH}" in build_rs
+    assert "cargo:rustc-env=DAEDALUS_BACKEND_BUNDLE_ID" in build_rs
+    assert 'env::var("PROFILE").as_deref() != Ok("release")' in build_rs
+    assert "is required for a release build" in build_rs
+    assert "trim_end_matches" in build_rs
+
+
+def test_sidecar_bundle_identity_is_deterministic_and_binds_paths_and_bytes(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "backend"
+    (bundle / "_internal").mkdir(parents=True)
+    (bundle / "daedalus-web-api.exe").write_bytes(b"launcher")
+    payload = bundle / "_internal" / "payload.bin"
+    payload.write_bytes(b"payload")
+
+    first = bundle_identity(bundle)
+    assert re.fullmatch(r"[0-9a-f]{64}", first)
+    manifest = "".join(f"{relative}\n" for relative, _ in bundle_files(bundle))
+    (bundle / BUNDLE_FILES_NAME).write_text(manifest, encoding="utf-8")
+    (bundle / BUNDLE_ID_NAME).write_text(first + "\n", encoding="ascii")
+    assert bundle_identity(bundle) == first
+
+    payload.write_bytes(b"changed")
+    assert bundle_identity(bundle) != first
+    payload.write_bytes(b"payload")
+    payload.rename(bundle / "_internal" / "renamed.bin")
+    assert bundle_identity(bundle) != first
+
+
+def test_sidecar_bundle_identity_matches_the_cross_language_golden_vector(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "backend"
+    bundle.mkdir()
+    (bundle / "payload.bin").write_bytes(b"payload")
+
+    assert bundle_identity(bundle) == (
+        "fa93401a3e96f55a3931a789d1ded6702c98c28a46f2d082de10a5b5143e2783"
+    )
+
+
+def test_sidecar_bundle_identity_refuses_links(tmp_path: Path) -> None:
+    bundle = tmp_path / "backend"
+    bundle.mkdir()
+    target = bundle / "payload"
+    target.write_bytes(b"payload")
+    link = bundle / "link"
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("this host does not permit test symlinks")
+
+    with pytest.raises(ValueError, match="contains a link"):
+        bundle_identity(bundle)
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or not hasattr(os, "mkfifo"),
+    reason="FIFO fixture is POSIX-only",
+)
+def test_sidecar_bundle_identity_refuses_special_entries(tmp_path: Path) -> None:
+    bundle = tmp_path / "backend"
+    bundle.mkdir()
+    os.mkfifo(bundle / "pipe")
+
+    with pytest.raises(ValueError, match="contains a special entry"):
+        bundle_identity(bundle)
+
+
+def test_sidecar_bundle_identity_refuses_packaged_mutable_state(tmp_path: Path) -> None:
+    bundle = tmp_path / "backend"
+    (bundle / "_internal" / "projects").mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="contains mutable state"):
+        bundle_identity(bundle)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows path aliases are case-insensitive")
+def test_sidecar_bundle_identity_refuses_windows_case_alias_of_mutable_state(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "backend"
+    (bundle / "_INTERNAL" / "CONFIG").mkdir(parents=True)
+    (bundle / "_INTERNAL" / "CONFIG" / "runtime.json").write_text(
+        "{}", encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="contains mutable state"):
+        bundle_identity(bundle)
+
+
+def test_migrated_desktop_self_project_rebinds_to_the_new_generation(
+    tmp_path: Path,
+) -> None:
+    runtime = tmp_path / "backend-generations" / "next" / "_internal"
+    project_file = runtime / "projects" / "daedalus.json"
+    project_file.parent.mkdir(parents=True)
+    project_file.write_text(
+        json.dumps(
+            {
+                "name": "daedalus",
+                "repo_root": str(tmp_path / "backend" / "_internal"),
+                "center": ["daedalus", "apps/web/src"],
+                "custom_operator_field": "preserve",
+                "_desktop_comment": DESKTOP_PROJECT_COMMENT,
+            }
+        ),
+        encoding="utf-8",
+    )
+    other_project = runtime / "projects" / "operator.json"
+    other_bytes = b'{"name":"operator","repo_root":"D:/work"}\n'
+    other_project.write_bytes(other_bytes)
+
+    assert prepare_runtime(runtime) == runtime.resolve()
+
+    migrated = json.loads(project_file.read_text(encoding="utf-8"))
+    assert migrated["repo_root"] == str(runtime.resolve())
+    assert migrated["custom_operator_field"] == "preserve"
+    assert migrated["_desktop_schema"] == DESKTOP_PROJECT_SCHEMA
+    assert other_project.read_bytes() == other_bytes
+
+
+def test_user_owned_daedalus_project_is_never_rewritten(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime"
+    project_file = runtime / "projects" / "daedalus.json"
+    project_file.parent.mkdir(parents=True)
+    original = b'{"name":"daedalus","repo_root":"D:/operator-owned"}\n'
+    project_file.write_bytes(original)
+
+    prepare_runtime(runtime)
+
+    assert project_file.read_bytes() == original
 
 
 def test_pull_requests_use_one_linux_desktop_job_only() -> None:

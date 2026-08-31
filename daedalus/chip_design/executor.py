@@ -570,6 +570,7 @@ def recover_retained_execution(
         "ok": "COMPLETED",
         "failed": "FAILED",
         "timeout": "CANCELLED",
+        "cancelled": "CANCELLED",
         "missing": "FAILED",
         "error": "FAILED",
     }

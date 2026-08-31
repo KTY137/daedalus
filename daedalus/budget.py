@@ -1459,7 +1459,8 @@ class Ledger:
 
     def open_envelope(self, cap_usd: float, *, label: str,
                       lease_id: str | None = None,
-                      ttl_s: float | None = None) -> SpendEnvelope:
+                      ttl_s: float | None = None,
+                      reuse_open_lease: bool = False) -> SpendEnvelope:
         """Capture a Mission spend fallback and its admission-time policy.
 
         This is the enforcement point for a lease's ``max_cost_microusd``. The
@@ -1468,6 +1469,16 @@ class Ledger:
         When the axis is disabled the fallback is still stored and every draw
         is still attributed, but no monetary hold or envelope refusal is
         invented. The captured policy remains with this envelope until close.
+
+        ``reuse_open_lease`` is the crash-recovery seam for a caller that owns
+        a stable, authenticated Effect-Lease identity.  Under the same ledger
+        lock as admission, an already-open envelope for that exact ``lease_id``
+        is returned only when its cap, label and captured limit policy match.
+        This closes the otherwise ambiguous crash window between publishing the
+        monetary hold and committing the Effect start: a restart re-enters the
+        first hold instead of opening a second one or refusing itself against
+        money it already reserved.  Ordinary callers keep the fresh-envelope
+        behavior by default.
 
         ``cap_usd == 0`` is legal and means what it says -- a lease granted no
         money refuses every priced call attributed to it, while free local work
@@ -1478,9 +1489,82 @@ class Ledger:
         ttl = DEFAULT_ENVELOPE_TTL_S if ttl_s is None else float(ttl_s)
         if not isfinite(ttl) or ttl <= 0:
             ttl = DEFAULT_ENVELOPE_TTL_S
+        if reuse_open_lease and not str(lease_id or "").strip():
+            raise ValueError(
+                "reuse_open_lease requires a non-empty Effect-Lease id"
+            )
         with _BudgetLock(self.lock_path, self.lock_timeout_s):
             data = self._load()
             st = self._state(data)
+            now = self._now()
+            captured_policy = {
+                "mode": st.limit_policy_mode,
+                "configured": dict(st.configured_limit_axes or {}),
+            }
+
+            if reuse_open_lease:
+                matches = [
+                    (str(eid), row)
+                    for eid, row in (data.get("envelopes") or {}).items()
+                    if row.get("lease_id") == lease_id
+                ]
+                if len(matches) > 1:
+                    raise BudgetUnavailable(
+                        f"multiple open spend envelopes claim lease {lease_id!r}; "
+                        "refusing ambiguous crash recovery"
+                    )
+                if matches:
+                    eid, row = matches[0]
+                    mismatches: list[str] = []
+                    if float(row.get("cap_usd", -1.0)) != cap:
+                        mismatches.append("cap_usd")
+                    if str(row.get("label") or "") != label:
+                        mismatches.append("label")
+                    if bool(row.get("mission_spend_enforced", True)) != (
+                        st.mission_spend_ceiling_enabled
+                    ):
+                        mismatches.append("mission_spend_enforced")
+                    if row.get("limit_policy") != captured_policy:
+                        mismatches.append("limit_policy")
+                    if str(row.get("limit_policy_fingerprint_sha256") or "") != (
+                        st.limit_policy_fingerprint_sha256
+                    ):
+                        mismatches.append("limit_policy_fingerprint_sha256")
+                    expires_at = float(row.get("expires_at") or 0.0)
+                    if now >= expires_at:
+                        mismatches.append("expired")
+                    if mismatches:
+                        raise BudgetUnavailable(
+                            f"open spend envelope for lease {lease_id!r} "
+                            "contradicts this replay: " + ", ".join(mismatches)
+                        )
+                    data["entries"].append(
+                        {
+                            "kind": "envelope_reuse",
+                            "id": eid,
+                            "usd": cap,
+                            "label": label,
+                            "lease_id": lease_id,
+                            "at": now,
+                            "mission_spend_enforced": (
+                                st.mission_spend_ceiling_enabled
+                            ),
+                            "limit_policy": captured_policy,
+                            "limit_policy_fingerprint_sha256": (
+                                st.limit_policy_fingerprint_sha256
+                            ),
+                        }
+                    )
+                    self._store(data)
+                    return SpendEnvelope(
+                        id=eid,
+                        label=label,
+                        cap_usd=cap,
+                        ledger=self,
+                        lease_id=lease_id,
+                        expires_at=expires_at,
+                    )
+
             if (st.mission_spend_ceiling_enabled
                     and st.period_ceiling_enabled and cap > 0
                     and st.committed_usd + cap > st.ceiling_usd):
@@ -1501,11 +1585,6 @@ class Ledger:
                         st.mission_spend_ceiling_enabled
                     ))
             eid = uuid.uuid4().hex
-            now = self._now()
-            captured_policy = {
-                "mode": st.limit_policy_mode,
-                "configured": dict(st.configured_limit_axes or {}),
-            }
             data.setdefault("envelopes", {})[eid] = {
                 "cap_usd": cap, "settled_usd": 0.0, "label": label,
                 "lease_id": lease_id, "opened_at": now,

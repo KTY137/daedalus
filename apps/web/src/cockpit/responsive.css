@@ -18,6 +18,39 @@
   .chrome-kbd { display: none; }
   .chrome-tools button { padding: 0 var(--u2); }
   .scope-trigger { max-width: 152px; }
+
+  /* Conversation remains the task surface on a tablet. The map reference and
+     hot list follow it as supporting material instead of competing for the
+     first viewport. The body itself never scrolls below the composer; the
+     transcript owns that overflow. */
+  .cockpit-body.talk {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: var(--u4);
+    padding: var(--u4);
+    overflow: hidden;
+  }
+  .talk-main { order: 1; min-height: 0; max-width: none; }
+  .talk-side { order: 2; width: 100%; max-width: 78ch; max-height: 32vh; margin: 0 auto; overflow: auto; }
+
+  /* Scope and trust stay visible. The index/liveness row is useful detail,
+     but on a narrow viewport it earns a deliberate tap rather than pushing
+     the active conversation below the fold. */
+  .status-details-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--u2);
+    border: var(--border) solid var(--line);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink2);
+    font: inherit;
+    font-size: var(--fs-xs);
+    cursor: pointer;
+  }
+  .status-details-toggle:hover,
+  .status-details-toggle:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 }
 
 /* Both compositions can end up with more chrome than a phone-width row can
@@ -29,4 +62,19 @@
   .chrome.bar { flex-wrap: wrap; row-gap: var(--u2); }
   .chrome.bar .chrome-spacer { flex-basis: 100%; height: 0; }
   .masthead-meta { flex-wrap: wrap; row-gap: var(--u2); justify-content: flex-start; }
+  .cockpit-body.talk { gap: var(--u3); padding: var(--u3); }
+  .talk-side { max-height: 28vh; }
+  .composer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'line line'
+      'brain ask'
+      'stage stage'
+      'attachment attachment'
+      'plan plan';
+  }
+  .cockpit-body.talk .composer textarea { min-height: 44px; padding: 11px var(--u2); font-size: var(--fs-md); }
+  .cockpit-body.talk .composer .composer-send { min-width: 44px; min-height: 44px; }
+  .composer-stage { overflow: hidden; }
+  .composer-stage > code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }

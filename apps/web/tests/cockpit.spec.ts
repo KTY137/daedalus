@@ -151,10 +151,18 @@ test.describe('cockpit', () => {
     const firstModules = new Set(await drawnModules(page));
 
     await page.locator('.scope-trigger').click();
-    const others = await page.locator('.scope-menu li button:not(.on)').allInnerTexts();
-    test.skip(others.length === 0, 'this machine has only one project registered — nothing to switch to');
+    const otherOptions = page.locator('.scope-menu li button:not(.on)', {
+      has: page.locator('[data-project-reachable="true"]')
+    });
+    test.skip(
+      await otherOptions.count() === 0,
+      'this machine has only one reachable project registered — no second map can be measured'
+    );
 
-    const second = others[0].trim();
+    const secondOption = otherOptions.first();
+    const second = await secondOption.locator('[data-project-name]').getAttribute('data-project-name');
+    expect(second, 'the project option did not expose its stable registered identity').toBeTruthy();
+    if (!second) throw new Error('the project option did not expose its stable registered identity');
 
     // HOLD THE SECOND SCAN OPEN ON PURPOSE.
     //
@@ -171,7 +179,7 @@ test.describe('cockpit', () => {
       }
     );
 
-    await page.getByRole('button', { name: second, exact: true }).click();
+    await secondOption.click();
 
     // While the second scan is held, the first project's map must be GONE and
     // the surface must say what it is doing.

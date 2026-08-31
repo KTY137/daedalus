@@ -72,7 +72,7 @@ def save_draft(objective: str, paths: list[str], agent: str, provider: str,
         "persona": persona,
         "repo_root": repo_root or "",
         "report": dict(report or {}),
-        "status": "pending",   # pending -> applied|dismissed (future)
+        "status": "pending",   # pending -> handed_off|dismissed
     }, indent=2), encoding="utf-8")
     return path
 
@@ -128,7 +128,7 @@ def list_drafts(repo_root: str | None = None) -> list[dict]:
             "agent": d.get("agent", ""),
             "objective": (d.get("objective") or "")[:100],
             "paths": d.get("paths", []),
-            "status": d.get("status", "pending"),
+            "status": _public_status(d.get("status", "pending")),
             "repo_root": root,
         })
     return out
@@ -139,9 +139,17 @@ def get_draft(draft_id: str) -> dict | None:
     if p is None or not p.is_file():
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        stored = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+    # Compatibility is deliberately a read projection. Older rows used the
+    # word ``applied`` even though this module never touched the target
+    # repository; rewriting them would alter retained history.
+    if stored.get("status") == "applied":
+        stored = dict(stored)
+        stored["legacy_status"] = "applied"
+        stored["status"] = "handed_off"
+    return stored
 
 
 def delete_draft(draft_id: str) -> bool:
@@ -152,15 +160,21 @@ def delete_draft(draft_id: str) -> bool:
     return False
 
 
-_STATUSES = ("pending", "applied", "dismissed")
+_STATUSES = ("pending", "handed_off", "dismissed")
+_STATUS_ALIASES = {"applied": "handed_off"}
+
+
+def _public_status(status: object) -> str:
+    value = str(status or "pending")
+    return _STATUS_ALIASES.get(value, value)
 
 
 def set_status(draft_id: str, status: str) -> dict | None:
     """Transition a draft's lifecycle. Returns the updated draft, or None if the
     id is unknown; raises ValueError on an invalid status. This does NOT touch
-    the filesystem of the target repo -- 'applied' only marks the proposal as
-    handled (a free model may propose, never merge; the actual edit is a human /
-    Claude action). Idempotent."""
+    the filesystem of the target repo. ``applied`` is accepted only as a legacy
+    caller alias and persisted as the honest ``handed_off`` state. Idempotent."""
+    status = _STATUS_ALIASES.get(status, status)
     if status not in _STATUSES:
         raise ValueError(f"status must be one of {_STATUSES}, got {status!r}")
     p = _safe_path(draft_id)
@@ -176,11 +190,13 @@ def set_status(draft_id: str, status: str) -> dict | None:
     return d
 
 
-def apply_payload(draft_id: str) -> dict | None:
-    """The review packet a human / the Claude lane needs to ACTUALLY apply a
-    draft: the objective, the target paths, and the proposal text. Marks the
-    draft 'applied' (handled) but performs no write itself -- returning the
-    packet IS the handoff. None if the id is unknown."""
+def handoff_payload(draft_id: str) -> dict | None:
+    """Return the packet a trusted lane may review for later execution.
+
+    This operation performs no repository write. Its only durable transition
+    is ``pending -> handed_off``; execution, candidate production, integration
+    and promotion remain separate evidence-bearing states.
+    """
     d = get_draft(draft_id)
     if d is None:
         return None
@@ -197,5 +213,10 @@ def apply_payload(draft_id: str) -> dict | None:
         "handoff": "Review this proposal and apply it via the trusted (Claude) lane; "
                    "the free bench may propose but never merges.",
     }
-    set_status(draft_id, "applied")
+    set_status(draft_id, "handed_off")
     return packet
+
+
+def apply_payload(draft_id: str) -> dict | None:
+    """Deprecated compatibility alias for :func:`handoff_payload`."""
+    return handoff_payload(draft_id)

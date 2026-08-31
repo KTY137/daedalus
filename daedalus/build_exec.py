@@ -73,6 +73,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -218,6 +219,25 @@ class EffectBounds:
     #: The run's own KillSwitch. Shared so the lease's generation and the
     #: loop's cancel token read ONE permit; two switches could disagree.
     switch: Any = None
+    #: Optional stable identity for an *internal* crash replay.  These three
+    #: values are all-or-nothing: the issuer still authenticates and persists
+    #: the lease, while a durable caller (the file bridge) can reproduce its
+    #: exact bytes after a process restart.  Ordinary waves omit them and keep
+    #: their fresh per-run identity.
+    attempt_id: str | None = None
+    lease_id: str | None = None
+    issued_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        replay_values = (self.attempt_id, self.lease_id, self.issued_at)
+        if any(value is not None for value in replay_values) and not all(
+            value is not None for value in replay_values
+        ):
+            raise ValueError(
+                "attempt_id, lease_id and issued_at must be supplied together"
+            )
+        if self.issued_at is not None and self.issued_at.tzinfo is None:
+            raise ValueError("issued_at must be timezone-aware")
 
 
 def _leaseable_paths(paths: Any, repo_root: str) -> tuple[list[str], list[str]]:
@@ -620,6 +640,8 @@ class WaveExecutor:
             limit_policy=self.limit_policy,
             switch=(bounds.switch if bounds else None),
             trace_id=(bounds.trace_id if bounds else None),
+            lease_id=(bounds.lease_id if bounds else None),
+            now=(bounds.issued_at if bounds else None),
         )
 
     def _open_spend_envelope(self, lease: Any, wave: Wave) -> tuple[Any, dict[str, Any] | None]:
@@ -674,7 +696,15 @@ class WaveExecutor:
                 label=(f"wave {wave.index} "
                        f"({getattr(lease.request, 'mission_id', '') or '?'})"),
                 lease_id=lease.lease.lease_id,
-                ttl_s=ttl)
+                ttl_s=ttl,
+                # Only the durable bridge replay path supplies a stable
+                # attempt/lease identity.  If that process died after the hold
+                # landed but before offload.begin_effect committed a start,
+                # recover the exact hold instead of reserving the same lease a
+                # second time.  Ordinary waves retain fresh-envelope semantics.
+                reuse_open_lease=bool(
+                    bounds is not None and bounds.attempt_id is not None
+                ))
         except budget.BudgetRefused as exc:
             return None, {"reason": exc.message(), "detail": exc.as_dict(),
                           "cap_usd": cap_usd}
@@ -878,10 +908,14 @@ class WaveExecutor:
         nonce = uuid.uuid4().hex[:8]
         lease = None
         envelope = None
+        executions = None
         if not dry_run:
+            bounds = self.effect_bounds
             lease = self._acquire_wave_lease(
                 scheduler, wave, assignments, repo_root, session=session, task_dicts=tasks,
-                attempt_id=f"w{wave.index}-{nonce}",
+                attempt_id=(bounds.attempt_id if bounds is not None
+                            and bounds.attempt_id is not None
+                            else f"w{wave.index}-{nonce}"),
                 gated=gated_write_wave, has_writes=has_writes,
                 parallel=wave_parallel)
             if lease is not None and not getattr(lease, "granted", False):
@@ -911,13 +945,41 @@ class WaveExecutor:
                     path_conflicts=conflicts, results=refused,
                     mission_id=getattr(session, "mission_id", ""))
 
+            executions = {
+                pos: lease.execution_for(
+                    pos, _leaseable_paths(t.paths, repo_root)[0])
+                for pos, t in enumerate(wave.tasks)
+            } if lease is not None else None
+
+            # A durable caller may be replaying this exact wave after the
+            # provider already finished but before its outer report landed.
+            # Ask the canonical Effect-Lease ledger before reserving money.
+            # When every execution already has a durable start, dispatch below
+            # can only receive ``execute=False`` from begin_effect; opening a
+            # fresh envelope first would add a second hold and could even make
+            # the harmless ledger replay fail at the period ceiling.
+            replay_only = False
+            if (lease is not None and executions
+                    and bounds is not None and bounds.attempt_id is not None):
+                from .kernel.effect_replay import inspect_effect_execution
+
+                replay_only = all(
+                    inspect_effect_execution(lease.authorization, execution)
+                    is not None
+                    for execution in executions.values()
+                )
+
             # ---- THE MONEY, RESERVED AT THE LEASE'S CEILING --------------- #
             # Immediately after the grant and before anything is dispatched,
             # for the same reason the lease itself is acquired here: a wave
             # that cannot hold its own budget must leave no half-open attempt
             # behind. Without this the lease's max_cost_microusd was a number
             # in a receipt and the only real cap was the day's.
-            envelope, spend_refusal = self._open_spend_envelope(lease, wave)
+            envelope, spend_refusal = (
+                (None, None)
+                if replay_only
+                else self._open_spend_envelope(lease, wave)
+            )
             if spend_refusal is not None:
                 receipt = lease.receipt() if lease is not None else None
                 refused = [
@@ -1071,11 +1133,6 @@ class WaveExecutor:
                 return run_write_wave(scheduler, repo_root, tasks, assignments,
                                       auto_promote=write_wave_policy, **extra)
         else:
-            executions = {
-                pos: lease.execution_for(
-                    pos, _leaseable_paths(t.paths, repo_root)[0])
-                for pos, t in enumerate(wave.tasks)} if lease is not None else None
-
             def _dispatch() -> list[dict[str, Any]]:
                 return scheduler.dispatch(
                     repo_root, tasks, dry_run=dry_run, parallel=wave_parallel,

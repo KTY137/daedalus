@@ -153,6 +153,22 @@ from .attempts import (
     IsolatedAttemptCoordinator,
     PreparedAttempt,
 )
+from .campaigns import (
+    CAMPAIGN_RUN_KIND,
+    CampaignAlreadyTerminal,
+    CampaignBeginResult,
+    CampaignLifecycleError,
+    CampaignPendingReconciliation,
+    begin_campaign,
+    campaign_contract_for_spec,
+    complete_campaign,
+    fail_campaign,
+    load_campaign_contract,
+    load_campaign_receipt,
+    load_experiment_spec,
+    store_contract,
+    verify_campaign_chain,
+)
 
 __all__ += [
     "PromotionAuthorization",
@@ -200,4 +216,18 @@ __all__ += [
     "AttemptWorkspaceError",
     "IsolatedAttemptCoordinator",
     "PreparedAttempt",
+    "CAMPAIGN_RUN_KIND",
+    "CampaignAlreadyTerminal",
+    "CampaignBeginResult",
+    "CampaignLifecycleError",
+    "CampaignPendingReconciliation",
+    "begin_campaign",
+    "campaign_contract_for_spec",
+    "complete_campaign",
+    "fail_campaign",
+    "load_campaign_contract",
+    "load_campaign_receipt",
+    "load_experiment_spec",
+    "store_contract",
+    "verify_campaign_chain",
 ]

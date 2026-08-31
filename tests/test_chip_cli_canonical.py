@@ -12,7 +12,9 @@ import daedalus.chip_design.executor as executor_module
 from daedalus.chip_design.manifest import (
     MANIFEST_SCHEMA,
     build_vivado_project_manifest,
+    canonical_path_identity,
 )
+from daedalus.chip_design.publication import parse_vivado_flow_summary_bytes
 from daedalus.chip_design.vivado_tcl import trusted_vivado_tcl
 from daedalus.kernel.offload_lease import write_evidence_root
 from daedalus.storage import ArtifactStore
@@ -390,7 +392,7 @@ def test_flow_summary_requires_exact_phase_identity_and_vivado_version(
     valid = {
         "schema": "daedalus-vivado-flow-summary/1",
         "phase": "inspect",
-        "tool": "Vivado v2025.1.1",
+        "tool": "2025.1.1",
         "project": str(project.resolve()),
         "part": PART,
         "board_part": "",
@@ -406,12 +408,12 @@ def test_flow_summary_requires_exact_phase_identity_and_vivado_version(
     }
 
     def parse(values: dict[str, str]) -> dict[str, object]:
-        summary.write_text(
-            "".join(f"{key}={value}\n" for key, value in values.items()),
-            encoding="utf-8",
-        )
-        return chip_cli._read_summary(
-            summary,
+        payload = "".join(
+            f"{key}={value}\n" for key, value in values.items()
+        ).encode("utf-8")
+        return parse_vivado_flow_summary_bytes(
+            payload,
+            display_path=str(summary),
             phase="inspect",
             project_file=project,
             part=PART,
@@ -420,6 +422,7 @@ def test_flow_summary_requires_exact_phase_identity_and_vivado_version(
             synth_run="synth_1",
             impl_run="impl_1",
             jobs=1,
+            path_identity=canonical_path_identity,
         )
 
     assert parse(valid)["identity"]["status"] == "parsed"
@@ -427,6 +430,7 @@ def test_flow_summary_requires_exact_phase_identity_and_vivado_version(
         {"schema": "untrusted-summary/1"},
         {"phase": "impl"},
         {"tool": "unknown tool"},
+        {"tool": "Vivado v2025.1.1"},
         {"project": str(root / "different.xpr")},
     ):
         result = parse({**valid, **change})
@@ -561,7 +565,7 @@ class _SuccessfulInspectProcess:
         (output / "inspect_summary.txt").write_text(
             "schema=daedalus-vivado-flow-summary/1\n"
             "phase=inspect\n"
-            "tool=Vivado v2025.1.1\n"
+            "tool=2025.1.1\n"
             f"project={values[tclargs + 3]}\n"
             f"part={values[tclargs + 5]}\n"
             f"board_part={values[tclargs + 6]}\n"
@@ -576,7 +580,10 @@ class _SuccessfulInspectProcess:
             "locked_ip_count=0\n",
             encoding="utf-8",
         )
-        stdout.write(b"DAEDALUS_VIVADO_RESULT phase=inspect status=complete\n")
+        stdout.write(
+            b"DAEDALUS_VIVADO_RESULT phase=inspect status=complete\n"
+            b"1 Info, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.\n"
+        )
         stderr.write(b"")
 
     @property
@@ -596,6 +603,96 @@ class _SuccessfulInspectProcess:
         return None
 
 
+class _CompletedUnparseableBuildProcess:
+    """Retain a complete synth/impl output inventory with adverse report bytes."""
+
+    constructions = 0
+
+    def __init__(self, argv, *, stdout, stderr, **_kwargs) -> None:
+        type(self).constructions += 1
+        values = list(argv)
+        tclargs = values.index("-tclargs")
+        phase = values[tclargs + 1]
+        assert phase in {"synth", "impl"}
+        output = Path(values[tclargs + 4])
+        output.mkdir(parents=True)
+        common = (
+            "schema=daedalus-vivado-flow-summary/1\n"
+            f"phase={phase}\n"
+            "tool=2025.1.1\n"
+            f"project={values[tclargs + 3]}\n"
+            f"part={values[tclargs + 5]}\n"
+            f"board_part={values[tclargs + 6]}\n"
+            f"top={values[tclargs + 7]}\n"
+            f"synth_run={values[tclargs + 8]}\n"
+            f"impl_run={values[tclargs + 9]}\n"
+        )
+        phase_values = (
+            "ip_cache=disabled\n"
+            "regenerated_ip_source_count=0\n"
+            "status=Complete\n"
+            "progress=100%\n"
+            f"jobs={values[tclargs + 10]}\n"
+        )
+        if phase == "impl":
+            phase_values = (
+                "fresh_synthesis=1\n"
+                + phase_values.replace(
+                    "status=Complete\n",
+                    "synth_status=Complete\n"
+                    "synth_progress=100%\n"
+                    "status=Complete\n",
+                )
+            )
+        (output / f"{phase}_summary.txt").write_text(
+            common + phase_values,
+            encoding="utf-8",
+        )
+        reports = [
+            "utilization.rpt",
+            "timing_summary.rpt",
+            "drc.rpt",
+            "methodology.rpt",
+        ]
+        if phase == "impl":
+            reports.append("route_status.rpt")
+        for name in reports:
+            (output / name).write_text(
+                f"deliberately unparseable {name}\n",
+                encoding="utf-8",
+            )
+        binary_outputs = (
+            ["design.dcp"]
+            if phase == "synth"
+            else ["synth_design.dcp", "design.dcp", "design.bit"]
+        )
+        for name in binary_outputs:
+            (output / name).write_bytes(f"retained-{phase}-{name}".encode("ascii"))
+        stdout.write(
+            (
+                f"DAEDALUS_VIVADO_RESULT phase={phase} status=complete\n"
+                "1 Info, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.\n"
+            ).encode("ascii")
+        )
+        stderr.write(b"")
+
+    @property
+    def returncode(self) -> int:
+        return 0
+
+    def poll(self) -> int:
+        return 0
+
+    def cancel(self):
+        raise AssertionError("completed build process was cancelled")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _exc_type, _exc, _tb) -> None:
+        return None
+
+
 def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -605,7 +702,7 @@ def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
     authority = tmp_path / "authority"
     authority.mkdir()
     _write_authority_head(authority)
-    _write_chip_policy(authority)
+    policy = _write_chip_policy(authority)
     permit = tmp_path / "operator-control" / "killswitch"
     permit.parent.mkdir()
     permit.write_text("RUN\n", encoding="ascii")
@@ -661,7 +758,8 @@ def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
     assert step["verdict"] == "inconclusive"
     assert step["evaluation_status"] == "inconclusive"
     assert step["metrics"]["artifact_binding"]["status"] == "passed"
-    assert step["metrics"]["messages"]["status"] == "unparseable"
+    assert step["metrics"]["messages"]["status"] == "parsed"
+    assert step["metrics"]["artifact_binding"]["checks"]["messages"]["errors"] == 0
     assert len(step["metrics"]["execution_plan_sha256"]) == 64
     assert step["receipt_locator"].startswith("artifact-locator:sha256:")
     assert step["evidence_locator"].startswith("artifact-locator:sha256:")
@@ -725,7 +823,7 @@ def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
         }
     )
     inflated_payload = chip_cli.canonical_json(inflated_evidence).encode("ascii")
-    inflated_locator = chip_cli.retain_chip_eda_terminal_artifact(
+    inflated_locator = chip_cli._retain_chip_eda_terminal_artifact(
         authority_root=authority,
         source_revision=REVISION,
         authorization=recovered_phase.authorization,
@@ -760,7 +858,7 @@ def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
         if artifact["role"] != "trusted_tcl"
     ]
     incomplete_payload = chip_cli.canonical_json(incomplete_receipt).encode("ascii")
-    incomplete_locator = chip_cli.retain_chip_eda_terminal_artifact(
+    incomplete_locator = chip_cli._retain_chip_eda_terminal_artifact(
         authority_root=authority,
         source_revision=REVISION,
         authorization=recovered_phase.authorization,
@@ -786,6 +884,130 @@ def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
             }
         )
 
+    # A schema-valid alternate AttemptContract must not become authoritative
+    # merely because a forged receipt and EvidencePacket consistently name it.
+    attempt_row = next(
+        artifact
+        for artifact in receipt["artifacts"]
+        if artifact["role"] == "attempt_contract"
+    )
+    attempt_locator = store.load_locator(attempt_row["locator_sha256"])
+    forged_attempt = json.loads(
+        store.get_bytes(attempt_locator.artifact_sha256)
+    )
+    forged_attempt["read_only"] = True
+    forged_attempt["writable_paths"] = []
+    forged_attempt_payload = chip_cli.canonical_json(forged_attempt).encode("ascii")
+    forged_attempt_locator = chip_cli._retain_chip_eda_terminal_artifact(
+        authority_root=authority,
+        source_revision=REVISION,
+        authorization=recovered_phase.authorization,
+        execution=recovered_phase.execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        payload=forged_attempt_payload,
+        expected_sha256=hashlib.sha256(forged_attempt_payload).hexdigest(),
+        media_type="application/json",
+        metadata={"kind": "attempt_contract", "filename_hint": "attempt.json"},
+        provenance=attempt_locator.provenance,
+    )
+    forged_receipt = json.loads(json.dumps(receipt))
+    forged_attempt_row = next(
+        artifact
+        for artifact in forged_receipt["artifacts"]
+        if artifact["role"] == "attempt_contract"
+    )
+    forged_attempt_row.update(
+        {
+            "artifact_sha256": forged_attempt_locator.artifact_sha256,
+            "locator_sha256": forged_attempt_locator.locator_sha256,
+            "locator_uri": forged_attempt_locator.locator_uri,
+            "byte_length": forged_attempt_locator.byte_length,
+        }
+    )
+    forged_receipt_payload = chip_cli.canonical_json(forged_receipt).encode("ascii")
+    forged_receipt_locator = chip_cli._retain_chip_eda_terminal_artifact(
+        authority_root=authority,
+        source_revision=REVISION,
+        authorization=recovered_phase.authorization,
+        execution=recovered_phase.execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        payload=forged_receipt_payload,
+        expected_sha256=hashlib.sha256(forged_receipt_payload).hexdigest(),
+        media_type="application/json",
+        metadata={
+            "kind": "chip_run_receipt",
+            "phase": "inspect",
+            "filename_hint": "canonical-inspect-chip-receipt.json",
+        },
+        provenance=receipt_locator.provenance,
+    )
+    forged_evidence = json.loads(json.dumps(evidence))
+    forged_evidence["attempt_contract_sha256"] = (
+        forged_attempt_locator.artifact_sha256
+    )
+    forged_evidence["items"][0]["output_sha256"] = (
+        forged_receipt_locator.artifact_sha256
+    )
+    forged_evidence["items"][0]["evidence_locator"] = (
+        forged_receipt_locator.locator_uri
+    )
+    forged_evidence["items"][0]["provenance"]["input_digests"] = sorted(
+        {
+            forged_receipt_locator.artifact_sha256,
+            forged_receipt_locator.locator_sha256,
+        }
+    )
+    forged_evidence["provenance"]["input_digests"] = sorted(
+        {
+            forged_attempt_locator.artifact_sha256,
+            forged_receipt["manifest_sha256"],
+            forged_evidence["policy_decision_sha256"],
+            forged_receipt_locator.artifact_sha256,
+        }
+    )
+    forged_evidence_payload = chip_cli.canonical_json(forged_evidence).encode("ascii")
+    forged_evidence_locator = chip_cli._retain_chip_eda_terminal_artifact(
+        authority_root=authority,
+        source_revision=REVISION,
+        authorization=recovered_phase.authorization,
+        execution=recovered_phase.execution,
+        terminal_receipt=terminal,
+        artifact_store=store,
+        payload=forged_evidence_payload,
+        expected_sha256=hashlib.sha256(forged_evidence_payload).hexdigest(),
+        media_type="application/json",
+        metadata={
+            "kind": "chip_evidence_packet",
+            "phase": "inspect",
+            "filename_hint": "canonical-inspect-evidence.json",
+        },
+        provenance=forged_evidence["provenance"],
+    )
+    with pytest.raises(ValueError, match="canonical contract artifact graph"):
+        chip_cli.verify_chip_eda_publication_graph(
+            **{
+                **strict_graph,
+                "chip_receipt_sha256": forged_receipt_locator.artifact_sha256,
+                "chip_receipt_locator": forged_receipt_locator.locator_uri,
+                "evidence_packet_sha256": forged_evidence_locator.artifact_sha256,
+                "evidence_packet_locator": forged_evidence_locator.locator_uri,
+            }
+        )
+
+    # Terminal replay and publication repair must not reacquire live authority
+    # or consult project paths. Make every live-run prerequisite unavailable
+    # while retaining only the authority ledger and CAS.
+    policy.unlink()
+    permit.write_text("STOP\n", encoding="ascii")
+    offline_source = tmp_path / "offline-authoritative-source"
+    offline_workspace = tmp_path / "offline-isolated-workspace"
+    source.parent.rename(offline_source)
+    workspace.parent.rename(offline_workspace)
+    assert not source.exists()
+    assert not workspace.exists()
+
     # A process restart with the same phase attempt cannot mint a fresh lease
     # or silently execute again. The deterministic lease identity reaches the
     # retained terminal publication and returns that inert recovery without
@@ -807,22 +1029,6 @@ def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
     )
     assert len(publication_indices) == 1
     publication_indices[0].unlink()
-    live_identity = chip_cli.canonical_path_identity
-    forbidden_roots = tuple(
-        str(root).casefold() for root in (source.parent, workspace.parent)
-    )
-
-    def authority_only_path_identity(value):
-        text = str(value).casefold()
-        if any(text.startswith(root) for root in forbidden_roots):
-            raise AssertionError("terminal publication consulted live project inputs")
-        return live_identity(value)
-
-    monkeypatch.setattr(
-        chip_cli,
-        "canonical_path_identity",
-        authority_only_path_identity,
-    )
 
     assert chip_cli.main(argv) == 0
     republished = _json_stdout(capsys)
@@ -830,3 +1036,158 @@ def test_admitted_inspect_publication_is_idempotent_and_restart_recoverable(
     assert republished["steps"][0]["publication_status"] == "complete"
     assert republished["steps"][0]["process_spawned"] is False
     assert _SuccessfulInspectProcess.constructions == 1
+
+
+@pytest.mark.parametrize("phase", ["synth", "impl"])
+def test_kernel_recomputes_cas_semantics_and_rejects_forged_build_receipts(
+    phase: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source, workspace = _project_pair(tmp_path, same_identity=True)
+    authority = tmp_path / "authority"
+    authority.mkdir()
+    _write_authority_head(authority)
+    _write_chip_policy(authority)
+    permit = tmp_path / "operator-control" / "killswitch"
+    permit.parent.mkdir()
+    permit.write_text("RUN\n", encoding="ascii")
+    monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(permit))
+    vendor = tmp_path / "vendor" / "Vivado" / "bin" / "vivado.bat"
+    vendor.parent.mkdir(parents=True)
+    vendor.write_text("@echo off\n", encoding="ascii")
+    monkeypatch.setattr(
+        chip_cli,
+        "find_trusted_vendor_tool_path",
+        lambda _tool: str(vendor),
+    )
+    monkeypatch.setattr(
+        executor_module,
+        "is_trusted_vendor_tool_path",
+        lambda _tool, _path: True,
+    )
+    monkeypatch.setattr(
+        executor_module.shutil,
+        "which",
+        lambda _command, **_kwargs: str(vendor),
+    )
+    monkeypatch.setattr(
+        executor_module,
+        "ManagedProcess",
+        _CompletedUnparseableBuildProcess,
+    )
+    _CompletedUnparseableBuildProcess.constructions = 0
+
+    attempt = f"cas-forgery-{phase}"
+    argv = [
+        "run",
+        str(source),
+        "--workspace-project",
+        str(workspace),
+        "--phase",
+        phase,
+        "--authority-root",
+        str(authority),
+        "--source-revision",
+        REVISION,
+        "--attempt-id",
+        attempt,
+        "--writable-path",
+        ".",
+        "--confirm-project-writes",
+        "--json",
+    ]
+    assert chip_cli.main(argv) == 1
+    payload = _json_stdout(capsys)
+    step = payload["steps"][0]
+    assert step["verdict"] == "failed"
+    assert _CompletedUnparseableBuildProcess.constructions == 1
+
+    store = ArtifactStore(write_evidence_root(authority, REVISION) / "artifacts")
+    receipt_locator = store.load_locator(
+        step["receipt_locator"].rsplit(":", 1)[-1]
+    )
+    evidence_locator = store.load_locator(
+        step["evidence_locator"].rsplit(":", 1)[-1]
+    )
+    receipt = json.loads(store.get_bytes(receipt_locator.artifact_sha256))
+    recovered = chip_cli._recover_phase(
+        authority_root=authority,
+        source_revision=REVISION,
+        mission_id=receipt["mission_id"],
+        attempt_id=receipt["attempt_id"],
+        phase=phase,
+    )
+    assert recovered is not None
+    terminal = recovered.retained.result.terminal_receipt
+    assert terminal is not None
+    strict_graph = {
+        "authority_root": authority,
+        "source_revision": REVISION,
+        "authorization": recovered.authorization,
+        "execution": recovered.execution,
+        "terminal_receipt": terminal,
+        "artifact_store": store,
+        "phase": phase,
+        "publication_adapter_sha256": (
+            recovered.retained.plan.publication_adapter_sha256
+        ),
+        "raw_execution_receipt_sha256": recovered.retained.result.receipt_sha256,
+        "raw_execution_receipt_locator": recovered.retained.result.receipt_locator,
+        "chip_receipt_sha256": receipt_locator.artifact_sha256,
+        "chip_receipt_locator": receipt_locator.locator_uri,
+        "evidence_packet_sha256": evidence_locator.artifact_sha256,
+        "evidence_packet_locator": evidence_locator.locator_uri,
+    }
+    chip_cli.verify_chip_eda_publication_graph(**strict_graph)
+
+    for label, mutate, error in (
+        (
+            "pass",
+            lambda body: body.__setitem__("verdict", "passed"),
+            "terminal execution",
+        ),
+        (
+            "metrics",
+            lambda body: body["metrics"]["artifact_binding"].__setitem__(
+                "status", "passed"
+            ),
+            "retained CAS evidence",
+        ),
+        (
+            "limitations",
+            lambda body: body.__setitem__(
+                "limitations", body["limitations"][1:]
+            ),
+            "terminal execution",
+        ),
+    ):
+        forged = json.loads(json.dumps(receipt))
+        mutate(forged)
+        forged_payload = chip_cli.canonical_json(forged).encode("ascii")
+        forged_locator = chip_cli._retain_chip_eda_terminal_artifact(
+            authority_root=authority,
+            source_revision=REVISION,
+            authorization=recovered.authorization,
+            execution=recovered.execution,
+            terminal_receipt=terminal,
+            artifact_store=store,
+            payload=forged_payload,
+            expected_sha256=hashlib.sha256(forged_payload).hexdigest(),
+            media_type="application/json",
+            metadata={
+                "kind": "chip_run_receipt",
+                "phase": phase,
+                "filename_hint": f"forged-{phase}-{label}.json",
+            },
+            provenance=receipt_locator.provenance,
+        )
+        with pytest.raises(ValueError, match=error):
+            chip_cli.verify_chip_eda_publication_graph(
+                **{
+                    **strict_graph,
+                    "chip_receipt_sha256": forged_locator.artifact_sha256,
+                    "chip_receipt_locator": forged_locator.locator_uri,
+                }
+            )

@@ -2557,6 +2557,31 @@ _LATE_DOOR_ROWS: tuple[EntrypointSpec, ...] = (
         ),
         migration="complete for the tools.docs_reference_check entrypoint",
     ),
+    EntrypointSpec(
+        id="cli.ignition",
+        surface=Surface.CLI,
+        target="daedalus.ignition.__main__:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.ignition.__main__:main", "begin_effect"),
+        ),
+        notes=(
+            "Public Gate-1 ignition command. FILESYSTEM_WRITE covers its "
+            "receipt and content-addressed evidence stores; PROCESS_SPAWN and "
+            "PROCESS_CONTROL cover Git/gate children and their managed "
+            "lifetime. This outer command boundary precedes argument parsing; "
+            "the inner python.attempt boundaries still authorize and lease "
+            "each TaskAttempt. The command nominates at most and never "
+            "promotes."
+        ),
+        migration="complete for the cli.ignition entrypoint",
+    ),
 )
 
 ENTRYPOINTS += _LATE_DOOR_ROWS
@@ -2598,6 +2623,21 @@ _PORTABLE_TOOL_ROWS: tuple[EntrypointSpec, ...] = (
             "directory, owns that child lifecycle, and probes loopback HTTP only."
         ),
         migration="complete for the desktop sidecar smoke entrypoint",
+    ),
+    EntrypointSpec(
+        id="tools.codex_state_import",
+        surface=Surface.CLI,
+        target="tools.import_codex_state:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.import_codex_state:main", "begin_effect"),),
+        notes=(
+            "Explicit offline state-import door. Dry-run is the default; --apply "
+            "copies only the allowlisted, non-credential files into an existing "
+            "destination and never overwrites a conflict."
+        ),
+        migration="complete for the safe Codex state-import entrypoint",
     ),
     EntrypointSpec(
         id="tools.desktop_release_assets",

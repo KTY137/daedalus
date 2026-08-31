@@ -34,6 +34,7 @@ process-guard test interposes over a spy, never over a real ``subprocess.run``
 from __future__ import annotations
 
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -141,6 +142,177 @@ def test_granted_lease_reserves_its_ceiling_on_the_budget_ledger(env):
     assert inside.envelope_hold_usd == pytest.approx(LEASE_USD)
     assert inside.committed_usd == pytest.approx(LEASE_USD)
     assert inside.remaining_usd == pytest.approx(PERIOD_CEILING_USD - LEASE_USD)
+
+
+def test_exact_effect_replay_skips_a_second_hold_with_orphan_envelope(env):
+    """A crash may leave the provider terminal in the Effect Ledger while its
+    spend envelope is still open.  The restart must consult that ledger before
+    attempting another hold: otherwise an unrelated hold can budget-refuse the
+    replay, or a roomy period can hold the same lease twice.
+
+    Provider work is mocked below ``offload``; no process or network starts.
+    """
+    issued_at = datetime.now(timezone.utc)
+    bounds = EffectBounds(
+        mission_id="file-bridge-replay-test",
+        source_revision=REVISION,
+        max_spend_usd=LEASE_USD,
+        timeout_s=900.0,
+        trace_id="tr-file-bridge-replay",
+        switch=env,
+        attempt_id="file-bridge-replay-attempt",
+        lease_id="file-bridge-replay-lease",
+        issued_at=issued_at,
+    )
+
+    def run_once():
+        return WaveExecutor(
+            availability={"ollama": True}, effect_bounds=bounds
+        ).run_wave(
+            KairosScheduler(availability={"ollama": True}),
+            _wave(1),
+            REPO_ROOT,
+            dry_run=False,
+            parallel=False,
+        )
+
+    orphan = other = None
+    try:
+        with mock.patch.object(
+            KairosScheduler, "accept", return_value=[_assignment()]
+        ), mock.patch(
+            "daedalus.offload._offload_impl",
+            return_value={"action": "offloaded", "wrote": []},
+        ) as provider:
+            first = run_once()
+            lease_id = first.results[0]["effect_lease"]["lease_id"]
+            assert lease_id == bounds.lease_id
+
+            # Model a hard process death before SpendEnvelope.__exit__: the exact
+            # lease's hold is still present. A competing admitted hold leaves less
+            # than LEASE_USD free, so opening a third envelope would be refused.
+            orphan = B.ledger().open_envelope(
+                LEASE_USD, label="interrupted wave", lease_id=lease_id
+            )
+            other = B.ledger().open_envelope(
+                4.60, label="other admitted work", lease_id="other-lease"
+            )
+            before = B.ledger().state()
+            assert before.remaining_usd < LEASE_USD
+            assert len(before.envelopes) == 2
+
+            replay = run_once()
+
+        assert provider.call_count == 1
+        assert replay.results[0]["status"] == "effect_replay"
+        assert replay.spend_envelope is None
+        after = B.ledger().state()
+        assert len(after.envelopes) == 2, "replay opened a duplicate spend hold"
+        assert {row["id"] for row in after.envelopes} == {orphan.id, other.id}
+    finally:
+        if orphan is not None:
+            orphan.close("test cleanup")
+        if other is not None:
+            other.close("test cleanup")
+
+
+def test_pre_effect_crash_reuses_its_exact_spend_hold(env):
+    """A restart rejoins the hold published before ``begin_effect``.
+
+    The injected death happens in ``SpendEnvelope.__enter__``: the ledger has
+    durably admitted the money, but scheduler dispatch (and therefore the
+    Effect execution start) has not happened.  A competing hold makes a second
+    reservation for this lease impossible, so the retry can succeed only by
+    reusing the first envelope.  Provider work remains mocked below offload.
+    """
+    class PreEffectCrash(BaseException):
+        pass
+
+    bounds = EffectBounds(
+        mission_id="file-bridge-pre-effect-replay-test",
+        source_revision=REVISION,
+        max_spend_usd=LEASE_USD,
+        timeout_s=900.0,
+        trace_id="tr-file-bridge-pre-effect-replay",
+        switch=env,
+        attempt_id="file-bridge-pre-effect-attempt",
+        lease_id="file-bridge-pre-effect-lease",
+        issued_at=datetime.now(timezone.utc),
+    )
+
+    def run_once():
+        return WaveExecutor(
+            availability={"ollama": True}, effect_bounds=bounds
+        ).run_wave(
+            KairosScheduler(availability={"ollama": True}),
+            _wave(1),
+            REPO_ROOT,
+            dry_run=False,
+            parallel=False,
+        )
+
+    real_enter = B.SpendEnvelope.__enter__
+    injected = False
+    orphan = other = None
+
+    def crash_once(spend_envelope):
+        nonlocal injected, orphan
+        if not injected:
+            injected = True
+            orphan = spend_envelope
+            raise PreEffectCrash("died after hold, before Effect start")
+        return real_enter(spend_envelope)
+
+    try:
+        with mock.patch.object(
+            KairosScheduler, "accept", return_value=[_assignment()]
+        ), mock.patch(
+            "daedalus.offload._offload_impl",
+            return_value={"action": "offloaded", "wrote": []},
+        ) as provider, mock.patch.object(
+            B.SpendEnvelope, "__enter__", new=crash_once
+        ):
+            with pytest.raises(PreEffectCrash, match="before Effect start"):
+                run_once()
+
+            assert provider.call_count == 0
+            before = B.ledger().state()
+            assert len(before.envelopes) == 1
+            assert before.envelopes[0]["id"] == orphan.id
+            assert before.envelopes[0]["lease_id"] == bounds.lease_id
+
+            other = B.ledger().open_envelope(
+                4.60, label="other admitted work", lease_id="other-lease"
+            )
+            assert B.ledger().state().remaining_usd < LEASE_USD
+
+            retry = run_once()
+
+        assert provider.call_count == 1
+        assert retry.mode == "sequential"
+        assert retry.results[0]["status"] == "offloaded"
+        assert retry.spend_envelope["id"] == orphan.id
+        after = B.ledger().state()
+        assert {row["id"] for row in after.envelopes} == {other.id}
+
+        budget_doc = B.ledger()._load()
+        opens = [
+            row for row in budget_doc["entries"]
+            if row.get("kind") == "envelope_open"
+            and row.get("lease_id") == bounds.lease_id
+        ]
+        reuses = [
+            row for row in budget_doc["entries"]
+            if row.get("kind") == "envelope_reuse"
+            and row.get("lease_id") == bounds.lease_id
+        ]
+        assert len(opens) == 1, "retry double-held the stable lease"
+        assert len(reuses) == 1
+    finally:
+        if orphan is not None and orphan.state() is not None:
+            orphan.close("test cleanup")
+        if other is not None and other.state() is not None:
+            other.close("test cleanup")
 
 
 def test_spend_past_the_leased_ceiling_is_refused_while_the_day_has_room(env):

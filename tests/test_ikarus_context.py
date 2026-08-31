@@ -68,11 +68,14 @@ class PromptAssemblyTest(unittest.TestCase):
     def test_claude_prompt_no_context_is_neutral(self):
         self.assertEqual(
             ikarus_os._claude_prompt("hi", "low", ""),
-            f"{ikarus_os.SYSTEM}\nBe concise.\n\nUser: hi")
+            f"{ikarus_os.SYSTEM}{ikarus_os._LOW_EFFORT_STYLE}\n\nUser: hi")
 
     def test_claude_prompt_injects_context_between_system_and_user(self):
         p = ikarus_os._claude_prompt("hi", "low", "CTX-BLOCK")
-        self.assertEqual(p, f"{ikarus_os.SYSTEM}\nBe concise.\n\nCTX-BLOCK\n\nUser: hi")
+        self.assertEqual(
+            p,
+            f"{ikarus_os.SYSTEM}{ikarus_os._LOW_EFFORT_STYLE}\n\nCTX-BLOCK\n\nUser: hi",
+        )
 
     def test_ollama_with_context_prepends_to_user_turn(self):
         self.assertEqual(ikarus_os._with_context("hi", ""), "hi")
@@ -197,7 +200,8 @@ class BrainLaneContextTest(unittest.TestCase):
             m.stdout = "ok"
             return m
 
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+                        return_value="claude"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             reply, mdl, ctx = ikarus_os._llm("claude", "explain widget.py", None, "low", "p")
 
@@ -236,13 +240,14 @@ class BrainLaneContextTest(unittest.TestCase):
             return m
 
         # "hello there" has no dotted token -> _project_context short-circuits.
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+                        return_value="claude"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             reply, mdl, ctx = ikarus_os._llm("claude", "hello there", None, "low", "p")
 
         self.assertEqual(ctx.text, "")
         self.assertEqual(captured["input"],
-                         f"{ikarus_os.SYSTEM}\nBe concise.\n\nUser: hello there")
+                         f"{ikarus_os.SYSTEM}{ikarus_os._LOW_EFFORT_STYLE}\n\nUser: hello there")
         self.assertNotIn("FOCUS", captured["input"])
 
 

@@ -77,6 +77,8 @@ from daedalus.ignition.runner import (
     tree_digest,
 )
 from daedalus.kernel.fourfold_evidence import assemble_fourfold_evidence_packet
+from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
+from daedalus.limit_policy import ExecutionLimitPolicy
 from daedalus.kernel.offload_lease import (
     WaveLeaseDenied,
     WaveLeaseKillSwitchEngaged,
@@ -97,6 +99,7 @@ from daedalus.spine.killswitch import KillSwitch
 from daedalus.spine.receipts import mission_contract_for_build_session
 from daedalus.storage import ArtifactStore
 from daedalus.twin import compile_reference_project
+from daedalus.twin.contracts import FourfoldSnapshot
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -289,6 +292,7 @@ def ignition_mission(
     base_revision: str,
     created_at: str,
     gate_timeout_s: int = 300,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ) -> MissionContract:
     """The one MissionContract, minted by the kernel's own producer."""
 
@@ -304,6 +308,7 @@ def ignition_mission(
             "the candidate is nominated and never promoted",
         ),
         trace_id="gate1-voltage-ignition",
+        execution_limit_policy=execution_limit_policy,
     )
 
 
@@ -679,6 +684,10 @@ class IgnitionSliceResult:
     receipt_path: Path
     graph_delta: IgnitionGraphDelta
     blockers: tuple[str, ...]
+    base_source_tree: StoredSourceTree
+    candidate_source_tree: StoredSourceTree
+    candidate_snapshot: FourfoldSnapshot | None
+    attempt_contract_sets: tuple[Any, ...]
 
 
 def _now() -> str:
@@ -694,9 +703,21 @@ def run_gate1_ignition(
     gate_timeout_s: int = 300,
     keep_workspace: bool = False,
     switch: KillSwitch | None = None,
+    campaign_id: str | None = None,
+    campaign_seed: int | None = None,
+    source_tree_store_root: str | Path | None = None,
+    execution_limit_policy: ExecutionLimitPolicy | None = None,
 ) -> IgnitionSliceResult:
     """Run the Gate-1 ignition slice once and write its receipt."""
 
+    if campaign_seed is not None and (
+        isinstance(campaign_seed, bool)
+        or not isinstance(campaign_seed, int)
+        or campaign_seed < 0
+    ):
+        raise ValueError("campaign_seed must be a non-negative integer or null")
+    if campaign_seed is not None and not campaign_id:
+        raise ValueError("campaign_seed requires campaign_id")
     collected_at = collected_at or _now()
     fixture = Path(fixture_root).resolve()
     fixture_digest_before = tree_digest(fixture)
@@ -707,6 +728,10 @@ def run_gate1_ignition(
     # so every run adds new ones forever. Resetting it here keeps the store and
     # the receipt describing the same run.
     store_root = _reset_evidence_store(receipt_dir / SESSION_MISSION_ID / "store")
+    tree_store_root = Path(source_tree_store_root).resolve() if source_tree_store_root else (
+        receipt_dir / SESSION_MISSION_ID / "source-trees"
+    )
+    source_tree_store = SourceTreeStore(tree_store_root)
     blockers: list[str] = []
     started_at = time.monotonic()
     # BEFORE ANY ATTEMPT RUNS. The bundle describes the code that is about to
@@ -747,6 +772,7 @@ def run_gate1_ignition(
         mission = ignition_mission(
             session, base_revision=base_revision, created_at=collected_at,
             gate_timeout_s=gate_timeout_s,
+            execution_limit_policy=execution_limit_policy,
         )
         mission_limit_policy = mission.execution_limit_policy
         if mission_limit_policy is None:
@@ -766,11 +792,24 @@ def run_gate1_ignition(
             )
         tasks = session.tasks()
         work_item_ids = session.work_item_ids()
+        task_sha256s = tuple(
+            sorted(task.work_item_identity_sha256 for task in tasks)
+        )
+
+        base_source_tree = source_tree_store.capture_tree(
+            repo,
+            tree_id=f"{SESSION_MISSION_ID}-base",
+            source_revision=base_revision,
+            origin="daedalus.ignition.gate1-base",
+            created_at=collected_at,
+            trace_id=campaign_id or "gate1-voltage-ignition",
+        )
 
         # -- the base Fourfold, and the before-state of the criterion ------- #
         base_compile = compile_reference_project(
             repo, source_revision=base_revision, created_at=collected_at,
             trace_id="gate1-voltage-base",
+            source_tree_sha256=base_source_tree.ref.sha256,
         )
         base_pytest = ignition_checks.pytest_check(
             repo, timeout_s=effective_gate_timeout_s, label="pytest-base",
@@ -831,6 +870,8 @@ def run_gate1_ignition(
                     "work_item_id": task.work_item_id,
                     "planes": list(planned_item.planes),
                     "operator": "daedalus.ignition.rename_operator",
+                    "campaign_id": campaign_id,
+                    "campaign_seed": campaign_seed,
                 },
             )
             attempt = TaskAttempt(
@@ -841,6 +882,7 @@ def run_gate1_ignition(
                 ledger_path=scratch / "spine.sqlite3",
                 artifact_dir=store_root,
                 mission_id=mission.mission_id,
+                campaign_id=campaign_id,
                 budget=mission.budget,
                 mission_policy_sha256=mission.policy_sha256,
                 execution_limit_policy=mission_limit_policy,
@@ -940,6 +982,14 @@ def run_gate1_ignition(
         ]
         candidate_root = compose_candidate(repo, patches, scratch / "candidate")
         candidate_digest = tree_digest(candidate_root)
+        candidate_source_tree = source_tree_store.capture_tree(
+            candidate_root,
+            tree_id=f"{SESSION_MISSION_ID}-candidate",
+            source_revision=candidate_digest,
+            origin="daedalus.ignition.gate1-candidate",
+            created_at=collected_at,
+            trace_id=campaign_id or "gate1-voltage-ignition",
+        )
         declared = tuple(path for item in planned for path in item.paths)
         stragglers = old_symbol_occurrences(candidate_root, declared)
         if stragglers:
@@ -958,13 +1008,13 @@ def run_gate1_ignition(
             candidate_compile = compile_reference_project(
                 candidate_root, source_revision=candidate_digest,
                 created_at=collected_at, trace_id="gate1-bias-voltage-candidate",
+                source_tree_sha256=candidate_source_tree.ref.sha256,
             )
         except Exception as exc:  # noqa: BLE001 - recorded as a blocker
             blockers.append(
                 f"the candidate Fourfold does not compile: {type(exc).__name__}: {exc}"
             )
-            receipt_path, receipt = write_receipt(
-                _refused_receipt(
+            refused = _refused_receipt(
                     mission=mission,
                     work_item_ids=work_item_ids,
                     base_revision=base_revision,
@@ -979,15 +1029,30 @@ def run_gate1_ignition(
                     collected_at=collected_at,
                     blockers=blockers,
                     evaluator_bundle=evaluator_bundle,
-                ),
-                receipt_dir,
-            )
+                )
+            refused["source_trees"] = {
+                "store_root": str(tree_store_root),
+                "base_sha256": base_source_tree.ref.sha256,
+                "base_locator": base_source_tree.ref.locator,
+                "candidate_sha256": candidate_source_tree.ref.sha256,
+                "candidate_locator": candidate_source_tree.ref.locator,
+            }
+            refused["campaign"] = {
+                "campaign_id": campaign_id,
+                "seed": campaign_seed,
+                "task_sha256s": list(task_sha256s),
+            }
+            receipt_path, receipt = write_receipt(refused, receipt_dir)
             return IgnitionSliceResult(
                 mission=mission, work_item_ids=work_item_ids,
                 attempt_ids=tuple(a.attempt_id for a in attempts),
                 packet=None, receipt=receipt, receipt_path=receipt_path,
                 graph_delta=IgnitionGraphDelta((), (), (), ()),
                 blockers=tuple(blockers),
+                base_source_tree=base_source_tree,
+                candidate_source_tree=candidate_source_tree,
+                candidate_snapshot=None,
+                attempt_contract_sets=tuple(contract_sets),
             )
         delta = fourfold_graph_delta(base_compile.snapshot, candidate_compile.snapshot)
         if not delta.added_nodes or not delta.removed_nodes:
@@ -1184,10 +1249,8 @@ def run_gate1_ignition(
         try:
             packet = assemble_fourfold_evidence_packet(
                 snapshot=candidate_compile.snapshot,
-                candidate_artifact_sha256=candidate_compile.source_bundle_sha256,
-                candidate_artifact_locator=(
-                    f"artifact-locator:sha256:{candidate_compile.source_bundle_sha256}"
-                ),
+                candidate_artifact_sha256=candidate_source_tree.ref.sha256,
+                candidate_artifact_locator=candidate_source_tree.ref.locator,
                 packet_id="gate1-voltage-evidence",
                 mission_id=mission.mission_id,
                 attempt_id=_packet_attempt_id(attempts),
@@ -1242,6 +1305,18 @@ def run_gate1_ignition(
             "subject_coverage_measurements": len(subject_coverage),
             "negative_controls": len(discrimination),
         }
+        receipt["source_trees"] = {
+            "store_root": str(tree_store_root),
+            "base_sha256": base_source_tree.ref.sha256,
+            "base_locator": base_source_tree.ref.locator,
+            "candidate_sha256": candidate_source_tree.ref.sha256,
+            "candidate_locator": candidate_source_tree.ref.locator,
+        }
+        receipt["campaign"] = {
+            "campaign_id": campaign_id,
+            "seed": campaign_seed,
+            "task_sha256s": list(task_sha256s),
+        }
         receipt_path, receipt = write_receipt(receipt, receipt_dir)
         # THE RECEIPT IS THE RESULT. write_receipt derives the replay blockers
         # (it is the only place that can: it holds the previous receipt), so a
@@ -1258,6 +1333,10 @@ def run_gate1_ignition(
             receipt_path=receipt_path,
             graph_delta=delta,
             blockers=tuple(receipt.get("blockers") or ()),
+            base_source_tree=base_source_tree,
+            candidate_source_tree=candidate_source_tree,
+            candidate_snapshot=candidate_compile.snapshot,
+            attempt_contract_sets=tuple(contract_sets),
         )
     finally:
         if not keep_workspace and workspace is None:

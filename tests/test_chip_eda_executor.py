@@ -1189,10 +1189,8 @@ def test_nonzero_exit_is_terminal_failed_once(
     _install_fakes(monkeypatch, events, returncode=7, stderr=b"synthesis failed")
     authorization = _FakeAuthorization(events)
 
-    result = run_admitted_eda(
-        authorization=authorization,
-        **_bound_inputs(tmp_path, work, authorization=authorization),
-    )
+    bound = _bound_inputs(tmp_path, work, authorization=authorization)
+    result = run_admitted_eda(authorization=authorization, **bound)
 
     assert result.status == "failed"
     assert result.returncode == 7
@@ -1209,17 +1207,20 @@ def test_timeout_cancels_managed_tree_and_terminalizes_cancelled(
     work.mkdir()
     events: list[str] = []
     _install_fakes(monkeypatch, events, hang=True)
+    monkeypatch.setattr(
+        executor_module,
+        "_utc_timestamp",
+        lambda: "2026-08-30T10:00:00.500000+00:00",
+    )
     authorization = _FakeAuthorization(events)
 
-    result = run_admitted_eda(
+    bound = _bound_inputs(
+        tmp_path,
+        work,
+        timeout_s=0.01,
         authorization=authorization,
-        **_bound_inputs(
-            tmp_path,
-            work,
-            timeout_s=0.01,
-            authorization=authorization,
-        ),
     )
+    result = run_admitted_eda(authorization=authorization, **bound)
 
     assert result.status == "timeout"
     assert result.returncode is None
@@ -1227,6 +1228,13 @@ def test_timeout_cancels_managed_tree_and_terminalizes_cancelled(
     assert result.terminal_receipt.outcome == "CANCELLED"
     assert events.count("cancel") == 1
     assert len(authorization.finish_calls) == 1
+    recovered = recover_retained_execution(
+        artifact_store=bound["artifact_store"],
+        execution=bound["execution"],
+        start_receipt=result.start_receipt,
+        terminal_receipt=result.terminal_receipt,
+    )
+    assert recovered.result == result
 
 
 @pytest.mark.parametrize(
@@ -1242,14 +1250,17 @@ def test_live_authority_loss_cancels_known_tree_then_terminalizes_cancelled(
     work.mkdir()
     events: list[str] = []
     _install_fakes(monkeypatch, events, hang=True)
+    monkeypatch.setattr(
+        executor_module,
+        "_utc_timestamp",
+        lambda: "2026-08-30T10:00:00.500000+00:00",
+    )
     authorization = _FakeAuthorization(
         events, verify_error=authority_fault, verify_error_at=3
     )
 
-    result = run_admitted_eda(
-        authorization=authorization,
-        **_bound_inputs(tmp_path, work, authorization=authorization),
-    )
+    bound = _bound_inputs(tmp_path, work, authorization=authorization)
+    result = run_admitted_eda(authorization=authorization, **bound)
 
     assert result.status == "cancelled"
     assert result.executed is True
@@ -1260,6 +1271,13 @@ def test_live_authority_loss_cancels_known_tree_then_terminalizes_cancelled(
     assert authorization.verify_calls == 3
     assert events.count("cancel") == 1
     assert len(authorization.finish_calls) == 1
+    recovered = recover_retained_execution(
+        artifact_store=bound["artifact_store"],
+        execution=bound["execution"],
+        start_receipt=result.start_receipt,
+        terminal_receipt=result.terminal_receipt,
+    )
+    assert recovered.result == result
 
 
 def test_pre_spawn_authority_loss_never_constructs_process(

@@ -36,8 +36,11 @@ import os
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 __all__ = [
+    "ExclusiveFileLock",
+    "FileLockUnavailable",
     "REPLACE_RETRY_S",
     "publish_bytes_once",
     "replace_with_retry",
@@ -54,6 +57,100 @@ REPLACE_RETRY_S = 1.0
 #: Gap between attempts. Short enough that the common case (reader finishes
 #: immediately) costs one sleep, long enough not to spin a core.
 _RETRY_SLEEP_S = 0.02
+
+
+class FileLockUnavailable(RuntimeError):
+    """An exclusive OS-held file lock could not be obtained in time."""
+
+
+class ExclusiveFileLock:
+    """Bounded cross-process lock backed by one fixed, persistent file.
+
+    The file itself is not an ownership marker and is never replaced or
+    removed. Ownership belongs to the kernel and is released when the handle
+    closes or the process exits, including after a crash. This makes a stale
+    filename harmless and avoids the split-inode race of lock-file deletion.
+
+    This primitive deliberately stays in the dependency-free atomic layer so
+    publishers can serialize a read/decide/publish transaction without
+    inventing another locking scheme. It uses ``msvcrt`` byte-range locking on
+    Windows and ``flock`` on POSIX.
+    """
+
+    def __init__(self, path: str | os.PathLike[str], *, timeout_s: float = 5.0,
+                 poll_s: float = 0.05, label: str = "file lock") -> None:
+        self.path = Path(path)
+        self.timeout_s = max(0.0, float(timeout_s))
+        self.poll_s = max(0.001, float(poll_s))
+        self.label = str(label)
+        self._fh: Any = None
+
+    def __enter__(self) -> "ExclusiveFileLock":
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self._fh = self.path.open("a+b")
+        except OSError as exc:
+            self._fh = None
+            raise FileLockUnavailable(
+                f"cannot open {self.label} '{self.path}': {exc}"
+            ) from exc
+
+        deadline = time.monotonic() + self.timeout_s
+        last_error: OSError | None = None
+        while True:
+            try:
+                self._acquire()
+                return self
+            except OSError as exc:
+                last_error = exc
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(min(self.poll_s, max(0.0, deadline - time.monotonic())))
+
+        self._close()
+        raise FileLockUnavailable(
+            f"could not acquire {self.label} '{self.path}' within "
+            f"{self.timeout_s:g}s ({last_error})"
+        )
+
+    def _acquire(self) -> None:
+        self._fh.seek(0)
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(self._fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def _close(self) -> None:
+        if self._fh is None:
+            return
+        try:
+            self._fh.close()
+        except OSError:
+            pass
+        self._fh = None
+
+    def __exit__(self, *exc: Any) -> bool:
+        if self._fh is None:
+            return False
+        try:
+            self._fh.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(self._fh.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            # Closing the descriptor below is the kernel-level release path.
+            pass
+        self._close()
+        return False
 
 
 def replace_with_retry(tmp: str | os.PathLike[str], target: str | os.PathLike[str],

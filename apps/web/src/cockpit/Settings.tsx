@@ -668,11 +668,6 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
               </button>
             ))}
           </div>
-          {autonomy === 'alles' && (
-            <p className="settings-hint bad">
-              Auf dieser Stufe schreibt jeder Entwurf ohne Klick in dein Repository — auch die mit gemeldeten Risiken.
-            </p>
-          )}
         </section>
 
         <section className="settings-section" aria-labelledby="caps-settings-title">

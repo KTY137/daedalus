@@ -35,10 +35,25 @@ RECEIPT_HEAD_KEYS = (
     "evaluator_bundle_artifact",
     "blockers",
     "blocker",
+    "source_trees",
+    "campaign",
 )
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Guard the public command before argument handling.  The two inner
+    # TaskAttempt boundaries still authorize and lease each attempt; this
+    # outer boundary prevents the command from starting its receipt/CAS writes
+    # or child processes when the process guard refuses the run as a whole.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.ignition",
+        REGISTRY_BY_ID["cli.ignition"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     parser = argparse.ArgumentParser(prog="python -m daedalus.ignition")
     parser.add_argument("--fixture", default=str(DEFAULT_FIXTURE))
     parser.add_argument("--receipts", default=str(DEFAULT_RECEIPT_ROOT))

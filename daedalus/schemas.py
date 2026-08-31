@@ -1388,6 +1388,206 @@ class EvidencePacket(CanonicalContract):
 
 
 @dataclass(frozen=True)
+class ExperimentSpec(CanonicalContract):
+    """A pre-registered campaign definition, frozen before any trial runs."""
+
+    CONTRACT_TYPE: ClassVar[str] = "daedalus.experiment-spec"
+
+    campaign_id: str
+    source_revision: str
+    objective: str
+    task_sha256s: tuple[str, ...]
+    baseline_sha256s: tuple[str, ...]
+    base_source_tree_sha256: str
+    base_source_tree_locator: str
+    seeds: tuple[int, ...]
+    metrics: tuple[str, ...]
+    operator_axis: str
+    seed_derivation: str
+    selection_policy: str
+    attempts_per_seed: int
+    metric_acceptance: Mapping[str, int | float]
+    gate_timeout_s: int
+    frozen_components: Mapping[str, str]
+    writable_paths: tuple[str, ...]
+    budget: ResourceBudget
+    created_at: str
+    expires_at: str
+    provenance: ContractProvenance
+    execution_limit_policy: ExecutionLimitPolicy | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    execution_limit_policy_sha256: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "campaign_id", _identifier(self.campaign_id, "campaign_id")
+        )
+        revision = _revision(self.source_revision, "source_revision")
+        object.__setattr__(self, "source_revision", revision)
+        object.__setattr__(
+            self, "objective", _non_empty(self.objective, "objective", max_length=4000)
+        )
+        object.__setattr__(
+            self,
+            "task_sha256s",
+            _sorted_strings(self.task_sha256s, "task_sha256s", digests=True),
+        )
+        object.__setattr__(
+            self,
+            "baseline_sha256s",
+            _sorted_strings(self.baseline_sha256s, "baseline_sha256s", digests=True),
+        )
+        if not self.task_sha256s or not self.baseline_sha256s:
+            raise ValueError("experiment must freeze tasks and at least one baseline")
+        base_tree_sha = _sha256(
+            self.base_source_tree_sha256, "base_source_tree_sha256"
+        )
+        base_tree_locator = _artifact_locator(
+            self.base_source_tree_locator, "base_source_tree_locator"
+        )
+        if _locator_sha256(base_tree_locator) != base_tree_sha:
+            raise ValueError("base source tree locator does not resolve to its digest")
+        if base_tree_sha not in self.baseline_sha256s:
+            raise ValueError("baseline_sha256s must include the base source tree")
+        object.__setattr__(self, "base_source_tree_sha256", base_tree_sha)
+        object.__setattr__(self, "base_source_tree_locator", base_tree_locator)
+        if isinstance(self.seeds, (str, bytes)):
+            raise ValueError("seeds must be a sequence of integers")
+        seeds = tuple(self.seeds)
+        if any(
+            isinstance(seed, bool) or not isinstance(seed, int) or seed < 0
+            for seed in seeds
+        ):
+            raise ValueError("seeds must be non-negative integers")
+        if not seeds or len(set(seeds)) != len(seeds):
+            raise ValueError("experiment seeds must be non-empty and unique")
+        object.__setattr__(self, "seeds", tuple(sorted(seeds)))
+        object.__setattr__(
+            self, "metrics", _sorted_strings(self.metrics, "metrics", identifiers=True)
+        )
+        if not self.metrics:
+            raise ValueError("experiment must freeze at least one metric")
+        object.__setattr__(
+            self, "operator_axis", _identifier(self.operator_axis, "operator_axis")
+        )
+        object.__setattr__(
+            self,
+            "seed_derivation",
+            _non_empty(self.seed_derivation, "seed_derivation", max_length=1000),
+        )
+        object.__setattr__(
+            self,
+            "selection_policy",
+            _identifier(self.selection_policy, "selection_policy"),
+        )
+        if (
+            isinstance(self.attempts_per_seed, bool)
+            or not isinstance(self.attempts_per_seed, int)
+            or self.attempts_per_seed <= 0
+        ):
+            raise ValueError("attempts_per_seed must be a positive integer")
+        if (
+            isinstance(self.gate_timeout_s, bool)
+            or not isinstance(self.gate_timeout_s, int)
+            or self.gate_timeout_s <= 0
+        ):
+            raise ValueError("gate_timeout_s must be a positive integer")
+        acceptance: dict[str, int | float] = {}
+        for name, value in self.metric_acceptance.items():
+            key = _identifier(name, "metric_acceptance key")
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"metric acceptance {key} must be numeric")
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"metric acceptance {key} must be finite")
+            acceptance[key] = value
+        if set(acceptance) != set(self.metrics):
+            raise ValueError(
+                "metric_acceptance keys must exactly match experiment metrics"
+            )
+        object.__setattr__(
+            self,
+            "metric_acceptance",
+            MappingProxyType(dict(sorted(acceptance.items()))),
+        )
+        frozen: dict[str, str] = {}
+        for name, digest in self.frozen_components.items():
+            frozen[_identifier(name, "frozen_components key")] = _sha256(
+                digest, f"frozen_components.{name}"
+            )
+        missing = sorted(
+            {"compiler", "evaluator", "fixture", "generator", "model", "operator"}
+            - set(frozen)
+        )
+        if missing:
+            raise ValueError(f"experiment frozen_components is missing {missing}")
+        object.__setattr__(
+            self, "frozen_components", MappingProxyType(dict(sorted(frozen.items())))
+        )
+        object.__setattr__(
+            self,
+            "writable_paths",
+            _sorted_strings(self.writable_paths, "writable_paths", paths=True),
+        )
+        if not self.writable_paths:
+            raise ValueError("experiment must declare a bounded writable scope")
+        if not isinstance(self.budget, ResourceBudget):
+            raise ValueError("experiment budget must be ResourceBudget")
+        policy, policy_fingerprint = _snapshot_execution_limit_policy(
+            self.execution_limit_policy,
+            self.execution_limit_policy_sha256,
+            self.provenance,
+            "experiment",
+        )
+        object.__setattr__(self, "execution_limit_policy", policy)
+        object.__setattr__(
+            self, "execution_limit_policy_sha256", policy_fingerprint
+        )
+        if not self.budget.effective(policy).has_execution_bound and (
+            policy is None
+            or any(
+                policy.enforces(axis)
+                for axis in ("tokens", "mission_spend", "wall_time")
+            )
+        ):
+            raise ValueError(
+                "experiment budget must bound tokens, cost, or wall time; "
+                "max_attempts alone does not bound one attempt"
+            )
+        object.__setattr__(self, "created_at", _utc_timestamp(self.created_at, "created_at"))
+        object.__setattr__(self, "expires_at", _utc_timestamp(self.expires_at, "expires_at"))
+        if self.expires_at <= self.created_at:
+            raise ValueError("experiment expires_at must be after created_at")
+        if self.provenance.source_revision != revision:
+            raise ValueError("experiment source_revision must match provenance")
+        if self.provenance.created_at != self.created_at:
+            raise ValueError("experiment created_at must match provenance.created_at")
+        _require_provenance_inputs(
+            self.provenance,
+            (
+                *self.task_sha256s,
+                *self.baseline_sha256s,
+                _locator_sha256(self.base_source_tree_locator),
+                *self.frozen_components.values(),
+            ),
+            "experiment",
+        )
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "ExperimentSpec":
+        body = cls._contract_payload(payload)
+        body["budget"] = ResourceBudget.from_dict(body["budget"])
+        body["provenance"] = ContractProvenance.from_dict(body["provenance"])
+        if body.get("execution_limit_policy") is not None:
+            body["execution_limit_policy"] = ExecutionLimitPolicy.from_dict(
+                body["execution_limit_policy"]
+            )
+        return cls(**body)
+
+
+@dataclass(frozen=True)
 class CampaignContract(CanonicalContract):
     CONTRACT_TYPE: ClassVar[str] = "daedalus.campaign"
 
@@ -1409,6 +1609,27 @@ class CampaignContract(CanonicalContract):
         default=None, metadata={"canonical_omit_if_none": True}
     )
     execution_limit_policy_sha256: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    base_source_tree_sha256: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    base_source_tree_locator: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    seed_derivation: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    selection_policy: str | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    attempts_per_seed: int | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    metric_acceptance: Mapping[str, int | float] | None = field(
+        default=None, metadata={"canonical_omit_if_none": True}
+    )
+    gate_timeout_s: int | None = field(
         default=None, metadata={"canonical_omit_if_none": True}
     )
 
@@ -1450,6 +1671,71 @@ class CampaignContract(CanonicalContract):
         object.__setattr__(
             self, "operator_axis", _identifier(self.operator_axis, "operator_axis")
         )
+        if (self.base_source_tree_sha256 is None) != (
+            self.base_source_tree_locator is None
+        ):
+            raise ValueError(
+                "campaign base source-tree digest and locator must appear together"
+            )
+        if self.base_source_tree_sha256 is not None:
+            base_sha = _sha256(
+                self.base_source_tree_sha256, "base_source_tree_sha256"
+            )
+            base_locator = _artifact_locator(
+                self.base_source_tree_locator, "base_source_tree_locator"
+            )
+            if _locator_sha256(base_locator) != base_sha:
+                raise ValueError(
+                    "campaign base source-tree locator does not resolve to its digest"
+                )
+            if base_sha not in self.baseline_sha256s:
+                raise ValueError(
+                    "campaign baseline_sha256s must include the base source tree"
+                )
+            object.__setattr__(self, "base_source_tree_sha256", base_sha)
+            object.__setattr__(self, "base_source_tree_locator", base_locator)
+        if self.seed_derivation is not None:
+            object.__setattr__(
+                self,
+                "seed_derivation",
+                _non_empty(self.seed_derivation, "seed_derivation", max_length=1000),
+            )
+        if self.selection_policy is not None:
+            object.__setattr__(
+                self,
+                "selection_policy",
+                _identifier(self.selection_policy, "selection_policy"),
+            )
+        if self.attempts_per_seed is not None and (
+            isinstance(self.attempts_per_seed, bool)
+            or not isinstance(self.attempts_per_seed, int)
+            or self.attempts_per_seed <= 0
+        ):
+            raise ValueError("campaign attempts_per_seed must be positive or null")
+        if self.gate_timeout_s is not None and (
+            isinstance(self.gate_timeout_s, bool)
+            or not isinstance(self.gate_timeout_s, int)
+            or self.gate_timeout_s <= 0
+        ):
+            raise ValueError("campaign gate_timeout_s must be positive or null")
+        if self.metric_acceptance is not None:
+            acceptance: dict[str, int | float] = {}
+            for name, value in self.metric_acceptance.items():
+                key = _identifier(name, "metric_acceptance key")
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise ValueError(f"metric acceptance {key} must be numeric")
+                if isinstance(value, float) and not math.isfinite(value):
+                    raise ValueError(f"metric acceptance {key} must be finite")
+                acceptance[key] = value
+            if set(acceptance) != set(self.metrics):
+                raise ValueError(
+                    "campaign metric_acceptance keys must exactly match metrics"
+                )
+            object.__setattr__(
+                self,
+                "metric_acceptance",
+                MappingProxyType(dict(sorted(acceptance.items()))),
+            )
         frozen: dict[str, str] = {}
         for name, digest in self.frozen_components.items():
             frozen[_identifier(name, "frozen_components key")] = _sha256(
@@ -1511,6 +1797,14 @@ class CampaignContract(CanonicalContract):
                 *self.task_sha256s,
                 *self.baseline_sha256s,
                 *self.frozen_components.values(),
+                *(
+                    (
+                        self.base_source_tree_sha256,
+                        _locator_sha256(self.base_source_tree_locator),
+                    )
+                    if self.base_source_tree_sha256 is not None
+                    else ()
+                ),
             ),
             "campaign",
         )
@@ -1524,6 +1818,459 @@ class CampaignContract(CanonicalContract):
             body["execution_limit_policy"] = ExecutionLimitPolicy.from_dict(
                 body["execution_limit_policy"]
             )
+        return cls(**body)
+
+
+@dataclass(frozen=True)
+class CampaignTrialReceipt:
+    """One retained seed outcome inside a canonical CampaignReceipt."""
+
+    campaign_id: str
+    seed: int
+    replay_role: str
+    stage: str
+    status: str
+    base_source_tree_sha256: str
+    base_source_tree_locator: str
+    mission_sha256: str | None
+    mission_locator: str | None
+    attempt_ids: tuple[str, ...]
+    attempt_contract_sha256s: tuple[str, ...]
+    attempt_contract_locators: tuple[str, ...]
+    attempt_receipt_sha256s: tuple[str, ...]
+    attempt_receipt_locators: tuple[str, ...]
+    gate1_receipt_sha256: str | None
+    gate1_receipt_locator: str | None
+    candidate_tree_sha256: str | None
+    candidate_tree_locator: str | None
+    candidate_source_bundle_sha256: str | None
+    candidate_snapshot_sha256: str | None
+    candidate_snapshot_locator: str | None
+    graph_delta_sha256: str | None
+    evidence_packet_sha256: str | None
+    evidence_packet_locator: str | None
+    metrics: Mapping[str, int | float]
+    usage: ResourceUsage
+    negative_outcomes: tuple[str, ...]
+    blockers: tuple[str, ...]
+    started_at: str
+    finished_at: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "campaign_id", _identifier(self.campaign_id, "campaign_id")
+        )
+        if isinstance(self.seed, bool) or not isinstance(self.seed, int) or self.seed < 0:
+            raise ValueError("campaign trial seed must be a non-negative integer")
+        if self.replay_role not in {"origin", "replay"}:
+            raise ValueError("campaign trial replay_role must be origin or replay")
+        if self.stage not in {
+            "admitted",
+            "mission",
+            "attempts",
+            "candidate",
+            "evidence",
+            "complete",
+        }:
+            raise ValueError("campaign trial stage is not recognized")
+        if self.status not in {
+            "passed", "failed", "cancelled", "inconclusive", "error"
+        }:
+            raise ValueError(
+                "campaign trial status must be passed, failed, cancelled, "
+                "inconclusive, or error"
+            )
+        base_sha = _sha256(
+            self.base_source_tree_sha256, "base_source_tree_sha256"
+        )
+        base_locator = _artifact_locator(
+            self.base_source_tree_locator, "base_source_tree_locator"
+        )
+        if _locator_sha256(base_locator) != base_sha:
+            raise ValueError(
+                "campaign trial base source-tree locator does not resolve to its digest"
+            )
+        object.__setattr__(self, "base_source_tree_sha256", base_sha)
+        object.__setattr__(self, "base_source_tree_locator", base_locator)
+        for digest_name, locator_name, label in (
+            ("mission_sha256", "mission_locator", "mission"),
+            ("gate1_receipt_sha256", "gate1_receipt_locator", "Gate-1 receipt"),
+        ):
+            digest = getattr(self, digest_name)
+            locator = getattr(self, locator_name)
+            if (digest is None) != (locator is None):
+                raise ValueError(f"{label} digest and locator must appear together")
+            if digest is not None:
+                checked_digest = _sha256(digest, digest_name)
+                checked_locator = _artifact_locator(locator, locator_name)
+                if _locator_sha256(checked_locator) != checked_digest:
+                    raise ValueError(f"{label} locator does not resolve to its digest")
+                object.__setattr__(self, digest_name, checked_digest)
+                object.__setattr__(self, locator_name, checked_locator)
+        attempts = tuple(
+            _identifier(value, f"attempt_ids[{index}]")
+            for index, value in enumerate(self.attempt_ids)
+        )
+        if len(set(attempts)) != len(attempts):
+            raise ValueError("campaign trial attempt_ids must be unique")
+        object.__setattr__(self, "attempt_ids", attempts)
+        for field_name, locator_field in (
+            ("attempt_contract_sha256s", "attempt_contract_locators"),
+            ("attempt_receipt_sha256s", "attempt_receipt_locators"),
+        ):
+            values = tuple(
+                _sha256(value, f"{field_name}[{index}]")
+                for index, value in enumerate(getattr(self, field_name))
+            )
+            if len(values) != len(attempts):
+                raise ValueError(
+                    f"{field_name} must have one digest per retained attempt"
+                )
+            locators = tuple(
+                _artifact_locator(value, f"{locator_field}[{index}]")
+                for index, value in enumerate(getattr(self, locator_field))
+            )
+            if len(locators) != len(values):
+                raise ValueError(
+                    f"{locator_field} must have one locator per retained attempt"
+                )
+            for digest, locator in zip(values, locators):
+                if _locator_sha256(locator) != digest:
+                    raise ValueError(
+                        f"{locator_field} does not resolve to {field_name}"
+                    )
+            object.__setattr__(self, field_name, values)
+            object.__setattr__(self, locator_field, locators)
+        for digest_name, locator_name, label in (
+            ("candidate_tree_sha256", "candidate_tree_locator", "candidate tree"),
+            (
+                "candidate_snapshot_sha256",
+                "candidate_snapshot_locator",
+                "candidate snapshot",
+            ),
+            ("evidence_packet_sha256", "evidence_packet_locator", "evidence packet"),
+        ):
+            digest = getattr(self, digest_name)
+            locator = getattr(self, locator_name)
+            if (digest is None) != (locator is None):
+                raise ValueError(f"{label} digest and locator must appear together")
+            if digest is not None:
+                checked_digest = _sha256(digest, digest_name)
+                checked_locator = _artifact_locator(locator, locator_name)
+                if _locator_sha256(checked_locator) != checked_digest:
+                    raise ValueError(f"{label} locator does not resolve to its digest")
+                object.__setattr__(self, digest_name, checked_digest)
+                object.__setattr__(self, locator_name, checked_locator)
+        for name in ("candidate_source_bundle_sha256", "graph_delta_sha256"):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, _sha256(value, name))
+        metric_values: dict[str, int | float] = {}
+        for name, value in self.metrics.items():
+            key = _identifier(name, "trial metric name")
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"trial metric {key} must be numeric")
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"trial metric {key} must be finite")
+            metric_values[key] = value
+        if self.status == "passed" and not metric_values:
+            raise ValueError("passed campaign trial must retain metrics")
+        object.__setattr__(
+            self, "metrics", MappingProxyType(dict(sorted(metric_values.items())))
+        )
+        if not isinstance(self.usage, ResourceUsage):
+            raise ValueError("campaign trial usage must be ResourceUsage")
+        object.__setattr__(
+            self,
+            "negative_outcomes",
+            _sorted_strings(self.negative_outcomes, "negative_outcomes"),
+        )
+        object.__setattr__(self, "blockers", _sorted_strings(self.blockers, "blockers"))
+        object.__setattr__(
+            self, "started_at", _utc_timestamp(self.started_at, "started_at")
+        )
+        object.__setattr__(
+            self, "finished_at", _utc_timestamp(self.finished_at, "finished_at")
+        )
+        if self.finished_at < self.started_at:
+            raise ValueError("campaign trial finished_at cannot precede started_at")
+        if self.status == "passed":
+            if self.blockers:
+                raise ValueError("passed campaign trial cannot retain blockers")
+            if (
+                self.stage != "complete"
+                or self.mission_sha256 is None
+                or not self.attempt_ids
+                or self.gate1_receipt_sha256 is None
+                or self.candidate_tree_sha256 is None
+                or self.candidate_source_bundle_sha256 is None
+                or self.candidate_snapshot_sha256 is None
+                or self.graph_delta_sha256 is None
+                or self.evidence_packet_sha256 is None
+            ):
+                raise ValueError(
+                    "passed campaign trial requires its complete retained evidence chain"
+                )
+        elif not self.blockers:
+            raise ValueError("non-passed campaign trial must retain at least one blocker")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {f.name: _json_value(getattr(self, f.name)) for f in fields(self)}
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "CampaignTrialReceipt":
+        body = _record_payload(cls, payload, "campaign trial receipt")
+        body["usage"] = ResourceUsage.from_dict(body["usage"])
+        return cls(**body)
+
+
+@dataclass(frozen=True)
+class CampaignReceipt(CanonicalContract):
+    """Terminal campaign result. A nomination is never promotion authority."""
+
+    CONTRACT_TYPE: ClassVar[str] = "daedalus.campaign-receipt"
+
+    campaign_id: str
+    source_revision: str
+    campaign_contract_sha256: str
+    campaign_contract_locator: str
+    experiment_spec_sha256: str
+    experiment_spec_locator: str
+    metric_names: tuple[str, ...]
+    trials: tuple[CampaignTrialReceipt, ...]
+    execution_order: tuple[int, ...]
+    outcome: str
+    selected_seed: int | None
+    candidate_tree_sha256: str | None
+    candidate_tree_locator: str | None
+    nomination_receipt_sha256: str | None
+    nomination_receipt_locator: str | None
+    usage: ResourceUsage
+    overhead_usage: ResourceUsage
+    negative_outcomes: tuple[str, ...]
+    reproducibility_note: str
+    blockers: tuple[str, ...]
+    started_at: str
+    finished_at: str
+    provenance: ContractProvenance
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "campaign_id", _identifier(self.campaign_id, "campaign_id")
+        )
+        revision = _revision(self.source_revision, "source_revision")
+        object.__setattr__(self, "source_revision", revision)
+        for digest_name, locator_name in (
+            ("campaign_contract_sha256", "campaign_contract_locator"),
+            ("experiment_spec_sha256", "experiment_spec_locator"),
+        ):
+            digest = _sha256(getattr(self, digest_name), digest_name)
+            locator = _artifact_locator(getattr(self, locator_name), locator_name)
+            if _locator_sha256(locator) != digest:
+                raise ValueError(f"{locator_name} does not resolve to {digest_name}")
+            object.__setattr__(self, digest_name, digest)
+            object.__setattr__(self, locator_name, locator)
+        metric_names = _sorted_strings(
+            self.metric_names, "metric_names", identifiers=True
+        )
+        if not metric_names:
+            raise ValueError("campaign receipt must name its metrics")
+        object.__setattr__(self, "metric_names", metric_names)
+        trials = tuple(self.trials)
+        if not all(isinstance(item, CampaignTrialReceipt) for item in trials):
+            raise ValueError("campaign receipt trials must be typed trial receipts")
+        if len({item.seed for item in trials}) != len(trials):
+            raise ValueError("campaign receipt trial seeds must be unique")
+        for trial in trials:
+            if trial.campaign_id != self.campaign_id:
+                raise ValueError("campaign trial belongs to another campaign")
+            if trial.status == "passed" and tuple(trial.metrics) != metric_names:
+                raise ValueError("campaign trial metrics contradict metric_names")
+        object.__setattr__(self, "trials", trials)
+        execution_order = tuple(self.execution_order)
+        if any(
+            isinstance(seed, bool) or not isinstance(seed, int) or seed < 0
+            for seed in execution_order
+        ):
+            raise ValueError("campaign execution_order must contain non-negative seeds")
+        if execution_order != tuple(item.seed for item in self.trials):
+            raise ValueError(
+                "campaign execution_order must exactly name the retained trial order"
+            )
+        object.__setattr__(self, "execution_order", execution_order)
+        if self.outcome not in {"nominated", "rejected", "failed", "cancelled"}:
+            raise ValueError(
+                "campaign outcome must be nominated, rejected, failed, or cancelled"
+            )
+        if self.selected_seed is not None and (
+            isinstance(self.selected_seed, bool)
+            or not isinstance(self.selected_seed, int)
+            or self.selected_seed < 0
+        ):
+            raise ValueError("selected_seed must be a non-negative integer or null")
+        for digest_name, locator_name, label in (
+            ("candidate_tree_sha256", "candidate_tree_locator", "candidate tree"),
+            (
+                "nomination_receipt_sha256",
+                "nomination_receipt_locator",
+                "nomination receipt",
+            ),
+        ):
+            digest = getattr(self, digest_name)
+            locator = getattr(self, locator_name)
+            if (digest is None) != (locator is None):
+                raise ValueError(f"{label} digest and locator must appear together")
+            if digest is not None:
+                checked_digest = _sha256(digest, digest_name)
+                checked_locator = _artifact_locator(locator, locator_name)
+                if _locator_sha256(checked_locator) != checked_digest:
+                    raise ValueError(f"{label} locator does not resolve to its digest")
+                object.__setattr__(self, digest_name, checked_digest)
+                object.__setattr__(self, locator_name, checked_locator)
+        if not isinstance(self.usage, ResourceUsage):
+            raise ValueError("campaign receipt usage must be ResourceUsage")
+        if not isinstance(self.overhead_usage, ResourceUsage):
+            raise ValueError("campaign receipt overhead_usage must be ResourceUsage")
+        object.__setattr__(
+            self,
+            "negative_outcomes",
+            _sorted_strings(self.negative_outcomes, "negative_outcomes"),
+        )
+        object.__setattr__(self, "blockers", _sorted_strings(self.blockers, "blockers"))
+        object.__setattr__(
+            self,
+            "reproducibility_note",
+            _non_empty(
+                self.reproducibility_note,
+                "reproducibility_note",
+                max_length=2000,
+            ),
+        )
+        object.__setattr__(self, "started_at", _utc_timestamp(self.started_at, "started_at"))
+        object.__setattr__(self, "finished_at", _utc_timestamp(self.finished_at, "finished_at"))
+        if self.finished_at < self.started_at:
+            raise ValueError("campaign finished_at cannot precede started_at")
+        if self.outcome == "nominated":
+            if not trials:
+                raise ValueError("nominated campaign requires retained trials")
+            if self.blockers:
+                raise ValueError("nominated campaign cannot retain blockers")
+            if any(trial.status != "passed" for trial in trials):
+                raise ValueError("nominated campaign requires every trial to pass")
+            identities = {trial.candidate_tree_sha256 for trial in trials}
+            if None in identities or len(identities) != 1:
+                raise ValueError("nominated campaign requires one stable candidate identity")
+            if self.candidate_tree_sha256 != next(iter(identities)):
+                raise ValueError("campaign candidate contradicts its trial candidates")
+            if self.nomination_receipt_sha256 is None:
+                raise ValueError("nominated campaign requires a nomination receipt")
+            if self.selected_seed not in {trial.seed for trial in trials}:
+                raise ValueError("nominated campaign must select one retained seed")
+        else:
+            if self.selected_seed is not None:
+                raise ValueError("non-nominated campaign cannot select a seed")
+            if self.nomination_receipt_sha256 is not None:
+                raise ValueError("non-nominated campaign cannot carry a nomination")
+            if not self.blockers:
+                raise ValueError("non-nominated campaign must retain blockers")
+        if self.provenance.source_revision != revision:
+            raise ValueError("campaign receipt revision must match provenance")
+        if self.provenance.created_at != self.finished_at:
+            raise ValueError("campaign receipt provenance must be created at finish")
+        required = {
+            self.campaign_contract_sha256,
+            _locator_sha256(self.campaign_contract_locator),
+            self.experiment_spec_sha256,
+            _locator_sha256(self.experiment_spec_locator),
+            *(
+                (self.candidate_tree_sha256, _locator_sha256(self.candidate_tree_locator))
+                if self.candidate_tree_sha256 is not None
+                else ()
+            ),
+            *(
+                (
+                    self.nomination_receipt_sha256,
+                    _locator_sha256(self.nomination_receipt_locator),
+                )
+                if self.nomination_receipt_sha256 is not None
+                else ()
+            ),
+        }
+        for trial in trials:
+            required.update(
+                {
+                    trial.base_source_tree_sha256,
+                    _locator_sha256(trial.base_source_tree_locator),
+                    *(
+                        (trial.mission_sha256, _locator_sha256(trial.mission_locator))
+                        if trial.mission_sha256 is not None
+                        else ()
+                    ),
+                    *trial.attempt_contract_sha256s,
+                    *(
+                        _locator_sha256(locator)
+                        for locator in trial.attempt_contract_locators
+                    ),
+                    *trial.attempt_receipt_sha256s,
+                    *(
+                        _locator_sha256(locator)
+                        for locator in trial.attempt_receipt_locators
+                    ),
+                    *(
+                        (trial.candidate_source_bundle_sha256,)
+                        if trial.candidate_source_bundle_sha256 is not None
+                        else ()
+                    ),
+                    *(
+                        (trial.graph_delta_sha256,)
+                        if trial.graph_delta_sha256 is not None
+                        else ()
+                    ),
+                    *(
+                        (
+                            trial.gate1_receipt_sha256,
+                            _locator_sha256(trial.gate1_receipt_locator),
+                        )
+                        if trial.gate1_receipt_sha256 is not None
+                        else ()
+                    ),
+                    *(
+                        (
+                            trial.candidate_tree_sha256,
+                            _locator_sha256(trial.candidate_tree_locator),
+                        )
+                        if trial.candidate_tree_sha256 is not None
+                        else ()
+                    ),
+                    *(
+                        (
+                            trial.candidate_snapshot_sha256,
+                            _locator_sha256(trial.candidate_snapshot_locator),
+                        )
+                        if trial.candidate_snapshot_sha256 is not None
+                        else ()
+                    ),
+                    *(
+                        (
+                            trial.evidence_packet_sha256,
+                            _locator_sha256(trial.evidence_packet_locator),
+                        )
+                        if trial.evidence_packet_sha256 is not None
+                        else ()
+                    ),
+                }
+            )
+        _require_provenance_inputs(self.provenance, tuple(required), "campaign receipt")
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "CampaignReceipt":
+        body = cls._contract_payload(payload)
+        body["trials"] = tuple(
+            CampaignTrialReceipt.from_dict(item) for item in body["trials"]
+        )
+        body["usage"] = ResourceUsage.from_dict(body["usage"])
+        body["overhead_usage"] = ResourceUsage.from_dict(body["overhead_usage"])
+        body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
 
 
@@ -2179,7 +2926,9 @@ KERNEL_CONTRACT_TYPES: Mapping[str, type[CanonicalContract]] = MappingProxyType(
             MissionContract,
             AttemptContract,
             EvidencePacket,
+            ExperimentSpec,
             CampaignContract,
+            CampaignReceipt,
             PolicyDecision,
             RuntimeManifest,
             AttemptReceipt,

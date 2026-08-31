@@ -13,6 +13,8 @@ export interface ProjectRow {
   name: string;
   repo_root: string;
   team: Record<string, unknown>;
+  /** Observed by the backend on this machine; omitted by older servers. */
+  reachable?: boolean;
 }
 
 /** A project registration deliberately points at an existing checkout. The
@@ -186,6 +188,10 @@ export interface IkarusAskPayload {
   status?: unknown;              // present for status
   draft?: unknown;               // present for design (same shape as chatIkarus draft)
   warnings?: string[];
+  /** Canonical conversation-spine row written for this exact exchange. */
+  turn_id?: number;
+  /** False means the answer succeeded but its conversation append did not. */
+  conversation_persisted?: boolean;
 }
 
 /* ---- Live event stream (SSE): GET /api/events?project=<name> ---- */

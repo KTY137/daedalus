@@ -171,6 +171,131 @@ def quiet_status(manager: DesktopRuntimeManager, monkeypatch) -> None:
     )
 
 
+def test_ollama_child_environment_removes_only_frozen_runtime_paths(tmp_path):
+    frozen = tmp_path / "backend" / "_internal"
+    nested = frozen / "runtime-bin"
+    sibling = tmp_path / "backend" / "_internal-tools"
+    external = tmp_path / "tools"
+    original_path = os.pathsep.join(
+        (str(frozen), str(nested), str(sibling), str(external), "")
+    )
+    source = {"PATH": original_path, "PRESERVE": "yes"}
+
+    child = desktop_runtime_module._ollama_child_environment(source, frozen)
+
+    assert child["PATH"].split(os.pathsep) == [str(sibling), str(external), ""]
+    assert child["PRESERVE"] == "yes"
+    assert source["PATH"] == original_path
+
+
+def test_frozen_ollama_spawn_resets_then_restores_dll_directory(
+    tmp_path, monkeypatch
+):
+    frozen = (tmp_path / "backend" / "_internal").resolve()
+    events = []
+
+    class FakeManagedProcess:
+        def __init__(self, argv, **kwargs):
+            events.append(("spawn", list(argv), kwargs))
+
+    monkeypatch.setattr(desktop_runtime_module, "ManagedProcess", FakeManagedProcess)
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "_set_windows_dll_directory",
+        lambda path: events.append(("dll", path)),
+    )
+
+    managed = desktop_runtime_module._spawn_ollama_process(
+        [r"C:\Ollama\ollama.exe", "serve"],
+        cwd=tmp_path,
+        env={"PATH": "safe"},
+        stdout=None,
+        stderr=None,
+        frozen_root=frozen,
+    )
+
+    assert isinstance(managed, FakeManagedProcess)
+    assert [event[0] for event in events] == ["dll", "spawn", "dll"]
+    assert events[0] == ("dll", None)
+    assert events[2] == ("dll", str(frozen))
+
+
+def test_frozen_ollama_spawn_restores_dll_directory_after_spawn_error(
+    tmp_path, monkeypatch
+):
+    frozen = (tmp_path / "backend" / "_internal").resolve()
+    events = []
+
+    class FailingManagedProcess:
+        def __init__(self, argv, **kwargs):
+            events.append(("spawn", list(argv)))
+            raise OSError("spawn failed")
+
+    monkeypatch.setattr(desktop_runtime_module, "ManagedProcess", FailingManagedProcess)
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "_set_windows_dll_directory",
+        lambda path: events.append(("dll", path)),
+    )
+
+    with pytest.raises(OSError, match="spawn failed"):
+        desktop_runtime_module._spawn_ollama_process(
+            [r"C:\Ollama\ollama.exe", "serve"],
+            cwd=tmp_path,
+            env={"PATH": "safe"},
+            stdout=None,
+            stderr=None,
+            frozen_root=frozen,
+        )
+
+    assert events == [
+        ("dll", None),
+        ("spawn", [r"C:\Ollama\ollama.exe", "serve"]),
+        ("dll", str(frozen)),
+    ]
+
+
+def test_frozen_ollama_spawn_closes_child_when_dll_restore_fails(
+    tmp_path, monkeypatch
+):
+    frozen = (tmp_path / "backend" / "_internal").resolve()
+    events = []
+
+    class FakeManagedProcess:
+        def __init__(self, argv, **kwargs):
+            events.append(("spawn", list(argv)))
+
+        def close(self, *, grace_s):
+            events.append(("close", grace_s))
+
+    def set_dll_directory(path):
+        events.append(("dll", path))
+        if path is not None:
+            raise OSError("restore failed")
+
+    monkeypatch.setattr(desktop_runtime_module, "ManagedProcess", FakeManagedProcess)
+    monkeypatch.setattr(
+        desktop_runtime_module, "_set_windows_dll_directory", set_dll_directory
+    )
+
+    with pytest.raises(OSError, match="restore failed"):
+        desktop_runtime_module._spawn_ollama_process(
+            [r"C:\Ollama\ollama.exe", "serve"],
+            cwd=tmp_path,
+            env={"PATH": "safe"},
+            stdout=None,
+            stderr=None,
+            frozen_root=frozen,
+        )
+
+    assert events == [
+        ("dll", None),
+        ("spawn", [r"C:\Ollama\ollama.exe", "serve"]),
+        ("dll", str(frozen)),
+        ("close", 0.0),
+    ]
+
+
 def test_defaults_autostart_bridge_and_local_ollama():
     cfg = normalize_config({})
     assert cfg["bridge"]["auto_start"] is True
@@ -997,6 +1122,172 @@ def test_local_endpoint_must_be_numeric_loopback_and_clean_url():
 def test_ipv6_loopback_keeps_required_brackets():
     cfg = normalize_config({"ollama": {"local_host": "http://[::1]:11434"}})
     assert cfg["ollama"]["local_host"] == "http://[::1]:11434"
+
+
+def test_local_ollama_uses_resolved_executable_managed_process_and_neutral_cwd(
+    tmp_path, monkeypatch
+):
+    manager = DesktopRuntimeManager(tmp_path)
+    executable = (tmp_path / "installed" / "ollama.exe").resolve()
+    probes = iter(((False, "offline"), (True, "")))
+    calls = []
+
+    class FakeManagedProcess:
+        def __init__(self, argv, **kwargs):
+            self._returncode = None
+            self.closed = False
+            calls.append((list(argv), kwargs, self))
+
+        def poll(self):
+            return self._returncode
+
+        def close(self, *, grace_s):
+            self.closed = True
+
+    monkeypatch.setattr(manager, "_probe", lambda timeout=1.5: next(probes))
+    monkeypatch.setattr(
+        desktop_runtime_module.runtime_registry,
+        "resolve_runtime_command",
+        lambda runtime_id: str(executable) if runtime_id == "ollama_cli" else None,
+    )
+    monkeypatch.setattr(desktop_runtime_module, "ManagedProcess", FakeManagedProcess)
+    monkeypatch.setattr(
+        desktop_runtime_module, "_frozen_windows_runtime_root", lambda: None
+    )
+
+    try:
+        result = manager.ensure_local_ollama()
+        expected_cwd = tmp_path.resolve() / "runs" / "services" / "ollama"
+        argv, kwargs, managed = calls[0]
+        assert argv == [str(executable), "serve"]
+        assert Path(argv[0]).is_absolute()
+        assert kwargs["cwd"] == expected_cwd
+        assert expected_cwd.is_dir()
+        assert kwargs["env"] is not os.environ
+        assert manager._ollama is managed
+        assert isinstance(manager._ollama, FakeManagedProcess)
+        assert result == {
+            "mode": "local",
+            "running": True,
+            "reachable": True,
+            "detail": "",
+        }
+    finally:
+        manager.close()
+
+    assert managed.closed is True
+
+
+def test_reachable_preexisting_ollama_is_not_owned_or_stopped(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    monkeypatch.setattr(manager, "_probe", lambda timeout=1.5: (True, ""))
+    monkeypatch.setattr(
+        desktop_runtime_module.runtime_registry,
+        "resolve_runtime_command",
+        lambda runtime_id: pytest.fail("reachable Ollama must not resolve a new child"),
+    )
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "_spawn_ollama_process",
+        lambda *args, **kwargs: pytest.fail("reachable Ollama must not be spawned"),
+    )
+
+    try:
+        result = manager.ensure_local_ollama()
+        assert result["reachable"] is True
+        assert manager._ollama is None
+        manager.stop_ollama()
+        assert manager._ollama is None
+    finally:
+        manager.close()
+
+
+def test_stop_ollama_releases_managed_process_after_parent_exit(tmp_path):
+    manager = DesktopRuntimeManager(tmp_path)
+    calls = []
+
+    class ExitedManagedProcess:
+        def poll(self):
+            return 0
+
+        def close(self, *, grace_s):
+            calls.append(grace_s)
+
+    manager._ollama = ExitedManagedProcess()
+    try:
+        manager.stop_ollama()
+        assert calls == [2.0]
+        assert manager._ollama is None
+    finally:
+        manager.close()
+
+
+def test_local_host_route_change_stops_owned_ollama(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    stopped = []
+    proposed = json.loads(json.dumps(manager.config))
+    proposed["bridge"]["auto_start"] = False
+    proposed["ide"]["auto_start"] = False
+    proposed["ollama"]["auto_start"] = False
+    proposed["ollama"]["local_host"] = "http://127.0.0.1:11436"
+    monkeypatch.setattr(manager, "stop_ollama", lambda: stopped.append(True))
+
+    try:
+        manager.save_settings(proposed)
+        assert stopped == [True]
+    finally:
+        manager.close()
+
+
+def test_manager_close_uses_owned_ollama_stop_path(tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    calls = []
+    monkeypatch.setattr(manager, "stop_ide", lambda **kwargs: None)
+    monkeypatch.setattr(manager, "stop_ollama", lambda: calls.append("ollama"))
+
+    manager.close()
+
+    assert calls == ["ollama"]
+
+
+def test_web_ollama_stop_route_stops_owned_local_process():
+    class BaseHandler:
+        path = ""
+
+        def _send_json(self, payload, status=200):
+            self.sent = (payload, status)
+
+        def _handle_post(self):
+            self.fell_through = True
+
+    class Manager:
+        def __init__(self):
+            self.stopped = False
+
+        def stop_ollama(self):
+            self.stopped = True
+
+        def snapshot(self):
+            return {"services": {"ollama": {"reachable": False}}}
+
+    manager = Manager()
+    cache_resets = []
+    web_api = SimpleNamespace(
+        DaedalusHandler=BaseHandler,
+        core=SimpleNamespace(envelope=lambda project, **payload: payload),
+        runtime_registry=SimpleNamespace(
+            reset_status_cache=lambda: cache_resets.append(True)
+        ),
+    )
+    install_web_integration(web_api, manager)
+    request = web_api.DaedalusHandler()
+    request.path = "/api/desktop/services/ollama/stop"
+
+    request._handle_post()
+
+    assert manager.stopped is True
+    assert cache_resets == [True]
+    assert request.sent == ({"service": {"reachable": False}}, 200)
 
 
 @pytest.mark.parametrize(

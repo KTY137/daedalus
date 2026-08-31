@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import shutil
 import subprocess
@@ -8,10 +9,9 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from . import metrics
-from .claude_bridge import ask_claude
 from .claude_detect import detect_claude_crew
 from .projects import PROJECT_DIR, list_projects, load_project, resolve_repo_root
 from .providers import provider_health as _provider_health
@@ -363,7 +363,7 @@ def _probe_local_only_fail_closed() -> bool:
     g = globals()
     saved = g["_try_ikarus"]
     try:
-        g["_try_ikarus"] = lambda payload: None
+        g["_try_ikarus"] = lambda payload, **_kwargs: None
         r = process_bridge_payload(
             {"lane": "local_only", "objective": "__gate_selftest__", "repo_root": "", "paths": [], "model": ""}
         )
@@ -428,7 +428,14 @@ def routing_summary(project: str | None, watcher: dict[str, Any], models: dict[s
         return {"selected_lane": selected, "recommended_lane": "local_only", "reason": "Fallback alarm is active."}
     if models.get("server_ready"):
         return {"selected_lane": selected, "recommended_lane": selected, "reason": "Configured lane is compatible with current provider health."}
-    return {"selected_lane": selected, "recommended_lane": "auto", "reason": "Ollama is unavailable; auto can use trusted fallback with confirmation policy."}
+    return {
+        "selected_lane": selected,
+        "recommended_lane": "local_only",
+        "reason": (
+            "Ollama is unavailable; direct external fallback is disabled until "
+            "the queue caller has canonical broker authority."
+        ),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -977,29 +984,325 @@ def _availability_from_doctor() -> dict[str, bool]:
     }
 
 
-def _try_ikarus(payload: dict[str, Any]) -> dict[str, Any] | None:
+def _ikarus_availability(lane: str) -> dict[str, bool]:
+    """Project provider health into the authority of one bridge lane.
+
+    ``local_only`` is a confinement promise, not merely a preference.  It may
+    expose the reachable Ollama bench only when the canonical host predicate
+    says the configured endpoint is trusted; every external provider remains
+    unavailable even when doctor found it.  ``auto``/``local`` keep the
+    historical full availability map so the existing project policy and
+    router continue to decide their provider.
+    """
+    availability = _availability_from_doctor()
+    if lane != "local_only":
+        return availability
+
+    from .providers.ollama import DEFAULT_HOST
+    from .sensitivity import lane_for_host
+
+    host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+    return {
+        "claude_cli": False,
+        "ollama": bool(
+            availability.get("ollama") and lane_for_host(host) == "trusted"
+        ),
+        "deepseek": False,
+        "codex_cli": False,
+    }
+
+
+def _one_task_session(payload: dict[str, Any], assignment: Any) -> Any:
+    """Bind one bridge request to the existing Mission/WorkItem/Wave spine."""
+    from .build import (
+        FRONTIER_BUILDER,
+        LOCAL_BUILDER,
+        BuildSession,
+        BuildTask,
+        Wave,
+    )
+    from .spine.envelope import canonical_sha
+
+    slug = "ikarus-queue-" + canonical_sha({
+        "objective": payload["objective"],
+        "repo_root": str(payload["repo_root"]),
+        "paths": list(payload.get("paths") or []),
+        "project": payload.get("project"),
+        "trace_id": payload.get("trace_id"),
+    })[:16]
+    local = str(getattr(assignment, "lane", "")) == "ollama"
+    task = BuildTask(
+        objective=payload["objective"],
+        agent=str(getattr(assignment, "owner", "") or "unknown"),
+        category=str(payload.get("category") or ""),
+        lane=str(getattr(assignment, "lane", "") or "local_only"),
+        tier=str(payload.get("model") or "sonnet"),
+        builder=LOCAL_BUILDER if local else FRONTIER_BUILDER,
+        frontier=not local,
+        paths=list(payload.get("paths") or []),
+    )
+    return BuildSession(
+        feature=payload["objective"],
+        repo_root=str(payload["repo_root"]),
+        project=payload.get("project"),
+        waves=[Wave(index=0, tasks=[task])],
+        slug=slug,
+        max_workers=1,
+    )
+
+
+_IKARUS_EFFECT_BLOCKERS = frozenset({
+    "effect_lease_denied",
+    "effect_lease_refused",
+    "effect_lease_required",
+    "effect_replay",
+    "spend_envelope_denied",
+    "spend_refused",
+    "spend_refused_not_attempted",
+})
+
+
+def _ikarus_effect_blocker(results: list[dict[str, Any]]) -> str:
+    """Return the first effect refusal that must never trigger a fallback."""
+    for row in results:
+        status = str(row.get("status") or "")
+        nested = row.get("result") or {}
+        nested_action = str(
+            nested.get("action") if isinstance(nested, dict) else ""
+        )
+        provider = row.get("provider_receipt") or {}
+        provider_action = str(
+            provider.get("action") if isinstance(provider, dict) else ""
+        )
+        if status in _IKARUS_EFFECT_BLOCKERS:
+            return str(
+                (nested.get("note") if isinstance(nested, dict) else "")
+                or row.get("reason")
+                or status
+            )
+        if nested_action in _IKARUS_EFFECT_BLOCKERS:
+            return str(
+                nested.get("note") or row.get("reason") or nested_action
+            )
+        if provider_action in _IKARUS_EFFECT_BLOCKERS:
+            return str(
+                provider.get("note") or row.get("reason") or provider_action
+            )
+    return ""
+
+
+_IKARUS_PROVIDER_RAN_STATUSES = frozenset({
+    "offloaded",
+    "gated_held",
+    "gated_artifact_lost",
+    "write_gate_failed",
+    "escalated_after_verify_fail",
+})
+
+
+def _ikarus_provider_facts(
+    results: list[dict[str, Any]] | None,
+) -> tuple[list[str], list[str]]:
+    """Return conservatively labelled routed and actually-run providers.
+
+    ``lane`` on an assignment is routing evidence.  It is not, by itself,
+    proof that a provider process started: an Effect-Lease or storage refusal
+    carries the same assignment shape.  ``actual_providers`` therefore needs
+    both a post-attempt terminal status and an explicit nested/receipt provider
+    observation; the scheduler route is never used as a fallback.
+    """
+    assigned: list[str] = []
+    actual: list[str] = []
+    for row in results or []:
+        if not isinstance(row, dict):
+            continue
+        nested = row.get("result") if isinstance(row.get("result"), dict) else {}
+        receipt = (row.get("provider_receipt")
+                   if isinstance(row.get("provider_receipt"), dict) else {})
+        assigned_values = [row.get("provider"), row.get("lane")]
+        observed_values = [
+            nested.get("provider"), receipt.get("provider"),
+            receipt.get("provider_id"), receipt.get("runtime_id"),
+        ]
+        routed = [str(value).strip() for value in assigned_values
+                  if str(value or "").strip()]
+        observed = [str(value).strip() for value in observed_values
+                    if str(value or "").strip()]
+        for provider in routed:
+            if provider not in assigned:
+                assigned.append(provider)
+        if str(row.get("status") or "") in _IKARUS_PROVIDER_RAN_STATUSES:
+            # Routing is intent, never execution evidence.  A pre-provider
+            # failure can be coarsened to one of these terminal statuses, so
+            # only an explicit nested/receipt provider may be called actual.
+            for provider in observed:
+                if provider not in actual:
+                    actual.append(provider)
+    return assigned, actual
+
+
+def _ikarus_blocked_report(
+    payload: dict[str, Any], error: str, results: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    requested_lane = str(payload.get("lane") or "local_only")
+    assigned_providers, actual_providers = _ikarus_provider_facts(results)
+    return {
+        "request": payload,
+        "bridge_status": "failed",
+        "lane": requested_lane,
+        "requested_lane": requested_lane,
+        "assigned_providers": assigned_providers,
+        "actual_providers": actual_providers,
+        "orchestrator": "ikarus",
+        "error": error,
+        "result": {
+            "strategy": payload.get("strategy"),
+            "assignments": list(results or []),
+        },
+    }
+
+
+def _bridge_effect_identity(
+    effect_identity: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Validate the file bridge's private, journal-backed replay identity.
+
+    This material arrives through a keyword-only process boundary, never from
+    the request JSON.  It identifies an Effect Lease; it does not grant one.
+    The canonical issuer still signs, persists and verifies the resulting
+    capability before ``WaveExecutor`` can dispatch anything.
+    """
+    if effect_identity is None:
+        return {}
+    if not isinstance(effect_identity, Mapping):
+        raise TypeError("effect_identity must be a mapping")
+    attempt_id = effect_identity.get("attempt_id")
+    lease_id = effect_identity.get("lease_id")
+    issued_text = effect_identity.get("issued_at")
+    if not all(isinstance(value, str) and value.strip()
+               for value in (attempt_id, lease_id, issued_text)):
+        raise ValueError(
+            "effect_identity requires non-empty attempt_id, lease_id and issued_at"
+        )
     try:
-        availability = _availability_from_doctor()
+        issued_at = datetime.fromisoformat(str(issued_text).replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("effect_identity issued_at is not ISO-8601") from exc
+    if issued_at.tzinfo is None:
+        raise ValueError("effect_identity issued_at must include a timezone")
+    return {
+        "attempt_id": str(attempt_id),
+        "lease_id": str(lease_id),
+        "issued_at": issued_at,
+    }
+
+
+def _try_ikarus(
+    payload: dict[str, Any], *,
+    effect_identity: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    from .kernel.offload_lease import WaveLeaseKillSwitchEngaged
+
+    if payload.get("strategy") == "spawn":
+        return _ikarus_blocked_report(
+            payload,
+            "strategy='spawn' has no canonical leased multi-task adapter; "
+            "refusing instead of dispatching outside WaveExecutor",
+        )
+
+    try:
+        availability = _ikarus_availability(
+            str(payload.get("lane") or "local_only")
+        )
         from .kairos.scheduler import KairosScheduler
 
         ikarus = KairosScheduler(availability=availability, project=payload.get("project"))
-        if payload.get("strategy") == "spawn":
-            results = ikarus.spawn(payload["objective"], payload["repo_root"], dry_run=False)
-        else:
-            results = ikarus.dispatch(
-                payload["repo_root"],
-                [{"objective": payload["objective"], "paths": payload["paths"]}],
-                dry_run=False,
-            )
+        task_dict = {
+            "objective": payload["objective"],
+            "paths": list(payload.get("paths") or []),
+        }
+        assignments = ikarus.accept(
+            [task_dict], repo_root=payload["repo_root"]
+        )
+        if not assignments or not assignments[0].accepted:
+            return None
+        assignment = assignments[0]
     except Exception:
         return None
-    if not results or any(r.get("status") != "offloaded" for r in results):
-        return None
+
+    source_revision = _head_sha_safe(str(payload["repo_root"]))
+    if not source_revision:
+        return _ikarus_blocked_report(
+            payload,
+            "repository HEAD is unavailable; refusing to issue a lease with "
+            "invented source provenance",
+        )
+
+    try:
+        from .build_exec import EffectBounds, WaveExecutor
+
+        session = _one_task_session(payload, assignment)
+        replay_identity = _bridge_effect_identity(effect_identity)
+        executor = WaveExecutor(
+            availability=availability,
+            effect_bounds=EffectBounds(
+                mission_id=session.mission_id,
+                source_revision=source_revision,
+                trace_id=(str(payload.get("trace_id"))
+                          if payload.get("trace_id") else None),
+                **replay_identity,
+            ),
+        )
+        wave = executor.run_wave(
+            ikarus,
+            session.waves[0],
+            str(payload["repo_root"]),
+            session=session,
+            dry_run=False,
+            parallel=False,
+        )
+        results = wave.results
+    except WaveLeaseKillSwitchEngaged as exc:
+        return _ikarus_blocked_report(payload, str(exc))
+    except Exception as exc:
+        return _ikarus_blocked_report(
+            payload,
+            "leased execution ended without a terminal result: "
+            f"{type(exc).__name__}: {exc}",
+        )
+    effect_blocker = _ikarus_effect_blocker(results)
+    if effect_blocker:
+        return _ikarus_blocked_report(payload, effect_blocker, results)
+    if not results:
+        return _ikarus_blocked_report(
+            payload, "WaveExecutor returned no terminal task result", results
+        )
+    unsuccessful = [
+        r for r in results
+        if r.get("status") not in ("offloaded", "gated_held")
+    ]
+    if unsuccessful:
+        first = unsuccessful[0]
+        return _ikarus_blocked_report(
+            payload,
+            str(
+                first.get("reason")
+                or first.get("error")
+                or first.get("status")
+                or "leased task did not complete successfully"
+            ),
+            results,
+        )
     owners = list(dict.fromkeys(str(r.get("owner", "")) for r in results if r.get("owner")))
+    requested_lane = str(payload.get("lane") or "local_only")
+    assigned_providers, actual_providers = _ikarus_provider_facts(results)
     return {
         "request": payload,
         "bridge_status": "done",
-        "lane": "local",
+        "lane": requested_lane,
+        "requested_lane": requested_lane,
+        "assigned_providers": assigned_providers,
+        "actual_providers": actual_providers,
         "orchestrator": "ikarus",
         "agent": owners[0] if len(owners) == 1 else "multi",
         "result": {"strategy": payload.get("strategy"), "assignments": results},
@@ -1007,36 +1310,40 @@ def _try_ikarus(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _ask_claude_report(payload: dict[str, Any]) -> dict[str, Any]:
-    try:
-        result = ask_claude(
-            objective=payload["objective"],
-            repo_root=payload["repo_root"],
-            paths=payload["paths"],
-            model=payload["model"],
-            timeout_s=int(payload.get("timeout_s", 300)),
-        )
-        return {
-            "request": payload,
-            "bridge_status": "done",
-            "lane": "claude",
-            "agent": result["agent"],
-            "report": result["report"],
-        }
-    except Exception as exc:
-        return {
-            "request": payload,
-            "bridge_status": "failed",
-            "lane": "claude",
-            "error": str(exc),
-        }
+    """Fail closed until the bridge owns canonical Claude caller authority.
+
+    Kept as the old private seam so refusal tests and callers get a stable,
+    explicit report instead of an AttributeError.  It deliberately does not
+    import or invoke ``claude_bridge.ask_claude``.
+    """
+    requested_lane = str(payload.get("lane") or "claude")
+    return {
+        "request": payload,
+        "bridge_status": "failed",
+        "lane": requested_lane,
+        "requested_lane": requested_lane,
+        "assigned_providers": [],
+        "actual_providers": [],
+        "error": (
+            "Claude dispatch is disabled on the canonical queue path: the "
+            "bridge caller does not yet hold the mandatory runtime-bound "
+            "Effect Lease and broker authorization"
+        ),
+    }
 
 
 def local_only_failure_report(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "request": payload,
         "bridge_status": "failed",
-        "lane": "local",
-        "error": "local_only requested, but the local bench did not return a verified offload; Claude fallback skipped.",
+        "lane": "local_only",
+        "requested_lane": "local_only",
+        "assigned_providers": [],
+        "actual_providers": [],
+        "error": (
+            "local_only requested, but the trusted local bench did not accept "
+            "the task; external fallback is prohibited"
+        ),
     }
 
 
@@ -1118,24 +1425,51 @@ def _configure_report(payload: dict[str, Any]) -> dict[str, Any]:
         return {"request": payload, "bridge_status": "failed", "lane": "local", "error": str(exc)}
 
 
-def process_bridge_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def process_bridge_payload(
+    payload: dict[str, Any], *,
+    effect_identity: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     if payload.get("strategy") == "configure":
         return _configure_report(payload)
     # Fail-closed: a missing or unrecognized lane (typo, hand-edited/legacy
     # outbox file) is treated as local_only so the watcher can never bill an
-    # unlabeled task to a paid provider unattended. Only 'auto'/'local' spend.
+    # unlabeled task to a paid provider unattended. External direct fallback is
+    # disabled for every lane until this caller owns the mandatory authority.
     lane = payload.get("lane") or "local_only"
     if lane not in KNOWN_LANES:
         lane = "local_only"
     payload = {**payload, "lane": lane}
     if lane == "codex":
-        # Forced external lane: egress-gated in _codex_report, no Claude fallback.
-        return _codex_report(payload)
+        # ``provider.codex`` is still INVENTORY_ONLY in the effect-boundary
+        # catalogue: CodexCLIProvider.run has not adopted the canonical
+        # runtime-bound Effect Lease / broker authorization seam.  The Hand now
+        # makes project-owned lanes reachable from chat, so keeping this legacy
+        # direct call here would turn a documented gap into a new effectful
+        # bypass.  Retain _codex_report for old read-only callers and evidence,
+        # but do not let the canonical bridge start it until that provider is
+        # centrally brokered.
+        return {
+            "request": payload,
+            "bridge_status": "failed",
+            "lane": "codex",
+            "requested_lane": "codex",
+            "assigned_providers": [],
+            "actual_providers": [],
+            "error": (
+                "codex dispatch is disabled: provider.codex has not adopted "
+                "the canonical runtime-bound Effect Lease and broker "
+                "authorization seam"
+            ),
+        }
     report = None
     if lane in ("auto", "local", "local_only"):
-        report = _try_ikarus(payload)
+        report = _try_ikarus(payload, effect_identity=effect_identity)
     if report is None and lane == "local_only":
         return local_only_failure_report(payload)
     if report is None:
+        # ``auto``/``local`` may route through the leased WaveExecutor when an
+        # assignment is accepted. They may not turn an ineligible assignment
+        # into a legacy direct Claude call that has no caller-held broker
+        # authority. The explicit ``claude`` lane reaches the same refusal.
         report = _ask_claude_report(payload)
     return report

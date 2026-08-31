@@ -32,6 +32,17 @@ def _offer_turn(objective):
                                        "reason": "r", "signal": "s"}}}
 
 
+class _LocalOnlyProject:
+    """Keep lane-specific tests independent of the checked-in demo config."""
+
+    def setUp(self):
+        super().setUp()
+        lane = mock.patch.object(
+            ikarus_os.core, "team_config", return_value={"default_lane": "local_only"})
+        lane.start()
+        self.addCleanup(lane.stop)
+
+
 # --------------------------------------------------------------------------- #
 # _route -- the one place the two answers are folded                           #
 # --------------------------------------------------------------------------- #
@@ -172,7 +183,7 @@ class StartFinalAgreementTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # obligation 3 -- the provider fence                                           #
 # --------------------------------------------------------------------------- #
-class ProviderFenceTest(unittest.TestCase):
+class ProviderFenceTest(_LocalOnlyProject, unittest.TestCase):
     def test_the_hand_path_has_no_provider_argument_at_all(self):
         import inspect
 
@@ -259,7 +270,7 @@ class HandLivenessVocabularyTest(unittest.TestCase):
         self.assertEqual(hs.call_count, 1)
 
 
-class HandRefusesInWordsTest(unittest.TestCase):
+class HandRefusesInWordsTest(_LocalOnlyProject, unittest.TestCase):
     OBJ = "kannst du das mal bauen"
 
     def _confirm(self, hand):
@@ -275,7 +286,7 @@ class HandRefusesInWordsTest(unittest.TestCase):
         self.assertEqual(res["intent"], "enqueue")
         self.assertEqual(res["shell"], ikarus_os.SHELL_HAND)
         self.assertNotIn("action", res, "nothing may be proposed at an absent Hand")
-        self.assertIn("unreachable", res["assistant"])
+        self.assertIn("nicht erreichbar", res["assistant"])
         self.assertIn("ConnectionRefusedError", res["assistant"])
         self.assertEqual(res["hand"]["state"], "absent")
 
@@ -286,14 +297,14 @@ class HandRefusesInWordsTest(unittest.TestCase):
         # the wording differs -- but neither is clearance.
         res = self._confirm(_UNKNOWN)
         self.assertNotIn("action", res)
-        self.assertIn("could not confirm", res["assistant"])
+        self.assertIn("nicht als verfügbar bestätigen", res["assistant"])
         self.assertEqual(res["hand"]["state"], "unknown")
 
     def test_a_confirmation_with_no_liveness_answer_at_all_is_refused(self):
         res = self._confirm(None)
         self.assertNotIn("action", res)
         self.assertEqual(res["hand"]["state"], "unknown")
-        self.assertIn("could not confirm", res["assistant"])
+        self.assertIn("nicht als verfügbar bestätigen", res["assistant"])
 
     def test_a_confirmed_route_to_a_working_hand_is_queued(self):
         res = self._confirm(_WORKING)
@@ -365,11 +376,12 @@ class HandRefusesInWordsTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # obligation 5 -- the German act request, explicitly                           #
 # --------------------------------------------------------------------------- #
-class GermanActRequestTest(unittest.TestCase):
+class GermanActRequestTest(_LocalOnlyProject, unittest.TestCase):
     MSG = "kannst du das mal bauen"
 
-    def test_classify_says_chat_because_there_is_no_english_keyword(self):
-        self.assertEqual(ikarus_os.classify(self.MSG), "chat")
+    def test_classifier_offers_enqueue_but_capability_still_refuses_the_question(self):
+        self.assertEqual(ikarus_os.classify(self.MSG), "enqueue")
+        self.assertFalse(may_act(self.MSG).allowed)
 
     def test_the_voice_reports_the_refusal_and_offers_the_route(self):
         with mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
@@ -378,7 +390,7 @@ class GermanActRequestTest(unittest.TestCase):
         self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
         self.assertEqual(res["provider_used"], "deterministic")
         self.assertNotIn("action", res, "the offer is not itself an action")
-        self.assertIn("can't queue it from here", res["assistant"])
+        self.assertIn("nichts gestartet", res["assistant"])
         self.assertEqual(res["act_offer"]["objective"], self.MSG)
         self.assertFalse(res["act"]["allowed"])
         self.assertTrue(res["act"]["suspected"])

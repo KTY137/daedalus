@@ -119,26 +119,35 @@ export function Cockpit() {
   const [paletteScope, setPaletteScope] = useState<'all' | 'hidden'>('all');
   const [draftSignal, setDraftSignal] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
+  const projectsSerial = useRef(0);
   const serial = useRef(0);
   /** the project the map on screen belongs to, read outside render */
   const loadedFor = useRef('');
 
   /* ---- projects ---- */
   const loadProjects = useCallback(async (preferredName = '', preferredRoot = '') => {
+    const mine = ++projectsSerial.current;
     try {
       const payload = await getProjects();
+      if (mine !== projectsSerial.current) return;
       setOffline(false);
       setProjects(payload.projects);
       setProject((current) => {
         const fromUrl = new URLSearchParams(location.search).get('project') || '';
-        const chosen = payload.projects.find((row) => row.name === preferredName)
-          || payload.projects.find((row) => row.repo_root === preferredRoot)
-          || payload.projects.find((row) => row.name === current)
-          || payload.projects.find((row) => row.name === fromUrl)
-          || payload.projects[0];
+        // Registration and URL parameters are explicit user choices and keep
+        // their exact identity even if reachability later changes. The
+        // fallback below is a default, so it never chooses a known-false row.
+        const chosen = (preferredName ? payload.projects.find((row) => row.name === preferredName) : undefined)
+          || (preferredRoot ? payload.projects.find((row) => row.repo_root === preferredRoot) : undefined)
+          || (fromUrl ? payload.projects.find((row) => row.name === fromUrl) : undefined)
+          || (current ? payload.projects.find((row) => row.name === current && row.reachable === true) : undefined)
+          || payload.projects.find((row) => row.reachable === true)
+          || (current ? payload.projects.find((row) => row.name === current && row.reachable === undefined) : undefined)
+          || payload.projects.find((row) => row.reachable === undefined);
         return chosen?.name || '';
       });
     } catch (reason) {
+      if (mine !== projectsSerial.current) return;
       setOffline(isBackendDown(reason));
       setError(reason instanceof Error ? reason.message : 'Projekte konnten nicht gelesen werden.');
       throw reason;
@@ -405,6 +414,7 @@ export function Cockpit() {
 
   const conversation = (
     <Conversation
+      key={project || '__no_project__'}
       project={project}
       resolveModule={resolveModule}
       onFocusModule={chooseFocus}
@@ -424,8 +434,6 @@ export function Cockpit() {
       signal={draftSignal}
       onChanged={() => setDraftSignal((n) => n + 1)}
       onCount={setPendingCount}
-      autonomy={autonomy}
-      onAutomatic={() => setAutoLog((n) => n + 1)}
     />
   );
 
@@ -509,6 +517,14 @@ export function Cockpit() {
           <p>
             Nichts auf diesem Bildschirm wurde von ihr gelesen — das ist nicht dasselbe wie „es gibt nichts zu zeigen“.
             Starte sie mit <code>python -m daedalus.cli web</code> und lade neu.
+          </p>
+        </>
+      ) : !project ? (
+        <>
+          <h2>Kein erreichbarer Checkout ausgewählt.</h2>
+          <p>
+            Öffne oben „Projekt hinzufügen“ und registriere den vollständigen lokalen Pfad eines bestehenden
+            Checkouts. Der Ordner bleibt an seinem Platz.
           </p>
         </>
       ) : loading ? (
@@ -917,6 +933,7 @@ function ProjectPicker({
     const q = query.toLowerCase();
     return projects.filter((p) => p.name.toLowerCase().includes(q));
   }, [projects, query]);
+  const selected = projects.find((row) => row.name === project);
 
   useEffect(() => setActive(0), [filtered]);
 
@@ -952,7 +969,11 @@ function ProjectPicker({
         onClick={() => setOpen((v) => !v)}
       >
         <span className="scope-eyebrow">Projekt</span>
-        <span className="scope-name">{project || 'Projekt hinzufügen'}</span>
+        <span className="scope-name">
+          {project
+            ? (selected?.reachable === false ? `${project} · Pfad fehlt` : project)
+            : 'Projekt hinzufügen'}
+        </span>
         <svg className="scope-chevron" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
           <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -1003,7 +1024,16 @@ function ProjectPicker({
               reduced={reduced}
               animate={false}
               emptyLabel={projects.length ? `Kein Projekt passt zu „${query}“.` : 'Noch kein Projekt registriert.'}
-              renderItem={(p) => p.name}
+              renderItem={(p) => (
+                <span
+                  data-project-name={p.name}
+                  data-project-reachable={
+                    p.reachable === true ? 'true' : p.reachable === false ? 'false' : 'unknown'
+                  }
+                >
+                  {p.reachable === false ? `${p.name} · Pfad fehlt` : p.name}
+                </span>
+              )}
             />
             <button
               type="button"

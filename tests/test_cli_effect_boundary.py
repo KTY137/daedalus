@@ -97,6 +97,19 @@ def test_selftest_refuses_fail_closed_before_any_live_round_trip(
         selftest.main([])
 
 
+def test_ignition_refuses_before_any_run(tmp_path, monkeypatch, contracts_disabled):
+    from daedalus.ignition import __main__ as ignition_main
+
+    def _exploded(**_kwargs):  # pragma: no cover - must never run
+        raise AssertionError("ignition must not run after a refused boundary")
+
+    receipt_root = tmp_path / "receipts"
+    monkeypatch.setattr(ignition_main, "run_gate1_ignition", _exploded)
+    with pytest.raises(EffectStartRefused):
+        ignition_main.main(["--receipts", str(receipt_root)])
+    assert not receipt_root.exists()
+
+
 def test_shift_status_stays_fail_open_read_only(contracts_disabled, capsys):
     from daedalus.shift import main
 

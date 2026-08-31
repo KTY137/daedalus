@@ -16,7 +16,7 @@ import forceAtlas2 from 'graphology-layout-forceatlas2';
 import FA2Layout from 'graphology-layout-forceatlas2/worker';
 import { GlassButton, GlassCard, cx } from './glass';
 import { DistillResult } from './StructureSheet';
-import { distill } from '../api';
+import { distill, getStructure } from '../api';
 import type {
   DistillPayload,
   StructureGraph,
@@ -218,7 +218,34 @@ function palette(theme: Theme): Palette {
  * wired to the same `/api/distill` path the Structure sheet uses.
  */
 export function CodeMap({ project, data, loading, error, onRefresh, theme, findings }: CodeMapProps) {
-  const graph = data?.structure?.graph;
+  const [graphLimit, setGraphLimit] = useState<number | 'all'>(2000);
+  const [projection, setProjection] = useState<StructurePayload | undefined>(data);
+  const [projectionLoading, setProjectionLoading] = useState(false);
+  const [projectionError, setProjectionError] = useState('');
+  const requestSerial = useRef(0);
+  const graph = projection?.structure?.graph;
+
+  useEffect(() => setProjection(data), [data]);
+
+  const changeGraphLimit = useCallback(async (next: number | 'all') => {
+    const serial = ++requestSerial.current;
+    setGraphLimit(next);
+    setProjectionLoading(true);
+    setProjectionError('');
+    try {
+      const payload = await getStructure(project, false, next);
+      if (serial === requestSerial.current) setProjection(payload);
+    } catch (err) {
+      if (serial === requestSerial.current) {
+        setProjectionError(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      if (serial === requestSerial.current) setProjectionLoading(false);
+    }
+  }, [project]);
+
+  const busy = loading || projectionLoading;
+  const visibleError = error || projectionError;
 
   return (
     <section className="panel feature-panel codemap-panel">
@@ -228,19 +255,37 @@ export function CodeMap({ project, data, loading, error, onRefresh, theme, findi
           <h2>Code Map</h2>
           <p>Every module, every import edge — coloured by churn x complexity. Hot means rotting.</p>
         </div>
+        <label className="graph-limit" title="Server-side projection of the canonical indexed graph">
+          <span>Show</span>
+          <select
+            value={String(graphLimit)}
+            disabled={busy}
+            onChange={(event) => {
+              const value = event.target.value;
+              void changeGraphLimit(value === 'all' ? 'all' : Number(value));
+            }}
+            aria-label="Maximum graph nodes"
+          >
+            <option value="250">250 nodes</option>
+            <option value="500">500 nodes</option>
+            <option value="1000">1,000 nodes</option>
+            <option value="2000">2,000 nodes</option>
+            <option value="all">whole network</option>
+          </select>
+        </label>
         <button
           type="button"
           className="iconbtn struct-refresh"
           onClick={onRefresh}
-          disabled={loading}
+          disabled={busy}
           title="Re-index repository"
           aria-label="Re-index repository"
         >
-          <RefreshCw size={15} className={loading ? 'spin' : undefined} />
+          <RefreshCw size={15} className={busy ? 'spin' : undefined} />
         </button>
       </div>
 
-      {loading && (
+      {busy && !graph && (
         <div className="struct-state">
           <RefreshCw size={22} className="spin" />
           <strong>Indexing {project || 'repository'}…</strong>
@@ -248,16 +293,16 @@ export function CodeMap({ project, data, loading, error, onRefresh, theme, findi
         </div>
       )}
 
-      {!loading && error && (
+      {!busy && visibleError && (
         <div className="struct-state struct-state-error">
           <AlertTriangle size={22} />
           <strong>Couldn't load the map</strong>
-          <span>{error}</span>
+          <span>{visibleError}</span>
           <GlassButton onClick={onRefresh}><RefreshCw size={14} /> Retry</GlassButton>
         </div>
       )}
 
-      {!loading && !error && data && !graph && (
+      {!busy && !visibleError && projection && !graph && (
         <div className="struct-state">
           <MapIcon size={22} />
           <strong>No dependency graph</strong>
@@ -265,7 +310,7 @@ export function CodeMap({ project, data, loading, error, onRefresh, theme, findi
         </div>
       )}
 
-      {!loading && !error && !data && (
+      {!busy && !visibleError && !projection && (
         <div className="struct-state">
           <MapIcon size={22} />
           <strong>No map yet</strong>
@@ -273,7 +318,7 @@ export function CodeMap({ project, data, loading, error, onRefresh, theme, findi
         </div>
       )}
 
-      {!loading && !error && graph && (
+      {!visibleError && graph && (
         graph.nodes.length === 0 ? (
           <div className="struct-state">
             <MapIcon size={22} />
@@ -282,7 +327,7 @@ export function CodeMap({ project, data, loading, error, onRefresh, theme, findi
           </div>
         ) : (
           <CodeMapCanvas
-            key={`${project}:${theme}`}
+            key={`${project}:${theme}:${graphLimit}:${graph.nodes.length}:${graph.edges.length}`}
             project={project}
             graph={graph}
             theme={theme}

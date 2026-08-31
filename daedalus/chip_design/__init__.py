@@ -32,6 +32,13 @@ from .manifest import (
     canonical_path,
     canonical_path_identity,
 )
+from .publication import (
+    CANONICAL_PUBLICATION_LIMITATIONS,
+    ChipPublicationDerivation,
+    derive_chip_publication,
+    parse_vivado_flow_summary_bytes,
+    vivado_rule_report_passed,
+)
 from .sources import SourceSpec, classify_source, discover_sources, is_rtl
 from .toolchains import (
     EdaToolSpec,
@@ -59,10 +66,12 @@ from .vivado_tcl import (
 
 __all__ = [
     "CHIP_RUN_SCHEMA",
+    "CANONICAL_PUBLICATION_LIMITATIONS",
     "MANIFEST_SCHEMA",
     "TOOLS",
     "ChipArtifact",
     "ChipRunReceipt",
+    "ChipPublicationDerivation",
     "EdaExecutionAdmissionError",
     "EdaExecutionError",
     "EdaExecutionReconciliationRequired",
@@ -90,6 +99,7 @@ __all__ = [
     "classify_source",
     "default_dimensions",
     "discover_sources",
+    "derive_chip_publication",
     "execute_argv",
     "environment_sha256",
     "find_tool_path",
@@ -98,9 +108,11 @@ __all__ = [
     "is_rtl",
     "parse_vivado_report",
     "parse_vivado_message_counts_bytes",
+    "parse_vivado_flow_summary_bytes",
     "run_admitted_eda",
     "sanitized_eda_environment",
     "tool_status",
     "trusted_vivado_tcl",
     "vivado_artifact_identity",
+    "vivado_rule_report_passed",
 ]

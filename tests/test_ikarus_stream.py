@@ -125,7 +125,9 @@ class AskStreamTest(unittest.TestCase):
         self.assertEqual(evs[-1][1]["intent"], "status")
 
     def test_enqueue_still_only_proposes_when_streamed(self):
-        evs = self._events(self.PROJECT, "build a login page", provider=None)
+        with mock.patch.object(ikarus_os.core, "team_config",
+                               return_value={"default_lane": "local_only"}):
+            evs = self._events(self.PROJECT, "build a login page", provider=None)
         final = evs[-1][1]
         self.assertEqual(final["intent"], "enqueue")
         self.assertTrue(final["action"]["requires_confirmation"])
@@ -195,13 +197,15 @@ class ClaudeStreamFrameTest(unittest.TestCase):
                 "delta": {"type": "text_delta", "text": " there"}}}) + "\n",
             json.dumps({"type": "result", "result": "Hi there"}) + "\n",
         ]
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+                        return_value="claude"), \
              mock.patch("subprocess.Popen", return_value=self._fake_proc(lines)):
             out = list(ikarus_os._claude_stream("hello"))
         self.assertEqual(out, ["Hi", " there"])
 
     def test_uses_stream_json_flags(self):
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+                        return_value="claude"), \
              mock.patch("subprocess.Popen", return_value=self._fake_proc([])) as pop:
             list(ikarus_os._claude_stream("hello"))
         args = pop.call_args[0][0]
@@ -211,11 +215,17 @@ class ClaudeStreamFrameTest(unittest.TestCase):
         self.assertIn("--verbose", args)  # required with stream-json in -p mode
 
     def test_missing_cli_yields_nothing(self):
-        with mock.patch("shutil.which", return_value=None):
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+                        return_value=None), \
+             mock.patch.object(ikarus_os, "_provider_start") as provider_start, \
+             mock.patch("subprocess.Popen") as popen:
             self.assertEqual(list(ikarus_os._claude_stream("hello")), [])
+        provider_start.assert_not_called()
+        popen.assert_not_called()
 
     def test_spawn_failure_yields_nothing(self):
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+                        return_value="claude"), \
              mock.patch("subprocess.Popen", side_effect=OSError("no exec")):
             self.assertEqual(list(ikarus_os._claude_stream("hello")), [])
 
