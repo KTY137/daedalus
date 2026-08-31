@@ -1310,7 +1310,8 @@ class WaveExecutor:
             resume: bool = True, stop_on_bounce: bool = False,
             checkpoint_every_wave: bool = False,
             runs_dir: str | Path | None = None,
-            update_architecture: bool = True) -> BuildRunReport:
+            update_architecture: bool = True,
+            persist_session: bool = True) -> BuildRunReport:
         """Execute every wave of ``session``, in order, collecting results back
         onto each task and (unless ``dry_run``) persisting the session.
 
@@ -1322,6 +1323,10 @@ class WaveExecutor:
         ``resume=True`` (default) skips any wave whose tasks are already all
         terminal (``landed``/``bounced``) -- safe to call repeatedly on the
         same session as it progresses, or after a crash.
+
+        ``persist_session=False`` is for a caller that already owns durable
+        request/report recovery (the File Bridge). It changes no execution
+        semantics and suppresses only this legacy BuildSession projection.
 
         ``checkpoint_every_wave=False`` (default) saves the session once, at
         the end. ``BuildSession.save()`` mints a fresh second-resolution
@@ -1359,7 +1364,7 @@ class WaveExecutor:
             result = self.run_wave(scheduler, wave, root, session=session, dry_run=dry_run, parallel=wave_parallel)
             wave_results.append(result)
 
-            if checkpoint_every_wave and not dry_run:
+            if checkpoint_every_wave and not dry_run and persist_session:
                 session.save(runs_dir, update_architecture=update_architecture)
 
             if stop_on_bounce and result.bounced_tasks:
@@ -1378,7 +1383,7 @@ class WaveExecutor:
                 break
 
         snapshot_path = None
-        if not dry_run:
+        if not dry_run and persist_session:
             snapshot_path = str(session.save(runs_dir, update_architecture=update_architecture))
 
         return BuildRunReport(
@@ -1429,8 +1434,18 @@ def main() -> None:
 
     session = load_session(args.session)
     executor = WaveExecutor()
-    report = executor.run(
-        session, repo_root=args.repo_root, dry_run=not args.live,
+    root = args.repo_root or session.repo_root
+    source_revision = executor._source_revision(root)
+    if source_revision is None:
+        raise SystemExit(
+            "build session repository HEAD is unavailable; refusing to run "
+            "without MissionContract source provenance"
+        )
+    from .orchestration import run_mission
+
+    _mission, report = run_mission(
+        session, source_revision=source_revision, executor=executor,
+        repo_root=args.repo_root, dry_run=not args.live,
         parallel_advisory=not args.no_parallel_advisory, resume=not args.no_resume,
         stop_on_bounce=args.stop_on_bounce, checkpoint_every_wave=args.live,
     )

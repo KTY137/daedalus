@@ -1240,6 +1240,7 @@ def _try_ikarus(
 
     try:
         from .build_exec import EffectBounds, WaveExecutor
+        from .orchestration import run_mission
 
         session = _one_task_session(payload, assignment)
         replay_identity = _bridge_effect_identity(effect_identity)
@@ -1253,14 +1254,24 @@ def _try_ikarus(
                 **replay_identity,
             ),
         )
-        wave = executor.run_wave(
-            ikarus,
-            session.waves[0],
-            str(payload["repo_root"]),
-            session=session,
+        _mission, mission_report = run_mission(
+            session,
+            source_revision=source_revision,
+            executor=executor,
+            repo_root=str(payload["repo_root"]),
             dry_run=False,
-            parallel=False,
+            parallel_advisory=False,
+            resume=False,
+            trace_id=(str(payload.get("trace_id"))
+                      if payload.get("trace_id") else None),
+            update_architecture=False,
+            persist_session=False,
         )
+        if len(mission_report.waves) != 1:
+            raise RuntimeError(
+                "one bridge request must produce exactly one mission wave"
+            )
+        wave = mission_report.waves[0]
         results = wave.results
     except WaveLeaseKillSwitchEngaged as exc:
         return _ikarus_blocked_report(payload, str(exc))

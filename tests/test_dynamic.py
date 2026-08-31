@@ -163,7 +163,7 @@ class BridgeLaneRoutingTests(unittest.TestCase):
             tmp = Path(d)
             req = self._write_request(tmp, lane="local")
             doctor_ready = {"claude_cli": True, "can_offload_local": True, "deepseek_key": False}
-            wave_result = SimpleNamespace(results=[{
+            wave_result = SimpleNamespace(mode="gated", results=[{
                 "worker": "Noah-local", "lane": "ollama", "mode": "write",
                 "owner": "ui-ux-dev", "status": "gated_held", "wrote": [],
                 "result": {"provider": "ollama"},
@@ -206,7 +206,7 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                 provider="ollama", persona="Noah-local",
                 mode="advisory", reason="local review",
             )
-            wave_result = SimpleNamespace(results=[{
+            wave_result = SimpleNamespace(mode="lease_denied", results=[{
                 "worker": "Noah-local", "lane": "ollama",
                 "mode": "advisory", "owner": "ui-ux-dev",
                 "status": "effect_lease_denied",
@@ -248,7 +248,7 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                 provider="ollama", persona="Noah-local",
                 mode="write", reason="local write",
             )
-            wave_result = SimpleNamespace(results=[{
+            wave_result = SimpleNamespace(mode="gated", results=[{
                 "worker": "Noah-local", "lane": "ollama",
                 "mode": "write", "owner": "ui-ux-dev",
                 "status": "write_gate_failed",
@@ -370,7 +370,7 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                 provider="deepseek", persona="Dora",
                 mode="advisory", reason="mocked external assignment",
             )
-            wave_result = SimpleNamespace(results=[{
+            wave_result = SimpleNamespace(mode="sequential", results=[{
                 "worker": "Dora", "lane": "deepseek", "mode": "advisory",
                 "owner": "docs-dev", "status": "offloaded", "wrote": [],
                 "result": {"provider": "deepseek", "draft": "draft-1"},

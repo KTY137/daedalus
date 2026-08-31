@@ -123,8 +123,47 @@ def _spawn(argv: list[str]) -> None:
     args = parser.parse_args(argv)
 
     repo_root = resolve_repo_root(args.repo_root, args.project)
-    ikarus = KairosScheduler(project=args.project)
-    result = ikarus.spawn(args.objective, repo_root, dry_run=not args.live)
+    if not args.live:
+        # Planning remains the existing side-effect-free scheduler projection.
+        # It can never dispatch because dry_run is pinned true here.
+        result = KairosScheduler(project=args.project).spawn(
+            args.objective, repo_root, dry_run=True
+        )
+        print(json.dumps(result, indent=2, default=str))
+        return
+
+    from .build import plan_build
+    from .build_exec import WaveExecutor
+    from .orchestration import run_mission
+
+    session = plan_build(
+        args.objective,
+        repo_root,
+        project=args.project,
+        persist=False,
+        update_architecture=False,
+    )
+    executor = WaveExecutor()
+    source_revision = executor._source_revision(repo_root)
+    if source_revision is None:
+        raise SystemExit(
+            "repository HEAD is unavailable; refusing to dispatch without "
+            "MissionContract source provenance"
+        )
+    _mission, report = run_mission(
+        session,
+        source_revision=source_revision,
+        executor=executor,
+        repo_root=repo_root,
+        dry_run=False,
+        parallel_advisory=False,
+        resume=False,
+        update_architecture=False,
+        persist_session=False,
+    )
+    # Preserve the established live `spawn` JSON surface: a flat list of the
+    # per-task scheduler result rows, not a new orchestration envelope.
+    result = [row for wave in report.waves for row in wave.results]
     print(json.dumps(result, indent=2, default=str))
 
 
