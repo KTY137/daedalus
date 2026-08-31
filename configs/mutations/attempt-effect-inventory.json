@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "spec_id": "attempt-effect-inventory",
+  "packet_id": "G1-MUT-02D",
+  "jobs": [
+    {
+      "module": "daedalus/spine/effect_boundary.py",
+      "tests": [
+        "tests/kernel/test_isolated_attempt_effect_inventory_registration.py",
+        "tests/kernel/test_isolated_attempt_effect_inventory.py"
+      ],
+      "timeout_policy": "legacy-unbounded",
+      "mutations": [
+        {
+          "id": "hide-attempt-ledger-from-static-discovery",
+          "find": "    if (\n        model.module == \"daedalus.kernel.attempt_ledger\"\n        and class_name == \"AttemptLedger\"\n    ):\n        return Surface.PYTHON\n",
+          "replace": "    if (\n        model.module == \"daedalus.kernel.attempt_ledger\"\n        and class_name == \"AttemptLedger\"\n    ):\n        return None\n"
+        },
+        {
+          "id": "remove-canonical-attempt-begin-owner",
+          "find": "    EntrypointSpec(\n        id=\"kernel.attempt.begin\",\n        surface=Surface.PYTHON,\n        target=\"daedalus.kernel.attempt_ledger:AttemptLedger.begin\",\n",
+          "replace": "    EntrypointSpec(\n        id=\"kernel.attempt.begin\",\n        surface=Surface.PYTHON,\n        target=\"daedalus.kernel.attempt_ledger:AttemptLedger.missing\",\n"
+        }
+      ]
+    }
+  ]
+}

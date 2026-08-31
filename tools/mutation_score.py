@@ -98,6 +98,13 @@ MUTANT_TIMEOUT_POLICIES = {
     MUTANT_TIMEOUT_LEGACY_EXIT_1,
 }
 
+JOB_TIMEOUT_BOUNDED = "bounded"
+JOB_TIMEOUT_LEGACY_UNBOUNDED = "legacy-unbounded"
+JOB_TIMEOUT_POLICIES = {
+    JOB_TIMEOUT_BOUNDED,
+    JOB_TIMEOUT_LEGACY_UNBOUNDED,
+}
+
 # Directory names never copied into a sandbox. Two reasons, both measured on
 # this repo: correctness (a stale ``__pycache__`` would shadow a mutant) and
 # cost (``.captures`` alone is 1.2 GB, ``target``/``node_modules`` similar).
@@ -196,8 +203,9 @@ class ExplicitMutationJob:
     module: str
     tests: tuple[str, ...]
     mutations: tuple[Mutation, ...]
-    timeout_s: float = 900.0
+    timeout_s: float | None = 900.0
     mutant_test_files: tuple[str, ...] = ()
+    timeout_policy: str = JOB_TIMEOUT_BOUNDED
 
 
 @dataclass(frozen=True)
@@ -313,15 +321,33 @@ def load_explicit_spec(
             )
             mutant_test_files.append(relative)
         permitted_mutant_test_files = baseline_files | set(mutant_test_files)
-        timeout = raw_job.get("timeout_s", 900.0)
+        timeout_policy = raw_job.get("timeout_policy", JOB_TIMEOUT_BOUNDED)
         if (
-            isinstance(timeout, bool)
-            or not isinstance(timeout, (int, float))
-            or not 0 < float(timeout) <= 3600
+            not isinstance(timeout_policy, str)
+            or timeout_policy not in JOB_TIMEOUT_POLICIES
         ):
             raise MutationSpecError(
-                f"jobs[{job_index}].timeout_s must be in (0, 3600]"
+                f"jobs[{job_index}].timeout_policy must be one of: "
+                + ", ".join(sorted(JOB_TIMEOUT_POLICIES))
             )
+        if timeout_policy == JOB_TIMEOUT_LEGACY_UNBOUNDED:
+            if "timeout_s" in raw_job:
+                raise MutationSpecError(
+                    f"jobs[{job_index}].timeout_s must be omitted when "
+                    "timeout_policy is legacy-unbounded"
+                )
+            timeout: float | None = None
+        else:
+            raw_timeout = raw_job.get("timeout_s", 900.0)
+            if (
+                isinstance(raw_timeout, bool)
+                or not isinstance(raw_timeout, (int, float))
+                or not 0 < float(raw_timeout) <= 3600
+            ):
+                raise MutationSpecError(
+                    f"jobs[{job_index}].timeout_s must be in (0, 3600]"
+                )
+            timeout = float(raw_timeout)
         raw_mutations = raw_job.get("mutations")
         if not isinstance(raw_mutations, list) or not raw_mutations:
             raise MutationSpecError(
@@ -400,7 +426,8 @@ def load_explicit_spec(
                 tests=tuple(dict.fromkeys(tests)),
                 mutations=tuple(mutations),
                 mutant_test_files=tuple(dict.fromkeys(mutant_test_files)),
-                timeout_s=float(timeout),
+                timeout_s=timeout,
+                timeout_policy=timeout_policy,
             )
         )
     return ExplicitMutationSpec(
@@ -705,7 +732,11 @@ def _strip_ansi(text: str) -> str:
     return _ANSI_RE.sub("", text)
 
 
-def pytest_runner(root: Path, test_paths: list[str], timeout: float) -> RunResult:
+def pytest_runner(
+    root: Path,
+    test_paths: list[str],
+    timeout: float | None,
+) -> RunResult:
     """Run a pytest selection inside ``root`` and return WHICH tests failed.
 
     ``--tb=no -q`` because only the identity of the failures matters here,
@@ -727,10 +758,17 @@ def pytest_runner(root: Path, test_paths: list[str], timeout: float) -> RunResul
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
     }
+    run_options = {
+        "cwd": str(root),
+        "capture_output": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "env": env,
+    }
+    if timeout is not None:
+        run_options["timeout"] = timeout
     try:
-        proc = subprocess.run(cmd, cwd=str(root), capture_output=True,
-                              encoding="utf-8", errors="replace", timeout=timeout,
-                              env=env)
+        proc = subprocess.run(cmd, **run_options)
     except subprocess.TimeoutExpired:
         return RunResult(returncode=-1, failing=set(), output="TIMEOUT",
                          seconds=time.time() - t0, timed_out=True)
@@ -776,7 +814,7 @@ def score(repo: str | Path, module_rel: str, test_paths: list[str], *,
           mutations: list[Mutation] | None = None,
           n_sample: int | None = None,
           operators: tuple[str, ...] = OPERATORS,
-          timeout: float = 900.0,
+          timeout: float | None = 900.0,
           drop_tests: tuple[str, ...] = (),
           runner=pytest_runner,
           progress=None) -> dict:
@@ -872,7 +910,12 @@ def score(repo: str | Path, module_rel: str, test_paths: list[str], *,
 
             newly = sorted(res.failing - base.failing)
             if res.timed_out:
-                status, detail = INCONCLUSIVE, f"the run timed out after {timeout:.0f}s"
+                detail = (
+                    "the run timed out without a configured deadline"
+                    if timeout is None
+                    else f"the run timed out after {timeout:.0f}s"
+                )
+                status = INCONCLUSIVE
             elif res.returncode != 0 and not res.failing:
                 status, detail = INCONCLUSIVE, "the run failed without naming a test"
             elif m.expect_test is not None:

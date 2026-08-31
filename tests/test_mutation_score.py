@@ -135,10 +135,12 @@ class _FakeRunner:
         self.per_call = list(per_call)
         self.calls = 0
         self.selections: list[tuple[str, ...]] = []
+        self.timeouts: list[float | None] = []
 
     def __call__(self, root, test_paths, timeout):
         self.calls += 1
         self.selections.append(tuple(test_paths))
+        self.timeouts.append(timeout)
         if self.calls == 1:
             return ms.RunResult(returncode=0 if not self.baseline else 1,
                                 failing=set(self.baseline))
@@ -340,6 +342,92 @@ class ExplicitSpecTests(unittest.TestCase):
                 ):
                     ms.load_explicit_spec(self.tmp, path)
 
+    def test_legacy_unbounded_timeout_is_strictly_opt_in_per_job(self):
+        path = self._write_spec()
+        bounded = ms.load_explicit_spec(self.tmp, path).jobs[0]
+        self.assertEqual(bounded.timeout_policy, ms.JOB_TIMEOUT_BOUNDED)
+        self.assertEqual(bounded.timeout_s, 30.0)
+
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        job = payload["jobs"][0]
+        job.pop("timeout_s")
+        job["timeout_policy"] = ms.JOB_TIMEOUT_LEGACY_UNBOUNDED
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        unbounded_spec = ms.load_explicit_spec(self.tmp, path)
+        unbounded = unbounded_spec.jobs[0]
+        self.assertEqual(
+            unbounded.timeout_policy,
+            ms.JOB_TIMEOUT_LEGACY_UNBOUNDED,
+        )
+        self.assertIsNone(unbounded.timeout_s)
+
+        runner = _FakeRunner(
+            baseline=set(),
+            per_call=[{"t/test_goodmod.py::test_big_denied"}],
+        )
+        report = ms.score_explicit_spec(
+            self.tmp,
+            unbounded_spec,
+            runner=runner,
+        )
+        self.assertEqual(report["verdict"], "NO_SURVIVORS")
+        self.assertEqual(ms._explicit_spec_exit_code(unbounded_spec, report), 0)
+        self.assertEqual(
+            runner.selections,
+            [("t/test_goodmod.py",), ("t/test_goodmod.py::test_big_denied",)],
+        )
+        self.assertEqual(runner.timeouts, [None, None])
+
+        survivor_runner = _FakeRunner(baseline=set(), per_call=[set()])
+        survivor_report = ms.score_explicit_spec(
+            self.tmp,
+            unbounded_spec,
+            runner=survivor_runner,
+        )
+        self.assertEqual(survivor_report["verdict"], "SURVIVORS")
+        self.assertEqual(
+            ms._explicit_spec_exit_code(unbounded_spec, survivor_report),
+            1,
+        )
+
+        red_runner = _FakeRunner(
+            baseline={"t/test_goodmod.py::already_red"},
+            per_call=[set()],
+        )
+        red_report = ms.score_explicit_spec(
+            self.tmp,
+            unbounded_spec,
+            runner=red_runner,
+        )
+        self.assertEqual(red_report["verdict"], ms.INCONCLUSIVE)
+        self.assertEqual(
+            ms._explicit_spec_exit_code(unbounded_spec, red_report),
+            2,
+        )
+
+    def test_legacy_unbounded_timeout_refuses_conflicts_and_unknown_values(self):
+        for timeout_policy, timeout_present in (
+            ("unbounded", False),
+            (ms.JOB_TIMEOUT_LEGACY_UNBOUNDED, True),
+            (None, False),
+        ):
+            with self.subTest(
+                timeout_policy=timeout_policy,
+                timeout_present=timeout_present,
+            ):
+                path = self._write_spec()
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                job = payload["jobs"][0]
+                if not timeout_present:
+                    job.pop("timeout_s")
+                job["timeout_policy"] = timeout_policy
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                with self.assertRaisesRegex(
+                    ms.MutationSpecError,
+                    "timeout_policy|must be omitted",
+                ):
+                    ms.load_explicit_spec(self.tmp, path)
+
     def test_spec_refuses_unknown_mutant_timeout_policy(self):
         for value in ("credit-timeout-as-kill", ["legacy-timeout-exit-1"]):
             with self.subTest(value=value):
@@ -523,6 +611,14 @@ class OutputParsingTests(unittest.TestCase):
         env = run.call_args.kwargs["env"]
         self.assertEqual(env["PYTHONDONTWRITEBYTECODE"], "1")
         self.assertEqual(env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"], "1")
+        self.assertEqual(run.call_args.kwargs["timeout"], 1)
+
+    def test_the_runner_omits_the_subprocess_deadline_only_when_opted_out(self):
+        completed = SimpleNamespace(returncode=0, stdout="1 passed\n", stderr="")
+        with mock.patch.object(ms.subprocess, "run", return_value=completed) as run:
+            result = ms.pytest_runner(Path("."), ["t/test_x.py"], None)
+        self.assertTrue(result.green)
+        self.assertNotIn("timeout", run.call_args.kwargs)
 
 
 # --------------------------------------------------------------------------- #

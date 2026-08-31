@@ -29,14 +29,15 @@ FAMILY = {
     "run_write_evidence_production_mutations.py",
 }
 
+MIGRATED = {
+    "run_attempt_effect_inventory_mutations.py",
+    "run_repository_write_effect_lease_mutations.py",
+}
+
 UNMIGRATED = {
     "run_attempt_durability_admission_mutations.py": (
         "unbounded-timeout",
         "c63d0b9610031529dbaade8e32426e1170bfc4e0d02e481f02491ef42a7afe9b",
-    ),
-    "run_attempt_effect_inventory_mutations.py": (
-        "unbounded-timeout",
-        "f9a8d82984e18507ec7eff8df36ac5f866344269b5e4631fb564edea3c854b35",
     ),
     "run_attempt_event_time_window_mutations.py": (
         "unbounded-timeout",
@@ -137,7 +138,7 @@ class AttemptOffloadLeaseMutationSpecTests(unittest.TestCase):
         self.assertEqual(len(FAMILY), 8)
         self.assertEqual(
             FAMILY,
-            set(UNMIGRATED) | {"run_repository_write_effect_lease_mutations.py"},
+            set(UNMIGRATED) | MIGRATED,
         )
         for name in FAMILY:
             self.assertTrue((SCRIPT_DIR / name).is_file(), name)
