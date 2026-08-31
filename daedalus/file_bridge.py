@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .atomic import write_text_atomic
+from .interfaces.bridge import dispatch as bridge_dispatch
 from .interfaces.bridge import journal as bridge_journal
 from .interfaces.bridge import projection as bridge_projection
 from .interfaces.bridge import queue as bridge_queue
@@ -1152,24 +1153,20 @@ def process_request(path: Path, default_repo_root: str | None = None) -> Path:
         REGISTRY_BY_ID["file_bridge.process"].effects,
         (_crash_journal_decision(f"process request={path.name}"),),
     )
-    key = _request_key(path)
-    with _BridgeWatcherLock(
-        _request_lock_path(key),
-        blocking=True,
-        label=f"file-bridge request {key!r}",
-    ):
-        if not path.exists():
-            # The winner may have archived the request while this consumer was
-            # blocked.  Returning its whole terminal artifact is safe; a
-            # missing source with no report remains an error rather than an
-            # invented success.
-            result_path = INBOX / f"{key}.report.json"
-            if _completed_report(result_path) is not None:
-                return result_path
-            raise FileNotFoundError(path)
-        return _process_request_claimed(
-            path, default_repo_root, key=key
-        )
+    return bridge_dispatch.claim_and_dispatch_request(
+        path,
+        default_repo_root,
+        inbox=INBOX,
+        key_for=_request_key,
+        lock_path_for=_request_lock_path,
+        lock=lambda lock_path, label: _BridgeWatcherLock(
+            lock_path,
+            blocking=True,
+            label=label,
+        ),
+        completed_report=_completed_report,
+        process_claimed=_process_request_claimed,
+    )
 
 
 def _process_request_claimed(
