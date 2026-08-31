@@ -305,6 +305,41 @@ class ExplicitSpecTests(unittest.TestCase):
         with self.assertRaisesRegex(ms.MutationSpecError, "within the repository"):
             ms.load_explicit_spec(self.tmp, path)
 
+    def test_mutant_test_outside_baseline_requires_an_explicit_allowlist(self):
+        path = self._write_spec()
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        selected = "t/test_weakmod.py::test_zero"
+        payload["jobs"][0]["mutations"][0]["tests"] = [selected]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        with self.assertRaisesRegex(
+            ms.MutationSpecError,
+            "absent from the job baseline and mutant_test_files",
+        ):
+            ms.load_explicit_spec(self.tmp, path)
+
+        payload["jobs"][0]["mutant_test_files"] = ["t/test_weakmod.py"]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        spec = ms.load_explicit_spec(self.tmp, path)
+        self.assertEqual(spec.jobs[0].tests, ("t/test_goodmod.py",))
+        self.assertEqual(
+            spec.jobs[0].mutant_test_files,
+            ("t/test_weakmod.py",),
+        )
+        self.assertEqual(spec.jobs[0].mutations[0].test_paths, (selected,))
+
+    def test_mutant_test_file_allowlist_is_strict(self):
+        path = self._write_spec()
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for value in ("t/test_weakmod.py", ["missing.py"]):
+            with self.subTest(value=value):
+                payload["jobs"][0]["mutant_test_files"] = value
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                with self.assertRaisesRegex(
+                    ms.MutationSpecError,
+                    "mutant_test_files",
+                ):
+                    ms.load_explicit_spec(self.tmp, path)
+
     def test_spec_refuses_unknown_mutant_timeout_policy(self):
         for value in ("credit-timeout-as-kill", ["legacy-timeout-exit-1"]):
             with self.subTest(value=value):

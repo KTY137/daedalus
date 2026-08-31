@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "spec_id": "repository-write-effect-lease",
+  "packet_id": "G1-MUT-02C",
+  "mutant_timeout_policy": "legacy-timeout-exit-1",
+  "jobs": [
+    {
+      "module": "daedalus/gates/repository_write_effect_lease.py",
+      "tests": [
+        "tests/gates/test_repository_write_effect_lease.py",
+        "tests/gates/test_repository_write_effect_lease_review.py"
+      ],
+      "mutant_test_files": [
+        "tests/gates/test_repository_write_non_runtime_conformity_admission.py",
+        "tests/gates/test_repository_write_effect_lease_non_runtime.py"
+      ],
+      "timeout_s": 180,
+      "mutations": [
+        {
+          "id": "allow-missing-start",
+          "find": "if replay is None:\n        raise RepositoryWriteEffectLeaseBindingError(",
+          "replace": "if False and replay is None:\n        raise RepositoryWriteEffectLeaseBindingError(",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease.py::test_missing_start_refuses_automatic_reexecution"
+          ]
+        },
+        {
+          "id": "allow-pending-start",
+          "find": "if terminal is None or replay.pending_reconciliation:",
+          "replace": "if False and (terminal is None or replay.pending_reconciliation):",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease.py::test_started_execution_refuses_automatic_reexecution"
+          ]
+        },
+        {
+          "id": "ignore-terminal-digest",
+          "find": "if terminal.receipt_sha256 != receipt_sha256:",
+          "replace": "if False and terminal.receipt_sha256 != receipt_sha256:",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease.py::test_terminal_digest_entrypoint_and_state_substitution_refuse"
+          ]
+        },
+        {
+          "id": "ignore-entrypoint-binding",
+          "find": "if subject.entrypoint_id != entrypoint_id:",
+          "replace": "if False and subject.entrypoint_id != entrypoint_id:",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease.py::test_terminal_digest_entrypoint_and_state_substitution_refuse"
+          ]
+        },
+        {
+          "id": "ignore-terminal-state",
+          "find": "if replay.state.lower() != terminal_state:",
+          "replace": "if False and replay.state.lower() != terminal_state:",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease.py::test_terminal_digest_entrypoint_and_state_substitution_refuse"
+          ]
+        },
+        {
+          "id": "accept-extra-subjects",
+          "find": "if set(subject_snapshot) != required_receipts:",
+          "replace": "if not required_receipts.issubset(set(subject_snapshot)):",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease.py::test_exact_subject_set_and_revision_are_required"
+          ]
+        },
+        {
+          "id": "ignore-predecessor-materialization",
+          "find": "\"runtime_materialization\": (\n            runtime_report.materialization_digest,\n            materialization.digest,\n        ),",
+          "replace": "\"runtime_materialization\": (\n            materialization.digest,\n            materialization.digest,\n        ),",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease.py::test_predecessor_detachment_refuses_before_effect_inspection"
+          ]
+        },
+        {
+          "id": "claim-gate-closure",
+          "find": "\"closed\": False,",
+          "replace": "\"closed\": True,",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease_review.py"
+          ]
+        },
+        {
+          "id": "forge-evidence-authentication",
+          "find": "\"evidence_authenticated\": False,",
+          "replace": "\"evidence_authenticated\": True,",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease_review.py"
+          ]
+        },
+        {
+          "id": "replay-a-runtime-subject-as-non-runtime",
+          "find": "    if subject.runtime_bound:\n        raise RepositoryWriteEffectLeaseBindingError(\n            \"surface declared non-runtime replays as a runtime-bound authorization\"\n        )\n",
+          "replace": "    if False:\n        raise RepositoryWriteEffectLeaseBindingError(\n            \"surface declared non-runtime replays as a runtime-bound authorization\"\n        )\n",
+          "tests": [
+            "tests/gates/test_repository_write_non_runtime_conformity_admission.py::test_binding_whose_execution_replays_as_runtime_is_refused"
+          ]
+        },
+        {
+          "id": "ignore-the-binding-execution-identity",
+          "find": "    if subject.execution.execution_id != expected_execution_id:\n",
+          "replace": "    if False and subject.execution.execution_id != expected_execution_id:\n",
+          "tests": [
+            "tests/gates/test_repository_write_non_runtime_conformity_admission.py::test_a_signature_is_not_a_replay"
+          ]
+        },
+        {
+          "id": "demand-a-conformance-record-for-an-excused-surface",
+          "find": "        if not excused and type(runtime_record) is not RuntimeConformanceReplayRecord:\n",
+          "replace": "        if type(runtime_record) is not RuntimeConformanceReplayRecord:\n",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease_non_runtime.py::test_zero_receipts_with_a_binding_verifies_and_records_a_null_digest"
+          ]
+        },
+        {
+          "id": "accept-a-mismatched-excused-surface-set",
+          "find": "    if declared_non_runtime != excused_surfaces:\n",
+          "replace": "    if False and declared_non_runtime != excused_surfaces:\n",
+          "tests": [
+            "tests/gates/test_repository_write_effect_lease_non_runtime.py::test_a_row_without_an_admission_cannot_be_excused_by_the_predecessor"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -197,6 +197,7 @@ class ExplicitMutationJob:
     tests: tuple[str, ...]
     mutations: tuple[Mutation, ...]
     timeout_s: float = 900.0
+    mutant_test_files: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -298,6 +299,20 @@ def load_explicit_spec(
             suffix = selection[len(base):]
             tests.append(relative + suffix)
         baseline_files = {selection.split("::", 1)[0] for selection in tests}
+        raw_mutant_test_files = raw_job.get("mutant_test_files", [])
+        if not isinstance(raw_mutant_test_files, list):
+            raise MutationSpecError(
+                f"jobs[{job_index}].mutant_test_files must be a list"
+            )
+        mutant_test_files: list[str] = []
+        for test_index, selection in enumerate(raw_mutant_test_files):
+            relative = _spec_relative_path(
+                repo,
+                selection,
+                f"jobs[{job_index}].mutant_test_files[{test_index}]",
+            )
+            mutant_test_files.append(relative)
+        permitted_mutant_test_files = baseline_files | set(mutant_test_files)
         timeout = raw_job.get("timeout_s", 900.0)
         if (
             isinstance(timeout, bool)
@@ -357,10 +372,10 @@ def load_explicit_spec(
                     base,
                     f"{mutation_id}.tests[{selected_index}]",
                 )
-                if relative not in baseline_files:
+                if relative not in permitted_mutant_test_files:
                     raise MutationSpecError(
                         f"{mutation_id}: selected test {relative} is absent "
-                        "from the job baseline"
+                        "from the job baseline and mutant_test_files"
                     )
                 selected_tests.append(relative + selection[len(base):])
             count = source.count(find)
@@ -384,6 +399,7 @@ def load_explicit_spec(
                 module=module,
                 tests=tuple(dict.fromkeys(tests)),
                 mutations=tuple(mutations),
+                mutant_test_files=tuple(dict.fromkeys(mutant_test_files)),
                 timeout_s=float(timeout),
             )
         )
