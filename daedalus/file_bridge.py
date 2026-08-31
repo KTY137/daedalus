@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import errno
 import inspect
 import json
 import os
-import re
 import sqlite3
 import uuid
 import shutil
@@ -16,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .atomic import write_text_atomic
+from .interfaces.bridge import conversation as bridge_conversation
 from .interfaces.bridge import dispatch as bridge_dispatch
 from .interfaces.bridge import journal as bridge_journal
 from .interfaces.bridge import projection as bridge_projection
@@ -62,11 +61,6 @@ MAX_ATTEMPTS = 3
 # request whose only fault was being slow.
 SETTLE_GRACE_S = 5.0
 
-# Public reconciliation accepts only the same filename-stem alphabet the web
-# task API accepts. Full-match, no separators, no drive prefix, no traversal.
-_REQUEST_KEY_RE = re.compile(r"^[A-Za-z0-9._-]{1,160}\Z")
-
-
 class WatcherNotRunning(RuntimeError):
     """Raised by enqueue() when no watcher is alive to consume the request.
 
@@ -112,41 +106,8 @@ class WatcherNotRunning(RuntimeError):
         )
 
 
-class ConversationProjectionPending(RuntimeError):
-    """A terminal bridge report exists, but its linked chat projection is
-    temporarily unavailable.
-
-    This is not poison input and must never trigger quarantine or another
-    provider call. The report remains the task's authoritative terminal fact;
-    leaving the request unarchived makes the watcher retry only the idempotent
-    canonical-spine projection on its next pass.
-    """
-
-    def __init__(self, key: str, cause: BaseException) -> None:
-        self.key = str(key)
-        self.cause = cause
-        self.retry_queued = False
-        super().__init__(
-            f"conversation projection pending for {self.key}: "
-            f"{type(cause).__name__}: {cause}")
-
-
-class ConversationProjectionFailed(RuntimeError):
-    """A terminal report cannot be projected without contradicting state.
-
-    Unlike :class:`ConversationProjectionPending`, this exception owns no
-    projection retry. ``process_request`` preserves the report, records the
-    diagnostic in the existing crash journal and archives the request before
-    raising it. The watcher catches it separately from poison input so it can
-    never overwrite the authoritative report with a quarantine report.
-    """
-
-    def __init__(self, key: str, cause: BaseException) -> None:
-        self.key = str(key)
-        self.cause = cause
-        super().__init__(
-            f"conversation projection failed permanently for {self.key}: "
-            f"{type(cause).__name__}: {cause}")
+ConversationProjectionPending = bridge_conversation.ConversationProjectionPending
+ConversationProjectionFailed = bridge_conversation.ConversationProjectionFailed
 
 
 class TerminalBookkeepingPending(RuntimeError):
@@ -229,15 +190,6 @@ class QuarantineMovePending(RuntimeError):
             f"{self.path} -> {self.destination}")
 
 
-_TRANSIENT_OS_ERRNOS = {
-    errno.EAGAIN,
-    errno.EBUSY,
-    errno.EINTR,
-    errno.ETIMEDOUT,
-    *({errno.ESTALE} if hasattr(errno, "ESTALE") else set()),
-}
-
-
 def _is_transient_projection_failure(exc: BaseException) -> bool:
     """Whether retrying the *same report projection* can plausibly succeed.
 
@@ -255,31 +207,10 @@ def _is_transient_projection_failure(exc: BaseException) -> bool:
     as missing paths, permissions, read-only media and invalid paths are not
     retry-owned here.
     """
-    seen: set[int] = set()
-    current: BaseException | None = exc
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, sqlite3.OperationalError):
-            message = str(current).lower()
-            if "locked" in message or "busy" in message:
-                return True
-        elif type(current) is OSError and current.errno is None:
-            message = str(current).lower()
-            if any(marker in message for marker in (
-                    "temporarily unavailable", "temporary unavailable",
-                    "timed out", "locked", "busy")):
-                return True
-        elif isinstance(current, (BlockingIOError, InterruptedError, TimeoutError)):
-            return True
-        elif isinstance(current, OSError):
-            if current.errno in _TRANSIENT_OS_ERRNOS:
-                return True
-            # Windows sharing and lock violations are transient even though
-            # Python commonly presents them as PermissionError/EACCES.
-            if getattr(current, "winerror", None) in {32, 33}:
-                return True
-        current = current.__cause__ or current.__context__
-    return False
+    return bridge_conversation.is_transient_projection_failure(
+        exc,
+        sqlite_operational_error=sqlite3.OperationalError,
+    )
 
 
 def _stamp() -> str:
@@ -779,29 +710,14 @@ def _project_report_to_conversation(key: str, report: dict[str, Any]):
     """
     from . import conversation
 
-    try:
-        # Do not create the canonical database merely because a legacy/unlinked
-        # file-bridge task completed. If it does not exist, no dispatch link can
-        # exist in it either. Keep the path probe inside the classification
-        # boundary because filesystem availability itself can be transient.
-        if not conversation.default_db_path().exists():
-            return None
-        store = conversation.default_store()
-        if store.dispatch_status(key) is None:
-            return None
-        outcome_state, summary, detail = _conversation_report_fields(key, report)
-        return store.record_dispatch_event(
-            key, outcome_state=outcome_state, summary=summary, detail=detail,
-            source_event_id=f"file_bridge.report:{key}")
-    except Exception as exc:
-        # Automatic retry is deliberately narrow. A source-id conflict is an
-        # integrity fact, not temporary unavailability; retrying it forever
-        # would spin the watcher and could keep shuffling an archived request.
-        # The same is true for UnknownDispatch, malformed payloads and schema
-        # failures other than an actual SQLite BUSY/LOCKED condition.
-        if _is_transient_projection_failure(exc):
-            raise ConversationProjectionPending(key, exc) from exc
-        raise
+    return bridge_conversation.project_report(
+        key,
+        report,
+        default_db_path=conversation.default_db_path,
+        default_store=conversation.default_store,
+        report_fields=_conversation_report_fields,
+        is_transient_failure=_is_transient_projection_failure,
+    )
 
 
 def reconcile_conversation_report(task_id: str):
@@ -822,22 +738,14 @@ def reconcile_conversation_report(task_id: str):
     retain their original exception type and are never requeued. Failure is
     never confused with an absent report or an unlinked task.
     """
-    key = str(task_id or "").strip()
-    if not _REQUEST_KEY_RE.fullmatch(key):
-        raise ValueError("task_id must be a plain file-bridge request key")
-    report_path = INBOX / f"{key}.report.json"
-    try:
-        report_path.resolve().relative_to(INBOX.resolve())
-    except (OSError, ValueError) as exc:
-        raise ValueError("task_id resolves outside the file-bridge inbox") from exc
-    report = _completed_report(report_path)
-    if report is None:
+    prepared = bridge_conversation.prepare_reconciliation(
+        task_id,
+        inbox=INBOX,
+        completed_report=_completed_report,
+    )
+    if prepared is None:
         return None
-    recorded_key = str(report.get("request_file") or "").strip()
-    if recorded_key and recorded_key != key:
-        raise ValueError(
-            f"terminal report identity mismatch: path key={key!r}, "
-            f"report request_file={recorded_key!r}")
+    key, report = prepared
     from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
     begin_effect(
@@ -845,15 +753,12 @@ def reconcile_conversation_report(task_id: str):
         REGISTRY_BY_ID["file_bridge.process"].effects,
         (_crash_journal_decision(f"reconcile terminal report={key}"),),
     )
-    try:
-        return _project_report_to_conversation(key, report)
-    except ConversationProjectionPending as exc:
-        # In the enqueue->link race the ordinary watcher may already have
-        # archived the request. Put that SAME request back on the canonical
-        # outbox so its next pass retries only the idempotent projection: the
-        # journal's durable report step prevents another provider invocation.
-        exc.retry_queued = _requeue_for_projection(key)
-        raise
+    return bridge_conversation.finish_reconciliation(
+        key,
+        report,
+        project=_project_report_to_conversation,
+        requeue=_requeue_for_projection,
+    )
 
 
 def _requeue_for_projection(key: str) -> bool:
@@ -865,28 +770,15 @@ def _requeue_for_projection(key: str) -> bool:
     the existing file bus and existing per-request journal, not another retry
     ledger.
     """
-    entry = _read_journal(key)
-    steps = entry.get("steps") if isinstance(entry.get("steps"), dict) else {}
-    if steps.get("report") is not True:
-        # Requeue is safe only when the existing crash journal proves that
-        # process_request will reuse the durable report. Otherwise a damaged
-        # journal could turn a projection retry into another provider bill.
-        return False
-    source = ARCHIVE / f"{key}.json"
-    target = OUTBOX / f"{key}.json"
-    if target.exists():
-        return True
-    if not source.is_file():
-        return False
-    OUTBOX.mkdir(parents=True, exist_ok=True)
-    try:
-        os.replace(source, target)
-    except OSError:
-        try:
-            shutil.move(str(source), str(target))
-        except (OSError, shutil.Error):
-            return target.is_file()
-    return target.is_file()
+    return bridge_conversation.requeue_for_projection(
+        key,
+        archive=ARCHIVE,
+        outbox=OUTBOX,
+        read_journal=_read_journal,
+        replace=os.replace,
+        move=shutil.move,
+        move_error=shutil.Error,
+    )
 
 
 def _note_report_arrival(result_path: Path, report: dict[str, Any],
