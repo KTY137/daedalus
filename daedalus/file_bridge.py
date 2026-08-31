@@ -1176,251 +1176,44 @@ def _process_request_claimed(
     key: str,
 ) -> Path:
     """Implementation of :func:`process_request` under its OS claim."""
-    INBOX.mkdir(parents=True, exist_ok=True)
-    ARCHIVE.mkdir(parents=True, exist_ok=True)
-    result_path = INBOX / f"{key}.report.json"
-    entry = _read_journal(key)
+    from .core import process_bridge_payload
 
-    steps = entry.get("steps") if isinstance(entry.get("steps"), dict) else {}
-    attempts = int(entry.get("attempts") or 0)
-    entry.update({"key": key, "steps": steps, "attempts": attempts,
-                  "state": entry.get("state") or "new"})
-
-    # Poison requests cannot be normalized below, so their quarantine replay
-    # is bound to exact raw bytes instead. Resume before JSON parsing only
-    # when those bytes match the journaled request; a different body under the
-    # same stem is an identity conflict and never inherits the old report.
-    quarantine_record = entry.get("quarantine_record")
-    quarantine_record = (
-        quarantine_record if isinstance(quarantine_record, dict) else {})
-    if entry.get("state") in {
-            "quarantine_pending", "quarantine_move_pending", "quarantined"} \
-            and quarantine_record:
-        observed_raw_sha256 = _raw_request_sha256(path)
-        expected_raw_sha256 = quarantine_record.get("request_raw_sha256")
-        if expected_raw_sha256 != observed_raw_sha256:
-            raise _quarantine_request_identity_conflict(
-                path, key, expected=str(expected_raw_sha256),
-                observed=observed_raw_sha256)
-        if entry.get("state") in {"quarantine_move_pending", "quarantined"}:
-            if not _quarantine_move(path, key):
-                raise QuarantineMovePending(
-                    key, path, _quarantine_dir() / path.name)
-            if entry.get("state") != "quarantined":
-                entry["state"] = "quarantined"
-                _write_journal(key, entry)
-            projection_error = entry.get("conversation_projection_error")
-            if isinstance(projection_error, dict):
-                cause = RuntimeError(
-                    f"{projection_error.get('type', 'projection error')}: "
-                    f"{projection_error.get('message', '')}")
-                raise ConversationProjectionFailed(key, cause) from cause
-            return result_path
-        return quarantine_request(
-            path,
-            str(quarantine_record.get("reason") or "quarantined"),
-            str(quarantine_record.get("detail") or ""),
-        )
-
-    # Bind the human-readable filename key to the canonical, normalized body.
-    # The key is caller-controlled for supported hand-drops, so the stem alone
-    # is not request identity.  Persisting this digest before dispatch makes an
-    # exact restored copy replayable while a different body using an old stem
-    # is quarantined without touching that stem's report/journal/artifacts.
-    payload = _read_request(path, default_repo_root)  # poison raises here
-    observed_request_sha256 = _request_sha256(payload)
-    expected_request_sha256 = entry.get("request_sha256")
-    identity_report = _completed_report(result_path)
-    report_request_sha256: str | None = None
-    if identity_report is not None:
-        try:
-            report_request_sha256 = _report_request_binding(
-                identity_report, key)
-        except ValueError as exc:
-            # A whole report is retained evidence even when its own binding is
-            # corrupt or from a legacy writer.  Never overwrite it by running
-            # work under the same filename key; a human must reconcile it.
-            raise TerminalReportPreserved(key, result_path, str(exc)) from exc
-    if expected_request_sha256 is None and report_request_sha256 is not None:
-        expected_request_sha256 = report_request_sha256
-    if expected_request_sha256 is not None and (
-        not isinstance(expected_request_sha256, str)
-        or not re.fullmatch(r"[0-9a-f]{64}", expected_request_sha256)
-        or expected_request_sha256 != observed_request_sha256
-    ):
-        raise _quarantine_request_identity_conflict(
-            path,
-            key,
-            expected=str(expected_request_sha256),
-            observed=observed_request_sha256,
-        )
-    if entry.get("request_sha256") is None:
-        entry["request_sha256"] = observed_request_sha256
-        _write_journal(key, entry)  # durable before any provider dispatch
-    elif report_request_sha256 is not None and (
-            report_request_sha256 != observed_request_sha256):
-        raise _quarantine_request_identity_conflict(
-            path,
-            key,
-            expected=report_request_sha256,
-            observed=observed_request_sha256,
-        )
-
-    if entry.get("state") == "quarantined":
-        # A valid request that previously exhausted its retries is still bound
-        # to its body.  Check that binding above before evicting a restored copy;
-        # otherwise a different body under the same quarantined key could
-        # overwrite the first request's retained quarantine artifact.
-        if not _quarantine_move(path, key):
-            raise QuarantineMovePending(
-                key, path, _quarantine_dir() / path.name)
-        return result_path
-
-    if entry.get("state") == "bookkeeping_pending":
-        # Projection already returned successfully before downstream
-        # bookkeeping entered this state.  Resume only the unfinished local
-        # step; replaying the provider or even the idempotent projector would
-        # give a bookkeeping failure more authority than it owns.
-        report = _completed_report(result_path)
-        if report is None:
-            cause = ValueError(
-                "bookkeeping-pending journal state has no terminal report")
-            raise TerminalBookkeepingPending(key, "report", cause)
-        _finish_terminal_report(path, key, result_path, report, entry, steps)
-        return result_path
-
-    if entry.get("state") in {"projection_failed",
-                               "done_with_projection_error"}:
-        # The report is already terminal and the projection was classified as
-        # permanent on an earlier pass. Resume only the downstream bookkeeping
-        # and archive move; never call the provider or the projector again.
-        report = _completed_report(result_path)
-        if report is None:
-            cause = ValueError(
-                "projection-failed journal state has no complete terminal report")
-            raise ConversationProjectionFailed(key, cause)
-        try:
-            _finish_terminal_report(
-                path, key, result_path, report, entry, steps,
-                terminal_state="done_with_projection_error")
-        except TerminalBookkeepingPending as finish_exc:
-            # The originating defect is still a permanent projection conflict;
-            # the cleanup failure is retained on the journal and retried below
-            # both provider dispatch and projection.  Do not let the secondary
-            # archive/log/memory problem erase that classification for callers.
-            raise ConversationProjectionFailed(key, finish_exc) from finish_exc
-        except Exception as exc:
-            raise ConversationProjectionFailed(key, exc) from exc
-        return result_path
-
-    # -- step 1: the work, and the report that commits it -------------------
-    # A complete report for this key IS the receipt that the work happened.
-    # Reusing it is the whole point: re-running is what spends money twice.
-    report = identity_report
-    if report is not None and not steps.get("report"):
-        # The process may have died after the atomic report replace but before
-        # committing this journal bit.  The report's independently validated
-        # request digest is sufficient proof to heal the lagging journal; the
-        # provider/lease path must never be entered merely to rediscover it.
-        steps["report"] = True
-        entry["request_sha256"] = observed_request_sha256
-        entry["state"] = "reported"
-        _write_journal(key, entry)
-    if report is None:
-        if attempts >= MAX_ATTEMPTS:
-            return quarantine_request(
-                path, "interrupted",
-                f"dispatched {attempts} times without ever producing a report "
-                "-- refusing to run it again (see runs/processed/.journal)")
-        effect_identity = _effect_identity_for(key, entry)
-        entry["attempts"] = attempts + 1
-        entry["state"] = "in_flight"
-        entry["lane"] = payload.get("lane")
-        entry["effect_identity"] = effect_identity
-        # The journal is a crash-recovery record of THIS request, so it gets
-        # the trace too -- a request that died in flight is exactly the one a
-        # human will be tracing.
-        entry[envelope.TRACE_KEY] = payload.get(envelope.TRACE_KEY)
-        _write_journal(key, entry)  # durable BEFORE the work: survives a kill
-
-        from .core import process_bridge_payload
-        # THE CROSS-PROCESS HOP. The trace was minted in the ENQUEUER'S
-        # process, possibly hours ago and possibly on the other side of a
-        # crash; re-binding it here is what makes the watcher's own downstream
-        # records (spine intents, memory events, anything Ikarus writes) land
-        # under the run that ASKED for the work rather than under nothing.
-        # Binding around the dispatch and not wider keeps a request's trace
-        # from leaking onto the next request in the same watcher process.
-        # adopt_trace, NOT trace_context: an untraced request must stay
-        # untraced. Minting here would give every legacy/hand-dropped request a
-        # private id nothing else shares -- the field would look fully
-        # populated while joining nothing.
-        with envelope.adopt_trace(payload.get(envelope.TRACE_KEY)) as tid:
-            dispatch_kwargs: dict[str, Any] = {
-                "effect_identity": effect_identity,
-            }
-            if _accepts_keyword(
-                process_bridge_payload, "mission_projection_dir"
-            ):
-                # Request JSON has no authority over this path.  It is a
-                # filename-derived, deletable view beside the existing crash
-                # journal and cannot select an arbitrary filesystem root.
-                dispatch_kwargs["mission_projection_dir"] = (
-                    _mission_projection_dir(key)
-                )
-            report = process_bridge_payload(payload, **dispatch_kwargs)
-        # The idempotency key, carried on the artifact itself, so the memory
-        # log can be asked "did this request's record already land?".
-        report["request_file"] = key
-        report["request_sha256"] = observed_request_sha256
-        # Stamp the REPORT with the REQUEST's trace, not the ambient one: the
-        # report is a statement about that request, and the join a human wants
-        # is request -> report. envelope.stamp lets a report that already named
-        # its own trace keep it.
-        if payload.get(envelope.TRACE_KEY):
-            report = envelope.stamp(report, trace_id=tid)
-
-        _write_json_atomic(result_path, report)
-        steps["report"] = True
-        entry["state"] = "reported"
-        _write_journal(key, entry)
-
-    # -- step 2: linked conversation outcome --------------------------------
-    # The canonical spine's source_event_id uniqueness, not this file journal,
-    # closes the crash window: if the process dies immediately after the write,
-    # replay returns that same fact. An unlinked task is a strict no-op.
-    try:
-        _project_report_to_conversation(key, report)
-    except ConversationProjectionPending:
-        raise
-    except Exception as exc:
-        # The report itself is a complete terminal fact. An integrity or
-        # attribution error in its informational chat projection must not turn
-        # that report into poison: preserve it, flag the diagnostic on the
-        # existing recovery record, and evict the request from the watch loop.
-        entry["state"] = "projection_failed"
-        entry["conversation_projection_error"] = {
-            "type": type(exc).__name__,
-            "message": str(exc)[:1000],
-        }
-        try:
-            _write_journal(key, entry)
-            _finish_terminal_report(
-                path, key, result_path, report, entry, steps,
-                terminal_state="done_with_projection_error")
-        except TerminalBookkeepingPending as finish_exc:
-            # Preserve the permanent projection-conflict classification.  The
-            # journal still records the unfinished bookkeeping step, and the
-            # next pass resumes below provider dispatch and projection.
-            raise ConversationProjectionFailed(key, finish_exc) from exc
-        except Exception as finish_exc:
-            raise ConversationProjectionFailed(key, finish_exc) from exc
-        raise ConversationProjectionFailed(key, exc) from exc
-
-    # -- steps 3-5: arrival line, memory record, archive --------------------
-    _finish_terminal_report(path, key, result_path, report, entry, steps)
-    return result_path
-
+    return bridge_dispatch.process_claimed_request(
+        path,
+        default_repo_root,
+        key=key,
+        ports=bridge_dispatch.ClaimedDispatchPorts(
+            inbox=INBOX,
+            archive=ARCHIVE,
+            max_attempts=MAX_ATTEMPTS,
+            trace_key=envelope.TRACE_KEY,
+            read_journal=_read_journal,
+            raw_request_sha256=_raw_request_sha256,
+            quarantine_identity_conflict=_quarantine_request_identity_conflict,
+            quarantine_move=_quarantine_move,
+            quarantine_dir=_quarantine_dir,
+            write_journal=_write_journal,
+            quarantine_move_pending=QuarantineMovePending,
+            conversation_projection_failed=ConversationProjectionFailed,
+            quarantine_request=quarantine_request,
+            read_request=_read_request,
+            request_sha256=_request_sha256,
+            completed_report=_completed_report,
+            report_request_binding=_report_request_binding,
+            terminal_report_preserved=TerminalReportPreserved,
+            terminal_bookkeeping_pending=TerminalBookkeepingPending,
+            finish_terminal_report=_finish_terminal_report,
+            effect_identity_for=_effect_identity_for,
+            write_json_atomic=_write_json_atomic,
+            accepts_keyword=_accepts_keyword,
+            mission_projection_dir=_mission_projection_dir,
+            process_bridge_payload=process_bridge_payload,
+            adopt_trace=envelope.adopt_trace,
+            stamp_report=envelope.stamp,
+            project_report=_project_report_to_conversation,
+            conversation_projection_pending=ConversationProjectionPending,
+        ),
+    )
 
 def _looks_unfinished(path: Path, exc: BaseException) -> bool:
     """True when the failure is "this is not JSON yet" rather than "this is

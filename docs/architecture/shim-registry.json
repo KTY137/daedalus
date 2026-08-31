@@ -45,7 +45,7 @@
         "daedalus.interfaces.bridge.watcher"
       ],
       "kind": "registered_effect_facade",
-      "removal_criteria": "Conversation ownership and the remaining claimed-dispatch body have landed and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining implementation caller."
+      "removal_criteria": "Conversation ownership has landed and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining implementation caller."
     },
     {
       "import_path": "daedalus.ikarus",

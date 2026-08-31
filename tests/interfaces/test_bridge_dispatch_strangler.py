@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from daedalus import file_bridge
 from daedalus.interfaces.bridge import dispatch
 from daedalus.spine.effect_boundary import registry_sha256
 
@@ -69,6 +70,57 @@ def test_dispatch_owner_has_no_reverse_facade_or_effect_authority() -> None:
     assert not any(name.startswith("daedalus") for name in imports)
     assert not {"begin_effect", "run_mission", "Popen"} & called_names
     assert not {"os", "socket", "sqlite3", "subprocess"} & imports
+
+
+def test_claimed_facade_delegates_the_state_machine_once(monkeypatch, tmp_path) -> None:
+    request = tmp_path / "request.json"
+    observed: dict[str, object] = {}
+
+    def process_claimed(path, default_repo_root, *, key, ports):
+        observed.update(
+            path=path,
+            default_repo_root=default_repo_root,
+            key=key,
+            ports=ports,
+        )
+        return tmp_path / "request.report.json"
+
+    monkeypatch.setattr(dispatch, "process_claimed_request", process_claimed)
+
+    result = file_bridge._process_request_claimed(
+        request,
+        "C:/registered/project",
+        key="request",
+    )
+
+    assert result == tmp_path / "request.report.json"
+    assert observed["path"] == request
+    assert observed["default_repo_root"] == "C:/registered/project"
+    assert observed["key"] == "request"
+    assert isinstance(observed["ports"], dispatch.ClaimedDispatchPorts)
+
+
+def test_claimed_facade_contains_no_state_machine_calls() -> None:
+    wrapper = _function(FACADE, "_process_request_claimed")
+    owner_calls = _attribute_calls(wrapper, "process_claimed_request")
+    direct_calls = {
+        child.func.id
+        for child in ast.walk(wrapper)
+        if isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
+    }
+
+    assert len(owner_calls) == 1
+    assert not {
+        "_read_journal",
+        "_write_journal",
+        "_read_request",
+        "_completed_report",
+        "_quarantine_move",
+        "_finish_terminal_report",
+        "_project_report_to_conversation",
+        "_write_json_atomic",
+        "quarantine_request",
+    } & direct_calls
 
 
 def test_claim_owner_returns_the_winners_terminal_report_after_wait(tmp_path) -> None:
