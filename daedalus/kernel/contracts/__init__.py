@@ -39,6 +39,10 @@ _EXPORT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "RuntimeTrustRecordPort",
         ),
     ),
+    (
+        "evaluation",
+        ("EvaluationBaselinePort", "EvaluationGatePort", "EvaluationPorts"),
+    ),
 )
 
 _EXPORTS = {name: owner for owner, names in _EXPORT_GROUPS for name in names}
@@ -49,6 +53,7 @@ _MODULES = frozenset(
         "campaigns",
         "canonical",
         "evidence",
+        "evaluation",
         "missions",
         "policy",
         "promotion",

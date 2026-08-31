@@ -69,6 +69,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from ..kernel.contracts.evaluation import EvaluationPorts
+
 __all__ = [
     "ATTEMPT_INTENT_KIND",
     "ATTEMPT_MEMORY_PENALTY",
@@ -1618,14 +1620,16 @@ def eval_gate_candidates(gate_result: Mapping[str, Any]) -> tuple[
 def _load_baseline() -> tuple[Mapping[str, Any], str | None]:
     """Load the stored eval baseline, returning ``(baseline, error)``.
 
-    A named seam rather than an inline import: it is the one place the picker
-    reaches into ``daedalus.eval``, so it is the one place a test has to
-    displace to stay hermetic, and the one place to look when the cheap eval
-    source goes quiet.
+    This cheap source is just retained JSON. Reading it directly keeps the
+    canonical spine independent of the evaluator implementation while
+    preserving the historical missing-file behavior. A supplied
+    :class:`EvaluationPorts` instance may override it at composition time.
     """
     try:
-        from daedalus.eval.harness import load_baseline
-        return load_baseline(), None
+        path = ROOT / "daedalus" / "eval" / "baseline.json"
+        if not path.exists():
+            return {"schema": 1, "tasks": {}}, None
+        return json.loads(path.read_text(encoding="utf-8")), None
     except Exception as e:
         return {}, f"{type(e).__name__}: {e}"
 
@@ -1633,15 +1637,31 @@ def _load_baseline() -> tuple[Mapping[str, Any], str | None]:
 def _run_eval_gate() -> tuple[Mapping[str, Any] | None, str | None]:
     """Run the advisory eval gate, returning ``(result, error)``.
 
-    Isolated so the opt-in cost (a full Tier-1 replay, which builds a
-    structural index per repo) lives in exactly one place, and so a broken
-    eval cannot take the whole queue down with it.
+    Direct module starts have no outer-layer composition root. They therefore
+    fail closed instead of importing the evaluator through the canonical
+    spine. ``daedalus improve`` injects the production port explicitly.
     """
+    return None, (
+        "EvaluationPortUnavailable: fresh eval requires an injected "
+        "EvaluationGatePort")
+
+
+def _load_baseline_from_ports(
+        ports: EvaluationPorts,
+        ) -> tuple[Mapping[str, Any], str | None]:
     try:
-        from daedalus.eval.harness import run_gate
-        return run_gate(), None
-    except Exception as e:  # a broken eval must not empty the queue
-        return None, f"{type(e).__name__}: {e}"
+        return ports.load_baseline(), None
+    except Exception as exc:  # a broken evaluator must not empty the queue
+        return {}, f"{type(exc).__name__}: {exc}"
+
+
+def _run_eval_gate_from_ports(
+        ports: EvaluationPorts,
+        ) -> tuple[Mapping[str, Any] | None, str | None]:
+    try:
+        return ports.run_gate(), None
+    except Exception as exc:  # a broken evaluator must not empty the queue
+        return None, f"{type(exc).__name__}: {exc}"
 
 
 # --------------------------------------------------------------------------- #
@@ -2231,6 +2251,7 @@ def build_queue(repo_root: str | Path | None = None, *,
                 inventory: Mapping[str, Any] | None = None,
                 map_snapshot: Mapping[str, Any] | None = None,
                 baseline: Mapping[str, Any] | None = None,
+                evaluation_ports: EvaluationPorts | None = None,
                 use_attempt_memory: bool = True,
                 enforce_inventory_freshness: bool = True,
                 spine_db: str | Path | None = None) -> PickedQueue:
@@ -2455,7 +2476,11 @@ def build_queue(repo_root: str | Path | None = None, *,
     else:
         base_error = None
         if baseline is None:
-            baseline, base_error = _load_baseline()
+            baseline, base_error = (
+                _load_baseline()
+                if evaluation_ports is None
+                else _load_baseline_from_ports(evaluation_ports)
+            )
             if base_error:
                 notes.append(f"eval baseline unavailable: {base_error}")
         base_candidates, base_notes = eval_baseline_candidates(baseline)
@@ -2480,7 +2505,11 @@ def build_queue(repo_root: str | Path | None = None, *,
             "error": "picker_sources.eval_gate must be enabled or disabled",
         }
     elif include_eval:
-        gate, err = _run_eval_gate()
+        gate, err = (
+            _run_eval_gate()
+            if evaluation_ports is None
+            else _run_eval_gate_from_ports(evaluation_ports)
+        )
         if gate is None:
             notes.append(f"eval gate did not run: {err}")
             sources["eval_gate"] = {
@@ -2922,7 +2951,8 @@ def _build_parser():
 
 
 def main(argv: Sequence[str] | None = None, *,
-         attempt_fn: Callable[[Candidate, Any], Any] | None = None) -> int:
+         attempt_fn: Callable[[Candidate, Any], Any] | None = None,
+         evaluation_ports: EvaluationPorts | None = None) -> int:
     """``daedalus improve``. Returns a process exit code; applies nothing.
 
     Default behaviour with no flags is the DRY RUN. An operator who types
@@ -2967,6 +2997,7 @@ def main(argv: Sequence[str] | None = None, *,
     queue = build_queue(args.repo_root, limit=queue_limit,
                         include_eval=args.include_eval,
                         include_hotspots=args.include_hotspots,
+                        evaluation_ports=evaluation_ports,
                         use_attempt_memory=not args.forget,
                         enforce_inventory_freshness=not args.stale_inventory)
 
