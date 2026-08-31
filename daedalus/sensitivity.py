@@ -506,6 +506,27 @@ _LOOPBACK_LITERALS = frozenset({"127.0.0.1", "::1", "[::1]"})
 ENV_TRUSTED_HOSTS = "DAEDALUS_TRUSTED_HOSTS"
 
 
+def is_loopback_literal(
+    host: str | None,
+    *,
+    allow_bracketed_ipv6: bool = True,
+) -> bool:
+    """Whether ``host`` is one of the canonical numeric loopback literals.
+
+    Unlike :func:`is_loopback_host`, this deliberately accepts no URL, port,
+    alternate 127/8 address, or name.  Protocol contracts that serialize a
+    bare connect host can therefore reuse the single loopback table without
+    widening their wire grammar or minting another local copy of that table.
+    """
+
+    if not isinstance(host, str):
+        return False
+    raw = host.strip().lower()
+    if raw not in _LOOPBACK_LITERALS:
+        return False
+    return allow_bracketed_ipv6 or raw != "[::1]"
+
+
 def is_loopback_host(host: str | None) -> bool:
     """Is ``host`` PHYSICALLY this machine? Undeclarable, unwidenable.
 

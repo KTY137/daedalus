@@ -58,3 +58,39 @@ def test_gateway_descriptor_rejects_digest_tampering(tmp_path: Path) -> None:
     tampered["port"] = 31338
     with pytest.raises(HermesToolGatewayError):
         HermesGatewayDescriptor.from_dict(tampered)
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1"])
+def test_gateway_descriptor_retains_both_historical_bare_loopback_literals(
+    tmp_path: Path,
+    host: str,
+) -> None:
+    descriptor = HermesGatewayDescriptor.create(
+        host=host,
+        port=31337,
+        token_file=str(tmp_path / "token"),
+        request_id="request",
+        task_id="task",
+        tool_scope_digest="1" * 64,
+        max_calls=1,
+        expires_at_ns=2**63 - 1,
+    )
+    assert descriptor.host == host
+
+
+@pytest.mark.parametrize("host", ["127.0.0.2", "[::1]", "localhost"])
+def test_gateway_descriptor_keeps_its_exact_bare_loopback_grammar(
+    tmp_path: Path,
+    host: str,
+) -> None:
+    with pytest.raises(HermesToolGatewayError, match="loopback-only"):
+        HermesGatewayDescriptor.create(
+            host=host,
+            port=31337,
+            token_file=str(tmp_path / "token"),
+            request_id="request",
+            task_id="task",
+            tool_scope_digest="1" * 64,
+            max_calls=1,
+            expires_at_ns=2**63 - 1,
+        )

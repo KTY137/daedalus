@@ -13,6 +13,7 @@ import threading
 import time
 from typing import Mapping
 
+from ...sensitivity import is_loopback_literal
 from .tool_provider import DaedalusToolProvider, ToolOutcome, canonical_sha256
 
 GATEWAY_SCHEMA = "daedalus-hermes-tool-gateway/1"
@@ -70,7 +71,10 @@ class HermesGatewayDescriptor:
     schema: str = GATEWAY_SCHEMA
 
     def __post_init__(self) -> None:
-        if self.schema != GATEWAY_SCHEMA or self.host not in {"127.0.0.1", "::1"}:
+        if self.schema != GATEWAY_SCHEMA or not is_loopback_literal(
+            self.host,
+            allow_bracketed_ipv6=False,
+        ):
             raise HermesToolGatewayError("gateway descriptor is not loopback-only")
         if not 1 <= self.port <= 65535 or not 0 <= self.max_calls <= 4096:
             raise HermesToolGatewayError("gateway descriptor bounds are invalid")

@@ -45,6 +45,7 @@ from daedalus.sensitivity import (
     ENV_TRUSTED_HOSTS,
     declared_trusted_hosts,
     is_loopback_host,
+    is_loopback_literal,
     lane_for_host,
 )
 
@@ -368,6 +369,32 @@ def test_is_loopback_host_ignores_the_declared_trust_list_entirely(monkeypatch):
 
 def test_is_loopback_host_none_fails_closed():
     assert is_loopback_host(None) is False
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1", "[::1]"])
+def test_is_loopback_literal_accepts_only_the_canonical_bare_literals(host):
+    assert is_loopback_literal(host) is True
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        None,
+        7,
+        "",
+        "127.0.0.2",
+        "127.0.0.1:11434",
+        "http://127.0.0.1",
+        "localhost",
+    ],
+)
+def test_is_loopback_literal_does_not_widen_protocol_host_grammars(host):
+    assert is_loopback_literal(host) is False
+
+
+def test_is_loopback_literal_can_refuse_bracketed_ipv6_wire_forms():
+    assert is_loopback_literal("::1", allow_bracketed_ipv6=False) is True
+    assert is_loopback_literal("[::1]", allow_bracketed_ipv6=False) is False
 
 
 # --------------------------------------------------------------------------- #
