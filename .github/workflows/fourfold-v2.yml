@@ -53,7 +53,7 @@ jobs:
           PYTHONHASHSEED: ${{ matrix.hash-seed }}
         run: |
           python -m pytest -q tests/twin tests/test_kernel_contracts.py
-      - name: Emit fused compiled Boolean receipt
+      - name: Emit bounded Tensor/Forest diagnostic cost probes
         if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
         env:
           PYTHONHASHSEED: "0"
@@ -62,26 +62,33 @@ jobs:
           import json
           import runpy
 
-          namespace = runpy.run_path("tests/twin/test_compiled_boolean_cost_probe.py")
-          with open("compiled-boolean-cost.jsonl", "w", encoding="utf-8") as handle:
-              for size in (64, 256, 512):
-                  report = namespace["compiled_boolean_probe"](
-                      size=size,
-                      repeats=5,
-                      query_iterations=20,
-                  )
-                  line = json.dumps(report, sort_keys=True, separators=(",", ":"))
-                  print(line)
-                  handle.write(line + "\n")
+          namespace = runpy.run_path("tests/twin/test_tensor_forest_cost_probe.py")
+          probe = namespace["probe"]
+          relation_probe = namespace["relation_probe"]
+          for plane in ("code", "knowledge"):
+              report = probe(
+                  size=512,
+                  repeats=5,
+                  query_iterations=10,
+                  plane=plane,
+              )
+              print(json.dumps(report, sort_keys=True, separators=(",", ":")))
+          report = relation_probe(
+              size=512,
+              repeats=5,
+              query_iterations=10,
+          )
+          print(json.dumps(report, sort_keys=True, separators=(",", ":")))
+
+          heldout_namespace = runpy.run_path("tests/twin/test_tensor_heldout_multihop_probe.py")
+          for heldout_size in (64, 256, 512):
+              heldout_report = heldout_namespace["heldout_probe"](
+                  size=heldout_size,
+                  repeats=2,
+                  query_iterations=10,
+              )
+              print(json.dumps(heldout_report, sort_keys=True, separators=(",", ":")))
           PY
-      - name: Upload fused compiled Boolean receipt
-        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
-        uses: actions/upload-artifact@v4
-        with:
-          name: compiled-boolean-cost-${{ github.sha }}
-          path: compiled-boolean-cost.jsonl
-          if-no-files-found: error
-          retention-days: 30
       - name: Verify wheel contains the twin package
         run: |
           python -c "import daedalus.twin; print(daedalus.twin.FOURFOLD_PLANES)"
