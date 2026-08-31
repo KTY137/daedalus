@@ -280,18 +280,34 @@ def ask(project: str, message: str, provider: str | None = None,
     # means the door did not open, and the door not opening must stop the turn
     # rather than raise into a caller whose contract says this never raises.
     except Exception as exc:  # noqa: BLE001 - fail closed, then say so
-        return _refusal_envelope(project, _deny_receipt(
+        return _with_delivery(_refusal_envelope(project, _deny_receipt(
             ASK_ENTRYPOINT_ID, contract="budget.process_guard", endpoint=None,
-            lane="n/a", provider="", reason=str(exc)))
+            lane="n/a", provider="", reason=str(exc))), "blocking")
 
-    envelope = _ask_inner(project, message, provider, model, effort,
-                          intent=intent, act=act, conversation_id=conversation_id,
-                          additional_context=additional_context)
+    envelope = _with_delivery(
+        _ask_inner(project, message, provider, model, effort,
+                   intent=intent, act=act, conversation_id=conversation_id,
+                   additional_context=additional_context),
+        "blocking",
+    )
     if context_receipt:
         envelope["editor_context"] = dict(context_receipt)
     if conversation_id:
         _persist_turn(conversation_id, project, message, provider, envelope)
     return envelope
+
+
+def _with_delivery(envelope: dict, mode: str) -> dict:
+    """Add the response transport outcome without changing chat authority.
+
+    ``delivery_mode`` names the client-visible response path, not which provider
+    implementation produced the text.  ``stream_interrupted`` is always
+    explicit so a missing field cannot be mistaken for proof of completion.
+    """
+    result = dict(envelope)
+    result["delivery_mode"] = mode
+    result["stream_interrupted"] = bool(result.get("stream_interrupted", False))
+    return result
 
 
 def _prior_turn(conversation_id: str | None):
@@ -1644,6 +1660,8 @@ def ask_stream(project: str, message: str, provider: str | None = None,
     for event, payload in _ask_stream_inner(project, message, provider, model, effort,
                                             conversation_id=conversation_id,
                                             additional_context=additional_context):
+        if event == "final":
+            payload = _with_delivery(payload, "stream")
         if event == "final" and context_receipt:
             payload["editor_context"] = dict(context_receipt)
         if event == "final" and conversation_id:
@@ -1887,11 +1905,24 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             llm=selection_evidence, **extra))
         return
     if not text:
-        yield "final", _reconcile_final(
-            route, _chat(project, message, p or provider, model, effort,
-                          conversation_id=conversation_id,
-                          voice_client=voice_client,
-                          additional_context=additional_context))
+        # Once a streaming provider has been entered, an empty or failed stream
+        # is an unknown delivery outcome. Re-entering ``_chat`` here used to
+        # issue an invisible second provider request after the first request
+        # might already have completed remotely.
+        german = _reply_in_german(message)
+        interrupted = (
+            "Der Antwortstream endete ohne eine vollstaendige Antwort. "
+            "Die Anfrage wurde nicht automatisch wiederholt."
+            if german else
+            "The response stream ended without a complete answer. "
+            "The request was not automatically retried."
+        )
+        block = _ctx_envelope_block(ctx)
+        extra = {"context": block} if block else {}
+        yield "final", _reconcile_final(route, core.envelope(
+            project, intent="chat", shell=SHELL_VOICE, assistant=interrupted,
+            provider_used=p, model_used=model_used, stream_interrupted=True,
+            llm=selection_evidence, **extra))
         return
 
     block = _ctx_envelope_block(ctx)

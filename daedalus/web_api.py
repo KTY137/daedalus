@@ -1209,7 +1209,9 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             try:
                 emit("final", core.envelope(project, intent="error",
                                             assistant=f"I hit a snag: {exc}",
-                                            provider_used="deterministic"))
+                                            provider_used="deterministic",
+                                            delivery_mode="stream",
+                                            stream_interrupted=True))
             except (BrokenPipeError, ConnectionResetError, OSError):
                 return
 

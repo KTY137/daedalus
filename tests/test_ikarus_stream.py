@@ -123,6 +123,8 @@ class AskStreamTest(unittest.TestCase):
         self.assertEqual(names[-1], "final")
         self.assertNotIn("delta", names)
         self.assertEqual(evs[-1][1]["intent"], "status")
+        self.assertEqual(evs[-1][1]["delivery_mode"], "stream")
+        self.assertIs(evs[-1][1]["stream_interrupted"], False)
 
     def test_enqueue_still_only_proposes_when_streamed(self):
         with mock.patch.object(ikarus_os.core, "team_config",
@@ -142,7 +144,7 @@ class AskStreamTest(unittest.TestCase):
         self.assertEqual(evs[-1][1]["assistant"], "Hello")
         self.assertEqual(evs[-1][1]["provider_used"], "ollama_http")
 
-    def test_midstream_error_falls_back_to_blocking(self):
+    def test_midstream_error_keeps_partial_without_blocking_retry(self):
         def boom():
             yield "partial"
             raise RuntimeError("stream died")
@@ -154,13 +156,17 @@ class AskStreamTest(unittest.TestCase):
         blocking.assert_not_called()
         self.assertEqual(evs[-1][1]["assistant"], "partial")
         self.assertTrue(evs[-1][1]["stream_interrupted"])
+        self.assertEqual(evs[-1][1]["delivery_mode"], "stream")
 
-    def test_empty_stream_falls_back_to_blocking(self):
+    def test_empty_stream_is_interrupted_without_blocking_retry(self):
         with mock.patch.object(ikarus_os, "_ollama_stream", return_value=iter([])), \
              mock.patch.object(ikarus_os, "_chat",
-                               return_value={"assistant": "fallback", "intent": "chat"}):
+                               return_value={"assistant": "fallback", "intent": "chat"}) as blocking:
             evs = self._events(self.PROJECT, "hello there", provider="ollama")
-        self.assertEqual(evs[-1][1]["assistant"], "fallback")
+        blocking.assert_not_called()
+        self.assertNotEqual(evs[-1][1]["assistant"], "fallback")
+        self.assertTrue(evs[-1][1]["stream_interrupted"])
+        self.assertIn("not automatically retried", evs[-1][1]["assistant"])
 
     def test_unwired_provider_fails_closed(self):
         # codex_cli gained a real chat branch; "gemini" remains genuinely unwired.
@@ -239,6 +245,8 @@ class NonStreamingUnchangedTest(unittest.TestCase):
         )
         self.assertEqual(res["provider_used"], "deterministic")
         self.assertIn("Ikarus", res["assistant"])
+        self.assertEqual(res["delivery_mode"], "blocking")
+        self.assertIs(res["stream_interrupted"], False)
 
     def test_blocking_ollama_path_also_pins_residency(self):
         """The pin is a side effect only: same reply, but the next turn stays warm."""

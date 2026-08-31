@@ -175,6 +175,9 @@ export interface IkarusAskAction {
 /** Reasoning effort for a freeform Ikarus chat turn. Cheap-by-default = 'low'. */
 export type EffortLevel = 'low' | 'medium' | 'high';
 
+/** Client-visible response path; it grants no provider or action authority. */
+export type IkarusDeliveryMode = 'blocking' | 'stream';
+
 export interface IkarusAskPayload {
   ok: boolean;
   project: string;
@@ -192,6 +195,10 @@ export interface IkarusAskPayload {
   turn_id?: number;
   /** False means the answer succeeded but its conversation append did not. */
   conversation_persisted?: boolean;
+  /** Which response transport produced this envelope. Additive to legacy fields. */
+  delivery_mode: IkarusDeliveryMode;
+  /** True means the text may be partial and no action affordance is safe. */
+  stream_interrupted: boolean;
 }
 
 /* ---- Live event stream (SSE): GET /api/events?project=<name> ---- */
