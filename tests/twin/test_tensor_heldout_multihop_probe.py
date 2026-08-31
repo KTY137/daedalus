@@ -35,6 +35,23 @@ HELDOUT_WORKLOAD_SHA256 = hashlib.sha256(
     json.dumps(HELDOUT_WORKLOAD_SPEC, sort_keys=True, separators=(",", ":")).encode("utf-8")
 ).hexdigest()
 
+HELDOUT_QUERY_SUITE_SPEC = {
+    "version": 1,
+    "queries": (
+        "consistent_sources",
+        "mismatched_sources",
+        "mentioned_types_for_importing_sources",
+    ),
+    "semantics": (
+        "sources whose imported dependency declares the type mentioned by their document",
+        "sources whose imported dependency declares a different type than their document mentions",
+        "types mentioned by documents attached to importing sources",
+    ),
+}
+HELDOUT_QUERY_SUITE_SHA256 = hashlib.sha256(
+    json.dumps(HELDOUT_QUERY_SUITE_SPEC, sort_keys=True, separators=(",", ":")).encode("utf-8")
+).hexdigest()
+
 RelationMaps = tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]
 _RELATION_BUCKET = {
     ("imports", "code", "code"): 0,
@@ -164,6 +181,25 @@ def _query_relation_maps(maps: RelationMaps) -> tuple[str, ...]:
     return tuple(sorted(result))
 
 
+def _query_relation_suite(maps: RelationMaps) -> tuple[str, ...]:
+    """Return three tagged multi-hop results from one shared relation subject."""
+
+    imports, declarations, documents, mentions = maps
+    result: list[str] = []
+    for source, dependency in imports.items():
+        document = documents.get(source)
+        declared_type = declarations.get(dependency)
+        mentioned_type = mentions.get(document) if document is not None else None
+        if declared_type is None or mentioned_type is None:
+            continue
+        if declared_type == mentioned_type:
+            result.append(f"consistent:{source}")
+        else:
+            result.append(f"mismatched:{source}")
+        result.append(f"mentioned_type:{mentioned_type}")
+    return tuple(sorted(result))
+
+
 def _heldout_forest_index(subject: KnowledgeForest) -> RelationMaps:
     plane_by_node = {node.id: _plane_for_kind(node.kind) for node in subject.nodes}
     return _relation_maps(
@@ -182,19 +218,29 @@ def _heldout_forest_query(subject: KnowledgeForest) -> tuple[str, ...]:
     return _query_relation_maps(_heldout_forest_index(subject))
 
 
+def _heldout_forest_suite_query(subject: KnowledgeForest) -> tuple[str, ...]:
+    return _query_relation_suite(_heldout_forest_index(subject))
+
+
 def _heldout_preindexed_query(
     subject: tuple[KnowledgeForest, FourfoldSnapshot, RelationMaps],
 ) -> tuple[str, ...]:
     return _query_relation_maps(subject[2])
 
 
-def _heldout_tensor_query(subject: TensorView) -> tuple[str, ...]:
+def _heldout_preindexed_suite_query(
+    subject: tuple[KnowledgeForest, FourfoldSnapshot, RelationMaps],
+) -> tuple[str, ...]:
+    return _query_relation_suite(subject[2])
+
+
+def _heldout_tensor_maps(subject: TensorView) -> RelationMaps:
     positions = {axis.name: index for index, axis in enumerate(subject.axes)}
     source = positions["source"]
     source_plane = positions["source_plane"]
     target = positions["target"]
     target_plane = positions["target_plane"]
-    maps = _relation_maps(
+    return _relation_maps(
         (
             entry.relation,
             entry.coordinates[source][1],
@@ -204,7 +250,29 @@ def _heldout_tensor_query(subject: TensorView) -> tuple[str, ...]:
         )
         for entry in subject.entries
     )
-    return _query_relation_maps(maps)
+
+
+def _heldout_tensor_query(subject: TensorView) -> tuple[str, ...]:
+    return _query_relation_maps(_heldout_tensor_maps(subject))
+
+
+def _heldout_tensor_suite_query(subject: TensorView) -> tuple[str, ...]:
+    return _query_relation_suite(_heldout_tensor_maps(subject))
+
+
+def _break_even_query_count(
+    challenger: dict[str, int],
+    baseline: dict[str, int],
+) -> int | None:
+    construction_delta = (
+        challenger["construction_ns_median"] - baseline["construction_ns_median"]
+    )
+    query_savings = baseline["query_ns_median"] - challenger["query_ns_median"]
+    if construction_delta <= 0:
+        return 0
+    if query_savings <= 0:
+        return None
+    return (construction_delta + query_savings - 1) // query_savings
 
 
 def heldout_probe(
@@ -257,8 +325,32 @@ def heldout_probe(
     if forest_result != preindexed_result or forest_result != tensor_result:
         raise AssertionError("held-out comparison arm changed the direct Forest query subject")
 
+    forest_suite_metrics, forest_suite_result = _measure(
+        build_forest_arm,
+        lambda subject: _heldout_forest_suite_query(subject[0]),
+        repeats=repeats,
+        query_iterations=query_iterations,
+    )
+    preindexed_suite_metrics, preindexed_suite_result = _measure(
+        build_preindexed_arm,
+        _heldout_preindexed_suite_query,
+        repeats=repeats,
+        query_iterations=query_iterations,
+    )
+    tensor_suite_metrics, tensor_suite_result = _measure(
+        build_tensor_arm,
+        lambda subject: _heldout_tensor_suite_query(subject[2]),
+        repeats=repeats,
+        query_iterations=query_iterations,
+    )
+    if (
+        forest_suite_result != preindexed_suite_result
+        or forest_suite_result != tensor_suite_result
+    ):
+        raise AssertionError("query-suite arm changed the direct Forest subject")
+
     return {
-        "schema": "daedalus-tensor-heldout-multihop-cost-probe/1",
+        "schema": "daedalus-tensor-heldout-multihop-cost-probe/2",
         "authority": "diagnostic-only",
         "claim": "none",
         "held_out": True,
@@ -281,13 +373,34 @@ def heldout_probe(
             "forest_preindexed": preindexed_metrics,
             "forest_plus_tensor": tensor_metrics,
         },
+        "query_suite": {
+            "queries": HELDOUT_QUERY_SUITE_SPEC["queries"],
+            "query_suite_spec_sha256": HELDOUT_QUERY_SUITE_SHA256,
+            "result_count": len(forest_suite_result),
+            "result_sha256": hashlib.sha256(
+                json.dumps(forest_suite_result, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
+            "arms": {
+                "forest_direct": forest_suite_metrics,
+                "forest_preindexed": preindexed_suite_metrics,
+                "forest_plus_tensor": tensor_suite_metrics,
+            },
+            "tensor_break_even_query_suites": {
+                "vs_forest_direct": _break_even_query_count(
+                    tensor_suite_metrics, forest_suite_metrics
+                ),
+                "vs_forest_preindexed": _break_even_query_count(
+                    tensor_suite_metrics, preindexed_suite_metrics
+                ),
+            },
+        },
     }
 
 
 def test_heldout_multihop_probe_preserves_exact_subject() -> None:
     result = heldout_probe(size=64, repeats=1, query_iterations=2)
 
-    assert result["schema"] == "daedalus-tensor-heldout-multihop-cost-probe/1"
+    assert result["schema"] == "daedalus-tensor-heldout-multihop-cost-probe/2"
     assert result["authority"] == "diagnostic-only"
     assert result["claim"] == "none"
     assert result["held_out"] is True
@@ -304,6 +417,23 @@ def test_heldout_multihop_probe_preserves_exact_subject() -> None:
         "forest_preindexed",
         "forest_plus_tensor",
     }
+
+    suite = result["query_suite"]
+    assert suite["queries"] == HELDOUT_QUERY_SUITE_SPEC["queries"]
+    assert len(suite["query_suite_spec_sha256"]) == 64
+    assert suite["result_count"] == 128
+    assert len(suite["result_sha256"]) == 64
+    assert set(suite["arms"]) == {
+        "forest_direct",
+        "forest_preindexed",
+        "forest_plus_tensor",
+    }
+    assert set(suite["tensor_break_even_query_suites"]) == {
+        "vs_forest_direct",
+        "vs_forest_preindexed",
+    }
+    for value in suite["tensor_break_even_query_suites"].values():
+        assert value is None or (type(value) is int and value >= 0)
 
 
 def test_heldout_probe_bounds_subject_size() -> None:
