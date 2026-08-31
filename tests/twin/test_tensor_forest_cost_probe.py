@@ -194,6 +194,30 @@ def _relation_forest_query(subject: KnowledgeForest) -> tuple[str, ...]:
     return tuple(sorted(documented & importing))
 
 
+def _relation_forest_index(
+    subject: KnowledgeForest,
+) -> dict[tuple[str, str, str], frozenset[str]]:
+    kind_by_node = {node.id: node.kind for node in subject.nodes}
+    buckets: dict[tuple[str, str, str], set[str]] = {}
+    for edge in subject.edges:
+        source_kind = kind_by_node.get(edge.source)
+        target_kind = kind_by_node.get(edge.target)
+        if source_kind is None or target_kind is None:
+            continue
+        key = (edge.relation, source_kind, target_kind)
+        buckets.setdefault(key, set()).add(edge.source)
+    return {key: frozenset(values) for key, values in buckets.items()}
+
+
+def _relation_forest_preindexed_query(
+    subject: tuple[KnowledgeForest, dict[tuple[str, str, str], frozenset[str]]],
+) -> tuple[str, ...]:
+    _, index = subject
+    documented = index[("documents", "source_file", "document")]
+    importing = index[("imports", "source_file", "source_file")]
+    return tuple(sorted(documented & importing))
+
+
 def _relation_tensor_query(subject: TensorView) -> tuple[str, ...]:
     positions = {axis.name: index for index, axis in enumerate(subject.axes)}
     source_position = positions["source"]
@@ -336,6 +360,19 @@ def relation_probe(
         query_iterations=query_iterations,
     )
 
+    def build_preindexed_forest_arm() -> tuple[
+        KnowledgeForest, dict[tuple[str, str, str], frozenset[str]]
+    ]:
+        forest = _relation_forest(size)
+        return forest, _relation_forest_index(forest)
+
+    preindexed_metrics, preindexed_result = _measure(
+        build_preindexed_forest_arm,
+        _relation_forest_preindexed_query,
+        repeats=repeats,
+        query_iterations=query_iterations,
+    )
+
     def build_tensor_arm() -> tuple[KnowledgeForest, TensorView]:
         forest = _relation_forest(size)
         return forest, _relation_tensor(forest)
@@ -347,11 +384,11 @@ def relation_probe(
         query_iterations=query_iterations,
     )
 
-    if forest_result != tensor_result:
-        raise AssertionError("tensor projection changed the direct cross-plane Forest query subject")
+    if forest_result != preindexed_result or forest_result != tensor_result:
+        raise AssertionError("comparison arm changed the direct cross-plane Forest query subject")
 
     return {
-        "schema": "daedalus-tensor-forest-relation-cost-probe/1",
+        "schema": "daedalus-tensor-forest-relation-cost-probe/2",
         "authority": "diagnostic-only",
         "claim": "none",
         "workload": "documented-import-sources",
@@ -366,6 +403,7 @@ def relation_probe(
         ).hexdigest(),
         "arms": {
             "forest_direct": forest_metrics,
+            "forest_preindexed": preindexed_metrics,
             "forest_plus_tensor": tensor_metrics,
         },
     }
@@ -400,7 +438,7 @@ def test_cost_probe_reports_equal_budget_arms_without_speed_claim() -> None:
 def test_relation_probe_matches_cross_plane_multi_relation_forest_subject() -> None:
     result = relation_probe(size=64, repeats=1, query_iterations=2)
 
-    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/1"
+    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/2"
     assert result["workload"] == "documented-import-sources"
     assert result["node_count"] == 128
     assert result["edge_count"] == 96
@@ -415,7 +453,11 @@ def test_relation_cost_probe_reports_equal_budget_arms_without_speed_claim() -> 
     assert result["authority"] == "diagnostic-only"
     assert result["repeats"] == 2
     assert result["query_iterations_per_repeat"] == 3
-    assert set(result["arms"]) == {"forest_direct", "forest_plus_tensor"}
+    assert set(result["arms"]) == {
+        "forest_direct",
+        "forest_preindexed",
+        "forest_plus_tensor",
+    }
     for metrics in result["arms"].values():
         assert all(type(value) is int and value >= 0 for value in metrics.values())
 
