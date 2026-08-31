@@ -1,7 +1,7 @@
 """A census: which canonical contracts are actually produced in production.
 
 This is the test that would have caught the gap in the first place. Every
-Gate-0 contract in ``daedalus/schemas.py`` was well-specified, strictly
+Gate-0 contract in ``daedalus/kernel/contracts/canonical.py`` was well-specified, strictly
 validated, thoroughly unit-tested -- and seven of eight had no caller outside
 ``tests/``. Unit tests cannot see that, because a unit test IS the caller. So
 this file walks the production tree with ``ast`` and asks a different question:
@@ -68,8 +68,8 @@ def _production_modules():
     for path in sorted(PRODUCTION.rglob("*.py")):
         if "__pycache__" in path.parts:
             continue
-        # The schema module defines the contracts; defining is not producing.
-        if path.name == "schemas.py":
+        # The canonical module defines the contracts; defining is not producing.
+        if path.relative_to(ROOT).as_posix() == "daedalus/kernel/contracts/canonical.py":
             continue
         yield path
 

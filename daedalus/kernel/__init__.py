@@ -3,7 +3,8 @@
 The concrete capability modules own their implementations. This package only
 preserves the historical root reexports, loading an owner when (and only when)
 one of its names is requested. This package is not a second contract authority;
-canonical wire contracts remain in :mod:`daedalus.schemas`.
+canonical wire contracts are owned by :mod:`daedalus.kernel.contracts` while
+:mod:`daedalus.schemas` remains an object-identical compatibility facade.
 
 The frozen Gate-1 WIP references a Campaign slice that is not present. Its
 compatibility names remain declared so the gap is visible, but requesting one

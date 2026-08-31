@@ -1,11 +1,6 @@
-"""Compatibility facade for :mod:`daedalus.kernel.policy.limits`.
+"""Kernel-owned policy contracts."""
 
-This module intentionally contains no policy state or implementation. Existing
-imports receive the exact same class and function objects as the canonical
-kernel owner.
-"""
-
-from daedalus.kernel.policy.limits import (
+from .limits import (
     ENV_EXECUTION_LIMIT_POLICY,
     LIMIT_AXES,
     LIMIT_MODES,

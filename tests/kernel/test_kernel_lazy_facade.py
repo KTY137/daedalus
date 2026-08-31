@@ -159,7 +159,13 @@ def test_one_reexport_loads_only_its_owner_and_keeps_identity():
     )
     assert observed == {
         "same": True,
-        "loaded": ["daedalus.kernel.contracts"],
+        "loaded": [
+            "daedalus.kernel.contracts",
+            "daedalus.kernel.contracts.canonical",
+            "daedalus.kernel.contracts.security",
+            "daedalus.kernel.policy",
+            "daedalus.kernel.policy.limits",
+        ],
     }
 
 
