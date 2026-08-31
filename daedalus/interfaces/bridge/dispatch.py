@@ -88,6 +88,25 @@ class QuarantineMovePending(RuntimeError):
         )
 
 
+class TerminalBookkeepingPending(RuntimeError):
+    """A durable terminal report still has unfinished local bookkeeping.
+
+    The report is authoritative and must never be replaced by a quarantine
+    report merely because its arrival log, memory projection or archive move
+    failed. The crash journal names the unfinished step; replay resumes below
+    both provider dispatch and conversation projection.
+    """
+
+    def __init__(self, key: str, step: str, cause: BaseException) -> None:
+        self.key = str(key)
+        self.step = str(step)
+        self.cause = cause
+        super().__init__(
+            f"terminal report bookkeeping pending for {self.key} "
+            f"at {self.step}: {type(cause).__name__}: {cause}"
+        )
+
+
 @dataclass(frozen=True)
 class IdentityConflictPorts:
     """Authority used to retain one contradictory request outside the key."""
@@ -122,6 +141,18 @@ class QuarantinePorts:
     conversation_projection_failed: Callable[..., BaseException]
     note_report_arrival: Callable[..., None]
     quarantine_move: Callable[[Path, str], bool]
+
+
+@dataclass(frozen=True)
+class TerminalBookkeepingPorts:
+    """All local projections below an already durable terminal report."""
+
+    now_iso: Callable[[], str]
+    write_journal: Callable[[str, dict[str, Any]], None]
+    note_report_arrival: Callable[..., None]
+    memory_already_recorded: Callable[[str], bool]
+    record_from_bridge_report: Callable[[dict[str, Any]], Any]
+    archive_once: Callable[[Path, str], bool]
 
 
 @dataclass(frozen=True)
@@ -338,6 +369,76 @@ def quarantine_request(
             key, projection_failure
         ) from projection_failure
     return result_path
+
+
+def finish_terminal_report(
+    path: Path,
+    key: str,
+    result_path: Path,
+    report: dict[str, Any],
+    entry: dict[str, Any],
+    steps: dict[str, Any],
+    *,
+    ports: TerminalBookkeepingPorts,
+    terminal_state: str = "done",
+) -> None:
+    """Finish local projections below one durable terminal report."""
+
+    def pending(step: str, cause: Exception) -> TerminalBookkeepingPending:
+        diagnostic = {
+            "step": step,
+            "type": type(cause).__name__,
+            "message": str(cause)[:1000],
+            "at": ports.now_iso(),
+        }
+        failures = entry.get("terminal_bookkeeping_failures")
+        history = list(failures) if isinstance(failures, list) else []
+        history.append(diagnostic)
+        entry["terminal_bookkeeping_failures"] = history[-20:]
+        entry["terminal_bookkeeping_error"] = diagnostic
+        entry["state"] = (
+            "projection_failed"
+            if terminal_state == "done_with_projection_error"
+            else "bookkeeping_pending"
+        )
+        try:
+            ports.write_journal(key, entry)
+        except Exception as journal_exc:
+            diagnostic["journal_error"] = {
+                "type": type(journal_exc).__name__,
+                "message": str(journal_exc)[:1000],
+            }
+        return TerminalBookkeepingPending(key, step, cause)
+
+    try:
+        if not steps.get("log"):
+            ports.note_report_arrival(result_path, report, key=key)
+            steps["log"] = True
+            ports.write_journal(key, entry)
+    except Exception as exc:
+        raise pending("log", exc) from exc
+
+    try:
+        memory_step = steps.get("memory")
+        if memory_step is not True:
+            if memory_step != "pending" or not ports.memory_already_recorded(key):
+                steps["memory"] = "pending"
+                ports.write_journal(key, entry)
+                ports.record_from_bridge_report(report)
+            steps["memory"] = True
+            ports.write_journal(key, entry)
+    except Exception as exc:
+        raise pending("memory", exc) from exc
+
+    try:
+        if not ports.archive_once(path, key):
+            raise OSError(f"could not archive request {path}")
+        steps["archive"] = True
+        entry["state"] = terminal_state
+        entry.pop("terminal_bookkeeping_error", None)
+        ports.write_journal(key, entry)
+    except Exception as exc:
+        raise pending("archive", exc) from exc
 
 
 def claim_and_dispatch_request(

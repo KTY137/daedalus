@@ -108,24 +108,7 @@ class WatcherNotRunning(RuntimeError):
 
 ConversationProjectionPending = bridge_conversation.ConversationProjectionPending
 ConversationProjectionFailed = bridge_conversation.ConversationProjectionFailed
-
-
-class TerminalBookkeepingPending(RuntimeError):
-    """A durable terminal report still has unfinished local bookkeeping.
-
-    The report is authoritative and must never be replaced by a quarantine
-    report merely because its arrival log, memory projection or archive move
-    failed.  The crash journal names the unfinished step; replay resumes below
-    both provider dispatch and conversation projection.
-    """
-
-    def __init__(self, key: str, step: str, cause: BaseException) -> None:
-        self.key = str(key)
-        self.step = str(step)
-        self.cause = cause
-        super().__init__(
-            f"terminal report bookkeeping pending for {self.key} "
-            f"at {self.step}: {type(cause).__name__}: {cause}")
+TerminalBookkeepingPending = bridge_dispatch.TerminalBookkeepingPending
 
 
 RequestIdentityConflict = bridge_dispatch.RequestIdentityConflict
@@ -788,73 +771,23 @@ def _finish_terminal_report(
     cleanly without either rerunning paid work or routing a valid report
     through poison quarantine.
     """
-    def pending(step: str, cause: Exception) -> TerminalBookkeepingPending:
-        diagnostic = {
-            "step": step,
-            "type": type(cause).__name__,
-            "message": str(cause)[:1000],
-            "at": _now_iso(),
-        }
-        failures = entry.get("terminal_bookkeeping_failures")
-        history = list(failures) if isinstance(failures, list) else []
-        history.append(diagnostic)
-        # Retain bounded negative evidence without making an unhealthy watcher
-        # grow its recovery journal forever.
-        entry["terminal_bookkeeping_failures"] = history[-20:]
-        entry["terminal_bookkeeping_error"] = diagnostic
-        entry["state"] = (
-            "projection_failed"
-            if terminal_state == "done_with_projection_error"
-            else "bookkeeping_pending"
-        )
-        try:
-            _write_journal(key, entry)
-        except Exception as journal_exc:
-            # The report is already durable, so even an unavailable journal is
-            # not authority to overwrite it.  Keep the original failure as the
-            # retry reason and expose the secondary diagnostic on the raised
-            # exception object below.
-            diagnostic["journal_error"] = {
-                "type": type(journal_exc).__name__,
-                "message": str(journal_exc)[:1000],
-            }
-        return TerminalBookkeepingPending(key, step, cause)
-
-    # -- arrival line (deduped by key, inside _note_report_arrival) ----------
-    try:
-        if not steps.get("log"):
-            _note_report_arrival(result_path, report, key=key)
-            steps["log"] = True
-            _write_journal(key, entry)
-    except Exception as exc:
-        raise pending("log", exc) from exc
-
-    # -- memory record ------------------------------------------------------
-    try:
-        memory_step = steps.get("memory")
-        if memory_step is not True:
-            # "pending" means we died with the append in flight -- the only
-            # state the flag cannot resolve, and the only time we pay for a
-            # log scan.
-            if memory_step != "pending" or not _memory_already_recorded(key):
-                steps["memory"] = "pending"
-                _write_journal(key, entry)
-                record_from_bridge_report(report)
-            steps["memory"] = True
-            _write_journal(key, entry)
-    except Exception as exc:
-        raise pending("memory", exc) from exc
-
-    # -- archive ------------------------------------------------------------
-    try:
-        if not _archive_once(path, key):
-            raise OSError(f"could not archive request {path}")
-        steps["archive"] = True
-        entry["state"] = terminal_state
-        entry.pop("terminal_bookkeeping_error", None)
-        _write_journal(key, entry)
-    except Exception as exc:
-        raise pending("archive", exc) from exc
+    return bridge_dispatch.finish_terminal_report(
+        path,
+        key,
+        result_path,
+        report,
+        entry,
+        steps,
+        ports=bridge_dispatch.TerminalBookkeepingPorts(
+            now_iso=_now_iso,
+            write_journal=_write_journal,
+            note_report_arrival=_note_report_arrival,
+            memory_already_recorded=_memory_already_recorded,
+            record_from_bridge_report=record_from_bridge_report,
+            archive_once=_archive_once,
+        ),
+        terminal_state=terminal_state,
+    )
 
 
 def process_request(path: Path, default_repo_root: str | None = None) -> Path:

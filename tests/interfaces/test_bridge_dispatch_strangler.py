@@ -127,6 +127,10 @@ def test_legacy_quarantine_exceptions_are_dispatch_owner_objects() -> None:
     assert file_bridge.RequestIdentityConflict is dispatch.RequestIdentityConflict
     assert file_bridge.TerminalReportPreserved is dispatch.TerminalReportPreserved
     assert file_bridge.QuarantineMovePending is dispatch.QuarantineMovePending
+    assert (
+        file_bridge.TerminalBookkeepingPending
+        is dispatch.TerminalBookkeepingPending
+    )
 
 
 def test_quarantine_facades_each_delegate_to_one_dispatch_owner() -> None:
@@ -136,6 +140,7 @@ def test_quarantine_facades_each_delegate_to_one_dispatch_owner() -> None:
         ),
         "quarantine_request": "quarantine_request",
         "_quarantine_move": "move_quarantined_request",
+        "_finish_terminal_report": "finish_terminal_report",
     }
     for facade_name, owner_name in owners.items():
         wrapper = _function(FACADE, facade_name)
@@ -147,6 +152,7 @@ def test_quarantine_facade_contains_no_persistence_state_machine_calls() -> None
         _function(FACADE, "_quarantine_request_identity_conflict"),
         _function(FACADE, "quarantine_request"),
         _function(FACADE, "_quarantine_move"),
+        _function(FACADE, "_finish_terminal_report"),
     ]
     direct_calls = {
         child.func.id
@@ -162,6 +168,9 @@ def test_quarantine_facade_contains_no_persistence_state_machine_calls() -> None
         "_write_json_atomic",
         "_project_report_to_conversation",
         "_note_report_arrival",
+        "_memory_already_recorded",
+        "record_from_bridge_report",
+        "_archive_once",
     } & direct_calls
 
 
