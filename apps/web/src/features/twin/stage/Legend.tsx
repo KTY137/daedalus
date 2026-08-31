@@ -1,4 +1,4 @@
-import type { ThemeSpec } from '../../theme/types';
+import type { ThemeSpec } from '@/shared/ui/theme/types';
 import { tierInk } from './Glyph';
 
 /**

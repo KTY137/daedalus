@@ -1,4 +1,4 @@
-import type { StructureGraph, StructureGraphEdge, StructureGraphNode } from '../types';
+import type { StructureGraph, StructureGraphEdge, StructureGraphNode } from '@/shared/contracts';
 
 /**
  * The neighbourhood model behind the stage.

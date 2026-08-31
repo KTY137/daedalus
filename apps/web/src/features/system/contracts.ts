@@ -3,13 +3,13 @@ import type {
   ControlPlanePayload,
   DashboardPayload,
   HierarchyPayload
-} from '../../types';
+} from '@/shared/contracts';
 import type {
   LoopArchitecturePayload,
   LoopAttemptsPayload,
   LoopQueuePayload,
   ProviderStatusPayload
-} from '../../api';
+} from '@/shared/api';
 
 /** A failed read is evidence in its own right; it never becomes an empty row. */
 export interface CapabilityFailure {

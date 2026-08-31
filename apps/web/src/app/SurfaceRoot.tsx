@@ -1,5 +1,5 @@
-import { Cockpit } from '../cockpit/Cockpit';
-import { ThemeProvider } from '../theme/ThemeProvider';
+import { ThemeProvider } from '@/shared/ui/theme/ThemeProvider';
+import { Cockpit } from './Cockpit';
 import { resolveSurface } from './surface';
 
 export function SurfaceRoot({ search }: { search: string }) {

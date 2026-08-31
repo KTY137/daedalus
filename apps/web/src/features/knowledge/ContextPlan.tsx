@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
-import { getContextPlan } from '../api';
-import type { ContextPlanPayload } from '../types';
-import { shortLabel } from './graph';
+import { getContextPlan } from '@/shared/api';
+import type { ContextPlanPayload } from '@/shared/contracts';
+import { shortLabel } from '@/features/twin/graph';
 
 /**
  * What would be read, before anything reads it.

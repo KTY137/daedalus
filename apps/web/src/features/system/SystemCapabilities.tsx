@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { AgentProfile, ControlPlanePayload } from '../../types';
+import type { AgentProfile, ControlPlanePayload } from '@/shared/contracts';
 import type { CapabilityResult, SystemCapabilitiesSnapshot } from './contracts';
 import {
   loadSystemCapabilities,

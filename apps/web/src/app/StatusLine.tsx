@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { HealthPayload } from '../api';
-import type { GovernancePayload, StructurePayload, TopologyPayload } from '../types';
+import type { HealthPayload } from '@/shared/api';
+import type { GovernancePayload, StructurePayload, TopologyPayload } from '@/shared/contracts';
 
 /**
  * Two lines of state, and every item in it is a fact somebody can check.

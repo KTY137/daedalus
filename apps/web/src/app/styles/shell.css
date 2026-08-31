@@ -3,7 +3,7 @@
  * grids the body switches between.
  *
  * Loaded first by cockpit.css, which owns the order of all six modules. Every
- * value comes from a theme token (theme/apply.ts); a hard-coded colour, radius
+ * value comes from a theme token (shared/ui/theme/apply.ts); a hard-coded colour, radius
  * or type size here is a value one of the six designs cannot reach.
  */
 
@@ -38,7 +38,7 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 
 .cockpit .muted { color: var(--ink3); }
 /* No 0.92em here. The smallest step of the scale is already at the 11px floor
-   (theme/apply.ts), and shrinking `code` inside it produced 8.7px text on the
+   (shared/ui/theme/apply.ts), and shrinking `code` inside it produced 8.7px text on the
    shipped build. Monospace reads larger at the same nominal size anyway. */
 .cockpit code, .cockpit .mono { font-family: var(--font-mono); font-size: inherit; }
 

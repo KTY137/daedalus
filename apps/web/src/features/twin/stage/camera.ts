@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DURATION_MS, EASE, useReducedMotionPref } from '../../motion';
+import { DURATION_MS, EASE, useReducedMotionPref } from '@/shared/ui/motion';
 
 /**
  * The camera over the stage, and the depth it looks into.

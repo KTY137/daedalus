@@ -18,7 +18,7 @@
    hands transform/opacity ownership to JS on exactly those nodes. Nothing
    here changes a value; it only decides which engine is allowed to move it.
 
-   This file is loaded from src/motion/index.ts, which every motion-driven
+   This file is loaded from src/shared/ui/motion/index.ts, which every motion-driven
    glass primitive imports. It never edits styles.css.
    ========================================================================= */
 

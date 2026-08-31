@@ -1,4 +1,4 @@
-import type { StructureGraphNode } from '../types';
+import type { StructureGraphNode } from '@/shared/contracts';
 import { shortLabel, type Neighbour, type Neighbourhood } from './graph';
 
 /**

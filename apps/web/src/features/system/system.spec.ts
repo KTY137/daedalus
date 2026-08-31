@@ -1,5 +1,5 @@
-import { ApiError } from '../../api';
-import type { ControlPlanePayload } from '../../types';
+import { ApiError } from '@/shared/api';
+import type { ControlPlanePayload } from '@/shared/contracts';
 import {
   agentAutonomyPatch,
   loadSystemCapabilities,

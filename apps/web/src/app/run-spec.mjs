@@ -17,10 +17,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..', '..');
 
 function trackedFrontendSources() {
-  const output = execFileSync('git', ['ls-files', '-z', '--', 'apps/web/src'], {
-    cwd: repoRoot,
-    encoding: 'utf8'
-  });
+  const output = execFileSync(
+    'git',
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'apps/web/src'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8'
+    }
+  );
   return output
     .split('\0')
     .filter((entry) => /\.(?:ts|tsx)$/.test(entry))
@@ -36,6 +40,104 @@ async function architectureSpec() {
     await Promise.all(
       files.map(async (file) => [file, await readFile(path.join(repoRoot, file), 'utf8')])
     )
+  );
+
+  const expectedImportShims = new Map([
+    ['apps/web/src/api.ts', "export * from './shared/api';"],
+    ['apps/web/src/types.ts', "export * from './shared/contracts';"],
+    ['apps/web/src/cockpit/Cockpit.tsx', "export { Cockpit } from '../app/Cockpit';"],
+    ['apps/web/src/cockpit/Conversation.tsx', "export * from '../features/conversation/Conversation';"],
+    ['apps/web/src/cockpit/Decision.tsx', "export * from '../features/mission/Decision';"],
+    ['apps/web/src/cockpit/IdeWorkspace.tsx', "export * from '../features/ide/IdeWorkspace';"],
+    ['apps/web/src/cockpit/ProjectDialog.tsx', "export * from '../features/projects/ProjectDialog';"],
+    ['apps/web/src/components/GlassSurface.tsx', "export { default } from '../shared/ui/glass/GlassSurface';\nexport type { GlassSurfaceProps } from '../shared/ui/glass/GlassSurface';"],
+    ['apps/web/src/motion/index.ts', "export * from '../shared/ui/motion';"],
+    ['apps/web/src/motion/tokens.ts', "export * from '../shared/ui/motion/tokens';"],
+    ['apps/web/src/motion/useMotion.ts', "export * from '../shared/ui/motion/useMotion';"],
+    ['apps/web/src/theme/ThemeProvider.tsx', "export * from '../shared/ui/theme/ThemeProvider';"],
+    ['apps/web/src/theme/presets.ts', "export * from '../shared/ui/theme/presets';"]
+  ]);
+
+  const outsideHierarchy = files.filter((file) => {
+    if (file === 'apps/web/src/main.tsx') return false;
+    if (/^apps\/web\/src\/(?:app|features|shared)\//.test(file)) return false;
+    return !expectedImportShims.has(file);
+  });
+  check(
+    'tracked TypeScript implementation lives under app, features or shared',
+    outsideHierarchy.length === 0,
+    outsideHierarchy.join(', ')
+  );
+
+  const changedShims = [...expectedImportShims].filter(
+    ([file, expected]) => (sources.get(file) || '').trim() !== expected
+  );
+  check(
+    'reviewed legacy TypeScript paths are import-only compatibility shims',
+    changedShims.length === 0,
+    changedShims.map(([file]) => file).join(', ')
+  );
+
+  const hierarchyRegistry = JSON.parse(
+    await readFile(path.join(repoRoot, 'apps/web/src/app/hierarchy-shims.json'), 'utf8')
+  );
+  const registeredPaths = hierarchyRegistry.entries.flatMap((entry) => entry.paths).sort();
+  const expectedRegisteredPaths = [
+    ...expectedImportShims.keys(),
+    'apps/web/src/components/GlassSurface.css',
+    'apps/web/src/motion/run-spec.mjs'
+  ].sort();
+  check(
+    'every retained hierarchy shim is registered exactly once',
+    JSON.stringify(registeredPaths) === JSON.stringify(expectedRegisteredPaths),
+    `registered=${registeredPaths.length} expected=${expectedRegisteredPaths.length}`
+  );
+  const glassCssShim = await readFile(
+    path.join(repoRoot, 'apps/web/src/components/GlassSurface.css'),
+    'utf8'
+  );
+  check(
+    'the retained GlassSurface stylesheet path is import-only',
+    glassCssShim.trim() === "@import '../shared/ui/glass/GlassSurface.css';"
+  );
+  const motionCommandAdapter = await readFile(
+    path.join(repoRoot, 'apps/web/src/motion/run-spec.mjs'),
+    'utf8'
+  );
+  check(
+    'the unchanged motion command delegates to the shared/UI spec owner',
+    motionCommandAdapter.includes("'shared', 'ui', 'motion', 'motion.spec.ts'")
+  );
+  check(
+    'every registered hierarchy shim has evidence and removal criteria',
+    hierarchyRegistry.entries.every(
+      (entry) => entry.reason.length > 40 && entry.removal_criteria.length > 60
+    )
+  );
+
+  const productionBundle = await build({
+    absWorkingDir: repoRoot,
+    entryPoints: ['apps/web/src/main.tsx'],
+    alias: { '@': path.join(repoRoot, 'apps/web/src') },
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    outdir: path.join(tmpdir(), 'daedalus-hierarchy-spec'),
+    write: false,
+    metafile: true,
+    logLevel: 'warning'
+  });
+  const productionInputs = Object.keys(productionBundle.metafile.inputs)
+    .map((input) => path.relative(repoRoot, path.isAbsolute(input) ? input : path.resolve(repoRoot, input)).split(path.sep).join('/'))
+    .filter((input) => input.startsWith('apps/web/src/'))
+    .sort();
+  const nonHierarchicalInputs = productionInputs.filter(
+    (input) => input !== 'apps/web/src/main.tsx' && !/^apps\/web\/src\/(?:app|features|shared)\//.test(input)
+  );
+  check(
+    'the shipping esbuild graph reaches only app, feature and shared owners',
+    nonHierarchicalInputs.length === 0,
+    `inputs=${productionInputs.length}${nonHierarchicalInputs.length ? ` offenders=${nonHierarchicalInputs.join(',')}` : ''}`
   );
 
   const rootCalls = [];
@@ -58,8 +160,8 @@ async function architectureSpec() {
   );
 
   const owner = sources.get('apps/web/src/app/SurfaceRoot.tsx') || '';
-  check('SurfaceRoot owns the Cockpit import', owner.includes("from '../cockpit/Cockpit'"));
-  check('SurfaceRoot owns the provider composition', owner.includes("from '../theme/ThemeProvider'"));
+  check('SurfaceRoot owns the canonical Cockpit import', owner.includes("from './Cockpit'"));
+  check('SurfaceRoot owns the shared theme-provider composition', owner.includes("from '@/shared/ui/theme/ThemeProvider'"));
   check('SurfaceRoot has no lazy or conditional application implementation', !/\blazy\b|\bSuspense\b|import\(['"]\.\.\/App['"]\)/.test(owner));
 
   const appImporters = [...sources.entries()]
@@ -96,6 +198,8 @@ try {
       system: path.join(here, '..', 'features', 'system', 'system.spec.ts')
     },
     bundle: true,
+    absWorkingDir: repoRoot,
+    alias: { '@': path.join(repoRoot, 'apps/web/src') },
     format: 'esm',
     platform: 'node',
     target: 'node18',

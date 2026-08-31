@@ -1,9 +1,9 @@
 /**
- * Runner for motion.spec.ts.
+ * Compatibility runner for the canonical shared/UI motion spec.
  *
  * apps/web has no test framework and the brief forbids adding a dependency
  * without an argument for it. There is a better option: esbuild is already
- * installed as a vite dependency, and motion.spec.ts is deliberately pure —
+ * installed as a vite dependency, and the canonical motion spec is deliberately pure —
  * no React, no DOM, no framer-motion runtime (its framer-motion import is
  * type-only and erases). So the spec bundles to a few kB of plain ESM and
  * runs in node directly.
@@ -34,20 +34,17 @@ const here = path.dirname(fileURLToPath(import.meta.url));
  *   G2  No component may write a duration, easing or spring literal. A magic
  *       number in a component is how a design system dies.
  *
- * Scope: the shared motion primitives and the shipping Cockpit surfaces.
- * `cockpit/` and `theme/` are in scope too now that the cockpit surface has
- * started consuming framer-motion directly (Settings.tsx, ThemeStudio.tsx,
- * and — as the other cockpit lanes wire in the primitives documented in
- * docs/design/handoffs-2026-08-26/bewegung.md — Conversation.tsx, Stage.tsx,
- * Cockpit.tsx). A guard that only watches the surface the app no longer ships
- * as the default is a guard watching the wrong door. Walked recursively so a
- * new subdirectory (e.g. `cockpit/stage/`) is covered without editing this
- * file again.
+ * Scope: every shipping app/feature surface plus the shared glass and theme
+ * owners. Walked recursively so a new feature directory is covered without
+ * editing this file again. The implementation vocabulary itself lives only in
+ * `src/shared/ui/motion`; this old command path remains because package.json
+ * and existing CI invoke it directly.
  */
 const SCAN_ROOTS = [
-  path.resolve(here, '..', 'components', 'glass'),
-  path.resolve(here, '..', 'cockpit'),
-  path.resolve(here, '..', 'theme')
+  path.resolve(here, '..', 'app'),
+  path.resolve(here, '..', 'features'),
+  path.resolve(here, '..', 'shared', 'ui', 'glass'),
+  path.resolve(here, '..', 'shared', 'ui', 'theme')
 ];
 
 async function walkTsx(dir) {
@@ -95,7 +92,7 @@ async function sourceGuards() {
 
     const found = MAGIC.filter(([re]) => re.test(source)).map(([, magicLabel]) => magicLabel);
     results.push({
-      name: `G2 ${label}: no motion literal outside src/motion`,
+      name: `G2 ${label}: no motion literal outside src/shared/ui/motion`,
       ok: found.length === 0,
       detail: found.join(', ')
     });
@@ -108,7 +105,7 @@ const outfile = path.join(workdir, 'spec.mjs');
 
 try {
   await build({
-    entryPoints: [path.join(here, 'motion.spec.ts')],
+    entryPoints: [path.resolve(here, '..', 'shared', 'ui', 'motion', 'motion.spec.ts')],
     bundle: true,
     format: 'esm',
     platform: 'node',

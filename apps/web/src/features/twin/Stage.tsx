@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ThemeSpec } from '../theme/types';
+import type { ThemeSpec } from '@/shared/ui/theme/types';
 import { shortLabel, type Neighbourhood } from './graph';
 import { DEFAULT_BUDGET, LABEL_PX, MORE_ID, labelSizeFor, layoutFor, type Line, type Placed } from './layout';
 import { HOME, planeShift, useCamera } from './stage/camera';

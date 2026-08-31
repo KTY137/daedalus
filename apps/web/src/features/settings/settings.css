@@ -4,7 +4,7 @@
  * 14px for exactly the reason a flex column shrinks its children.
  *
  * Transform and opacity are owned by framer-motion (`drawerVariants` from
- * `../motion`, driven in Settings.tsx) rather than by a CSS transition here —
+ * `shared/ui/motion`, driven in Settings.tsx) rather than by a CSS transition here —
  * see motion.css's `.settings[data-motion]` handoff rule. This file only
  * keeps the static base position/appearance and the `pointer-events` toggle,
  * which `drawerVariants` does not animate.

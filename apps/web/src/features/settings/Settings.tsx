@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { getEnvStatus, getRuntimeStatus, testRuntime, type EnvStatusPayload } from '../api';
-import type { RuntimeRow } from '../types';
-import { drawerVariants, useReducedMotionPref } from '../motion';
-import { SystemCapabilities } from '../features/system/SystemCapabilities';
+import { getEnvStatus, getRuntimeStatus, testRuntime, type EnvStatusPayload } from '@/shared/api';
+import type { RuntimeRow } from '@/shared/contracts';
+import { drawerVariants, useReducedMotionPref } from '@/shared/ui/motion';
+import { SystemCapabilities } from '@/features/system/SystemCapabilities';
 import {
   AUTONOMY_LEVELS,
   readAutonomyLog,

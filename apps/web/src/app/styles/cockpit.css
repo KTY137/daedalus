@@ -2,7 +2,7 @@
  * The cockpit's stylesheet, as six modules in one cascade.
  *
  * Everything visual comes from the custom properties the active theme writes
- * (see theme/apply.ts). There are no hard-coded colours, no hard-coded radii
+ * (see shared/ui/theme/apply.ts). There are no hard-coded colours, no hard-coded radii
  * and no hard-coded type sizes anywhere below — a value written here that a
  * theme cannot reach is a value that makes one of the six designs impossible.
  *
@@ -28,10 +28,10 @@
  * list and the command palette), responsive.
  */
 @import './shell.css';
-@import './stage.css';
+@import '../../features/twin/stage.css';
 @import './materials.css';
-@import './conversation.css';
+@import '../../features/conversation/conversation.css';
 @import './instruments.css';
 @import './overlays.css';
-@import './ide.css';
+@import '../../features/ide/ide.css';
 @import './responsive.css';

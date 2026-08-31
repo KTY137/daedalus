@@ -9,8 +9,8 @@ import {
   getLoopQueue,
   getProviderStatus,
   updateAutonomy
-} from '../../api';
-import type { ControlPlanePayload } from '../../types';
+} from '@/shared/api';
+import type { ControlPlanePayload } from '@/shared/contracts';
 import type {
   CapabilityFailure,
   CapabilityResult,
