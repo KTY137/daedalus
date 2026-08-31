@@ -6,6 +6,7 @@ Fourfold remain authoritative; this module adds no fifth plane or state store.
 from __future__ import annotations
 
 import math
+from bisect import bisect_left
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, ClassVar, Mapping, Sequence
@@ -237,8 +238,10 @@ class TensorView(CanonicalContract):
     def index_coordinate(self, entry: SparseTensorEntry) -> tuple[int, ...]:
         if entry not in self.entries:
             raise ValueError("entry is not retained by this TensorView")
-        coordinate = entry.coordinate_map
-        return tuple(axis.labels.index(coordinate[axis.name]) for axis in self.axes)
+        return tuple(
+            bisect_left(axis.labels, entry.coordinates[position][1])
+            for position, axis in enumerate(self.axes)
+        )
 
     def select(self, **coordinates: str) -> tuple[SparseTensorEntry, ...]:
         normalized: dict[int, str] = {}
