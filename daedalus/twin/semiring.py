@@ -251,6 +251,28 @@ class EvidenceDagSemiring:
         return EvidenceValue(clauses)
 
 
+def verified_cell_evidence(cell: Any) -> EvidenceValue:
+    """Project one already evaluator-verified Fourfold 2-cell into provenance algebra.
+
+    This observer does not verify a cell and cannot upgrade its status.  It only
+    turns the rewrite and observer receipt digests already carried by an
+    ``EVALUATOR_VERIFIED`` cell into one conjunctive evidence term.  Law
+    identities map to semiring ``one`` because the 2-cell contract is the
+    authority that permits a verified identity without an observer receipt.
+    """
+
+    from .two_category import Transformation2Cell, VerificationStatus
+
+    if not isinstance(cell, Transformation2Cell):
+        raise ValueError("cell must be Transformation2Cell")
+    if cell.status is not VerificationStatus.EVALUATOR_VERIFIED:
+        raise ValueError("only evaluator_verified 2-cells have verified path evidence")
+    atoms = tuple(sorted(set(cell.rewrite_sha256s) | set(cell.observer_receipts)))
+    if not atoms:
+        return EvidenceDagSemiring.one
+    return EvidenceValue((atoms,))
+
+
 __all__ = [
     "MAX_EVIDENCE_ALTERNATIVES",
     "MAX_EVIDENCE_PRODUCT_CANDIDATES",
@@ -261,4 +283,5 @@ __all__ = [
     "NaturalSemiring",
     "Semiring",
     "TropicalSemiring",
+    "verified_cell_evidence",
 ]
