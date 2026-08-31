@@ -10,12 +10,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from daedalus.build import BuildSession
 from daedalus.build_exec import BuildRunReport, EffectBounds, WaveExecutor
+from daedalus.ikarus_supervisor import MissionSupervisor
 from daedalus.schemas import MissionContract, ResourceBudget
 from daedalus.spine.receipts import mission_contract_for_build_session
+
+from .one_shot import validate_one_shot_effects
+from .supervisor_projection import (
+    begin_supervisor_projection,
+    finish_supervisor_projection,
+)
 
 
 def _created_at() -> str:
@@ -63,6 +70,22 @@ def _validate_effect_binding(
         raise ValueError("executor EffectBounds trace_id does not match the mission")
 
 
+def _projection_error(
+    supervisor: MissionSupervisor,
+    phase: str,
+    error: Exception,
+) -> None:
+    """Retain a bounded diagnostic without making a projection authoritative."""
+
+    message = f"{phase}: {type(error).__name__}: {error}"[:1000]
+    try:
+        supervisor.projection_errors.append(message)
+    except Exception:
+        # A caller may have corrupted this informational list.  That still
+        # cannot replace or suppress the canonical WaveExecutor result.
+        pass
+
+
 def run_mission(
     session: BuildSession,
     *,
@@ -79,6 +102,8 @@ def run_mission(
     runs_dir: str | Path | None = None,
     update_architecture: bool = True,
     persist_session: bool = True,
+    supervisor: MissionSupervisor | None = None,
+    one_shot_effects: Mapping[str, object] | None = None,
 ) -> tuple[MissionContract, BuildRunReport]:
     """Compile and execute one existing ``BuildSession`` as one mission.
 
@@ -91,6 +116,10 @@ def run_mission(
         raise TypeError("run_mission requires an exact BuildSession")
     if type(executor) is not WaveExecutor:
         raise TypeError("run_mission requires an exact WaveExecutor")
+    if supervisor is not None and type(supervisor) is not MissionSupervisor:
+        raise TypeError(
+            "run_mission supervisor must be an exact MissionSupervisor"
+        )
 
     # Re-derive the settled WorkItem identities before constructing a Mission.
     # A changed objective/path/owner is refused here, before the executor can
@@ -112,6 +141,18 @@ def run_mission(
         execution_limit_policy=executor.limit_policy,
     )
 
+    # One-shot subjects are inert until a separately admitted runtime owner
+    # exists.  Validate their complete canonical binding before any projection
+    # write or wave execution, then fail closed in the current registry.
+    if one_shot_effects is not None:
+        validate_one_shot_effects(session, mission, one_shot_effects)
+
+    if supervisor is not None:
+        try:
+            begin_supervisor_projection(supervisor, session, mission)
+        except Exception as exc:
+            _projection_error(supervisor, "before execution", exc)
+
     report = executor.run(
         session,
         repo_root=str(repo_root) if repo_root is not None else None,
@@ -128,4 +169,11 @@ def run_mission(
         raise TypeError("WaveExecutor returned a non-canonical BuildRunReport")
     if report.mission_id != mission.mission_id:
         raise ValueError("BuildRunReport mission_id does not match MissionContract")
+    if supervisor is not None:
+        try:
+            finish_supervisor_projection(
+                supervisor, session, mission, report
+            )
+        except Exception as exc:
+            _projection_error(supervisor, "after execution", exc)
     return mission, report

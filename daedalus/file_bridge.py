@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import errno
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -514,6 +515,36 @@ def _journal_dir() -> Path:
     """Per-request processing journal. Derived from ARCHIVE at call time so a
     test that patches ARCHIVE gets a matching journal for free."""
     return ARCHIVE / ".journal"
+
+
+def _mission_projection_dir(key: str) -> Path:
+    """Internal disposable projection path derived only from the file key."""
+
+    digest = hashlib.sha256(
+        f"daedalus.file-bridge.mission-projection:{key}".encode("utf-8")
+    ).hexdigest()
+    return _journal_dir() / "mission-supervisor" / digest
+
+
+def _accepts_keyword(callable_object: Any, keyword: str) -> bool:
+    """Keep old injected test/compatibility callables source-compatible."""
+
+    # ``unittest.mock.Mock`` exposes ``(*args, **kwargs)`` even when its
+    # side-effect function keeps the old narrow ABI.  Inspect that concrete
+    # callable when present so adding this informational projection cannot
+    # make an old injected worker fail after dispatch.
+    side_effect = getattr(callable_object, "side_effect", None)
+    if callable(side_effect):
+        callable_object = side_effect
+    try:
+        parameters = inspect.signature(callable_object).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        or parameter.name == keyword
+        for parameter in parameters
+    )
 
 
 def _quarantine_dir() -> Path:
@@ -1683,9 +1714,19 @@ def _process_request_claimed(
         # private id nothing else shares -- the field would look fully
         # populated while joining nothing.
         with envelope.adopt_trace(payload.get(envelope.TRACE_KEY)) as tid:
-            report = process_bridge_payload(
-                payload, effect_identity=effect_identity
-            )
+            dispatch_kwargs: dict[str, Any] = {
+                "effect_identity": effect_identity,
+            }
+            if _accepts_keyword(
+                process_bridge_payload, "mission_projection_dir"
+            ):
+                # Request JSON has no authority over this path.  It is a
+                # filename-derived, deletable view beside the existing crash
+                # journal and cannot select an arbitrary filesystem root.
+                dispatch_kwargs["mission_projection_dir"] = (
+                    _mission_projection_dir(key)
+                )
+            report = process_bridge_payload(payload, **dispatch_kwargs)
         # The idempotency key, carried on the artifact itself, so the memory
         # log can be asked "did this request's record already land?".
         report["request_file"] = key

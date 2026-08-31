@@ -1200,6 +1200,7 @@ def _bridge_effect_identity(
 def _try_ikarus(
     payload: dict[str, Any], *,
     effect_identity: Mapping[str, Any] | None = None,
+    mission_projection_dir: Path | None = None,
 ) -> dict[str, Any] | None:
     from .kernel.offload_lease import WaveLeaseKillSwitchEngaged
 
@@ -1240,9 +1241,23 @@ def _try_ikarus(
 
     try:
         from .build_exec import EffectBounds, WaveExecutor
+        from .ikarus_supervisor import MissionSupervisor
         from .orchestration import run_mission
 
         session = _one_task_session(payload, assignment)
+        if mission_projection_dir is not None and not isinstance(
+            mission_projection_dir, Path
+        ):
+            raise TypeError("mission_projection_dir must be a Path")
+        supervisor = (
+            None
+            if mission_projection_dir is None
+            else MissionSupervisor(
+                repo_root=Path(str(payload["repo_root"])),
+                run_dir=mission_projection_dir,
+                roles={},
+            )
+        )
         replay_identity = _bridge_effect_identity(effect_identity)
         executor = WaveExecutor(
             availability=availability,
@@ -1266,6 +1281,7 @@ def _try_ikarus(
                       if payload.get("trace_id") else None),
             update_architecture=False,
             persist_session=False,
+            supervisor=supervisor,
         )
         if len(mission_report.waves) != 1:
             raise RuntimeError(
@@ -1439,6 +1455,7 @@ def _configure_report(payload: dict[str, Any]) -> dict[str, Any]:
 def process_bridge_payload(
     payload: dict[str, Any], *,
     effect_identity: Mapping[str, Any] | None = None,
+    mission_projection_dir: Path | None = None,
 ) -> dict[str, Any]:
     if payload.get("strategy") == "configure":
         return _configure_report(payload)
@@ -1474,7 +1491,11 @@ def process_bridge_payload(
         }
     report = None
     if lane in ("auto", "local", "local_only"):
-        report = _try_ikarus(payload, effect_identity=effect_identity)
+        report = _try_ikarus(
+            payload,
+            effect_identity=effect_identity,
+            mission_projection_dir=mission_projection_dir,
+        )
     if report is None and lane == "local_only":
         return local_only_failure_report(payload)
     if report is None:

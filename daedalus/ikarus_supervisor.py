@@ -319,11 +319,23 @@ class StateLedger:
     same recipe every receipt in this tree uses.
     """
 
-    def __init__(self, directory: str | Path) -> None:
+    def __init__(self, directory: str | Path, *, resume: bool = False) -> None:
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self._sequence = 0
         self._previous = ""
+        self._last_revision: dict[str, Any] | None = None
+        if resume:
+            paths = sorted(
+                self.directory.glob("[0-9][0-9][0-9][0-9]-*.json")
+            )
+            if paths:
+                revisions = verify_state_ledger(self.directory)
+                self._sequence = len(revisions)
+                self._previous = str(revisions[-1]["revision_sha256"])
+                self._last_revision = json.loads(
+                    _canonical(revisions[-1])
+                )
 
     def publish(self, state: Mapping[str, Any]) -> dict[str, Any]:
         body: dict[str, Any] = {
@@ -343,7 +355,47 @@ class StateLedger:
             fh.write("\n")
         self._sequence += 1
         self._previous = digest
+        self._last_revision = json.loads(_canonical(body))
         return body
+
+    @property
+    def last_revision(self) -> dict[str, Any] | None:
+        """Return a detached copy of the newest verified projection row."""
+
+        if self._last_revision is None:
+            return None
+        return json.loads(_canonical(self._last_revision))
+
+    def publish_if_changed(self, state: Mapping[str, Any]) -> dict[str, Any]:
+        """Publish one projection state, or return its identical last row.
+
+        This is deliberately separate from :meth:`publish`: the historical
+        supervisor driver records every transition it observes, while the
+        production ``run_mission`` projection may be reconstructed after a
+        crash. Replaying the same canonical state must not manufacture another
+        ledger revision merely because a disposable projector restarted.
+        """
+
+        previous = self._last_revision
+        ledger_fields = {
+            "schema",
+            "sequence",
+            "previous_ledger_sha256",
+            "published_at",
+            "revision_sha256",
+        }
+        previous_state = (
+            None
+            if previous is None
+            else {
+                key: value
+                for key, value in previous.items()
+                if key not in ledger_fields
+            }
+        )
+        if previous_state == dict(state):
+            return json.loads(_canonical(previous))
+        return self.publish(state)
 
 
 def verify_state_ledger(directory: str | Path) -> tuple[dict[str, Any], ...]:
@@ -476,6 +528,10 @@ class MissionSupervisor:
     # Appended after every legacy constructor field so existing positional
     # calls retain their original meaning. New callers should use the keyword.
     runtime_roles: RuntimeRoleRegistry | None = None
+    # The production orchestration integration uses this object only as a
+    # deletable projection. Projection failures are observable to the caller
+    # but never replace or downgrade the canonical WaveExecutor report.
+    projection_errors: list[str] = field(default_factory=list)
 
     def run(
         self,

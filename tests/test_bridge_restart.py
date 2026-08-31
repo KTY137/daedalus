@@ -458,10 +458,22 @@ def test_leased_provider_completion_survives_crash_before_bridge_report(
     )
     real_process = core.process_bridge_payload
     dispatches: list[dict[str, str]] = []
+    projection_dirs: list[Path] = []
 
-    def process_then_crash_once(payload, *, effect_identity=None):
+    def process_then_crash_once(
+        payload,
+        *,
+        effect_identity=None,
+        mission_projection_dir=None,
+    ):
         dispatches.append(dict(effect_identity or {}))
-        result = real_process(payload, effect_identity=effect_identity)
+        assert isinstance(mission_projection_dir, Path)
+        projection_dirs.append(mission_projection_dir)
+        result = real_process(
+            payload,
+            effect_identity=effect_identity,
+            mission_projection_dir=mission_projection_dir,
+        )
         if len(dispatches) == 1:
             assert result["bridge_status"] == "done"
             raise Crash("died after effect terminal, before bridge report")
@@ -489,6 +501,16 @@ def test_leased_provider_completion_survives_crash_before_bridge_report(
             journal_after_crash = fb._read_journal(req.stem)
             assert journal_after_crash["state"] == "in_flight"
             assert journal_after_crash["effect_identity"] == dispatches[0]
+            assert projection_dirs == [fb._mission_projection_dir(req.stem)]
+            from daedalus.ikarus_supervisor import verify_state_ledger
+
+            projected_after_crash = verify_state_ledger(
+                projection_dirs[0] / "ledger"
+            )
+            assert projected_after_crash[-1]["outcome"] == "landed"
+            projected_terminal_sha256 = projected_after_crash[-1][
+                "revision_sha256"
+            ]
             assert bridge.queued() == [req.name]
 
             result_path = fb.process_request(req)
@@ -496,6 +518,18 @@ def test_leased_provider_completion_survives_crash_before_bridge_report(
         report = json.loads(result_path.read_text(encoding="utf-8"))
         assert provider.call_count == 1
         assert dispatches[0] == dispatches[1]
+        assert projection_dirs == [
+            fb._mission_projection_dir(req.stem),
+            fb._mission_projection_dir(req.stem),
+        ]
+        projected_after_restart = verify_state_ledger(
+            projection_dirs[-1] / "ledger"
+        )
+        assert len(projected_after_restart) == len(projected_after_crash)
+        assert (
+            projected_after_restart[-1]["revision_sha256"]
+            == projected_terminal_sha256
+        )
         assert report["bridge_status"] == "failed"
         assert "idempotent replay refused" in report["error"]
         assert bridge.queued() == []
@@ -559,6 +593,47 @@ def test_request_json_cannot_choose_the_internal_effect_identity(
     assert captured[0] != supplied
     assert captured[0]["attempt_id"].startswith("file-bridge-")
     assert captured[0]["lease_id"].endswith("-lease")
+
+
+def test_request_json_cannot_choose_the_mission_projection_directory(
+        bridge, tmp_path, monkeypatch):
+    foreign = tmp_path / "caller-selected-projection"
+    payload = {
+        "objective": "review docs",
+        "repo_root": str(tmp_path),
+        "paths": [],
+        "lane": "local_only",
+        "strategy": "single",
+        "mission_projection_dir": str(foreign),
+    }
+    req = bridge.drop_raw(
+        "20260831T000000Z-review-docs-projection.json", json.dumps(payload)
+    )
+    captured: list[Path] = []
+
+    def work(
+        request,
+        *,
+        effect_identity=None,
+        mission_projection_dir=None,
+    ):
+        assert request["mission_projection_dir"] == str(foreign)
+        assert effect_identity is not None
+        assert isinstance(mission_projection_dir, Path)
+        captured.append(mission_projection_dir)
+        return {
+            "bridge_status": "done",
+            "lane": request["lane"],
+            "request": request,
+            "report": {"summary": "done", "status": "done"},
+        }
+
+    monkeypatch.setattr("daedalus.core.process_bridge_payload", work)
+    fb.process_request(req)
+
+    assert captured == [fb._mission_projection_dir(req.stem)]
+    assert captured[0] != foreign
+    assert not foreign.exists()
 
 
 def test_configure_crash_retries_a_convergent_local_upsert_not_a_provider(
