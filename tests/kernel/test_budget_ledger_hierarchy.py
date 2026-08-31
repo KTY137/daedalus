@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 import daedalus.budget as legacy
+from daedalus.kernel.events import envelope
 import daedalus.kernel.policy as policy
 import daedalus.kernel.policy.ledger as owner
 from daedalus.spine.effect_boundary import registry_sha256
@@ -115,6 +116,11 @@ def test_legacy_pickle_globals_resolve_to_canonical_ledger_classes() -> None:
 def test_default_ledger_locator_is_unchanged() -> None:
     assert owner.DEFAULT_LEDGER_PATH == ROOT / "runs" / "budget" / "ledger.json"
     assert legacy.DEFAULT_LEDGER_PATH is owner.DEFAULT_LEDGER_PATH
+
+
+def test_envelope_producer_ledger_names_the_canonical_writer() -> None:
+    assert "daedalus/kernel/policy/ledger.py" in envelope.UNCONVERTED_PRODUCERS
+    assert "daedalus/budget.py" not in envelope.UNCONVERTED_PRODUCERS
 
 
 def test_structure_packet_keeps_the_effect_registry_digest() -> None:

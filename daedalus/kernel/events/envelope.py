@@ -744,9 +744,10 @@ UNCONVERTED_PRODUCERS = {
         "snapshot with no run to correlate to.",
     "daedalus/mapping/drift.py":
         "NOT A RUN RECORD: docs/architecture-state.json, same reason.",
-    "daedalus/budget.py":
+    "daedalus/kernel/policy/ledger.py":
         "NOT A RUN RECORD: a running spend total per PERIOD, deliberately not "
-        "per-run -- correlating it to a trace would misrepresent what it is.",
+        "per-run -- correlating it to a trace would misrepresent what it is. "
+        "daedalus/budget.py is now only its compatibility/effect facade.",
     "daedalus/conversation.py":
         "NOT A RUN RECORD: it produces no records of its own any more. Every "
         "turn, dispatch and report is a typed intent on spine/ledger.py, which "
