@@ -729,36 +729,7 @@ def _reported_result(report: dict[str, Any]) -> tuple[str | None, str]:
     deterministic; the complete report remains the authoritative inbox
     artifact and is not copied into the conversation spine.
     """
-    inner = report.get("report") if isinstance(report.get("report"), dict) else {}
-    if inner:
-        status = str(inner.get("status") or "").strip() or None
-        return status, str(inner.get("summary") or "").strip()[:600]
-    result = report.get("result") if isinstance(report.get("result"), dict) else {}
-    statuses: list[str] = []
-    summaries: list[str] = []
-    for assignment in result.get("assignments") or []:
-        if not isinstance(assignment, dict):
-            continue
-        nested = assignment.get("result")
-        nested = nested if isinstance(nested, dict) else {}
-        nested_report = nested.get("report")
-        nested_report = nested_report if isinstance(nested_report, dict) else {}
-        status = str(
-            assignment.get("status") or nested_report.get("status") or ""
-        ).strip()
-        summary = str(
-            nested_report.get("summary") or assignment.get("reason") or ""
-        ).strip()
-        if status == "gated_held":
-            held = ("candidate passed its gate and is held; not applied to the "
-                    "primary checkout")
-            summary = f"{held}: {summary}" if summary else held
-        if status:
-            statuses.append(status)
-        if summary:
-            summaries.append(summary)
-    reported_status = ",".join(dict.fromkeys(statuses))[:120] or None
-    return reported_status, " ".join(summaries)[:600]
+    return bridge_projection.reported_result(report)
 
 
 def report_application_truth(
@@ -770,167 +741,7 @@ def report_application_truth(
     failure is not proof of a clean checkout: verify-fail rollback can itself
     fail and leave measured paths behind.
     """
-    if not isinstance(report, dict):
-        return None, "no report to inspect"
-
-    mutation_blocked = report.get("mutation_blocked")
-    if mutation_blocked:
-        return False, str(mutation_blocked)
-
-    result = report.get("result")
-    result = result if isinstance(result, dict) else {}
-    assignments = result.get("assignments")
-    assignments = assignments if isinstance(assignments, list) else []
-    verdicts: list[bool | None] = []
-    reasons: list[str] = []
-
-    def list_evidence(
-            containers: tuple[dict[str, Any], ...], key: str,
-    ) -> tuple[bool, list[Any] | None]:
-        values = [container.get(key) for container in containers
-                  if key in container]
-        if not values:
-            return False, None
-        # These containers are projections of the same attempt.  Inspect all
-        # of them: an outer empty default must not hide a receipt that retained
-        # dirty paths.  Any malformed copy makes a clean/apply claim unsafe.
-        if any(not isinstance(value, list) for value in values):
-            return True, None
-        merged: list[Any] = []
-        for value in values:
-            for item in value:
-                if item not in merged:
-                    merged.append(item)
-        return True, merged
-
-    for assignment in assignments:
-        if not isinstance(assignment, dict):
-            continue
-        nested = assignment.get("result")
-        nested = nested if isinstance(nested, dict) else {}
-        receipt = assignment.get("provider_receipt")
-        receipt = receipt if isinstance(receipt, dict) else {}
-        containers = (assignment, nested, receipt)
-        owner = str(assignment.get("owner") or "?")
-        status = str(assignment.get("status") or "").strip().lower()
-        action = str(
-            nested.get("action") or receipt.get("action") or ""
-        ).strip().lower()
-        mode = str(
-            assignment.get("mode") or nested.get("mode")
-            or receipt.get("mode") or ""
-        ).strip().lower()
-        blocked = (
-            assignment.get("mutation_blocked")
-            or nested.get("mutation_blocked")
-            or receipt.get("mutation_blocked")
-        )
-
-        if blocked:
-            verdicts.append(False)
-            reasons.append(f"{owner}: {blocked}")
-            continue
-        if status in {"write_gate_failed", "escalated_after_verify_fail"} \
-                or action in {"write_gate_failed", "escalated_after_verify_fail"}:
-            dirty_present, dirty = list_evidence(containers, "dirty_unreverted")
-            wrote_present, wrote = list_evidence(containers, "wrote")
-            if (dirty_present and dirty) or (wrote_present and wrote):
-                count = len(dirty or wrote or [])
-                verdicts.append(None)
-                reasons.append(
-                    f"{owner}: verification/rollback failed and {count} "
-                    "unreverted on-disk path(s) remain; manual cleanup is "
-                    "required and application to the primary checkout is "
-                    "unproven")
-            elif (dirty_present and dirty is None) or (
-                    wrote_present and wrote is None):
-                verdicts.append(None)
-                reasons.append(
-                    f"{owner}: verification/rollback failed and retained "
-                    "write evidence is malformed; the on-disk outcome is "
-                    "unproven")
-            elif wrote_present and wrote == []:
-                verdicts.append(False)
-                reasons.append(
-                    f"{owner}: verification failed, but the measured wrote "
-                    "list proves no unreverted on-disk paths remain")
-            else:
-                verdicts.append(None)
-                reasons.append(
-                    f"{owner}: verification/rollback failed without retained "
-                    "evidence proving whether on-disk paths remain")
-            continue
-
-        if status == "gated_held" or action == "gated_held":
-            verdicts.append(False)
-            reasons.append(
-                f"{owner}: candidate is held for explicit promotion and was "
-                "not applied to the primary checkout")
-            continue
-
-        if status == "offloaded" or action == "offloaded":
-            if mode == "advisory":
-                verdicts.append(False)
-                draft = nested.get("draft") or receipt.get("draft")
-                if draft:
-                    reasons.append(
-                        f"{owner}: saved as advisory draft {draft}, not applied")
-                else:
-                    reasons.append(
-                        f"{owner}: advisory work cannot apply checkout changes; "
-                        "no persisted draft id was reported")
-                continue
-            if mode != "write":
-                verdicts.append(None)
-                reasons.append(
-                    f"{owner}: status='offloaded' but execution mode is "
-                    f"{mode or 'missing'}; application cannot be inferred")
-                continue
-            wrote_present, wrote = list_evidence(containers, "wrote")
-            verify_rows = [container.get("verify") for container in containers
-                           if "verify" in container]
-            verify_ok = bool(verify_rows) and all(
-                isinstance(value, dict) and value.get("ok") is True
-                for value in verify_rows
-            )
-            if not wrote_present or wrote is None:
-                verdicts.append(None)
-                reasons.append(
-                    f"{owner}: write mode lacks the measured on-disk `wrote` list")
-            elif not wrote:
-                verdicts.append(False)
-                reasons.append(f"{owner}: write mode recorded no on-disk changes")
-            elif verify_ok:
-                verdicts.append(True)
-                reasons.append(
-                    f"{owner}: write mode measured {len(wrote)} changed path(s) "
-                    "and the verification gate passed")
-            else:
-                verdicts.append(None)
-                reasons.append(
-                    f"{owner}: on-disk changes were reported but a passed "
-                    "verification gate was not retained")
-            continue
-
-        verdicts.append(None)
-        reasons.append(f"{owner}: status={status!r}, no verify signal")
-
-    if verdicts:
-        reason = "; ".join(reasons)
-        if all(verdict is True for verdict in verdicts):
-            return True, reason
-        if all(verdict is False for verdict in verdicts):
-            return False, reason
-        return None, reason
-
-    bridge_status = str(report.get("bridge_status") or "").strip().lower()
-    if bridge_status in {"failed", "quarantined"}:
-        return None, (
-            f"bridge_status={bridge_status}, but the on-disk outcome is "
-            "unproven because no write/rollback evidence was retained")
-    if bridge_status == "done":
-        return None, "bridge completion alone is not application evidence"
-    return None, "insufficient information to determine whether anything was applied"
+    return bridge_projection.report_application_truth(report)
 
 
 def _conversation_report_fields(
@@ -944,73 +755,15 @@ def _conversation_report_fields(
     sixth, accidentally-green state.
     """
     from . import conversation
-
-    bridge_status = str(report.get("bridge_status") or "").strip().lower()
-    reported_status, reported_summary = _reported_result(report)
-    reported_states = {
-        value.strip().lower() for value in str(reported_status or "").split(",")
-        if value.strip()
-    }
-    error = str(report.get("error") or "").strip()[:1000]
-    lane = (report.get("lane")
-            or ((report.get("request") or {}).get("lane")
-                if isinstance(report.get("request"), dict) else None))
-    requested_lane = (report.get("requested_lane")
-                      or ((report.get("request") or {}).get("lane")
-                          if isinstance(report.get("request"), dict) else None))
-    actual_providers = (
-        list(report.get("actual_providers") or [])
-        if isinstance(report.get("actual_providers"), list) else []
+    return bridge_projection.conversation_report_fields(
+        key,
+        report,
+        reported=_reported_result,
+        application_truth=report_application_truth,
+        present=conversation.PRESENT,
+        degraded=conversation.DEGRADED,
+        unknown=conversation.UNKNOWN,
     )
-    applied, application_reason = report_application_truth(report)
-
-    if bridge_status in ("failed", "quarantined"):
-        outcome_state = conversation.DEGRADED
-        reason = error or reported_summary or str(report.get("reason") or "").strip()
-        summary = f"bridge {bridge_status}"
-        if reason:
-            summary += f": {reason[:600]}"
-        if applied is None and ("unreverted" in application_reason
-                                or "manual cleanup" in application_reason):
-            summary += f"; {application_reason[:600]}"
-    elif bridge_status == "done" and reported_states.intersection(
-            {"failed", "blocked", "error"}):
-        outcome_state = conversation.DEGRADED
-        summary = ("bridge produced a report, but its reported result was "
-                   f"{reported_status}")
-    elif bridge_status == "done" and "gated_held" in reported_states:
-        outcome_state = conversation.PRESENT
-        summary = ("bridge produced a gated candidate that is held for explicit "
-                   "promotion; it was not applied to the primary checkout")
-    elif bridge_status == "done":
-        outcome_state = conversation.PRESENT
-        if applied is True:
-            summary = ("bridge finished; measured checkout changes were applied "
-                       "and the verification gate passed")
-        elif applied is False:
-            summary = "bridge finished; no checkout changes were applied"
-        else:
-            summary = ("bridge finished and produced a report; whether changes "
-                       "were applied is not inferred")
-    else:
-        outcome_state = conversation.UNKNOWN
-        summary = ("bridge produced a terminal report with an unrecognized "
-                   f"status {bridge_status!r}")
-
-    detail = {
-        "source": "file_bridge.report",
-        "request_file": key,
-        "bridge_status": bridge_status or None,
-        "lane": str(lane) if lane else None,
-        "requested_lane": str(requested_lane) if requested_lane else None,
-        "actual_providers": actual_providers,
-        "reported_status": reported_status,
-        "reported_summary": reported_summary or None,
-        "error": error or None,
-        "applied": applied,
-        "application_reason": application_reason,
-    }
-    return outcome_state, summary, detail
 
 
 def _project_report_to_conversation(key: str, report: dict[str, Any]):

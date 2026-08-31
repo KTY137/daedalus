@@ -39,6 +39,9 @@ def _attribute_calls(node: ast.AST, name: str) -> list[ast.Call]:
 
 def test_legacy_projection_names_each_delegate_to_one_hierarchy_owner() -> None:
     owners = {
+        "_reported_result": "reported_result",
+        "report_application_truth": "report_application_truth",
+        "_conversation_report_fields": "conversation_report_fields",
         "unread_reports": "unread_reports",
         "mark_read": "mark_read",
         "quarantined_requests": "quarantined_requests",
@@ -106,8 +109,35 @@ def test_stream_wrapper_resolves_legacy_monkeypatch_seams_per_call(monkeypatch) 
 
 
 def test_projection_module_is_hierarchically_importable() -> None:
+    assert callable(projection.reported_result)
+    assert callable(projection.report_application_truth)
+    assert callable(projection.conversation_report_fields)
     assert callable(projection.bridge_status)
     assert callable(projection.stream_state)
+
+
+def test_report_projection_owner_keeps_conservative_application_truth() -> None:
+    report = {
+        "bridge_status": "done",
+        "result": {
+            "assignments": [
+                {
+                    "owner": "builder",
+                    "status": "offloaded",
+                    "result": {
+                        "mode": "write",
+                        "wrote": ["src/app.py"],
+                        "verify": {"ok": True},
+                    },
+                }
+            ]
+        },
+    }
+
+    applied, reason = projection.report_application_truth(report)
+
+    assert applied is True
+    assert "1 changed path(s)" in reason
 
 
 def test_structure_packet_does_not_change_effect_registry() -> None:
