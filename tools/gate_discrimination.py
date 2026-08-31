@@ -351,7 +351,7 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         id="attempt_capture_patch_drops_no_textconv",
         defect_class="reports-failure-as-success",
-        file="daedalus/spine/attempt.py",
+        file="daedalus/kernel/attempt_execution.py",
         find=(
             '        opts = ["--cached", "--no-color", "--no-ext-diff", "--no-textconv",\n'
             '                "--no-renames"]'
@@ -459,7 +459,7 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         id="attempt_reap_unwired",
         defect_class="resource",
-        file="daedalus/spine/attempt.py",
+        file="daedalus/kernel/attempt_execution.py",
         find="        return self._reap(result)",
         replace="        return result  # SEEDED DEFECT: reaper unwired",
         incident=(

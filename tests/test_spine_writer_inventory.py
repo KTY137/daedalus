@@ -312,7 +312,7 @@ def test_current_repository_task_attempt_writer_is_factory_admitted() -> None:
     attempt_sites = [
         site
         for site in report.callsites
-        if site.path == "daedalus/spine/attempt.py"
+            if site.path == "daedalus/kernel/attempt_execution.py"
     ]
     assert attempt_sites, "TaskAttempt ledger opening is invisible to the scan"
     assert any(site.kind == "gate0_factory" for site in attempt_sites)

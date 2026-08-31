@@ -159,12 +159,14 @@ def test_the_attempt_spine_contracts_are_produced_by_the_spine(contract):
 def test_the_producer_is_actually_wired_into_the_attempt():
     """A producer nothing calls is the gap in a new costume.
 
-    ``spine/attempt.py``'s own ``_admin_dir`` comment states the lesson this
+    ``kernel/attempt_execution.py``'s own ``_admin_dir`` comment states the lesson this
     guards: a guard that is built and not connected is indistinguishable from a
     guard, right up until it is measured through the product. So assert the
     connection, not just the existence.
     """
-    source = (PRODUCTION / "spine" / "attempt.py").read_text(encoding="utf-8")
+    source = (PRODUCTION / "kernel" / "attempt_execution.py").read_text(
+        encoding="utf-8"
+    )
     assert "from daedalus.spine.receipts import" in source
     assert "canonicalise_attempt(" in source
     assert "self._canonicalise(" in source
@@ -186,7 +188,7 @@ def test_the_legacy_attempt_dict_survives_only_where_it_is_paired_with_contracts
     web_api.py and the picker's review packet all read it -- but it must not
     exist anywhere the canonical contracts do not accompany it.
 
-    Two sites are expected and both live in the attempt spine:
+    Two sites are expected and both live in the kernel-owned Attempt lifecycle:
     ``AttemptResult.to_dict`` (the JSON-safe view) and ``_resolve_and_finish``'s
     ledger payload, which now carries ``contracts`` alongside. A third site
     appearing anywhere is a second, contract-free attempt record.
@@ -211,10 +213,14 @@ def test_the_legacy_attempt_dict_survives_only_where_it_is_paired_with_contracts
                     f"{path.relative_to(ROOT).as_posix()}:{node.lineno}")
 
     assert len(offenders) == 2, f"unexpected attempt-shaped dicts: {offenders}"
-    assert all(o.startswith("daedalus/spine/attempt.py") for o in offenders)
+    assert all(
+        o.startswith("daedalus/kernel/attempt_execution.py") for o in offenders
+    )
 
 
 def test_the_ledger_payload_carries_the_contracts_key():
-    source = (PRODUCTION / "spine" / "attempt.py").read_text(encoding="utf-8")
+    source = (PRODUCTION / "kernel" / "attempt_execution.py").read_text(
+        encoding="utf-8"
+    )
     assert '"contracts": contract_body' in source, (
         "the spine ledger row no longer carries the canonical projection")
