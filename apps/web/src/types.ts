@@ -196,9 +196,9 @@ export interface IkarusAskPayload {
   /** False means the answer succeeded but its conversation append did not. */
   conversation_persisted?: boolean;
   /** Which response transport produced this envelope. Additive to legacy fields. */
-  delivery_mode: IkarusDeliveryMode;
+  delivery_mode?: IkarusDeliveryMode;
   /** True means the text may be partial and no action affordance is safe. */
-  stream_interrupted: boolean;
+  stream_interrupted?: boolean;
 }
 
 /* ---- Live event stream (SSE): GET /api/events?project=<name> ---- */

@@ -1726,8 +1726,10 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     ``conversation_id`` is READ-ONLY here — it reaches :func:`_decide` so a
     confirmation can be recognised. Persistence stays in :func:`ask_stream`.
 
-    Fail-closed: any streaming failure (unsupported flag, dead runtime, mid-
-    stream error) degrades to the blocking path rather than erroring the chat.
+    Fail-closed: after a streaming provider is entered, an uncertain delivery
+    outcome is retained as interrupted and is never replayed through a blocking
+    provider call. Providers without a verified streamer still use the one
+    authorized blocking adapter inside this turn.
 
     THE BOUNDARY COMES FIRST, here and not in :func:`ask_stream`. The tap
     around this generator only persists the final turn; THIS is the function
@@ -1893,7 +1895,7 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         yield "final", _reconcile_final(route, _refusal_envelope(project, exc.receipt))
         return
     except Exception:
-        failed = True  # fall through to the blocking path
+        failed = True  # retain partial/unknown outcome below; never replay
 
     text = "".join(chunks).strip()
     if failed and text:
