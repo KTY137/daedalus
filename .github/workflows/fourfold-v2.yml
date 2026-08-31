@@ -88,15 +88,6 @@ jobs:
                   query_iterations=10,
               )
               print(json.dumps(heldout_report, sort_keys=True, separators=(",", ":")))
-
-          adapter_namespace = runpy.run_path("tests/twin/test_relation_block_adapter_probe.py")
-          for adapter_size in (64, 256, 512):
-              adapter_report = adapter_namespace["relation_block_probe"](
-                  size=adapter_size,
-                  repeats=2,
-                  query_iterations=10,
-              )
-              print(json.dumps(adapter_report, sort_keys=True, separators=(",", ":")))
           PY
       - name: Verify wheel contains the twin package
         run: |
