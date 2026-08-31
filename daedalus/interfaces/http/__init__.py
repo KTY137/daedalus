@@ -2,7 +2,8 @@
 
 The registered effect targets intentionally remain in :mod:`daedalus.web_api`.
 This package exposes those exact objects lazily while implementation modules
-below it own route parsing, read projections, mutations, and SSE delivery.
+below it own route parsing, read projections, mutations, SSE delivery, and
+host-bind admission.
 """
 from __future__ import annotations
 

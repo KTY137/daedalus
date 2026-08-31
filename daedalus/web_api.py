@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .interfaces.http import effects as http_effects
 from .interfaces.http import read as http_read
+from .interfaces.http import server as http_server
 from .interfaces.http import sse as http_sse
 
 from .kairos import drafts
@@ -1144,120 +1145,27 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             super().log_message(fmt, *args)
 
 
-class NonLoopbackBindRefused(RuntimeError):
-    """``run()`` was asked to serve an address that is not this machine.
-
-    Raised INSTEAD of starting the server. Not a warning, and deliberately not a
-    silent downgrade to loopback either: the operator asked for something and
-    has to be told it was refused, or they will believe a phone on the LAN can
-    reach a cockpit that is not there.
-    """
-
-
-# The opt-in, spelled out. ``--host`` alone is NOT the opt-in: it reads as a
-# routine bind parameter, and the whole failure mode here is that a flag which
-# looks routine turns an unauthenticated local tool into a network service.
-ALLOW_REMOTE_ENV = "DAEDALUS_WEB_ALLOW_REMOTE_CLIENTS"
-AUTH_TOKEN_ENV = "DAEDALUS_WEB_TOKEN"
-DESKTOP_STARTUP_NONCE_ENV = "DAEDALUS_DESKTOP_STARTUP_NONCE"
-MIN_AUTH_TOKEN_CHARS = 32
+NonLoopbackBindRefused = http_server.NonLoopbackBindRefused
+ALLOW_REMOTE_ENV = http_server.ALLOW_REMOTE_ENV
+AUTH_TOKEN_ENV = http_server.AUTH_TOKEN_ENV
+DESKTOP_STARTUP_NONCE_ENV = http_server.DESKTOP_STARTUP_NONCE_ENV
+MIN_AUTH_TOKEN_CHARS = http_server.MIN_AUTH_TOKEN_CHARS
 
 
 def _desktop_startup_nonce() -> str:
-    """Return the parent-issued desktop nonce or refuse malformed evidence."""
+    """Compatibility seam for callers of the historical nonce validator."""
 
-    nonce = os.environ.get(DESKTOP_STARTUP_NONCE_ENV, "").strip()
-    if nonce and not re.fullmatch(r"[0-9a-f]{64}", nonce):
-        raise ValueError(
-            f"{DESKTOP_STARTUP_NONCE_ENV} must be exactly 64 lowercase hex characters"
-        )
-    return nonce
+    return http_server.desktop_startup_nonce()
 
 
 def _refusal(host: str, why: str, remedy: str) -> str:
-    return (
-        f"REFUSED: daedalus web will not serve {host!r}.\n\n"
-        f"{why}\n\n"
-        f"This server has NO AUTHENTICATION on its loopback path, because on "
-        f"loopback the operating system is the boundary. Every endpoint is "
-        f"reachable by anyone who can reach the port: the spine ledger (what "
-        f"the loop has attempted), the picker queue (what it is working on), "
-        f"PUT endpoints that rewrite agent roles, and POST endpoints that "
-        f"queue work and invoke models -- that last one is remote SPEND, not "
-        f"just remote read. ADR-002 rejected a subsystem for being exactly "
-        f"this shape: an independent, unauthenticated network server.\n\n"
-        f"The server was NOT started, and it was NOT quietly downgraded to "
-        f"loopback.\n\n{remedy}"
-    )
+    return http_server.refusal(host, why, remedy)
 
 
 def _resolve_bind(host: str, allow_remote_clients: bool) -> str:
-    """Decide whether this bind may happen, and with what authentication.
+    """Compatibility seam for the canonical HTTP bind admission owner."""
 
-    Returns the shared token every request must then carry -- ``""`` on a
-    loopback bind, where there is nothing to authenticate against because no
-    packet leaves the machine. Raises :class:`NonLoopbackBindRefused` otherwise.
-
-    THE PREDICATE IS NOT REDEFINED HERE. ``sensitivity.lane_for_host`` is the
-    single implementation of "is this host this machine"; the repo held five
-    divergent copies of that question inside one day and they disagreed about
-    ``[::1]``. A sixth one in the web server -- the one place where being wrong
-    means an open port rather than a slightly wrong lane -- would be the worst
-    possible place to keep the habit alive.
-    """
-    # is_loopback_host, NOT lane_for_host. Both live in sensitivity.py and they
-    # answered the same thing until DAEDALUS_TRUSTED_HOSTS existed: an operator
-    # can now DECLARE a private-tunnel host trusted so repository content may be
-    # sent there for inference. That is consent about egress. It is not a claim
-    # that packets to that address stay on this machine -- and this function is
-    # asking exactly that, because returning "" here yields an empty auth token
-    # and _authorized() treats empty as always-authorized.
-    #
-    # Reading the egress answer here would have meant: declaring a bench for
-    # INFERENCE silently publishes the control plane -- spine ledger, the PUTs
-    # that rewrite agent roles, the POSTs that queue work and invoke models --
-    # unauthenticated to everything that can reach that tailnet. Found in review
-    # after the widening shipped, with the declaration already live in .env.
-    from .sensitivity import is_loopback_host
-
-    host = str(host or "").strip()
-    if is_loopback_host(host):
-        return ""
-
-    if not (allow_remote_clients
-            or os.environ.get(ALLOW_REMOTE_ENV, "").strip().lower()
-            in ("1", "true", "yes")):
-        named = repr(host) if host else "an empty host (every interface)"
-        raise NonLoopbackBindRefused(_refusal(
-            host or "",
-            f"{named} is not this machine. sensitivity.lane_for_host reports "
-            f"it as UNTRUSTED, which in this project means 'bytes leave this "
-            f"host'.",
-            f"  * to serve this machine only:  --host 127.0.0.1  (the default)\n"
-            f"  * 'localhost' is refused ON PURPOSE: it is a NAME, and a name "
-            f"that resolves to loopback when it is checked can resolve "
-            f"elsewhere when it is connected. Use the numeric literal.\n"
-            f"  * to genuinely serve other machines, opt in explicitly AND "
-            f"authenticate:\n"
-            f"        set {AUTH_TOKEN_ENV} to a secret of at least "
-            f"{MIN_AUTH_TOKEN_CHARS} characters\n"
-            f"        pass --allow-remote-clients (or {ALLOW_REMOTE_ENV}=1)\n"
-            f"    every request must then carry "
-            f"'Authorization: Bearer <token>'."))
-
-    token = os.environ.get(AUTH_TOKEN_ENV, "").strip()
-    if len(token) < MIN_AUTH_TOKEN_CHARS:
-        state = ("is not set" if not token
-                 else f"is only {len(token)} characters long")
-        raise NonLoopbackBindRefused(_refusal(
-            host,
-            f"--allow-remote-clients was given, but {AUTH_TOKEN_ENV} {state}. "
-            f"An opt-in is a decision to expose this, not a decision to expose "
-            f"it to ANYONE -- so the escape hatch carries authentication with "
-            f"it and cannot be opened without.",
-            f"  * set {AUTH_TOKEN_ENV} to at least {MIN_AUTH_TOKEN_CHARS} "
-            f"characters and try again."))
-    return token
+    return http_server.resolve_bind(host, allow_remote_clients)
 
 
 def run(host: str = "127.0.0.1", port: int = 8765, *,
