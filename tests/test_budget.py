@@ -922,7 +922,10 @@ _VENDOR = re.compile(r"""["'](claude|codex|agy)["']|_exe\(["'](claude|codex)["']
 
 # Files that match the crude scan but do NOT spend, each with the reason.
 _NOT_BILLABLE = {
-    "daedalus/budget.py": "this module; it names the vendors in order to price them",
+    "daedalus/budget.py": "the stable effect facade; it names the adapter ports",
+    "daedalus/runtimes/execution/budget_process.py":
+        "the interposer implementation; it classifies and wraps calls but "
+        "does not itself select or invoke a vendor",
     "daedalus/doctor.py": "`codex --version` / `login status`: no tokens generated",
     "daedalus/runtime_registry.py": "`<binary> --version` probe only",
     "daedalus/claude_detect.py": "detects the CLI, never invokes it",
