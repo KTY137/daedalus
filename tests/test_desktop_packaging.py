@@ -160,14 +160,17 @@ def test_desktop_rust_shell_uses_loopback_and_owns_child_lifecycle() -> None:
 
 def test_desktop_backend_readiness_is_child_nonce_bound() -> None:
     web_api = (ROOT / "daedalus" / "web_api.py").read_text(encoding="utf-8")
+    http_read = (
+        ROOT / "daedalus" / "interfaces" / "http" / "read.py"
+    ).read_text(encoding="utf-8")
     smoke = (ROOT / "tools" / "smoke_tauri_sidecar.py").read_text(encoding="utf-8")
     sidecar = (ROOT / "scripts" / "daedalus_desktop_sidecar.py").read_text(
         encoding="utf-8"
     )
     assert 'DESKTOP_STARTUP_NONCE_ENV = "DAEDALUS_DESKTOP_STARTUP_NONCE"' in web_api
-    assert 'path == "/api/desktop-ready"' in web_api
+    assert 'path == "/api/desktop-ready"' in http_read
     assert 'r"[0-9a-f]{64}"' in web_api
-    assert '"nonce": nonce' in web_api
+    assert '"nonce": nonce' in http_read
     assert "DAEDALUS_DESKTOP_STARTUP_NONCE" in smoke
     assert "/api/desktop-ready" in smoke
     assert "multiprocessing.freeze_support()" in sidecar

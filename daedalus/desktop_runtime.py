@@ -24,6 +24,9 @@ from urllib.parse import urlencode, urlsplit
 
 from . import budget as budget_kernel
 from . import runtime_registry
+from .interfaces.desktop import http as desktop_http
+from .interfaces.desktop import lifecycle as desktop_lifecycle
+from .interfaces.desktop import projection as desktop_projection
 from .limit_policy import (
     ENV_EXECUTION_LIMIT_POLICY,
     ExecutionLimitPolicy,
@@ -872,19 +875,7 @@ class DesktopRuntimeManager:
             os.environ.pop(TRUSTED_HOSTS_VAR, None)
 
     def bootstrap(self) -> dict[str, Any]:
-        if self.config["bridge"]["auto_start"]:
-            self.ensure_bridge()
-        if self.config["ollama"]["auto_start"]:
-            try:
-                self.ensure_ollama()
-            except DesktopRuntimeError as exc:
-                self._log(f"ollama autostart failed: {exc}")
-        if self.config["ide"]["auto_start"]:
-            try:
-                self.ensure_ide()
-            except DesktopRuntimeError as exc:
-                self._log(f"IDE autostart failed: {exc}")
-        return self.snapshot()
+        return desktop_lifecycle.bootstrap(self, error_type=DesktopRuntimeError)
 
     # Bridge ---------------------------------------------------------------
 
@@ -913,16 +904,7 @@ class DesktopRuntimeManager:
             self._log(f"bridge failed: {detail}")
 
     def _bridge_status_is_managed(self, status: dict[str, Any]) -> bool:
-        return bool(
-            self._bridge
-            and self._bridge.is_alive()
-            and self._bridge_owner_token
-            and self._bridge_process_identity
-            and status.get("state") in {"alive", "busy", "wedged"}
-            and status.get("pid") == os.getpid()
-            and status.get("owner_token") == self._bridge_owner_token
-            and status.get("process_identity") == self._bridge_process_identity
-        )
+        return desktop_projection.bridge_status_is_managed(self, status)
 
     def ensure_bridge(self) -> dict[str, Any]:
         from . import file_bridge
@@ -1154,33 +1136,11 @@ class DesktopRuntimeManager:
         return endpoint + "/?" + urlencode({"folder": str(folder)})
 
     def _ide_status(self, project: Any = None) -> dict[str, Any]:
-        if self.config["ide"]["mode"] == "docker":
-            return self._docker_ide_status(project)
-        ok, detail = self._probe_ide()
-        running = bool(self._ide and self._ide.poll() is None)
-        executable = ""
-        discovery_error = ""
-        try:
-            executable = self._discover_ide_executable()
-        except DesktopRuntimeError as exc:
-            # A status read must remain observational. Missing installations
-            # are reported to the UI and never trigger a download or start.
-            discovery_error = str(exc)
-        installed = bool(executable)
-        return {
-            "endpoint": self.config["ide"]["endpoint"],
-            "ui_url": self._ide_ui_url(project),
-            "installed": installed,
-            "available": installed,
-            "executable": executable,
-            "reachable": ok,
-            "last_error": "" if ok else (discovery_error or detail),
-            "detail": discovery_error,
-            "managed": running,
-            "process_running": running,
-            "configured_executable": self.config["ide"]["executable"],
-            "runtime_downloads": False,
-        }
+        return desktop_projection.ide_status(
+            self,
+            project,
+            error_type=DesktopRuntimeError,
+        )
 
     def ensure_ide(self, project: Any = None) -> dict[str, Any]:
         if self.config["ide"]["mode"] == "docker":
@@ -1721,244 +1681,39 @@ class DesktopRuntimeManager:
                     self._ollama_log = None
 
     def close(self, *, strict: bool = False, timeout: float = 8.0) -> None:
-        self._closed = True
-        self._bridge_stop.set()
-        cleanup_error: DesktopRuntimeError | None = None
-        try:
-            self.stop_ide(owned_only=True, strict=strict, timeout=timeout)
-        except DesktopRuntimeError as exc:
-            cleanup_error = exc
-        self.stop_ollama()
-        if strict and cleanup_error is not None:
-            raise cleanup_error
+        desktop_lifecycle.close(
+            self,
+            strict=strict,
+            timeout=timeout,
+            error_type=DesktopRuntimeError,
+        )
 
     def _budget_status(self) -> dict[str, Any]:
-        configured = self.config["budget"]
-        policy = ExecutionLimitPolicy.from_dict(self.config["caps"])
-        effective = policy.effective
-        base: dict[str, Any] = {
-            "available": False,
-            "mode": policy.mode,
-            "caps": policy.as_dict(),
-            "configured_caps": policy.configured.as_dict(),
-            "effective_caps": effective.as_dict(),
-            "limit_policy_fingerprint_sha256": policy.fingerprint_sha256,
-            "period_ceiling_enabled": effective.period_usd,
-            "period_ceiling_usd": configured["period_ceiling_usd"],
-            "effective_period_ceiling_usd": (
-                configured["period_ceiling_usd"] if effective.period_usd else None
-            ),
-            "remaining_period_usd": None,
-            "spent_usd": None,
-            "reserved_usd": None,
-            "committed_usd": None,
-            "envelope_hold_usd": None,
-            "max_calls": configured["max_calls"],
-            "effective_max_calls": (
-                configured["max_calls"] if effective.billable_calls else None
-            ),
-            "remaining_calls": None,
-            "remaining_billable_calls": None,
-            "calls": None,
-            "open_calls": None,
-            "period": None,
-            "period_key": None,
-            "call_ceiling_enforced": effective.billable_calls,
-            "billable_call_ceiling_enabled": effective.billable_calls,
-            "explicit_envelope_ceiling_enforced": effective.mission_spend,
-            "mission_spend_ceiling_enabled": effective.mission_spend,
-            "last_error": "",
-        }
-        if self._budget_policy_error:
-            base["last_error"] = self._budget_policy_error
-            return base
-        try:
-            state = budget_kernel.ledger().state()
-        except (budget_kernel.BudgetError, OSError) as exc:
-            base["last_error"] = str(exc)
-            return base
-        return {
-            **base,
-            "available": True,
-            "mode": state.limit_policy_mode,
-            "caps": {
-                "mode": state.limit_policy_mode,
-                "configured": dict(state.configured_limit_axes or {}),
-            },
-            "configured_caps": dict(state.configured_limit_axes or {}),
-            "effective_caps": dict(state.effective_limit_axes or {}),
-            "limit_policy_fingerprint_sha256": (
-                state.limit_policy_fingerprint_sha256
-            ),
-            "period_ceiling_enabled": state.period_ceiling_enabled,
-            "period_ceiling_usd": state.ceiling_usd,
-            "effective_period_ceiling_usd": state.effective_period_ceiling_usd,
-            "remaining_period_usd": state.remaining_usd,
-            "spent_usd": state.spent_usd,
-            "reserved_usd": state.reserved_usd,
-            "committed_usd": state.committed_usd,
-            "envelope_hold_usd": state.envelope_hold_usd,
-            "max_calls": state.max_calls,
-            "effective_max_calls": state.effective_max_calls,
-            "remaining_calls": state.remaining_calls,
-            "remaining_billable_calls": state.remaining_calls,
-            "calls": state.calls,
-            "open_calls": state.open_calls,
-            "period": state.period,
-            "period_key": state.period_key,
-            "call_ceiling_enforced": state.billable_call_ceiling_enabled,
-            "billable_call_ceiling_enabled": (
-                state.billable_call_ceiling_enabled
-            ),
-            "explicit_envelope_ceiling_enforced": (
-                state.mission_spend_ceiling_enabled
-            ),
-            "mission_spend_ceiling_enabled": (
-                state.mission_spend_ceiling_enabled
-            ),
-            "last_error": "",
-        }
+        return desktop_projection.budget_status(
+            self,
+            budget_kernel=budget_kernel,
+            execution_limit_policy=ExecutionLimitPolicy,
+        )
 
     def snapshot(self) -> dict[str, Any]:
         from . import file_bridge
 
-        ok, err = self._probe()
-        bridge_status = file_bridge.heartbeat_status()
-        r = self.config["ollama"]["remote"]
-        budget_status = self._budget_status()
-        caps_status = {
-            "available": budget_status["available"],
-            "mode": budget_status["mode"],
-            "configured": budget_status["configured_caps"],
-            "effective": budget_status["effective_caps"],
-            "fingerprint_sha256": budget_status[
-                "limit_policy_fingerprint_sha256"
-            ],
-            "last_error": budget_status["last_error"],
-            "external_limits_remain": True,
-            "ariadne_campaign_live": False,
-        }
-        return {
-            "config": self.config,
-            "config_path": str(self.config_path),
-            "config_error": self._config_error,
-            "budget": budget_status,
-            "caps": caps_status,
-            "budget_error": budget_status["last_error"],
-            "credential_policy": {
-                "ssh_key_only": True,
-                "stores_passwords": False,
-                "stores_private_key_bytes": False,
-                "host_key_verification": "strict",
-            },
-            "services": {
-                "bridge": {
-                    **bridge_status,
-                    "managed": self._bridge_status_is_managed(bridge_status),
-                    "last_error": self._bridge_start_error,
-                },
-                "ollama": {
-                    "mode": self.config["ollama"]["mode"],
-                    "endpoint": os.environ.get("OLLAMA_HOST", ""),
-                    "physical_target": os.environ.get(TUNNEL_TARGET_VAR, ""),
-                    "reachable": ok,
-                    "last_error": "" if ok else err,
-                    "tunnel_running": bool(self._tunnel and self._tunnel.poll() is None),
-                    "local_process_running": bool(self._ollama and self._ollama.poll() is None),
-                    "host_key_pinned": bool(
-                        r["host_key_fingerprint"]
-                        or (self.known_hosts_path.exists() and self.known_hosts_path.stat().st_size)
-                    ),
-                },
-                "ide": self._ide_status(),
-            },
-        }
+        return desktop_projection.snapshot(
+            self,
+            file_bridge=file_bridge,
+            environ=os.environ,
+            tunnel_target_var=TUNNEL_TARGET_VAR,
+        )
 
 
 def install_web_integration(web_api: Any, manager: DesktopRuntimeManager) -> None:
     """Add desktop routes without creating a second HTTP/control server."""
-    base = web_api.DaedalusHandler
-
-    class ManagedHandler(base):
-        def _handle_get(self) -> None:
-            path = urlsplit(self.path).path
-            if path == "/api/host/capabilities":
-                snapshot = manager.snapshot()
-                projector = getattr(web_api, "_host_capabilities", None)
-                capabilities = (
-                    projector("desktop", snapshot)
-                    if callable(projector)
-                    else {
-                        "host_mode": "desktop",
-                        "can_manage_openvscode": bool(
-                            snapshot.get("services", {}).get("ide", {}).get("available") is True),
-                        "can_open_external_editor": bool(
-                            snapshot.get("services", {}).get("ide", {}).get("reachable") is True),
-                        "can_send_editor_commands": False,
-                        "editor_commands_require_session": True,
-                    }
-                )
-                self._send_json(web_api.core.envelope(
-                    None, host_capabilities=capabilities))
-                return
-            if path == "/api/desktop/settings":
-                self._send_json(web_api.core.envelope(None, desktop=manager.snapshot()))
-                return
-            super()._handle_get()
-
-        def _handle_put(self) -> None:
-            if urlsplit(self.path).path == "/api/desktop/settings":
-                try:
-                    snap = manager.save_settings(web_api._read_body(self))
-                    web_api.runtime_registry.reset_status_cache()
-                    self._send_json(web_api.core.envelope(None, desktop=snap))
-                except (ValueError, DesktopRuntimeError) as exc:
-                    self._send_json({"ok": False, "error": str(exc)}, status=400)
-                return
-            super()._handle_put()
-
-        def _handle_post(self) -> None:
-            path = urlsplit(self.path).path
-            try:
-                if path == "/api/desktop/shutdown":
-                    expected = (
-                        getattr(self.server, "daedalus_desktop_startup_nonce", "")
-                        or ""
-                    )
-                    supplied = self.headers.get("X-Daedalus-Desktop-Nonce", "")
-                    if not expected or not hmac.compare_digest(supplied, expected):
-                        self._send_json(
-                            {"ok": False, "error": "desktop parent nonce required"},
-                            status=403,
-                        )
-                        return
-                    manager.close(strict=True, timeout=6.0)
-                    result = {"closed": True}
-                elif path == "/api/desktop/services/bridge/start":
-                    result = manager.ensure_bridge()
-                elif path == "/api/desktop/services/ollama/start":
-                    result = manager.ensure_ollama()
-                    web_api.runtime_registry.reset_status_cache()
-                elif path == "/api/desktop/services/ollama/stop":
-                    manager.stop_ollama()
-                    web_api.runtime_registry.reset_status_cache()
-                    result = manager.snapshot()["services"]["ollama"]
-                elif path == "/api/desktop/services/ide/start":
-                    body = web_api._read_body(self)
-                    if not isinstance(body, dict):
-                        raise DesktopRuntimeError("request body must be a JSON object")
-                    project_root = resolve_registered_project_root(body.get("project"))
-                    result = manager.ensure_ide(project_root)
-                elif path == "/api/desktop/services/ide/stop":
-                    manager.stop_ide(strict=True)
-                    result = manager.snapshot()["services"]["ide"]
-                else:
-                    super()._handle_post()
-                    return
-                self._send_json(web_api.core.envelope(None, service=result))
-            except ProjectRegistryUnavailable as exc:
-                self._send_json({"ok": False, "error": str(exc)}, status=503)
-            except (ValueError, DesktopRuntimeError) as exc:
-                self._send_json({"ok": False, "error": str(exc)}, status=400)
-
-    web_api.DaedalusHandler = ManagedHandler
+    desktop_http.install_web_integration(
+        web_api,
+        manager,
+        desktop_error=DesktopRuntimeError,
+        project_registry_unavailable=ProjectRegistryUnavailable,
+        resolve_project_root=resolve_registered_project_root,
+        compare_digest=hmac.compare_digest,
+        split_url=urlsplit,
+    )
