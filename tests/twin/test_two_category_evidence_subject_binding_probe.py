@@ -36,15 +36,15 @@ def test_probe_verified_cell_evidence_is_not_subject_bound(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """Falsification probe: real evaluator receipts can be replayed onto a foreign cell.
+    """Falsification probe: a real packet digest can be replayed onto a foreign cell.
 
     ``verified_cell_evidence`` currently trusts the caller-asserted
     ``EVALUATOR_VERIFIED`` status and treats the cell's rewrite/observer digest set as
-    the complete provenance term.  The 2-cell constructor does not resolve those
-    receipt digests back to the exact source/target subject.  This probe uses the
-    real Gate-1 voltage ignition evidence packet, then reuses the exact same receipt
-    digests on a different target component.  If both projections are equal, the
-    helper is derivational provenance only and must not be retained as a verifier or
+    the complete provenance term. The 2-cell constructor does not resolve those
+    receipt digests back to the exact source/target subject. This probe uses the real
+    Gate-1 voltage ignition EvidencePacket, then reuses that exact canonical packet
+    digest on a different target component. If both projections are equal, the helper
+    is derivational provenance only and must not be retained as a verifier or
     assurance-quality observer without an independent subject-binding check.
     """
 
@@ -61,11 +61,12 @@ def test_probe_verified_cell_evidence_is_not_subject_bound(
         collected_at=NOW,
     )
     assert result.evidence_packet.evaluation_status == "passed"
-
-    receipts = tuple(
-        sorted(canonical_sha(item.to_dict()) for item in result.evidence_packet.items)
+    assert (
+        result.evidence_packet.candidate_artifact_sha256
+        == result.candidate_source_bundle_sha256
     )
-    assert receipts
+
+    receipts = (result.evidence_packet.digest,)
 
     boundary = TypedBoundary(())
     source = _component(
