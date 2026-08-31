@@ -145,7 +145,13 @@ def test_bare_kernel_import_has_no_eager_capability_side_effects():
         "print(json.dumps(sorted(n for n in sys.modules "
         "if n.startswith('daedalus.kernel.'))))\n"
     )
-    assert loaded == []
+    # G1-HIER-03A gives the canonical JSON/envelope helper a kernel owner.
+    # ``daedalus.schemas`` is still imported by the package root and therefore
+    # loads this pure helper, but no ledger/durability or capability owner.
+    assert loaded == [
+        "daedalus.kernel.events",
+        "daedalus.kernel.events.envelope",
+    ]
 
 
 def test_one_reexport_loads_only_its_owner_and_keeps_identity():
@@ -163,6 +169,8 @@ def test_one_reexport_loads_only_its_owner_and_keeps_identity():
             "daedalus.kernel.contracts",
             "daedalus.kernel.contracts.canonical",
             "daedalus.kernel.contracts.security",
+            "daedalus.kernel.events",
+            "daedalus.kernel.events.envelope",
             "daedalus.kernel.policy",
             "daedalus.kernel.policy.limits",
         ],
