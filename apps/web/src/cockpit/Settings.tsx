@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { getEnvStatus, getRuntimeStatus, testRuntime, type EnvStatusPayload } from '../api';
 import type { RuntimeRow } from '../types';
 import { drawerVariants, useReducedMotionPref } from '../motion';
+import { SystemCapabilities } from '../features/system/SystemCapabilities';
 import {
   AUTONOMY_LEVELS,
   readAutonomyLog,
@@ -23,6 +24,7 @@ import './settings.css';
 export interface SettingsProps {
   open: boolean;
   onClose: () => void;
+  project: string;
   brain: string;
   onBrain: (id: string) => void;
   autonomy: AutonomyLevel;
@@ -328,7 +330,7 @@ function formatBudgetUsd(value: number): string {
   return `${value.toLocaleString('de-DE', { maximumFractionDigits: 6 })} USD`;
 }
 
-export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, logSignal = 0 }: SettingsProps) {
+export function Settings({ open, onClose, project, brain, onBrain, autonomy, onAutonomy, logSignal = 0 }: SettingsProps) {
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
   const [env, setEnv] = useState<EnvStatusPayload | undefined>();
   const [error, setError] = useState('');
@@ -669,6 +671,8 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
             ))}
           </div>
         </section>
+
+        <SystemCapabilities project={project} enabled={open} />
 
         <section className="settings-section" aria-labelledby="caps-settings-title">
           <div className="settings-title" id="caps-settings-title">Ausführungsgrenzen</div>

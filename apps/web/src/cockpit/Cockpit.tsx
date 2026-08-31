@@ -735,6 +735,7 @@ export function Cockpit() {
       <Settings
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        project={project}
         brain={brain}
         onBrain={chooseBrain}
         autonomy={autonomy}
@@ -1088,7 +1089,7 @@ function ChromeTools({
         Themes
       </button>
       <span className="chrome-divider" aria-hidden="true" />
-      <a className="chrome-link" href="?surface=classic" title="Die vorherige Oberfläche — Runtimes, Control Plane, Inbox">
+      <a className="chrome-link" href="?surface=classic" title="Kompatibilitätsalias — öffnet dieselbe Cockpit-App">
         Alte Oberfläche
       </a>
     </div>

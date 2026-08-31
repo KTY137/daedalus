@@ -56,9 +56,8 @@ async function request<T>(url: string, init?: RequestInit, timeoutMs = 20_000): 
       // person, and they arrive at the worst moment — when something has just
       // failed. They were written in English while every surface that shows
       // them says "Die Daedalus-API antwortet nicht." two elements away.
-      // The classic surface at ?surface=classic is English and will now show
-      // these in German; that is the right way round, because it is the
-      // retired surface and this is the shipping one.
+      // Every surface query now renders the German Cockpit, so this client
+      // keeps its human-facing failure vocabulary in the same language.
       //
       // The distinction each one draws is load-bearing and survives the
       // translation intact: an abandoned request is not a failed one, and
@@ -949,7 +948,8 @@ export interface LoopQueueBlock {
   candidates: LoopCandidate[];
   n_candidates: number;
   limit: number;
-  /** Per-source detail. Shapes differ per source ON PURPOSE — see views/health.ts. */
+  /** Per-source detail. Shapes differ per source ON PURPOSE; consumers must
+   * preserve `degraded_sources` rather than flattening a failed read to empty. */
   sources: Record<string, unknown>;
   notes: string[];
   /** Sources that could NOT be consulted. An empty queue with a non-empty

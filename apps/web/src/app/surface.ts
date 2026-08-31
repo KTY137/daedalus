@@ -1,19 +1,20 @@
 import surfaceShims from './surface-shims.json';
 
-export type AppSurface = 'cockpit' | 'classic';
+export type AppSurface = 'cockpit';
 
 const classicQueryValues = surfaceShims.entries.flatMap((entry) => entry.query_values);
 
 /**
  * Resolve the compatibility query at the one application-composition door.
  *
- * Unknown and absent values keep opening Cockpit. `classic` and its historical
- * `legacy` alias remain exact, case-sensitive compatibility values until the
- * registry's removal criterion is met.
+ * Every value opens the one Cockpit implementation. The known `classic` and
+ * `legacy` values remain recorded below so caller audits can retire the query
+ * shim without recreating a second application branch.
  */
 export function resolveSurface(search: string): AppSurface {
   const requested = new URLSearchParams(search).get('surface');
-  return requested !== null && classicQueryValues.includes(requested) ? 'classic' : 'cockpit';
+  if (requested !== null && classicQueryValues.includes(requested)) return 'cockpit';
+  return 'cockpit';
 }
 
 export { surfaceShims };

@@ -2,11 +2,12 @@
  * Executable G1-UI-01 contract without a new test dependency.
  *
  * esbuild is already a Vite dependency. The runner bundles the pure resolver
- * spec into a temporary directory, then audits only Git-tracked frontend
- * sources for the single-root and lazy-compatibility ownership rules.
+ * specs into a temporary directory, then audits only Git-tracked frontend
+ * sources for the single-root and single-implementation ownership rules.
  */
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -23,6 +24,7 @@ function trackedFrontendSources() {
   return output
     .split('\0')
     .filter((entry) => /\.(?:ts|tsx)$/.test(entry))
+    .filter((entry) => existsSync(path.join(repoRoot, entry)))
     .sort();
 }
 
@@ -58,37 +60,56 @@ async function architectureSpec() {
   const owner = sources.get('apps/web/src/app/SurfaceRoot.tsx') || '';
   check('SurfaceRoot owns the Cockpit import', owner.includes("from '../cockpit/Cockpit'"));
   check('SurfaceRoot owns the provider composition', owner.includes("from '../theme/ThemeProvider'"));
-  check('the classic implementation stays lazy', owner.includes("lazy(() => import('../App'))"));
-  check('the classic stylesheet cannot enter through a static App import', !/from ['"]\.\.\/App['"]/.test(owner));
+  check('SurfaceRoot has no lazy or conditional application implementation', !/\blazy\b|\bSuspense\b|import\(['"]\.\.\/App['"]\)/.test(owner));
 
   const appImporters = [...sources.entries()]
     .filter(([, source]) => /(?:import\s*\(|from\s*)['"]\.\.\/App['"]/.test(source))
     .map(([file]) => file);
   check(
-    'only the shared SurfaceRoot can reach the classic implementation',
-    appImporters.length === 1 && appImporters[0] === 'apps/web/src/app/SurfaceRoot.tsx',
+    'no production source can reach a second App implementation',
+    appImporters.length === 0,
     appImporters.join(', ')
   );
+  check('the separate App implementation is retired', !sources.has('apps/web/src/App.tsx'));
+
+  const appShellOwners = [...sources.entries()]
+    .filter(([, source]) => source.includes('app-shell'))
+    .map(([file]) => file);
+  check('the retired app-shell runtime string is absent from tracked production sources', appShellOwners.length === 0, appShellOwners.join(', '));
+
+  const featureApi = sources.get('apps/web/src/features/system/api.ts') || '';
+  for (const contract of ['getDashboard', 'getControlPlane', 'getClaudeBootstrap', 'getProviderStatus']) {
+    check(`the Cockpit system feature owns the ${contract} port`, featureApi.includes(contract));
+  }
 
   return results;
 }
 
 const workdir = await mkdtemp(path.join(tmpdir(), 'daedalus-app-spec-'));
-const outfile = path.join(workdir, 'surface-spec.mjs');
+const surfaceOutfile = path.join(workdir, 'surface.js');
+const systemOutfile = path.join(workdir, 'system.js');
 
 try {
   await build({
-    entryPoints: [path.join(here, 'surface.spec.ts')],
+    entryPoints: {
+      surface: path.join(here, 'surface.spec.ts'),
+      system: path.join(here, '..', 'features', 'system', 'system.spec.ts')
+    },
     bundle: true,
     format: 'esm',
     platform: 'node',
     target: 'node18',
-    outfile,
+    outdir: workdir,
     logLevel: 'warning'
   });
 
-  const { runSurfaceSpec } = await import(pathToFileURL(outfile).href);
-  const results = [...runSurfaceSpec(), ...(await architectureSpec())];
+  const { runSurfaceSpec } = await import(pathToFileURL(surfaceOutfile).href);
+  const { runSystemCapabilitiesSpec } = await import(pathToFileURL(systemOutfile).href);
+  const results = [
+    ...runSurfaceSpec(),
+    ...(await runSystemCapabilitiesSpec()),
+    ...(await architectureSpec())
+  ];
   let failed = 0;
   for (const result of results) {
     if (result.ok) {

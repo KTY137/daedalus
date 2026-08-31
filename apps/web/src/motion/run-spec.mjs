@@ -34,7 +34,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
  *   G2  No component may write a duration, easing or spring literal. A magic
  *       number in a component is how a design system dies.
  *
- * Scope: originally just `components/glass` (the old surface, fully wired).
+ * Scope: the shared motion primitives and the shipping Cockpit surfaces.
  * `cockpit/` and `theme/` are in scope too now that the cockpit surface has
  * started consuming framer-motion directly (Settings.tsx, ThemeStudio.tsx,
  * and — as the other cockpit lanes wire in the primitives documented in

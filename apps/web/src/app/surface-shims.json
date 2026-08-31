@@ -8,10 +8,10 @@
         "classic",
         "legacy"
       ],
-      "owner": "apps/web/src/app/SurfaceRoot.tsx",
-      "target": "apps/web/src/App.tsx",
-      "kind": "lazy_compatibility_surface",
-      "removal_criteria": "Cockpit owns runtime and provider status, control-plane inspection, Mission Control, and the draft inbox; their browser contracts pass through the Cockpit route; source and built-chunk audits find no remaining classic-only caller or stylesheet dependency."
+      "owner": "apps/web/src/app/surface.ts",
+      "target": "apps/web/src/cockpit/Cockpit.tsx",
+      "kind": "same_implementation_query_alias",
+      "removal_criteria": "Tracked source, runtime-string, documentation and external caller audits find no consumer that still emits surface=classic or surface=legacy."
     }
   ]
 }
