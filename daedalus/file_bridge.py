@@ -128,66 +128,9 @@ class TerminalBookkeepingPending(RuntimeError):
             f"at {self.step}: {type(cause).__name__}: {cause}")
 
 
-class RequestIdentityConflict(RuntimeError):
-    """A filename key was reused for different canonical request bytes.
-
-    The old journal/report remain authoritative and untouched.  Only the new,
-    contradictory outbox file is moved to a digest-suffixed quarantine path.
-    Watch/CLI recovery must surface this exception directly; routing it through
-    :func:`quarantine_request` would overwrite the old report under the shared
-    filename key.
-    """
-
-    def __init__(self, key: str, expected: str, observed: str,
-                 quarantine_path: Path, *, moved: bool,
-                 quarantine_error: BaseException | None = None) -> None:
-        self.key = str(key)
-        self.expected = str(expected)
-        self.observed = str(observed)
-        self.quarantine_path = Path(quarantine_path)
-        self.moved = bool(moved)
-        self.quarantine_error = quarantine_error
-        state = "quarantined" if moved else "quarantine move pending"
-        if quarantine_error is not None:
-            state += (
-                f": {type(quarantine_error).__name__}: {quarantine_error}"
-            )
-        super().__init__(
-            f"request filename key {self.key!r} is already bound to "
-            f"sha256:{self.expected}; received sha256:{self.observed} "
-            f"({state} at {self.quarantine_path})"
-        )
-
-
-class TerminalReportPreserved(RuntimeError):
-    """Poison recovery refused to overwrite an already durable report."""
-
-    def __init__(self, key: str, report_path: Path, reason: str) -> None:
-        self.key = str(key)
-        self.report_path = Path(report_path)
-        self.reason = str(reason)
-        super().__init__(
-            f"terminal report for {self.key!r} remains authoritative at "
-            f"{self.report_path}; destructive quarantine was refused: "
-            f"{self.reason}")
-
-
-class QuarantineMovePending(RuntimeError):
-    """A quarantine report is durable but its source file is still queued.
-
-    A Windows sharing violation can prevent the final move after every other
-    quarantine fact has landed.  This state is neither successful completion
-    nor poison input: callers must report it as pending and retry only the
-    move, never rewrite the report or redispatch provider work.
-    """
-
-    def __init__(self, key: str, path: Path, destination: Path) -> None:
-        self.key = str(key)
-        self.path = Path(path)
-        self.destination = Path(destination)
-        super().__init__(
-            f"quarantine move pending for {self.key!r}: "
-            f"{self.path} -> {self.destination}")
+RequestIdentityConflict = bridge_dispatch.RequestIdentityConflict
+TerminalReportPreserved = bridge_dispatch.TerminalReportPreserved
+QuarantineMovePending = bridge_dispatch.QuarantineMovePending
 
 
 def _is_transient_projection_failure(exc: BaseException) -> bool:
@@ -327,52 +270,20 @@ def _quarantine_request_identity_conflict(
     must not overwrite.  The observed digest gives the contradictory file and
     sidecar their own deterministic names without minting another authority.
     """
-    directory = _quarantine_dir()
-    suffix = observed[:16]
-    destination = directory / f"{key}.identity-conflict-{suffix}{path.suffix}"
-    sidecar = directory / f"{destination.stem}.error.json"
-    detail = {
-        "request_file": key,
-        "reason": "request_identity_conflict",
-        "error": (
-            f"filename key is bound to sha256:{expected}; "
-            f"contradictory request is sha256:{observed}"
+    return bridge_dispatch.quarantine_request_identity_conflict(
+        path,
+        key,
+        expected=expected,
+        observed=observed,
+        ports=bridge_dispatch.IdentityConflictPorts(
+            inbox=INBOX,
+            quarantine_dir=_quarantine_dir,
+            now_iso=_now_iso,
+            write_json_atomic=_write_json_atomic,
+            replace=os.replace,
+            move=shutil.move,
+            move_error=shutil.Error,
         ),
-        "expected_request_sha256": expected,
-        "observed_request_sha256": observed,
-        "preserved_report": str(INBOX / f"{key}.report.json"),
-        "quarantine_path": str(destination),
-        "quarantined_at": _now_iso(),
-    }
-    moved = False
-    quarantine_error: BaseException | None = None
-    try:
-        directory.mkdir(parents=True, exist_ok=True)
-        # Publish the diagnostic before evicting the only copy of the
-        # contradictory request.  If this fails, leave the request queued for
-        # a retry and keep the failure inside RequestIdentityConflict so the
-        # watcher can never route it through generic report-overwriting poison
-        # handling.
-        _write_json_atomic(sidecar, detail)
-        moved = not path.exists()
-        if not moved:
-            try:
-                os.replace(path, destination)
-                moved = True
-            except OSError as replace_exc:
-                try:
-                    shutil.move(str(path), str(destination))
-                    moved = True
-                except (OSError, shutil.Error) as move_exc:
-                    quarantine_error = RuntimeError(
-                        f"atomic move failed ({replace_exc}); fallback move "
-                        f"failed ({move_exc})"
-                    )
-    except (OSError, shutil.Error) as exc:
-        quarantine_error = exc
-    return RequestIdentityConflict(
-        key, expected, observed, destination, moved=moved,
-        quarantine_error=quarantine_error,
     )
 
 
@@ -829,111 +740,41 @@ def quarantine_request(path: Path, reason: str, detail: str) -> Path:
     other attempt refuses via :class:`TerminalReportPreserved`.  A locked final
     move is journaled and raised as :class:`QuarantineMovePending`: the next
     poll retries only that move and cannot rewrite the report or log line."""
-    key = _request_key(path)
-    dest = _quarantine_dir() / path.name
-    # THE TRACE COMES FROM THE JOURNAL, not from the request. A quarantine is
-    # exactly the case where the request may be unreadable (poison) or already
-    # moved, so the only surviving record of which run asked for this work is
-    # the journal entry process_request wrote BEFORE dispatching. A give-up is
-    # the report a human most wants to trace back, so it is worth the extra
-    # read.
-    entry = _read_journal(key)
-    result_path = INBOX / f"{key}.report.json"
-    raw_sha256 = _raw_request_sha256(path)
-    identity = envelope.canonical_sha({
-        "request_file": key,
-        "request_raw_sha256": raw_sha256,
-        "reason": str(reason),
-        "detail": str(detail),
-    })
-    pending = entry.get("quarantine_record")
-    pending = pending if isinstance(pending, dict) else {}
-    pending_report = pending.get("report")
-    pending_report = pending_report if isinstance(pending_report, dict) else None
-    pending_matches = (
-        pending.get("identity") == identity
-        and pending.get("request_raw_sha256") == raw_sha256
-        and pending.get("reason") == str(reason)
-        and pending.get("detail") == str(detail)
-        and pending_report is not None
+    return bridge_dispatch.quarantine_request(
+        path,
+        reason,
+        detail,
+        ports=bridge_dispatch.QuarantinePorts(
+            inbox=INBOX,
+            trace_key=envelope.TRACE_KEY,
+            request_key=_request_key,
+            quarantine_dir=_quarantine_dir,
+            read_journal=_read_journal,
+            raw_request_sha256=_raw_request_sha256,
+            canonical_sha=envelope.canonical_sha,
+            completed_report=_completed_report,
+            stamp_report=envelope.stamp,
+            now_iso=_now_iso,
+            write_journal=_write_journal,
+            write_json_atomic=_write_json_atomic,
+            project_report=_project_report_to_conversation,
+            conversation_projection_pending=ConversationProjectionPending,
+            conversation_projection_failed=ConversationProjectionFailed,
+            note_report_arrival=_note_report_arrival,
+            quarantine_move=_quarantine_move,
+        ),
     )
-    existing = _completed_report(result_path)
-    if existing is not None:
-        if not pending_matches or envelope.canonical_sha(existing) != (
-                envelope.canonical_sha(pending_report)):
-            # Central report-authority fence. Any generic error on a replay
-            # can reach poison handling. A whole terminal artifact remains
-            # evidence even if its recovery journal is unreadable; only an
-            # exact journal-bound continuation may resume around it.
-            raise TerminalReportPreserved(
-                key, result_path, f"{reason}: {detail}")
-        report = existing
-    else:
-        if pending_matches:
-            report = pending_report
-        else:
-            report = envelope.stamp({
-                "request_file": key,
-                "bridge_status": "quarantined",
-                "error": f"{reason}: {detail}",
-                "reason": reason,
-                "quarantined_at": _now_iso(),
-                "quarantine_path": str(dest),
-            }, trace_id=entry.get(envelope.TRACE_KEY))
-            entry["quarantine_record"] = {
-                "identity": identity,
-                "request_raw_sha256": raw_sha256,
-                "reason": str(reason),
-                "detail": str(detail),
-                "report": report,
-            }
-            entry["state"] = "quarantine_pending"
-            entry["key"] = key
-            _write_journal(key, entry)
-        _write_json_atomic(result_path, report)
-    projection_failure: BaseException | None = None
-    try:
-        _project_report_to_conversation(key, report)
-    except ConversationProjectionPending:
-        raise
-    except Exception as exc:
-        # Quarantine is itself a terminal report. A permanent disagreement in
-        # its chat projection must not prevent the poison request from being
-        # evicted, or the watcher would retry the same contradiction forever.
-        projection_failure = exc
-        entry["conversation_projection_error"] = {
-            "type": type(exc).__name__,
-            "message": str(exc)[:1000],
-        }
-    _note_report_arrival(result_path, report, key=key)
-    _write_json_atomic(_quarantine_dir() / f"{key}.error.json", report)
-    entry["state"] = "quarantine_move_pending"
-    entry["key"] = key
-    entry["reason"] = reason
-    _write_journal(key, entry)
-    if not _quarantine_move(path, key):
-        raise QuarantineMovePending(key, path, dest)
-    entry["state"] = "quarantined"
-    _write_journal(key, entry)
-    if projection_failure is not None:
-        raise ConversationProjectionFailed(
-            key, projection_failure) from projection_failure
-    return result_path
 
 
 def _quarantine_move(path: Path, key: str) -> bool:
-    if not path.exists():
-        return True
-    _quarantine_dir().mkdir(parents=True, exist_ok=True)
-    dest = _quarantine_dir() / f"{key}{path.suffix}"
-    try:
-        os.replace(path, dest)
-    except OSError:
-        try:
-            shutil.move(str(path), str(dest))
-        except (OSError, shutil.Error):
-            return False
-    return True
+    return bridge_dispatch.move_quarantined_request(
+        path,
+        key,
+        quarantine_dir=_quarantine_dir,
+        replace=os.replace,
+        move=shutil.move,
+        move_error=shutil.Error,
+    )
 
 
 def _finish_terminal_report(

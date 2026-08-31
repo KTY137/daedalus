@@ -123,6 +123,48 @@ def test_claimed_facade_contains_no_state_machine_calls() -> None:
     } & direct_calls
 
 
+def test_legacy_quarantine_exceptions_are_dispatch_owner_objects() -> None:
+    assert file_bridge.RequestIdentityConflict is dispatch.RequestIdentityConflict
+    assert file_bridge.TerminalReportPreserved is dispatch.TerminalReportPreserved
+    assert file_bridge.QuarantineMovePending is dispatch.QuarantineMovePending
+
+
+def test_quarantine_facades_each_delegate_to_one_dispatch_owner() -> None:
+    owners = {
+        "_quarantine_request_identity_conflict": (
+            "quarantine_request_identity_conflict"
+        ),
+        "quarantine_request": "quarantine_request",
+        "_quarantine_move": "move_quarantined_request",
+    }
+    for facade_name, owner_name in owners.items():
+        wrapper = _function(FACADE, facade_name)
+        assert len(_attribute_calls(wrapper, owner_name)) == 1
+
+
+def test_quarantine_facade_contains_no_persistence_state_machine_calls() -> None:
+    wrappers = [
+        _function(FACADE, "_quarantine_request_identity_conflict"),
+        _function(FACADE, "quarantine_request"),
+        _function(FACADE, "_quarantine_move"),
+    ]
+    direct_calls = {
+        child.func.id
+        for wrapper in wrappers
+        for child in ast.walk(wrapper)
+        if isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
+    }
+
+    assert not {
+        "_read_journal",
+        "_write_journal",
+        "_completed_report",
+        "_write_json_atomic",
+        "_project_report_to_conversation",
+        "_note_report_arrival",
+    } & direct_calls
+
+
 def test_claim_owner_returns_the_winners_terminal_report_after_wait(tmp_path) -> None:
     request = tmp_path / "request-key.json"
     inbox = tmp_path / "inbox"
