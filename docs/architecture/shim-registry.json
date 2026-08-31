@@ -157,6 +157,15 @@
       "removal_criteria": "Hermes receives a separately reviewed production-admission packet or all source, wheel, and runtime-string callers migrate to the isolated integration path."
     },
     {
+      "import_path": "daedalus.providers.personas",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.personas"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining legacy persona import; the verified legacy JSON mirror may then be retired separately."
+    },
+    {
       "import_path": "daedalus.runtimes.faults",
       "owner": "runtimes-faults",
       "targets": [

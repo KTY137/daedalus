@@ -114,7 +114,7 @@ def test_frozen_repository_baseline_is_exact_and_green() -> None:
     assert report.allowlisted == contract.baseline
     assert report.new == ()
     assert report.resolved == ()
-    assert report.shim_entry_count == 18
+    assert report.shim_entry_count == 19
     assert report.passed is True
 
 

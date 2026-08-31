@@ -60,7 +60,7 @@ from ._report import (
     provider_http_timeout,
 )
 from .base import Provider, ProviderCapabilities
-from .personas import persona_for
+from ..runtimes.providers.personas import persona_for
 
 ROOT = Path(__file__).resolve().parents[2]
 RUN_DIR = ROOT / "runs"

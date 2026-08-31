@@ -32,7 +32,7 @@ from ._report import (
     render_provider_brief,
 )
 from .base import Provider, ProviderCapabilities
-from .personas import persona_for
+from ..runtimes.providers.personas import persona_for
 
 # DeepSeek exposes an OpenAI-compatible endpoint. Per docs/PROVIDERS_RESEARCH.md:
 # json_object mode only (no GA strict schema) -> validate-and-retry; and the

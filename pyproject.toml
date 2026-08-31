@@ -71,5 +71,6 @@ exclude = ["tests*", "tools*"]
     "templates/*.md",
     "templates/agents/*.json",
     "catalogue/gui/*.json",
+    "catalogue/providers/*.json",
     "schemas/*.json",
 ]

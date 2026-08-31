@@ -34,7 +34,7 @@ from ._report import (
     render_provider_brief,
 )
 from .base import Provider, ProviderCapabilities
-from .personas import persona_for
+from ..runtimes.providers.personas import persona_for
 
 # Local server. Because nothing leaves the machine, Ollama is trusted with IP,
 # is AGENTIC (drives its own file reads), and MAY WRITE -- but with reduced

@@ -29,7 +29,7 @@ from dataclasses import dataclass
 
 from .config import external_write_lanes_for_repo
 from .providers import available_providers
-from .providers.personas import culture, persona_for
+from .runtimes.providers.personas import culture, persona_for
 from .semantic_route import FALLBACK, LATENT, semantic_route_explained
 from .sensitivity import Policy, change_risk, classify_data
 

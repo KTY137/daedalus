@@ -24,7 +24,7 @@ from typing import Any
 
 from ..provider_router import route_and_select
 from ..providers import get_provider
-from ..providers.personas import roster
+from ..runtimes.providers.personas import roster
 from ..sensitivity import Policy
 
 # Lanes Ikarus may dispatch (everything that is not the senior Claude lane).
