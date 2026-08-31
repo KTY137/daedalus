@@ -3,23 +3,28 @@
 ## Frozen packet metadata
 
 - Packet ID: `G1-HIER-03A`
-- Active gate: **Gate 1 - Renovation and owner-directed Genesis**
+- Artifact role: `primary`
+- Active gate: `1`
 - Classification: `ALIGNED`
-- Owner: repository owner; no automatic merge, promotion, or Gate transition
-- Frozen base revision: `151b8d18`
+- Owner: `repository owner`
+- Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
+- Dependencies: `G1-HIER-02A at 575873fcbadeac7a82a2637e1cc232e3662bbd4a (2cf1bb793f22137b67491dc958f3b6ebd928e6cc on the packet branch)`
+- Promotion authority: no automatic merge, promotion, or Gate transition
 - Required reviewed prerequisite: `G1-HIER-02A`, commit `575873fc`
   (`2cf1bb79` after the exact cherry-pick on this packet branch)
 - Master-plan authority: Revision 11
 - Master-plan digest:
   `711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2`
-- Primary claim: envelope, intent-ledger, and durability behavior has exactly
-  one implementation owner under `daedalus.kernel.events`; the three legacy
-  `daedalus.spine` locators resolve to those exact modules.
+## Primary acceptance claim
+
+Envelope, intent-ledger, and durability behavior has exactly one implementation
+owner under `daedalus.kernel.events`; the three legacy `daedalus.spine`
+locators resolve to those exact modules.
 
 The packet consolidates the canonical Event Store; it does not add an event
 store, schema, identity, policy, effect entrypoint, or promotion path.
 
-## Baseline and dependency
+## Contracts and behavior
 
 At the frozen base, the implementation owners were:
 
@@ -39,7 +44,7 @@ this packet. The reviewed `G1-HIER-02A` prerequisite makes only that facade
 lazy; it does not implement or mask Campaigns. This packet changes no line of
 `daedalus/kernel/__init__.py` beyond that exact prerequisite commit.
 
-## Scope and implementation
+## Scope
 
 In scope:
 
@@ -87,7 +92,7 @@ exact module aliases. No tracked caller was found to require the old
 | Effect Registry | exact digest assertion | `ac020278...6211ec` unchanged |
 | Live effects | packet scope and test inventory | zero network/provider/EDA starts |
 
-## Builder evidence
+## Evidence expected failures and review
 
 - CPython 3.13: the focused hierarchy/envelope/ledger/durability/lazy-facade
   matrix passed, **207 passed in 3.46s**.

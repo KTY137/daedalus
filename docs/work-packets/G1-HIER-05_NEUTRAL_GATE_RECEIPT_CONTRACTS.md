@@ -3,20 +3,24 @@
 ## Frozen packet metadata
 
 - Packet ID: `G1-HIER-05`
-- Active gate: **Gate 1 - Renovation and owner-directed Genesis**
+- Artifact role: `primary`
+- Active gate: `1`
 - Classification: `ALIGNED`
-- Owner: repository owner; no automatic merge, promotion, or Gate transition
-- Base revision: `151b8d18`
+- Owner: `repository owner`
+- Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
+- Dependencies: `G1-HIER-02A at 575873fcbadeac7a82a2637e1cc232e3662bbd4a (7d3f742b2ee9dd2522899e97c007b77ab00498f4 on the packet branch)`
+- Promotion authority: no automatic merge, promotion, or Gate transition
 - Prerequisite packet: `G1-HIER-02A` (`7d3f742b` on this branch)
 - Master-plan authority: Revision 11
 - Master-plan digest:
   `711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2`
-- Primary claim: gates produce exact repository, retention-inventory, and
-  Python-target observations through neutral runtime contracts; runtime
-  admission validates them through injected read-only ports without importing
-  gate implementations.
+## Primary acceptance claim
 
-## Change boundary
+Gates produce exact repository, retention-inventory, and Python-target
+observations through neutral runtime contracts; runtime admission validates
+them through injected read-only ports without importing gate implementations.
+
+## Contracts and behavior
 
 `daedalus.runtimes.contracts` owns the receipt, inventory, structural target,
 error, and typed port contracts shared by gates and runtime admission. The
@@ -30,7 +34,7 @@ they resolve to the same class objects. Wire schemas, JSON fields, digests,
 source paths, error domains, effect identifiers, and persistent formats do not
 change.
 
-## Acceptance and refusal matrix
+## Acceptance matrix
 
 | Claim/refusal | Deterministic evidence | Expected |
 |---|---|---|
@@ -42,17 +46,21 @@ change.
 | Registry stability | SHA-256 measurement | `fb060b3e32949a1911e920ae91aa0c883410ca5a36074db9c338f5a64de7f165` |
 | Persistent state | packet scope | no store, CAS, locator, or schema migration |
 
+## Scope
+
 In scope: neutral shared types, compatibility exports, injected verifier ports,
 review updates that follow the canonical type owner, tests, and this packet.
 Forbidden: no gate implementation imported from runtime code; no new gate,
 effect, event store, artifact identity, policy, provider admission, evaluator,
 promotion path, Master Plan, or Amendment Chain change.
 
+## Migration and rollback
+
 Rollback returns type ownership to the gate modules and supplies the former
 gate functions directly inside runtime admission. No persistent migration is
 needed in either direction.
 
-## Builder evidence
+## Evidence expected failures and review
 
 - related gate/runtime matrix: `358 passed, 13 skipped`;
 - complete `tests/gates` plus `tests/runtimes`: `1851 passed, 74 skipped`;
@@ -64,3 +72,7 @@ needed in either direction.
 - historical Forest-v2 corpus check: `6 passed, 2 failed` on the pre-existing
   retracted function-count pin and absent optional third-party corpus. The same
   two failures reproduce on comparison packets and are retained, not rewritten.
+
+Independent review must verify exact old/new object and pickle identity, zero
+runtime-to-gate imports, explicit injected ports, and unchanged Registry and
+persistent formats.

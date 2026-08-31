@@ -184,15 +184,15 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
 
     clean, message = subject.check(ROOT)
     assert clean is True
-    assert "206 tracked files" in message
+    assert "220 tracked files" in message
     assert payload["counts"] == {
-        "assigned_artifacts": 203,
+        "assigned_artifacts": 217,
         "legacy_artifacts": 204,
-        "packet_artifacts": 205,
-        "packet_ids": 141,
-        "post_index_artifacts": 1,
+        "packet_artifacts": 219,
+        "packet_ids": 154,
+        "post_index_artifacts": 15,
         "registry_artifacts": 1,
-        "tracked_files": 206,
+        "tracked_files": 220,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -237,21 +237,60 @@ def test_legacy_unknowns_and_unassigned_artifacts_remain_explicit() -> None:
     ]
 
 
-def test_new_packet_contract_is_unique_complete_and_revision_bound() -> None:
+def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() -> None:
     payload = _index()
     packets = {packet["packet_id"]: packet for packet in payload["packets"]}
-    packet = packets["G1-WP-INDEX-01"]
+    expected_primary_ids = {
+        "G1-HIER-01",
+        "G1-HIER-02",
+        "G1-HIER-02A",
+        "G1-HIER-03A",
+        "G1-HIER-04",
+        "G1-HIER-05",
+        "G1-IDE-13",
+        "G1-IFACE-HTTP-01",
+        "G1-IKARUS-14",
+        "G1-ORCH-01",
+        "G1-PKG-01",
+        "G1-RUNTIME-02",
+        "G1-WEB-01",
+        "G1-WP-INDEX-01",
+    }
+    post_index_packets = {
+        packet_id: packet
+        for packet_id, packet in packets.items()
+        if packet["origin"] == "post_index"
+    }
 
-    assert packet["origin"] == "post_index"
-    assert packet["primary_artifact"].endswith("TRACKED_WORK_PACKET_REGISTRY.md")
-    assert "unknown" not in packet["metadata"].values()
-    assert payload["post_index_contracts"] == [
+    assert set(post_index_packets) == expected_primary_ids
+    for packet in post_index_packets.values():
+        assert packet["primary_artifact"] != "unknown"
+        assert "unknown" not in packet["metadata"].values()
+        assert packet["metadata_conflicts"] == {}
+
+    contracts = payload["post_index_contracts"]
+    primary_contracts = [
+        contract for contract in contracts
+        if contract["artifact_role"] == "primary"
+    ]
+    companion_contracts = [
+        contract for contract in contracts
+        if contract["artifact_role"] == "companion"
+    ]
+    assert {contract["packet_id"] for contract in primary_contracts} == (
+        expected_primary_ids
+    )
+    assert all(
+        contract["sections"] == list(subject.REQUIRED_SECTIONS)
+        for contract in primary_contracts
+    )
+    assert companion_contracts == [
         {
-            "artifact_role": "primary",
-            "format": "markdown",
-            "packet_id": "G1-WP-INDEX-01",
-            "path": packet["primary_artifact"],
-            "sections": list(subject.REQUIRED_SECTIONS),
+            "artifact_role": "companion",
+            "format": "json",
+            "packet_id": "G1-RUNTIME-02",
+            "path": "docs/work-packets/G1-RUNTIME-02_SHIM_REGISTER.json",
+            "sections": [],
         }
     ]
 

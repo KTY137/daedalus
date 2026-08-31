@@ -1,5 +1,13 @@
 # G1-RUNTIME-02 — Runtime Trust Admission Port
 
+Packet ID: `G1-RUNTIME-02`
+Artifact role: `primary`
+Active gate: `1`
+Classification: `ALIGNED`
+Owner: `repository owner`
+Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
+Dependencies: `frozen Gate-1 archive parent and the existing runtime-trust and Effect-Lease contracts`
+
 ## Authority and classification
 
 - Iron Plan: `ALIGNED`
@@ -10,11 +18,13 @@
 - Packet branch: `packet/g1-runtime-02`
 - Promotion, merge, provider invocation, and network access: not requested
 
+## Primary acceptance claim
+
 This packet is the bounded Gate-1 hierarchy slice that removes concrete
 runtime-trust ownership from the kernel. It does not change the Master Plan,
 mint a new trust authority, or claim Gate closure.
 
-## Delivered boundary
+## Scope
 
 The kernel owns only the neutral, read-only contracts it consumes:
 
@@ -34,7 +44,9 @@ kill-switch generation, registry, keys, TTL bounds, and clock behavior. No
 wire field, canonical digest, SQLite schema, registry row, key identifier, or
 effect target changes in this packet.
 
-## Compatibility shim
+## Contracts and behavior
+
+### Compatibility shim
 
 `daedalus.kernel.runtime_authorization_issuer` remains a registered, removable
 PEP-562 compatibility facade. Bare module loading imports only the standard
@@ -47,7 +59,7 @@ The packet-local machine-readable register is
 `G1-RUNTIME-02_SHIM_REGISTER.json`. Retirement requires completed source,
 runtime-string, wheel, documentation, and pickle/global-reference audits.
 
-## Fail-closed properties
+### Fail-closed properties
 
 1. Runtime-effect issuance requires an injected `RuntimeTrustLedgerPort`.
 2. An absent or structurally invalid port is refused before
@@ -61,7 +73,7 @@ runtime-string, wheel, documentation, and pickle/global-reference audits.
 6. Runtime replay catches the neutral port failure, not a concrete runtime
    implementation.
 
-## Preserved provider admission
+### Preserved provider admission
 
 The effect registry is not edited. The exact frozen-parent wiring remains:
 
@@ -74,7 +86,7 @@ or EDA operation. The registry source SHA-256 before this packet is
 `FB060B3E32949A1911E920AE91AA0C883410CA5A36074DB9C338F5A64DE7F165` and
 must remain identical at the packet commit.
 
-## Verification
+## Acceptance matrix
 
 The packet supplies focused evidence for:
 
@@ -105,10 +117,18 @@ Expected packet evidence at commit:
 - registry digest: unchanged;
 - direct kernel-to-runtime import search: no matches.
 
-## Rollback and remaining work
+## Migration and rollback
 
 Rollback delegates the registered facade to the previous implementation while
 leaving persisted data untouched. Shim removal is a later packet after every
 registered audit succeeds. This slice does not migrate provider registries,
 open inventory-only rows, alter persistence, add a runtime, repair the frozen
 parent's missing campaigns module, merge, promote, or close Gate 1.
+
+## Evidence expected failures and review
+
+Native frozen-parent collection is expected to stop only at the already absent
+`daedalus.kernel.campaigns`; the diagnostic stub evidence remains explicitly
+non-production. Independent review must verify zero kernel-to-runtime imports,
+required injected trust ports, exact facade identity, unchanged provider
+admission, and no second trust ledger or authorization authority.

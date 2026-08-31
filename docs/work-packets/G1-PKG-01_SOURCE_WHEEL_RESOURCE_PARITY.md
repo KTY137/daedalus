@@ -3,23 +3,30 @@
 ## Frozen packet metadata
 
 - Packet ID: `G1-PKG-01`
+- Artifact role: `primary`
 - Active gate: **Gate 1 — Renovation ignition slice**
 - Classification: `ALIGNED`
-- Owner: repository owner; no automatic merge, promotion, or Gate transition
+- Owner: `repository owner`
 - Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
+- Dependencies: `frozen Gate-1 archive parent and existing root built-in resource mirrors`
+- Promotion authority: no automatic merge, promotion, or Gate transition
 - Master-plan authority: Revision 10
-- Primary claim: an installed wheel can read the same built-in roles,
-  scaffold templates, GUI catalogue and JSON Schemas as a source checkout,
-  without packaging project-local state or creating a second resource truth.
+## Primary acceptance claim
 
-## Baseline
+An installed wheel can read the same built-in roles, scaffold templates, GUI
+catalogue and JSON Schemas as a source checkout, without packaging
+project-local state or creating a second resource truth.
+
+## Contracts and behavior
+
+**Baseline.**
 
 `daedalus.config`, `daedalus.router`, `daedalus.categories` and
 `daedalus.gui_catalogue` resolve defaults through repository-root paths.  The
 wheel includes only `daedalus*`, so source tests pass while an installed wheel
 silently loses those resources.
 
-## Scope and invariants
+## Scope
 
 - Package immutable defaults under `daedalus.resources` and load them through
   `importlib.resources`.
@@ -48,10 +55,12 @@ evidence, and no Master Plan or amendment edit.
 | Global mutation | refusal tests | requires explicit repo root |
 | Distribution contents | wheel archive inventory | all declared resources, no local state |
 
+## Migration and rollback
+
 Rollback restores root-relative reads and removes package-data declarations;
 it restores the known source/wheel mismatch but changes no persistent format.
 
-## Measured packet evidence
+## Evidence expected failures and review
 
 - `py -3.13 -m pytest tests/test_packaged_resources.py tests/test_agents_registry.py tests/test_categories.py tests/test_gui_catalogue.py -q`
   -> `79 passed`.
@@ -68,6 +77,10 @@ The broader frozen parent is not green: imports through `daedalus.kernel`
 currently reference an absent `daedalus.kernel.campaigns`, and the existing
 VS Code extension fixture fails its dashboard-control assertion. Those are
 retained parent evidence, not attributed to this resource packet.
+
+Independent review must verify wheel/source byte parity, override precedence,
+drift refusal, and absence of credentials, runtime state, and persistent
+project-local data from the distribution.
 
 Iron Plan: ALIGNED
 Iron Gate: 1

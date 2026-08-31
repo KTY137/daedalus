@@ -3,18 +3,23 @@
 ## Frozen packet metadata
 
 - Packet ID: `G1-HIER-02`
-- Active gate: **Gate 1 - Renovation and owner-directed Genesis**
+- Artifact role: `primary`
+- Active gate: `1`
 - Classification: `ALIGNED`
-- Owner: repository owner; no automatic merge, promotion, or Gate transition
-- Base revision: `151b8d18`
+- Owner: `repository owner`
+- Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
+- Dependencies: `G1-HIER-02A at 4c591e9020bde86a97d2f87bb35447b783647614 on the packet branch`
+- Promotion authority: no automatic merge, promotion, or Gate transition
 - Prerequisite packet: `G1-HIER-02A` (`4c591e90` on this branch)
 - Master-plan authority: Revision 11
 - Master-plan digest: `711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2`
-- Primary claim: kernel wire contracts and execution-limit policy have canonical
-  owners below `daedalus.kernel`, while old import paths expose the exact same
-  objects and bytes.
+## Primary acceptance claim
 
-## Change boundary
+Kernel wire contracts and execution-limit policy have canonical owners below
+`daedalus.kernel`, while old import paths expose the exact same objects and
+bytes.
+
+## Scope
 
 The former root `schemas.py` implementation now lives at
 `kernel/contracts/canonical.py`. Stable domain locators group mission, attempt,
@@ -33,7 +38,12 @@ files is deliberately deferred until all source, pickle, wheel, runtime-string,
 and documentation consumers have crossed the locators. This packet does not
 claim that follow-on retirement is complete.
 
-## Compatibility and refusal matrix
+## Contracts and behavior
+
+Compatibility, refusal behavior, serialized bytes, and authority ownership are
+frozen by the following matrix.
+
+## Acceptance matrix
 
 | Claim/refusal | Evidence | Expected |
 |---|---|---|
@@ -51,6 +61,15 @@ domain locators, focused tests, and this packet. Forbidden: no contract field,
 digest, ID, registry, effect, policy decision, admission, store, CAS, evidence,
 promotion, Master Plan, or Amendment Chain change.
 
+## Migration and rollback
+
 Rollback restores the previous root implementations. Persisted data requires
 no migration because contract fields, canonical JSON, digests, SQLite formats,
 CAS locators, and evidence paths are unchanged.
+
+## Evidence expected failures and review
+
+No live provider, network, EDA, merge, or promotion operation is expected.
+Independent review must verify object and pickle identity, unchanged canonical
+bytes and digests, and the absence of implementation or singleton state in the
+legacy facades.

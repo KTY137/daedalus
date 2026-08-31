@@ -1,5 +1,13 @@
 # G1-ORCH-01 — Canonical `run_mission` Service
 
+Packet ID: `G1-ORCH-01`
+Artifact role: `primary`
+Active gate: `1`
+Classification: `ALIGNED`
+Owner: `repository owner`
+Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
+Dependencies: `G1-HIER-02A at 575873fcbadeac7a82a2637e1cc232e3662bbd4a (9335643ea3053dfab0fcdef9c69a3b74da5a3b14 on the packet branch)`
+
 ## Authority and classification
 
 - Iron Plan: `ALIGNED`
@@ -11,6 +19,8 @@
 - Required prerequisite: lazy Kernel facade `575873fcbadeac7a82a2637e1cc232e3662bbd4a`
   (cherry-picked on this branch as `9335643e`)
 - Promotion, merge, push, live provider, EDA, and network execution: not requested
+
+## Scope
 
 This packet changes composition only. It does not amend the plan, define a new
 Mission/WorkItem/Effect/Attempt/Evidence contract, add an event store, add a
@@ -48,7 +58,7 @@ migration removes independent live `.dispatch`, `.run_wave`, and `.spawn(...,
 dry_run=False)` calls from the migrated Web/File-Bridge/Core/CLI chain; it does
 not rename or duplicate the scheduler.
 
-## Canonical binding and refusal behavior
+## Contracts and behavior
 
 Before `WaveExecutor.run` can classify or dispatch:
 
@@ -130,7 +140,7 @@ created; store-specific extensions would require mapping. Static proximity and
 call correlation do not establish runtime causation, so focused runtime tests
 remain mandatory.
 
-## Acceptance evidence
+## Acceptance matrix
 
 Prepared focused evidence covers:
 
@@ -166,10 +176,18 @@ environment against this isolated worktree:
 No live provider, model, network, EDA, merge, push, or promotion operation was
 part of verification.
 
-## Rollback and remaining work
+## Migration and rollback
 
 Rollback restores the migrated callers to their previous direct executor call;
 no persistent data migration is required. G1-IKARUS-15 remains responsible for
 composing `MissionSupervisor`, One-shot Effect Bridge, WaveExecutor, durable
 Mission projection, and accepted IKARUS behavior into the single production
 flow. Loop identity migration remains a separately reviewable prerequisite.
+
+## Evidence expected failures and review
+
+The retained expected blockers are the Loop identity mismatch and the frozen
+parent's absent Campaign implementation; neither is represented as a green
+repository-wide scheduler claim. Independent review must verify single
+executor entry, exact Mission/WorkItem/Effect binding, unchanged external and
+persistent contracts, and the continued visibility of the direct Loop seam.

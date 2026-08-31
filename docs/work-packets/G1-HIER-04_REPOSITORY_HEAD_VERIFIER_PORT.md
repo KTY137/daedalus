@@ -1,5 +1,13 @@
 # G1-HIER-04 — Repository-head verifier port
 
+Packet ID: `G1-HIER-04`
+Artifact role: `primary`
+Active gate: `1`
+Classification: `ALIGNED`
+Owner: `repository owner`
+Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
+Dependencies: `frozen Gate-1 archive parent and the existing Gate repository-head verifier`
+
 ## Classification and frozen authority
 
 - Classification: `ALIGNED`
@@ -11,13 +19,15 @@
 - Branch: `packet/g1-hier-04-repo-port`
 - Promotion, merge, live provider and EDA execution: not requested
 
+## Primary acceptance claim
+
 This is a narrow G1-HIER-04 strangler slice. It removes the production import
 edge from `daedalus.kernel.offload_lease` to
 `daedalus.gates.repository_head_revision` without moving or duplicating the
 repository-head verifier. The Gate remains the only implementation owner and
 `daedalus.chip_design.cli` is the production composition root.
 
-## Contract
+## Contracts and behavior
 
 `acquire_chip_eda_lease` requires an explicit
 `RepositoryHeadRevisionVerifierPort`. There is no default and the kernel does
@@ -37,7 +47,7 @@ unchanged: the same receipt dictionary is nested under
 `repository_head_receipt`, the lease request receives the same resolved
 revision, and the existing canonical record digest construction is retained.
 
-## In-scope files
+## Scope
 
 - `daedalus/kernel/offload_lease.py`
 - `daedalus/chip_design/cli.py`
@@ -48,7 +58,7 @@ revision, and the existing canonical record digest construction is retained.
 The effect registry, Gate verifier, receipt schema, ledger/database formats,
 CAS locators, evidence paths and EDA executor are out of scope.
 
-## Acceptance evidence
+## Acceptance matrix
 
 The focused checks must prove:
 
@@ -63,7 +73,9 @@ The focused checks must prove:
    revision, evidence fields and canonical record digest;
 7. the effect-registry source bytes remain unchanged.
 
-## Frozen-parent infrastructure blocker
+## Evidence expected failures and review
+
+### Frozen-parent infrastructure blocker
 
 At the exact parent, the focused behavioral suites fail during collection
 because `daedalus/kernel/__init__.py` imports the absent module
@@ -78,7 +90,7 @@ Behavioral tests are retained for execution after the parent package is made
 internally complete; the collection failure is not represented as passing
 evidence.
 
-## Local verification on 2026-08-31
+### Local verification on 2026-08-31
 
 - `py -3.13 -m pytest -q
   tests/kernel/test_chip_repository_head_port_review.py`: `3 passed`.
@@ -91,9 +103,20 @@ evidence.
 - The parent-native invocation of those behavioral suites remains blocked at
   collection by the missing campaign module described above.
 
-## Registry invariance
+### Registry invariance
 
 The parent SHA-256 of `daedalus/spine/effect_boundary.py` is
 `fb060b3e32949a1911e920ae91aa0c883410ca5a36074db9c338f5a64de7f165`.
 This packet does not edit that file. Registry ID, target, effects, wiring,
 anchors and digest therefore remain outside the change surface.
+
+Independent review must verify required-port refusal before lease issuance,
+exact receipt binding, production injection of the existing Gate verifier, and
+the absence of any replacement repository-head authority.
+
+## Migration and rollback
+
+There is no persistent-data migration. Rollback restores the previous direct
+Gate verifier dependency in the lease path and removes the injected port
+wiring; Registry data, receipt bytes, ledgers, CAS locators, and evidence paths
+remain unchanged.

@@ -1,16 +1,19 @@
 # G1-IDE-13 - Registered IDE project authorization
 
+Packet ID: `G1-IDE-13`
+Artifact role: `primary`
 Status: builder-verified for the primary claim; independent review/system acceptance pending
 Classification: `ALIGNED`
 Active gate: **Gate 1 - Renovation and owner-directed Genesis**
-Owner: repository owner; no automatic merge, promotion, or Gate transition
+Owner: `repository owner`
+Promotion authority: no automatic merge, promotion, or Gate transition
 Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
 Dependencies: G1-IDE-11 canonical registration and G1-IDE-12 row transaction
 Master-plan authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` Revision 11
 Master-plan SHA-256:
 `711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2`
 
-## Primary claim
+## Primary acceptance claim
 
 The desktop IDE start HTTP route accepts one exact registered project name,
 resolves that row's native canonical root at the server boundary, and only
@@ -42,7 +45,7 @@ Baseline command:
 Result: `1 passed, 86 deselected`; this is retained RED security evidence, not
 acceptance evidence.
 
-## Exact scope
+## Scope
 
 In-scope paths are exactly:
 
@@ -58,7 +61,7 @@ Chat, SSE, other desktop services, manager lifecycle behavior, IDE endpoint
 policy, Docker image policy, project registration/rewrite semantics, the
 master plan, and the amendment chain are forbidden scope.
 
-## Frozen authorization contract
+## Contracts and behavior
 
 1. The browser sends `{project: <ProjectRow.name>}` and never derives IDE
    authority from `ProjectRow.repo_root`.
@@ -97,7 +100,7 @@ master plan, and the amendment chain are forbidden scope.
 7. Focused project and desktop Python tests, the IDE Playwright spec, the web
    production build, and `git diff --check` pass.
 
-## Budget, rollback, and residuals
+## Migration and rollback
 
 Evaluation is deterministic and local: no model, provider, network, runtime
 download, Docker start, or paid service is required. Rollback removes the
@@ -110,7 +113,7 @@ OS; this packet does not advertise the registry lock as a complete host
 security boundary. The runtime revalidates directory existence immediately
 before use, and all cooperating registry writers preserve root identity.
 
-## Evidence handoff
+## Evidence expected failures and review
 
 Builder verification on Windows 11 / CPython 3.13.5 / Node 22:
 

@@ -1,14 +1,17 @@
 # Work Packet: G1-HIER-01 Architecture and locator contract
 
+Packet ID: `G1-HIER-01`
+Artifact role: `primary`
 Status: builder-verified; system CI blocked by frozen-parent defects; independent review pending
 Classification: `ALIGNED`
 Active gate: Gate 1 - Renovation and owner-directed Genesis
+Owner: `repository owner`
 Master-plan authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` Revision 11
 Master-plan SHA-256: `711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2`
 Base revision: `151b8d180e321cfba48b4c7d62f9be56579d52a5`
 Dependencies: frozen G1 dirty-tree checkpoint; no dependent hierarchy packet
 
-## Primary claim
+## Primary acceptance claim
 
 Every tracked direct-syntax Python import from the current kernel, spine, and
 runtime responsibility layers is measured deterministically. New reversed
@@ -19,7 +22,7 @@ This packet adds a static delivery check and registries only. It moves no code,
 changes no runtime behavior, and creates no event, artifact, policy, evaluator,
 or promotion authority.
 
-## Frozen scope
+## Scope
 
 Allowed:
 
@@ -41,7 +44,7 @@ Forbidden:
 - filesystem walks, untracked files, dynamic imports, target-code execution, or
   live runtime claims as input to this static contract.
 
-## Contract and baseline
+## Contracts and behavior
 
 The source census is pinned to:
 
@@ -82,7 +85,7 @@ Python census.
 | Relative import bypass | focused test | resolved to the forbidden Daedalus target; check fails |
 | Detached or missing shim metadata/locator | focused test | fail closed before an architecture verdict |
 
-## Migration, rollback, and expected failures
+## Migration and rollback
 
 Later hierarchy packets delete baseline rows only after removing the
 corresponding edge. They must never broaden a target prefix or move an edge and
@@ -95,7 +98,7 @@ with runtime status `runtime_unknown`. Dynamic imports, generated code,
 descriptor dispatch, monkey-patching, and runtime metaprogramming are not
 observed. Static proximity does not establish execution or causation.
 
-## Verification and review questions
+## Evidence expected failures and review
 
 Builder commands:
 

@@ -9,13 +9,13 @@
     "master_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
   },
   "counts": {
-    "assigned_artifacts": 203,
+    "assigned_artifacts": 217,
     "legacy_artifacts": 204,
-    "packet_artifacts": 205,
-    "packet_ids": 141,
-    "post_index_artifacts": 1,
+    "packet_artifacts": 219,
+    "packet_ids": 154,
+    "post_index_artifacts": 15,
     "registry_artifacts": 1,
-    "tracked_files": 206,
+    "tracked_files": 220,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2006,6 +2006,102 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-HIER-01_ARCHITECTURE_LOCATOR_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "frozen G1 dirty-tree checkpoint; no dependent hierarchy packet",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-01",
+      "primary_artifact": "docs/work-packets/G1-HIER-01_ARCHITECTURE_LOCATOR_CONTRACT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-02_KERNEL_CONTRACT_HIERARCHY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-02A at 4c591e9020bde86a97d2f87bb35447b783647614 on the packet branch",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-02",
+      "primary_artifact": "docs/work-packets/G1-HIER-02_KERNEL_CONTRACT_HIERARCHY.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-02A_KERNEL_LAZY_COMPATIBILITY_FACADE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "frozen Gate-1 archive parent 151b8d180e321cfba48b4c7d62f9be56579d52a5; no packet prerequisite",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-02A",
+      "primary_artifact": "docs/work-packets/G1-HIER-02A_KERNEL_LAZY_COMPATIBILITY_FACADE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-03A_CANONICAL_EVENT_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-02A at 575873fcbadeac7a82a2637e1cc232e3662bbd4a (2cf1bb793f22137b67491dc958f3b6ebd928e6cc on the packet branch)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-03A",
+      "primary_artifact": "docs/work-packets/G1-HIER-03A_CANONICAL_EVENT_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-04_REPOSITORY_HEAD_VERIFIER_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "frozen Gate-1 archive parent and the existing Gate repository-head verifier",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-04",
+      "primary_artifact": "docs/work-packets/G1-HIER-04_REPOSITORY_HEAD_VERIFIER_PORT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-05_NEUTRAL_GATE_RECEIPT_CONTRACTS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-02A at 575873fcbadeac7a82a2637e1cc232e3662bbd4a (7d3f742b2ee9dd2522899e97c007b77ab00498f4 on the packet branch)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-05",
+      "primary_artifact": "docs/work-packets/G1-HIER-05_NEUTRAL_GATE_RECEIPT_CONTRACTS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IDE-10_OPENVSCODE_EXPERIMENT.md"
       ],
       "metadata": {
@@ -2051,6 +2147,38 @@
       "origin": "legacy",
       "packet_id": "G1-IDE-12",
       "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IDE-13_REGISTERED_IDE_PROJECT_AUTHORIZATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IDE-11 canonical registration and G1-IDE-12 row transaction",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IDE-13",
+      "primary_artifact": "docs/work-packets/G1-IDE-13_REGISTERED_IDE_PROJECT_AUTHORIZATION.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-HTTP-01_HTTP_STRANGLER_FACADE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "d33b2c9436b2c7cbf357cc3435db8861370e48ee",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-14, G1-WEB-01, G1-HIER-02A",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-HTTP-01",
+      "primary_artifact": "docs/work-packets/G1-IFACE-HTTP-01_HTTP_STRANGLER_FACADE.md"
     },
     {
       "artifacts": [
@@ -2406,6 +2534,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-14_STREAM_INTERRUPTION_NO_REPLAY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-09 through G1-IKARUS-13 behavior frozen in the Gate-1 archive parent",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-14",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-14_STREAM_INTERRUPTION_NO_REPLAY.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-LEASE-01-ignition-crosses-its-boundary.md"
       ],
       "metadata": {
@@ -2486,6 +2630,55 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-ORCH-01_RUN_MISSION_SERVICE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-02A at 575873fcbadeac7a82a2637e1cc232e3662bbd4a (9335643ea3053dfab0fcdef9c69a3b74da5a3b14 on the packet branch)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ORCH-01",
+      "primary_artifact": "docs/work-packets/G1-ORCH-01_RUN_MISSION_SERVICE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-PKG-01_SOURCE_WHEEL_RESOURCE_PARITY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "frozen Gate-1 archive parent and existing root built-in resource mirrors",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-PKG-01",
+      "primary_artifact": "docs/work-packets/G1-PKG-01_SOURCE_WHEEL_RESOURCE_PARITY.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-RUNTIME-02_RUNTIME_TRUST_ADMISSION_PORT.md",
+        "docs/work-packets/G1-RUNTIME-02_SHIM_REGISTER.json"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+        "classification": "ALIGNED",
+        "dependencies": "frozen Gate-1 archive parent and the existing runtime-trust and Effect-Lease contracts",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-02",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-02_RUNTIME_TRUST_ADMISSION_PORT.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-TAURI-CI-AUTH-271.json"
       ],
       "metadata": {
@@ -2515,6 +2708,22 @@
       "origin": "legacy",
       "packet_id": "G1-TWIN-GARDEN-01R",
       "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-WEB-01_PROJECT_SCOPED_LIVE_EVENTS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "da30c3b71d327eb529fce62c89898dc1c80e2cec",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IKARUS-14 at da30c3b71d327eb529fce62c89898dc1c80e2cec and the existing canonical file-bridge /api/events projection",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-WEB-01",
+      "primary_artifact": "docs/work-packets/G1-WEB-01_PROJECT_SCOPED_LIVE_EVENTS.md"
     },
     {
       "artifacts": [
@@ -2550,6 +2759,195 @@
     }
   ],
   "post_index_contracts": [
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-01",
+      "path": "docs/work-packets/G1-HIER-01_ARCHITECTURE_LOCATOR_CONTRACT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-02A",
+      "path": "docs/work-packets/G1-HIER-02A_KERNEL_LAZY_COMPATIBILITY_FACADE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-02",
+      "path": "docs/work-packets/G1-HIER-02_KERNEL_CONTRACT_HIERARCHY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-03A",
+      "path": "docs/work-packets/G1-HIER-03A_CANONICAL_EVENT_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-04",
+      "path": "docs/work-packets/G1-HIER-04_REPOSITORY_HEAD_VERIFIER_PORT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-05",
+      "path": "docs/work-packets/G1-HIER-05_NEUTRAL_GATE_RECEIPT_CONTRACTS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IDE-13",
+      "path": "docs/work-packets/G1-IDE-13_REGISTERED_IDE_PROJECT_AUTHORIZATION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-HTTP-01",
+      "path": "docs/work-packets/G1-IFACE-HTTP-01_HTTP_STRANGLER_FACADE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-14",
+      "path": "docs/work-packets/G1-IKARUS-14_STREAM_INTERRUPTION_NO_REPLAY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ORCH-01",
+      "path": "docs/work-packets/G1-ORCH-01_RUN_MISSION_SERVICE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-PKG-01",
+      "path": "docs/work-packets/G1-PKG-01_SOURCE_WHEEL_RESOURCE_PARITY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-02",
+      "path": "docs/work-packets/G1-RUNTIME-02_RUNTIME_TRUST_ADMISSION_PORT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "companion",
+      "format": "json",
+      "packet_id": "G1-RUNTIME-02",
+      "path": "docs/work-packets/G1-RUNTIME-02_SHIM_REGISTER.json",
+      "sections": []
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-WEB-01",
+      "path": "docs/work-packets/G1-WEB-01_PROJECT_SCOPED_LIVE_EVENTS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
     {
       "artifact_role": "primary",
       "format": "markdown",
