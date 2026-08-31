@@ -9,13 +9,13 @@
     "master_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
   },
   "counts": {
-    "assigned_artifacts": 217,
+    "assigned_artifacts": 221,
     "legacy_artifacts": 204,
-    "packet_artifacts": 219,
-    "packet_ids": 154,
-    "post_index_artifacts": 15,
+    "packet_artifacts": 223,
+    "packet_ids": 158,
+    "post_index_artifacts": 19,
     "registry_artifacts": 1,
-    "tracked_files": 220,
+    "tracked_files": 224,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2070,6 +2070,38 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-HIER-03B_ATTEMPT_EXECUTION_PORTS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "59d16ba55fd914cd25ce24c046a2171b7c7f0b8b",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-HIER-03A` at",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-03B",
+      "primary_artifact": "docs/work-packets/G1-HIER-03B_ATTEMPT_EXECUTION_PORTS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-03C_PICKER_EVALUATION_PORTS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e9cf58a9e97db93d8f2627b52a59e2d58808db4b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-02, G1-HIER-03A, G1-ORCH-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-03C",
+      "primary_artifact": "docs/work-packets/G1-HIER-03C_PICKER_EVALUATION_PORTS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-HIER-04_REPOSITORY_HEAD_VERIFIER_PORT.md"
       ],
       "metadata": {
@@ -2163,6 +2195,22 @@
       "origin": "post_index",
       "packet_id": "G1-IDE-13",
       "primary_artifact": "docs/work-packets/G1-IDE-13_REGISTERED_IDE_PROJECT_AUTHORIZATION.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-01_REPORT_PROJECTION_STRANGLER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e9cf58a9e97db93d8f2627b52a59e2d58808db4b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-WEB-01, G1-ORCH-01, G1-IFACE-HTTP-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-01",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-01_REPORT_PROJECTION_STRANGLER.md"
     },
     {
       "artifacts": [
@@ -2550,6 +2598,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-15_MISSION_SUPERVISOR_COMPOSITION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e6dbcc816008c22da280369156173feba2630fba",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ORCH-01, G1-IKARUS-01, G1-IKARUS-04, G1-IKARUS-05, G1-IKARUS-06, G1-IKARUS-10, G1-IKARUS-11",
+        "owner": "Ikarus orchestration"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-15",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-15_MISSION_SUPERVISOR_COMPOSITION.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-LEASE-01-ignition-crosses-its-boundary.md"
       ],
       "metadata": {
@@ -2818,6 +2882,34 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-HIER-03B",
+      "path": "docs/work-packets/G1-HIER-03B_ATTEMPT_EXECUTION_PORTS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-03C",
+      "path": "docs/work-packets/G1-HIER-03C_PICKER_EVALUATION_PORTS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-HIER-04",
       "path": "docs/work-packets/G1-HIER-04_REPOSITORY_HEAD_VERIFIER_PORT.md",
       "sections": [
@@ -2860,6 +2952,20 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-01",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-01_REPORT_PROJECTION_STRANGLER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-IFACE-HTTP-01",
       "path": "docs/work-packets/G1-IFACE-HTTP-01_HTTP_STRANGLER_FACADE.md",
       "sections": [
@@ -2876,6 +2982,20 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-14",
       "path": "docs/work-packets/G1-IKARUS-14_STREAM_INTERRUPTION_NO_REPLAY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-15",
+      "path": "docs/work-packets/G1-IKARUS-15_MISSION_SUPERVISOR_COMPOSITION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

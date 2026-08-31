@@ -184,15 +184,15 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
 
     clean, message = subject.check(ROOT)
     assert clean is True
-    assert "220 tracked files" in message
+    assert "224 tracked files" in message
     assert payload["counts"] == {
-        "assigned_artifacts": 217,
+        "assigned_artifacts": 221,
         "legacy_artifacts": 204,
-        "packet_artifacts": 219,
-        "packet_ids": 154,
-        "post_index_artifacts": 15,
+        "packet_artifacts": 223,
+        "packet_ids": 158,
+        "post_index_artifacts": 19,
         "registry_artifacts": 1,
-        "tracked_files": 220,
+        "tracked_files": 224,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -244,12 +244,16 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-HIER-01",
         "G1-HIER-02",
         "G1-HIER-02A",
-        "G1-HIER-03A",
-        "G1-HIER-04",
+            "G1-HIER-03A",
+            "G1-HIER-03B",
+            "G1-HIER-03C",
+            "G1-HIER-04",
         "G1-HIER-05",
         "G1-IDE-13",
-        "G1-IFACE-HTTP-01",
-        "G1-IKARUS-14",
+            "G1-IFACE-HTTP-01",
+            "G1-IFACE-BRIDGE-01",
+            "G1-IKARUS-14",
+            "G1-IKARUS-15",
         "G1-ORCH-01",
         "G1-PKG-01",
         "G1-RUNTIME-02",
