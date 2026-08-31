@@ -33,6 +33,7 @@ from daedalus.orchestration.workspace_containment import (  # noqa: E402
 from daedalus.sensitivity import Policy              # noqa: E402
 from daedalus.spine.killswitch import KillSwitch, control_root  # noqa: E402
 from daedalus.spine.ledger import SpineLedger        # noqa: E402
+from daedalus.spine.picker import resolve_spine_db_path  # noqa: E402
 
 REVISION = "b" * 40
 DOCS_POLICY = Policy(write_allow=("docs/",))
@@ -90,6 +91,7 @@ def _acquire(repo, **overrides):
         contained=True,
         containment_evidence="TaskAttempt worktree, test",
         worktree_root_resolver=resolve_worktree_root,
+        intent_ledger_path_resolver=resolve_spine_db_path,
     )
     kwargs.update(overrides)
     return acquire_attempt_lease(repo, **kwargs)
@@ -125,6 +127,37 @@ def test_an_attempt_with_a_durable_intent_is_leased(repo, armed_switch):
         assert "INTENDED" in by_name["spine.intent_ledger"].evidence
         assert by_name["containment.worktree"].allowed is True
         assert by_name["provider.write_policy"].allowed is True
+    finally:
+        led.close()
+
+
+def test_attempt_intent_guard_denies_without_composed_path_resolver(
+    repo, armed_switch, monkeypatch
+):
+    led = _intend(repo, "daedalus-attempt-test-branch")
+    try:
+        import sqlite3
+
+        def unexpected_connect(*_args, **_kwargs):
+            raise AssertionError("SQLite must not be touched without the path port")
+
+        monkeypatch.setattr(sqlite3, "connect", unexpected_connect)
+        denied = _acquire(
+            repo,
+            switch=armed_switch,
+            intent_ledger_path_resolver=None,
+        )
+        assert isinstance(denied, WaveLeaseDenied)
+        decision = next(
+            item
+            for item in denied.guard_decisions
+            if item.contract == "spine.intent_ledger"
+        )
+        assert decision.allowed is False
+        assert decision.evidence == (
+            "no repository-confined intent-ledger path resolver port was "
+            "composed; the lease is refused before any SQLite access"
+        )
     finally:
         led.close()
 

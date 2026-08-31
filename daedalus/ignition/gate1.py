@@ -66,6 +66,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+import daedalus.spine.picker as spine_picker
 from daedalus.build import BuildSession, BuildTask, Wave
 from daedalus.ignition import bundle as ignition_bundle
 from daedalus.ignition import checks as ignition_checks
@@ -929,6 +930,9 @@ def run_gate1_ignition(
                     ),
                     subject_root=repo,
                     worktree_root=attempt._manager.worktree_root,
+                    intent_ledger_path_resolver=(
+                        spine_picker.resolve_spine_db_path
+                    ),
                     trace_id="gate1-voltage-ignition",
                     switch=switch,
                     limit_policy=mission_limit_policy,

@@ -139,6 +139,16 @@ class WorktreeRootResolverPort(Protocol):
     def __call__(self, repository_root: Path, /) -> str | Path: ...
 
 
+class IntentLedgerPathResolverPort(Protocol):
+    """Outer composition port for the repository-confined attempt ledger."""
+
+    def __call__(
+        self,
+        repository_root: str | Path | None = None,
+        /,
+    ) -> tuple[Path | None, str | None]: ...
+
+
 @dataclass(frozen=True)
 class EgressAdmissionObservation:
     """Runtime-owned endpoint admission consumed by lease authorization."""
@@ -2134,7 +2144,12 @@ class WaveOffloadLease:
 # --------------------------------------------------------------------------- #
 # the issuer                                                                   #
 # --------------------------------------------------------------------------- #
-def _intent_ledger_decision(root: Path, effect_key: str | None) -> GuardDecision:
+def _intent_ledger_decision(
+    root: Path,
+    effect_key: str | None,
+    *,
+    ledger_path_resolver: IntentLedgerPathResolverPort | None,
+) -> GuardDecision:
     """``spine.intent_ledger``, run by the issuer itself.
 
     The contract at issuance time: the effect key this lease would authorise
@@ -2146,12 +2161,13 @@ def _intent_ledger_decision(root: Path, effect_key: str | None) -> GuardDecision
 
     READ-ONLY BY CONSTRUCTION: the ledger is opened with sqlite's ``mode=ro``
     URI, so this guard cannot create the database it claims to inspect, and a
-    missing ledger is a deny rather than a fresh file. The path comes from
-    :func:`daedalus.spine.picker.resolve_spine_db_path`, the repo-confined
-    resolver -- deliberately not ``DAEDALUS_SPINE_DB``, the process-global
-    surface (Codex, room turn 51: the two resolvers must not be unified).
-    The intent's state is the newest ``intent_events`` row, exactly as
-    :meth:`SpineLedger.get` derives it.
+    missing ledger is a deny rather than a fresh file. The outer composition
+    supplies the repository-confined path resolver; the kernel neither owns
+    nor discovers the spine projection. That resolver must deliberately remain
+    distinct from ``DAEDALUS_SPINE_DB``, the process-global surface (Codex,
+    room turn 51: the two resolvers must not be unified). The intent's state is
+    the newest ``intent_events`` row, exactly as the canonical ledger derives
+    it.
     """
     contract = "spine.intent_ledger"
     if not effect_key:
@@ -2160,9 +2176,15 @@ def _intent_ledger_decision(root: Path, effect_key: str | None) -> GuardDecision
             "the row declares spine.intent_ledger and the caller supplied no "
             "effect_key; a lease for an attempt nobody intends cannot be "
             "issued")
-    from daedalus.spine.picker import resolve_spine_db_path
+    if ledger_path_resolver is None:
+        return GuardDecision(
+            contract,
+            False,
+            "no repository-confined intent-ledger path resolver port was "
+            "composed; the lease is refused before any SQLite access",
+        )
 
-    path, err = resolve_spine_db_path(root)
+    path, err = ledger_path_resolver(root)
     if err or path is None:
         return GuardDecision(
             contract, False,
@@ -2379,6 +2401,7 @@ def _acquire_effect_lease_impl(
     subject_root: str | Path | None = None,
     worktree_root: str | Path | None = None,
     worktree_root_resolver: WorktreeRootResolverPort | None = None,
+    intent_ledger_path_resolver: IntentLedgerPathResolverPort | None = None,
     egress_admission: EgressAdmissionPort | None = None,
     limit_policy: ExecutionLimitPolicy | None = None,
     operation_sha256: str | None = None,
@@ -2702,7 +2725,13 @@ def _acquire_effect_lease_impl(
         )
 
     if "spine.intent_ledger" in declared_contracts:
-        guards.append(_intent_ledger_decision(root, effect_key))
+        guards.append(
+            _intent_ledger_decision(
+                root,
+                effect_key,
+                ledger_path_resolver=intent_ledger_path_resolver,
+            )
+        )
 
     # -- 3. the request, and the policy digest over what decided ------------ #
     # WHAT THE ROW DID NOT DECLARE IS NOT GRANTED. `_scope_requirements`
@@ -3314,6 +3343,7 @@ __all__ = [
     "ISSUER_CONTRACTS",
     "ISSUER_EFFECTS",
     "ISSUER_KEY_ID",
+    "IntentLedgerPathResolverPort",
     "KILL_SWITCH_REF",
     "LEASE_EXECUTION_RECORD_SCHEMA",
     "LEASE_SUBJECT_RECORD_SCHEMA",
