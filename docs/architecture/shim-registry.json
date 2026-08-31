@@ -122,11 +122,12 @@
       "owner": "runtimes-providers",
       "targets": [
         "daedalus.runtimes.providers.budget_admission",
+        "daedalus.runtimes.providers.context",
         "daedalus.runtimes.providers.execution_policy",
         "daedalus.runtimes.providers.reporting"
       ],
-      "kind": "mixed_context_facade_with_helper_reexports",
-      "removal_criteria": "Provider source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no moved helper imports; context reading and graph-brief ownership first move behind directed runtime ports."
+      "kind": "provider_helper_facade_with_injected_context_ports",
+      "removal_criteria": "Provider source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no helper imports through the legacy module after one supported compatibility release."
     },
     {
       "import_path": "daedalus.providers.base",

@@ -6,6 +6,8 @@ import ast
 from pathlib import Path
 
 import daedalus.token_policy as legacy_tokens
+from daedalus import sensitivity
+from daedalus.kernel.policy.limits import ExecutionLimitPolicy
 from daedalus.providers import _report as legacy_report
 from daedalus.runtimes.providers import budget_admission, execution_policy, reporting
 from daedalus.runtimes.providers import token_policy
@@ -17,6 +19,7 @@ LEGACY_REPORT = ROOT / "daedalus" / "providers" / "_report.py"
 LEGACY_TOKENS = ROOT / "daedalus" / "token_policy.py"
 OWNERS = (
     ROOT / "daedalus" / "runtimes" / "providers" / "budget_admission.py",
+    ROOT / "daedalus" / "runtimes" / "providers" / "context.py",
     ROOT / "daedalus" / "runtimes" / "providers" / "execution_policy.py",
     ROOT / "daedalus" / "runtimes" / "providers" / "reporting.py",
     ROOT / "daedalus" / "runtimes" / "providers" / "token_policy.py",
@@ -84,12 +87,23 @@ def test_legacy_token_policy_is_an_exact_reexport_facade() -> None:
     assert _definitions(LEGACY_TOKENS) == set()
 
 
-def test_legacy_report_module_retains_only_context_implementation() -> None:
+def test_legacy_report_module_retains_only_context_port_wrappers() -> None:
     assert _definitions(LEGACY_REPORT) == {
         "read_provider_context",
         "render_provider_brief",
     }
-    assert len(LEGACY_REPORT.read_text(encoding="utf-8").splitlines()) < 130
+    tree = _tree(LEGACY_REPORT)
+    wrappers = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+    for wrapper in wrappers.values():
+        assert not any(
+            isinstance(node, (ast.For, ast.While, ast.Try))
+            for node in ast.walk(wrapper)
+        )
+    assert len(LEGACY_REPORT.read_text(encoding="utf-8").splitlines()) < 100
 
 
 def test_runtime_helper_owners_do_not_import_outer_layers() -> None:
@@ -104,6 +118,56 @@ def test_runtime_helper_owners_do_not_import_outer_layers() -> None:
     )
     for owner in OWNERS:
         assert not any(name.startswith(forbidden) for name in _imports(owner))
+
+
+def test_context_facade_injects_current_ports_per_call(monkeypatch) -> None:
+    calls: list[tuple[str, int]] = []
+
+    def read_port(
+        paths: list[str],
+        repo_root: str,
+        capacity: int,
+        *,
+        allow_sensitive: bool,
+        policy: object,
+    ) -> tuple[str, list[str]]:
+        calls.append((repo_root, capacity))
+        assert paths == ["README.md"]
+        assert allow_sensitive is False
+        assert policy is None
+        return "context", []
+
+    def brief_port(
+        repo_root: str,
+        paths: list[str],
+        *,
+        hops: int,
+        budget_chars: int,
+    ) -> str:
+        calls.append((repo_root, budget_chars))
+        assert paths == ["README.md"]
+        assert hops == 1
+        return "brief"
+
+    monkeypatch.setattr(sensitivity, "read_inlined_context", read_port)
+    monkeypatch.setattr(legacy_report, "render_brief", brief_port)
+
+    policy = ExecutionLimitPolicy()
+    assert legacy_report.read_provider_context(
+        ["README.md"],
+        "repo",
+        max_chars=321,
+        allow_sensitive=False,
+        sensitivity_policy=None,
+        execution_limit_policy=policy,
+    ) == ("context", [])
+    assert legacy_report.render_provider_brief(
+        "repo",
+        ["README.md"],
+        bounded_chars=654,
+        execution_limit_policy=policy,
+    ) == "brief"
+    assert calls == [("repo", 321), ("repo", 654)]
 
 
 def test_structure_packet_keeps_effect_registry_exact() -> None:
