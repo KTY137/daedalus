@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -109,6 +112,29 @@ def _attribute_calls(node: ast.AST, name: str) -> list[ast.Call]:
 
 def test_public_imports_are_the_same_run_mission_object() -> None:
     assert orchestration.run_mission is missions.run_mission is run_mission
+
+
+def test_package_facade_does_not_eagerly_open_the_mission_dependency_tree() -> None:
+    source = (
+        "import json, sys\n"
+        "import daedalus.orchestration as orchestration\n"
+        "before = 'daedalus.orchestration.missions' in sys.modules\n"
+        "from daedalus.orchestration import run_mission\n"
+        "from daedalus.orchestration.missions import run_mission as owner\n"
+        "print(json.dumps({'before': before, 'same': run_mission is owner}))\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {"before": False, "same": True}
 
 
 def test_service_builds_the_canonical_mission_and_delegates_once(
