@@ -11,7 +11,7 @@
       "targets": [
         "daedalus.kernel.policy.ledger",
         "daedalus.kernel.policy.pricing",
-        "daedalus.runtimes.adapters.process"
+        "daedalus.runtimes.execution.budget_process"
       ],
       "kind": "effect_and_compatibility_facade",
       "removal_criteria": "Registered budget-effect targets receive a dedicated target-migration packet and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining compatibility caller."

@@ -11,12 +11,42 @@ from typing import Any
 import daedalus.budget as facade
 from daedalus.runtimes.execution import budget_process as owner
 from daedalus.spine.effect_boundary import registry_sha256
+from tools.architecture_boundaries import (
+    load_contract,
+    load_shim_registry,
+    validate_shim_locators,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "daedalus" / "budget.py"
 OWNER = ROOT / "daedalus" / "runtimes" / "execution" / "budget_process.py"
+BOUNDARY_CONTRACT = ROOT / "docs" / "architecture" / "import-boundaries.json"
+SHIM_REGISTRY = ROOT / "docs" / "architecture" / "shim-registry.json"
 MOVED_NAMES = {
+    "classify_argv",
+    "classify_url",
+    "guard",
+    "uninstall_process_guard",
+}
+DIRECT_OWNER_REEXPORT_NAMES = {
+    "BILLABLE_SITES",
+    "_EXPLICIT",
+    "_INFERENCE_PATHS",
+    "_INSTALLED",
+    "_PAID_API_HOSTS",
+    "_PAID_EXECUTABLES",
+    "_READ_ONLY_VENDOR_PROBES",
+    "_WRAPPERS",
+    "_basename",
+    "_enter_explicit",
+    "_exit_explicit",
+    "_guarded_popen",
+    "_guarded_spawn",
+    "_guarded_urlopen",
+    "_inside_explicit",
+    "_is_read_only_vendor_probe",
+    "_render",
     "classify_argv",
     "classify_url",
     "guard",
@@ -34,10 +64,26 @@ def _definitions(path: Path) -> set[str]:
 
 
 def test_facade_reexports_one_process_adapter_authority() -> None:
-    for name in MOVED_NAMES:
+    for name in DIRECT_OWNER_REEXPORT_NAMES:
         assert getattr(facade, name) is getattr(owner, name)
-    assert facade.BILLABLE_SITES is owner.BILLABLE_SITES
-    assert facade._INSTALLED is owner._INSTALLED
+    assert facade._install_runtime_process_guard is owner.install_process_guard
+
+
+def test_budget_shim_locator_names_the_tracked_process_owner() -> None:
+    contract = load_contract(BOUNDARY_CONTRACT)
+    entries = load_shim_registry(SHIM_REGISTRY, contract)
+
+    # This validates every facade and owner against git ls-files, not the
+    # ambient checkout. An untracked lookalike therefore cannot satisfy it.
+    validate_shim_locators(ROOT, contract, entries)
+    budget_entry = next(
+        entry for entry in entries if entry.import_path == "daedalus.budget"
+    )
+    assert budget_entry.targets == (
+        "daedalus.kernel.policy.ledger",
+        "daedalus.kernel.policy.pricing",
+        "daedalus.runtimes.execution.budget_process",
+    )
 
 
 def test_effect_facade_keeps_only_composition_and_registered_decision() -> None:

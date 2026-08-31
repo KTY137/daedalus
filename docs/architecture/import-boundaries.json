@@ -74,52 +74,6 @@
       "target_owner": "G1-HIER-03"
     }
   ],
-  "baseline": [
-    {
-      "rule_id": "spine-no-outer-layers",
-      "source_path": "daedalus/spine/attempt.py",
-      "source_module": "daedalus.spine.attempt",
-      "target_module": "daedalus.eval.correctness",
-      "line": 1281,
-      "column": 12,
-      "kind": "import_from"
-    },
-    {
-      "rule_id": "spine-no-outer-layers",
-      "source_path": "daedalus/spine/attempt.py",
-      "source_module": "daedalus.spine.attempt",
-      "target_module": "daedalus.kairos.worktree",
-      "line": 121,
-      "column": 0,
-      "kind": "import_from"
-    },
-    {
-      "rule_id": "spine-no-outer-layers",
-      "source_path": "daedalus/spine/attempt.py",
-      "source_module": "daedalus.spine.attempt",
-      "target_module": "daedalus.offload",
-      "line": 1184,
-      "column": 8,
-      "kind": "import_from"
-    },
-    {
-      "rule_id": "spine-no-outer-layers",
-      "source_path": "daedalus/spine/picker.py",
-      "source_module": "daedalus.spine.picker",
-      "target_module": "daedalus.eval.harness",
-      "line": 1627,
-      "column": 8,
-      "kind": "import_from"
-    },
-    {
-      "rule_id": "spine-no-outer-layers",
-      "source_path": "daedalus/spine/picker.py",
-      "source_module": "daedalus.spine.picker",
-      "target_module": "daedalus.eval.harness",
-      "line": 1641,
-      "column": 8,
-      "kind": "import_from"
-    }
-  ],
+  "baseline": [],
   "shim_registry": "docs/architecture/shim-registry.json"
 }
