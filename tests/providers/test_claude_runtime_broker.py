@@ -1120,11 +1120,7 @@ def test_registered_adapter_cannot_be_redirected_by_later_global_rebinding(
         "_invoke_claude_payload",
         lambda payload: redirected.append("bridge") or OUTPUT,
     )
-    monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_payload",
-        lambda payload: redirected.append("provider") or OUTPUT,
-    )
+    assert not hasattr(claude_provider, "_invoke_claude_payload")
     result = ClaudeCLIProvider().run(**run_kwargs)
 
     assert redirected == []

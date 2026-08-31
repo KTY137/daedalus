@@ -1,5 +1,14 @@
 """Neutral runtime admission contracts consumed by gates and runtimes."""
 
+from .claude import (
+    CLAUDE_ENTRYPOINT_ID,
+    CLAUDE_RUNTIME_ID,
+    ClaudeInvocationBindingMismatch,
+    ClaudeProviderAuthorizationRequired,
+    ClaudeProviderScopeMismatch,
+    ClaudeProviderWorkspaceMismatch,
+    ClaudeWorkspaceGrant,
+)
 from .python_targets import (
     PythonTargetBindingError,
     PythonTargetSourceError,
@@ -27,6 +36,13 @@ from .retention import (
 )
 
 __all__ = [
+    "CLAUDE_ENTRYPOINT_ID",
+    "CLAUDE_RUNTIME_ID",
+    "ClaudeInvocationBindingMismatch",
+    "ClaudeProviderAuthorizationRequired",
+    "ClaudeProviderScopeMismatch",
+    "ClaudeProviderWorkspaceMismatch",
+    "ClaudeWorkspaceGrant",
     "ProviderTargetReceiptRetentionInventory",
     "ProviderTargetReceiptRetentionInventoryError",
     "ProviderTargetReceiptRetentionSurface",

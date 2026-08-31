@@ -7,8 +7,6 @@ import daedalus
 from daedalus.spine.effect_boundary import REGISTRY_BY_ID, Wiring
 
 
-_ALLOWED_PRIVATE_IMPORT = Path("providers/claude_cli.py")
-_ALLOWED_PRIVATE_CALL = Path("providers/claude_cli.py")
 _ALLOWED_SUBPROCESS_OWNER = (Path("claude_bridge.py"), "_invoke_claude_payload")
 
 
@@ -16,7 +14,7 @@ def _package_root() -> Path:
     return Path(daedalus.__file__).resolve().parent
 
 
-def test_private_claude_subprocess_helper_is_only_imported_by_provider_registry() -> None:
+def test_private_claude_subprocess_helper_has_no_cross_domain_importer() -> None:
     imports: list[Path] = []
     calls: list[Path] = []
     for path in sorted(_package_root().rglob("*.py")):
@@ -39,7 +37,7 @@ def test_private_claude_subprocess_helper_is_only_imported_by_provider_registry(
                 )
                 if direct or sealed:
                     calls.append(relative)
-    assert imports == [_ALLOWED_PRIVATE_IMPORT]
+    assert imports == []
     assert calls == []
 
 

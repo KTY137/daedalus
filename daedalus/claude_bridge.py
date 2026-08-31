@@ -24,7 +24,7 @@ from .token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX, trim_paths
 if TYPE_CHECKING:
     from .kernel.effects import EffectExecutionRequest
     from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
-    from .providers.claude_cli import ClaudeWorkspaceGrant
+    from .runtimes.contracts.claude import ClaudeWorkspaceGrant
     from .runtimes.provider_observation import (
         ProviderObservationAuthority,
         ProviderObservationBindingLedger,

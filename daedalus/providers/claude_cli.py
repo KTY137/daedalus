@@ -10,22 +10,33 @@ persists before external code runs. The generic broker persists grant/start
 state, suppresses exact replay, rechecks runtime trust, retains output
 identities, and commits terminal state before a provider value is released.
 
-The subprocess implementation remains private in :mod:`daedalus.claude_bridge`.
-Calling that helper directly is not a supported production entrypoint.
+The sealed subprocess implementation remains private in
+:mod:`daedalus.claude_bridge` because its authenticated source locator and
+executable-object identity are persistent admission inputs. Neutral Claude
+workspace and refusal contracts are owned by
+:mod:`daedalus.runtimes.contracts.claude` and reexported here. Calling the
+private helper directly is not a supported production entrypoint.
 """
 from __future__ import annotations
 
 import shutil
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from ..claude_bridge import _invoke_claude_payload
 from ..kernel.effects import EffectExecutionRequest
 from ..kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from ..limit_policy import ExecutionLimitPolicy
 from ..primary_tree import assert_write_allowed
 from ..runtimes.broker import RuntimeInvocationResult, run_runtime_provider
+from ..runtimes.contracts.claude import (
+    CLAUDE_ENTRYPOINT_ID as ENTRYPOINT_ID,
+    CLAUDE_RUNTIME_ID as RUNTIME_ID,
+    ClaudeInvocationBindingMismatch,
+    ClaudeProviderAuthorizationRequired,
+    ClaudeProviderScopeMismatch,
+    ClaudeProviderWorkspaceMismatch,
+    ClaudeWorkspaceGrant,
+)
 from ..runtimes.provider_executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
@@ -47,8 +58,6 @@ from ._report import bounded_execution_limit_policy
 from .base import Provider, ProviderCapabilities
 
 
-ENTRYPOINT_ID = "provider.claude"
-RUNTIME_ID = "claude_code_cli"
 _REQUIRED_EFFECTS = frozenset(
     {
         Effect.FILESYSTEM_WRITE.value,
@@ -57,58 +66,6 @@ _REQUIRED_EFFECTS = frozenset(
         Effect.SPEND.value,
     }
 )
-
-
-class ClaudeProviderAuthorizationRequired(RuntimeError):
-    """A live Claude invocation lacked exact persisted runtime/effect authority."""
-
-
-class ClaudeProviderWorkspaceMismatch(RuntimeError):
-    """The runtime capability was not bound to the supplied isolated worktree."""
-
-
-class ClaudeProviderScopeMismatch(RuntimeError):
-    """The narrowed execution scope understates what the agentic CLI can do."""
-
-
-class ClaudeInvocationBindingMismatch(RuntimeError):
-    """The execution idempotency identity does not bind the exact provider call."""
-
-
-@dataclass(frozen=True)
-class ClaudeWorkspaceGrant:
-    """Structural binding for one already-created isolated worktree.
-
-    This record is deliberately not described as an authority. The persisted
-    runtime trust record and Effect Lease are the security authorities; this
-    value closes accidental request/execution/path recombination inside the
-    adapter. Canonical registry activation still requires an authenticated
-    attempt-workspace capability supplied by the attempt ledger boundary.
-    """
-
-    attempt_id: str
-    source_revision: str
-    request_sha256: str
-    execution_sha256: str
-    worktree: str
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.attempt_id, str) or not self.attempt_id.strip():
-            raise ValueError("Claude workspace binding requires an attempt_id")
-        if not isinstance(self.source_revision, str) or not self.source_revision.strip():
-            raise ValueError("Claude workspace binding requires a source_revision")
-        for name in ("request_sha256", "execution_sha256"):
-            value = getattr(self, name)
-            if (
-                not isinstance(value, str)
-                or len(value) != 64
-                or any(char not in "0123456789abcdef" for char in value)
-            ):
-                raise ValueError(
-                    f"Claude workspace binding {name} must be lowercase SHA-256"
-                )
-        if not isinstance(self.worktree, str) or not self.worktree.strip():
-            raise ValueError("Claude workspace binding requires a worktree path")
 
 
 def _required_text(

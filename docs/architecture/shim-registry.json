@@ -71,6 +71,15 @@
       "removal_criteria": "The replacement CLI is packaged and effect-registry plus wheel audits show no remaining legacy target."
     },
     {
+      "import_path": "daedalus.providers.claude_cli",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.contracts.claude"
+      ],
+      "kind": "registered_effect_door_with_contract_reexports",
+      "removal_criteria": "A dedicated target-migration packet preserves the Effect Registry digest and authenticated invoke/output source locators, while source, runtime-string, wheel, documentation, executable-object, and pickle audits show no remaining legacy contract import."
+    },
+    {
       "import_path": "daedalus.providers.hermes_agent",
       "owner": "integrations-hermes",
       "targets": [
