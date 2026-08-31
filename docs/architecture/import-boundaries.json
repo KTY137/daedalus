@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "contract_id": "G1-HIER-01-import-boundaries",
+  "master_plan_revision": 11,
+  "active_gate": 1,
+  "baseline_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+  "source": {
+    "root": "daedalus",
+    "tracked_source_command": [
+      "git",
+      "ls-files",
+      "-z",
+      "--",
+      "daedalus"
+    ],
+    "include_suffixes": [
+      ".py"
+    ]
+  },
+  "rules": [
+    {
+      "id": "kernel-no-outer-layers",
+      "source_prefixes": [
+        "daedalus.kernel"
+      ],
+      "forbidden_target_prefixes": [
+        "daedalus.chip_design",
+        "daedalus.eval",
+        "daedalus.gates",
+        "daedalus.kairos",
+        "daedalus.providers",
+        "daedalus.runtimes"
+      ],
+      "rationale": "The canonical kernel cannot depend on verification, provider, orchestration, runtime, or product-domain implementations.",
+      "target_owner": "G1-HIER-02 through G1-HIER-05"
+    },
+    {
+      "id": "runtimes-no-gates",
+      "source_prefixes": [
+        "daedalus.runtimes"
+      ],
+      "forbidden_target_prefixes": [
+        "daedalus.gates"
+      ],
+      "rationale": "Runtime admission consumes neutral receipts and must not call their gate producers.",
+      "target_owner": "G1-HIER-05"
+    },
+    {
+      "id": "spine-no-outer-layers",
+      "source_prefixes": [
+        "daedalus.spine"
+      ],
+      "forbidden_target_prefixes": [
+        "daedalus.build",
+        "daedalus.build_exec",
+        "daedalus.chip_design",
+        "daedalus.core",
+        "daedalus.desktop_runtime",
+        "daedalus.eval",
+        "daedalus.file_bridge",
+        "daedalus.ikarus",
+        "daedalus.ikarus_os",
+        "daedalus.integrations",
+        "daedalus.kairos",
+        "daedalus.loop",
+        "daedalus.offload",
+        "daedalus.orchestration",
+        "daedalus.providers",
+        "daedalus.runtimes",
+        "daedalus.twin",
+        "daedalus.web_api"
+      ],
+      "rationale": "The event spine is canonical infrastructure and cannot depend on product, orchestration, evaluator, provider, runtime, or interface implementations.",
+      "target_owner": "G1-HIER-03"
+    }
+  ],
+  "baseline": [
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.chip_design.contracts",
+      "line": 1156,
+      "column": 4,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.chip_design.execution_plan",
+      "line": 103,
+      "column": 4,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.chip_design.execution_plan",
+      "line": 1163,
+      "column": 4,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.chip_design.execution_plan",
+      "line": 1843,
+      "column": 4,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.chip_design.execution_plan",
+      "line": 3851,
+      "column": 4,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.chip_design.executor",
+      "line": 1164,
+      "column": 4,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.chip_design.publication",
+      "line": 1165,
+      "column": 4,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.gates.repository_head_revision",
+      "line": 78,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.kairos.worktree",
+      "line": 2392,
+      "column": 4,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.providers.ollama",
+      "line": 2495,
+      "column": 8,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/offload_lease.py",
+      "source_module": "daedalus.kernel.offload_lease",
+      "target_module": "daedalus.providers.ollama",
+      "line": 3234,
+      "column": 16,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/runtime_authorization_issuer.py",
+      "source_module": "daedalus.kernel.runtime_authorization_issuer",
+      "target_module": "daedalus.runtimes.trust_store",
+      "line": 54,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/runtime_effect_replay.py",
+      "source_module": "daedalus.kernel.runtime_effect_replay",
+      "target_module": "daedalus.runtimes.trust_store",
+      "line": 32,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/runtime_effects.py",
+      "source_module": "daedalus.kernel.runtime_effects",
+      "target_module": "daedalus.runtimes.trust_store",
+      "line": 29,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "runtimes-no-gates",
+      "source_path": "daedalus/runtimes/provider_executable_pre_admission.py",
+      "source_module": "daedalus.runtimes.provider_executable_pre_admission",
+      "target_module": "daedalus.gates.repository_head_revision",
+      "line": 20,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "runtimes-no-gates",
+      "source_path": "daedalus/runtimes/provider_executable_structure.py",
+      "source_module": "daedalus.runtimes.provider_executable_structure",
+      "target_module": "daedalus.gates.python_target_structure",
+      "line": 20,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "runtimes-no-gates",
+      "source_path": "daedalus/runtimes/provider_target_receipt_retention_preflight.py",
+      "source_module": "daedalus.runtimes.provider_target_receipt_retention_preflight",
+      "target_module": "daedalus.gates.provider_target_receipt_retention_inventory",
+      "line": 22,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "runtimes-no-gates",
+      "source_path": "daedalus/runtimes/provider_target_receipt_retention_preflight.py",
+      "source_module": "daedalus.runtimes.provider_target_receipt_retention_preflight",
+      "target_module": "daedalus.gates.repository_head_revision",
+      "line": 28,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "spine-no-outer-layers",
+      "source_path": "daedalus/spine/attempt.py",
+      "source_module": "daedalus.spine.attempt",
+      "target_module": "daedalus.eval.correctness",
+      "line": 1281,
+      "column": 12,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "spine-no-outer-layers",
+      "source_path": "daedalus/spine/attempt.py",
+      "source_module": "daedalus.spine.attempt",
+      "target_module": "daedalus.kairos.worktree",
+      "line": 121,
+      "column": 0,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "spine-no-outer-layers",
+      "source_path": "daedalus/spine/attempt.py",
+      "source_module": "daedalus.spine.attempt",
+      "target_module": "daedalus.offload",
+      "line": 1184,
+      "column": 8,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "spine-no-outer-layers",
+      "source_path": "daedalus/spine/picker.py",
+      "source_module": "daedalus.spine.picker",
+      "target_module": "daedalus.eval.harness",
+      "line": 1627,
+      "column": 8,
+      "kind": "import_from"
+    },
+    {
+      "rule_id": "spine-no-outer-layers",
+      "source_path": "daedalus/spine/picker.py",
+      "source_module": "daedalus.spine.picker",
+      "target_module": "daedalus.eval.harness",
+      "line": 1641,
+      "column": 8,
+      "kind": "import_from"
+    }
+  ],
+  "shim_registry": "docs/architecture/shim-registry.json"
+}

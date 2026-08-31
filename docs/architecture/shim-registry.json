@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "registry_id": "G1-HIER-01-shim-registry",
+  "master_plan_revision": 11,
+  "active_gate": 1,
+  "baseline_revision": "151b8d180e321cfba48b4c7d62f9be56579d52a5",
+  "entries": [
+    {
+      "import_path": "daedalus.decompose",
+      "owner": "orchestration",
+      "targets": [
+        "daedalus.kairos.decompose"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, and pickle audits show no caller for one supported release."
+    },
+    {
+      "import_path": "daedalus.drafts",
+      "owner": "orchestration",
+      "targets": [
+        "daedalus.kairos.drafts"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, and pickle audits show no caller for one supported release."
+    },
+    {
+      "import_path": "daedalus.ikarus",
+      "owner": "orchestration",
+      "targets": [
+        "daedalus.kairos.scheduler"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "The Ikarus orchestration package owns the public name and all scheduler callers have migrated without changing serialized identities."
+    },
+    {
+      "import_path": "daedalus.kairos.gated_writes",
+      "owner": "kernel-promotion",
+      "targets": [
+        "daedalus.kernel.promotion"
+      ],
+      "kind": "sealed_compatibility_strangler",
+      "removal_criteria": "A dedicated packet proves old imports and pickle names absent, preserves registry identity, and replaces the retained source without weakening owner approval."
+    },
+    {
+      "import_path": "daedalus.kernel.attempts",
+      "owner": "kernel-attempts",
+      "targets": [
+        "daedalus.kernel.attempt_contracts",
+        "daedalus.kernel.attempt_ledger",
+        "daedalus.kernel.attempt_workspace"
+      ],
+      "kind": "package_facade",
+      "removal_criteria": "All callers use responsibility modules and a clean wheel import audit observes no facade imports."
+    },
+    {
+      "import_path": "daedalus.mission_control",
+      "owner": "interfaces-cli",
+      "targets": [
+        "daedalus.kairos.control"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "CLI entrypoint, source, documentation, wheel, and runtime-string audits show no caller for one supported release."
+    },
+    {
+      "import_path": "daedalus.orchestrate",
+      "owner": "interfaces-cli",
+      "targets": [
+        "daedalus.kairos.orchestrate"
+      ],
+      "kind": "cli_facade",
+      "removal_criteria": "The replacement CLI is packaged and effect-registry plus wheel audits show no remaining legacy target."
+    },
+    {
+      "import_path": "daedalus.providers.hermes_agent",
+      "owner": "integrations-hermes",
+      "targets": [
+        "daedalus.integrations.hermes.kernel_provider"
+      ],
+      "kind": "provider_facade",
+      "removal_criteria": "Hermes receives a separately reviewed production-admission packet or all source, wheel, and runtime-string callers migrate to the isolated integration path."
+    },
+    {
+      "import_path": "daedalus.runtimes.faults",
+      "owner": "runtimes-faults",
+      "targets": [
+        "daedalus.runtimes.fault_matrix"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "Source, wheel, and runtime-string audits show no compatibility imports and fault-contract object identities remain stable."
+    }
+  ]
+}

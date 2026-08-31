@@ -1,10 +1,10 @@
 # Fourfold v2 Execution Plan
 
-Status: active derived projection; its dated PR-chain sections below are historical (see "Current Gate-0 execution boundary")  
-Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 7  
-Active gate: Gate 0 — Canonical Kernel  
+Status: active derived projection; its dated Gate-0 and PR-chain sections below are historical
+Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 11
+Active gate: Gate 1 - Renovation and owner-directed Genesis
 Branch rule: exact reviewed or explicitly frozen parent -> short-lived focused Work Packet branch -> draft PR; never mutate `main` or `experimental` directly  
-Rule: this document records revision-bound status. It cannot amend the adopted Master Plan, authorize implementation, or substitute for evidence. For current Gate-0 boundary, read `docs/STATUS.md` first.
+Rule: this document records revision-bound status. It cannot amend the adopted Master Plan, authorize implementation, or substitute for evidence. For the current Gate-1 boundary, read the Master Plan and `docs/STATUS.md` first.
 
 ## Operating model
 

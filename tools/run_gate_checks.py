@@ -22,6 +22,7 @@ G0_TESTS = (
 )
 
 G1_TESTS = (
+    "tests/test_architecture_boundaries.py",
     "tests/ignition/test_voltage_ignition.py",
     "tests/kernel/test_fourfold_evidence.py",
     "tests/kernel/test_fourfold_approval_integration.py",
