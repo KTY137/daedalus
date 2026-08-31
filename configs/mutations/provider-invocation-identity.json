@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "spec_id": "provider-invocation-identity",
+  "packet_id": "G1-MUT-02A",
+  "jobs": [
+    {
+      "module": "daedalus/runtimes/provider_invocation_identity.py",
+      "tests": [
+        "tests/runtimes/test_provider_invocation_identity.py",
+        "tests/runtimes/test_provider_invocation_identity_review.py"
+      ],
+      "timeout_s": 300,
+      "mutations": [
+        {
+          "id": "derive-contract-from-authority",
+          "find": "            invocation_contract_id=PROVIDER_INVOCATION_CONTRACT_ID,\n",
+          "replace": "            invocation_contract_id=authority.invocation_contract_id,\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity.py"
+          ]
+        },
+        {
+          "id": "derive-registry-digest-from-authority",
+          "find": "            invocation_registry_sha256=registry.digest,\n",
+          "replace": "            invocation_registry_sha256=authority.invocation_registry_sha256,\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity.py"
+          ]
+        },
+        {
+          "id": "skip-exact-registry-resolution",
+          "find": "        descriptor = registry.resolve(subject)\n",
+          "replace": "        descriptor = registry.descriptor_for_provider(subject.provider_id)\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity.py"
+          ]
+        },
+        {
+          "id": "allow-authority-subclass",
+          "find": "    if type(authority) is not ProviderInvocationObservationAuthority:\n",
+          "replace": "    if not isinstance(authority, ProviderInvocationObservationAuthority):\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity.py"
+          ]
+        },
+        {
+          "id": "allow-registry-subclass",
+          "find": "    if type(registry) is not ProviderInvocationRegistryManifest:\n",
+          "replace": "    if not isinstance(registry, ProviderInvocationRegistryManifest):\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity.py"
+          ]
+        },
+        {
+          "id": "allow-execution-subclass",
+          "find": "    if type(execution) is not EffectExecutionRequest:\n",
+          "replace": "    if not isinstance(execution, EffectExecutionRequest):\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity.py"
+          ]
+        },
+        {
+          "id": "escalate-provider-execution",
+          "find": "            \"provider_execution_allowed\": False,\n",
+          "replace": "            \"provider_execution_allowed\": True,\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity_review.py"
+          ]
+        },
+        {
+          "id": "substitute-implementation-projection",
+          "find": "        implementation_id=descriptor.implementation_id,\n",
+          "replace": "        implementation_id=descriptor.adapter_id,\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity.py"
+          ]
+        },
+        {
+          "id": "detach-authority-digest",
+          "find": "        authority_sha256=authority.digest,\n",
+          "replace": "        authority_sha256=authority.observation_authority.digest,\n",
+          "tests": [
+            "tests/runtimes/test_provider_invocation_identity.py"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "spec_id": "provider-target-verification",
+  "packet_id": "G1-MUT-02A",
+  "jobs": [
+    {
+      "module": "daedalus/runtimes/provider_target_verification.py",
+      "tests": [
+        "tests/runtimes/test_provider_target_verification.py",
+        "tests/runtimes/test_provider_target_verification_review.py"
+      ],
+      "timeout_s": 360,
+      "mutations": [
+        {
+          "id": "accept-source-store-subclass",
+          "find": "    if type(source_store) is not SourceTreeStore:\n",
+          "replace": "    if not isinstance(source_store, SourceTreeStore):\n"
+        },
+        {
+          "id": "trust-store-loaded-manifest-without-rehash",
+          "find": "    if source_manifest.digest != source_tree_ref.sha256:\n",
+          "replace": "    if False and source_manifest.digest != source_tree_ref.sha256:\n"
+        },
+        {
+          "id": "accept-stale-source-revision",
+          "find": "    if source_manifest.source_revision != projection.source_revision:\n",
+          "replace": "    if False and source_manifest.source_revision != projection.source_revision:\n"
+        },
+        {
+          "id": "accept-signed-source-digest-substitution",
+          "find": "    if entry.blob_sha256 != expected_source_sha256:\n",
+          "replace": "    if False and entry.blob_sha256 != expected_source_sha256:\n"
+        },
+        {
+          "id": "trust-store-read-without-rehash",
+          "find": "    if hashlib.sha256(payload).hexdigest() != entry.blob_sha256:\n",
+          "replace": "    if False and hashlib.sha256(payload).hexdigest() != entry.blob_sha256:\n"
+        },
+        {
+          "id": "accept-ambiguous-module",
+          "find": "    if len(matches) != 1:\n        raise ProviderTargetVerificationSourceError(\n            \"target module must resolve to exactly one source-tree file\"\n        )\n",
+          "replace": "    if not matches:\n        raise ProviderTargetVerificationSourceError(\n            \"target module must resolve to exactly one source-tree file\"\n        )\n"
+        },
+        {
+          "id": "accept-ambiguous-definition",
+          "find": "        if len(matches) != 1:\n            raise ProviderTargetVerificationSourceError(\n                \"target qualified name is missing or structurally ambiguous\"\n            )\n",
+          "replace": "        if not matches:\n            raise ProviderTargetVerificationSourceError(\n                \"target qualified name is missing or structurally ambiguous\"\n            )\n"
+        },
+        {
+          "id": "skip-receipt-signature",
+          "find": "    if not hmac.compare_digest(receipt.signature_sha256, expected_signature):\n",
+          "replace": "    if False and not hmac.compare_digest(receipt.signature_sha256, expected_signature):\n"
+        },
+        {
+          "id": "detach-receipt-from-rebuilt-evidence",
+          "find": "    if receipt != expected:\n",
+          "replace": "    if False and receipt != expected:\n"
+        }
+      ]
+    },
+    {
+      "module": "daedalus/runtimes/provider_target_verification_contracts.py",
+      "tests": [
+        "tests/runtimes/test_provider_target_verification.py",
+        "tests/runtimes/test_provider_target_verification_review.py"
+      ],
+      "timeout_s": 360,
+      "mutations": [
+        {
+          "id": "claim-provider-execution-authority",
+          "find": "            \"provider_execution_allowed\": False,\n",
+          "replace": "            \"provider_execution_allowed\": True,\n"
+        },
+        {
+          "id": "drop-structural-verification-claim",
+          "find": "            \"targets_structurally_verified\": True,\n",
+          "replace": "            \"targets_structurally_verified\": False,\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "spec_id": "provider-observation-persistence-inventory",
+  "packet_id": "G1-MUT-02A",
+  "jobs": [
+    {
+      "module": "daedalus/gates/provider_observation_persistence_inventory.py",
+      "tests": [
+        "tests/gates/test_provider_observation_persistence_inventory.py",
+        "tests/gates/test_provider_observation_persistence_inventory_review.py",
+        "tests/gates/test_provider_observation_persistence_inventory_cli.py"
+      ],
+      "timeout_s": 300,
+      "mutations": [
+        {
+          "id": "false-closure",
+          "find": "    def closed(self) -> bool:\n        return False\n",
+          "replace": "    def closed(self) -> bool:\n        return True\n"
+        },
+        {
+          "id": "false-canonical-integration",
+          "find": "            \"canonical_inventory_integrated\": False,\n",
+          "replace": "            \"canonical_inventory_integrated\": True,\n"
+        },
+        {
+          "id": "false-guard-completeness",
+          "find": "            \"guard_contracts_complete\": False,\n",
+          "replace": "            \"guard_contracts_complete\": True,\n"
+        },
+        {
+          "id": "drop-rollback-anchor",
+          "find": "(\"retained rollback\", \"ROLLBACK\", \"rollback-idempotent-existing-binding\"),\n",
+          "replace": "(\"retained rollback\", \"NOT ROLLBACK\", \"rollback-idempotent-existing-binding\"),\n"
+        },
+        {
+          "id": "drop-recovery-read-path",
+          "find": "methods[\"require_bound\"], label=\"require-bound load\", predicate=_callee_is(\"self.load\")\n",
+          "replace": "methods[\"require_bound\"], label=\"require-bound load\", predicate=_callee_is(\"self.missing\")\n"
+        },
+        {
+          "id": "accept-source-symlink",
+          "find": "        if source_path.is_symlink():\n",
+          "replace": "        if False and source_path.is_symlink():\n"
+        }
+      ]
+    }
+  ]
+}

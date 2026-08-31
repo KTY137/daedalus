@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "spec_id": "runtime-effect-replay-projection",
+  "packet_id": "G1-MUT-02A",
+  "jobs": [
+    {
+      "module": "daedalus/kernel/runtime_effect_replay.py",
+      "tests": [
+        "tests/kernel/test_runtime_effect_replay_projection.py",
+        "tests/kernel/test_runtime_effect_replay_projection_review.py"
+      ],
+      "timeout_s": 120,
+      "mutations": [
+        {
+          "id": "allow-untyped-authorization",
+          "find": "if not isinstance(authorization, RuntimeBoundEffectAuthorization):",
+          "replace": "if False and not isinstance(authorization, RuntimeBoundEffectAuthorization):",
+          "tests": [
+            "tests/kernel/test_runtime_effect_replay_projection.py::test_projection_requires_exact_types"
+          ]
+        },
+        {
+          "id": "erase-started-execution",
+          "find": "if effect_snapshot is None:",
+          "replace": "if effect_snapshot is not None:",
+          "tests": [
+            "tests/kernel/test_runtime_effect_replay_projection.py::test_started_runtime_execution_projects_active_trust"
+          ]
+        },
+        {
+          "id": "use-live-generation",
+          "find": "authorization.capability.lease.kill_switch_generation\n            ),",
+          "replace": "authorization.current_kill_switch_generation\n            ),",
+          "tests": [
+            "tests/kernel/test_runtime_effect_replay_projection.py::test_started_runtime_execution_projects_active_trust"
+          ]
+        },
+        {
+          "id": "bypass-runtime-authority-verification",
+          "find": "trust_record = verify_runtime_bound_effect_lease(\n            authorization.capability,\n            request=authorization.request,\n            policy_decision=authorization.policy_decision,\n            lease_keyring=authorization.lease_keyring,\n            runtime_authority_keyring=authorization.runtime_authority_keyring,\n            runtime_trust_ledger=authorization.runtime_trust_ledger,\n            current_kill_switch_generation=(\n                authorization.capability.lease.kill_switch_generation\n            ),\n            now=start_instant,\n            registry=authorization.registry,\n        )",
+          "replace": "trust_record = authorization.runtime_trust_ledger.records(\n            authorization.capability.runtime_id\n        )[0]",
+          "tests": [
+            "tests/kernel/test_runtime_effect_replay_projection.py::test_wrong_runtime_authority_key_fails_closed"
+          ]
+        },
+        {
+          "id": "ignore-trust-record-binding",
+          "find": "if trust_record.record_sha256 != authorization.capability.runtime_trust_record_sha256:",
+          "replace": "if False and trust_record.record_sha256 != authorization.capability.runtime_trust_record_sha256:",
+          "tests": [
+            "tests/kernel/test_runtime_effect_replay_projection.py::test_verified_runtime_trust_digest_cannot_be_detached"
+          ]
+        },
+        {
+          "id": "ignore-runtime-identity-binding",
+          "find": "if trust_record.runtime_id != authorization.capability.runtime_id:",
+          "replace": "if False and trust_record.runtime_id != authorization.capability.runtime_id:",
+          "tests": [
+            "tests/kernel/test_runtime_effect_replay_projection.py::test_verified_runtime_identity_cannot_be_detached"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "spec_id": "provider-observation-authority",
+  "packet_id": "G1-MUT-02A",
+  "jobs": [
+    {
+      "module": "daedalus/runtimes/broker.py",
+      "tests": [
+        "tests/runtimes/test_provider_observation_authority.py",
+        "tests/runtimes/test_runtime_provider_post_invoke_unknown.py",
+        "tests/runtimes/test_runtime_provider_recovery.py",
+        "tests/runtimes/test_provider_observation_authority_review.py"
+      ],
+      "timeout_s": 300,
+      "mutations": [
+        {
+          "id": "skip-pre-invocation-authority-verification",
+          "find": "        else:\n            ledger.verify_authority(\n",
+          "replace": "        else:\n            if False:\n                ledger.verify_authority(\n",
+          "tests": [
+            "tests/runtimes/test_runtime_provider_post_invoke_unknown.py"
+          ]
+        },
+        {
+          "id": "skip-durable-binding-before-invoke",
+          "find": "            ledger.bind_start(authority, start_receipt, bound_at=at)\n",
+          "replace": "            if False:\n                ledger.bind_start(authority, start_receipt, bound_at=at)\n",
+          "tests": [
+            "tests/runtimes/test_runtime_provider_post_invoke_unknown.py"
+          ]
+        }
+      ]
+    },
+    {
+      "module": "daedalus/runtimes/provider_observation.py",
+      "tests": [
+        "tests/runtimes/test_provider_observation_authority.py",
+        "tests/runtimes/test_runtime_provider_post_invoke_unknown.py",
+        "tests/runtimes/test_runtime_provider_recovery.py",
+        "tests/runtimes/test_provider_observation_authority_review.py"
+      ],
+      "timeout_s": 300,
+      "mutations": [
+        {
+          "id": "ignore-observation-keyring-digest",
+          "find": "        \"observation_keyring_sha256\": (\n            authority.observation_keyring_sha256,\n            observation_keyring_digest(observation_keyring),\n        ),\n",
+          "replace": "        \"observation_keyring_sha256\": (\n            authority.observation_keyring_sha256,\n            authority.observation_keyring_sha256,\n        ),\n",
+          "tests": [
+            "tests/runtimes/test_provider_observation_authority.py"
+          ]
+        },
+        {
+          "id": "ignore-persisted-record-hmac",
+          "find": "        if not hmac.compare_digest(record.record_hmac_sha256, expected_hmac):\n",
+          "replace": "        if False and not hmac.compare_digest(record.record_hmac_sha256, expected_hmac):\n",
+          "tests": [
+            "tests/runtimes/test_provider_observation_authority.py"
+          ]
+        },
+        {
+          "id": "accept-substituted-retained-authority",
+          "find": "        if record.authority != authority:\n",
+          "replace": "        if False and record.authority != authority:\n",
+          "tests": [
+            "tests/runtimes/test_provider_observation_authority.py"
+          ]
+        }
+      ]
+    },
+    {
+      "module": "daedalus/runtimes/recovery.py",
+      "tests": [
+        "tests/runtimes/test_provider_observation_authority.py",
+        "tests/runtimes/test_runtime_provider_post_invoke_unknown.py",
+        "tests/runtimes/test_runtime_provider_recovery.py",
+        "tests/runtimes/test_provider_observation_authority_review.py"
+      ],
+      "timeout_s": 300,
+      "mutations": [
+        {
+          "id": "accept-foreign-observation-provider",
+          "find": "    if observation.provider_id != record.authority.provider_id:\n",
+          "replace": "    if False and observation.provider_id != record.authority.provider_id:\n",
+          "tests": [
+            "tests/runtimes/test_runtime_provider_recovery.py"
+          ]
+        },
+        {
+          "id": "accept-foreign-observation-issuer",
+          "find": "    if observation.issuer_key_id not in record.authority.observation_issuer_key_ids:\n",
+          "replace": "    if False and observation.issuer_key_id not in record.authority.observation_issuer_key_ids:\n",
+          "tests": [
+            "tests/runtimes/test_runtime_provider_recovery.py"
+          ]
+        },
+        {
+          "id": "derive-provider-from-observation",
+          "find": "expected_provider_id=record.authority.provider_id,",
+          "replace": "expected_provider_id=observation.provider_id,",
+          "tests": [
+            "tests/runtimes/test_provider_observation_authority_review.py"
+          ]
+        }
+      ]
+    }
+  ]
+}
