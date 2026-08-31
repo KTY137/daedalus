@@ -1219,9 +1219,16 @@ def main() -> None:
     elif cmd == "enforce":
         from .enforce import main as m; m()
     elif cmd == "improve":
-        from .orchestration.execution import picker_evaluation_ports
+        from .orchestration.execution import (
+            attempt_ports,
+            picker_evaluation_ports,
+        )
         from .spine.picker import main as m
-        raise SystemExit(m(rest, evaluation_ports=picker_evaluation_ports()))
+        raise SystemExit(m(
+            rest,
+            evaluation_ports=picker_evaluation_ports(),
+            attempt_ports_factory=attempt_ports,
+        ))
     elif cmd == "init":
         _init(rest)
     elif cmd == "governance":

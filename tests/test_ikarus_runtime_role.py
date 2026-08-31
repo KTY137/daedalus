@@ -20,18 +20,28 @@ from daedalus.ikarus_runtime_role import (  # noqa: E402
     RuntimeRoleRegistryError,
 )
 from daedalus.ikarus_supervisor import (  # noqa: E402
-    MissionSupervisor,
+    MissionSupervisor as _MissionSupervisor,
     PlannedItem,
     RoleHarness,
     SupervisorRefused,
     plan_mission,
     verify_state_ledger,
 )
+from daedalus.orchestration.execution import (  # noqa: E402
+    compose_task_attempt,
+)
 from daedalus.schemas import MissionContract, ResourceBudget  # noqa: E402
 from daedalus.spine.attempt import GateResult  # noqa: E402
 
 
 HERMES_COMMIT = "fcbd1076a93841fa88855acce810e342a5b78101"
+
+
+def MissionSupervisor(*args, **kwargs):
+    """Test composition through the same explicit production Attempt port."""
+
+    kwargs.setdefault("attempt_factory", compose_task_attempt)
+    return _MissionSupervisor(*args, **kwargs)
 
 
 @pytest.fixture

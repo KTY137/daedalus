@@ -65,7 +65,6 @@ from .schemas import (
 from .spine.attempt import (
     GateResult,
     RunnerContext,
-    TaskAttempt,
     TaskSpec,
     TaskSpecInvalid,
 )
@@ -532,6 +531,9 @@ class MissionSupervisor:
     # deletable projection. Projection failures are observable to the caller
     # but never replace or downgrade the canonical WaveExecutor report.
     projection_errors: list[str] = field(default_factory=list)
+    # Concrete workspace/evaluator selection belongs to orchestration.  Keep
+    # this last so every historical positional constructor retains its shape.
+    attempt_factory: Callable[..., Any] | None = None
 
     def run(
         self,
@@ -595,6 +597,12 @@ class MissionSupervisor:
             raise SupervisorRefused("supervisor fail_fast setting must be boolean")
         fail_fast = self.fail_fast
         result_sink = self.results
+        attempt_factory = self.attempt_factory
+        if not callable(attempt_factory):
+            raise SupervisorRefused(
+                "MissionSupervisor.run requires an injected attempt_factory; "
+                "workspace and evaluator composition is owned by orchestration"
+            )
         if len(session.waves) != 1:
             raise SupervisorRefused(
                 "the Ikarus runtime port requires exactly one ordered work wave"
@@ -1034,7 +1042,7 @@ class MissionSupervisor:
                     raise TypeError("gate_factory returned a non-callable")
                 return gate(_snapshot_callback_context(ctx, task_template))
 
-            attempt = TaskAttempt(
+            attempt = attempt_factory(
                 spec,
                 runner=lazy_runner,
                 gate=lazy_gate,

@@ -66,6 +66,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from ..kernel.attempt_execution import (
+    AttemptEvaluatorPort,
+    AttemptWorkspacePort,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 
 #: Where a discrimination measurement is recorded. Absent means unproven; it
@@ -554,6 +559,10 @@ class ShadowResult:
 
 def shadow_run(repo_root: str | Path, *,
                runner: Callable[[Any], Any],
+               attempt_ports_factory: Callable[
+                   [str | Path | None],
+                   tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
+               ] | None = None,
                refresh: bool = True,
                limit: int = 10,
                artifact_dir: str | Path | None = None,
@@ -605,9 +614,19 @@ def shadow_run(repo_root: str | Path, *,
         return _finish("sources_unavailable" if degraded else "no_candidate")
 
     top = queue.candidates[0]
-    from daedalus.spine.attempt import run_attempt
-    from daedalus.spine.attempt import pytest_gate_argv
+    from daedalus.spine.attempt import (
+        AttemptPortMissing,
+        pytest_gate_argv,
+        run_attempt,
+    )
     from daedalus.spine.picker import resolve_spine_db_path
+
+    if not callable(attempt_ports_factory):
+        raise AttemptPortMissing(
+            "shadow_run attempt execution requires an injected "
+            "attempt_ports_factory from orchestration"
+        )
+    workspace_port, evaluator_port = attempt_ports_factory(root)
 
     task = top.to_task_spec()
     if task.gate_argv:
@@ -633,15 +652,28 @@ def shadow_run(repo_root: str | Path, *,
             "sources_unavailable",
             task_id=top.task_id,
             source=top.source)
-    res = run_attempt(task, runner=runner, repo_root=str(root),
-                      ledger_path=ledger_path,
-                      artifact_dir=str(artifact_dir) if artifact_dir else None,
-                      keep_worktree=keep_worktree)
+    res = run_attempt(
+        task,
+        runner=runner,
+        repo_root=str(root),
+        workspace_port=workspace_port,
+        evaluator_port=evaluator_port,
+        ledger_path=ledger_path,
+        artifact_dir=str(artifact_dir) if artifact_dir else None,
+        keep_worktree=keep_worktree,
+    )
     state = "gated" if getattr(res, "ok", False) else getattr(res, "state", "error")
     return _finish(state, task_id=top.task_id, source=top.source, attempt=res)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    attempt_ports_factory: Callable[
+        [str | Path | None],
+        tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
+    ] | None = None,
+) -> int:
     import argparse
 
     # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape. There
@@ -696,6 +728,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         kwargs["availability"] = {"claude_cli": False, "ollama": True,
                                   "deepseek": False, "codex_cli": False}
     res = shadow_run(args.repo_root, runner=offload_runner(**kwargs),
+                     attempt_ports_factory=attempt_ports_factory,
                      refresh=not args.no_refresh, limit=args.limit,
                      artifact_dir=args.artifact_dir,
                      keep_worktree=args.keep_worktree)

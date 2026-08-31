@@ -69,6 +69,10 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from ..kernel.attempt_execution import (
+    AttemptEvaluatorPort,
+    AttemptWorkspacePort,
+)
 from ..kernel.contracts.evaluation import EvaluationPorts
 
 __all__ = [
@@ -2808,7 +2812,15 @@ def _console_safe(text: str, encoding: str | None) -> str:
 # --------------------------------------------------------------------------- #
 # CLI                                                                          #
 # --------------------------------------------------------------------------- #
-def _default_attempt(candidate: Candidate, args: Any) -> Any:
+def _default_attempt(
+    candidate: Candidate,
+    args: Any,
+    *,
+    attempt_ports_factory: Callable[
+        [str | Path | None],
+        tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
+    ] | None = None,
+) -> Any:
     """Run one real :class:`daedalus.spine.attempt.TaskAttempt`.
 
     Split out as the single injection seam so ``--dry-run`` can be tested by
@@ -2819,7 +2831,19 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
     picker is the only live code that decides what to work on next, so it is
     the only place a mission can honestly be compiled from user-facing intent.
     """
-    from daedalus.spine.attempt import offload_runner, run_attempt
+    from daedalus.spine.attempt import (
+        AttemptPortMissing,
+        offload_runner,
+        run_attempt,
+    )
+
+    if not callable(attempt_ports_factory):
+        raise AttemptPortMissing(
+            "picker attempt execution requires an injected "
+            "attempt_ports_factory; "
+            "use the daedalus CLI orchestration composition"
+        )
+    workspace_port, evaluator_port = attempt_ports_factory(args.repo_root)
 
     spec = candidate.to_task_spec()
     ledger_path, ledger_error = resolve_spine_db_path(args.repo_root)
@@ -2879,6 +2903,8 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
         spec,
         runner=offload_runner(live=bool(args.live)),
         repo_root=args.repo_root,
+        workspace_port=workspace_port,
+        evaluator_port=evaluator_port,
         ledger_path=ledger_path,
         artifact_dir=args.artifact_dir,
         mission_id=mission_id,
@@ -2952,7 +2978,11 @@ def _build_parser():
 
 def main(argv: Sequence[str] | None = None, *,
          attempt_fn: Callable[[Candidate, Any], Any] | None = None,
-         evaluation_ports: EvaluationPorts | None = None) -> int:
+         evaluation_ports: EvaluationPorts | None = None,
+         attempt_ports_factory: Callable[
+             [str | Path | None],
+             tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
+         ] | None = None) -> int:
     """``daedalus improve``. Returns a process exit code; applies nothing.
 
     Default behaviour with no flags is the DRY RUN. An operator who types
@@ -3038,7 +3068,13 @@ def main(argv: Sequence[str] | None = None, *,
         print("  runner is ADVISORY (no --live): the model is not invoked, so "
               "a 'no_change' result is the expected outcome.")
     print("")
-    run = attempt_fn or _default_attempt
+    run = attempt_fn or (
+        lambda candidate, parsed: _default_attempt(
+            candidate,
+            parsed,
+            attempt_ports_factory=attempt_ports_factory,
+        )
+    )
     result = run(top, args)
     print(_console_safe(
         review_packet(top, result),

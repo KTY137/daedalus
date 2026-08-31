@@ -14,7 +14,7 @@ from importlib.resources import files as _resource_files
 
 
 _RETAINED_SOURCE_NAME = "_gated_writes_legacy.py.src"
-_RETAINED_SOURCE_GIT_BLOB_SHA1 = "ec2fa2d6d01c990f1997a24029c414943d90a2a6"
+_RETAINED_SOURCE_GIT_BLOB_SHA1 = "0783f7e68e22f9c8e6c687a42e3b8ef294fb57c2"
 
 
 def _git_blob_sha1(data: bytes) -> str:

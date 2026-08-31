@@ -14,6 +14,10 @@ from pathlib import Path
 import pytest
 
 import daedalus.spine.attempt as attempt_mod
+from daedalus.orchestration.execution import (
+    command_gate,
+    compose_task_attempt as TaskAttempt,
+)
 from daedalus.spine.attempt import (
     INTENT_KIND,
     STATE_CANCELLED,
@@ -26,9 +30,7 @@ from daedalus.spine.attempt import (
     GateResult,
     PrimaryCheckoutWrite,
     RunnerContext,
-    TaskAttempt,
     TaskSpec,
-    command_gate,
     pytest_gate_argv,
 )
 from daedalus.spine.durability import (
@@ -966,7 +968,10 @@ def test_absent_fail_to_pass_leaves_the_plain_pytest_gate_untouched(
     at = TaskAttempt(task, runner=writing_runner({"a.txt": "a\n"}), repo_root=repo)
 
     assert at._gate is sentinel
-    assert calls == [(("tests/test_a.py",), {})]
+    assert len(calls) == 1
+    assert calls[0][0] == ("tests/test_a.py",)
+    assert tuple(calls[0][1]) == ("scratch_cleanup",)
+    assert callable(calls[0][1]["scratch_cleanup"])
 
 
 def test_gate_returning_a_bare_bool_is_accepted_and_says_so(repo, worktree_root,

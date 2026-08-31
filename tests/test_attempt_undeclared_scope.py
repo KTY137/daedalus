@@ -41,12 +41,12 @@ from pathlib import Path
 
 import pytest
 
+from daedalus.orchestration.execution import compose_task_attempt as TaskAttempt
 from daedalus.spine.attempt import (
     STATE_CLEAN,
     STATE_GATES_FAILED,
     GateResult,
     RunnerContext,
-    TaskAttempt,
     TaskSpec,
 )
 

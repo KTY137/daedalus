@@ -621,7 +621,10 @@ def test_command_gate_refuses_fail_closed(contracts_disabled):
     from daedalus.spine.attempt import command_gate
 
     with pytest.raises(EffectStartRefused):
-        command_gate(["python", "-c", "pass"])
+        command_gate(
+            ["python", "-c", "pass"],
+            scratch_cleanup=lambda _path: None,
+        )
 
 
 def test_worktree_reap_refuses_fail_closed(tmp_path, contracts_disabled):

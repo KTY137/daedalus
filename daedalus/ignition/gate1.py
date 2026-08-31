@@ -77,12 +77,15 @@ from daedalus.ignition.runner import (
     tree_digest,
 )
 from daedalus.kernel.fourfold_evidence import assemble_fourfold_evidence_packet
-from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
-from daedalus.limit_policy import ExecutionLimitPolicy
 from daedalus.kernel.offload_lease import (
     WaveLeaseDenied,
     WaveLeaseKillSwitchEngaged,
     acquire_attempt_lease,
+)
+from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
+from daedalus.limit_policy import ExecutionLimitPolicy
+from daedalus.orchestration.execution.attempts import (
+    compose_task_attempt as TaskAttempt,
 )
 from daedalus.schemas import (
     ContractProvenance,
@@ -93,7 +96,7 @@ from daedalus.schemas import (
     ResourceUsage,
 )
 from daedalus.sensitivity import Policy
-from daedalus.spine.attempt import GateResult, RunnerContext, TaskAttempt, TaskSpec
+from daedalus.spine.attempt import GateResult, RunnerContext, TaskSpec
 from daedalus.spine.envelope import canonical_sha
 from daedalus.spine.killswitch import KillSwitch
 from daedalus.spine.receipts import mission_contract_for_build_session

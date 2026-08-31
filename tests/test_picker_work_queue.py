@@ -16,13 +16,13 @@ import pytest
 
 import daedalus.spine.attempt as attempt_mod
 import daedalus.spine.picker as picker
+from daedalus.orchestration.execution import compose_task_attempt as TaskAttempt
 from daedalus.spine.bootstrap import refresh_sources
 from daedalus.spine.attempt import (
     STATE_CLEAN,
     STATE_GATES_FAILED,
     GateResult,
     RunnerContext,
-    TaskAttempt,
     TaskSpec,
 )
 from daedalus.spine.ledger import SpineLedger
@@ -359,11 +359,15 @@ def test_external_repo_uses_one_repo_bound_ledger_for_read_and_write(tmp_path,
         captured["kwargs"] = kwargs
         return SimpleNamespace(state="no_change")
 
-    monkeypatch.setattr(attempt_mod, "run_attempt", fake_run)
     args = SimpleNamespace(
         repo_root=str(repo), live=True, artifact_dir=None,
         keep_worktree=False)
-    picker._default_attempt(candidate, args)
+    monkeypatch.setattr(attempt_mod, "run_attempt", fake_run)
+    picker._default_attempt(
+        candidate,
+        args,
+        attempt_ports_factory=lambda _root: (object(), object()),
+    )
     assert captured["kwargs"]["ledger_path"] == default_path
     assert captured["spec"].target_paths == (TARGET,)
     assert captured["spec"].gate_argv == tuple(GATE_ARGV)
@@ -563,7 +567,7 @@ def test_post_gate_binding_error_fails_closed_and_resolves_intent(
         (ctx.worktree / TARGET).write_text("candidate\n", encoding="utf-8")
 
     monkeypatch.setattr(
-        TaskAttempt, "_post_gate_artifact_stable",
+        attempt_mod.TaskAttempt, "_post_gate_artifact_stable",
         lambda self, worktree, artifact: (_ for _ in ()).throw(
             OSError("verification unavailable")))
     try:

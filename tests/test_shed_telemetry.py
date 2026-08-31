@@ -38,8 +38,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from daedalus.providers import ollama as ollama_mod  # noqa: E402
 from daedalus.providers.ollama import OllamaProvider  # noqa: E402
+from daedalus.orchestration.execution import (  # noqa: E402
+    compose_task_attempt as TaskAttempt,
+)
 from daedalus.schemas import ResourceUsage  # noqa: E402
-from daedalus.spine.attempt import GateResult, TaskAttempt, TaskSpec  # noqa: E402
+from daedalus.spine.attempt import GateResult, TaskSpec  # noqa: E402
 from daedalus.spine.receipts import (  # noqa: E402
     METERED_INPUT_REASON,
     UNMETERED_SPEND_REASON,

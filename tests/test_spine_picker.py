@@ -695,7 +695,6 @@ def _mission_probe(monkeypatch, tmp_path, *, head):
         seen.update(kwargs)
         return types.SimpleNamespace(state="no_change")
 
-    monkeypatch.setattr(attempt_mod, "run_attempt", _fake_run_attempt)
     candidate = Candidate(
         task_id="probe-task", source="inventory",
         instruction="do the measured thing", reason="because it was measured",
@@ -703,7 +702,12 @@ def _mission_probe(monkeypatch, tmp_path, *, head):
     args = types.SimpleNamespace(
         repo_root=str(tmp_path), live=False, artifact_dir=None,
         keep_worktree=False)
-    picker._default_attempt(candidate, args)
+    monkeypatch.setattr(attempt_mod, "run_attempt", _fake_run_attempt)
+    picker._default_attempt(
+        candidate,
+        args,
+        attempt_ports_factory=lambda _root: (object(), object()),
+    )
     return seen.get("mission_id")
 
 

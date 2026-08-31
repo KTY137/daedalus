@@ -1,16 +1,17 @@
-"""Registered Attempt effect doors and legacy compatibility composition.
+"""Registered Attempt effect doors and fail-closed compatibility facade.
 
 The lifecycle implementation is owned by :mod:`daedalus.kernel.attempt_execution`.
-This module keeps the historical import target, Effect Registry anchors, and
-default composition that selects the existing Kairos workspace manager and the
-existing evaluator.  No default is installed in the kernel and no mutable
-process-wide port registry is used: each legacy ``TaskAttempt`` receives fresh
-port objects at construction.
+This module keeps the historical import target and Effect Registry anchors, but
+does not select a workspace manager or evaluator.  Concrete production
+composition belongs to :mod:`daedalus.orchestration.execution.attempts` and is
+injected through the neutral kernel ports.  An uncomposed call therefore fails
+closed with :class:`AttemptPortMissing` before a workspace or evaluator effect.
 
 All non-composition attributes are resolved from, and monkeypatch assignments
 are forwarded to, the single owner module.  The deliberately local seams are
 ``TaskAttempt``, ``run_attempt``, ``command_gate``, ``pytest_gate``, and the
-scratch cleanup wrapper; they are the documented effect/composition facade.
+scratch cleanup wrapper; they are registered effect/compatibility doors, not a
+service locator.
 """
 from __future__ import annotations
 
@@ -21,7 +22,6 @@ from types import ModuleType
 from typing import Any, Callable, Sequence
 
 from daedalus.kernel import attempt_execution as _owner
-from daedalus.kairos.worktree import GitWorktreeManager, remove_tree_no_follow
 
 
 __all__ = [
@@ -52,9 +52,20 @@ __all__ = [
 ]
 
 
-def _remove_gate_tmpdir(tmpdir: Path) -> str | None:
-    """Compose the kernel scratch-cleanup seam with the existing safe walker."""
-    return _owner._remove_gate_tmpdir(tmpdir, remove_tree_no_follow)
+def _remove_gate_tmpdir(
+    tmpdir: Path,
+    *,
+    scratch_cleanup: _owner.ScratchCleanupPort | None = None,
+) -> str | None:
+    """Preserve the private reporting seam while requiring cleanup injection."""
+    if not callable(scratch_cleanup):
+        raise _owner.AttemptPortMissing(
+            "gate scratch cleanup requires an injected scratch_cleanup port"
+        )
+    return _owner._remove_gate_tmpdir(tmpdir, scratch_cleanup)
+
+
+_DEFAULT_REMOVE_GATE_TMPDIR = _remove_gate_tmpdir
 
 
 def command_gate(
@@ -64,8 +75,14 @@ def command_gate(
     poll_s: float = 0.25,
     name: str = "command",
     executes_candidate: bool = True,
+    scratch_cleanup: _owner.ScratchCleanupPort | None = None,
 ) -> Callable[[_owner.RunnerContext], _owner.GateResult]:
-    """Registered command-gate door composed with guarded scratch cleanup."""
+    """Registered command-gate door requiring guarded scratch cleanup."""
+    if not callable(scratch_cleanup):
+        raise _owner.AttemptPortMissing(
+            "command gate requires an injected scratch_cleanup port"
+        )
+
     from daedalus.spine.effect_boundary import (
         REGISTRY_BY_ID,
         GuardDecision,
@@ -86,9 +103,19 @@ def command_gate(
             ),
         ),
     )
+
+    def cleanup(path: Path) -> str | None:
+        # Keep the historical one-argument monkeypatch seam.  The shipped
+        # helper receives the injected capability; a test/reviewer replacement
+        # remains callable with its original single path argument.
+        current = _remove_gate_tmpdir
+        if current is _DEFAULT_REMOVE_GATE_TMPDIR:
+            return current(path, scratch_cleanup=scratch_cleanup)
+        return current(path)
+
     return _owner._command_gate(
         argv,
-        scratch_cleanup=lambda path: _remove_gate_tmpdir(path),
+        scratch_cleanup=cleanup,
         timeout_s=timeout_s,
         poll_s=poll_s,
         name=name,
@@ -103,82 +130,27 @@ def pytest_gate(
     poll_s: float = 0.25,
     name: str = "pytest",
     executes_candidate: bool = True,
+    scratch_cleanup: _owner.ScratchCleanupPort | None = None,
 ) -> Callable[[_owner.RunnerContext], _owner.GateResult]:
     """Preserve the historical thin wrapper around the registered gate door."""
-    return command_gate(
-        _owner.pytest_gate_argv(paths),
-        timeout_s=timeout_s,
-        poll_s=poll_s,
-        name=name,
-        executes_candidate=executes_candidate,
-    )
-
-
-class _SpineEvaluatorPort:
-    """Per-Attempt adapter to the independently owned gate implementations."""
-
-    def command_gate(
-        self,
-        argv: Sequence[str],
-        *,
-        timeout_s: float | None,
-        name: str,
-    ) -> Callable[[_owner.RunnerContext], _owner.GateResult]:
-        return command_gate(argv, timeout_s=timeout_s, name=name)
-
-    def correctness_gate(
-        self,
-        task: Any,
-        repo_root: Path,
-        *,
-        timeout_s: float | None,
-    ) -> Callable[[_owner.RunnerContext], _owner.GateResult]:
-        # Lazy for the historical import cycle: correctness imports this facade
-        # for the read-only git vocabulary.
-        from daedalus.eval.correctness import correctness_gate
-
-        return correctness_gate(
-            {
-                "id": task.task_id,
-                "base_revision": task.base_revision,
-                "fail_to_pass": list(task.fail_to_pass),
-                "pass_to_pass": list(task.pass_to_pass),
-                "before_state": dict(task.correctness_before_state),
-            },
-            repo_root,
-            timeout_s=timeout_s,
-        )
-
-    def pytest_gate(
-        self,
-        paths: Sequence[str],
-        *,
-        timeout_s: float | None,
-        use_default_timeout: bool,
-    ) -> Callable[[_owner.RunnerContext], _owner.GateResult]:
-        # Preserve the old call shapes because tests and callers monkeypatch
-        # this facade as the composition seam.
-        if use_default_timeout:
-            return pytest_gate(paths)
-        return pytest_gate(paths, timeout_s=timeout_s)
+    kwargs: dict[str, Any] = {
+        "timeout_s": timeout_s,
+        "poll_s": poll_s,
+        "name": name,
+        "executes_candidate": executes_candidate,
+    }
+    # Preserve the historical monkeypatch call shape when a reviewer replaces
+    # command_gate.  The shipped door itself refuses when this is absent.
+    if scratch_cleanup is not None:
+        kwargs["scratch_cleanup"] = scratch_cleanup
+    return command_gate(_owner.pytest_gate_argv(paths), **kwargs)
 
 
 class TaskAttempt(_owner.TaskAttempt):
-    """Legacy registered door over the kernel-owned lifecycle core."""
+    """Registered door over the kernel core; capabilities must be injected."""
 
     @wraps(_owner.TaskAttempt.__init__)
     def __init__(self, task: _owner.TaskSpec, **kwargs: Any) -> None:
-        manager = kwargs.get("worktree_manager")
-        workspace = kwargs.get("workspace_port")
-        if manager is None and workspace is None:
-            kwargs.pop("worktree_manager", None)
-            kwargs.pop("workspace_port", None)
-            raw_root = kwargs.get("repo_root")
-            repo_root = Path(raw_root).resolve() if raw_root else _owner.ROOT
-            kwargs["workspace_port"] = GitWorktreeManager(repo_root)
-        if kwargs.get("evaluator_port") is None:
-            kwargs.pop("evaluator_port", None)
-            kwargs["evaluator_port"] = _SpineEvaluatorPort()
         super().__init__(task, **kwargs)
 
     def run(self) -> _owner.AttemptResult:
@@ -279,7 +251,7 @@ class TaskAttempt(_owner.TaskAttempt):
 
 
 def run_attempt(task: _owner.TaskSpec, **kwargs: Any) -> _owner.AttemptResult:
-    """Construct and run the registered compatibility composition."""
+    """Construct and run the registered, explicitly composed Attempt door."""
     return TaskAttempt(task, **kwargs).run()
 
 
@@ -290,8 +262,7 @@ _COMPOSITION_NAMES = frozenset(
         "command_gate",
         "pytest_gate",
         "_remove_gate_tmpdir",
-        "GitWorktreeManager",
-        "remove_tree_no_follow",
+        "_DEFAULT_REMOVE_GATE_TMPDIR",
     }
 )
 

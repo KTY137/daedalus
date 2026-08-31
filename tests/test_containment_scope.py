@@ -35,11 +35,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from daedalus.schemas import ResourceBudget  # noqa: E402
+from daedalus.orchestration.execution import (  # noqa: E402
+    compose_task_attempt as TaskAttempt,
+)
 from daedalus.spine.attempt import (  # noqa: E402
     STATE_CLEAN,
     STATE_GATES_FAILED,
     GateResult,
-    TaskAttempt,
     TaskSpec,
 )
 from daedalus.spine.receipts import containment_escapes  # noqa: E402

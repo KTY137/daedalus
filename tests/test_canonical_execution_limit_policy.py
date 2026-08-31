@@ -21,6 +21,10 @@ from daedalus.limit_policy import (
     MODE_UNBOUNDED_EXECUTION,
     ExecutionLimitPolicy,
 )
+from daedalus.orchestration.execution import (
+    compose_task_attempt,
+    compose_task_attempt as TaskAttempt,
+)
 from daedalus.schemas import (
     AttemptContract,
     CampaignContract,
@@ -34,7 +38,6 @@ from daedalus.spine.attempt import (
     AttemptResult,
     GateResult,
     PatchArtifact,
-    TaskAttempt,
     TaskSpec,
 )
 from daedalus.spine.killswitch import KillSwitch
@@ -419,13 +422,12 @@ def test_supervisor_validates_fallback_but_forwards_the_mission_effective_timeou
         return gate
 
     attempt_calls: list[dict] = []
-    real_attempt = supervisor_module.TaskAttempt
+    real_attempt = compose_task_attempt
 
     def recording_attempt(task, **kwargs):
         attempt_calls.append({"task": task, **kwargs})
         return real_attempt(task, **kwargs)
 
-    monkeypatch.setattr(supervisor_module, "TaskAttempt", recording_attempt)
     supervisor = MissionSupervisor(
         repo_root=repo,
         run_dir=tmp_path / "run",
@@ -437,6 +439,7 @@ def test_supervisor_validates_fallback_but_forwards_the_mission_effective_timeou
             )
         },
         gate_timeout_s=17.0,
+        attempt_factory=recording_attempt,
     )
 
     final = supervisor.run(session, mission, (item,))
@@ -455,6 +458,7 @@ def test_supervisor_validates_fallback_but_forwards_the_mission_effective_timeou
             run_dir=tmp_path / "invalid-timeout-run",
             roles=supervisor.roles,
             gate_timeout_s=0,
+            attempt_factory=compose_task_attempt,
         ).run(session, mission, (item,))
 
 
