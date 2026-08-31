@@ -305,6 +305,89 @@ class ExplicitSpecTests(unittest.TestCase):
         with self.assertRaisesRegex(ms.MutationSpecError, "within the repository"):
             ms.load_explicit_spec(self.tmp, path)
 
+    def test_spec_refuses_unknown_mutant_timeout_policy(self):
+        for value in ("credit-timeout-as-kill", ["legacy-timeout-exit-1"]):
+            with self.subTest(value=value):
+                path = self._write_spec()
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["mutant_timeout_policy"] = value
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                with self.assertRaisesRegex(
+                    ms.MutationSpecError,
+                    "mutant_timeout_policy",
+                ):
+                    ms.load_explicit_spec(self.tmp, path)
+
+    def test_legacy_mutant_timeout_policy_preserves_text_and_exit_one(self):
+        path = self._write_spec()
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["mutant_timeout_policy"] = ms.MUTANT_TIMEOUT_LEGACY_EXIT_1
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        spec = ms.load_explicit_spec(self.tmp, path)
+        report = ms.score_explicit_spec(
+            self.tmp,
+            spec,
+            runner=_FakeRunner(baseline=set(), per_call=["TIMEOUT"]),
+        )
+        self.assertEqual(report["verdict"], ms.INCONCLUSIVE)
+        self.assertEqual(report["timed_out_mutations"], ["break-size-limit"])
+        self.assertEqual(ms._explicit_spec_exit_code(spec, report), 1)
+        self.assertEqual(
+            ms._legacy_timeout_summary(report),
+            "timed-out mutations: break-size-limit",
+        )
+        import contextlib
+        import io
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            mock.patch(
+                "daedalus.budget.process_guard_boundary_decision",
+                return_value=object(),
+            ),
+            mock.patch("daedalus.spine.effect_boundary.begin_effect"),
+            mock.patch.object(ms, "score_explicit_spec", return_value=report),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            exit_code = ms.main(
+                ["--repo", str(self.tmp), "--spec", str(path)]
+            )
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(
+            stderr.getvalue(),
+            "timed-out mutations: break-size-limit\n",
+        )
+        self.assertIn("INCONCLUSIVE", stdout.getvalue())
+        self.assertEqual(
+            ms._explicit_spec_exit_code(
+                spec,
+                {**report, "baseline_green": False},
+            ),
+            2,
+        )
+        self.assertEqual(
+            ms._explicit_spec_exit_code(
+                spec,
+                {**report, "n_inconclusive": 2},
+            ),
+            2,
+        )
+
+    def test_default_mutant_timeout_policy_remains_exit_two(self):
+        spec = ms.load_explicit_spec(self.tmp, self._write_spec())
+        report = ms.score_explicit_spec(
+            self.tmp,
+            spec,
+            runner=_FakeRunner(baseline=set(), per_call=["TIMEOUT"]),
+        )
+        self.assertEqual(
+            spec.mutant_timeout_policy,
+            ms.MUTANT_TIMEOUT_INCONCLUSIVE,
+        )
+        self.assertEqual(ms._explicit_spec_exit_code(spec, report), 2)
+
     def test_spec_scoring_requires_the_named_test_to_kill_the_mutant(self):
         spec = ms.load_explicit_spec(self.tmp, self._write_spec())
         runner = _FakeRunner(

@@ -91,6 +91,13 @@ SURVIVED = "SURVIVED"              # baseline green, nothing went red -- a HOLE 
 NOT_APPLICABLE = "NOT_APPLICABLE"  # the mutation did not apply / changed nothing / did not compile
 INCONCLUSIVE = "INCONCLUSIVE"      # the measurement itself failed (red baseline, timeout, runner error)
 
+MUTANT_TIMEOUT_INCONCLUSIVE = "inconclusive-exit-2"
+MUTANT_TIMEOUT_LEGACY_EXIT_1 = "legacy-timeout-exit-1"
+MUTANT_TIMEOUT_POLICIES = {
+    MUTANT_TIMEOUT_INCONCLUSIVE,
+    MUTANT_TIMEOUT_LEGACY_EXIT_1,
+}
+
 # Directory names never copied into a sandbox. Two reasons, both measured on
 # this repo: correctness (a stale ``__pycache__`` would shadow a mutant) and
 # cost (``.captures`` alone is 1.2 GB, ``target``/``node_modules`` similar).
@@ -200,6 +207,7 @@ class ExplicitMutationSpec:
     packet_id: str
     jobs: tuple[ExplicitMutationJob, ...]
     path: Path
+    mutant_timeout_policy: str = MUTANT_TIMEOUT_INCONCLUSIVE
 
 
 def _spec_relative_path(repo: Path, value: object, field_name: str) -> str:
@@ -246,6 +254,18 @@ def load_explicit_spec(
         raise MutationSpecError("mutation spec requires a non-empty spec_id")
     if not isinstance(packet_id, str) or not packet_id.strip():
         raise MutationSpecError("mutation spec requires a non-empty packet_id")
+    mutant_timeout_policy = payload.get(
+        "mutant_timeout_policy",
+        MUTANT_TIMEOUT_INCONCLUSIVE,
+    )
+    if (
+        not isinstance(mutant_timeout_policy, str)
+        or mutant_timeout_policy not in MUTANT_TIMEOUT_POLICIES
+    ):
+        raise MutationSpecError(
+            "mutation spec mutant_timeout_policy must be one of: "
+            + ", ".join(sorted(MUTANT_TIMEOUT_POLICIES))
+        )
     raw_jobs = payload.get("jobs")
     if not isinstance(raw_jobs, list) or not raw_jobs:
         raise MutationSpecError("mutation spec requires at least one job")
@@ -372,6 +392,7 @@ def load_explicit_spec(
         packet_id=packet_id,
         jobs=tuple(jobs),
         path=resolved,
+        mutant_timeout_policy=mutant_timeout_policy,
     )
 
 
@@ -852,7 +873,7 @@ def score(repo: str | Path, module_rel: str, test_paths: list[str], *,
                 "status": status, "rule": m.rule, "detail": detail,
                 "before": m.before, "after": m.after,
                 "newly_failing": newly, "seconds": round(res.seconds, 1),
-                "tests": selected_tests,
+                "tests": selected_tests, "timed_out": res.timed_out,
             })
     finally:
         sb.destroy()
@@ -916,6 +937,12 @@ def score_explicit_spec(
         report.get("n_not_applicable", 0) for report in reports
     )
     inconclusive = sum(report.get("n_inconclusive", 0) for report in reports)
+    timed_out_mutations = [
+        result["id"]
+        for report in reports
+        for result in report.get("results", ())
+        if result.get("timed_out")
+    ]
     if has_error or not baseline_green or not_applicable or inconclusive:
         verdict = INCONCLUSIVE
     elif survived:
@@ -933,8 +960,37 @@ def score_explicit_spec(
         "n_survived": survived,
         "n_not_applicable": not_applicable,
         "n_inconclusive": inconclusive,
+        "mutant_timeout_policy": spec.mutant_timeout_policy,
+        "timed_out_mutations": timed_out_mutations,
         "verdict": verdict,
     }
+
+
+def _explicit_spec_exit_code(
+    spec: ExplicitMutationSpec,
+    report: dict,
+) -> int:
+    """Map one explicit-spec report to its declared process-exit contract."""
+
+    if report["verdict"] != INCONCLUSIVE:
+        return 1 if report["n_survived"] else 0
+    timed_out = report.get("timed_out_mutations", ())
+    legacy_timeout_only = (
+        spec.mutant_timeout_policy == MUTANT_TIMEOUT_LEGACY_EXIT_1
+        and bool(timed_out)
+        and report.get("baseline_green") is True
+        and report.get("n_not_applicable", 0) == 0
+        and report.get("n_inconclusive", 0) == len(timed_out)
+    )
+    return 1 if legacy_timeout_only else 2
+
+
+def _legacy_timeout_summary(report: dict) -> str:
+    """Render the historical timeout line for an opted-in legacy campaign."""
+
+    return "timed-out mutations: " + ", ".join(
+        report.get("timed_out_mutations", ())
+    )
 
 
 def render_explicit_spec(report: dict) -> str:
@@ -1083,9 +1139,14 @@ def main(argv: list[str] | None = None) -> int:
                 encoding="utf-8",
             )
             print(f"\nwrote {args.json}")
-        if report["verdict"] == INCONCLUSIVE:
-            return 2
-        return 1 if report["n_survived"] else 0
+        exit_code = _explicit_spec_exit_code(spec, report)
+        if (
+            exit_code == 1
+            and spec.mutant_timeout_policy == MUTANT_TIMEOUT_LEGACY_EXIT_1
+            and report.get("timed_out_mutations")
+        ):
+            print(_legacy_timeout_summary(report), file=sys.stderr)
+        return exit_code
 
     assert args.module is not None
     source = (repo / args.module).read_text(encoding="utf-8")

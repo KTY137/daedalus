@@ -149,7 +149,8 @@ class ProviderRuntimeMutationSpecTests(unittest.TestCase):
             {
                 path.name
                 for path in SPEC_DIR.glob("*.json")
-                if path.name != "repository-tree.json"
+                if json.loads(path.read_text(encoding="utf-8")).get("packet_id")
+                == "G1-MUT-02A"
             },
             set(MIGRATED.values()),
         )
