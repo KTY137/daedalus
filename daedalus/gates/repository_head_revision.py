@@ -12,7 +12,7 @@ from __future__ import annotations
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from daedalus.gates.repository_tree import (
     RepositorySourceSnapshot,
@@ -23,24 +23,14 @@ from daedalus.gates.repository_tree import (
     read_repository_source,
     resolve_repository_root,
 )
+from daedalus.runtimes.contracts.repository import (
+    RepositoryHeadRevisionBindingError,
+    RepositoryHeadRevisionError,
+    RepositoryHeadRevisionRaceError,
+    RepositoryHeadRevisionReceipt,
+    RepositoryHeadRevisionShapeError,
+)
 from daedalus.schemas import _revision, _sha256
-from daedalus.spine.envelope import canonical_sha
-
-
-class RepositoryHeadRevisionError(RuntimeError):
-    """Base class for exact repository-HEAD verification failures."""
-
-
-class RepositoryHeadRevisionShapeError(RepositoryHeadRevisionError):
-    """The repository metadata, expected subject, or receipt is malformed."""
-
-
-class RepositoryHeadRevisionBindingError(RepositoryHeadRevisionError):
-    """The stable repository HEAD differs from the expected revision."""
-
-
-class RepositoryHeadRevisionRaceError(RepositoryHeadRevisionError):
-    """Repository or Git metadata changed during verification."""
 
 
 def _strict_int(value: Any, label: str) -> int:
@@ -286,139 +276,6 @@ class _HeadObservation:
             "reference_sha256": self.reference_sha256,
             "reference_size": self.reference_size,
         }
-
-
-@dataclass(frozen=True)
-class RepositoryHeadRevisionReceipt:
-    """Deterministic proof that one expected revision matched a stable Git HEAD."""
-
-    expected_revision: str
-    resolved_revision: str
-    head_mode: str
-    head_ref: str | None
-    resolution_source: str
-    head_sha256: str
-    head_size: int
-    reference_path: str | None
-    reference_sha256: str | None
-    reference_size: int | None
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "expected_revision",
-            _revision_value(self.expected_revision, "expected_revision"),
-        )
-        observation = _HeadObservation(
-            resolved_revision=self.resolved_revision,
-            head_mode=self.head_mode,
-            head_ref=self.head_ref,
-            resolution_source=self.resolution_source,
-            head_sha256=self.head_sha256,
-            head_size=self.head_size,
-            reference_path=self.reference_path,
-            reference_sha256=self.reference_sha256,
-            reference_size=self.reference_size,
-        )
-        for field, value in observation.to_dict().items():
-            object.__setattr__(self, field, value)
-        if self.expected_revision != self.resolved_revision:
-            raise RepositoryHeadRevisionBindingError(
-                "receipt expected revision differs from resolved HEAD"
-            )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "schema": "daedalus-repository-head-revision-receipt/1",
-            "expected_revision": self.expected_revision,
-            "resolved_revision": self.resolved_revision,
-            "head_mode": self.head_mode,
-            "head_ref": self.head_ref,
-            "resolution_source": self.resolution_source,
-            "head_sha256": self.head_sha256,
-            "head_size": self.head_size,
-            "reference_path": self.reference_path,
-            "reference_sha256": self.reference_sha256,
-            "reference_size": self.reference_size,
-            "repository_head_verified": True,
-            "commit_object_verified": False,
-            "worktree_clean_verified": False,
-            "process_spawned": False,
-            "repository_mutated": False,
-        }
-
-    @classmethod
-    def from_dict(
-        cls,
-        payload: Mapping[str, Any],
-    ) -> "RepositoryHeadRevisionReceipt":
-        expected = {
-            "schema",
-            "expected_revision",
-            "resolved_revision",
-            "head_mode",
-            "head_ref",
-            "resolution_source",
-            "head_sha256",
-            "head_size",
-            "reference_path",
-            "reference_sha256",
-            "reference_size",
-            "repository_head_verified",
-            "commit_object_verified",
-            "worktree_clean_verified",
-            "process_spawned",
-            "repository_mutated",
-        }
-        if not isinstance(payload, Mapping) or set(payload) != expected:
-            raise RepositoryHeadRevisionShapeError(
-                "repository HEAD receipt fields are not exact"
-            )
-        if payload["schema"] != (
-            "daedalus-repository-head-revision-receipt/1"
-        ):
-            raise RepositoryHeadRevisionShapeError(
-                "repository HEAD receipt schema does not match"
-            )
-        if payload["repository_head_verified"] is not True:
-            raise RepositoryHeadRevisionShapeError(
-                "repository HEAD receipt must retain successful verification"
-            )
-        if any(
-            payload[field] is not False
-            for field in (
-                "commit_object_verified",
-                "worktree_clean_verified",
-                "process_spawned",
-                "repository_mutated",
-            )
-        ):
-            raise RepositoryHeadRevisionShapeError(
-                "repository HEAD receipt contains an unsupported authority claim"
-            )
-        try:
-            return cls(
-                expected_revision=payload["expected_revision"],
-                resolved_revision=payload["resolved_revision"],
-                head_mode=payload["head_mode"],
-                head_ref=payload["head_ref"],
-                resolution_source=payload["resolution_source"],
-                head_sha256=payload["head_sha256"],
-                head_size=payload["head_size"],
-                reference_path=payload["reference_path"],
-                reference_sha256=payload["reference_sha256"],
-                reference_size=payload["reference_size"],
-            )
-        except RepositoryHeadRevisionError:
-            raise
-        except (TypeError, ValueError) as exc:
-            raise RepositoryHeadRevisionShapeError(
-                "repository HEAD receipt is malformed"
-            ) from exc
-
-    @property
-    def digest(self) -> str:
-        return canonical_sha(self.to_dict())
 
 
 def _resolve_once(root: Path) -> _HeadObservation:

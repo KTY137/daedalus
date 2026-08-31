@@ -65,6 +65,10 @@ def _new_spine(path: Path) -> SpineLedger:
     return spine
 
 
+def _unexpected_gate_port(*args, **kwargs):
+    raise AssertionError("stubbed preflight must not invoke a concrete gate port")
+
+
 def _execution() -> EffectExecutionRequest:
     return EffectExecutionRequest(
         execution_id="retention-execution",
@@ -272,6 +276,8 @@ def _call(
         event_store_scope_path=event_scope,
         receipt_cas_scope_path=cas_scope,
         at=object(),
+        repository_head_verifier=_unexpected_gate_port,
+        retention_inventory_scanner=_unexpected_gate_port,
     )
 
 

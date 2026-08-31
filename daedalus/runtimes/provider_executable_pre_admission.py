@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from daedalus.gates.repository_head_revision import RepositoryHeadRevisionReceipt
+from daedalus.runtimes.contracts.repository import RepositoryHeadRevisionReceipt
 from daedalus.runtimes.provider_executable_structure import (
     ProviderExecutableStructureReceipt,
 )

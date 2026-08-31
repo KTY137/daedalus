@@ -32,6 +32,10 @@ from daedalus.kernel.effects import (
     EffectLeaseLedger,
 )
 from daedalus.kernel.source_trees import SourceTreeStore
+from daedalus.runtimes.contracts.ports import (
+    RepositoryHeadReceiptVerifier,
+    RetentionInventoryScanner,
+)
 from daedalus.runtimes.provider_target_receipt_ledger import (
     ProviderTargetReceiptLedger,
 )
@@ -737,6 +741,8 @@ def _replay_preflight(
     event_store_scope_path: str,
     receipt_cas_scope_path: str,
     at: Any,
+    repository_head_verifier: RepositoryHeadReceiptVerifier,
+    retention_inventory_scanner: RetentionInventoryScanner,
 ) -> ProviderTargetReceiptRetentionPreflightReceipt:
     try:
         preflight = verify_provider_target_receipt_retention_preflight(
@@ -752,6 +758,8 @@ def _replay_preflight(
             event_store_scope_path=event_store_scope_path,
             receipt_cas_scope_path=receipt_cas_scope_path,
             at=at,
+            repository_head_verifier=repository_head_verifier,
+            retention_inventory_scanner=retention_inventory_scanner,
         )
     except ProviderTargetReceiptRetentionPreflightError as exc:
         raise ProviderTargetReceiptRetentionAdmissionBindingError(
@@ -790,6 +798,8 @@ def verify_provider_target_receipt_retention_admission(
     event_store_scope_path: str,
     receipt_cas_scope_path: str,
     at: Any,
+    repository_head_verifier: RepositoryHeadReceiptVerifier,
+    retention_inventory_scanner: RetentionInventoryScanner,
 ) -> ProviderTargetReceiptRetentionAdmissionReceipt:
     """Verify one non-executing central-admission candidate.
 
@@ -836,6 +846,8 @@ def verify_provider_target_receipt_retention_admission(
         event_store_scope_path=event_store_scope_path,
         receipt_cas_scope_path=receipt_cas_scope_path,
         at=at,
+        repository_head_verifier=repository_head_verifier,
+        retention_inventory_scanner=retention_inventory_scanner,
     )
     guard = _exact_guard(authorization, preflight)
     topology = _verify_topology(
@@ -875,6 +887,8 @@ def verify_provider_target_receipt_retention_admission(
         event_store_scope_path=event_store_scope_path,
         receipt_cas_scope_path=receipt_cas_scope_path,
         at=at,
+        repository_head_verifier=repository_head_verifier,
+        retention_inventory_scanner=retention_inventory_scanner,
     )
     if final_preflight.digest != preflight.digest:
         raise ProviderTargetReceiptRetentionAdmissionBindingError(

@@ -19,16 +19,18 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from daedalus.gates.provider_target_receipt_retention_inventory import (
+from daedalus.runtimes.contracts.ports import (
+    RepositoryHeadReceiptVerifier,
+    RetentionInventoryScanner,
+)
+from daedalus.runtimes.contracts.repository import (
+    RepositoryHeadRevisionError,
+    RepositoryHeadRevisionReceipt,
+)
+from daedalus.runtimes.contracts.retention import (
     ProviderTargetReceiptRetentionInventory,
     ProviderTargetReceiptRetentionInventoryError,
     ProviderTargetReceiptRetentionSurface,
-    scan_provider_target_receipt_retention,
-)
-from daedalus.gates.repository_head_revision import (
-    RepositoryHeadRevisionError,
-    RepositoryHeadRevisionReceipt,
-    verify_repository_head_revision_receipt,
 )
 from daedalus.kernel.contracts import EffectLease
 from daedalus.kernel.effects import EffectExecutionRequest
@@ -353,6 +355,8 @@ def verify_provider_target_receipt_retention_preflight(
     event_store_scope_path: str,
     receipt_cas_scope_path: str,
     at: datetime,
+    repository_head_verifier: RepositoryHeadReceiptVerifier,
+    retention_inventory_scanner: RetentionInventoryScanner,
 ) -> ProviderTargetReceiptRetentionPreflightReceipt:
     """Authenticate and revision-bind one inert retention request.
 
@@ -364,6 +368,12 @@ def verify_provider_target_receipt_retention_preflight(
     if not isinstance(repository_root, Path):
         raise ProviderTargetReceiptRetentionPreflightShapeError(
             "repository_root must be pathlib.Path"
+        )
+    if not callable(repository_head_verifier) or not callable(
+        retention_inventory_scanner
+    ):
+        raise ProviderTargetReceiptRetentionPreflightShapeError(
+            "repository and inventory gate ports must be injected"
         )
     exact_types = (
         (
@@ -465,7 +475,7 @@ def verify_provider_target_receipt_retention_preflight(
 
     # First HEAD fence: the signed revision must be current before source reads.
     try:
-        verify_repository_head_revision_receipt(
+        repository_head_verifier(
             repository_root,
             source_revision,
             repository_head_receipt,
@@ -476,7 +486,7 @@ def verify_provider_target_receipt_retention_preflight(
         ) from exc
 
     try:
-        rebuilt_inventory = scan_provider_target_receipt_retention(
+        rebuilt_inventory = retention_inventory_scanner(
             repository_root,
             source_revision=source_revision,
         )
@@ -495,7 +505,7 @@ def verify_provider_target_receipt_retention_preflight(
 
     # Second HEAD fence: refuse a revision change during inventory reconstruction.
     try:
-        verify_repository_head_revision_receipt(
+        repository_head_verifier(
             repository_root,
             source_revision,
             repository_head_receipt,

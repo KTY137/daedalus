@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 MODULE = Path("daedalus/gates/repository_head_revision.py")
+CONTRACT = Path("daedalus/runtimes/contracts/repository.py")
 
 
 def _tree() -> ast.Module:
@@ -86,7 +87,12 @@ def test_review_performs_two_complete_head_observations() -> None:
 
 
 def test_review_receipt_claims_only_observed_head_equality() -> None:
-    source = MODULE.read_text(encoding="utf-8")
+    source = "\n".join(
+        (
+            MODULE.read_text(encoding="utf-8"),
+            CONTRACT.read_text(encoding="utf-8"),
+        )
+    )
 
     assert '"repository_head_verified": True' in source
     assert '"commit_object_verified": False' in source

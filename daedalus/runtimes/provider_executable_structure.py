@@ -17,10 +17,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from daedalus.gates.python_target_structure import (
+from daedalus.runtimes.contracts.ports import PythonTargetStructureResolver
+from daedalus.runtimes.contracts.python_targets import (
     PythonTargetStructure,
     PythonTargetStructureError,
-    resolve_python_target_structure,
 )
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.provider_executable_targets import (
@@ -591,12 +591,17 @@ def verify_provider_executable_structure(
     authority_keyring: Mapping[str, bytes | str],
     observation_keyring: Mapping[str, bytes | str],
     at: Any,
+    target_resolver: PythonTargetStructureResolver,
 ) -> ProviderExecutableStructureReceipt:
     """Authenticate target authority, then resolve exact repository structure."""
 
     if not isinstance(repository_root, Path):
         raise ProviderExecutableStructureShapeError(
             "repository_root must be pathlib.Path"
+        )
+    if not callable(target_resolver):
+        raise ProviderExecutableStructureShapeError(
+            "target_resolver must be an injected gate port"
         )
     projection = _authenticate_projection(
         target_authority,
@@ -611,12 +616,12 @@ def verify_provider_executable_structure(
         at=at,
     )
     try:
-        invoke = resolve_python_target_structure(
+        invoke = target_resolver(
             repository_root,
             projection.invoke_target,
             expected_source_sha256=projection.invoke_source_sha256,
         )
-        output = resolve_python_target_structure(
+        output = target_resolver(
             repository_root,
             projection.output_digests_target,
             expected_source_sha256=projection.output_digests_source_sha256,
@@ -689,6 +694,7 @@ def verify_provider_executable_structure_receipt(
     authority_keyring: Mapping[str, bytes | str],
     observation_keyring: Mapping[str, bytes | str],
     at: Any,
+    target_resolver: PythonTargetStructureResolver,
 ) -> None:
     """Re-authenticate and rebuild the receipt; refuse every detached field."""
 
@@ -708,6 +714,7 @@ def verify_provider_executable_structure_receipt(
         authority_keyring=authority_keyring,
         observation_keyring=observation_keyring,
         at=at,
+        target_resolver=target_resolver,
     )
     if rebuilt.to_dict() != receipt.to_dict():
         raise ProviderExecutableStructureBindingError(

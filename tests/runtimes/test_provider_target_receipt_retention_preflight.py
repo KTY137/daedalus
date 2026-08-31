@@ -6,13 +6,15 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.runtimes.provider_target_receipt_retention_preflight as preflight_module
 from daedalus.gates.provider_target_receipt_retention_inventory import (
     ProviderTargetReceiptRetentionInventory,
     ProviderTargetReceiptRetentionSurface,
     scan_provider_target_receipt_retention,
 )
-from daedalus.gates.repository_head_revision import verify_repository_head_revision
+from daedalus.gates.repository_head_revision import (
+    verify_repository_head_revision,
+    verify_repository_head_revision_receipt,
+)
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.contracts import EffectLease
 from daedalus.kernel.effects import EffectExecutionRequest
@@ -198,6 +200,8 @@ def _call(
     *,
     event_path: str = EVENT_PATH,
     cas_path: str = CAS_PATH,
+    repository_head_verifier=verify_repository_head_revision_receipt,
+    retention_inventory_scanner=scan_provider_target_receipt_retention,
 ):
     return verify_provider_target_receipt_retention_preflight(
         root,
@@ -212,6 +216,8 @@ def _call(
         event_store_scope_path=event_path,
         receipt_cas_scope_path=cas_path,
         at=NOW,
+        repository_head_verifier=repository_head_verifier,
+        retention_inventory_scanner=retention_inventory_scanner,
     )
 
 
@@ -272,17 +278,6 @@ def test_invalid_authority_refuses_before_repository_reads(
         reads.append("inventory")
         raise AssertionError("inventory read occurred before authority refusal")
 
-    monkeypatch.setattr(
-        preflight_module,
-        "verify_repository_head_revision_receipt",
-        unexpected_head,
-    )
-    monkeypatch.setattr(
-        preflight_module,
-        "scan_provider_target_receipt_retention",
-        unexpected_inventory,
-    )
-
     with pytest.raises(
         ProviderTargetReceiptRetentionPreflightBindingError,
         match="authority did not authenticate",
@@ -295,6 +290,8 @@ def test_invalid_authority_refuses_before_repository_reads(
             inventory,
             invalid,
             head_receipt,
+            repository_head_verifier=unexpected_head,
+            retention_inventory_scanner=unexpected_inventory,
         )
     assert reads == []
 
@@ -327,18 +324,13 @@ def test_head_change_during_inventory_rebuild_refuses(
 ) -> None:
     root = _repository(tmp_path)
     receipt, execution, lease, inventory, _, authority, head_receipt = _subjects(root)
-    real_scan = preflight_module.scan_provider_target_receipt_retention
+    real_scan = scan_provider_target_receipt_retention
 
     def scan_then_move_head(*args, **kwargs):
         rebuilt = real_scan(*args, **kwargs)
         _write_head(root, "0" * 40)
         return rebuilt
 
-    monkeypatch.setattr(
-        preflight_module,
-        "scan_provider_target_receipt_retention",
-        scan_then_move_head,
-    )
     with pytest.raises(
         ProviderTargetReceiptRetentionPreflightBindingError,
         match="did not reverify after inventory",
@@ -351,6 +343,7 @@ def test_head_change_during_inventory_rebuild_refuses(
             inventory,
             authority,
             head_receipt,
+            retention_inventory_scanner=scan_then_move_head,
         )
 
 

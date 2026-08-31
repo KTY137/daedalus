@@ -165,7 +165,11 @@ def _fixture(tmp_path: Path) -> dict[str, Any]:
     }
 
 
-def _verify(values: dict[str, Any]):
+def _verify(
+    values: dict[str, Any],
+    *,
+    target_resolver=resolve_python_target_structure,
+):
     return verify_provider_executable_structure(
         values["root"],
         values["target_authority"],
@@ -178,10 +182,16 @@ def _verify(values: dict[str, Any]):
         authority_keyring=AUTHORITY_KEYRING,
         observation_keyring=OBSERVATION_KEYRING,
         at=NOW,
+        target_resolver=target_resolver,
     )
 
 
-def _reverify(values: dict[str, Any], receipt) -> None:
+def _reverify(
+    values: dict[str, Any],
+    receipt,
+    *,
+    target_resolver=resolve_python_target_structure,
+) -> None:
     verify_provider_executable_structure_receipt(
         values["root"],
         values["target_authority"],
@@ -195,6 +205,7 @@ def _reverify(values: dict[str, Any], receipt) -> None:
         authority_keyring=AUTHORITY_KEYRING,
         observation_keyring=OBSERVATION_KEYRING,
         at=NOW,
+        target_resolver=target_resolver,
     )
 
 
@@ -247,13 +258,11 @@ def test_invalid_target_authority_refuses_before_repository_resolution(
     def forbidden(*args, **kwargs):
         raise AssertionError("repository target resolution ran before authority")
 
-    monkeypatch.setattr(subject, "resolve_python_target_structure", forbidden)
-
     with pytest.raises(
         ProviderExecutableStructureBindingError,
         match="did not authenticate",
     ):
-        _verify(values)
+        _verify(values, target_resolver=forbidden)
 
 
 def test_changed_source_refuses_after_authentication(tmp_path: Path) -> None:
@@ -316,16 +325,12 @@ def test_manifest_substitution_refuses_before_repository_resolution(
         descriptors=values["manifest"].descriptors,
     )
 
-    monkeypatch.setattr(
-        subject,
-        "resolve_python_target_structure",
-        lambda *args, **kwargs: pytest.fail(
-            "repository target resolution ran before manifest authentication"
-        ),
+    forbidden = lambda *args, **kwargs: pytest.fail(
+        "repository target resolution ran before manifest authentication"
     )
 
     with pytest.raises(ProviderExecutableStructureBindingError):
-        _verify(values)
+        _verify(values, target_resolver=forbidden)
 
 
 def test_target_authority_substitution_invalidates_retained_receipt(
@@ -387,17 +392,13 @@ def test_exact_authority_subjects_are_required_before_resolution(
         observation_keyring=OBSERVATION_KEYRING,
         at=NOW,
     )
-    monkeypatch.setattr(
-        subject,
-        "resolve_python_target_structure",
-        lambda *args, **kwargs: pytest.fail(
-            "repository resolution ran for unauthenticated projection"
-        ),
+    forbidden = lambda *args, **kwargs: pytest.fail(
+        "repository resolution ran for unauthenticated projection"
     )
 
     values["target_authority"] = projection
     with pytest.raises(ProviderExecutableStructureShapeError):
-        _verify(values)
+        _verify(values, target_resolver=forbidden)
 
 
 def test_resolver_cannot_substitute_invoke_structure_for_output(
@@ -423,14 +424,8 @@ def test_resolver_cannot_substitute_invoke_structure_for_output(
         expected_source_sha256=projection.invoke_source_sha256,
     )
 
-    monkeypatch.setattr(
-        subject,
-        "resolve_python_target_structure",
-        lambda *args, **kwargs: invoke,
-    )
-
     with pytest.raises(ProviderExecutableStructureBindingError):
-        _verify(values)
+        _verify(values, target_resolver=lambda *args, **kwargs: invoke)
 
 
 def test_resolver_cannot_detach_invoke_source_digest(
@@ -462,14 +457,11 @@ def test_resolver_cannot_detach_invoke_source_digest(
     )
     detached = dataclasses.replace(invoke, source_sha256="f" * 64)
     structures = iter((detached, output))
-    monkeypatch.setattr(
-        subject,
-        "resolve_python_target_structure",
-        lambda *args, **kwargs: next(structures),
-    )
-
     with pytest.raises(ProviderExecutableStructureBindingError):
-        _verify(values)
+        _verify(
+            values,
+            target_resolver=lambda *args, **kwargs: next(structures),
+        )
 
 
 def test_nonexact_authenticated_projection_refuses_before_resolution(
@@ -482,16 +474,12 @@ def test_nonexact_authenticated_projection_refuses_before_resolution(
         "project_provider_executable_targets",
         lambda *args, **kwargs: object(),
     )
-    monkeypatch.setattr(
-        subject,
-        "resolve_python_target_structure",
-        lambda *args, **kwargs: pytest.fail(
-            "repository resolution ran for nonexact authenticated projection"
-        ),
+    forbidden = lambda *args, **kwargs: pytest.fail(
+        "repository resolution ran for nonexact authenticated projection"
     )
 
     with pytest.raises(ProviderExecutableStructureBindingError):
-        _verify(values)
+        _verify(values, target_resolver=forbidden)
 
 
 def test_repository_root_must_be_pathlib_path(tmp_path: Path) -> None:
@@ -510,4 +498,5 @@ def test_repository_root_must_be_pathlib_path(tmp_path: Path) -> None:
             authority_keyring=AUTHORITY_KEYRING,
             observation_keyring=OBSERVATION_KEYRING,
             at=NOW,
+            target_resolver=resolve_python_target_structure,
         )

@@ -70,6 +70,7 @@ def test_review_public_api_accepts_authority_not_loose_projection() -> None:
         "authority_keyring",
         "observation_keyring",
         "at",
+        "target_resolver",
     ]
 
 
@@ -78,9 +79,9 @@ def test_review_authenticates_before_repository_resolution() -> None:
     source = ast.unparse(function)
 
     authentication = source.index("_authenticate_projection(")
-    first_resolution = source.index("resolve_python_target_structure(")
+    first_resolution = source.index("target_resolver(")
     assert authentication < first_resolution
-    assert source.count("resolve_python_target_structure(") == 2
+    assert source.count("target_resolver(") == 2
     assert "projection.invoke_source_sha256" in source
     assert "projection.output_digests_source_sha256" in source
 
@@ -142,7 +143,9 @@ def test_review_module_is_responsibility_local_and_additive() -> None:
     source = MODULE.read_text(encoding="utf-8")
 
     assert "from daedalus.runtimes.provider_executable_targets" in source
-    assert "from daedalus.gates.python_target_structure" in source
+    assert "from daedalus.runtimes.contracts.ports" in source
+    assert "from daedalus.runtimes.contracts.python_targets" in source
+    assert "from daedalus.gates.python_target_structure" not in source
     assert "ProviderExecutableTargetAuthority" in source
     assert "ProviderExecutableStructureReceipt" in source
     assert "OwnerApproval" not in source

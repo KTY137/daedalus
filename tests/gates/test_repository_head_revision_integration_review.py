@@ -27,6 +27,12 @@ PORTED_BLOBS = {
 # new blob is recorded here with the commit that changed it and why. Drift
 # that nobody wrote down is what this review is for.
 POST_PORT_REVISIONS = {
+    "daedalus/gates/repository_head_revision.py": (
+        "22dd0e5751a98dee42779185a2032dcd9a2f9a2d",
+        "G1-HIER-05: the receipt and error objects moved unchanged to the "
+        "neutral runtime-contract layer; this module remains the process-free "
+        "gate producer and exact compatibility export.",
+    ),
     "tests/gates/test_repository_head_revision.py": (
         "c78ddcd7355bbc6701bb4f6f797c9dfd3d89f6fb",
         "05eb06f: Path.write_text opens in text mode, so these hand-built git "
@@ -38,6 +44,11 @@ POST_PORT_REVISIONS = {
         "7ef1ff7091605376a67e79064be1a2d516f620a0",
         "05eb06f: the same newline pinning in the three wire fixtures. "
         "Fixtures only, no production behaviour.",
+    ),
+    "tests/gates/test_repository_head_revision_review.py": (
+        "c0145add958d40d7debb55b39533243101a904bf",
+        "G1-HIER-05: the independent review now follows the exact exported "
+        "receipt object to its neutral canonical contract owner.",
     ),
 }
 
