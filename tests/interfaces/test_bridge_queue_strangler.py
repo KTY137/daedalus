@@ -41,6 +41,9 @@ def _attribute_calls(node: ast.AST, name: str) -> list[ast.Call]:
 
 def test_queue_facade_delegates_document_ownership_once() -> None:
     assert len(
+        _attribute_calls(_function(FACADE, "enqueue"), "admit_enqueue")
+    ) == 1
+    assert len(
         _attribute_calls(_function(FACADE, "enqueue"), "publish_request")
     ) == 1
     assert len(
@@ -52,6 +55,26 @@ def test_queue_facade_delegates_document_ownership_once() -> None:
     assert len(
         _attribute_calls(_function(FACADE, "_read_request"), "read_request")
     ) == 1
+
+
+def test_legacy_watcher_refusal_is_the_queue_owner_object() -> None:
+    assert file_bridge.WatcherNotRunning is queue.WatcherNotRunning
+
+
+def test_enqueue_admission_precedes_effect_and_publication() -> None:
+    wrapper = _function(FACADE, "enqueue")
+    admission = _attribute_calls(wrapper, "admit_enqueue")
+    publication = _attribute_calls(wrapper, "publish_request")
+    effect = [
+        node
+        for node in ast.walk(wrapper)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "begin_effect"
+    ]
+
+    assert len(admission) == len(effect) == len(publication) == 1
+    assert admission[0].lineno < effect[0].lineno < publication[0].lineno
 
 
 def test_queue_owner_has_no_effect_dispatch_or_watcher_authority() -> None:

@@ -19,6 +19,46 @@ UniqueHexPort = Callable[[], str]
 WriteTextPort = Callable[[Path, str], None]
 
 
+class WatcherNotRunning(RuntimeError):
+    """Raised when enqueue would publish into a queue with no consumer."""
+
+    def __init__(
+        self,
+        heartbeat: dict[str, Any],
+        objective: str,
+        *,
+        stale_after_s: float = 120.0,
+    ) -> None:
+        self.hb = heartbeat
+        self.state = heartbeat.get("state", "unknown")
+        self.restart = heartbeat.get(
+            "restart",
+            "python -m daedalus.file_bridge watch --project <project>",
+        )
+        if self.state == "stale":
+            age = heartbeat.get("age_s")
+            why = (
+                f"the bridge watcher is DEAD -- its last heartbeat was {age}s ago "
+                f"(> {stale_after_s:.0f}s)"
+            )
+        else:
+            why = (
+                "no bridge watcher has ever recorded a heartbeat here -- "
+                "none is running"
+            )
+        super().__init__(
+            f"REFUSED to enqueue: {why}.\n"
+            f"  objective : {objective[:120]}\n"
+            "  Nothing would consume this task. It would sit in the outbox\n"
+            "  indefinitely while looking successfully queued.\n"
+            f"  -> start the consumer:  {self.restart}\n"
+            "  -> or run the queue once, in the foreground:  "
+            "python -m daedalus.file_bridge once --project <project>\n"
+            "  -> or, if you are deliberately queueing ahead of a watcher you\n"
+            "     will start later:  enqueue(..., require_watcher=False)  /  --force"
+        )
+
+
 def codex_inline_brief_warning(
     objective: str,
     lane: str,
@@ -40,6 +80,46 @@ def codex_inline_brief_warning(
         'repo and enqueue a short pointer instead, e.g. '
         '"Execute task C9 from docs/CODEX_QUEUE.md".'
     )
+
+
+def admit_enqueue(
+    objective: str,
+    lane: str,
+    *,
+    require_watcher: bool,
+    stale_after_s: float,
+    busy_budget_s: float,
+    warning_for: Callable[[str, str], str | None],
+    heartbeat_snapshot: Callable[[], dict[str, Any]],
+    emit_warning: Callable[[str], None],
+) -> dict[str, Any]:
+    """Fail closed before publication when no watcher can consume the task."""
+
+    warning = warning_for(objective, lane)
+    if warning:
+        emit_warning(f"WARNING: {warning}")
+
+    heartbeat = heartbeat_snapshot()
+    if heartbeat["state"] in ("stale", "none"):
+        if require_watcher:
+            raise WatcherNotRunning(
+                heartbeat,
+                objective,
+                stale_after_s=stale_after_s,
+            )
+        emit_warning(
+            "WARNING: queueing with NO live watcher "
+            f"(state={heartbeat['state']}); this task will sit until you run:  "
+            f"{heartbeat['restart']}"
+        )
+    elif heartbeat["state"] == "wedged":
+        current = (heartbeat.get("current") or {}).get("file", "?")
+        emit_warning(
+            f"WARNING: the watcher is WEDGED on {current} "
+            f"({heartbeat.get('busy_for_s')}s > {busy_budget_s:.0f}s budget); "
+            "this task is queued behind it and may not run soon."
+        )
+    return heartbeat
 
 
 def publish_request(

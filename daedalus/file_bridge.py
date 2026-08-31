@@ -61,49 +61,7 @@ MAX_ATTEMPTS = 3
 # request whose only fault was being slow.
 SETTLE_GRACE_S = 5.0
 
-class WatcherNotRunning(RuntimeError):
-    """Raised by enqueue() when no watcher is alive to consume the request.
-
-    MEASURED 2026-07-29, and the reason this exception exists: the watcher's
-    last heartbeat was 2026-07-16T22:51:51Z (pid 9536, dead). The owner's own
-    question -- "how is daedalus currently build and how does it function?" --
-    was enqueued 2026-07-20T12:11:42Z, three and a half days AFTER the only
-    consumer had stopped, and sat in the outbox for nine days. Nothing in the
-    system objected: `enqueue` wrote the file, returned a path, and the caller
-    had every reason to believe work had been queued.
-
-    `daedalus doctor` did report the dead watcher -- correctly, and with the
-    restart command -- but doctor is a thing you run when you already suspect
-    something. The producer never ran it. A queue that accepts work no consumer
-    will ever take is not a queue; it is a wastebasket with a receipt printer.
-
-    So the check moved to the moment of the mistake. It carries the state, the
-    age, and the exact restart command, because an error that does not say what
-    to do next just relocates the confusion.
-    """
-
-    def __init__(self, hb: dict[str, Any], objective: str) -> None:
-        self.hb = hb
-        self.state = hb.get("state", "unknown")
-        self.restart = hb.get("restart", "python -m daedalus.file_bridge watch --project <project>")
-        if self.state == "stale":
-            age = hb.get("age_s")
-            why = (f"the bridge watcher is DEAD -- its last heartbeat was {age}s ago "
-                   f"(> {STALE_AFTER_S:.0f}s)")
-        else:  # "none"
-            why = ("no bridge watcher has ever recorded a heartbeat here -- "
-                   "none is running")
-        super().__init__(
-            f"REFUSED to enqueue: {why}.\n"
-            f"  objective : {objective[:120]}\n"
-            f"  Nothing would consume this task. It would sit in the outbox\n"
-            f"  indefinitely while looking successfully queued.\n"
-            f"  -> start the consumer:  {self.restart}\n"
-            f"  -> or run the queue once, in the foreground:  "
-            f"python -m daedalus.file_bridge once --project <project>\n"
-            f"  -> or, if you are deliberately queueing ahead of a watcher you\n"
-            f"     will start later:  enqueue(..., require_watcher=False)  /  --force"
-        )
+WatcherNotRunning = bridge_queue.WatcherNotRunning
 
 
 ConversationProjectionPending = bridge_conversation.ConversationProjectionPending
@@ -483,24 +441,16 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
     when an objective smells like an inline brief (> ~200 chars, no
     CODEX_QUEUE reference).
     """
-    warning = codex_inline_brief_warning(objective, lane)
-    if warning:
-        print(f"WARNING: {warning}", file=sys.stderr)
-
-    # CONSUMER CHECK BEFORE THE WRITE, never after: a refusal must leave no
-    # file behind, or we would have invented a third state ("queued, but we
-    # told you not to count on it") that no reader of the outbox can see.
-    hb = heartbeat_status()
-    if hb["state"] in ("stale", "none"):
-        if require_watcher:
-            raise WatcherNotRunning(hb, objective)
-        print(f"WARNING: queueing with NO live watcher (state={hb['state']}); "
-              f"this task will sit until you run:  {hb['restart']}", file=sys.stderr)
-    elif hb["state"] == "wedged":
-        cur = (hb.get("current") or {}).get("file", "?")
-        print(f"WARNING: the watcher is WEDGED on {cur} "
-              f"({hb.get('busy_for_s')}s > {BUSY_BUDGET_S:.0f}s budget); this task is "
-              f"queued behind it and may not run soon.", file=sys.stderr)
+    bridge_queue.admit_enqueue(
+        objective,
+        lane,
+        require_watcher=require_watcher,
+        stale_after_s=STALE_AFTER_S,
+        busy_budget_s=BUSY_BUDGET_S,
+        warning_for=codex_inline_brief_warning,
+        heartbeat_snapshot=heartbeat_status,
+        emit_warning=lambda message: print(message, file=sys.stderr),
+    )
 
     from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
