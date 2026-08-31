@@ -27,8 +27,8 @@ CONFIG_LITERAL_SHA256 = (
 CONFIG_CONSTANT_SHA256 = (
     "7d72e29939fdebcc1ea401de1928f79028abcc4b929a1be128d6b8eea6432c3e"
 )
-MANAGER_AST_SHA256 = (
-    "d8c94495a6f091da6e4031bce4546d95a677427723fcc8ef69bade60050f73c3"
+PROCESS_MANAGER_AST_SHA256 = (
+    "0d20d6880be9d539b68a2ed4854c085680e9e8e50dda6c6becd892a805e4f489"
 )
 PROCESS_AST_SHA256 = (
     "122098f5f6b8f5b9e018c45e064e4ec420d3820d7dbbf08a16a074fc70846a96"
@@ -50,6 +50,59 @@ PROCESS_FUNCTIONS = (
     "_pid_is_alive",
     "install_tunnel_egress_policy",
     "install_web_integration",
+)
+SETTINGS_METHODS = frozenset(
+    {
+        "_read_budget_environment",
+        "_load",
+        "_save",
+        "save_settings",
+        "apply_environment",
+    }
+)
+PROCESS_MANAGER_METHODS = (
+    "__init__",
+    "_log",
+    "_creationflags",
+    "_child_log",
+    "bootstrap",
+    "_watch_bridge",
+    "_bridge_status_is_managed",
+    "ensure_bridge",
+    "_probe_ide",
+    "_discover_ide_executable",
+    "_discover_docker_executable",
+    "_docker_exec",
+    "_docker_error",
+    "_docker_image_error",
+    "_docker_inspect_container",
+    "_docker_container_id",
+    "_docker_container_owned",
+    "_docker_project_hash",
+    "_docker_mount_source_matches",
+    "_docker_container_matches",
+    "_canonical_ide_project",
+    "_ide_ui_url",
+    "_ide_status",
+    "ensure_ide",
+    "_docker_ide_status",
+    "_remove_owned_docker_ide",
+    "_ensure_docker_ide",
+    "stop_ide",
+    "_probe",
+    "ensure_ollama",
+    "ensure_local_ollama",
+    "_remote",
+    "_pin_host_key",
+    "_ssh",
+    "_target",
+    "_start_remote_service",
+    "ensure_remote_ollama",
+    "stop_ollama_transport",
+    "stop_ollama",
+    "close",
+    "_budget_status",
+    "snapshot",
 )
 
 
@@ -230,19 +283,18 @@ def test_manager_still_resolves_facade_configuration_patch_points() -> None:
         for node in manager.body
         if isinstance(node, ast.FunctionDef)
     }
-    load_calls = {
-        node.func.id
+    load_names = {
+        node.id
         for node in ast.walk(methods["_load"])
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        if isinstance(node, ast.Name)
     }
-    environment_calls = {
-        node.func.id
+    environment_names = {
+        node.id
         for node in ast.walk(methods["apply_environment"])
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        if isinstance(node, ast.Name)
     }
-    assert "normalize_config" in load_calls
-    assert "_defaults" in load_calls
-    assert "_numeric_host" in environment_calls
+    assert {"normalize_config", "_defaults"} <= load_names
+    assert "_numeric_host" in environment_names
 
 
 def test_configuration_owner_cannot_mint_runtime_or_effect_authority() -> None:
@@ -304,10 +356,20 @@ def test_configuration_owner_cannot_mint_runtime_or_effect_authority() -> None:
             assert name not in banned_calls
 
 
-def test_process_manager_and_effect_facade_ast_match_the_frozen_parent() -> None:
+def test_process_methods_and_effect_facade_ast_match_the_frozen_parent() -> None:
     tree = _tree(FACADE)
     functions = _functions(tree)
-    assert _ast_sha256([_manager(tree)]) == MANAGER_AST_SHA256
+    manager_methods = {
+        node.name: node
+        for node in _manager(tree).body
+        if isinstance(node, ast.FunctionDef)
+    }
+    assert tuple(
+        name for name in manager_methods if name not in SETTINGS_METHODS
+    ) == PROCESS_MANAGER_METHODS
+    assert _ast_sha256(
+        manager_methods[name] for name in PROCESS_MANAGER_METHODS
+    ) == PROCESS_MANAGER_AST_SHA256
     assert _ast_sha256(functions[name] for name in PROCESS_FUNCTIONS) == (
         PROCESS_AST_SHA256
     )

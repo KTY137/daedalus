@@ -26,6 +26,7 @@ from .interfaces.desktop import configuration as desktop_configuration
 from .interfaces.desktop import http as desktop_http
 from .interfaces.desktop import lifecycle as desktop_lifecycle
 from .interfaces.desktop import projection as desktop_projection
+from .interfaces.desktop import settings as desktop_settings
 from .limit_policy import (
     ENV_EXECUTION_LIMIT_POLICY,
     ExecutionLimitPolicy,
@@ -343,86 +344,27 @@ class DesktopRuntimeManager:
     @staticmethod
     def _read_budget_environment(
     ) -> tuple[dict[str, Any], dict[str, Any], str]:
-        """Read cap fallbacks/policy without touching the usage ledger."""
-
-        probe = budget_kernel.Ledger()
-        try:
-            return {
-                "period_ceiling_usd": probe.ceiling_usd(),
-                "max_calls": probe.max_calls(),
-            }, probe.execution_limit_policy().as_dict(), ""
-        except budget_kernel.BudgetError as exc:
-            # Keep the desktop repairable, but do not silently replace an
-            # invalid monetary policy with a spend-authorising default.
-            return (
-                dict(DEFAULT_CONFIG["budget"]),
-                json.loads(json.dumps(DEFAULT_CONFIG["caps"])),
-                str(exc),
-            )
+        return desktop_settings.read_budget_environment(
+            budget_kernel=budget_kernel,
+            default_config=DEFAULT_CONFIG,
+            json_module=json,
+        )
 
     def _load(self) -> dict[str, Any]:
-        try:
-            raw = json.loads(self.config_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            self._budget_policy_error = self._budget_environment_error
-            return _defaults(
-                budget_defaults=self._budget_environment_defaults,
-                caps_defaults=self._caps_environment_defaults,
-            )
-        except (OSError, json.JSONDecodeError) as exc:
-            self._config_error = f"cannot read {self.config_path}: {exc}"
-            self._budget_policy_error = (
-                "desktop settings are unreadable; spend remains refused until "
-                "valid budget settings are saved"
-            )
-            return _defaults(
-                budget_defaults=self._budget_environment_defaults,
-                caps_defaults=self._caps_environment_defaults,
-            )
-        try:
-            config = normalize_config(
-                raw,
-                budget_defaults=self._budget_environment_defaults,
-                caps_defaults=self._caps_environment_defaults,
-            )
-        except ValueError as exc:
-            self._config_error = f"invalid desktop settings: {exc}"
-            self._budget_policy_error = (
-                "desktop settings are invalid; spend remains refused until "
-                "valid budget settings are saved"
-            )
-            return _defaults(
-                budget_defaults=self._budget_environment_defaults,
-                caps_defaults=self._caps_environment_defaults,
-            )
-        persisted_policy = (
-            isinstance(raw, dict)
-            and (
-                "caps" in raw
-                or (
-                    isinstance(raw.get("budget"), dict)
-                    and "period_ceiling_enabled" in raw["budget"]
-                )
-            )
+        return desktop_settings.load(
+            self,
+            json_module=json,
+            defaults=_defaults,
+            normalize_config=normalize_config,
         )
-        if persisted_policy:
-            # A valid persisted desktop policy is authoritative for this
-            # process and repairs a stale/invalid deployment environment.
-            self._budget_policy_error = ""
-        else:
-            self._budget_policy_error = self._budget_environment_error
-        return config
 
     def _save(self) -> None:
-        try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self.config_path.with_name(f".{self.config_path.name}.{os.getpid()}.tmp")
-            tmp.write_text(
-                json.dumps(self.config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-            )
-            os.replace(tmp, self.config_path)
-        except OSError as exc:
-            raise DesktopRuntimeError(f"cannot write {self.config_path}: {exc}") from exc
+        desktop_settings.save(
+            self,
+            json_module=json,
+            os_module=os,
+            error_type=DesktopRuntimeError,
+        )
 
     def _log(self, message: str) -> None:
         try:
@@ -443,200 +385,31 @@ class DesktopRuntimeManager:
         return out
 
     def save_settings(self, raw: Any) -> dict[str, Any]:
-        with self._lock:
-            if not isinstance(raw, dict):
-                raise ValueError("settings must be a JSON object")
-            incoming = dict(raw)
-            budget_supplied = "budget" in incoming
-            caps_supplied = "caps" in incoming
-            if self._budget_policy_error and not (
-                budget_supplied and caps_supplied
-            ):
-                raise ValueError(
-                    "valid explicit budget and caps settings are required to "
-                    "repair the unavailable execution-limit policy"
-                )
-            confirmations: list[tuple[str, bool]] = []
-            if not budget_supplied:
-                # Older clients know nothing about this section. Their PUT must
-                # not silently reset configured positive fallbacks.
-                incoming["budget"] = dict(self.config["budget"])
-            elif isinstance(incoming["budget"], dict):
-                budget_raw = dict(incoming["budget"])
-                if "confirm_widening" in budget_raw:
-                    legacy_confirmation = budget_raw.pop("confirm_widening")
-                    if not isinstance(legacy_confirmation, bool):
-                        raise ValueError(
-                            "budget.confirm_widening must be a boolean"
-                        )
-                    confirmations.append(("budget", legacy_confirmation))
-                incoming["budget"] = budget_raw
-
-            if caps_supplied and isinstance(incoming["caps"], dict):
-                caps_raw = dict(incoming["caps"])
-                if "confirm_widening" in caps_raw:
-                    caps_confirmation = caps_raw.pop("confirm_widening")
-                    if not isinstance(caps_confirmation, bool):
-                        raise ValueError(
-                            "caps.confirm_widening must be a boolean"
-                        )
-                    confirmations.append(("caps", caps_confirmation))
-                incoming["caps"] = caps_raw
-            elif not caps_supplied:
-                # A Revision-9 client may still send its one boolean. Project
-                # that single choice into the current configured axes without
-                # changing any other owner selection.
-                current_policy = ExecutionLimitPolicy.from_dict(
-                    self.config["caps"]
-                )
-                legacy_period = (
-                    incoming["budget"].get("period_ceiling_enabled")
-                    if isinstance(incoming.get("budget"), dict)
-                    else None
-                )
-                if isinstance(legacy_period, bool):
-                    configured = current_policy.configured.as_dict()
-                    configured["period_usd"] = legacy_period
-                    mode = current_policy.mode
-                    if mode == "bounded" and not legacy_period:
-                        mode = MODE_CUSTOM
-                    incoming["caps"] = ExecutionLimitPolicy(
-                        mode=mode,
-                        configured=LimitAxes.from_dict(configured),
-                    ).as_dict()
-                else:
-                    incoming["caps"] = current_policy.as_dict()
-
-            if len({value for _, value in confirmations}) > 1:
-                raise ValueError(
-                    "caps.confirm_widening conflicts with legacy "
-                    "budget.confirm_widening"
-                )
-            confirm_widening = confirmations[0][1] if confirmations else False
-            new = normalize_config(
-                incoming,
-                budget_defaults=self.config["budget"],
-                caps_defaults=self.config["caps"],
-            )
-            old_budget = self.config["budget"]
-            new_budget = new["budget"]
-            old_policy = ExecutionLimitPolicy.from_dict(self.config["caps"])
-            new_policy = ExecutionLimitPolicy.from_dict(new["caps"])
-            disabled_axes = [
-                axis
-                for axis, was_enforced in old_policy.effective.as_dict().items()
-                if was_enforced and not new_policy.enforces(axis)
-            ]
-            raised_fallbacks = [
-                field
-                for field in ("period_ceiling_usd", "max_calls")
-                if new_budget[field] > old_budget[field]
-            ]
-            widening = disabled_axes or raised_fallbacks
-            if widening and confirm_widening is not True:
-                affected = ", ".join([*disabled_axes, *raised_fallbacks])
-                raise ValueError(
-                    "caps.confirm_widening=true is required for execution-limit "
-                    f"widening affecting: {affected}"
-                )
-
-            # All validation and widening consent checks happen before any
-            # service stop, file write, environment mutation, or ledger read.
-            old_route = (
-                self.config["ollama"]["mode"],
-                self.config["ollama"]["local_host"],
-                json.dumps(self.config["ollama"]["remote"], sort_keys=True),
-            )
-            new_route = (
-                new["ollama"]["mode"],
-                new["ollama"]["local_host"],
-                json.dumps(new["ollama"]["remote"], sort_keys=True),
-            )
-            old_ide_route = (
-                self.config["ide"]["mode"],
-                self.config["ide"]["endpoint"],
-                self.config["ide"]["executable"],
-                self.config["ide"]["docker_image"],
-            )
-            new_ide_route = (
-                new["ide"]["mode"],
-                new["ide"]["endpoint"],
-                new["ide"]["executable"],
-                new["ide"]["docker_image"],
-            )
-            if old_route != new_route:
-                self.stop_ollama()
-            if old_ide_route != new_ide_route:
-                self.stop_ide()
-            previous = self.config
-            self.config = new
-            try:
-                self._save()
-            except DesktopRuntimeError:
-                self.config = previous
-                raise
-            self._config_error = ""
-            self._budget_policy_error = ""
-            self.apply_environment()
-        startup_error = ""
-        if new["bridge"]["auto_start"]:
-            self.ensure_bridge()
-        if new["ollama"]["auto_start"]:
-            try:
-                self.ensure_ollama()
-            except DesktopRuntimeError as exc:
-                startup_error = str(exc)
-                self._log(f"ollama settings autostart failed: {exc}")
-        if new["ide"]["auto_start"]:
-            try:
-                self.ensure_ide()
-            except DesktopRuntimeError as exc:
-                startup_error = "; ".join(x for x in (startup_error, str(exc)) if x)
-                self._log(f"IDE settings autostart failed: {exc}")
-        snap = self.snapshot()
-        if startup_error:
-            snap["startup_error"] = startup_error
-        return snap
+        return desktop_settings.save_settings(
+            self,
+            raw,
+            json_module=json,
+            normalize_config=normalize_config,
+            execution_limit_policy=ExecutionLimitPolicy,
+            limit_axes=LimitAxes,
+            mode_custom=MODE_CUSTOM,
+            error_type=DesktopRuntimeError,
+        )
 
     def apply_environment(self) -> None:
-        if self._budget_policy_error:
-            # A deliberately invalid canonical policy makes every Ledger read
-            # fail closed while the settings UI stays available for repair.
-            os.environ[ENV_EXECUTION_LIMIT_POLICY] = "{invalid"
-        else:
-            budget = self.config["budget"]
-            policy = ExecutionLimitPolicy.from_dict(self.config["caps"])
-            store_limit_policy_in_env(policy)
-            os.environ.pop(budget_kernel.ENV_PERIOD_CEILING_ENABLED, None)
-            os.environ[budget_kernel.ENV_CEILING] = format(
-                budget["period_ceiling_usd"], ".17g"
-            )
-            os.environ[budget_kernel.ENV_MAX_CALLS] = str(budget["max_calls"])
-        o = self.config["ollama"]
-        os.environ["OLLAMA_MODEL"] = o["model"]
-        trusted = [x.strip() for x in self._base_trusted.split(",") if x.strip()]
-        if o["mode"] == "remote_ssh":
-            r = o["remote"]
-            forward = f"http://127.0.0.1:{r['local_port']}"
-            target = f"http://{r['host']}:{r['remote_port']}"
-            os.environ["OLLAMA_HOST"] = forward
-            os.environ[TUNNEL_FORWARD_VAR] = forward
-            os.environ[TUNNEL_TARGET_VAR] = target
-            # Consent opens this exact transport; the egress wrapper still
-            # classifies it by the physical peer unless that peer is trusted.
-            os.environ[REMOTE_OK_VAR] = forward
-            if r["trust_remote_host"]:
-                numeric = _numeric_host(r["host"])
-                if numeric:
-                    trusted.append(numeric)
-        else:
-            os.environ["OLLAMA_HOST"] = o["local_host"]
-            for key in (TUNNEL_FORWARD_VAR, TUNNEL_TARGET_VAR, REMOTE_OK_VAR):
-                os.environ.pop(key, None)
-        if trusted:
-            os.environ[TRUSTED_HOSTS_VAR] = ",".join(dict.fromkeys(trusted))
-        else:
-            os.environ.pop(TRUSTED_HOSTS_VAR, None)
+        desktop_settings.apply_environment(
+            self,
+            environ=os.environ,
+            budget_kernel=budget_kernel,
+            env_execution_limit_policy=ENV_EXECUTION_LIMIT_POLICY,
+            execution_limit_policy=ExecutionLimitPolicy,
+            store_limit_policy_in_env=store_limit_policy_in_env,
+            numeric_host=_numeric_host,
+            tunnel_forward_var=TUNNEL_FORWARD_VAR,
+            tunnel_target_var=TUNNEL_TARGET_VAR,
+            remote_ok_var=REMOTE_OK_VAR,
+            trusted_hosts_var=TRUSTED_HOSTS_VAR,
+        )
 
     def bootstrap(self) -> dict[str, Any]:
         return desktop_lifecycle.bootstrap(self, error_type=DesktopRuntimeError)
