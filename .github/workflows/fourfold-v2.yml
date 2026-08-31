@@ -88,6 +88,15 @@ jobs:
                   query_iterations=10,
               )
               print(json.dumps(heldout_report, sort_keys=True, separators=(",", ":")))
+
+          compiled_namespace = runpy.run_path("tests/twin/test_compiled_boolean_cost_probe.py")
+          for compiled_size in (64, 256, 512):
+              compiled_report = compiled_namespace["compiled_boolean_probe"](
+                  size=compiled_size,
+                  repeats=3,
+                  query_iterations=20,
+              )
+              print(json.dumps(compiled_report, sort_keys=True, separators=(",", ":")))
           PY
       - name: Verify wheel contains the twin package
         run: |
