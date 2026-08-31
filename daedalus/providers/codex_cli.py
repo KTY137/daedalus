@@ -47,7 +47,11 @@ from typing import Any
 from ..limit_policy import ExecutionLimitPolicy
 from ..runtimes.contracts.provider_report import REPORT_KEYS
 from ..sensitivity import classify_data
-from ..token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX, trim_paths
+from ..runtimes.providers.token_policy import (
+    MAX_SUMMARY_CHARS,
+    STATIC_PROMPT_PREFIX,
+    trim_paths,
+)
 from ._report import (
     blocked_report,
     bounded_execution_limit_policy,

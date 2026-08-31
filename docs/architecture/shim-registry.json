@@ -118,6 +118,17 @@
       "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining provider-report import through the orchestration module; AgentTask and RunState stay with their orchestration owner."
     },
     {
+      "import_path": "daedalus.providers._report",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.budget_admission",
+        "daedalus.runtimes.providers.execution_policy",
+        "daedalus.runtimes.providers.reporting"
+      ],
+      "kind": "mixed_context_facade_with_helper_reexports",
+      "removal_criteria": "Provider source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no moved helper imports; context reading and graph-brief ownership first move behind directed runtime ports."
+    },
+    {
       "import_path": "daedalus.providers.base",
       "owner": "runtimes-providers",
       "targets": [
@@ -161,6 +172,15 @@
       ],
       "kind": "registered_effect_facade",
       "removal_criteria": "A dedicated target-migration packet changes the Effect Registry intentionally and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining compatibility caller."
+    },
+    {
+      "import_path": "daedalus.token_policy",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.token_policy"
+      ],
+      "kind": "module_reexport",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining legacy token-policy import after one supported compatibility release."
     }
   ]
 }

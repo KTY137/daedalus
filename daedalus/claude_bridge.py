@@ -19,7 +19,11 @@ from .fallback import fallback_decision
 from .limit_policy import ExecutionLimitPolicy, LimitPolicyError
 from .router import route_task
 from .runtimes.contracts.provider_report import REPORT_KEYS, validate_report
-from .token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX, trim_paths
+from .runtimes.providers.token_policy import (
+    MAX_SUMMARY_CHARS,
+    STATIC_PROMPT_PREFIX,
+    trim_paths,
+)
 
 if TYPE_CHECKING:
     from .kernel.effects import EffectExecutionRequest
