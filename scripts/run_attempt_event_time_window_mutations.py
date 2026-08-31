@@ -27,10 +27,22 @@ def _run() -> subprocess.CompletedProcess[str]:
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
+    """Replace one logical anchor without changing the file's line endings."""
+
+    if "\r\n" in source:
+        old = old.replace("\n", "\r\n")
+        new = new.replace("\n", "\r\n")
     count = source.count(old)
     if count != 1:
         raise RuntimeError(f"{label}: expected one mutation site, found {count}")
     return source.replace(old, new, 1)
+
+
+def _write(path: Path, text: str) -> None:
+    """Write the already-adapted source without newline translation."""
+
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(text)
 
 
 def main() -> int:
@@ -69,10 +81,7 @@ def main() -> int:
     killed: list[str] = []
     try:
         for label, old, new in mutations:
-            TARGET.write_text(
-                _replace_once(source, old, new, label),
-                encoding="utf-8",
-            )
+            _write(TARGET, _replace_once(source, old, new, label))
             result = _run()
             if result.returncode == 0:
                 sys.stderr.write(f"survived mutation: {label}\n")

@@ -37,9 +37,6 @@ REMAINING_UNMIGRATED = {
     "run_attempt_durability_admission_mutations.py": (
         "c63d0b9610031529dbaade8e32426e1170bfc4e0d02e481f02491ef42a7afe9b"
     ),
-    "run_attempt_event_time_window_mutations.py": (
-        "e2b723f2541f32338026e3e0aa779213d0f0d5c6680dbfc2545cb4690d70168a"
-    ),
     "run_attempt_workspace_root_authority_mutations.py": (
         "fbd0e2783f84ac3689b83a8731238e77149841a246b5530b1da1f9ea174dd23e"
     ),
@@ -188,8 +185,8 @@ class AttemptEffectInventoryMutationSpecTests(unittest.TestCase):
         self.assertEqual(runner.timeouts, [None, None, None])
         self.assertEqual(TARGET.read_bytes(), before)
 
-    def test_six_larger_or_blocked_runners_remain_byte_identical(self):
-        self.assertEqual(len(REMAINING_UNMIGRATED), 6)
+    def test_five_larger_or_blocked_runners_remain_byte_identical(self):
+        self.assertEqual(len(REMAINING_UNMIGRATED), 5)
         for name, expected_digest in REMAINING_UNMIGRATED.items():
             with self.subTest(runner=name):
                 self.assertEqual(_sha256(SCRIPT_DIR / name), expected_digest)
