@@ -8,11 +8,14 @@ from importlib import import_module as _import_module
 
 
 _EXPORTS = {
-    "AgentReport": ("daedalus.orchestration.legacy_reports", "AgentReport"),
+    "AgentReport": ("daedalus.runtimes.contracts.provider_report", "AgentReport"),
     "AgentTask": ("daedalus.orchestration.legacy_reports", "AgentTask"),
     "RunState": ("daedalus.orchestration.legacy_reports", "RunState"),
     "route_task": ("daedalus.router", "route_task"),
-    "validate_report": ("daedalus.orchestration.legacy_reports", "validate_report"),
+    "validate_report": (
+        "daedalus.runtimes.contracts.provider_report",
+        "validate_report",
+    ),
 }
 
 __all__ = ["AgentReport", "AgentTask", "RunState", "route_task", "validate_report"]

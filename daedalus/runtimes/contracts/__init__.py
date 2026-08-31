@@ -22,6 +22,7 @@ from .ports import (
     RepositoryHeadReceiptVerifier,
     RetentionInventoryScanner,
 )
+from .provider_report import AgentReport, REPORT_KEYS, validate_report
 from .repository import (
     RepositoryHeadRevisionBindingError,
     RepositoryHeadRevisionError,
@@ -43,6 +44,8 @@ __all__ = [
     "ClaudeProviderScopeMismatch",
     "ClaudeProviderWorkspaceMismatch",
     "ClaudeWorkspaceGrant",
+    "AgentReport",
+    "REPORT_KEYS",
     "ProviderTargetReceiptRetentionInventory",
     "ProviderTargetReceiptRetentionInventoryError",
     "ProviderTargetReceiptRetentionSurface",
@@ -60,4 +63,5 @@ __all__ = [
     "RetentionInventoryScanner",
     "module_repository_path",
     "parse_python_target",
+    "validate_report",
 ]

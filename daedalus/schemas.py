@@ -1,7 +1,8 @@
-"""Compatibility facade for canonical kernel and legacy orchestration records.
+"""Compatibility facade for canonical kernel, runtime, and orchestration records.
 
-Kernel contracts are owned by :mod:`daedalus.kernel.contracts`; legacy agent
-task/report records are owned by :mod:`daedalus.orchestration.legacy_reports`.
+Kernel contracts are owned by :mod:`daedalus.kernel.contracts`; provider
+reports by :mod:`daedalus.runtimes.contracts.provider_report`; legacy agent
+tasks and run projections by :mod:`daedalus.orchestration.legacy_reports`.
 This module preserves existing imports with exact object identity and contains
 no second implementation or mutable singleton state.
 """
@@ -51,11 +52,10 @@ from daedalus.kernel.contracts.canonical import (
     parse_kernel_contract,
     work_item_identity_sha256,
 )
-from daedalus.orchestration.legacy_reports import (
+from daedalus.orchestration.legacy_reports import AgentTask, RunState
+from daedalus.runtimes.contracts.provider_report import (
     REPORT_KEYS,
     AgentReport,
-    AgentTask,
-    RunState,
     validate_report,
 )
 

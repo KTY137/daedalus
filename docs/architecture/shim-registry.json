@@ -109,6 +109,15 @@
       "removal_criteria": "The replacement CLI is packaged and effect-registry plus wheel audits show no remaining legacy target."
     },
     {
+      "import_path": "daedalus.orchestration.legacy_reports",
+      "owner": "orchestration-and-runtimes",
+      "targets": [
+        "daedalus.runtimes.contracts.provider_report"
+      ],
+      "kind": "mixed_owner_with_provider_contract_reexports",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining provider-report import through the orchestration module; AgentTask and RunState stay with their orchestration owner."
+    },
+    {
       "import_path": "daedalus.providers.base",
       "owner": "runtimes-providers",
       "targets": [

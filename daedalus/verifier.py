@@ -21,7 +21,7 @@ from pathlib import Path
 
 from .limit_policy import ExecutionLimitPolicy
 from .preservation import check_preservation, is_prose_path
-from .schemas import validate_report
+from .runtimes.contracts.provider_report import validate_report
 
 # How long the project suite may run before we kill it. This is a RUNAWAY
 # guard, not a performance budget: its job is to stop a wedged test process

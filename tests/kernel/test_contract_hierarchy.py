@@ -12,6 +12,7 @@ from daedalus.kernel import contracts
 from daedalus.kernel.contracts import attempts, campaigns, evidence, missions, policy, promotion, resources, runtime
 from daedalus.kernel.policy import limits
 from daedalus.orchestration import legacy_reports
+from daedalus.runtimes.contracts import provider_report
 
 
 DOMAIN_EXPORTS = {
@@ -91,11 +92,16 @@ def test_limit_policy_facade_preserves_exact_objects(name: str) -> None:
     assert getattr(legacy_limits, name) is getattr(limits, name)
 
 
-@pytest.mark.parametrize(
-    "name", ("AgentTask", "AgentReport", "RunState", "validate_report", "REPORT_KEYS")
-)
-def test_legacy_ui_report_forms_are_owned_by_orchestration(name: str) -> None:
+@pytest.mark.parametrize("name", ("AgentTask", "RunState"))
+def test_legacy_orchestration_forms_have_one_owner(name: str) -> None:
     assert getattr(legacy, name) is getattr(legacy_reports, name)
+
+
+@pytest.mark.parametrize("name", ("AgentReport", "validate_report", "REPORT_KEYS"))
+def test_provider_report_forms_have_one_runtime_owner(name: str) -> None:
+    canonical = getattr(provider_report, name)
+    assert getattr(legacy, name) is canonical
+    assert getattr(legacy_reports, name) is canonical
 
 
 @pytest.mark.parametrize(

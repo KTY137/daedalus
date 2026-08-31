@@ -13,7 +13,7 @@ from typing import Any
 from ..budget import BudgetError, BudgetRefused, Reservation, reserve
 from ..lanes import graph_brief, render_brief
 from ..limit_policy import ExecutionLimitPolicy, LimitPolicyError, load_from_env
-from ..schemas import REPORT_KEYS, validate_report
+from ..runtimes.contracts.provider_report import REPORT_KEYS, validate_report
 from ..token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX
 
 # Total inlined-context budget for non-agentic providers (chars). Keeps prompts

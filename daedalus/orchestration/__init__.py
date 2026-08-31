@@ -2,7 +2,8 @@
 
 The package owns composition only. Mission, work-item, effect, attempt and
 evidence authority remains in the existing kernel contracts and execution
-ports. Legacy report projections remain owned by ``legacy_reports``.
+ports. Legacy task and run projections remain owned by ``legacy_reports``;
+provider report contracts are runtime-owned.
 """
 
 from importlib import import_module

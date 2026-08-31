@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Any
 
 from ..limit_policy import ExecutionLimitPolicy
-from ..schemas import REPORT_KEYS
+from ..runtimes.contracts.provider_report import REPORT_KEYS
 from ..sensitivity import classify_data
 from ..token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX, trim_paths
 from ._report import (
