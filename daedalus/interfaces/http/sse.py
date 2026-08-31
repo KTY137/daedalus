@@ -8,6 +8,126 @@ from typing import Any, Callable, Collection, Pattern
 from ... import conversation_requests, core, ikarus_os
 
 SsePort = Callable[..., Any]
+ClockPort = Callable[[], float]
+SleepPort = Callable[[float], None]
+
+EVENT_STREAM_MAX_S = 300
+EVENT_STREAM_PERIOD_S = 1.0
+EVENT_STREAM_KEEP_ALIVE_S = 15
+TASK_EVENTS_MAX_S = 1800
+TASK_EVENTS_GRACE_S = 10.0
+TASK_EVENTS_PERIOD_S = 3.0
+
+
+class _ClientDisconnected(Exception):
+    """Internal control flow for a client that closed an SSE connection."""
+
+
+def snapshot_events(project: str | None, *, stream_state: SsePort) -> dict[str, Any]:
+    """Read one project-scoped bridge snapshot through the injected port."""
+
+    return stream_state(project)
+
+
+def event_changes(
+        previous: dict[str, Any],
+        current: dict[str, Any],
+) -> tuple[tuple[str, Any], ...]:
+    """Translate a pair of snapshots into the additive live-event contract."""
+
+    changes: list[tuple[str, Any]] = []
+    if current.get("reports_total", 0) > previous.get("reports_total", 0):
+        changes.append(("report", current.get("latest_report") or {}))
+    if current.get("queue_depth") != previous.get("queue_depth"):
+        changes.append(("queue", {"queue_depth": current.get("queue_depth", 0)}))
+    if (
+        current.get("watcher_state") != previous.get("watcher_state")
+        or current.get("in_flight") != previous.get("in_flight")
+    ):
+        changes.append(
+            (
+                "heartbeat",
+                {
+                    "watcher_state": current.get("watcher_state"),
+                    "in_flight": current.get("in_flight"),
+                },
+            )
+        )
+    return tuple(changes)
+
+
+def encode_event(event: str, data: Any, sequence: int | None = None) -> bytes:
+    """Encode one event with the legacy JSON and SSE framing."""
+
+    prefix = f"id: {sequence}\n" if sequence is not None else ""
+    frame = prefix + f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+    return frame.encode("utf-8")
+
+
+def _open_stream(handler: Any, *, connection: str) -> bool:
+    """Write the common SSE headers, returning false after a socket close."""
+
+    try:
+        handler.send_response(200)
+        handler.send_header("Content-Type", "text/event-stream")
+        handler.send_header("Cache-Control", "no-cache")
+        handler.send_header("Connection", connection)
+        handler.send_header("X-Accel-Buffering", "no")
+        handler.end_headers()
+    except OSError:
+        return False
+    return True
+
+
+def _write_frame(handler: Any, frame: bytes) -> None:
+    """Write one frame or turn a transport close into local control flow."""
+
+    try:
+        handler.wfile.write(frame)
+        handler.wfile.flush()
+    except (BrokenPipeError, ConnectionResetError, OSError) as exc:
+        raise _ClientDisconnected from exc
+
+
+def _send_event(
+        handler: Any,
+        event: str,
+        data: Any,
+        sequence: int | None = None,
+) -> None:
+    _write_frame(handler, encode_event(event, data, sequence))
+
+
+def _send_keep_alive(handler: Any) -> None:
+    _write_frame(handler, b": keep-alive\n\n")
+
+
+def stream_events(
+        handler: Any,
+        project: str | None,
+        *,
+        stream_state: SsePort,
+        clock: ClockPort,
+        sleep: SleepPort,
+        max_s: float = EVENT_STREAM_MAX_S,
+        period_s: float = EVENT_STREAM_PERIOD_S,
+        keep_alive_s: float = EVENT_STREAM_KEEP_ALIVE_S,
+) -> None:
+    """Run the bounded dashboard stream over project-scoped snapshots."""
+
+    previous = snapshot_events(project, stream_state=stream_state)
+    _send_event(handler, "hello", previous)
+    start = clock()
+    last_keep_alive = start
+    while clock() - start < max_s:
+        sleep(period_s)
+        current = snapshot_events(project, stream_state=stream_state)
+        for event, payload in event_changes(previous, current):
+            _send_event(handler, event, payload)
+        previous = current
+        if clock() - last_keep_alive >= keep_alive_s:
+            _send_keep_alive(handler)
+            last_keep_alive = clock()
 
 
 def handle_events(handler: Any, project: str | None, *, stream_state: SsePort) -> None:
@@ -15,44 +135,17 @@ def handle_events(handler: Any, project: str | None, *, stream_state: SsePort) -
     so the cockpit stops polling the heavy dashboard. Reads only the file bus;
     self-recycles after 5 min (EventSource auto-reconnects)."""
     self = handler
-    import time as _t
-    try:
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-    except OSError:
+    if not _open_stream(self, connection="keep-alive"):
         return
-
-    def emit(event: str, data: Any) -> None:
-        msg = f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
-        self.wfile.write(msg.encode("utf-8"))
-        self.wfile.flush()
-
     try:
-        last = stream_state(project)
-        emit("hello", last)
-        start = _t.time()
-        last_ka = start
-        while _t.time() - start < 300:
-            _t.sleep(1.0)
-            cur = stream_state(project)
-            if cur.get("reports_total", 0) > last.get("reports_total", 0):
-                emit("report", cur.get("latest_report") or {})
-            if cur.get("queue_depth") != last.get("queue_depth"):
-                emit("queue", {"queue_depth": cur.get("queue_depth", 0)})
-            if (cur.get("watcher_state") != last.get("watcher_state")
-                    or cur.get("in_flight") != last.get("in_flight")):
-                emit("heartbeat", {"watcher_state": cur.get("watcher_state"),
-                                   "in_flight": cur.get("in_flight")})
-            last = cur
-            if _t.time() - last_ka >= 15:
-                self.wfile.write(b": keep-alive\n\n")
-                self.wfile.flush()
-                last_ka = _t.time()
-    except (BrokenPipeError, ConnectionResetError, OSError):
+        stream_events(
+            self,
+            project,
+            stream_state=stream_state,
+            clock=time.time,
+            sleep=time.sleep,
+        )
+    except _ClientDisconnected:
         return
     except Exception:
         return
@@ -114,20 +207,8 @@ def handle_ikarus_stream(handler: Any, qs: dict[str, list[str]]) -> None:
         unit_id = None  # progress tracking is best-effort; the chat is not
 
     self.close_connection = True  # one-shot: do not hold the socket open
-    try:
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "close")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-    except OSError:
+    if not _open_stream(self, connection="close"):
         return
-
-    def emit(event: str, data: Any) -> None:
-        msg = f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
-        self.wfile.write(msg.encode("utf-8"))
-        self.wfile.flush()
 
     try:
         stream = ikarus_os.ask_stream(
@@ -147,19 +228,26 @@ def handle_ikarus_stream(handler: Any, qs: dict[str, list[str]]) -> None:
         for event, payload in stream:
             if event == "start" and unit_id:
                 payload = {**payload, "progress_unit_id": unit_id}
-            emit(event, payload)
-    except (BrokenPipeError, ConnectionResetError, OSError):
+            _send_event(self, event, payload)
+    except _ClientDisconnected:
         return  # client navigated away mid-stream
     except Exception as exc:
         # Fail closed into a well-formed chat envelope: the UI shows a reply,
         # never a broken stream.
         try:
-            emit("final", core.envelope(project, intent="error",
-                                        assistant=f"I hit a snag: {exc}",
-                                        provider_used="deterministic",
-                                        delivery_mode="stream",
-                                        stream_interrupted=True))
-        except (BrokenPipeError, ConnectionResetError, OSError):
+            _send_event(
+                self,
+                "final",
+                core.envelope(
+                    project,
+                    intent="error",
+                    assistant=f"I hit a snag: {exc}",
+                    provider_used="deterministic",
+                    delivery_mode="stream",
+                    stream_interrupted=True,
+                ),
+            )
+        except _ClientDisconnected:
             return
 
 
@@ -170,9 +258,6 @@ def handle_task_events(
         task_snapshot: SsePort,
         task_id_re: Pattern[str],
         terminal_sources: Collection[str],
-        grace_s: float,
-        max_s: float,
-        period_s: float,
 ) -> None:
     """Server-Sent Events: progress of ONE task, addressed by the id
     POST /api/queue handed back. Built from the same file-bridge bus
@@ -181,13 +266,13 @@ def handle_task_events(
 
     ONE-SHOT, like /api/ikarus/stream: closes once the task reaches a
     terminal state (a report exists, or the id is archived with no
-    report) or after ``_TASK_EVENTS_MAX_S``, and says which in the
+    report) or after ``TASK_EVENTS_MAX_S``, and says which in the
     'final' event's own fields. An EventSource client MUST call
     ``es.close()`` on 'final' -- auto-reconnect would just reopen onto an
     already-finished task and replay the same 'final' forever.
 
     A fresh id that is not found YET (the enqueue -> first-poll race) is
-    tolerated for ``_TASK_EVENTS_GRACE_S`` before being reported as
+    tolerated for ``TASK_EVENTS_GRACE_S`` before being reported as
     final/not-found -- see ``_task_snapshot``'s docstring on why "not
     found" cannot be told apart from "wrong id" by a filesystem check
     alone.
@@ -196,27 +281,12 @@ def handle_task_events(
     _task_snapshot = task_snapshot
     _TASK_ID_RE = task_id_re
     _TASK_TERMINAL_SOURCES = terminal_sources
-    _TASK_EVENTS_GRACE_S = grace_s
-    _TASK_EVENTS_MAX_S = max_s
-    _TASK_EVENTS_PERIOD_S = period_s
     if not _TASK_ID_RE.match(task_id):
         self._send_json({"ok": False, "error": "invalid task id"}, status=400)
         return
     self.close_connection = True  # one-shot: do not hold the socket open
-    try:
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "close")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-    except OSError:
+    if not _open_stream(self, connection="close"):
         return
-
-    def emit(event: str, data: Any) -> None:
-        msg = f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
-        self.wfile.write(msg.encode("utf-8"))
-        self.wfile.flush()
 
     try:
         start = time.time()
@@ -227,35 +297,46 @@ def handle_task_events(
             snap = _task_snapshot(task_id)
             now = time.time()
             if not snap["found"]:
-                if now - start > _TASK_EVENTS_GRACE_S:
-                    emit("final", snap)
+                if now - start > TASK_EVENTS_GRACE_S:
+                    _send_event(self, "final", snap)
                     return
                 time.sleep(1.0)
                 continue
             terminal = snap["source"] in _TASK_TERMINAL_SOURCES
             if terminal:
-                emit("final", snap)
+                _send_event(self, "final", snap)
                 return
-            if now - start > _TASK_EVENTS_MAX_S:
-                emit("final", {**snap, "timed_out": True,
-                               "applied_reason": snap["applied_reason"] +
-                               f" (subscription open >{_TASK_EVENTS_MAX_S:.0f}s; "
-                               "poll GET /api/queue/<id> to keep checking)"})
+            if now - start > TASK_EVENTS_MAX_S:
+                _send_event(
+                    self,
+                    "final",
+                    {
+                        **snap,
+                        "timed_out": True,
+                        "applied_reason": snap["applied_reason"]
+                        + f" (subscription open >{TASK_EVENTS_MAX_S:.0f}s; "
+                        "poll GET /api/queue/<id> to keep checking)",
+                    },
+                )
                 return
             stalled = bool(snap.get("stalled"))
             if (snap["state"] != last_state or stalled != last_stalled
-                    or now - last_emit >= _TASK_EVENTS_PERIOD_S):
-                emit("hello" if last_state is None else "progress", snap)
+                    or now - last_emit >= TASK_EVENTS_PERIOD_S):
+                _send_event(
+                    self,
+                    "hello" if last_state is None else "progress",
+                    snap,
+                )
                 last_emit = now
             last_state = snap["state"]
             last_stalled = stalled
             time.sleep(1.0)
-    except (BrokenPipeError, ConnectionResetError, OSError):
+    except _ClientDisconnected:
         return  # client navigated away mid-stream
     except Exception as exc:
         try:
-            emit("error", {"ok": False, "error": str(exc)})
-        except (BrokenPipeError, ConnectionResetError, OSError):
+            _send_event(self, "error", {"ok": False, "error": str(exc)})
+        except _ClientDisconnected:
             return
 
 
@@ -291,21 +372,8 @@ def handle_conversation_request_events(
         return
 
     self.close_connection = True
-    try:
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "close")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-    except OSError:
+    if not _open_stream(self, connection="close"):
         return
-
-    def emit(name: str, data: Any, sequence: int | None = None) -> None:
-        prefix = f"id: {sequence}\n" if sequence is not None else ""
-        frame = prefix + f"event: {name}\ndata: {json.dumps(data, default=str)}\n\n"
-        self.wfile.write(frame.encode("utf-8"))
-        self.wfile.flush()
 
     try:
         while True:
@@ -314,12 +382,19 @@ def handle_conversation_request_events(
             for row in rows:
                 sequence = int(row["sequence"])
                 after = max(after, sequence)
-                emit(str(row["event"]), row["data"], sequence)
+                _send_event(self, str(row["event"]), row["data"], sequence)
             if projection["terminal"]:
                 if not rows:
-                    emit("state", projection["status"])
+                    _send_event(self, "state", projection["status"])
                 return
             if not rows:
-                emit("heartbeat", {"request_id": request_id, "state": projection["status"]["state"]})
-    except (BrokenPipeError, ConnectionResetError, OSError):
+                _send_event(
+                    self,
+                    "heartbeat",
+                    {
+                        "request_id": request_id,
+                        "state": projection["status"]["state"],
+                    },
+                )
+    except _ClientDisconnected:
         return

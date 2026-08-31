@@ -1,4 +1,4 @@
-"""Architecture contract for the G1-IFACE-HTTP-01 strangler seam."""
+"""Architecture contract for the staged Gate-1 HTTP strangler seam."""
 from __future__ import annotations
 
 import ast
@@ -38,13 +38,21 @@ WIRE_LITERAL_CONTRACTS = {
     ),
     "sse": (
         (
+            "snapshot_events",
+            "event_changes",
+            "encode_event",
+            "_open_stream",
+            "_write_frame",
+            "_send_event",
+            "_send_keep_alive",
+            "stream_events",
             "handle_events",
             "handle_ikarus_stream",
             "handle_task_events",
             "handle_conversation_request_events",
         ),
-        207,
-        "0f95a95bd56adc269207204e409db99fec46734dc1b516413ecbd038bb66ce18",
+        174,
+        "e4a3de4ae47c3d648d2ffb690288002079b3c6588c63f9ddad2c0d1bb74e44c7",
     ),
 }
 
@@ -233,7 +241,7 @@ def test_implementation_layers_do_not_mint_http_or_effect_authority() -> None:
         for label, (names, count, expected) in WIRE_LITERAL_CONTRACTS.items()
     ],
 )
-def test_routes_json_and_sse_wire_literals_match_frozen_parent(
+def test_routes_json_and_sse_wire_literals_match_packet_contract(
     label: str,
     names: tuple[str, ...],
     count: int,

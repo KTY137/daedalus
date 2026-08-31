@@ -578,10 +578,6 @@ def _loop_architecture(project: str | None) -> dict[str, Any]:
 
 _TASK_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,160}\Z")  # \Z, not $: "$" also matches before a trailing newline
 _TASK_TERMINAL_SOURCES = ("inbox_report", "archive")
-_TASK_EVENTS_MAX_S = 1800      # give up holding the SSE socket open after 30 min
-_TASK_EVENTS_GRACE_S = 10.0    # tolerate the enqueue -> first-poll race before
-                               # reporting a fresh id as "not found"
-_TASK_EVENTS_PERIOD_S = 3.0    # minimum gap between two non-terminal SSE events
 
 
 def _safe_bus_path(base_dir: Path, task_id: str, suffix: str) -> Path | None:
@@ -1084,9 +1080,6 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             task_snapshot=_task_snapshot,
             task_id_re=_TASK_ID_RE,
             terminal_sources=_TASK_TERMINAL_SOURCES,
-            grace_s=_TASK_EVENTS_GRACE_S,
-            max_s=_TASK_EVENTS_MAX_S,
-            period_s=_TASK_EVENTS_PERIOD_S,
         )
 
     def _handle_conversation_request_events(
