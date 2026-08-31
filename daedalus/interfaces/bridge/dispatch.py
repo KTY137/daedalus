@@ -7,6 +7,7 @@ already archived the source while the loser waited.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -264,6 +265,54 @@ def move_quarantined_request(
     directory = quarantine_dir()
     directory.mkdir(parents=True, exist_ok=True)
     destination = directory / f"{key}{path.suffix}"
+    try:
+        replace(path, destination)
+    except OSError:
+        try:
+            move(str(path), str(destination))
+        except (OSError, move_error):
+            return False
+    return True
+
+
+def memory_already_recorded(key: str, *, events_path: Path) -> bool:
+    """Return whether the existing memory log contains this request fact."""
+
+    try:
+        if not events_path.exists():
+            return False
+        needle = json.dumps(key)
+        for line in events_path.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines():
+            if needle not in line:
+                continue
+            try:
+                record = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if (record.get("payload") or {}).get("request_file") == key:
+                return True
+    except OSError:
+        pass
+    return False
+
+
+def archive_request_once(
+    path: Path,
+    key: str,
+    *,
+    archive: Path,
+    replace: Callable[[Path, Path], Any],
+    move: Callable[[str, str], Any],
+    move_error: type[BaseException],
+) -> bool:
+    """Move one request to its fixed archive destination exactly once."""
+
+    if not path.exists():
+        return True
+    archive.mkdir(parents=True, exist_ok=True)
+    destination = archive / f"{key}{path.suffix}"
     try:
         replace(path, destination)
     except OSError:

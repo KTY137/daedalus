@@ -140,6 +140,8 @@ def test_quarantine_facades_each_delegate_to_one_dispatch_owner() -> None:
         ),
         "quarantine_request": "quarantine_request",
         "_quarantine_move": "move_quarantined_request",
+        "_memory_already_recorded": "memory_already_recorded",
+        "_archive_once": "archive_request_once",
         "_finish_terminal_report": "finish_terminal_report",
     }
     for facade_name, owner_name in owners.items():

@@ -21,6 +21,7 @@ JournalPathPort = Callable[[str], Path]
 NowPort = Callable[[], str]
 RequestShaPort = Callable[[dict[str, Any]], str]
 WriteJsonPort = Callable[[Path, dict[str, Any]], None]
+WriteTextPort = Callable[[Path, str], None]
 
 
 def request_key(path: Path) -> str:
@@ -166,6 +167,27 @@ def read_journal(key: str, *, path_for: JournalPathPort) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError, ValueError):
         return {}
     return entry if isinstance(entry, dict) else {}
+
+
+def write_json_atomic(
+    path: Path,
+    payload: dict[str, Any],
+    *,
+    write_text: WriteTextPort,
+) -> None:
+    """Publish canonical bridge JSON through the injected atomic writer."""
+
+    write_text(path, json.dumps(payload, indent=2))
+
+
+def completed_report(result_path: Path) -> dict[str, Any] | None:
+    """Return one whole terminal report or refuse missing/partial input."""
+
+    try:
+        report = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    return report if isinstance(report, dict) else None
 
 
 def crash_journal_state(detail: str, *, journal: Path) -> tuple[bool, str]:

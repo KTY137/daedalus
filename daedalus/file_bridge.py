@@ -152,13 +152,13 @@ def _seen_dir() -> Path:
 
     Derived from INBOX at call time so tests that patch INBOX get a matching
     ledger for free."""
-    return INBOX / ".seen"
+    return bridge_projection.seen_dir(INBOX)
 
 
 def _latest_log() -> Path:
     """Single well-known append-only file -- one line per finished report --
     so an orchestrator can file-watch exactly one path instead of polling."""
-    return INBOX / "LATEST.log"
+    return bridge_projection.latest_log(INBOX)
 
 
 # -- crash safety: one request -> one report, one conversation projection, ...
@@ -347,7 +347,11 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
       racing on the same target wrote one scratch file and one could publish the
       other's half-written bytes. The suffix still ends in ``.tmp``, so no
       consumer glob starts matching it."""
-    write_text_atomic(path, json.dumps(payload, indent=2))
+    return bridge_journal.write_json_atomic(
+        path,
+        payload,
+        write_text=write_text_atomic,
+    )
 
 
 def _read_journal(key: str) -> dict[str, Any]:
@@ -402,11 +406,7 @@ def _completed_report(result_path: Path) -> dict[str, Any] | None:
     -- but a report left by an older build (plain write_text) can be half a
     document, and reusing one of those would hand back a truncated result as
     if the work had succeeded. Parse before trusting."""
-    try:
-        report = json.loads(result_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        return None
-    return report if isinstance(report, dict) else None
+    return bridge_journal.completed_report(result_path)
 
 
 def _memory_already_recorded(key: str) -> bool:
@@ -417,23 +417,12 @@ def _memory_already_recorded(key: str) -> bool:
     state where the flag alone cannot tell us. Never raises."""
     try:
         from .memory import EVENTS_PATH
-
-        if not EVENTS_PATH.exists():
-            return False
-        needle = json.dumps(key)  # the quoted key, as it appears in the record
-        for line in EVENTS_PATH.read_text(
-                encoding="utf-8", errors="replace").splitlines():
-            if needle not in line:
-                continue
-            try:
-                record = json.loads(line)
-            except (json.JSONDecodeError, ValueError):
-                continue
-            if (record.get("payload") or {}).get("request_file") == key:
-                return True
-    except (OSError, ImportError):
-        pass
-    return False
+    except ImportError:
+        return False
+    return bridge_dispatch.memory_already_recorded(
+        key,
+        events_path=EVENTS_PATH,
+    )
 
 
 def _archive_once(path: Path, key: str) -> bool:
@@ -444,18 +433,14 @@ def _archive_once(path: Path, key: str) -> bool:
     cross-device move (copy landed, source not yet unlinked) resolves to
     exactly one archived file instead of two. Returns False if the request
     could not be moved (locked file) so the caller can retry next poll."""
-    if not path.exists():
-        return True
-    ARCHIVE.mkdir(parents=True, exist_ok=True)
-    dest = ARCHIVE / f"{key}{path.suffix}"
-    try:
-        os.replace(path, dest)
-    except OSError:
-        try:
-            shutil.move(str(path), str(dest))  # cross-device: copy + unlink
-        except (OSError, shutil.Error):
-            return False
-    return True
+    return bridge_dispatch.archive_request_once(
+        path,
+        key,
+        archive=ARCHIVE,
+        replace=os.replace,
+        move=shutil.move,
+        move_error=shutil.Error,
+    )
 
 
 def codex_inline_brief_warning(objective: str, lane: str) -> str | None:
@@ -689,27 +674,14 @@ def _note_report_arrival(result_path: Path, report: dict[str, Any],
     log this?" flag there is no window between appending and recording it in
     which a crash produces a duplicate line. Without a key (the ad-hoc/manual
     call) it appends unconditionally, as it always did."""
-    lane = report.get("lane") or (report.get("request") or {}).get("lane") or "?"
-    marker = f" key={key}" if key else ""
-    # Appended LAST and only when present, so the line an existing reader
-    # already parses is unchanged up to the point it stops caring. This is the
-    # cheapest surface the join gets: one tail-able file where a trace id shows
-    # up next to the report that carries it.
-    tid = envelope.trace_of(report)
-    marker += f" trace={tid}" if tid else ""
-    line = (f"{_now_iso()} {result_path.name} "
-            f"status={report.get('bridge_status', '?')} lane={lane}{marker}\n")
-    try:
-        log = _latest_log()
-        if key and log.exists():
-            for existing in log.read_text(
-                    encoding="utf-8", errors="replace").splitlines():
-                if existing.endswith(marker):
-                    return  # already announced -- one arrival line per request
-        with log.open("a", encoding="utf-8") as fh:
-            fh.write(line)
-    except OSError:
-        pass  # signal channel only -- never fail the report write over it
+    return bridge_projection.note_report_arrival(
+        result_path,
+        report,
+        key=key,
+        latest_log=_latest_log,
+        now_iso=_now_iso,
+        trace_of=envelope.trace_of,
+    )
 
 
 def quarantine_request(path: Path, reason: str, detail: str) -> Path:

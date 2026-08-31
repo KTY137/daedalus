@@ -39,6 +39,9 @@ def _attribute_calls(node: ast.AST, name: str) -> list[ast.Call]:
 
 def test_legacy_projection_names_each_delegate_to_one_hierarchy_owner() -> None:
     owners = {
+        "_seen_dir": "seen_dir",
+        "_latest_log": "latest_log",
+        "_note_report_arrival": "note_report_arrival",
         "_reported_result": "reported_result",
         "report_application_truth": "report_application_truth",
         "_conversation_report_fields": "conversation_report_fields",

@@ -20,6 +20,51 @@ ProjectReportsPort = Callable[[str | None], list[dict[str, Any]]]
 BridgeStatusPort = Callable[[str | None], dict[str, Any]]
 
 
+def seen_dir(inbox: Path) -> Path:
+    """Return the read-state projection directory for an inbox."""
+
+    return inbox / ".seen"
+
+
+def latest_log(inbox: Path) -> Path:
+    """Return the single append-only report-arrival signal path."""
+
+    return inbox / "LATEST.log"
+
+
+def note_report_arrival(
+    result_path: Path,
+    report: dict[str, Any],
+    *,
+    key: str | None,
+    latest_log: PathPort,
+    now_iso: Callable[[], str],
+    trace_of: Callable[[dict[str, Any]], str | None],
+) -> None:
+    """Append one idempotent arrival signal for a terminal report."""
+
+    lane = report.get("lane") or (report.get("request") or {}).get("lane") or "?"
+    marker = f" key={key}" if key else ""
+    trace_id = trace_of(report)
+    marker += f" trace={trace_id}" if trace_id else ""
+    line = (
+        f"{now_iso()} {result_path.name} "
+        f"status={report.get('bridge_status', '?')} lane={lane}{marker}\n"
+    )
+    try:
+        log = latest_log()
+        if key and log.exists():
+            for existing in log.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines():
+                if existing.endswith(marker):
+                    return
+        with log.open("a", encoding="utf-8") as handle:
+            handle.write(line)
+    except OSError:
+        pass
+
+
 def reported_result(report: dict[str, Any]) -> tuple[str | None, str]:
     """Extract the provider's reported status and bounded summary."""
 
@@ -541,10 +586,13 @@ def stream_state(
 
 __all__ = [
     "bridge_status",
+    "latest_log",
     "mark_read",
+    "note_report_arrival",
     "project_report_briefs",
     "quarantined_requests",
     "report_brief",
+    "seen_dir",
     "stream_state",
     "unread_reports",
 ]

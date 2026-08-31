@@ -47,6 +47,8 @@ def test_legacy_journal_names_each_delegate_to_one_hierarchy_owner() -> None:
         "_journal_dir": "journal_dir",
         "_mission_projection_dir": "mission_projection_dir",
         "_read_journal": "read_journal",
+        "_write_json_atomic": "write_json_atomic",
+        "_completed_report": "completed_report",
         "_journal_path": "journal_path",
         "_request_lock_path": "request_lock_path",
         "_crash_journal_decision": "crash_journal_state",
