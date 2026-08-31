@@ -1,0 +1,11 @@
+{
+  "name": "ui-ux-dev",
+  "call_name": "Noah",
+  "model_tier": "opus",
+  "external_ok": true,
+  "owns": ["TCT_app/gui", "gui", "TCT_app/tct_gui.py", "main.py"],
+  "triggers": ["gui", "ui", "ux", "pyside", "qt", "panel", "theme", "layout", "plot"],
+  "must_read": ["docs/ARCHITECTURE.md", "TCT_app/gui/style.py"],
+  "output_schema": "agent_report_v1",
+  "category": "design"
+}

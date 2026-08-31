@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/gate-baseline-v2.schema.json",
+  "title": "Daedalus Gate Baseline v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "baseline_id",
+    "gate",
+    "source_revision",
+    "source_tree_revision",
+    "gate_report_sha256",
+    "gate_report_artifact_sha256",
+    "registry_sha256",
+    "event_store_writer_inventory_sha256",
+    "blockers",
+    "blocker_set_sha256",
+    "created_at",
+    "baseline_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate-baseline/2"
+    },
+    "baseline_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "gate": {
+      "const": 0
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "source_tree_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "gate_report_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "gate_report_artifact_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "registry_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "event_store_writer_inventory_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "blockers": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "blocker_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "baseline_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "boundedString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/boundedString"
+      },
+      "uniqueItems": true
+    }
+  }
+}

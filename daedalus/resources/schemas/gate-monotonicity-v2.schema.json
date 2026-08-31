@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/gate-monotonicity-v2.schema.json",
+  "title": "Daedalus Gate Monotonicity Receipt v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "assessment_id",
+    "gate",
+    "baseline_sha256",
+    "baseline_source_revision",
+    "baseline_source_tree_revision",
+    "current_source_revision",
+    "current_source_tree_revision",
+    "current_gate_report_sha256",
+    "current_gate_report_artifact_sha256",
+    "current_registry_sha256",
+    "current_event_store_writer_inventory_sha256",
+    "retained_blockers",
+    "resolved_blockers",
+    "new_blockers",
+    "status",
+    "assessed_at",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate-monotonicity/2"
+    },
+    "assessment_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "gate": {
+      "const": 0
+    },
+    "baseline_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "baseline_source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "baseline_source_tree_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "current_source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "current_source_tree_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "current_gate_report_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "current_gate_report_artifact_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "current_registry_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "current_event_store_writer_inventory_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "retained_blockers": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "resolved_blockers": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "new_blockers": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "assessed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "boundedString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/boundedString"
+      },
+      "uniqueItems": true
+    }
+  }
+}

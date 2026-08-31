@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/provider-target-receipt-retention-admission.schema.json",
+  "title": "Provider Target Receipt Retention Admission Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "preflight_sha256",
+    "provider_target_receipt_sha256",
+    "retention_inventory_sha256",
+    "retention_authority_sha256",
+    "retention_execution_request_sha256",
+    "retention_effect_lease_sha256",
+    "retention_effect_lease_request_sha256",
+    "retention_policy_decision_sha256",
+    "guard_contract",
+    "guard_evidence",
+    "execution_state",
+    "start_receipt_sha256",
+    "terminal_receipt_sha256",
+    "primary_checkout_path",
+    "retention_root_path",
+    "event_store_path",
+    "receipt_cas_path",
+    "effect_lease_store_path",
+    "persisted_effect_lease_verified",
+    "primary_checkout_disjointness_verified",
+    "retention_effect_started",
+    "retention_effect_terminal",
+    "retention_write_performed",
+    "automatic_reexecution_allowed",
+    "canonical_entrypoint_registered",
+    "gate_transition_authorized",
+    "closed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-provider-target-receipt-retention-admission/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "preflight_sha256": { "$ref": "#/$defs/sha256" },
+    "provider_target_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "retention_inventory_sha256": { "$ref": "#/$defs/sha256" },
+    "retention_authority_sha256": { "$ref": "#/$defs/sha256" },
+    "retention_execution_request_sha256": { "$ref": "#/$defs/sha256" },
+    "retention_effect_lease_sha256": { "$ref": "#/$defs/sha256" },
+    "retention_effect_lease_request_sha256": { "$ref": "#/$defs/sha256" },
+    "retention_policy_decision_sha256": { "$ref": "#/$defs/sha256" },
+    "guard_contract": {
+      "const": "provider.target_receipt_retention"
+    },
+    "guard_evidence": {
+      "type": "string",
+      "pattern": "^authority_sha256=[0-9a-f]{64};subject_sha256=[0-9a-f]{64}$"
+    },
+    "execution_state": {
+      "enum": ["not_started", "started", "COMPLETED", "FAILED", "CANCELLED"]
+    },
+    "start_receipt_sha256": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "terminal_receipt_sha256": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "primary_checkout_path": { "$ref": "#/$defs/concretePath" },
+    "retention_root_path": { "$ref": "#/$defs/concretePath" },
+    "event_store_path": { "$ref": "#/$defs/concretePath" },
+    "receipt_cas_path": { "$ref": "#/$defs/concretePath" },
+    "effect_lease_store_path": { "$ref": "#/$defs/concretePath" },
+    "persisted_effect_lease_verified": { "const": true },
+    "primary_checkout_disjointness_verified": { "const": true },
+    "retention_effect_started": { "type": "boolean" },
+    "retention_effect_terminal": { "type": "boolean" },
+    "retention_write_performed": { "const": false },
+    "automatic_reexecution_allowed": { "const": false },
+    "canonical_entrypoint_registered": { "const": false },
+    "gate_transition_authorized": { "const": false },
+    "closed": { "const": false }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "execution_state": { "const": "not_started" },
+        "start_receipt_sha256": { "type": "null" },
+        "terminal_receipt_sha256": { "type": "null" },
+        "retention_effect_started": { "const": false },
+        "retention_effect_terminal": { "const": false }
+      }
+    },
+    {
+      "properties": {
+        "execution_state": { "const": "started" },
+        "start_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "terminal_receipt_sha256": { "type": "null" },
+        "retention_effect_started": { "const": true },
+        "retention_effect_terminal": { "const": false }
+      }
+    },
+    {
+      "properties": {
+        "execution_state": {
+          "enum": ["COMPLETED", "FAILED", "CANCELLED"]
+        },
+        "start_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "terminal_receipt_sha256": { "$ref": "#/$defs/sha256" },
+        "retention_effect_started": { "const": true },
+        "retention_effect_terminal": { "const": true }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "concretePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^[^\\u0000\\r\\n]+$"
+    }
+  }
+}

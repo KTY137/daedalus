@@ -1,0 +1,74 @@
+[
+  {
+    "id": "implementation",
+    "name": "Implementation",
+    "icon": "🛠",
+    "color": "#4C6EF5",
+    "lane": "auto",
+    "tier": "opus",
+    "triggers": ["implement", "feature", "bug", "fix", "refactor", "module", "api", "endpoint", "state machine", "device manager"]
+  },
+  {
+    "id": "review",
+    "name": "Review",
+    "icon": "🔍",
+    "color": "#F59F00",
+    "lane": "local",
+    "tier": "opus",
+    "triggers": ["review", "qa", "safety", "risk", "race", "regression", "code review", "pull request", "pr", "diff", "lint"]
+  },
+  {
+    "id": "design",
+    "name": "Design",
+    "icon": "🎨",
+    "color": "#E64980",
+    "lane": "auto",
+    "tier": "sonnet",
+    "triggers": ["gui", "ui", "ux", "pyside", "qt", "panel", "theme", "layout", "plot"]
+  },
+  {
+    "id": "docs",
+    "name": "Docs",
+    "icon": "📚",
+    "color": "#12B886",
+    "lane": "auto",
+    "tier": "sonnet",
+    "triggers": ["docs", "documentation", "readme", "guide", "tutorial", "setup", "changelog", "architecture"]
+  },
+  {
+    "id": "tests",
+    "name": "Tests",
+    "icon": "🧪",
+    "color": "#7048E8",
+    "lane": "auto",
+    "tier": "sonnet",
+    "triggers": ["test", "tests", "unit test", "coverage", "fixture", "pytest", "assert"]
+  },
+  {
+    "id": "research",
+    "name": "Research",
+    "icon": "🔬",
+    "color": "#1098AD",
+    "lane": "auto",
+    "tier": "opus",
+    "triggers": ["manual", "datasheet", "protocol", "external reference", "source", "spec", "research"]
+  },
+  {
+    "id": "hardware",
+    "name": "Hardware",
+    "icon": "⚙",
+    "color": "#495057",
+    "lane": "local_only",
+    "tier": "opus",
+    "triggers": ["hardware", "driver", "scpi", "visa", "serial", "motor", "stage", "hv", "bias", "oscilloscope", "camera"]
+  },
+  {
+    "id": "data",
+    "name": "Data",
+    "icon": "📊",
+    "color": "#F76707",
+    "lane": "auto",
+    "tier": "sonnet",
+    "triggers": ["hdf5", "waveform", "analysis", "calibration", "charge", "data format"]
+  }
+]

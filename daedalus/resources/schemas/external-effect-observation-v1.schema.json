@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/external-effect-observation-v1.schema.json",
+  "title": "ExternalEffectObservation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observation_id",
+    "provider_id",
+    "execution_id",
+    "idempotency_key",
+    "start_receipt_sha256",
+    "status",
+    "acknowledgement_sha256",
+    "output_digests",
+    "issuer_key_id",
+    "observed_at",
+    "signature_sha256",
+    "provenance"
+  ],
+  "properties": {
+    "observation_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "provider_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "execution_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 200},
+    "start_receipt_sha256": {"$ref": "#/$defs/sha256"},
+    "status": {"const": "acknowledged"},
+    "acknowledgement_sha256": {"$ref": "#/$defs/sha256"},
+    "output_digests": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "issuer_key_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "signature_sha256": {"$ref": "#/$defs/sha256"},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "source_revision", "created_at", "input_digests", "trace_id"],
+      "properties": {
+        "origin": {"type": "string", "minLength": 1, "maxLength": 200},
+        "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sha256"}
+        },
+        "trace_id": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

@@ -28,6 +28,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .resources import iter_builtin_files, read_builtin_text
+
 REPO_CONFIG = ".agentenv/agentenv.json"
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 
@@ -298,12 +300,11 @@ def _copy_template_agents(agentenv_dir: Path) -> None:
     Copies `templates/agents/*.json` into the repo. Existing files are never
     overwritten, so per-repo customizations survive a re-run of `init_repo`.
     """
-    src = TEMPLATE_DIR / "agents"
-    if not src.is_dir():
-        return
     dst = agentenv_dir / "agents"
     dst.mkdir(exist_ok=True)
-    for path in sorted(src.glob("*.json")):
+    for path in iter_builtin_files(
+        "templates/agents", legacy=TEMPLATE_DIR / "agents", suffix=".json"
+    ):
         target = dst / path.name
         if not target.exists():
             target.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
@@ -321,12 +322,15 @@ def _copy_tool_instructions(repo_root: Path) -> None:
     overwritten, so per-repo customizations survive a re-run of `init_repo`.
     """
     for name in TOOL_INSTRUCTION_TEMPLATES:
-        src = TEMPLATE_DIR / name
-        if not src.exists():
+        try:
+            content = read_builtin_text(
+                f"templates/{name}", legacy=TEMPLATE_DIR / name
+            )
+        except FileNotFoundError:
             continue
         target = repo_root / name
         if not target.exists():
-            target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+            target.write_text(content, encoding="utf-8")
 
 
 def init_repo(repo_root: str) -> str:

@@ -1,0 +1,38 @@
+{
+  "_comment": "Example daedalus project-registry entry. Copy this to projects/<name>.json (drop the leading _comment fields, JSON has no real comments) and edit the values. Only 'name' and 'repo_root' are strictly required; the rest tune test running, egress/write policy, and the Claude model. Load it with --project <name>.",
+  "name": "my-project",
+  "repo_root": "/absolute/path/to/your/repo",
+  "default_branch": "main",
+  "test_command": "python -m pytest -q",
+  "test_cwd": ".",
+  "claude_model": "sonnet",
+  "team": {
+    "_comment": "VS Code Mission Control / Ikarus team controls. Squads are UI/routing groups; all task handoffs still go through the central file bus.",
+    "max_workers": 3,
+    "default_lane": "local_only",
+    "active_agents": ["generalist-dev", "docs-dev", "tests-dev", "reviewer", "qa-critic"],
+    "squads": {
+      "Core": ["generalist-dev", "reviewer", "qa-critic"],
+      "Docs": ["docs-dev"],
+      "QA": ["tests-dev", "reviewer", "qa-critic"]
+    },
+    "model_assignments": {
+      "generalist-dev": "qwen2.5-coder:7b"
+    },
+    "semi_auto": {
+      "auto_review": true,
+      "auto_docs": true,
+      "auto_tests": false,
+      "never_auto_write": true
+    }
+  },
+  "policy": {
+    "_comment": "Egress/write-risk rules, merged on top of the generic secret defaults in daedalus/sensitivity.py. Leave the lists empty to inherit only the built-in secret protections; add your own denies for anything the local/external lanes must never touch.",
+    "deny": ["secret", "credential", ".env", "id_rsa", ".pem"],
+    "allow": ["docs/", "tests/", "test_", ".md", "readme"],
+    "allow_exceptions": [],
+    "high_risk_paths": [],
+    "high_risk_terms": ["delete", "drop table", "migration", "auth", "payment", "production", "deploy"],
+    "deny_content": []
+  }
+}

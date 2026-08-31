@@ -1,0 +1,11 @@
+{
+  "name": "docs-dev",
+  "call_name": "Doc",
+  "model_tier": "sonnet",
+  "external_ok": true,
+  "owns": ["docs/", "README.md", "CHANGELOG.md"],
+  "triggers": ["docs", "documentation", "readme", "guide", "tutorial", "setup", "changelog"],
+  "must_read": ["README.md"],
+  "output_schema": "agent_report_v1",
+  "category": "docs"
+}

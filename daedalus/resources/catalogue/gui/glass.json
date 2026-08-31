@@ -1,0 +1,353 @@
+{
+  "$comment": "IGNORED BY THE LOADER. The Ikarus 'liquid glass' component set. These are OURS: the source is in this repository, the licence is this repository's licence (Apache-2.0), and their provenance is a path rather than a URL to somebody else's server. A Daedalus-built GUI should reach for these FIRST -- they exist, they work, and their licence is not in question. Props below were read from the .tsx definition sites on 2026-07-29, not inferred.",
+  "entries": [
+    {
+      "name": "glass/GlassPanel",
+      "kind": "component",
+      "title": "GlassPanel",
+      "purpose": "The base liquid-glass surface: backdrop blur and saturate, a 1px light edge, and an iridescent diffraction ring. Use it as the outermost container of any panel, shell region, or floating surface that should read as frosted glass. Reveal-on-mount is OFF by default because a panel that is part of the shell has always been there.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/GlassPanel.tsx",
+        "note": "Props read from the definition site, not inferred."
+      },
+      "tags": ["surface", "container", "panel", "frosted", "blur", "backdrop", "shell", "glass"],
+      "props": [
+        {"name": "reveal", "type": "boolean", "required": false, "default": "false", "description": "Animate the surface in on mount. Turn on only for a surface that genuinely just came into existence."},
+        {"name": "revealDistance", "type": "number", "required": false, "description": "Travel distance for the reveal in px. Defaults to the nudge token (6)."},
+        {"name": "...rest", "type": "HTMLAttributes<HTMLDivElement>", "required": false, "description": "Spread onto the underlying div."},
+        {"name": "children", "type": "ReactNode", "required": false, "description": "Panel content."}
+      ],
+      "dependencies": ["react", "framer-motion"],
+      "catalogue_dependencies": ["motion/tokens", "motion/useReducedMotionPref"],
+      "usage": "<GlassPanel className=\"my-shell\">\n  <h2>Status</h2>\n</GlassPanel>",
+      "notes": "Wraps the .glass class from styles.css. Without `reveal` it renders a plain div and pulls in no motion runtime at render time."
+    },
+    {
+      "name": "glass/GlassCard",
+      "kind": "component",
+      "title": "GlassCard",
+      "purpose": "A lighter, thinner glass tile for content nested inside a GlassPanel. Use it for a repeated item in a list or grid -- a queued task, a drafted network, a metric tile. Reveal-on-mount is ON by default because a card's arrival IS the state change it reports.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/GlassCard.tsx"
+      },
+      "tags": ["card", "tile", "surface", "list item", "grid", "nested", "hover", "lift"],
+      "props": [
+        {"name": "hoverable", "type": "boolean", "required": false, "description": "Adds the hover lift (whileHover, 1px, the hairline token)."},
+        {"name": "reveal", "type": "boolean", "required": false, "default": "true", "description": "Animate in on mount."},
+        {"name": "...rest", "type": "HTMLAttributes<HTMLDivElement>", "required": false},
+        {"name": "children", "type": "ReactNode", "required": false}
+      ],
+      "dependencies": ["react", "framer-motion"],
+      "catalogue_dependencies": ["motion/tokens", "motion/useReducedMotionPref"],
+      "usage": "<GlassCard hoverable onClick={open}>\n  <strong>build #412</strong>\n</GlassCard>",
+      "notes": "Reveal travels 6px (nudge) rather than 12px (rise), so a card arriving inside a bubble reads as depth rather than as a competing animation. Declares exit=\"hidden\", inert until an <AnimatePresence> sits above it."
+    },
+    {
+      "name": "glass/GlassButton",
+      "kind": "component",
+      "title": "GlassButton",
+      "purpose": "A glass pill button. `primary` paints the accent-gradient variant. Use it for any click target that is not a dock icon or a composer send button. Defaults type=\"button\", so it will not accidentally submit a form.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/GlassButton.tsx"
+      },
+      "tags": ["button", "action", "pill", "cta", "primary", "click"],
+      "props": [
+        {"name": "primary", "type": "boolean", "required": false, "description": "Paint the accent-gradient variant."},
+        {"name": "...rest", "type": "ButtonHTMLAttributes<HTMLButtonElement>", "required": false},
+        {"name": "children", "type": "ReactNode", "required": false}
+      ],
+      "dependencies": ["react"],
+      "usage": "<GlassButton primary onClick={run}>Run</GlassButton>",
+      "notes": "The one glass primitive with NO framer-motion import: its press and hover feedback stay in CSS, where a pseudo-class already expresses the state."
+    },
+    {
+      "name": "glass/GlassSheet",
+      "kind": "layout",
+      "title": "GlassSheet",
+      "purpose": "A full glass overlay that slides up over the main content, with a scrim and a titled header carrying a back button. Use it for a heavy secondary view -- a graph, a code map, a settings surface -- that should cover the primary view without navigating away from it.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/GlassSheet.tsx"
+      },
+      "tags": ["sheet", "overlay", "modal", "dialog", "drawer", "scrim", "panel", "fullscreen", "dismiss"],
+      "props": [
+        {"name": "open", "type": "boolean", "required": true, "description": "Whether the sheet is showing."},
+        {"name": "title", "type": "ReactNode", "required": true, "description": "Header title."},
+        {"name": "subtitle", "type": "ReactNode", "required": false},
+        {"name": "onClose", "type": "() => void", "required": true, "description": "Called by the back button and by a scrim click."},
+        {"name": "children", "type": "ReactNode", "required": true, "description": "Sheet body."}
+      ],
+      "dependencies": ["react", "framer-motion", "lucide-react"],
+      "catalogue_dependencies": ["motion/tokens", "motion/useReducedMotionPref"],
+      "usage": "<GlassSheet open={view === 'graph'} title=\"Code map\" subtitle=\"1,284 modules\" onClose={() => setView('chat')}>\n  <GraphCanvas />\n</GlassSheet>",
+      "notes": "Stays MOUNTED when closed and is deliberately not wrapped in AnimatePresence, because its children are heavy views whose state must survive a close. Sets role=\"dialog\", aria-modal and aria-hidden. It does NOT trap focus -- add that if you use it for a true modal."
+    },
+    {
+      "name": "glass/SegmentedControl",
+      "kind": "component",
+      "title": "SegmentedControl",
+      "purpose": "An iOS-style segmented control for choosing exactly one option from a short, fixed set. Use it instead of tabs when the options are peers and the set is small enough to show at once. The selection is one element that travels between segments rather than two that cross-fade.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/SegmentedControl.tsx"
+      },
+      "tags": ["segmented", "toggle", "switch", "tabs", "picker", "radio", "choice", "filter"],
+      "props": [
+        {"name": "options", "type": "string[]", "required": true, "description": "The segments, in display order."},
+        {"name": "value", "type": "string", "required": false, "description": "The selected option. Undefined renders with no active segment."},
+        {"name": "onChange", "type": "(value: string) => void", "required": true},
+        {"name": "className", "type": "string", "required": false}
+      ],
+      "dependencies": ["react", "framer-motion"],
+      "catalogue_dependencies": ["motion/tokens", "motion/useReducedMotionPref"],
+      "usage": "<SegmentedControl options={['Chat', 'Graph', 'Wiki']} value={tab} onChange={setTab} />",
+      "notes": "The thumb carries a layoutId scoped per control instance via useId, so two controls on one screen cannot claim the same shared-layout identity. Under reduced motion the layoutId is dropped entirely and the thumb cross-fades."
+    },
+    {
+      "name": "glass/Dock",
+      "kind": "layout",
+      "title": "Dock",
+      "purpose": "The 64px vertical icon rail pinned to the far left of the shell. It is the app's primary navigation. Fill it with DockGroup sections, DockItem buttons and DockSpacer gaps. It reveals its items in sequence on first mount -- the one place in the app where a staggered entrance is honest.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/Dock.tsx"
+      },
+      "tags": ["dock", "nav", "navigation", "sidebar", "rail", "icon bar", "menu", "shell"],
+      "props": [
+        {"name": "children", "type": "ReactNode", "required": true},
+        {"name": "className", "type": "string", "required": false}
+      ],
+      "dependencies": ["react", "framer-motion"],
+      "catalogue_dependencies": ["glass/DockItem", "motion/tokens", "motion/useReducedMotionPref"],
+      "usage": "<Dock>\n  <DockGroup>\n    <DockItem icon={<Home size={18} />} label=\"Chat\" active onClick={() => go('chat')} />\n  </DockGroup>\n  <DockSpacer />\n  <DockGroup>\n    <DockItem icon={<Settings size={18} />} label=\"Theme\" />\n  </DockGroup>\n</Dock>",
+      "notes": "Renders a <nav>. Also exports DockGroup (one travelling highlight per group) and DockSpacer (a flex gap). The stagger tightens as items are added so the whole reveal never runs past 240ms."
+    },
+    {
+      "name": "glass/DockItem",
+      "kind": "component",
+      "title": "DockItem",
+      "purpose": "One button in the Dock: an icon, a tooltip label, an optional unread badge, and an active state. The active surface is a real element that slides from the old button to the new one, so switching views reads as the highlight moving rather than repainting.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/Dock.tsx"
+      },
+      "tags": ["dock item", "nav item", "icon button", "tab", "badge", "active", "tooltip"],
+      "props": [
+        {"name": "icon", "type": "ReactNode", "required": true},
+        {"name": "label", "type": "string", "required": true, "description": "Used as title, aria-label and the hover tooltip."},
+        {"name": "active", "type": "boolean", "required": false},
+        {"name": "badge", "type": "boolean", "required": false, "description": "Show the unread dot."},
+        {"name": "onClick", "type": "() => void", "required": false},
+        {"name": "className", "type": "string", "required": false}
+      ],
+      "dependencies": ["react", "framer-motion"],
+      "catalogue_dependencies": ["glass/Dock", "motion/tokens"],
+      "usage": "<DockItem icon={<Home size={18} />} label=\"Chat\" active badge onClick={go} />",
+      "notes": "Must be rendered inside a DockGroup to get a group-scoped travelling pill; outside one it falls back to a shared 'root' id. The motion pill owns background, border-color and box-shadow on .dockbtn.active -- decorate through a pseudo-element instead of those three."
+    },
+    {
+      "name": "glass/LiveRail",
+      "kind": "layout",
+      "title": "LiveRail",
+      "purpose": "The collapsible right-hand column of live monitoring cards. Use it for at-a-glance status that updates on its own -- token spend, running jobs, host health. Fill it with RailCard children; it reveals them in sequence on mount and tightens the offset so the column is settled inside 240ms however many cards it carries.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/LiveRail.tsx"
+      },
+      "tags": ["rail", "sidebar", "right column", "monitor", "status", "live", "aside", "dashboard"],
+      "props": [
+        {"name": "children", "type": "ReactNode", "required": true},
+        {"name": "className", "type": "string", "required": false}
+      ],
+      "dependencies": ["react", "framer-motion"],
+      "catalogue_dependencies": ["glass/RailCard", "motion/tokens"],
+      "usage": "<LiveRail>\n  <RailCard title=\"Spend\" badge={<LiveDot />}>$1.42</RailCard>\n</LiveRail>",
+      "notes": "Renders an <aside>. The COLLAPSE is deliberately not animated here: the shell collapses the rail by switching a grid track to 0 with display:none, which cannot be transitioned. Animating it needs a prop from the view layer."
+    },
+    {
+      "name": "glass/RailCard",
+      "kind": "component",
+      "title": "RailCard",
+      "purpose": "One titled card inside a LiveRail: a header row with an optional leading icon and an optional trailing badge, plus a body. Use it for a single live metric or a short status list.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/LiveRail.tsx"
+      },
+      "tags": ["rail card", "status card", "metric", "widget", "panel", "badge"],
+      "props": [
+        {"name": "title", "type": "ReactNode", "required": true},
+        {"name": "icon", "type": "ReactNode", "required": false, "description": "Rendered before the title."},
+        {"name": "badge", "type": "ReactNode", "required": false, "description": "Rendered at the right end of the header row."},
+        {"name": "children", "type": "ReactNode", "required": false},
+        {"name": "className", "type": "string", "required": false}
+      ],
+      "dependencies": ["react", "framer-motion"],
+      "catalogue_dependencies": ["glass/LiveRail"],
+      "usage": "<RailCard title=\"Hosts\" icon={<Server size={13} />} badge={<LiveDot status=\"good\" />}>\n  2 of 2 reachable\n</RailCard>"
+    },
+    {
+      "name": "glass/LiveDot",
+      "kind": "component",
+      "title": "LiveDot",
+      "purpose": "A small breathing status dot: good, warn or bad. Use it anywhere a single health or liveness state needs to be visible without words -- beside a host name, in a rail card header, next to a running job.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/LiveDot.tsx"
+      },
+      "tags": ["dot", "status", "indicator", "health", "pulse", "badge", "online", "liveness"],
+      "props": [
+        {"name": "status", "type": "'good' | 'warn' | 'bad'", "required": false, "default": "'good'"},
+        {"name": "className", "type": "string", "required": false}
+      ],
+      "dependencies": ["react"],
+      "usage": "<LiveDot status=\"warn\" />",
+      "notes": "Imports motion.css but NONE of the motion runtime: the pulse is an ambient CSS @keyframes with no React state behind it. motion.css replaces the shipped box-shadow-spread keyframe with a transform-and-opacity pseudo-element, so a screen full of dots costs the main thread nothing per frame."
+    },
+    {
+      "name": "glass/ChatBubble",
+      "kind": "component",
+      "title": "ChatBubble",
+      "purpose": "One transcript bubble in a two-voice conversation: 'ik' renders on the left with a Sparkles avatar, 'me' on the right with a letter. Each side arrives from its own edge so the transcript reads as two voices rather than one feed. Use it for any chat, log, or agent transcript.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/ChatBubble.tsx"
+      },
+      "tags": ["chat", "bubble", "message", "transcript", "conversation", "assistant", "user", "feed"],
+      "props": [
+        {"name": "role", "type": "'ik' | 'me'", "required": true, "description": "'ik' = the assistant (left), 'me' = the user (right)."},
+        {"name": "avatar", "type": "ReactNode", "required": false, "description": "Overrides the default avatar."},
+        {"name": "children", "type": "ReactNode", "required": true, "description": "Message body."}
+      ],
+      "dependencies": ["react", "framer-motion", "lucide-react"],
+      "catalogue_dependencies": ["motion/tokens", "motion/useReducedMotionPref"],
+      "usage": "<ChatBubble role=\"ik\">Ready. What are we building?</ChatBubble>\n<ChatBubble role=\"me\">A dashboard.</ChatBubble>",
+      "notes": "Declares exit=\"hidden\", which is inert until the message list is wrapped in <AnimatePresence> -- that wrap is the only change needed to animate removals, no prop and no API. Deliberately does NOT use `layout`: shared-layout projection inside a container that auto-scrolls to the bottom is a known way to make the two fight."
+    },
+    {
+      "name": "glass/Composer",
+      "kind": "component",
+      "title": "Composer",
+      "purpose": "The chat input: optional suggestion chips, an auto-growing textarea capped at 120px, and a send button that visibly arms as the field fills. Enter sends, Shift+Enter makes a newline. Use it as the bottom bar of any chat surface.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/components/glass/Composer.tsx"
+      },
+      "tags": ["composer", "input", "textarea", "chat input", "prompt", "send", "chips", "suggestions", "form"],
+      "props": [
+        {"name": "value", "type": "string", "required": true},
+        {"name": "onChange", "type": "(value: string) => void", "required": true},
+        {"name": "onSend", "type": "() => void", "required": true},
+        {"name": "chips", "type": "string[]", "required": false, "description": "Suggestion chips shown above the field."},
+        {"name": "onChip", "type": "(chip: string) => void", "required": false, "description": "Defaults to onChange(chip) when omitted."},
+        {"name": "busy", "type": "boolean", "required": false, "description": "Disables send and suppresses the Enter shortcut."},
+        {"name": "placeholder", "type": "string", "required": false},
+        {"name": "extra", "type": "ReactNode", "required": false, "description": "Slot rendered above the input, e.g. an inline confirm row."}
+      ],
+      "dependencies": ["react", "framer-motion", "lucide-react"],
+      "catalogue_dependencies": ["motion/tokens", "motion/useReducedMotionPref"],
+      "usage": "<Composer\n  value={draft}\n  onChange={setDraft}\n  onSend={send}\n  chips={['Explain this', 'Write a test']}\n  busy={pending}\n/>",
+      "notes": "All three motion pieces sit in the acknowledgement tier (140ms, no spring) because all three are feedback about the user's input. Height is auto-grown by writing style.height once per keystroke and is deliberately NOT animated -- interpolating it would put a layout pass on the compositor's critical path."
+    },
+    {
+      "name": "motion/tokens",
+      "kind": "token",
+      "title": "Ikarus motion vocabulary",
+      "purpose": "The only place a duration, easing, spring, travel distance, scale or stagger may be written down. Two tiers: ACKNOWLEDGEMENT (<=180ms, no spring, feedback about the input) and STATE CHANGE (220-360ms, spatial, spring, feedback about the system). Read this before animating anything, and take numbers from it rather than inventing them.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/motion/tokens.ts"
+      },
+      "tags": ["motion", "animation", "tokens", "duration", "easing", "spring", "stagger", "design system", "timing", "reduced motion"],
+      "props": [
+        {"name": "DURATION_MS", "type": "{ instant: 90, ack: 140, move: 240, exit: 220, enter: 320, ambient: 420 }", "required": false, "description": "Milliseconds are the source of truth because that is the unit the CSS half speaks."},
+        {"name": "EASE", "type": "Record<'glass' | 'depart' | 'ack', Bezier>", "required": false, "description": "glass = [.32,.72,0,1], the house curve."},
+        {"name": "SPRING", "type": "{ instrument, surface }", "required": false, "description": "Both damped to within a percent of critical: an instrument settles, it does not bounce."},
+        {"name": "DISTANCE", "type": "{ hairline: 1, nudge: 6, rise: 12, travel: 24, drawer: 32 }", "required": false},
+        {"name": "SCALE", "type": "{ press: 0.97, settle: 0.985, ring: 1.03 }", "required": false},
+        {"name": "STAGGER", "type": "{ child: 0.034, totalCap: 0.24 }", "required": false},
+        {"name": "staggerFor", "type": "(count: number) => number", "required": false, "description": "Per-child offset that keeps a whole list reveal under totalCap."},
+        {"name": "COMPOSITED_PROPS", "type": "readonly string[]", "required": false, "description": "The only properties that may be animated."},
+        {"name": "LAYOUT_TRIGGERING_PROPS", "type": "readonly string[]", "required": false, "description": "Banned outright. motion.spec.ts audits every variant factory against this list."}
+      ],
+      "dependencies": [],
+      "usage": "import { DURATION_MS, EASE, DISTANCE } from '../../motion';\n\nconst transition = { duration: DURATION_MS.ack / 1000, ease: EASE.ack };",
+      "notes": "The tier boundary is ASSERTED by motion.spec.ts (ack <= 180ms, state >= 200ms) and useMotion.ts warns if the CSS custom properties and these constants ever drift. Both are guards, not documentation."
+    },
+    {
+      "name": "motion/useReducedMotionPref",
+      "kind": "hook",
+      "title": "useReducedMotionPref",
+      "purpose": "Reads the user's prefers-reduced-motion setting so a component can drop travel and scale while keeping the opacity change. Every motion-driven glass primitive calls it. Use it whenever you write a variant by hand: a state change must still be VISIBLE under reduced motion, it just must not move.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/KTY137/daedalus/blob/main/LICENSE",
+      "provenance": {
+        "origin": "daedalus (this repository)",
+        "url": "https://github.com/KTY137/daedalus",
+        "retrieved": "2026-07-29",
+        "source_path": "apps/web/src/motion/useMotion.ts"
+      },
+      "tags": ["reduced motion", "accessibility", "a11y", "hook", "preference", "motion"],
+      "props": [
+        {"name": "returns", "type": "boolean", "required": false, "description": "True when the user has asked for reduced motion."}
+      ],
+      "dependencies": ["react"],
+      "catalogue_dependencies": ["motion/tokens"],
+      "usage": "const reduced = useReducedMotionPref();\nconst variants = useMemo(() => revealVariants(reduced), [reduced]);"
+    }
+  ]
+}

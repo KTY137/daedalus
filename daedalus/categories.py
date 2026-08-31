@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from .agents_registry import MODEL_TIERS
+from .resources import read_builtin_text
 from .router import ROOT, load_agents
 
 CATEGORIES_PATH = ROOT / "agents" / "categories.json"
@@ -32,13 +33,11 @@ def _write_dir_for(repo_root: str | None) -> Path:
     """Where an edited/new category is written (never the shipped global file)."""
     if repo_root:
         return Path(repo_root) / ".agentenv"
-    return CATEGORIES_PATH.parent
+    raise ValueError("repo_root is required; packaged category defaults are read-only")
 
 
 def _write_path_for(repo_root: str | None) -> Path:
-    if repo_root:
-        return _write_dir_for(repo_root) / "categories.json"
-    return CATEGORIES_PATH
+    return _write_dir_for(repo_root) / "categories.json"
 
 
 def _read_categories_file(path: Path) -> list[dict[str, Any]]:
@@ -89,7 +88,20 @@ def normalize(cat: dict[str, Any]) -> dict[str, Any]:
 def load(repo_root: str | None = None) -> list[dict[str, Any]]:
     """Global ``agents/categories.json`` merged with a per-repo
     ``.agentenv/categories.json`` override (matched by id; repo fields win)."""
-    by_id: dict[str, dict[str, Any]] = {c["id"]: c for c in _read_categories_file(CATEGORIES_PATH)}
+    try:
+        seed = json.loads(
+            read_builtin_text(
+                "agents/categories.json", legacy=CATEGORIES_PATH
+            )
+        )
+    except (OSError, json.JSONDecodeError):
+        seed = []
+    builtins = (
+        [c for c in seed if isinstance(c, dict) and c.get("id")]
+        if isinstance(seed, list)
+        else []
+    )
+    by_id: dict[str, dict[str, Any]] = {c["id"]: c for c in builtins}
     if repo_root:
         for c in _read_categories_file(Path(repo_root) / ".agentenv" / "categories.json"):
             by_id[c["id"]] = {**by_id.get(c["id"], {}), **c}
@@ -102,9 +114,9 @@ def get(cat_id: str, repo_root: str | None = None) -> dict[str, Any] | None:
 
 def update(cat_id: str, patch: dict[str, Any], repo_root: str | None = None) -> Path:
     """Merge ``patch`` over the current category and write the per-repo
-    override (or the global file when ``repo_root`` is None). Raises
-    ``KeyError`` if the category doesn't exist anywhere, ``ValueError`` if the
-    merged result fails validation."""
+    override. Packaged defaults are read-only, so ``repo_root`` is required.
+    Raises ``KeyError`` if the category doesn't exist anywhere and
+    ``ValueError`` for an invalid result or missing project root."""
     current = get(cat_id, repo_root)
     if current is None:
         raise KeyError(f"unknown category '{cat_id}'")

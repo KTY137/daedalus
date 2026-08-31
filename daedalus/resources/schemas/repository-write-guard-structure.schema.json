@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-guard-structure.schema.json",
+  "title": "Daedalus Gate-0 Repository Write Guard Structure Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "classification_digest",
+    "materialization_digest",
+    "source_anchor_report_digest",
+    "origin_attestation_digest",
+    "guard_manifest_report_digest",
+    "guard_manifest_digest",
+    "classification_count",
+    "production_classification_count",
+    "guard_contract_count",
+    "guard_binding_count",
+    "record_set_sha256",
+    "records",
+    "origin_authenticated",
+    "source_anchor_semantics_verified",
+    "guard_manifest_authenticated",
+    "guard_contract_structure_verified",
+    "guard_contract_semantics_verified",
+    "semantic_receipts_verified",
+    "evidence_authenticated",
+    "gate_report_bound",
+    "closed",
+    "scope",
+    "blockers",
+    "digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-repository-write-guard-structure/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "classification_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "materialization_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_anchor_report_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "origin_attestation_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "guard_manifest_report_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "guard_manifest_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "classification_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "production_classification_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "guard_contract_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "guard_binding_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "record_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    },
+    "origin_authenticated": {
+      "const": true
+    },
+    "source_anchor_semantics_verified": {
+      "const": true
+    },
+    "guard_manifest_authenticated": {
+      "const": true
+    },
+    "guard_contract_structure_verified": {
+      "const": true
+    },
+    "guard_contract_semantics_verified": {
+      "const": false
+    },
+    "semantic_receipts_verified": {
+      "const": false
+    },
+    "evidence_authenticated": {
+      "const": false
+    },
+    "gate_report_bound": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "scope": {
+      "const": "repository-write-guard-structure"
+    },
+    "blockers": {
+      "const": [
+        "effect-lease-semantic-verification-missing",
+        "gate-report-binding-missing",
+        "guard-contract-behavioral-verification-missing",
+        "primary-checkout-disjointness-semantic-verification-missing",
+        "retirement-semantic-verification-missing",
+        "runtime-conformance-semantic-verification-missing"
+      ]
+    },
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface_sha256",
+        "locator",
+        "contract",
+        "implementation_target",
+        "implementation_sha256",
+        "source_path",
+        "source_size",
+        "definition_kind",
+        "line",
+        "column",
+        "end_line",
+        "end_column",
+        "structure_sha256"
+      ],
+      "properties": {
+        "surface_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "locator": {
+          "type": "string",
+          "pattern": "^cas:sha256:[0-9a-f]{64}$"
+        },
+        "contract": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+        },
+        "implementation_target": {
+          "type": "string",
+          "pattern": "^daedalus(?:\\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+        },
+        "implementation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_path": {
+          "type": "string",
+          "pattern": "^daedalus/(?:[A-Za-z_][A-Za-z0-9_]*/)*[A-Za-z_][A-Za-z0-9_]*\\.py$"
+        },
+        "source_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "definition_kind": {
+          "enum": [
+            "class",
+            "function",
+            "async_function"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "structure_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

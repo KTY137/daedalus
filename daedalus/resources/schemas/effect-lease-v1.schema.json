@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/effect-lease-v1.schema.json",
+  "title": "Daedalus EffectLease v1",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"},
+    "effectScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read_only", "writable_paths", "egress_endpoints", "tools", "secret_refs", "max_cost_microusd", "max_concurrency", "timeout_s", "kill_switch_ref"],
+      "properties": {
+        "read_only": {"type": "boolean"},
+        "writable_paths": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "egress_endpoints": {"type": "array", "items": {"type": "string", "format": "uri"}, "uniqueItems": true},
+        "tools": {"type": "array", "items": {"$ref": "#/$defs/identifier"}, "uniqueItems": true},
+        "secret_refs": {"type": "array", "items": {"$ref": "#/$defs/identifier"}, "uniqueItems": true},
+        "max_cost_microusd": {"type": ["integer", "null"], "minimum": 0},
+        "max_concurrency": {"type": "integer", "minimum": 1},
+        "timeout_s": {"type": ["integer", "null"], "minimum": 1},
+        "kill_switch_ref": {"type": "string"}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "source_revision", "created_at", "input_digests", "trace_id"],
+      "properties": {
+        "origin": {"$ref": "#/$defs/identifier"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+        "trace_id": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "required": ["contract_type", "contract_version", "lease_id", "request_id", "request_sha256", "policy_decision_id", "policy_decision_sha256", "registry_sha256", "entrypoint_id", "requested_effects", "effect_scope", "idempotency_namespace", "kill_switch_generation", "runtime_id", "runtime_manifest_sha256", "runtime_conformance_sha256", "issuer_key_id", "issued_at", "expires_at", "signature_sha256", "provenance"],
+  "properties": {
+    "contract_type": {"const": "daedalus.effect-lease"},
+    "contract_version": {"const": "1.0.0"},
+    "lease_id": {"$ref": "#/$defs/identifier"},
+    "request_id": {"$ref": "#/$defs/identifier"},
+    "request_sha256": {"$ref": "#/$defs/sha256"},
+    "policy_decision_id": {"$ref": "#/$defs/identifier"},
+    "policy_decision_sha256": {"$ref": "#/$defs/sha256"},
+    "registry_sha256": {"$ref": "#/$defs/sha256"},
+    "entrypoint_id": {"$ref": "#/$defs/identifier"},
+    "requested_effects": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["filesystem_write", "process_spawn", "process_control", "network_egress", "listen_socket", "repository_mutation", "spend", "secrets"]}},
+    "effect_scope": {"$ref": "#/$defs/effectScope"},
+    "idempotency_namespace": {"$ref": "#/$defs/identifier"},
+    "kill_switch_generation": {"type": "integer", "minimum": 0},
+    "runtime_id": {"type": "string"},
+    "runtime_manifest_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "runtime_conformance_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "issuer_key_id": {"$ref": "#/$defs/identifier"},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "signature_sha256": {"$ref": "#/$defs/sha256"},
+    "provenance": {"$ref": "#/$defs/provenance"}
+  }
+}

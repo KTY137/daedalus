@@ -120,6 +120,7 @@ from .context_plan import _normalise_max
 # The repo's ONE untrusted-data notice. Imported, never re-typed: a second copy
 # is a second thing to forget to fix.
 from .council.vendors import PROMPT_DATA_NOTICE
+from .resources import iter_builtin_files
 
 __all__ = [
     "CATALOGUE_SCHEMA",
@@ -666,16 +667,20 @@ def load_catalogue(path: str | Path | None = None) -> Catalogue:
     one name means a caller resolving that name gets whichever loaded first,
     which is a coin flip wearing a lookup's clothes.
     """
-    root = Path(path) if path is not None else Path(__file__).resolve().parent.parent / CATALOGUE_DIR
+    if path is None:
+        legacy_root = Path(__file__).resolve().parent.parent / CATALOGUE_DIR
+        source_files = iter_builtin_files(
+            "catalogue/gui", legacy=legacy_root, suffix=".json"
+        )
+    else:
+        root = Path(path)
+        source_files = tuple(sorted(root.glob("*.json"))) if root.exists() else ()
     entries: list[CatalogueEntry] = []
     rejected: list[RejectedEntry] = []
     sources: list[str] = []
     seen: dict[str, str] = {}
 
-    if not root.exists():
-        return Catalogue((), (), ())
-
-    for file in sorted(root.glob("*.json")):
+    for file in source_files:
         label = file.name
         sources.append(label)
         try:

@@ -1,0 +1,11 @@
+{
+  "name": "qa-critic",
+  "call_name": "Critic",
+  "model_tier": "opus",
+  "external_ok": false,
+  "owns": [],
+  "triggers": ["qa", "safety", "risk", "race", "regression", "security", "edge case"],
+  "must_read": ["README.md"],
+  "output_schema": "review_report_v1",
+  "category": "review"
+}

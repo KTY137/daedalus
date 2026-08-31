@@ -3,27 +3,31 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .resources import iter_builtin_files
+
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENT_DIR = ROOT / "agents"
 TEMPLATE_AGENT_DIR = ROOT / "templates" / "agents"
 
 
-def _agent_dir_for(repo_root: str | None) -> Path:
-    """Resolve which directory of agent-role JSON files to load.
+def _agent_files_for(repo_root: str | None):
+    """Resolve role files without assuming a repository checkout exists.
 
-    Back-compat: ``repo_root=None`` -> the built-in ``agents/`` dir (current
-    behavior). With a ``repo_root``: prefer that repo's own
-    ``<repo_root>/.agentenv/agents/`` overrides if present, else the generic
-    ``templates/agents/`` defaults, else fall back to the built-in ``agents/``.
+    A target repository's explicit override remains first.  Otherwise the
+    wheel-packaged defaults are authoritative and the old root directories are
+    accepted only as byte-identical compatibility mirrors.
     """
+
     if repo_root is not None:
         repo_agents = Path(repo_root) / ".agentenv" / "agents"
-        if repo_agents.is_dir() and any(repo_agents.glob("*.json")):
-            return repo_agents
-        if TEMPLATE_AGENT_DIR.is_dir() and any(TEMPLATE_AGENT_DIR.glob("*.json")):
-            return TEMPLATE_AGENT_DIR
-    return AGENT_DIR
+        override = tuple(sorted(repo_agents.glob("*.json"))) if repo_agents.is_dir() else ()
+        if override:
+            return override
+        return iter_builtin_files(
+            "templates/agents", legacy=TEMPLATE_AGENT_DIR, suffix=".json"
+        )
+    return iter_builtin_files("agents", legacy=AGENT_DIR, suffix=".json")
 
 
 # Non-role files that may share an agent-role directory (e.g. the
@@ -34,7 +38,7 @@ _NON_ROLE_FILES = {"categories.json"}
 def load_agents(repo_root: str | None = None, active_agents: list[str] | None = None) -> list[dict]:
     active = set(active_agents or [])
     agents: list[dict] = []
-    for path in sorted(_agent_dir_for(repo_root).glob("*.json")):
+    for path in _agent_files_for(repo_root):
         if path.name in _NON_ROLE_FILES:
             continue
         agent = json.loads(path.read_text(encoding="utf-8"))

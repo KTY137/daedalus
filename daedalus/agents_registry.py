@@ -5,10 +5,10 @@ here lets Ikarus / the CLI / the GUI mint or edit roles at runtime; routing
 picks them up with no other change because ``load_agents`` is the single read
 path.
 
-Write location mirrors the read resolution in ``router._agent_dir_for``:
+Write location mirrors the read resolution in ``router``:
   - ``repo_root`` given -> ``<repo_root>/.agentenv/agents/<name>.json`` (created
     on demand; a per-repo override that never mutates the shipped templates).
-  - ``repo_root`` None  -> the built-in ``agents/`` dir (global roles).
+  - ``repo_root`` None  -> rejected because packaged defaults are read-only.
 
 ``templates/agents/`` (the shipped defaults) is never written to here.
 """
@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .router import AGENT_DIR, load_agents
+from .router import load_agents
 
 MODEL_TIERS = ("opus", "sonnet", "haiku")
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
@@ -34,7 +34,7 @@ def _write_dir_for(repo_root: str | None) -> Path:
     """Where a NEW/edited role is written (never the shared templates dir)."""
     if repo_root:
         return Path(repo_root) / ".agentenv" / "agents"
-    return AGENT_DIR
+    raise ValueError("repo_root is required; packaged agent defaults are read-only")
 
 
 def role_path(name: str, repo_root: str | None = None) -> Path:
