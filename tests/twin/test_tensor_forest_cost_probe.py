@@ -13,10 +13,10 @@ import pytest
 
 from daedalus.schemas import ContractProvenance
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
+from daedalus.twin import FourfoldSnapshot, fourfold_from_knowledge_forest
 from daedalus.twin.tensor import SparseTensorEntry, TensorAxis, TensorView
 
 REVISION = "a" * 40
-FOURFOLD = hashlib.sha256(b"tensor-forest-cost-probe-fourfold").hexdigest()
 NOW = "2026-08-30T16:58:27Z"
 MAX_PROBE_SUBJECTS = 10_000
 MAX_PROBE_REPEATS = 20
@@ -45,19 +45,33 @@ def _forest(rows: tuple[tuple[str, str], ...]) -> KnowledgeForest:
     )
 
 
-def _tensor(rows: tuple[tuple[str, str], ...], forest: KnowledgeForest) -> TensorView:
+def _fourfold(forest: KnowledgeForest, *, trace_id: str) -> FourfoldSnapshot:
+    return fourfold_from_knowledge_forest(
+        forest,
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        created_at=NOW,
+        trace_id=trace_id,
+    )
+
+
+def _tensor(
+    rows: tuple[tuple[str, str], ...],
+    forest: KnowledgeForest,
+    fourfold: FourfoldSnapshot,
+) -> TensorView:
     provenance = ContractProvenance(
         origin="test.tensor-forest-cost-probe",
         source_revision=REVISION,
         created_at=NOW,
-        input_digests=(forest.content_sha256, FOURFOLD),
+        input_digests=(forest.content_sha256, fourfold.digest),
         trace_id="tensor-forest-cost-probe",
     )
     return TensorView(
         repository_id="KTY137/daedalus",
         source_revision=REVISION,
         source_forest_sha256=forest.content_sha256,
-        source_fourfold_sha256=FOURFOLD,
+        source_fourfold_sha256=fourfold.digest,
         status="complete",
         axes=(
             TensorAxis("node", tuple(node_id for node_id, _ in rows)),
@@ -128,7 +142,10 @@ def _relation_forest(size: int) -> KnowledgeForest:
     )
 
 
-def _relation_tensor(forest: KnowledgeForest) -> TensorView:
+def _relation_tensor(
+    forest: KnowledgeForest,
+    fourfold: FourfoldSnapshot,
+) -> TensorView:
     plane_by_node = {
         node.id: "code" if node.kind == "source_file" else "knowledge"
         for node in forest.nodes
@@ -137,14 +154,14 @@ def _relation_tensor(forest: KnowledgeForest) -> TensorView:
         origin="test.tensor-forest-relation-cost-probe",
         source_revision=REVISION,
         created_at=NOW,
-        input_digests=(forest.content_sha256, FOURFOLD),
+        input_digests=(forest.content_sha256, fourfold.digest),
         trace_id="tensor-forest-relation-cost-probe",
     )
     return TensorView(
         repository_id="KTY137/daedalus",
         source_revision=REVISION,
         source_forest_sha256=forest.content_sha256,
-        source_fourfold_sha256=FOURFOLD,
+        source_fourfold_sha256=fourfold.digest,
         status="complete",
         axes=(
             TensorAxis("source", tuple(sorted({edge.source for edge in forest.edges}))),
@@ -210,9 +227,13 @@ def _relation_forest_index(
 
 
 def _relation_forest_preindexed_query(
-    subject: tuple[KnowledgeForest, dict[tuple[str, str, str], frozenset[str]]],
+    subject: tuple[
+        KnowledgeForest,
+        FourfoldSnapshot,
+        dict[tuple[str, str, str], frozenset[str]],
+    ],
 ) -> tuple[str, ...]:
-    _, index = subject
+    _, _, index = subject
     documented = index[("documents", "source_file", "document")]
     importing = index[("imports", "source_file", "source_file")]
     return tuple(sorted(documented & importing))
@@ -304,20 +325,32 @@ def probe(
     if plane not in {"code", "knowledge"}:
         raise ValueError("plane must be code or knowledge")
 
+    reference_forest = _forest(rows)
+    reference_fourfold = _fourfold(
+        reference_forest,
+        trace_id="tensor-forest-cost-probe",
+    )
+
+    def build_forest_arm() -> tuple[KnowledgeForest, FourfoldSnapshot]:
+        forest = _forest(rows)
+        fourfold = _fourfold(forest, trace_id="tensor-forest-cost-probe")
+        return forest, fourfold
+
     forest_metrics, forest_result = _measure(
-        lambda: _forest(rows),
-        lambda subject: _forest_query(subject, plane),
+        build_forest_arm,
+        lambda subject: _forest_query(subject[0], plane),
         repeats=repeats,
         query_iterations=query_iterations,
     )
 
-    def build_tensor_arm() -> tuple[KnowledgeForest, TensorView]:
+    def build_tensor_arm() -> tuple[KnowledgeForest, FourfoldSnapshot, TensorView]:
         forest = _forest(rows)
-        return forest, _tensor(rows, forest)
+        fourfold = _fourfold(forest, trace_id="tensor-forest-cost-probe")
+        return forest, fourfold, _tensor(rows, forest, fourfold)
 
     tensor_metrics, tensor_result = _measure(
         build_tensor_arm,
-        lambda subject: _tensor_query(subject[1], plane),
+        lambda subject: _tensor_query(subject[2], plane),
         repeats=repeats,
         query_iterations=query_iterations,
     )
@@ -326,9 +359,12 @@ def probe(
         raise AssertionError("tensor projection changed the direct Forest query subject")
 
     return {
-        "schema": "daedalus-tensor-forest-cost-probe/1",
+        "schema": "daedalus-tensor-forest-cost-probe/2",
         "authority": "diagnostic-only",
         "claim": "none",
+        "construction_basis": "forest+fourfold",
+        "source_forest_sha256": reference_forest.content_sha256,
+        "source_fourfold_sha256": reference_fourfold.digest,
         "subject_count": size,
         "plane": plane,
         "repeats": repeats,
@@ -353,18 +389,32 @@ def relation_probe(
     if type(size) is not int or not 1 <= size <= MAX_PROBE_SUBJECTS:
         raise ValueError(f"size must be an integer in [1, {MAX_PROBE_SUBJECTS}]")
 
+    reference_forest = _relation_forest(size)
+    reference_fourfold = _fourfold(
+        reference_forest,
+        trace_id="tensor-forest-relation-cost-probe",
+    )
+
+    def build_forest_arm() -> tuple[KnowledgeForest, FourfoldSnapshot]:
+        forest = _relation_forest(size)
+        fourfold = _fourfold(forest, trace_id="tensor-forest-relation-cost-probe")
+        return forest, fourfold
+
     forest_metrics, forest_result = _measure(
-        lambda: _relation_forest(size),
-        _relation_forest_query,
+        build_forest_arm,
+        lambda subject: _relation_forest_query(subject[0]),
         repeats=repeats,
         query_iterations=query_iterations,
     )
 
     def build_preindexed_forest_arm() -> tuple[
-        KnowledgeForest, dict[tuple[str, str, str], frozenset[str]]
+        KnowledgeForest,
+        FourfoldSnapshot,
+        dict[tuple[str, str, str], frozenset[str]],
     ]:
         forest = _relation_forest(size)
-        return forest, _relation_forest_index(forest)
+        fourfold = _fourfold(forest, trace_id="tensor-forest-relation-cost-probe")
+        return forest, fourfold, _relation_forest_index(forest)
 
     preindexed_metrics, preindexed_result = _measure(
         build_preindexed_forest_arm,
@@ -373,13 +423,14 @@ def relation_probe(
         query_iterations=query_iterations,
     )
 
-    def build_tensor_arm() -> tuple[KnowledgeForest, TensorView]:
+    def build_tensor_arm() -> tuple[KnowledgeForest, FourfoldSnapshot, TensorView]:
         forest = _relation_forest(size)
-        return forest, _relation_tensor(forest)
+        fourfold = _fourfold(forest, trace_id="tensor-forest-relation-cost-probe")
+        return forest, fourfold, _relation_tensor(forest, fourfold)
 
     tensor_metrics, tensor_result = _measure(
         build_tensor_arm,
-        lambda subject: _relation_tensor_query(subject[1]),
+        lambda subject: _relation_tensor_query(subject[2]),
         repeats=repeats,
         query_iterations=query_iterations,
     )
@@ -388,9 +439,12 @@ def relation_probe(
         raise AssertionError("comparison arm changed the direct cross-plane Forest query subject")
 
     return {
-        "schema": "daedalus-tensor-forest-relation-cost-probe/2",
+        "schema": "daedalus-tensor-forest-relation-cost-probe/3",
         "authority": "diagnostic-only",
         "claim": "none",
+        "construction_basis": "forest+fourfold",
+        "source_forest_sha256": reference_forest.content_sha256,
+        "source_fourfold_sha256": reference_fourfold.digest,
         "workload": "documented-import-sources",
         "subject_count": size,
         "node_count": size * 2,
@@ -420,8 +474,11 @@ def test_tensor_query_matches_direct_forest_subject() -> None:
 def test_cost_probe_reports_equal_budget_arms_without_speed_claim() -> None:
     result = probe(size=32, repeats=2, query_iterations=3)
 
-    assert result["schema"] == "daedalus-tensor-forest-cost-probe/1"
+    assert result["schema"] == "daedalus-tensor-forest-cost-probe/2"
     assert result["authority"] == "diagnostic-only"
+    assert result["construction_basis"] == "forest+fourfold"
+    assert len(result["source_forest_sha256"]) == 64
+    assert len(result["source_fourfold_sha256"]) == 64
     assert result["repeats"] == 2
     assert result["query_iterations_per_repeat"] == 3
     assert set(result["arms"]) == {"forest_direct", "forest_plus_tensor"}
@@ -435,10 +492,24 @@ def test_cost_probe_reports_equal_budget_arms_without_speed_claim() -> None:
         assert all(type(value) is int and value >= 0 for value in metrics.values())
 
 
+def test_probe_binds_tensor_to_real_fourfold_snapshot_identity() -> None:
+    rows = _rows(8)
+    forest = _forest(rows)
+    fourfold = _fourfold(forest, trace_id="tensor-forest-cost-probe")
+    tensor = _tensor(rows, forest, fourfold)
+
+    assert tensor.source_forest_sha256 == forest.content_sha256
+    assert tensor.source_fourfold_sha256 == fourfold.digest
+    assert fourfold.source_forest_sha256 == forest.content_sha256
+
+
 def test_relation_probe_matches_cross_plane_multi_relation_forest_subject() -> None:
     result = relation_probe(size=64, repeats=1, query_iterations=2)
 
-    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/2"
+    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/3"
+    assert result["construction_basis"] == "forest+fourfold"
+    assert len(result["source_forest_sha256"]) == 64
+    assert len(result["source_fourfold_sha256"]) == 64
     assert result["workload"] == "documented-import-sources"
     assert result["node_count"] == 128
     assert result["edge_count"] == 96
