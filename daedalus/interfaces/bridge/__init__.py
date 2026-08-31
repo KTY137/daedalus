@@ -1,8 +1,9 @@
 """File-bridge implementation owners behind the stable legacy facade."""
 
-from . import conversation, dispatch, journal, projection, queue, watcher
+from . import cli, conversation, dispatch, journal, projection, queue, watcher
 
 __all__ = [
+    "cli",
     "conversation",
     "dispatch",
     "journal",

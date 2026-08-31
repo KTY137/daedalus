@@ -38,6 +38,7 @@
       "import_path": "daedalus.file_bridge",
       "owner": "interfaces-bridge",
       "targets": [
+        "daedalus.interfaces.bridge.cli",
         "daedalus.interfaces.bridge.conversation",
         "daedalus.interfaces.bridge.dispatch",
         "daedalus.interfaces.bridge.journal",

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import argparse
 import inspect
-import json
 import os
 import sqlite3
 import uuid
@@ -14,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .atomic import write_text_atomic
+from .interfaces.bridge import cli as bridge_cli
 from .interfaces.bridge import conversation as bridge_conversation
 from .interfaces.bridge import dispatch as bridge_dispatch
 from .interfaces.bridge import journal as bridge_journal
@@ -1018,42 +1017,7 @@ def stream_state(project: str | None = None) -> dict[str, Any]:
 
 
 def _print_status(status: dict[str, Any]) -> None:
-    hb = status["watcher"]
-    state = hb["state"]
-    if state == "alive":
-        watcher = f"alive (heartbeat {hb['age_s']}s ago, pid {hb.get('pid')})"
-    elif state == "busy":
-        cur = hb.get("current") or {}
-        watcher = f"busy on {cur.get('file', '?')} for {hb.get('busy_for_s')}s (pid {hb.get('pid')})"
-    elif state == "wedged":
-        cur = hb.get("current") or {}
-        watcher = (f"POSSIBLY WEDGED on {cur.get('file', '?')} for {hb.get('busy_for_s')}s "
-                   f"-- investigate, then restart: {hb['restart']}")
-    elif state == "stale":
-        watcher = (f"STALE (last heartbeat {hb['age_s']}s ago > {STALE_AFTER_S:.0f}s) "
-                   f"-- restart: {hb['restart']}")
-    else:
-        watcher = f"{hb.get('detail', 'unknown')} -- start: {hb['restart']}"
-    print(f"Watcher : {watcher}")
-    print(f"Queue   : {status['queue_depth']} queued")
-    for item in status["queued"]:
-        print(f"  {item['name']}  lane={item['lane']}")
-    if status["in_flight"]:
-        print(f"In-flight: {status['in_flight'].get('file', '?')}")
-    print(f"Reports : {status['reports_total']} total, {status['unread_count']} UNREAD")
-    for item in status["unread"]:
-        print(f"  UNREAD {item['name']}  status={item['status']} lane={item['lane']}")
-        if item["summary"]:
-            print(f"         {item['summary']}")
-    if status["unread_count"]:
-        print("Acknowledge: python -m daedalus.file_bridge mark-read --all "
-              "(or name specific reports)")
-    if status.get("quarantined_count"):
-        print(f"QUARANTINED: {status['quarantined_count']} request(s) the watcher "
-              "could not process -- they are NOT queued and will not run")
-        for item in status["quarantined"]:
-            print(f"  {item['name']}  {item['reason']}: {item['error'][:120]}")
-    print(f"Arrival log: {status['latest_log']}")
+    bridge_cli.print_status(status, stale_after_s=STALE_AFTER_S)
 
 
 def watch(default_repo_root: str | None, interval_s: float,
@@ -1102,50 +1066,7 @@ def watch(default_repo_root: str | None, interval_s: float,
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="File bridge between Codex and Claude.")
-    sub = parser.add_subparsers(dest="command")
-
-    watch_p = sub.add_parser("watch", help="Watch outbox and process Claude requests.")
-    watch_p.add_argument("--repo-root")
-    watch_p.add_argument("--project")
-    watch_p.add_argument("--interval-s", type=float, default=2.0)
-
-    enqueue_p = sub.add_parser("enqueue", help="Create a task request in outbox.")
-    enqueue_p.add_argument("objective")
-    enqueue_p.add_argument("--repo-root")
-    enqueue_p.add_argument("--project")
-    enqueue_p.add_argument("--paths", nargs="*", default=[])
-    enqueue_p.add_argument("--model", default="sonnet")
-    enqueue_p.add_argument("--lane", default="auto",
-                           choices=["auto", "claude", "local", "local_only", "codex"],
-                           help=("auto/local run accepted assignments through the leased "
-                                 "executor with no direct Claude fallback; local_only exposes "
-                                 "only trusted local Ollama; claude/codex are refused until "
-                                 "the queue caller holds broker authority"))
-    enqueue_p.add_argument("--source", default="unknown",
-                           choices=["unknown", "codex", "claude", "user", "ikarus"],
-                           help="who queued the request")
-    enqueue_p.add_argument("--strategy", default="single", choices=["single", "spawn"],
-                           help=("single routes one task; spawn is currently refused until a "
-                                 "leased multi-task adapter exists"))
-    enqueue_p.add_argument("--force", action="store_true",
-                           help="queue even though no watcher is alive to run it "
-                                "(default: REFUSE, because such a task just sits)")
-
-    once_p = sub.add_parser("once", help="Process current outbox requests once.")
-    once_p.add_argument("--repo-root")
-    once_p.add_argument("--project")
-
-    status_p = sub.add_parser(
-        "status", help="Queue depth, in-flight task, watcher liveness, UNREAD reports.")
-    status_p.add_argument("--project", help="filter queue/reports to one project")
-    status_p.add_argument("--json", action="store_true")
-
-    mark_p = sub.add_parser(
-        "mark-read", help="Acknowledge finished reports (drops markers in inbox/.seen/).")
-    mark_p.add_argument("names", nargs="*", help="report file names (with or without .report.json)")
-    mark_p.add_argument("--all", action="store_true", help="mark every unread report as read")
-
+    parser = bridge_cli.build_parser()
     args = parser.parse_args()
     if args.command in ("watch", "enqueue", "once", "mark-read"):
         # Queue status stays fail-open read-only inspection; every mutating
@@ -1158,66 +1079,31 @@ def main() -> None:
             REGISTRY_BY_ID["cli.file_bridge"].effects,
             (process_guard_boundary_decision(),),
         )
-    if args.command == "watch":
-        try:
-            watch(resolve_repo_root(args.repo_root, args.project), args.interval_s,
-                  project=args.project)
-        except WatcherOwnershipBusy as exc:
-            print(f"REFUSED: {exc}", file=sys.stderr)
-            raise SystemExit(2) from None
-    elif args.command == "enqueue":
-        try:
-            print(enqueue(args.objective, resolve_repo_root(args.repo_root, args.project),
-                          args.paths, args.model, args.lane, args.project,
-                          args.source, args.strategy,
-                          require_watcher=not args.force))
-        except WatcherNotRunning as exc:
-            # A refusal is a normal, expected outcome here -- report it as a
-            # message and a non-zero exit, not as an unhandled traceback that
-            # buries the remedy under a stack.
-            print(str(exc), file=sys.stderr)
-            raise SystemExit(2)
-    elif args.command == "once":
-        OUTBOX.mkdir(parents=True, exist_ok=True)
-        repo_root = resolve_repo_root(args.repo_root, args.project) if (args.repo_root or args.project) else None
-        for path in sorted(OUTBOX.glob("*.json")):
-            # Same recovery as the watcher: one poison request must not abort
-            # the requests queued behind it.
-            try:
-                print(process_request(path, repo_root))
-            except TerminalBookkeepingPending as exc:
-                print(f"BOOKKEEPING PENDING {path.name}: {exc}", file=sys.stderr)
-            except ConversationProjectionPending as exc:
-                print(f"PROJECTION PENDING {path.name}: {exc}", file=sys.stderr)
-            except ConversationProjectionFailed as exc:
-                print(f"PROJECTION ERROR {path.name}: {exc}", file=sys.stderr)
-            except QuarantineMovePending as exc:
-                print(f"QUARANTINE MOVE PENDING {path.name}: {exc}",
-                      file=sys.stderr)
-            except RequestIdentityConflict as exc:
-                print(f"REQUEST IDENTITY CONFLICT {path.name}: {exc}",
-                      file=sys.stderr)
-            except WatcherOwnershipBusy as exc:
-                print(f"REQUEST CLAIM PENDING {path.name}: {exc}",
-                      file=sys.stderr)
-            except Exception as exc:  # noqa: BLE001
-                handle_poison_request(path, exc)
-    elif args.command == "status":
-        status = bridge_status(args.project)
-        if args.json:
-            print(json.dumps(status, indent=2))
-        else:
-            _print_status(status)
-    elif args.command == "mark-read":
-        if not args.names and not args.all:
-            print("nothing to do: pass report names or --all")
-        else:
-            marked = mark_read(args.names, all_reports=args.all)
-            print(f"marked {len(marked)} report(s) read")
-            for name in marked:
-                print(f"  {name}")
-    else:
-        parser.print_help()
+    bridge_cli.dispatch(
+        args,
+        parser=parser,
+        ports=bridge_cli.BridgeCliPorts(
+            outbox=OUTBOX,
+            resolve_repo_root=resolve_repo_root,
+            watch=watch,
+            enqueue=enqueue,
+            process_request=process_request,
+            handle_poison_request=handle_poison_request,
+            bridge_status=bridge_status,
+            print_status=_print_status,
+            mark_read=mark_read,
+            watcher_ownership_busy=WatcherOwnershipBusy,
+            watcher_not_running=WatcherNotRunning,
+            pending_exceptions=(
+                (TerminalBookkeepingPending, "BOOKKEEPING PENDING"),
+                (ConversationProjectionPending, "PROJECTION PENDING"),
+                (ConversationProjectionFailed, "PROJECTION ERROR"),
+                (QuarantineMovePending, "QUARANTINE MOVE PENDING"),
+                (RequestIdentityConflict, "REQUEST IDENTITY CONFLICT"),
+                (WatcherOwnershipBusy, "REQUEST CLAIM PENDING"),
+            ),
+        ),
+    )
 
 
 if __name__ == "__main__":
