@@ -23,7 +23,7 @@ SERVICE = ROOT / "daedalus" / "orchestration" / "missions" / "service.py"
 CORE = ROOT / "daedalus" / "core.py"
 CLI = ROOT / "daedalus" / "cli.py"
 BUILD_EXEC = ROOT / "daedalus" / "build_exec.py"
-WEB = ROOT / "daedalus" / "web_api.py"
+HTTP_EFFECTS = ROOT / "daedalus" / "interfaces" / "http" / "effects.py"
 FILE_BRIDGE = ROOT / "daedalus" / "file_bridge.py"
 
 REVISION = "a" * 40
@@ -274,7 +274,10 @@ def test_migrated_surfaces_delegate_without_a_second_execution_path() -> None:
     assert _attribute_calls(spawn_cli, "dispatch") == []
     assert _attribute_calls(spawn_cli, "run_wave") == []
 
-    web_post = _function(WEB, "_handle_post")
+    # ``web_api`` remains the registered facade, while the HTTP strangler owns
+    # the mutation implementation.  Audit the implementation owner so moving
+    # code behind the facade cannot make this single-path assertion vacuous.
+    web_post = _function(HTTP_EFFECTS, "handle_post")
     assert len(_attribute_calls(web_post, "queue_task")) == 1
     bridge = _function(FILE_BRIDGE, "_process_request_claimed")
     assert len(_name_calls(bridge, "process_bridge_payload")) == 1
