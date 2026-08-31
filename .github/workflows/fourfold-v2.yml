@@ -88,6 +88,15 @@ jobs:
                   query_iterations=10,
               )
               print(json.dumps(heldout_report, sort_keys=True, separators=(",", ":")))
+
+          delta_namespace = runpy.run_path("tests/twin/test_tensor_delta_refresh_probe.py")
+          delta_report = delta_namespace["delta_refresh_probe"](
+              size=256,
+              changed_subjects=8,
+              repeats=5,
+              query_iterations=10,
+          )
+          print(json.dumps(delta_report, sort_keys=True, separators=(",", ":")))
           PY
       - name: Verify wheel contains the twin package
         run: |
