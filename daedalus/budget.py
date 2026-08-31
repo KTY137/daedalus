@@ -71,6 +71,20 @@ from .limit_policy import (
     MODE_CUSTOM,
     load_from_env as load_limit_policy_from_env,
 )
+from .kernel.policy.pricing import (
+    BudgetError,
+    ENV_MAX_CALLS,
+    ENV_ON_UNKNOWN,
+    ENV_SUBSCRIPTIONS,
+    Estimate,
+    FREE_VENDORS,
+    UNKNOWN_CALL_USD,
+    UnknownPrice,
+    VendorPrice,
+    _PRICES,
+    price_call,
+    subscription_vendors,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LEDGER_PATH = ROOT / "runs" / "budget" / "ledger.json"
@@ -78,9 +92,7 @@ DEFAULT_LEDGER_PATH = ROOT / "runs" / "budget" / "ledger.json"
 ENV_LEDGER = "DAEDALUS_BUDGET_LEDGER"
 ENV_CEILING = "DAEDALUS_BUDGET_USD"
 ENV_PERIOD_CEILING_ENABLED = "DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED"
-ENV_MAX_CALLS = "DAEDALUS_BUDGET_MAX_CALLS"
 ENV_PERIOD = "DAEDALUS_BUDGET_PERIOD"
-ENV_ON_UNKNOWN = "DAEDALUS_BUDGET_ON_UNKNOWN"
 # Which SPEND ENVELOPES this process (and every child that inherits its
 # environment) is spending inside. Comma-separated envelope ids, written by
 # :meth:`SpendEnvelope.__enter__`, never by a human. See "spend envelopes"
@@ -99,7 +111,6 @@ DEFAULT_MAX_CALLS = 40
 # What one call of unknown price costs. MUST exceed the most expensive single
 # call ever measured here ($1.85, one A/B arm) by a wide margin: under-pricing
 # the unknown is exactly the arithmetic that lets a runaway loop through.
-UNKNOWN_CALL_USD = 5.00
 # Ledger periods. "day" is the default because an unattended loop runs for days
 # and a lifetime cap would either be crossed in week one and disabled, or set so
 # high it caps nothing.
@@ -132,11 +143,6 @@ __all__ = [
 # --------------------------------------------------------------------------
 # errors
 # --------------------------------------------------------------------------
-
-class BudgetError(RuntimeError):
-    """Base for every refusal this module makes. Callers that catch this and
-    continue anyway are the hole; catch it to REPORT, never to retry."""
-
 
 class BudgetUnavailable(BudgetError):
     """The budget state could not be established. This is a REFUSAL.
@@ -274,220 +280,6 @@ class BudgetRefused(BudgetError):
             ),
             "reason": self.reason, "envelope": self.envelope,
         }
-
-
-class UnknownPrice(BudgetError):
-    """Strict mode: the price could not be determined and the operator asked to
-    refuse rather than assume the worst case."""
-
-
-# --------------------------------------------------------------------------
-# pricing
-# --------------------------------------------------------------------------
-
-@dataclass(frozen=True)
-class VendorPrice:
-    vendor: str
-    # A flat UPPER BOUND for one call/session of this vendor. Every number here
-    # is deliberately an over-estimate: a wrong-high price costs one refused
-    # call an operator can unblock, a wrong-low price costs money nobody
-    # noticed. Provenance is on each line.
-    per_call_worst_usd: float
-    input_usd_per_mtok: float | None = None
-    output_usd_per_mtok: float | None = None
-
-
-_PRICES: dict[str, VendorPrice] = {
-    # MEASURED: one A/B arm through `claude -p` cost $1.43-$1.85 (2026-07-28,
-    # runs/ab). Rounded up hard, because an agentic session's length is set by
-    # the task, not by us.
-    "anthropic_cli": VendorPrice("anthropic_cli", 3.00),
-    "openai_cli": VendorPrice("openai_cli", 2.00),        # ASSUMED, same class
-    "google_agy": VendorPrice("google_agy", 2.00),        # ASSUMED, same class
-    # ASSUMED from published per-token scales; the flat bound assumes the whole
-    # 24k-char inlined context plus a full-length answer.
-    "anthropic_api": VendorPrice("anthropic_api", 0.50, 15.0, 75.0),
-    "openai_api": VendorPrice("openai_api", 0.50, 10.0, 40.0),
-    "deepseek": VendorPrice("deepseek", 0.05, 0.60, 1.80),
-    "google_api": VendorPrice("google_api", 0.50, 10.0, 40.0),
-    # A remote inference host is somebody's GPU on somebody's bill. We cannot
-    # price it, so it is charged the unknown rate rather than the local rate --
-    # the OLLAMA_HOST bug (see sensitivity.lane_for_host) is exactly the shape
-    # of "a name stayed the same while the bytes started leaving".
-    "remote_inference": VendorPrice("remote_inference", UNKNOWN_CALL_USD),
-}
-
-# Vendors that cost nothing because no bytes leave this machine.
-FREE_VENDORS = frozenset({"local", "local_inference"})
-
-# A SECOND kind of free, and conflating it with the first would be the bug this
-# module keeps finding elsewhere. A subscription vendor is free of MONEY and not
-# free of EGRESS: `claude -p` under a Max plan sends the bytes off-machine
-# exactly as the API does, it just does not bill per token. So this set is read
-# ONLY by the dollar axis; `lane_for_host` and the egress fence never see it.
-#
-# The real constraint on a subscription lane is a RATE limit, and this module
-# already has that axis -- DAEDALUS_BUDGET_MAX_CALLS. A subscription vendor
-# therefore costs $0.00 and still consumes one call, which is the honest model:
-# you cannot spend money on it, you can absolutely exhaust it.
-#
-# DECLARED, NOT DETECTED, AND EMPTY BY DEFAULT. Whether an operator holds a
-# subscription is a fact about their account, not about this repo -- there is no
-# way to read it from here, and guessing wrong in the free direction is the one
-# error that costs real money. Unset means "assume you are billed", which is the
-# same rule as UNKNOWN_CALL_USD: an unknown price is not a free price.
-ENV_SUBSCRIPTIONS = "DAEDALUS_SUBSCRIPTION_VENDORS"
-
-
-def subscription_vendors() -> frozenset[str]:
-    """Vendors the operator has declared as covered by a flat-rate plan.
-
-    Set ``DAEDALUS_SUBSCRIPTION_VENDORS=anthropic_cli,openai_cli`` when the CLIs
-    authenticate against a Max/Pro plan rather than metered API keys. Only names
-    that already have a price entry are honoured, so a typo silently widening
-    the cap is impossible -- it simply does not match and the vendor keeps
-    paying full worst-case price.
-    """
-    raw = os.environ.get(ENV_SUBSCRIPTIONS, "") or ""
-    named = {p.strip().lower() for p in raw.split(",") if p.strip()}
-    return frozenset(n for n in named if n in _PRICES)
-
-
-@dataclass(frozen=True)
-class Estimate:
-    """What a call is assumed to cost BEFORE it is made."""
-
-    vendor: str
-    model: str
-    usd: float
-    calls: int
-    basis: str          # "priced" | "worst_case" | "unknown" | "free_local"
-    detail: str = ""
-
-    def as_dict(self) -> dict[str, Any]:
-        return {"vendor": self.vendor, "model": self.model, "usd": self.usd,
-                "calls": self.calls, "basis": self.basis, "detail": self.detail}
-
-
-def _on_unknown_default() -> str:
-    raw = (os.environ.get(ENV_ON_UNKNOWN) or "worst_case").strip().lower()
-    return raw if raw in ("worst_case", "refuse") else "worst_case"
-
-
-def price_call(
-    vendor: str | None,
-    model: str | None = None,
-    *,
-    calls: int = 1,
-    host: str | None = None,
-    input_tokens: int | None = None,
-    output_tokens: int | None = None,
-    on_unknown: str | None = None,
-) -> Estimate:
-    """Upper-bound the cost of ``calls`` calls to ``vendor``.
-
-    NEVER returns 0 for anything that might leave the machine. The only zero is
-    a host this repo's single host predicate
-    (:func:`daedalus.sensitivity.lane_for_host`) certifies as THIS machine.
-    """
-    calls = max(1, int(calls))
-    vendor = (vendor or "").strip().lower()
-    model = (model or "").strip()
-    mode = (on_unknown or _on_unknown_default()).strip().lower()
-
-    if host is not None:
-        # An explicit host overrules the vendor NAME. That is the whole lesson
-        # of the OLLAMA_HOST incident: the question is never "which provider is
-        # this" but "where do the bytes actually go".
-        from .sensitivity import is_loopback_host, lane_for_host
-
-        # TWO kinds of "trusted", split on purpose (Cerberus, same shape as the
-        # tailnet bind fix): loopback is PHYSICS -- bytes cannot leave, nothing
-        # can be billed, and the runaway brake (the call cap) may stand down.
-        # A DECLARED trusted host is POLICY -- an env var widened it. Zero
-        # dollars is right (the operator's own bench is not per-call billed),
-        # but the call cap is the brake against a runaway loop, and a brake
-        # that an env var can disarm is not a brake. So: free on the dollar
-        # axis, still counted on the call axis, and the reason string says
-        # which kind of trust this is instead of claiming "this machine".
-        if is_loopback_host(host):
-            return Estimate(vendor or "local_inference", model, 0.0, calls,
-                            "free_local", f"host {host} is this machine")
-        if lane_for_host(host) == "trusted":
-            return Estimate(vendor or "local_inference", model, 0.0, calls,
-                            "trusted_remote",
-                            f"host {host} is operator-declared trusted: $0, "
-                            f"but still counted against the call cap")
-        vendor = vendor if vendor in _PRICES else "remote_inference"
-        # The host was SUPPLIED and came back untrusted, so this call reaches an
-        # endpoint that is not this machine. A subscription declaration must not
-        # survive that, and the ordering above is not enough on its own: the
-        # host check runs first but only REASSIGNS the vendor, and the
-        # subscription lookup below would then happily price the reassigned
-        # vendor at zero.
-        #
-        # Why that matters more than it looks: ``remote_inference`` is the
-        # CATCH-ALL for "we cannot tell whose GPU this is". Declaring it
-        # flat-rate -- a reasonable-sounding thing to do for your own bench --
-        # would declare every unknown remote endpoint free, including a rented
-        # host or an OLLAMA_HOST somebody moved. A subscription is a statement
-        # about a VENDOR ACCOUNT you hold, never about an arbitrary address.
-        #
-        # Found by a test written to pin the ordering this module's own comment
-        # claimed; the comment was aspirational and the test was red. Kept as a
-        # local flag rather than an early return so the unknown-price and
-        # token-priced paths below still apply exactly as before.
-        untrusted_endpoint = True
-    else:
-        untrusted_endpoint = False
-
-    if vendor in FREE_VENDORS and host is None:
-        # A "local" vendor with no host given is NOT provably local. Callers who
-        # mean local pass the host; this is the unknown-price rule applied to
-        # the case that bit this repo once already.
-        vendor = "remote_inference"
-
-    if vendor in subscription_vendors() and not untrusted_endpoint:
-        # $0.00 on the DOLLAR axis, one call on the RATE axis. The call is still
-        # counted -- and that is the whole point of doing it here rather than by
-        # deleting the price entry: a subscription cannot be overspent, it can
-        # only be exhausted, and DAEDALUS_BUDGET_MAX_CALLS is the cap that
-        # matches that failure mode. Deliberately AFTER the host check above, so
-        # a declared subscription can never launder an untrusted host into
-        # looking local: this decides what a call costs, never where it goes.
-        return Estimate(vendor, model, 0.0, calls, "subscription",
-                        f"'{vendor}' declared flat-rate via {ENV_SUBSCRIPTIONS}; "
-                        f"billed $0 but still {calls} call(s) against "
-                        f"{ENV_MAX_CALLS}")
-
-    price = _PRICES.get(vendor)
-    if price is None:
-        if mode == "refuse":
-            raise UnknownPrice(
-                f"no price for vendor '{vendor or '?'}' model '{model or '?'}' "
-                f"and {ENV_ON_UNKNOWN}=refuse")
-        return Estimate(vendor or "unknown", model, UNKNOWN_CALL_USD * calls,
-                        calls, "unknown",
-                        f"no price entry for '{vendor or '?'}'; charged the "
-                        f"unknown-call rate ${UNKNOWN_CALL_USD:.2f}")
-
-    if (input_tokens is not None and output_tokens is not None
-            and price.input_usd_per_mtok is not None
-            and price.output_usd_per_mtok is not None):
-        usd = (max(0, int(input_tokens)) / 1_000_000 * price.input_usd_per_mtok
-               + max(0, int(output_tokens)) / 1_000_000 * price.output_usd_per_mtok)
-        # Even a token-based estimate is floored at nothing and capped BELOW by
-        # nothing: it is an estimate of a call that is about to happen, and the
-        # model may emit more than we asked for. Take the larger of the token
-        # arithmetic and a fraction of the flat bound so a lowball token guess
-        # cannot price a real call at zero.
-        usd = max(usd, price.per_call_worst_usd * 0.01) * calls
-        return Estimate(vendor, model, usd, calls, "priced",
-                        f"{input_tokens} in / {output_tokens} out tokens")
-
-    return Estimate(vendor, model, price.per_call_worst_usd * calls, calls,
-                    "worst_case",
-                    f"flat upper bound ${price.per_call_worst_usd:.2f}/call")
 
 
 # --------------------------------------------------------------------------
