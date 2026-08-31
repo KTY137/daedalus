@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .atomic import write_text_atomic
+from .interfaces.bridge import projection as bridge_projection
 from .memory import record_from_bridge_report
 from .projects import resolve_repo_root
 from .spine import envelope
@@ -2005,73 +2006,31 @@ def heartbeat_status(now: float | None = None) -> dict[str, Any]:
 
 def unread_reports() -> list[Path]:
     """Reports in the inbox with no .seen marker, oldest first."""
-    if not INBOX.exists():
-        return []
-    seen = _seen_dir()
-    return [p for p in sorted(INBOX.glob("*.report.json"))
-            if not (seen / p.name).exists()]
+    return bridge_projection.unread_reports(inbox=INBOX, seen_dir=_seen_dir)
 
 
 def mark_read(names: list[str] | None = None, all_reports: bool = False) -> list[str]:
     """Acknowledge reports by dropping a marker per report into inbox/.seen/.
     Returns the report names actually marked."""
-    targets: list[Path] = []
-    if all_reports:
-        targets = unread_reports()
-    else:
-        for name in names or []:
-            path = INBOX / name
-            if not path.exists() and not name.endswith(".report.json"):
-                path = INBOX / f"{name}.report.json"
-            if path.exists():
-                targets.append(path)
-    marked = []
-    if targets:
-        _seen_dir().mkdir(parents=True, exist_ok=True)
-    for path in targets:
-        try:
-            (_seen_dir() / path.name).touch()
-            marked.append(path.name)
-        except OSError:
-            pass
-    return marked
+    return bridge_projection.mark_read(
+        names,
+        all_reports,
+        inbox=INBOX,
+        seen_dir=_seen_dir,
+        unread=unread_reports,
+    )
 
 
 def quarantined_requests() -> list[dict[str, Any]]:
     """Requests the watcher gave up on, with why. Surfaced by `status` so a
     quarantine is a thing an operator SEES, not a directory nobody opens."""
-    qdir = _quarantine_dir()
-    if not qdir.exists():
-        return []
-    out = []
-    for path in sorted(qdir.glob("*.json")):
-        if path.name.endswith(".error.json"):
-            continue
-        try:
-            sidecar = json.loads(
-                (qdir / f"{path.stem}.error.json").read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, ValueError):
-            sidecar = {}
-        out.append({"name": path.name, "reason": sidecar.get("reason") or "?",
-                    "error": sidecar.get("error") or "", "path": str(path)})
-    return out
+    return bridge_projection.quarantined_requests(
+        quarantine_dir=_quarantine_dir
+    )
 
 
 def _report_brief(path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        payload = {}
-    request = payload.get("request") or {}
-    summary = ((payload.get("report") or {}).get("summary")
-               or payload.get("error") or "")
-    return {
-        "name": path.name,
-        "status": payload.get("bridge_status") or "?",
-        "lane": payload.get("lane") or request.get("lane") or "?",
-        "project": request.get("project") or "",
-        "summary": " ".join(str(summary).split())[:160],  # one line for the console
-    }
+    return bridge_projection.report_brief(path)
 
 
 def _project_report_briefs(project: str | None = None) -> list[dict[str, Any]]:
@@ -2082,58 +2041,26 @@ def _project_report_briefs(project: str | None = None) -> list[dict[str, Any]]:
     The mtime/name tuple makes the newest projection deterministic when two
     reports land within the filesystem timestamp resolution.
     """
-    if not INBOX.exists():
-        return []
-    rows: list[tuple[int, str, dict[str, Any]]] = []
-    for path in INBOX.glob("*.report.json"):
-        try:
-            arrived_ns = path.stat().st_mtime_ns
-        except OSError:
-            continue
-        brief = _report_brief(path)
-        if project is not None and brief.get("project") != project:
-            continue
-        rows.append((arrived_ns, path.name, brief))
-    rows.sort(key=lambda row: (row[0], row[1]))
-    return [row[2] for row in rows]
+    return bridge_projection.project_report_briefs(
+        project,
+        inbox=INBOX,
+        brief=_report_brief,
+    )
 
 
 def bridge_status(project: str | None = None) -> dict[str, Any]:
     """One-call answer to: is anything queued, is anything running, and are
     there finished reports I have not read yet?"""
-    queued = []
-    for path in sorted(OUTBOX.glob("*.json")) if OUTBOX.exists() else []:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, ValueError):
-            payload = {}
-        if project and payload.get("project") not in (project, None, ""):
-            continue
-        queued.append({"name": path.name, "lane": payload.get("lane") or "?",
-                       "project": payload.get("project") or ""})
-    unread = []
-    for path in unread_reports():
-        brief = _report_brief(path)
-        if project and brief["project"] not in (project, ""):
-            continue
-        unread.append(brief)
-    hb = heartbeat_status()
-    in_flight = hb.get("current") if hb.get("state") in ("busy", "wedged") else None
-    quarantined = quarantined_requests()
-    reports = _project_report_briefs(project)
-    return {
-        "project": project,
-        "watcher": hb,
-        "queued": queued,
-        "queue_depth": len(queued),
-        "in_flight": in_flight,
-        "unread": unread,
-        "unread_count": len(unread),
-        "quarantined": quarantined,
-        "quarantined_count": len(quarantined),
-        "reports_total": len(reports),
-        "latest_log": str(_latest_log()),
-    }
+    return bridge_projection.bridge_status(
+        project,
+        outbox=OUTBOX,
+        unread=unread_reports,
+        brief=_report_brief,
+        heartbeat=heartbeat_status,
+        quarantined=quarantined_requests,
+        reports=_project_report_briefs,
+        latest_log=_latest_log,
+    )
 
 
 def stream_state(project: str | None = None) -> dict[str, Any]:
@@ -2141,19 +2068,11 @@ def stream_state(project: str | None = None) -> dict[str, Any]:
     (outbox/inbox/heartbeat) — no git, PowerShell or Ollama — so it can be polled
     once a second to drive the cockpit's live badges without the heavy dashboard.
     """
-    st = bridge_status(project)
-    reports = _project_report_briefs(project)
-    newest = reports[-1] if reports else None
-    return {
-        "queue_depth": st["queue_depth"],
-        "in_flight": 1 if st["in_flight"] else 0,
-        "unread_count": st["unread_count"],
-        "quarantined_count": st["quarantined_count"],
-        "watcher_state": (st["watcher"] or {}).get("state"),
-        # Keep the count and newest row from the same project-filtered scan.
-        "reports_total": len(reports),
-        "latest_report": newest,
-    }
+    return bridge_projection.stream_state(
+        project,
+        status=bridge_status,
+        reports=_project_report_briefs,
+    )
 
 
 def _print_status(status: dict[str, Any]) -> None:
