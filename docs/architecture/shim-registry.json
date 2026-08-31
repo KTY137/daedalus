@@ -118,6 +118,15 @@
       "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining provider-report import through the orchestration module; AgentTask and RunState stay with their orchestration owner."
     },
     {
+      "import_path": "daedalus.providers",
+      "owner": "runtimes-providers",
+      "targets": [
+        "daedalus.runtimes.providers.catalogue"
+      ],
+      "kind": "provider_factory_effect_door_with_catalogue_reexports",
+      "removal_criteria": "Registered provider targets receive dedicated target-migration packets and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, executable-object, and pickle audits show no remaining catalogue caller through the legacy package."
+    },
+    {
       "import_path": "daedalus.providers._report",
       "owner": "runtimes-providers",
       "targets": [

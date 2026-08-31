@@ -1,21 +1,21 @@
-"""Model-provider backends for the agent harness.
+"""Compatibility and effect doors for model-provider backends.
 
-A provider turns a task brief into a validated structured report. Providers
-differ in capability, not interface:
-
-* ``claude_cli``  — agentic, write-capable, trusted with proprietary IP (primary).
-* ``deepseek``    — external, opt-in write-capable, non-sensitive content only.
-* ``ollama``      — read-only, local (no egress), trusted with IP.
-* ``codex_cli``   — agentic, write-capable, EXTERNAL: egress-gated like deepseek.
-
-Selection is done by :mod:`daedalus.provider_router`.
+Provider contracts, metadata, and health projection are owned by
+``daedalus.runtimes.providers``. Concrete construction remains here while
+the registered provider targets retain their historical module paths.
 """
 
 from __future__ import annotations
 
-import os
-from dataclasses import asdict, dataclass
-
+from ..runtimes.providers.catalogue import (
+    PROVIDER_CATALOGUE as _PROVIDERS,
+    ProviderMetadata,
+    available_from_health as _available_from_health,
+    configured as _configured,
+    list_providers,
+    probe_provider as _probe_provider,
+    provider_health as _project_provider_health,
+)
 from .base import Provider, ProviderCapabilities
 
 __all__ = [
@@ -29,85 +29,9 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True)
-class ProviderMetadata:
-    name: str
-    display_name: str
-    local: bool
-    trusted_with_ip: bool
-    can_write: bool
-    agentic: bool
-    requires_key: bool
-    env_keys: tuple[str, ...] = ()
-    implemented: bool = True
-
-
-_PROVIDERS: dict[str, ProviderMetadata] = {
-    "ollama": ProviderMetadata(
-        name="ollama",
-        display_name="Ollama",
-        local=True,
-        trusted_with_ip=True,
-        can_write=True,
-        agentic=True,
-        requires_key=False,
-    ),
-    "claude_cli": ProviderMetadata(
-        name="claude_cli",
-        display_name="Claude CLI",
-        local=False,
-        trusted_with_ip=True,
-        can_write=True,
-        agentic=True,
-        requires_key=False,
-    ),
-    "deepseek": ProviderMetadata(
-        name="deepseek",
-        display_name="DeepSeek API",
-        local=False,
-        trusted_with_ip=False,
-        can_write=True,
-        agentic=False,
-        requires_key=True,
-        env_keys=("DEEPSEEK_API_KEY",),
-    ),
-    "openai_api": ProviderMetadata(
-        name="openai_api",
-        display_name="OpenAI API",
-        local=False,
-        trusted_with_ip=False,
-        can_write=False,
-        agentic=False,
-        requires_key=True,
-        env_keys=("OPENAI_API_KEY",),
-        implemented=False,
-    ),
-    "anthropic_api": ProviderMetadata(
-        name="anthropic_api",
-        display_name="Anthropic API",
-        local=False,
-        trusted_with_ip=True,
-        can_write=False,
-        agentic=False,
-        requires_key=True,
-        env_keys=("ANTHROPIC_API_KEY",),
-        implemented=False,
-    ),
-    "codex_cli": ProviderMetadata(
-        name="codex_cli",
-        display_name="Codex CLI",
-        local=False,
-        # External API: bytes leave the machine to OpenAI, so the per-project
-        # egress policy gates it exactly like deepseek (never sensitive content).
-        trusted_with_ip=False,
-        can_write=True,
-        agentic=True,
-        requires_key=False,  # auth via `codex login`, not an env key
-    ),
-}
-
-
 def get_provider(name: str) -> Provider:
+    """Construct one concrete provider through the stable effect door."""
+
     if name == "claude_cli":
         from .claude_cli import ClaudeCLIProvider
 
@@ -127,39 +51,15 @@ def get_provider(name: str) -> Provider:
     raise ValueError(f"unknown provider '{name}'")
 
 
-def list_providers() -> list[dict]:
-    return [asdict(meta) for meta in _PROVIDERS.values()]
-
-
-def _configured(meta: ProviderMetadata) -> bool:
-    if not meta.requires_key:
-        return True
-    return any(bool(os.environ.get(key)) for key in meta.env_keys)
-
-
 def _availability_probe(name: str) -> tuple[bool, str]:
-    if not _PROVIDERS[name].implemented:
-        return False, "provider placeholder; implementation pending"
-    try:
-        return get_provider(name).available(), ""
-    except Exception as exc:
-        return False, str(exc)
+    return _probe_provider(name, get_provider)
 
 
 def provider_health() -> list[dict]:
-    rows = []
-    for meta in _PROVIDERS.values():
-        available, error = _availability_probe(meta.name)
-        configured = _configured(meta)
-        rows.append({
-            **asdict(meta),
-            "configured": configured,
-            "available": bool(available and configured and meta.implemented),
-            "last_error": error,
-        })
-    return rows
+    return _project_provider_health(_availability_probe)
 
 
 def available_providers() -> dict[str, bool]:
-    """Which providers are actually reachable right now (env keys / local server)."""
-    return {row["name"]: bool(row["available"]) for row in provider_health() if row["implemented"]}
+    """Which implemented providers are reachable and configured right now."""
+
+    return _available_from_health(provider_health())
