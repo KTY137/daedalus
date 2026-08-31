@@ -73,9 +73,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Protocol, Sequence
 
-from daedalus.gates.repository_head_revision import verify_repository_head_revision
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effects import (
@@ -113,6 +112,51 @@ ENTRYPOINT_ID = "python.offload"
 #: identifier beside the generic issuer's pinned row so the public generic
 #: API can refuse attempts to mint the chip capability directly.
 CHIP_EDA_ENTRYPOINT_ID = "cli.daedalus_chip"
+
+
+class RepositoryHeadRevisionReceiptPort(Protocol):
+    """Gate-owned repository-HEAD receipt consumed by the lease issuer."""
+
+    @property
+    def expected_revision(self) -> str: ...
+
+    @property
+    def resolved_revision(self) -> str: ...
+
+    def to_dict(self) -> dict[str, Any]: ...
+
+
+class RepositoryHeadRevisionVerifierPort(Protocol):
+    """Injected exact-HEAD verifier; the kernel provides no implementation."""
+
+    def __call__(
+        self,
+        repository_root: Path,
+        expected_revision: str,
+        /,
+    ) -> RepositoryHeadRevisionReceiptPort: ...
+
+
+_REPOSITORY_HEAD_RECEIPT_FIELDS = frozenset(
+    {
+        "schema",
+        "expected_revision",
+        "resolved_revision",
+        "head_mode",
+        "head_ref",
+        "resolution_source",
+        "head_sha256",
+        "head_size",
+        "reference_path",
+        "reference_sha256",
+        "reference_size",
+        "repository_head_verified",
+        "commit_object_verified",
+        "worktree_clean_verified",
+        "process_spawned",
+        "repository_mutated",
+    }
+)
 
 
 def chip_eda_lease_id(mission_id: str, attempt_id: str) -> str:
@@ -3793,6 +3837,7 @@ def acquire_chip_eda_lease(
     write_policy_path: str | Path,
     operation_plan: "EdaExecutionPlan",
     source_revision: str,
+    repository_head_verifier: RepositoryHeadRevisionVerifierPort,
     **kwargs: Any,
 ) -> "WaveOffloadLease | WaveLeaseDenied":
     """Issue the single-position ``daedalus-chip`` lease without egress scope.
@@ -3802,8 +3847,10 @@ def acquire_chip_eda_lease(
     ``worktree_root`` is the caller's explicit isolated execution root. The
     wrapper pins every kernel capability dimension the EDA path must not
     choose: entrypoint, concurrency, egress, spend and the containment
-    assertion. Empty egress and secret scopes are not OS-level offline,
-    no-egress, or no-secret-access confinement for the vendor process.
+    assertion. Repository-HEAD verification is a required injected port; the
+    kernel neither imports nor silently selects a Gate implementation. Empty
+    egress and secret scopes are not OS-level offline, no-egress, or
+    no-secret-access confinement for the vendor process.
     """
 
     forbidden = {
@@ -3830,6 +3877,11 @@ def acquire_chip_eda_lease(
             "acquire_chip_eda_lease() pins "
             + ", ".join(overridden)
             + "; callers may not override them"
+        )
+    if not callable(repository_head_verifier):
+        raise TypeError(
+            "acquire_chip_eda_lease() requires a callable "
+            "repository_head_verifier"
         )
     if not str(project_root).strip():
         raise TypeError("acquire_chip_eda_lease() requires a non-empty project_root")
@@ -3884,10 +3936,50 @@ def acquire_chip_eda_lease(
             "acquire_chip_eda_lease() requires disjoint authority and source roots: "
             + authority_source_overlap
         )
-    authority_head = verify_repository_head_revision(
+    authority_head = repository_head_verifier(
         Path(repo_root),
         revision,
     )
+    try:
+        authority_expected_revision = authority_head.expected_revision
+        authority_resolved_revision = authority_head.resolved_revision
+        authority_head_payload = authority_head.to_dict()
+    except AttributeError as exc:
+        raise TypeError(
+            "repository_head_verifier must return a repository-HEAD receipt port"
+        ) from exc
+    if not isinstance(authority_head_payload, Mapping):
+        raise TypeError(
+            "repository_head_verifier receipt to_dict() must return a mapping"
+        )
+    authority_head_payload = dict(authority_head_payload)
+    if (
+        set(authority_head_payload) != _REPOSITORY_HEAD_RECEIPT_FIELDS
+        or authority_head_payload.get("schema")
+        != "daedalus-repository-head-revision-receipt/1"
+        or authority_head_payload.get("commit_object_verified") is not False
+        or authority_head_payload.get("worktree_clean_verified") is not False
+        or authority_head_payload.get("process_spawned") is not False
+        or authority_head_payload.get("repository_mutated") is not False
+    ):
+        raise ValueError(
+            "repository_head_verifier returned a malformed receipt contract"
+        )
+    if (
+        authority_expected_revision != revision
+        or authority_resolved_revision != revision
+        or authority_head_payload.get("expected_revision") != revision
+        or authority_head_payload.get("resolved_revision") != revision
+        or authority_head_payload.get("repository_head_verified") is not True
+    ):
+        raise ValueError(
+            "repository_head_verifier returned a receipt not bound to the "
+            "requested source_revision"
+        )
+    # Force canonical serialization before the first lease write. A malformed
+    # injected port must never gain a lease merely because evidence publication
+    # would have failed later.
+    canonical_json(authority_head_payload)
 
     # Stable across processes: reusing one mission/attempt reaches
     # the ledger's lease-id replay refusal instead of minting fresh authority
@@ -3914,7 +4006,7 @@ def acquire_chip_eda_lease(
         write_policy_path=write_policy_path,
         operation_sha256=operation,
         lease_id=deterministic_lease_id,
-        source_revision=authority_head.resolved_revision,
+        source_revision=authority_resolved_revision,
         **kwargs,
     )
     if type(granted) is WaveOffloadLease:
@@ -3924,7 +4016,7 @@ def acquire_chip_eda_lease(
                 "entrypoint_id": CHIP_EDA_ENTRYPOINT_ID,
                 "lease_sha256": granted.lease.digest,
                 "operation_sha256": operation,
-                "repository_head_receipt": authority_head.to_dict(),
+                "repository_head_receipt": authority_head_payload,
             }
             body["record_sha256"] = _record_sha256(body)
             _publish_evidence_record(
@@ -3960,6 +4052,8 @@ __all__ = [
     "LEASE_SUBJECT_RECORD_SCHEMA",
     "LEASE_TERMINAL_RECORD_SCHEMA",
     "POLICY_VERSION",
+    "RepositoryHeadRevisionReceiptPort",
+    "RepositoryHeadRevisionVerifierPort",
     "ROOT_IDENTITY_SCHEMA",
     "WORKTREE_CONTAINMENT_CONTRACT",
     "WaveLeaseDenied",

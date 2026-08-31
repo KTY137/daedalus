@@ -2303,6 +2303,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 timeout_s=args.timeout,
                 write_policy_path=args.write_policy,
                 operation_plan=execution_plan,
+                repository_head_verifier=verify_repository_head_revision,
             )
             if isinstance(lease, WaveLeaseDenied):
                 parser.error("EDA effect lease denied: " + "; ".join(lease.reasons))

@@ -107,6 +107,7 @@ def _grant_real_chip_lease(
         write_policy_path=policy.relative_to(authority_root),
         operation_plan=operation_plan,
         source_revision=revision,
+        repository_head_verifier=verify_repository_head_revision,
         mission_id="chip-test",
         attempt_id=attempt_id,
     )
@@ -200,6 +201,7 @@ def test_chip_lease_wrapper_pins_capability_and_containment_roots(
         write_policy_path=".agentenv/chip-eda-policy.json",
         operation_plan=operation_plan,
         source_revision="a" * 40,
+        repository_head_verifier=verify_repository_head_revision,
         mission_id="chip-test",
         attempt_id="attempt-1",
     )
@@ -521,6 +523,7 @@ def test_chip_lease_wrapper_binds_plan_roots_to_containment_roots(
                 tmp_path / plan_worktree,
             ),
             source_revision="a" * 40,
+            repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-root-mismatch",
         )
@@ -549,8 +552,79 @@ def test_chip_lease_wrapper_refuses_authority_head_mismatch_before_issuer(
                 tmp_path / "project", tmp_path / "isolated-worktree"
             ),
             source_revision="a" * 40,
+            repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-head-mismatch",
+        )
+
+
+def test_chip_lease_wrapper_requires_explicit_head_verifier_before_issuer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(*_args: Any, **_kwargs: Any) -> object:
+        raise AssertionError("missing HEAD verifier reached the effect issuer")
+
+    monkeypatch.setattr(offload_lease, "_acquire_effect_lease_impl", forbidden)
+
+    with pytest.raises(TypeError, match="repository_head_verifier"):
+        offload_lease.acquire_chip_eda_lease(
+            tmp_path / "authority",
+            project_root=tmp_path / "project",
+            worktree_root=tmp_path / "isolated-worktree",
+            containment_evidence="isolated Vivado project workspace",
+            write_policy_path=".agentenv/chip-eda-policy.json",
+            operation_plan=_operation_plan(
+                tmp_path / "project", tmp_path / "isolated-worktree"
+            ),
+            source_revision="a" * 40,
+            mission_id="chip-test",
+            attempt_id="attempt-missing-head-verifier",
+        )
+
+
+def test_chip_lease_wrapper_refuses_unbound_head_receipt_before_issuer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_revision = "a" * 40
+    other_revision = "b" * 40
+    authority_root = tmp_path / "authority"
+    _write_detached_head(authority_root, expected_revision)
+    valid_payload = verify_repository_head_revision(
+        authority_root, expected_revision
+    ).to_dict()
+
+    class UnboundReceipt:
+        def __init__(self) -> None:
+            self.expected_revision = expected_revision
+            self.resolved_revision = other_revision
+
+        def to_dict(self) -> dict[str, Any]:
+            return {**valid_payload, "resolved_revision": self.resolved_revision}
+
+    def wrong_port(_root: Path, _revision: str) -> UnboundReceipt:
+        return UnboundReceipt()
+
+    def forbidden(*_args: Any, **_kwargs: Any) -> object:
+        raise AssertionError("unbound HEAD receipt reached the effect issuer")
+
+    monkeypatch.setattr(offload_lease, "_acquire_effect_lease_impl", forbidden)
+
+    with pytest.raises(ValueError, match="not bound.*source_revision"):
+        offload_lease.acquire_chip_eda_lease(
+            authority_root,
+            project_root=tmp_path / "project",
+            worktree_root=tmp_path / "isolated-worktree",
+            containment_evidence="isolated Vivado project workspace",
+            write_policy_path=".agentenv/chip-eda-policy.json",
+            operation_plan=_operation_plan(
+                tmp_path / "project", tmp_path / "isolated-worktree"
+            ),
+            source_revision=expected_revision,
+            repository_head_verifier=wrong_port,
+            mission_id="chip-test",
+            attempt_id="attempt-unbound-head-receipt",
         )
 
 
@@ -561,11 +635,6 @@ def test_chip_lease_wrapper_refuses_non_40_hex_revision_before_head_or_issuer(
     def forbidden(*_args: Any, **_kwargs: Any) -> object:
         raise AssertionError("invalid revision reached HEAD verification or issuer")
 
-    monkeypatch.setattr(
-        offload_lease,
-        "verify_repository_head_revision",
-        forbidden,
-    )
     monkeypatch.setattr(offload_lease, "_acquire_effect_lease_impl", forbidden)
 
     with pytest.raises(TypeError, match="40-hex source_revision"):
@@ -579,6 +648,7 @@ def test_chip_lease_wrapper_refuses_non_40_hex_revision_before_head_or_issuer(
                 tmp_path / "project", tmp_path / "isolated-worktree"
             ),
             source_revision="a" * 64,
+            repository_head_verifier=forbidden,
             mission_id="chip-test",
             attempt_id="attempt-wide-revision",
         )
@@ -634,6 +704,7 @@ def test_chip_lease_wrapper_refuses_capability_overrides(
                 tmp_path / "project", tmp_path / "worktree"
             ),
             source_revision="b" * 40,
+            repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-override",
             **override,
@@ -666,6 +737,7 @@ def test_chip_lease_wrapper_requires_explicit_roots_and_evidence(
                 tmp_path / "project", tmp_path / "worktree"
             ),
             source_revision="c" * 40,
+            repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-missing",
         )
@@ -684,6 +756,7 @@ def test_chip_lease_wrapper_refuses_in_memory_policy_override(tmp_path: Path) ->
             ),
             write_policy=object(),
             source_revision="d" * 40,
+            repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-policy-override",
         )
