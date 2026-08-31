@@ -59,8 +59,12 @@ jobs:
           PYTHONHASHSEED: "0"
         run: |
           python - <<'PY'
+          import gc
+          import hashlib
           import json
           import runpy
+          import statistics
+          import time
 
           namespace = runpy.run_path("tests/twin/test_tensor_forest_cost_probe.py")
           probe = namespace["probe"]
@@ -88,6 +92,125 @@ jobs:
                   query_iterations=10,
               )
               print(json.dumps(heldout_report, sort_keys=True, separators=(",", ":")))
+
+          def paired_preindex_receipt(
+              size: int,
+              *,
+              rounds: int = 8,
+              query_iterations: int = 50,
+          ) -> dict[str, object]:
+              forest = heldout_namespace["_heldout_forest"](size)
+              fourfold = heldout_namespace["_fourfold"](
+                  forest,
+                  trace_id="tensor-heldout-paired-preindex-probe",
+              )
+              forest_subject = (
+                  forest,
+                  fourfold,
+                  heldout_namespace["_heldout_forest_index"](forest),
+              )
+
+              tensor_forest = heldout_namespace["_heldout_forest"](size)
+              tensor_fourfold = heldout_namespace["_fourfold"](
+                  tensor_forest,
+                  trace_id="tensor-heldout-paired-preindex-probe",
+              )
+              tensor = heldout_namespace["_heldout_tensor"](
+                  tensor_forest,
+                  tensor_fourfold,
+              )
+              tensor_subject = (
+                  tensor_forest,
+                  tensor_fourfold,
+                  tensor,
+                  heldout_namespace["_heldout_tensor_maps"](tensor),
+              )
+
+              forest_query = heldout_namespace["_heldout_preindexed_suite_query"]
+              tensor_query = heldout_namespace["_heldout_tensor_preindexed_suite_query"]
+              expected = forest_query(forest_subject)
+              if tensor_query(tensor_subject) != expected:
+                  raise AssertionError("paired preindex subjects changed query-suite result")
+              if forest_subject[2] != tensor_subject[3]:
+                  raise AssertionError("paired preindex subjects changed relation-map content")
+
+              for _ in range(3):
+                  forest_query(forest_subject)
+                  tensor_query(tensor_subject)
+
+              samples: list[dict[str, object]] = []
+              for round_index in range(rounds):
+                  order = ("forest", "tensor") if round_index % 2 == 0 else ("tensor", "forest")
+                  elapsed_by_arm: dict[str, int] = {}
+                  for arm in order:
+                      gc.collect()
+                      query = forest_query if arm == "forest" else tensor_query
+                      subject = forest_subject if arm == "forest" else tensor_subject
+                      started = time.perf_counter_ns()
+                      result: tuple[str, ...] = ()
+                      for _ in range(query_iterations):
+                          result = query(subject)
+                      elapsed_by_arm[arm] = (
+                          time.perf_counter_ns() - started
+                      ) // query_iterations
+                      if result != expected:
+                          raise AssertionError("paired preindex query changed result")
+                  samples.append(
+                      {
+                          "first": order[0],
+                          "forest_preindexed_ns": elapsed_by_arm["forest"],
+                          "tensor_preindexed_ns": elapsed_by_arm["tensor"],
+                      }
+                  )
+
+              forest_ns = [int(sample["forest_preindexed_ns"]) for sample in samples]
+              tensor_ns = [int(sample["tensor_preindexed_ns"]) for sample in samples]
+              paired_delta = [tensor - forest for forest, tensor in zip(forest_ns, tensor_ns)]
+              forest_first_delta = [
+                  int(sample["tensor_preindexed_ns"]) - int(sample["forest_preindexed_ns"])
+                  for sample in samples
+                  if sample["first"] == "forest"
+              ]
+              tensor_first_delta = [
+                  int(sample["tensor_preindexed_ns"]) - int(sample["forest_preindexed_ns"])
+                  for sample in samples
+                  if sample["first"] == "tensor"
+              ]
+
+              return {
+                  "schema": "daedalus-tensor-heldout-paired-preindex-probe/1",
+                  "authority": "diagnostic-only",
+                  "claim": "none",
+                  "measurement": "query-only; paired and interleaved; construction excluded",
+                  "subject_count": size,
+                  "node_count": size * 4,
+                  "edge_count": size * 4,
+                  "rounds": rounds,
+                  "query_iterations_per_round": query_iterations,
+                  "result_count": len(expected),
+                  "result_sha256": hashlib.sha256(
+                      json.dumps(expected, separators=(",", ":")).encode("utf-8")
+                  ).hexdigest(),
+                  "query_ns_median": {
+                      "forest_preindexed": int(statistics.median(forest_ns)),
+                      "tensor_preindexed": int(statistics.median(tensor_ns)),
+                  },
+                  "paired_delta_ns_median": int(statistics.median(paired_delta)),
+                  "order_split_delta_ns_median": {
+                      "forest_first": int(statistics.median(forest_first_delta)),
+                      "tensor_first": int(statistics.median(tensor_first_delta)),
+                  },
+                  "samples": samples,
+              }
+
+          for heldout_size in (64, 256, 512):
+              print(
+                  json.dumps(
+                      paired_preindex_receipt(heldout_size),
+                      sort_keys=True,
+                      separators=(",", ":"),
+                  )
+              )
           PY
       - name: Verify wheel contains the twin package
         run: |
