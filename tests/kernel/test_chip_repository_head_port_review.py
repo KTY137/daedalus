@@ -65,11 +65,17 @@ def test_chip_lease_requires_verifier_and_binds_it_before_issuer() -> None:
     )
     assert "repository_head_verifier" in keyword_defaults
     assert keyword_defaults["repository_head_verifier"] is None
+    assert "execution_plan_validator" in keyword_defaults
+    assert isinstance(keyword_defaults["execution_plan_validator"], ast.Constant)
+    assert keyword_defaults["execution_plan_validator"].value is None
 
     verification_calls = _named_calls(function, "repository_head_verifier")
+    plan_validation_calls = _named_calls(function, "execution_plan_validator")
     issuer_calls = _named_calls(function, "_acquire_effect_lease_impl")
     assert len(verification_calls) == 1
+    assert len(plan_validation_calls) == 1
     assert len(issuer_calls) == 1
+    assert plan_validation_calls[0].lineno < verification_calls[0].lineno
     assert verification_calls[0].lineno < issuer_calls[0].lineno
 
 
@@ -97,4 +103,12 @@ def test_chip_cli_composes_gate_verifier_before_eda_execution() -> None:
     assert len(verifier_keywords) == 1
     assert isinstance(verifier_keywords[0], ast.Name)
     assert verifier_keywords[0].id == "verify_repository_head_revision"
+    validator_keywords = [
+        keyword.value
+        for keyword in acquisitions[0].keywords
+        if keyword.arg == "execution_plan_validator"
+    ]
+    assert len(validator_keywords) == 1
+    assert isinstance(validator_keywords[0], ast.Name)
+    assert validator_keywords[0].id == "validate_eda_execution_plan"
     assert acquisitions[0].lineno < executions[0].lineno

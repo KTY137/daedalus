@@ -55,6 +55,8 @@ from daedalus.gates.repository_write_classification import (
 )
 from daedalus.kernel import offload_lease as ol
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REVISION = "0" * 40
@@ -206,6 +208,8 @@ def _authenticated_door(switch):
         contained=True,
         containment_evidence=MECHANISM,
         switch=switch,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
     assert lease.granted, getattr(lease, "reasons", None)
     execution = lease.execution_for(0, ("docs/x.md",))

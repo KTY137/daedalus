@@ -27,6 +27,9 @@ from daedalus.kernel.offload_lease import (          # noqa: E402
     acquire_attempt_lease,
     issuable_row,
 )
+from daedalus.orchestration.workspace_containment import (  # noqa: E402
+    resolve_worktree_root,
+)
 from daedalus.sensitivity import Policy              # noqa: E402
 from daedalus.spine.killswitch import KillSwitch, control_root  # noqa: E402
 from daedalus.spine.ledger import SpineLedger        # noqa: E402
@@ -86,6 +89,7 @@ def _acquire(repo, **overrides):
         write_policy=DOCS_POLICY,
         contained=True,
         containment_evidence="TaskAttempt worktree, test",
+        worktree_root_resolver=resolve_worktree_root,
     )
     kwargs.update(overrides)
     return acquire_attempt_lease(repo, **kwargs)

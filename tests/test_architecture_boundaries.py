@@ -109,7 +109,7 @@ def test_frozen_repository_baseline_is_exact_and_green() -> None:
     contract = load_contract(CONTRACT_PATH)
     report = evaluate_repository(ROOT, contract)
 
-    assert len(contract.baseline) == 23
+    assert len(contract.baseline) == 5
     assert report.current == contract.baseline
     assert report.allowlisted == contract.baseline
     assert report.new == ()

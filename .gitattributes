@@ -335,4 +335,6 @@ daedalus/runtimes/provider_target_receipt_retention_preflight.py -text
 daedalus/runtimes/provider_target_receipt_retention_recovery.py -text
 daedalus/runtimes/provider_target_verification.py -text
 daedalus/runtimes/provider_target_verification_contracts.py -text
+daedalus/runtimes/admission/offload_egress.py -text
+daedalus/orchestration/workspace_containment.py -text
 daedalus/text_integrity.py -text

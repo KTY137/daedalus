@@ -36,12 +36,14 @@ from daedalus.kernel.offload_lease import (
     WaveLeaseDenied,
     WaveOffloadLease,
     acquire_effect_lease,
-    acquire_wave_offload_lease,
+    acquire_wave_offload_lease as _kernel_acquire_wave_offload_lease,
     control_root,
     issuable_row,
 )
 from daedalus.spine.effect_boundary import REGISTRY_BY_ID, Wiring
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = str(Path(__file__).resolve().parents[2])
 REVISION = "c" * 40
@@ -83,6 +85,12 @@ UNRUNNABLE_DOOR = next(
 )
 
 
+def acquire_wave_offload_lease(*args, **kwargs):
+    kwargs.setdefault("egress_admission", admit_offload_egress)
+    kwargs.setdefault("worktree_root_resolver", resolve_worktree_root)
+    return _kernel_acquire_wave_offload_lease(*args, **kwargs)
+
+
 @pytest.fixture
 def switch(tmp_path, monkeypatch):
     monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(tmp_path / "killswitch"))
@@ -106,6 +114,8 @@ def _acquire(sw, entrypoint_id, **overrides):
         contained=True,
         containment_evidence=MECHANISM,
         switch=sw,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
     kwargs.update(overrides)
     return acquire_effect_lease(REPO_ROOT, entrypoint_id=entrypoint_id, **kwargs)

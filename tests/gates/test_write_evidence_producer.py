@@ -30,6 +30,8 @@ from daedalus.gates.repository_write_inventory_v2 import RepositoryWriteSurface
 from daedalus.kernel import offload_lease as ol
 from daedalus.spine.envelope import canonical_json
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REVISION = "0" * 40
@@ -71,6 +73,8 @@ def _lease(switch, attempt_id):
         contained=True,
         containment_evidence=MECHANISM,
         switch=switch,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
 
 

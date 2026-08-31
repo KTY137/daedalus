@@ -21,6 +21,8 @@ from daedalus.kernel.effects import EffectLeaseStateError
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_json
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = str(Path(__file__).resolve().parents[2])
 REVISION = "0" * 40
@@ -50,6 +52,8 @@ def _lease(switch, attempt_id="a1", **kw):
         contained=True,
         containment_evidence=MECHANISM,
         switch=switch,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
     body.update(kw)
     return ol.acquire_wave_offload_lease(REPO_ROOT, attempt_id=attempt_id, **body)
@@ -193,13 +197,19 @@ def test_the_issuer_records_the_containment_decision_it_was_issued_under(control
     assert body["record_sha256"] == lease.evidence_records["disjointness"]
     assert body["contract"] == ol.WORKTREE_CONTAINMENT_CONTRACT
     # The evidence is the derivation's own sentence, not a new one.
-    derived_ok, derived_evidence = ol.derive_wave_containment(REPO_ROOT)
+    derived_ok, derived_evidence = ol.derive_wave_containment(
+        REPO_ROOT,
+        worktree_root_resolver=resolve_worktree_root,
+    )
     assert derived_ok is True
     assert body["evidence"] == derived_evidence
     assert body["decision_sha256"] == ol.guard_decision_sha256(
         GuardDecision(ol.WORKTREE_CONTAINMENT_CONTRACT, True, derived_evidence)
     )
-    primary, target = ol.wave_containment_roots(REPO_ROOT)
+    primary, target = ol.wave_containment_roots(
+        REPO_ROOT,
+        worktree_root_resolver=resolve_worktree_root,
+    )
     assert body["primary_checkout_sha256"] == ol.write_root_identity_sha256(primary)
     assert body["target_root_sha256"] == ol.write_root_identity_sha256(target)
 

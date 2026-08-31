@@ -606,6 +606,9 @@ class WaveExecutor:
                 reasons=(reason,),
             )
 
+        from .orchestration.workspace_containment import resolve_worktree_root
+        from .runtimes.admission.offload_egress import admit_offload_egress
+
         return acquire_wave_offload_lease(
             repo_root,
             source_revision=revision,
@@ -621,6 +624,8 @@ class WaveExecutor:
                                              parallel=parallel),
             writable_paths=declared,
             lanes=sorted({a.lane for a in live}),
+            egress_admission=admit_offload_egress,
+            worktree_root_resolver=resolve_worktree_root,
             tools=tools,
             max_spend_usd=(bounds.max_spend_usd if bounds else None),
             timeout_s=(bounds.timeout_s if bounds else None),

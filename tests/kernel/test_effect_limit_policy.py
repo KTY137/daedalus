@@ -39,6 +39,8 @@ from daedalus.spine.effect_boundary import (
     Wiring,
 )
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 
 REVISION = "d" * 40
@@ -492,6 +494,8 @@ def _acquire_wave(
         write_policy_blocked=write_policy_blocked,
         switch=switch,
         limit_policy=limit_policy,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
 
 

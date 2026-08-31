@@ -35,6 +35,8 @@ from daedalus.kernel.offload_lease import (
 )
 from daedalus.sensitivity import Policy
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = str(Path(__file__).resolve().parents[1])
 AGENTENV = Path(REPO_ROOT) / ".agentenv" / "agentenv.json"
@@ -64,6 +66,8 @@ def _lease(switch, attempt_id, *, repo_root=REPO_ROOT, **kw):
         contained=True,
         containment_evidence=MECHANISM,
         switch=switch,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
     body.update(kw)
     return acquire_wave_offload_lease(repo_root, attempt_id=attempt_id, **body)
@@ -242,7 +246,8 @@ def test_a_failed_derivation_denies_even_with_caller_evidence(switch, monkeypatc
     # silently stubbing a narrower contract than the issuer calls.
     monkeypatch.setattr(
         module, "derive_wave_containment",
-        lambda root, worktree_root=None, *, authority_root=None: (
+        lambda root, worktree_root=None, *, authority_root=None,
+        worktree_root_resolver=None: (
             False, "the attempt isolation root overlaps the checkout"))
     denied = _lease(switch, "w-f2derive")
     assert isinstance(denied, WaveLeaseDenied)

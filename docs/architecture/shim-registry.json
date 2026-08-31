@@ -77,6 +77,19 @@
       "removal_criteria": "All callers use responsibility modules and a clean wheel import audit observes no facade imports."
     },
     {
+      "import_path": "daedalus.kernel.offload_lease",
+      "owner": "kernel-effects",
+      "targets": [
+        "daedalus.chip_design.completion_publication",
+        "daedalus.chip_design.lease_ports",
+        "daedalus.chip_design.publication_verifier",
+        "daedalus.orchestration.workspace_containment",
+        "daedalus.runtimes.admission.offload_egress"
+      ],
+      "kind": "function_port_strangler",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, and pickle audits show no callers of the lane, worktree, or chip-publication compatibility facades; the registered effect targets and anchors remain unchanged."
+    },
+    {
       "import_path": "daedalus.mission_control",
       "owner": "interfaces-cli",
       "targets": [

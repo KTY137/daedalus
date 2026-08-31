@@ -8,6 +8,13 @@ import pytest
 
 from daedalus.chip_design.executor import EdaExecutionError
 from daedalus.chip_design.execution_plan import EdaExecutionPlan
+from daedalus.chip_design.completion_publication import (
+    record_chip_eda_publication,
+)
+from daedalus.chip_design.lease_ports import validate_eda_execution_plan
+from daedalus.chip_design.publication_verifier import (
+    verify_chip_eda_publication_graph,
+)
 from daedalus.gates.repository_head_revision import (
     RepositoryHeadRevisionBindingError,
     verify_repository_head_revision,
@@ -107,6 +114,7 @@ def _grant_real_chip_lease(
         write_policy_path=policy.relative_to(authority_root),
         operation_plan=operation_plan,
         source_revision=revision,
+        execution_plan_validator=validate_eda_execution_plan,
         repository_head_verifier=verify_repository_head_revision,
         mission_id="chip-test",
         attempt_id=attempt_id,
@@ -201,6 +209,7 @@ def test_chip_lease_wrapper_pins_capability_and_containment_roots(
         write_policy_path=".agentenv/chip-eda-policy.json",
         operation_plan=operation_plan,
         source_revision="a" * 40,
+        execution_plan_validator=validate_eda_execution_plan,
         repository_head_verifier=verify_repository_head_revision,
         mission_id="chip-test",
         attempt_id="attempt-1",
@@ -444,6 +453,7 @@ def test_terminal_chip_publication_rejects_incomplete_graph_before_index(
             ],
             lease_terminal_record_sha256=terminal_record["record_sha256"],
             finished_at=terminal.finished_at,
+            publication_recorder=record_chip_eda_publication,
         )
 
     assert (
@@ -523,6 +533,7 @@ def test_chip_lease_wrapper_binds_plan_roots_to_containment_roots(
                 tmp_path / plan_worktree,
             ),
             source_revision="a" * 40,
+            execution_plan_validator=validate_eda_execution_plan,
             repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-root-mismatch",
@@ -552,6 +563,7 @@ def test_chip_lease_wrapper_refuses_authority_head_mismatch_before_issuer(
                 tmp_path / "project", tmp_path / "isolated-worktree"
             ),
             source_revision="a" * 40,
+            execution_plan_validator=validate_eda_execution_plan,
             repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-head-mismatch",
@@ -622,6 +634,7 @@ def test_chip_lease_wrapper_refuses_unbound_head_receipt_before_issuer(
                 tmp_path / "project", tmp_path / "isolated-worktree"
             ),
             source_revision=expected_revision,
+            execution_plan_validator=validate_eda_execution_plan,
             repository_head_verifier=wrong_port,
             mission_id="chip-test",
             attempt_id="attempt-unbound-head-receipt",
@@ -648,6 +661,7 @@ def test_chip_lease_wrapper_refuses_non_40_hex_revision_before_head_or_issuer(
                 tmp_path / "project", tmp_path / "isolated-worktree"
             ),
             source_revision="a" * 64,
+            execution_plan_validator=validate_eda_execution_plan,
             repository_head_verifier=forbidden,
             mission_id="chip-test",
             attempt_id="attempt-wide-revision",
@@ -704,6 +718,7 @@ def test_chip_lease_wrapper_refuses_capability_overrides(
                 tmp_path / "project", tmp_path / "worktree"
             ),
             source_revision="b" * 40,
+            execution_plan_validator=validate_eda_execution_plan,
             repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-override",
@@ -737,6 +752,7 @@ def test_chip_lease_wrapper_requires_explicit_roots_and_evidence(
                 tmp_path / "project", tmp_path / "worktree"
             ),
             source_revision="c" * 40,
+            execution_plan_validator=validate_eda_execution_plan,
             repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-missing",
@@ -756,6 +772,7 @@ def test_chip_lease_wrapper_refuses_in_memory_policy_override(tmp_path: Path) ->
             ),
             write_policy=object(),
             source_revision="d" * 40,
+            execution_plan_validator=validate_eda_execution_plan,
             repository_head_verifier=verify_repository_head_revision,
             mission_id="chip-test",
             attempt_id="attempt-policy-override",

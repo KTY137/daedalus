@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REVISION = "a" * 40
 EXECUTOR_PATH = "daedalus/chip_design/executor.py"
 CLI_PATH = "daedalus/chip_design/cli.py"
+COMPLETION_PATH = "daedalus/chip_design/completion_publication.py"
 KERNEL_PATH = "daedalus/kernel/offload_lease.py"
 CHIP_ENTRYPOINT = "cli.daedalus_chip"
 PRIVATE_COMPLETION_WRITERS = frozenset(
@@ -220,8 +221,18 @@ def test_chip_completion_writers_are_private_and_finalizer_only() -> None:
                 if alias.name in PRIVATE_COMPLETION_WRITERS:
                     imports.append((relative, str(node.module), alias.name, alias.asname))
     assert sorted(imports) == [
-        (CLI_PATH, "daedalus.kernel.offload_lease", name, None)
-        for name in sorted(PRIVATE_COMPLETION_WRITERS)
+        (
+            CLI_PATH,
+            "daedalus.kernel.offload_lease",
+            "_record_chip_eda_publication",
+            "_record_chip_eda_publication_facade",
+        ),
+        (
+            CLI_PATH,
+            "daedalus.kernel.offload_lease",
+            "_retain_chip_eda_terminal_artifact",
+            "_retain_chip_eda_terminal_artifact_facade",
+        ),
     ]
 
     exported = set(_literal_all(ROOT / KERNEL_PATH))
@@ -295,11 +306,14 @@ def test_chip_completion_writers_are_private_and_finalizer_only() -> None:
 
 def test_chip_completion_writes_are_terminal_cas_authority_bookkeeping() -> None:
     kernel_path = ROOT / KERNEL_PATH
+    completion_path = ROOT / COMPLETION_PATH
     verifier = _function(kernel_path, "_verify_chip_eda_terminal_bookkeeping")
-    retain = _function(kernel_path, "_retain_chip_eda_terminal_artifact")
-    record = _function(kernel_path, "_record_chip_eda_publication")
+    retain_facade = _function(kernel_path, "_retain_chip_eda_terminal_artifact")
+    record_facade = _function(kernel_path, "_record_chip_eda_publication")
+    retain = _function(completion_path, "retain_chip_eda_terminal_artifact")
+    record = _function(completion_path, "record_chip_eda_publication")
 
-    for function in (verifier, retain, record):
+    for function in (verifier, retain_facade, record_facade, retain, record):
         assert FORBIDDEN_COMPLETION_WRITE_TARGETS.isdisjoint(
             _argument_names(function)
         )
@@ -317,6 +331,10 @@ def test_chip_completion_writes_are_terminal_cas_authority_bookkeeping() -> None
     ]
     returns = [node for node in ast.walk(verifier) if isinstance(node, ast.Return)]
     assert len(returns) == 1 and returns[0].value is evidence_root_calls[0]
+
+    retain_ports = _calls_in(retain_facade, "terminal_artifact_retainer")
+    record_ports = _calls_in(record_facade, "publication_recorder")
+    assert len(retain_ports) == len(record_ports) == 1
 
     retain_verifiers = _calls_in(retain, "_verify_chip_eda_terminal_bookkeeping")
     assert len(retain_verifiers) == 1

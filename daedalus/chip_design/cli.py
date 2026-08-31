@@ -45,9 +45,8 @@ from daedalus.kernel.offload_lease import (
     load_chip_eda_publication,
     read_issuer_keyring,
     rebuild_effect_lease_authorization,
-    _record_chip_eda_publication,
-    _retain_chip_eda_terminal_artifact,
-    verify_chip_eda_publication_graph,
+    _record_chip_eda_publication as _record_chip_eda_publication_facade,
+    _retain_chip_eda_terminal_artifact as _retain_chip_eda_terminal_artifact_facade,
     write_evidence_root,
     write_root_identity_sha256,
 )
@@ -79,6 +78,11 @@ from .execution_plan import (
     sanitized_eda_environment,
     trusted_windows_command_interpreter,
 )
+from .completion_publication import (
+    record_chip_eda_publication,
+    retain_chip_eda_terminal_artifact,
+)
+from .lease_ports import validate_eda_execution_plan
 from .manifest import (
     MANIFEST_SCHEMA,
     VivadoProjectManifest,
@@ -87,6 +91,7 @@ from .manifest import (
     canonical_path_identity,
 )
 from .publication import derive_chip_publication
+from .publication_verifier import verify_chip_eda_publication_graph
 from .sources import classify_source, discover_sources
 from .toolchains import (
     all_tool_status,
@@ -107,6 +112,24 @@ RUN_SCHEMA = "daedalus-chip-vivado-run-result/1"
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
 _PHASES = ("inspect", "synth", "impl")
+
+
+def _retain_chip_eda_terminal_artifact(**kwargs: Any) -> Any:
+    """Compose the chip-owned retainer into the stable kernel effect facade."""
+
+    return _retain_chip_eda_terminal_artifact_facade(
+        **kwargs,
+        terminal_artifact_retainer=retain_chip_eda_terminal_artifact,
+    )
+
+
+def _record_chip_eda_publication(**kwargs: Any) -> dict[str, Any]:
+    """Compose the chip-owned publisher into the stable kernel effect facade."""
+
+    return _record_chip_eda_publication_facade(
+        **kwargs,
+        publication_recorder=record_chip_eda_publication,
+    )
 
 
 class _RetainedLeaseReconciliation(RuntimeError):
@@ -2303,6 +2326,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 timeout_s=args.timeout,
                 write_policy_path=args.write_policy,
                 operation_plan=execution_plan,
+                execution_plan_validator=validate_eda_execution_plan,
                 repository_head_verifier=verify_repository_head_revision,
             )
             if isinstance(lease, WaveLeaseDenied):

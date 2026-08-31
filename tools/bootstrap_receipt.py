@@ -534,6 +534,7 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
                 containment_evidence=(
                     "TaskAttempt isolated worktree via GitWorktreeManager; "
                     "candidate code never sees the primary checkout"),
+                worktree_root=attempt._manager.worktree_root,
             )
             if isinstance(lease, WaveLeaseDenied):
                 res = None

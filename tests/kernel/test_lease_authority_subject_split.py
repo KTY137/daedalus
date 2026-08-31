@@ -43,6 +43,8 @@ from daedalus.kernel.offload_lease import (
     wave_containment_roots,
 )
 from daedalus.spine.killswitch import KillSwitch
+from daedalus.orchestration.workspace_containment import resolve_worktree_root
+from daedalus.runtimes.admission.offload_egress import admit_offload_egress
 
 REPO_ROOT = str(Path(__file__).resolve().parents[2])
 REVISION = "e" * 40
@@ -85,6 +87,8 @@ def _acquire(sw, **overrides):
         contained=True,
         containment_evidence=MECHANISM,
         switch=sw,
+        egress_admission=admit_offload_egress,
+        worktree_root_resolver=resolve_worktree_root,
     )
     kwargs.update(overrides)
     return acquire_effect_lease(REPO_ROOT, **kwargs)
