@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 KERNEL_ROOT = ROOT / "daedalus" / "kernel"
-CONTRACTS_SOURCE = KERNEL_ROOT / "contracts.py"
+CONTRACTS_SOURCE = KERNEL_ROOT / "contracts" / "security.py"
 FACADE_SOURCE = KERNEL_ROOT / "runtime_authorization_issuer.py"
 ADMISSION_SOURCE = (
     ROOT / "daedalus" / "runtimes" / "admission" / "authorization.py"
@@ -81,6 +81,18 @@ def test_kernel_contracts_own_only_neutral_runtime_trust_protocols() -> None:
         isinstance(decorator, ast.Name) and decorator.id == "runtime_checkable"
         for decorator in classes["RuntimeTrustRecordPort"].decorator_list
     )
+
+
+def test_contract_package_exports_the_exact_security_port_objects() -> None:
+    from daedalus.kernel import contracts
+    from daedalus.kernel.contracts import security
+
+    for name in (
+        "RuntimeTrustLedgerPort",
+        "RuntimeTrustPortError",
+        "RuntimeTrustRecordPort",
+    ):
+        assert getattr(contracts, name) is getattr(security, name)
 
 
 def test_legacy_facade_is_lazy_and_defines_no_parallel_authority() -> None:

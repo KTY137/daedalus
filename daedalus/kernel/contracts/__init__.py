@@ -28,7 +28,17 @@ _EXPORT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("promotion", ("NominationReceipt", "PromotionReceipt")),
     ("runtime", ("ConformanceCheck", "RuntimeConformanceReceipt")),
     ("registry", ("KERNEL_CONTRACT_TYPES", "parse_kernel_contract")),
-    ("security", ("OwnerApproval", "EffectLeaseRequest", "EffectLease")),
+    (
+        "security",
+        (
+            "OwnerApproval",
+            "EffectLeaseRequest",
+            "EffectLease",
+            "RuntimeTrustLedgerPort",
+            "RuntimeTrustPortError",
+            "RuntimeTrustRecordPort",
+        ),
+    ),
 )
 
 _EXPORTS = {name: owner for owner, names in _EXPORT_GROUPS for name in names}
