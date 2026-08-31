@@ -105,8 +105,43 @@ class BridgeStatusTests(_BridgeDirs):
                                "request": {"project": "not_tct"}, "report": {}})
         status = file_bridge.bridge_status("project_tct")
         self.assertEqual(status["unread_count"], 0)
+        self.assertEqual(status["reports_total"], 0)
+        self.assertIsNone(file_bridge.stream_state("project_tct")["latest_report"])
         # unfiltered still sees it
         self.assertEqual(file_bridge.bridge_status()["unread_count"], 1)
+        self.assertEqual(file_bridge.bridge_status()["reports_total"], 1)
+
+    def test_stream_state_is_numeric_and_report_projection_is_project_exact(self):
+        self._report("a", {"bridge_status": "done", "lane": "local",
+                           "request": {"project": "project_tct"}, "report": {}})
+        file_bridge.write_heartbeat(
+            project="project_tct",
+            current={"file": "running.json", "started_epoch": time.time()},
+            force=True,
+        )
+
+        state = file_bridge.stream_state("project_tct")
+        self.assertEqual(state["reports_total"], 1)
+        self.assertEqual(state["latest_report"]["name"], "a.report.json")
+        self.assertEqual(state["latest_report"]["project"], "project_tct")
+        self.assertEqual(state["in_flight"], 1)
+        self.assertIs(type(state["in_flight"]), int)
+
+        file_bridge.write_heartbeat(project="project_tct", force=True)
+        idle = file_bridge.stream_state("project_tct")
+        self.assertEqual(idle["in_flight"], 0)
+        self.assertIs(type(idle["in_flight"]), int)
+
+        # A later report for B must not advance A's SSE report comparison.
+        self._report("b", {"bridge_status": "done", "lane": "local",
+                           "request": {"project": "other"}, "report": {}})
+        after_other_report = file_bridge.stream_state("project_tct")
+        self.assertEqual(after_other_report["reports_total"], state["reports_total"])
+        self.assertEqual(after_other_report["latest_report"], state["latest_report"])
+
+        other = file_bridge.stream_state("other")
+        self.assertEqual(other["reports_total"], 1)
+        self.assertEqual(other["latest_report"]["name"], "b.report.json")
 
     def test_print_status_smoke(self):
         self._report("a")

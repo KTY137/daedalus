@@ -208,7 +208,9 @@ export interface LiveHello {
   queue_depth: number;
   in_flight: number;
   unread_count: number;
+  quarantined_count: number;
   watcher_state: string;
+  reports_total: number;
   latest_report?: unknown;
 }
 
