@@ -1,100 +1,23 @@
+#!/usr/bin/env python3
+"""Compatibility wrapper for the canonical declarative mutation runner."""
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus" / "kernel" / "attempt_spine_reader.py"
-TESTS = (
-    "tests/kernel/test_isolated_attempt_time_tampering.py",
-    "tests/kernel/test_isolated_attempt_time_and_preflight.py",
-    "tests/kernel/test_isolated_attempt_lifecycle.py",
-    "tests/kernel/test_isolated_attempt_lifecycle_adversarial.py",
-    "tests/kernel/test_isolated_attempt_spine_wire_review.py",
-)
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.mutation_score import main as mutation_main  # noqa: E402
 
 
-def _run() -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", *TESTS],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-
-def _replace_once(source: str, old: str, new: str, label: str) -> str:
-    """Replace one logical anchor without changing the file's line endings."""
-
-    if "\r\n" in source:
-        old = old.replace("\n", "\r\n")
-        new = new.replace("\n", "\r\n")
-    count = source.count(old)
-    if count != 1:
-        raise RuntimeError(f"{label}: expected one mutation site, found {count}")
-    return source.replace(old, new, 1)
-
-
-def _write(path: Path, text: str) -> None:
-    """Write the already-adapted source without newline translation."""
-
-    with open(path, "w", encoding="utf-8", newline="") as handle:
-        handle.write(text)
+SPEC = ROOT / "configs" / "mutations" / "attempt-event-time-window.json"
 
 
 def main() -> int:
-    original = TARGET.read_bytes()
-    source = original.decode("utf-8")
-    baseline = _run()
-    if baseline.returncode != 0:
-        sys.stderr.write("attempt event-time mutation baseline failed\n")
-        sys.stderr.write(baseline.stdout + baseline.stderr)
-        return 2
-
-    mutations = (
-        (
-            "accept-arbitrary-historical-record-time",
-            "_MAX_TRANSITION_SKEW_SECONDS = 60.0",
-            "_MAX_TRANSITION_SKEW_SECONDS = 10**12",
-        ),
-        (
-            "accept-record-time-after-event",
-            "    if delta < 0:\n        raise AttemptStateError(\n            f\"{label} record time follows its Event-Store transition\"\n        )\n",
-            "    if False:\n        raise AttemptStateError(\n            f\"{label} record time follows its Event-Store transition\"\n        )\n",
-        ),
-        (
-            "skip-terminal-time-binding",
-            """                if state == STATE_COMPLETED:
-                    _transition_time(
-                        _terminal_time(terminal_result),
-                        resolved_ts,
-                        label="attempt completion",
-                    )
-""",
-            "",
-        ),
-    )
-
-    killed: list[str] = []
-    try:
-        for label, old, new in mutations:
-            _write(TARGET, _replace_once(source, old, new, label))
-            result = _run()
-            if result.returncode == 0:
-                sys.stderr.write(f"survived mutation: {label}\n")
-                return 1
-            killed.append(label)
-            TARGET.write_bytes(original)
-    finally:
-        TARGET.write_bytes(original)
-
-    if TARGET.read_bytes() != original:
-        raise RuntimeError("mutation runner failed to restore attempt_spine_reader.py")
-    print("killed mutations: " + ", ".join(killed))
-    return 0
+    return mutation_main(["--repo", str(ROOT), "--spec", str(SPEC)])
 
 
 if __name__ == "__main__":

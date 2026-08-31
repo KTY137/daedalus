@@ -31,11 +31,8 @@ FAMILY = {
 
 MIGRATED = {
     "run_attempt_effect_inventory_mutations.py",
-    "run_repository_write_effect_lease_mutations.py",
-}
-
-TRANSPORT_PREPARED = {
     "run_attempt_event_time_window_mutations.py",
+    "run_repository_write_effect_lease_mutations.py",
 }
 
 UNMIGRATED = {
@@ -138,7 +135,7 @@ class AttemptOffloadLeaseMutationSpecTests(unittest.TestCase):
         self.assertEqual(len(FAMILY), 8)
         self.assertEqual(
             FAMILY,
-            set(UNMIGRATED) | MIGRATED | TRANSPORT_PREPARED,
+            set(UNMIGRATED) | MIGRATED,
         )
         for name in FAMILY:
             self.assertTrue((SCRIPT_DIR / name).is_file(), name)
