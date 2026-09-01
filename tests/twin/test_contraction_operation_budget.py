@@ -98,9 +98,18 @@ def test_reference_interpreter_preflights_compose_budget_before_matmul(
         raise AssertionError("matmul must not run after an over-budget preflight")
 
     monkeypatch.setattr(TypedRelationBlock, "matmul", unexpected_matmul)
-
     with pytest.raises(ValueError, match="bounded operation limit"):
         ReferenceContractionInterpreter(
             semiring,
             max_operations=1,
         ).evaluate(plan, {"a": left, "b": right})
+
+    monkeypatch.undo()
+    result = ReferenceContractionInterpreter(
+        semiring,
+        max_operations=2,
+    ).evaluate(plan, {"a": left, "b": right})
+    assert tuple(result.iter_entries()) == (
+        ("s", "T", True),
+        ("s", "U", True),
+    )
