@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AZ",
+  "title": "Preflight Hadamard budget before reference execution",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AY",
+  "campaign_issue": 239,
+  "base_revision": "dfec55827192acf36efc6ae8d22a164cc9e621c8",
+  "finding": "The plan-wide operation budget covered Hadamard semiring multiplications, but the interpreter still entered TypedRelationBlock.hadamard before it knew the exact number of shared CSR coordinates. An over-budget intersection could therefore enter relation execution and construct temporary maps before the block-level guard refused it, even though the exact multiplication count is derivable from the already validated, sorted CSR rows.",
+  "primary_claim": "ReferenceContractionInterpreter now validates Hadamard compatibility, counts shared CSR coordinates with a bounded two-pointer scan before invoking hadamard, refuses immediately when that exact count exceeds the remaining plan-wide budget, and charges the accepted operation count explicitly. The block-level hadamard max_operations guard remains defense in depth.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/contractions.py",
+      "tests/twin/test_contraction_operation_budget.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01AZ.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the canonical CSR ordering already present in TypedRelationBlock rather than add a planner, cost-model object, materialized key set, receipt type, or alternate execution path. The interpreter performs only a two-pointer preflight and leaves the existing relation-block implementation as local defense in depth.",
+  "acceptance": [
+    "a Hadamard node whose exact shared-coordinate count exceeds the remaining plan budget refuses before TypedRelationBlock.hadamard is invoked",
+    "the inclusive exact boundary succeeds and returns the same canonical intersection",
+    "cross-subject, semiring, and typed-axis compatibility failures remain fail-closed before the preflight scan",
+    "accepted Hadamard results retain the existing revision, signature, axes, semiring and canonical entry semantics",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "bounded Tensor/Forest diagnostic on the designated Python 3.12 hash-seed 0 cell",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01AZ commits; Forest/Fourfold authority, relation-block wire contracts, semiring semantics and persisted identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
