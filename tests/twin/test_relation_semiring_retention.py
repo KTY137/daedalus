@@ -114,6 +114,22 @@ def test_direct_unknown_semiring_cannot_bypass_scalar_contract() -> None:
         )
 
 
+def test_empty_unknown_semiring_cannot_bypass_persisted_semantics() -> None:
+    rows, columns = axes()
+
+    with pytest.raises(ValueError, match="unsupported persisted semiring"):
+        TypedRelationBlock(
+            subject=subject(),
+            signature=RelationSignature("code", "declares", "type"),
+            row_axis=rows,
+            column_axis=columns,
+            semiring_name="opaque-integer",
+            row_offsets=(0, 0),
+            column_indices=(),
+            values=(),
+        )
+
+
 def test_known_semiring_name_still_allows_protocol_backend_substitution() -> None:
     rows, columns = axes()
 

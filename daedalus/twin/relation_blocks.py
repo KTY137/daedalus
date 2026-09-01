@@ -102,7 +102,7 @@ def _operation_limit(value: Any) -> int:
     return value
 
 
-def _reference_semiring(semiring: Semiring[Any]) -> Semiring[Any]:
+def _reference_semiring(semiring: Semiring[Any] | str) -> Semiring[Any]:
     """Resolve a supported semantic name to the canonical reference oracle.
 
     ``TypedRelationBlock`` is the executable reference interpreter. Alternate
@@ -110,18 +110,22 @@ def _reference_semiring(semiring: Semiring[Any]) -> Semiring[Any]:
     redefine the algebra that is persisted under that name.
     """
 
-    if not isinstance(semiring, Semiring):
+    if isinstance(semiring, str):
+        name = semiring
+    elif isinstance(semiring, Semiring):
+        name = semiring.name
+    else:
         raise ValueError("semiring must implement the Semiring protocol")
-    if semiring.name == "boolean":
+    if name == "boolean":
         return BooleanSemiring()
-    if semiring.name == "natural":
+    if name == "natural":
         return NaturalSemiring()
-    if semiring.name == "tropical":
+    if name == "tropical":
         return TropicalSemiring()
-    if semiring.name == "evidence-dag":
+    if name == "evidence-dag":
         return EvidenceDagSemiring()
     raise ValueError(
-        f"unsupported persisted semiring {semiring.name!r}; add an explicit scalar contract first"
+        f"unsupported persisted semiring {name!r}; add an explicit scalar contract first"
     )
 
 
@@ -240,6 +244,7 @@ class TypedRelationBlock(Generic[T]):
             "semiring_name",
             _identifier(self.semiring_name, "block.semiring_name"),
         )
+        _reference_semiring(self.semiring_name)
 
         offsets = tuple(_sequence(self.row_offsets, "block.row_offsets", MAX_BLOCK_AXIS_LABELS + 1))
         columns = tuple(_sequence(self.column_indices, "block.column_indices", MAX_BLOCK_ENTRIES))

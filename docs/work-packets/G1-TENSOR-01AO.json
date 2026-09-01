@@ -1,0 +1,59 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AO",
+  "title": "Reject unsupported empty relation-block semirings",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AN",
+  "campaign_issue": 239,
+  "base_revision": "a1bf580d343fc10290582d31ea7ffeceb7bbafe5",
+  "finding": "TypedRelationBlock rejected unsupported semiring names only while validating stored scalar values. A direct empty CSR block had no values to validate and could therefore persist an arbitrary syntactically valid semiring_name despite having no executable canonical algebra behind that identity.",
+  "primary_claim": "Every TypedRelationBlock now validates its persisted semiring identity against the same existing canonical reference-semiring resolver, including empty blocks. Supported empty Boolean, Natural, Tropical, and Evidence-DAG blocks remain valid; unsupported names fail closed before CSR retention.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_semiring_retention.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01AO.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the existing canonical reference-semiring resolver for constructor-time identity validation rather than duplicating the supported-name list or adding a registry. The resolver accepts either a protocol backend selector or an already-validated persisted name; no second semantic authority is introduced.",
+  "acceptance": [
+    "an empty direct relation block with an unsupported semiring_name fails closed",
+    "a supported empty boolean block remains valid and uses canonical Boolean zero semantics",
+    "unknown non-empty persisted semiring values remain fail-closed",
+    "supported alternate backend objects remain selectors only and cannot redefine named algebra",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert G1-TENSOR-01AO; Forest/Fourfold artifacts, identities, and authority are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
