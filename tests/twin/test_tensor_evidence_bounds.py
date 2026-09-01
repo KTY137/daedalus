@@ -205,3 +205,33 @@ def test_evidence_add_allows_exact_alternative_bound(
     result = semiring.add(first, second)
 
     assert len(result.alternatives) == 5
+
+
+def test_evidence_multiply_rejects_before_cartesian_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semiring = EvidenceDagSemiring()
+    first = EvidenceValue(((_digest(0),), (_digest(1),), (_digest(2),)))
+    second = EvidenceValue(((_digest(3),), (_digest(4),)))
+    monkeypatch.setattr(semiring_module, "MAX_EVIDENCE_ALTERNATIVES", 4)
+
+    def _unexpected_set(*args: object, **kwargs: object) -> set[object]:
+        raise AssertionError("oversized evidence multiplication entered cartesian materialization")
+
+    monkeypatch.setattr(semiring_module, "set", _unexpected_set, raising=False)
+
+    with pytest.raises(ValueError, match="multiplication exceeds bounded alternative limit"):
+        semiring.multiply(first, second)
+
+
+def test_evidence_multiply_allows_exact_alternative_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semiring = EvidenceDagSemiring()
+    first = EvidenceValue(((_digest(0),), (_digest(1),)))
+    second = EvidenceValue(((_digest(2),), (_digest(3),)))
+    monkeypatch.setattr(semiring_module, "MAX_EVIDENCE_ALTERNATIVES", 4)
+
+    result = semiring.multiply(first, second)
+
+    assert len(result.alternatives) == 4
