@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AP",
+  "title": "Close canonical relation-block wire round trip",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AO",
+  "campaign_issue": 239,
+  "base_revision": "202f235fac7a08d7044d0fe04efc77bf79511fe6",
+  "finding": "TypedRelationBlock emitted deterministic to_dict/to_json payloads but had no inverse parser, unlike the existing TensorView contract. No repository decoder bypass was found; the gap was that any future consumer would have to reconstruct nested records and EvidenceValue wire scalars ad hoc, risking drift around the semiring identity and bounded-scalar checks hardened in 01AK-01AO.",
+  "primary_claim": "TypedRelationBlock.from_dict now provides one strict inverse for its canonical wire payload. Nested subject/signature/axis records reject unknown fields through the existing _record_payload helper, evidence-dag scalars decode only from the existing tagged wire shape, and the reconstructed block re-enters the same constructor-time semiring, CSR, and scalar bounds as direct construction.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py"
+    ],
+    "added": [
+      "tests/twin/test_relation_block_roundtrip.py",
+      "docs/work-packets/G1-TENSOR-01AP.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Follow the already-established TensorView from_dict pattern inside relation_blocks.py rather than add a codec module, registry, alternate scalar schema, or persistence layer. The parser is only a strict reconstruction path for the existing canonical projection payload.",
+  "acceptance": [
+    "boolean, natural, tropical, and evidence-dag canonical payloads round-trip with identical block equality, payload, and digest",
+    "deserialized natural values still obey the shared MAX_NATURAL_BITS bound",
+    "deserialized unsupported semiring names still fail closed",
+    "nested unknown fields fail closed instead of being silently ignored",
+    "evidence-dag wire scalar tags cannot drift or acquire extra schema through the parser",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert G1-TENSOR-01AP; canonical relation blocks remain regenerable and no Forest/Fourfold authority changes.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}

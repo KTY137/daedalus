@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 
-from ..schemas import _identifier, _non_empty, _revision, _sha256
+from ..schemas import _identifier, _non_empty, _record_payload, _revision, _sha256
 from ..spine.envelope import canonical_json, canonical_sha
 from .contracts import FOURFOLD_PLANES
 from .semiring import (
@@ -94,6 +94,20 @@ def _json_scalar(value: Any) -> Any:
     raise ValueError("unsupported relation-block scalar")
 
 
+def _decoded_scalar(value: Any, semiring_name: str) -> Any:
+    if semiring_name != "evidence-dag":
+        return value
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != {"scalar_type", "value"}
+        or value.get("scalar_type") != "evidence"
+    ):
+        raise ValueError(
+            "evidence-dag wire values must contain only scalar_type='evidence' and value"
+        )
+    return EvidenceValue.from_dict(value["value"])
+
+
 def _operation_limit(value: Any) -> int:
     if type(value) is not int or not 0 <= value <= MAX_REFERENCE_OPERATIONS:
         raise ValueError(
@@ -159,6 +173,10 @@ class ProjectionSubject:
             "source_fourfold_sha256": self.source_fourfold_sha256,
         }
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "ProjectionSubject":
+        return cls(**_record_payload(cls, payload, "projection subject"))
+
     @property
     def digest(self) -> str:
         return canonical_sha(self.to_dict())
@@ -191,6 +209,10 @@ class TypedAxis:
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "plane": self.plane, "labels": list(self.labels)}
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "TypedAxis":
+        return cls(**_record_payload(cls, payload, "typed relation axis"))
+
     @property
     def digest(self) -> str:
         return canonical_sha(self.to_dict())
@@ -215,6 +237,10 @@ class RelationSignature:
             "relation": self.relation,
             "target_plane": self.target_plane,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "RelationSignature":
+        return cls(**_record_payload(cls, payload, "relation signature"))
 
 
 @dataclass(frozen=True)
@@ -271,6 +297,20 @@ class TypedRelationBlock(Generic[T]):
         object.__setattr__(self, "row_offsets", offsets)
         object.__setattr__(self, "column_indices", columns)
         object.__setattr__(self, "values", values)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "TypedRelationBlock[Any]":
+        body = _record_payload(cls, payload, "typed relation block")
+        body["subject"] = ProjectionSubject.from_dict(body["subject"])
+        body["signature"] = RelationSignature.from_dict(body["signature"])
+        body["row_axis"] = TypedAxis.from_dict(body["row_axis"])
+        body["column_axis"] = TypedAxis.from_dict(body["column_axis"])
+        raw_values = _sequence(body["values"], "block.values", MAX_BLOCK_ENTRIES)
+        semiring_name = body["semiring_name"]
+        body["values"] = tuple(
+            _decoded_scalar(value, semiring_name) for value in raw_values
+        )
+        return cls(**body)
 
     @classmethod
     def from_coordinates(
