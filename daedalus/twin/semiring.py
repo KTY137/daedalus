@@ -198,7 +198,16 @@ class EvidenceValue:
             "evidence.alternatives",
             MAX_EVIDENCE_ALTERNATIVES,
         )
-        return cls(tuple(alternatives))
+        bounded_terms: list[Sequence[Any]] = []
+        for alternative_index, raw_term in enumerate(alternatives):
+            bounded_terms.append(
+                _bounded_sequence(
+                    raw_term,
+                    f"evidence.alternatives[{alternative_index}]",
+                    MAX_EVIDENCE_TERM_ATOMS,
+                )
+            )
+        return cls(tuple(bounded_terms))  # type: ignore[arg-type]
 
     def to_dict(self) -> dict[str, Any]:
         return {"alternatives": [list(term) for term in self.alternatives]}
