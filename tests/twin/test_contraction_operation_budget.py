@@ -6,6 +6,7 @@ from daedalus.twin.contractions import (
     BlockRef,
     Compose,
     ContractionPlan,
+    Hadamard,
     ReferenceContractionInterpreter,
 )
 from daedalus.twin.relation_blocks import (
@@ -109,6 +110,54 @@ def test_reference_interpreter_preflights_compose_budget_before_matmul(
         semiring,
         max_operations=2,
     ).evaluate(plan, {"a": left, "b": right})
+    assert tuple(result.iter_entries()) == (
+        ("s", "T", True),
+        ("s", "U", True),
+    )
+
+
+def test_reference_interpreter_preflights_hadamard_budget_before_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = TypedAxis("rows", "code", ("s",))
+    columns = TypedAxis("columns", "type", ("T", "U", "V"))
+    semiring = BooleanSemiring()
+    left = TypedRelationBlock.from_coordinates(
+        subject=SUBJECT,
+        signature=RelationSignature("code", "left", "type"),
+        row_axis=rows,
+        column_axis=columns,
+        coordinates=(("s", "T", True), ("s", "U", True)),
+        semiring=semiring,
+    )
+    right = TypedRelationBlock.from_coordinates(
+        subject=SUBJECT,
+        signature=RelationSignature("code", "right", "type"),
+        row_axis=rows,
+        column_axis=columns,
+        coordinates=(("s", "T", True), ("s", "U", True), ("s", "V", True)),
+        semiring=semiring,
+    )
+    plan = ContractionPlan(
+        "both",
+        Hadamard(BlockRef("left"), BlockRef("right"), "both"),
+    )
+
+    def unexpected_hadamard(*args: object, **kwargs: object) -> object:
+        raise AssertionError("hadamard must not run after an over-budget preflight")
+
+    monkeypatch.setattr(TypedRelationBlock, "hadamard", unexpected_hadamard)
+    with pytest.raises(ValueError, match="bounded operation limit"):
+        ReferenceContractionInterpreter(
+            semiring,
+            max_operations=1,
+        ).evaluate(plan, {"left": left, "right": right})
+
+    monkeypatch.undo()
+    result = ReferenceContractionInterpreter(
+        semiring,
+        max_operations=2,
+    ).evaluate(plan, {"left": left, "right": right})
     assert tuple(result.iter_entries()) == (
         ("s", "T", True),
         ("s", "U", True),
