@@ -29,6 +29,17 @@ G1_TESTS = (
     # registry, which is part of why four failures sat unnoticed on
     # integration/g1-hierarchy for ten commits.
     "tests/contracts/",
+    # Over-declaration. These are the ONLY instrument in this repository that
+    # checks whether a registry row declares an effect it cannot justify --
+    # `check_conformance` has 24 finding codes and not one of them does. They
+    # were in no profile, so the gate reported green while the derivation went
+    # blind on every door that reaches the network or reads a credential.
+    # They are RED as of 2026-09-01 and they are meant to be: 14 of 42 declared
+    # effects lost their derivable justification to the refactor. Restoring the
+    # walk clears them. Widening BRIDGES, deleting effects from the rows, or
+    # relaxing an assertion clears the symptom and re-blinds the instrument.
+    "tests/test_registry_new_doors.py",
+    "tests/test_registry_retired_rows.py",
     "tests/ignition/test_voltage_ignition.py",
     "tests/kernel/test_fourfold_evidence.py",
     "tests/kernel/test_fourfold_approval_integration.py",
