@@ -147,6 +147,13 @@ ALLOWED = {
     ("docs/GUI_CATALOGUE.md", "apps/ui/"): "a path in the Origin UI repository",
     ("docs/GUI_CATALOGUE.md", ".claude/skills/build-gui/"):
         "a proposal under the heading 'What it would be', explicitly not implemented",
+    # Same shape as the STATUS.md entries above: the page names this directory
+    # BECAUSE it is gone. G1-UI-04 removed twelve catalogue entries whose
+    # source_path pointed here after e133e09b deleted it, and section 5 records
+    # what was lost and where it is recoverable. Repairing the mention would
+    # delete the record of the loss.
+    ("docs/GUI_CATALOGUE.md", "apps/web/src/components/glass/"):
+        "named precisely as the directory e133e09b deleted; the section is the record of the removal",
 }
 
 MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
