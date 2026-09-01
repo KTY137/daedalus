@@ -1,0 +1,72 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-03",
+  "title": "Reject duplicate JSON keys in latent ceiling evidence corpus",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-02",
+  "campaign_issue": 239,
+  "base_revision": "90933e93dc50fc319df3af00e262bc5eb33c870c",
+  "authority_refs": [
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+    "https://github.com/KTY137/daedalus/issues/239"
+  ],
+  "finding": "Python json.loads applies last-key-wins semantics by default, so a JSON object containing duplicate root or row keys could pass the exact-field parser after one occurrence was silently discarded. That leaves an ambiguous evidence wire representation even though the parsed Mapping looks valid.",
+  "primary_claim": "The latent-ceiling file loader now refuses duplicate JSON object keys at every nesting level before Corpus.parse or corpus_sha256 calculation. A last-key-wins payload can no longer masquerade as an unambiguous frozen evidence corpus.",
+  "scope": {
+    "changed": [
+      "experiments/tensor_embedding/arm_o_latent_ceiling.py",
+      "tests/test_tensor_latent_ceiling.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-03.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_embedding_backend": false,
+    "adds_tensor_backend": false,
+    "adds_graph_authority": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler": false,
+    "adds_schema_framework": false,
+    "adds_semantic_plane": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Use the standard-library json object_pairs_hook in the existing loader and one tiny duplicate-key guard. Do not introduce a schema library, parser wrapper hierarchy, migration subsystem, alternate corpus representation, or second validation path.",
+  "acceptance": [
+    "the committed prediction-only corpus remains structurally valid and incomplete",
+    "a duplicate root key is refused even when the final duplicate occurrence contains the otherwise valid value",
+    "a duplicate nested item key is refused even when the final duplicate occurrence contains the otherwise valid value",
+    "existing exact-field, bucket, status, evidence-ref, and duplicate-item-id refusals remain unchanged",
+    "no prediction or partial corpus can publish a numeric ceiling",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "focused_commands": [
+      "python -m py_compile experiments/tensor_embedding/arm_o_latent_ceiling.py tests/test_tensor_latent_ceiling.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_tensor_latent_ceiling.py",
+      "python experiments/tensor_embedding/arm_o_latent_ceiling.py experiments/tensor_embedding/arm_o_latent_ceiling_corpus.json"
+    ],
+    "pre_push_local_probe": "15 passed in 0.05s; py_compile succeeded; prediction-only CLI exit 3 with complete=false, ceiling=null, measured_rows=0, prediction_rows=10, expected_total=1383 on byte-identical production/test blobs and a structurally equivalent 10-row prediction fixture",
+    "production_blob_sha": "163a7195267033ce39a404da634f0157e504ab90",
+    "test_blob_sha": "5947c00f89688694bb129764915599c59a8afb3f",
+    "committed_corpus_blob_unchanged": "ceb22596086027038deaae78450a6f1c96ea6246",
+    "claim_boundary": "Hosted CI or an exact repository checkout run is claimed only if it actually executes on the recorded final head; the pre-push probe is focused evidence, not a full-suite or benchmark claim."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-latent-ceiling-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-EXP-TENSOR-LATENT-CEILING-03 commits. No production Tensor/embedding authority, store, scheduler, or promotion path depends on this experiment.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
