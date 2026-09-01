@@ -139,6 +139,40 @@ def test_reference_interpreter_compose_preflight_preserves_middle_axis_contract(
         )
 
 
+def test_reference_interpreter_compose_preflight_preserves_fourfold_subject(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = TypedAxis("source", "code", ("s",))
+    middle = TypedAxis("middle", "code", ("m",))
+    target = TypedAxis("target", "type", ("T",))
+    semiring = BooleanSemiring()
+    left = _block("a", source, middle, "s", "m")
+    foreign_subject = ProjectionSubject(
+        repository_id="KTY137/other",
+        source_revision="c" * 40,
+        source_fourfold_sha256="d" * 64,
+    )
+    right = TypedRelationBlock.from_coordinates(
+        subject=foreign_subject,
+        signature=RelationSignature("code", "b", "type"),
+        row_axis=middle,
+        column_axis=target,
+        coordinates=(("m", "T", True),),
+        semiring=semiring,
+    )
+    plan = ContractionPlan("ab", Compose(BlockRef("a"), BlockRef("b"), "ab"))
+
+    def unexpected_matmul(*args: object, **kwargs: object) -> object:
+        raise AssertionError("matmul must not run across Fourfold subjects")
+
+    monkeypatch.setattr(TypedRelationBlock, "matmul", unexpected_matmul)
+    with pytest.raises(ValueError, match="same exact Fourfold subject"):
+        ReferenceContractionInterpreter(semiring).evaluate(
+            plan,
+            {"a": left, "b": right},
+        )
+
+
 def test_reference_interpreter_preflights_hadamard_budget_before_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
