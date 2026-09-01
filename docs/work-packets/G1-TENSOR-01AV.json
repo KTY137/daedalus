@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AV",
+  "title": "Bound contraction-plan structure before recursive execution",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AU",
+  "campaign_issue": 239,
+  "base_revision": "c93e1c0125cf3b81f58891502bbab68e5d622ff6",
+  "finding": "ReferenceContractionInterpreter bounded relation operations but ContractionPlan accepted an arbitrarily large or cyclic expression graph. Recursive serialization, digesting, or evaluation could therefore exhaust Python recursion independently of the existing matrix-operation budget.",
+  "primary_claim": "ContractionPlan now validates the complete expression iteratively against a small structural node ceiling before recursive serialization or execution can be reached; ordinary bounded plan semantics are unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/contractions.py",
+      "tests/twin/test_relation_contractions.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01AV.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Add one iterative structural guard to the existing executable oracle rather than introducing a second planner, parser, graph representation, or execution layer. Keep the 256-node ceiling private to the reference implementation until measured workloads justify a different contract.",
+  "acceptance": [
+    "a contraction tree at the configured structural bound remains accepted and digestible",
+    "an oversized contraction tree refuses at ContractionPlan construction",
+    "a cyclic adversarial expression terminates at the same bounded structural guard rather than recurring indefinitely",
+    "existing Fourfold multi-hop and semiring contraction behavior remains unchanged inside the bound",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "bounded Tensor/Forest diagnostic on the designated Python 3.12 hash-seed 0 cell",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01AV commits; canonical Forest/Fourfold artifacts, relation blocks, and identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
