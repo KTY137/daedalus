@@ -27,8 +27,16 @@ from pathlib import Path
 
 import pytest
 
+# The COMPOSED gate, which is the one production runs. The registered door
+# `spine.attempt.pytest_gate` deliberately owns no scratch-cleanup capability
+# and refuses uncomposed with `AttemptPortMissing` (G1-HIER-03B/03D); the kill
+# switch has to reach the child on the path a real Attempt takes, so these two
+# tests take it. Same door, same kernel `_command_gate`, same real subprocess
+# tree -- only the injected `remove_tree_no_follow` port is added. Migrated by
+# G1-HIER-09; until then both gate tests below were red.
+from daedalus.orchestration.execution import pytest_gate
 from daedalus.spine import containment as C
-from daedalus.spine.attempt import RunnerContext, TaskSpec, pytest_gate
+from daedalus.spine.attempt import RunnerContext, TaskSpec
 from daedalus.spine.cancel import (
     ManagedProcess,
     cancel_all_managed,

@@ -40,7 +40,25 @@ from pathlib import Path
 import pytest
 
 import daedalus.spine.attempt as attempt_mod
+from daedalus.orchestration.execution import pytest_gate as composed_pytest_gate
 from daedalus.spine import containment as C
+
+# WHICH gate object these tests drive, and why it is the composed one.
+#
+# `attempt_mod.pytest_gate` is the REGISTERED effect door. Since G1-HIER-03B/03D
+# it owns no scratch-cleanup capability: calling it uncomposed raises
+# `AttemptPortMissing` before `begin_effect`, on purpose, so that a later caller
+# cannot inherit an ambient Kairos walker. Production reaches the gate only
+# through `orchestration.execution`, which injects `remove_tree_no_follow`.
+#
+# Containment is a property of the path PRODUCTION takes, so these tests take
+# that path too -- the same registered door, the same kernel `_command_gate`,
+# the same real subprocesses, with the port the shipped caller supplies.
+# `attempt_mod` stays imported and asserted against: the RunnerContext/TaskSpec
+# types, the `_contained_gate_child` spawn seam, and the door's own signature.
+#
+# G1-HIER-09 migrated these call sites. Before it they were eleven loud reds
+# (nine here, two in tests/test_killswitch.py) that no packet subset ever ran.
 
 pytestmark = pytest.mark.skipif(
     not C.platform_supported(),
@@ -248,7 +266,7 @@ def test_a_contained_pytest_gate_passes_a_real_worktree(tmp_path):
         worktree=worktree, branch="b", base_revision="0" * 40,
         task=attempt_mod.TaskSpec("t", "i"), is_cancelled=lambda: False)
 
-    verdict = attempt_mod.pytest_gate(timeout_s=300)(ctx)
+    verdict = composed_pytest_gate(timeout_s=300)(ctx)
 
     assert verdict.passed is True, verdict.output[-2000:]
     assert "2 passed" in verdict.output
@@ -484,7 +502,7 @@ def test_a_CHATTY_contained_gate_completes_instead_of_deadlocking(tmp_path):
         worktree=worktree, branch="b", base_revision="0" * 40,
         task=attempt_mod.TaskSpec("t", "i"), is_cancelled=lambda: False)
 
-    verdict = attempt_mod.pytest_gate(timeout_s=300, poll_s=0.05)(ctx)
+    verdict = composed_pytest_gate(timeout_s=300, poll_s=0.05)(ctx)
 
     assert verdict.timed_out is False, "the chatty gate wedged"
     assert verdict.cancelled is False
@@ -506,7 +524,7 @@ def test_a_chatty_contained_gate_is_still_CANCELLABLE(tmp_path):
         is_cancelled=lambda: ready.exists())
 
     started = time.monotonic()
-    verdict = attempt_mod.pytest_gate(timeout_s=300, poll_s=0.05)(ctx)
+    verdict = composed_pytest_gate(timeout_s=300, poll_s=0.05)(ctx)
     elapsed = time.monotonic() - started
 
     assert ready.exists(), "the gate child never reached its running state"
@@ -562,7 +580,7 @@ def test_the_attestation_records_MEASURED_facts(tmp_path):
         worktree=worktree, branch="b", base_revision="0" * 40,
         task=attempt_mod.TaskSpec("t", "i"), is_cancelled=lambda: False)
 
-    verdict = attempt_mod.pytest_gate(timeout_s=300)(ctx)
+    verdict = composed_pytest_gate(timeout_s=300)(ctx)
     att = verdict.containment
 
     assert att.contained is True
@@ -588,7 +606,7 @@ def test_the_attestation_reaches_the_LEDGER_shape(tmp_path):
         worktree=worktree, branch="b", base_revision="0" * 40,
         task=attempt_mod.TaskSpec("t", "i"), is_cancelled=lambda: False)
 
-    block = attempt_mod.pytest_gate(timeout_s=300)(ctx).summary()["containment"]
+    block = composed_pytest_gate(timeout_s=300)(ctx).summary()["containment"]
 
     assert json.loads(json.dumps(block)) == block, "not JSON-safe"
     assert block["contained"] is True
@@ -611,7 +629,7 @@ def test_an_unsupported_platform_is_a_HARD_REFUSAL_not_a_downgrade(tmp_path,
         worktree=worktree, branch="b", base_revision="0" * 40,
         task=attempt_mod.TaskSpec("t", "i"), is_cancelled=lambda: False)
 
-    verdict = attempt_mod.pytest_gate(timeout_s=300)(ctx)
+    verdict = composed_pytest_gate(timeout_s=300)(ctx)
 
     assert verdict.passed is False, "an uncontainable gate returned a PASS"
     assert "without MIC write containment" in verdict.output
@@ -628,15 +646,22 @@ def test_a_caller_declares_the_WORKLOAD_not_a_weaker_security_default():
     A boolean called `contained` reads as a knob and would be turned; a boolean
     called `executes_candidate` is a claim about the runner that a reviewer can
     check. The default is the safe one either way.
+
+    Asserted on BOTH gate objects. The registered door is where the contract
+    lives, but production calls the composed wrapper in
+    `orchestration.execution`; a knob added only there would be just as turnable
+    and the door-only assertion would not have seen it.
     """
     import inspect
 
-    sig = inspect.signature(attempt_mod.pytest_gate)
-    assert sig.parameters["executes_candidate"].default is True
-    for forbidden in ("contained", "containment", "uncontained", "unsafe",
-                      "skip_containment", "allow_uncontained"):
-        assert forbidden not in sig.parameters, (
-            f"pytest_gate exposes {forbidden!r}: containment became a knob")
+    for label, gate in (("attempt.pytest_gate", attempt_mod.pytest_gate),
+                        ("execution.pytest_gate", composed_pytest_gate)):
+        sig = inspect.signature(gate)
+        assert sig.parameters["executes_candidate"].default is True, label
+        for forbidden in ("contained", "containment", "uncontained", "unsafe",
+                          "skip_containment", "allow_uncontained"):
+            assert forbidden not in sig.parameters, (
+                f"{label} exposes {forbidden!r}: containment became a knob")
 
 
 def test_declaring_no_candidate_code_takes_the_uncontained_path(tmp_path):
@@ -654,8 +679,8 @@ def test_declaring_no_candidate_code_takes_the_uncontained_path(tmp_path):
         worktree=worktree, branch="b", base_revision="0" * 40,
         task=attempt_mod.TaskSpec("t", "i"), is_cancelled=lambda: False)
 
-    verdict = attempt_mod.pytest_gate(timeout_s=300,
-                                      executes_candidate=False)(ctx)
+    verdict = composed_pytest_gate(timeout_s=300,
+                                   executes_candidate=False)(ctx)
 
     assert verdict.passed is True, verdict.output[-1000:]
     assert verdict.containment.contained is False
@@ -726,7 +751,7 @@ def test_a_gate_that_exits_0_with_NO_output_is_not_a_PASS(tmp_path, monkeypatch)
         worktree=worktree, branch="b", base_revision="0" * 40,
         task=attempt_mod.TaskSpec("t", "i"), is_cancelled=lambda: False)
 
-    verdict = attempt_mod.pytest_gate(timeout_s=60)(ctx)
+    verdict = composed_pytest_gate(timeout_s=60)(ctx)
 
     assert verdict.returncode == 0
     assert verdict.passed is False, "a zero-byte gate report was reported green"
@@ -742,7 +767,7 @@ def test_CONTROL_the_same_gate_WITH_output_is_a_pass(tmp_path, monkeypatch):
         worktree=worktree, branch="b", base_revision="0" * 40,
         task=attempt_mod.TaskSpec("t", "i"), is_cancelled=lambda: False)
 
-    verdict = attempt_mod.pytest_gate(timeout_s=60)(ctx)
+    verdict = composed_pytest_gate(timeout_s=60)(ctx)
 
     assert verdict.passed is True
     assert "1 passed" in verdict.output
