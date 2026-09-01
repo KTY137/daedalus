@@ -207,6 +207,16 @@ def test_evidence_add_allows_exact_alternative_bound(
     assert len(result.alternatives) == 5
 
 
+def test_evidence_add_preserves_idempotence_before_candidate_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semiring = EvidenceDagSemiring()
+    value = EvidenceValue(((_digest(0),), (_digest(1),), (_digest(2),)))
+    monkeypatch.setattr(semiring_module, "MAX_EVIDENCE_ALTERNATIVES", 4)
+
+    assert semiring.add(value, value) is value
+
+
 def test_evidence_multiply_rejects_before_cartesian_materialization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -240,3 +250,15 @@ def test_evidence_multiply_allows_exact_alternative_bound(
         (_digest(1), _digest(2)),
         (_digest(1), _digest(3)),
     )
+
+
+def test_evidence_multiply_preserves_idempotence_and_identity_before_candidate_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semiring = EvidenceDagSemiring()
+    value = EvidenceValue(((_digest(0),), (_digest(1),), (_digest(2),)))
+    monkeypatch.setattr(semiring_module, "MAX_EVIDENCE_ALTERNATIVES", 2)
+
+    assert semiring.multiply(value, value) is value
+    assert semiring.multiply(semiring.one, value) is value
+    assert semiring.multiply(value, semiring.one) is value
