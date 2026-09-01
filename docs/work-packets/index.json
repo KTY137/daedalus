@@ -9,13 +9,13 @@
     "master_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
   },
   "counts": {
-    "assigned_artifacts": 270,
+    "assigned_artifacts": 271,
     "legacy_artifacts": 204,
-    "packet_artifacts": 272,
-    "packet_ids": 207,
-    "post_index_artifacts": 68,
+    "packet_artifacts": 273,
+    "packet_ids": 208,
+    "post_index_artifacts": 69,
     "registry_artifacts": 1,
-    "tracked_files": 273,
+    "tracked_files": 274,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -3367,6 +3367,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-RUNTIME-03_STALE_FIXTURE_NOT_A_BROKEN_GUARD.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "aeef64bfb3a2cbb1bbafa38f6d0a1462c2b9e794",
+        "classification": "ALIGNED",
+        "dependencies": "G1-RUNTIME-02 introduced the runtime trust port and its guard at d30136e8e351e311fb9b72db7b3d1a3222b1c6e5; the contract locator export that made that commit importable landed at 59b28718",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-03",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-03_STALE_FIXTURE_NOT_A_BROKEN_GUARD.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-RUNTIME-PROVIDER-01_CLAUDE_CONTRACT_STRANGLER.md"
       ],
       "metadata": {
@@ -4383,6 +4399,20 @@
       "packet_id": "G1-RUNTIME-02",
       "path": "docs/work-packets/G1-RUNTIME-02_SHIM_REGISTER.json",
       "sections": []
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-03",
+      "path": "docs/work-packets/G1-RUNTIME-03_STALE_FIXTURE_NOT_A_BROKEN_GUARD.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
     },
     {
       "artifact_role": "primary",

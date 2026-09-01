@@ -218,7 +218,24 @@ class RuntimeBoundEffectLease(CanonicalContract):
 def _require_runtime_trust_ledger_port(
     value: object,
 ) -> RuntimeTrustLedgerPort:
-    if not isinstance(value, RuntimeTrustLedgerPort):
+    """Refuse any injected authority that cannot answer the trust question.
+
+    ``@runtime_checkable`` proves only that the member NAME resolves.
+    ``isinstance(x, RuntimeTrustLedgerPort)`` is therefore True for an object
+    whose ``require_active`` is an integer. Such an object would be admitted
+    here, every caller would proceed believing runtime trust had been checked,
+    and it would surface much later as an unrelated ``TypeError`` raised from
+    inside verification -- after the lease had already been composed. Require
+    the member to be callable so the refusal happens at this boundary.
+
+    The check deliberately stops at callability. Pinning the signature would
+    reject legitimate ``**kwargs`` forwarders and test doubles, which is a
+    guard that blocks a valid ledger rather than an invalid one.
+    """
+
+    if not isinstance(value, RuntimeTrustLedgerPort) or not callable(
+        getattr(value, "require_active", None)
+    ):
         raise TypeError(
             "runtime_trust_ledger must implement RuntimeTrustLedgerPort"
         )
