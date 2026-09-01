@@ -35,7 +35,7 @@ class ExplodingSequence(Sequence[object]):
 
 
 class FirstThenExplodes(Sequence[object]):
-    """Expose one invalid term and fail if parsing advances past it."""
+    """Expose one invalid term; any tail access proves eager outer materialization."""
 
     def __init__(self, first: object) -> None:
         self.first = first
