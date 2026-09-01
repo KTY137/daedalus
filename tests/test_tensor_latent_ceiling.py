@@ -35,10 +35,14 @@ def _row(item_id: str, bucket: str, status: str = "measured") -> dict:
     }
 
 
-def _corpus(items: list[dict], expected_total: int | None = None) -> dict:
+def _corpus(
+    items: list[dict],
+    expected_total: int | None = None,
+    source_revision: str | None = None,
+) -> dict:
     return {
         "schema": O.SCHEMA,
-        "source_revision": "a" * 40,
+        "source_revision": source_revision or O.FROZEN_SOURCE_REVISION,
         "expected_total": expected_total if expected_total is not None else len(items),
         "items": items,
     }
@@ -58,6 +62,7 @@ def _complete_corpus(b_count: int, c_count: int = 0):
 def test_committed_corpus_preserves_predictions_without_claiming_a_result() -> None:
     corpus = O.load(CORPUS)
     report = O.evaluate(corpus)
+    assert corpus.source_revision == O.FROZEN_SOURCE_REVISION
     assert corpus.expected_total == O.FROZEN_EXPECTED_TOTAL == 1383
     assert len(corpus.rows) == 10
     assert report["prediction_rows"] == 10
@@ -99,6 +104,21 @@ def test_changed_denominator_cannot_publish_a_ceiling_via_direct_evaluation() ->
     )
     report = O.evaluate(corpus)
     assert report["measured_rows"] == 1
+    assert report["complete"] is False
+    assert report["ceiling"] is None
+    assert report["decision"].startswith("INCOMPLETE")
+
+
+def test_changed_source_revision_cannot_publish_a_ceiling_via_direct_evaluation() -> None:
+    frozen = _complete_corpus(b_count=346, c_count=1)
+    changed = O.Corpus(
+        source_revision="b" * 40,
+        expected_total=frozen.expected_total,
+        rows=frozen.rows,
+        corpus_sha256=frozen.corpus_sha256,
+    )
+    report = O.evaluate(changed)
+    assert report["measured_rows"] == O.FROZEN_EXPECTED_TOTAL
     assert report["complete"] is False
     assert report["ceiling"] is None
     assert report["decision"].startswith("INCOMPLETE")
@@ -151,6 +171,22 @@ def test_load_refuses_duplicate_json_object_keys(
     path = tmp_path / "ambiguous.json"
     path.write_text(ambiguous, encoding="utf-8")
     with pytest.raises(O.CeilingCorpusError, match=match):
+        O.load(path)
+
+
+def test_load_refuses_changed_frozen_source_revision(tmp_path: Path) -> None:
+    path = tmp_path / "changed-source-revision.json"
+    path.write_text(
+        json.dumps(
+            _corpus(
+                [_row("b", "present_not_expressible")],
+                expected_total=O.FROZEN_EXPECTED_TOTAL,
+                source_revision="b" * 40,
+            )
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(O.CeilingCorpusError, match="source_revision must remain frozen"):
         O.load(path)
 
 
