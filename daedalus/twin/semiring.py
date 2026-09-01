@@ -16,6 +16,7 @@ from ..spine.envelope import canonical_json, canonical_sha
 
 T = TypeVar("T")
 
+MAX_NATURAL_BITS = 4_096
 MAX_EVIDENCE_ALTERNATIVES = 4_096
 MAX_EVIDENCE_TERM_ATOMS = 128
 MAX_EVIDENCE_PRODUCT_CANDIDATES = 65_536
@@ -69,7 +70,7 @@ class BooleanSemiring:
 
 
 class NaturalSemiring:
-    """Path multiplicity over non-negative integers."""
+    """Path multiplicity over bounded non-negative integers."""
 
     name = "natural"
     zero = 0
@@ -79,13 +80,21 @@ class NaturalSemiring:
     def _value(value: Any, name: str) -> int:
         if type(value) is not int or value < 0:
             raise ValueError(f"{name} must be a non-negative integer")
+        if value.bit_length() > MAX_NATURAL_BITS:
+            raise ValueError(
+                f"{name} exceeds bounded natural bit length {MAX_NATURAL_BITS}"
+            )
         return value
 
     def add(self, left: int, right: int) -> int:
-        return self._value(left, "left") + self._value(right, "right")
+        first = self._value(left, "left")
+        second = self._value(right, "right")
+        return self._value(first + second, "result")
 
     def multiply(self, left: int, right: int) -> int:
-        return self._value(left, "left") * self._value(right, "right")
+        first = self._value(left, "left")
+        second = self._value(right, "right")
+        return self._value(first * second, "result")
 
 
 class TropicalSemiring:
@@ -252,6 +261,7 @@ class EvidenceDagSemiring:
 
 
 __all__ = [
+    "MAX_NATURAL_BITS",
     "MAX_EVIDENCE_ALTERNATIVES",
     "MAX_EVIDENCE_PRODUCT_CANDIDATES",
     "MAX_EVIDENCE_TERM_ATOMS",

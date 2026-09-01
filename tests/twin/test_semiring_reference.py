@@ -5,6 +5,7 @@ import itertools
 import pytest
 
 from daedalus.twin.semiring import (
+    MAX_NATURAL_BITS,
     BooleanSemiring,
     EvidenceDagSemiring,
     EvidenceValue,
@@ -49,6 +50,19 @@ def test_scalar_semiring_laws(semiring: object, samples: tuple[object, ...]) -> 
         assert multiply(add(left, middle), right) == add(
             multiply(left, right), multiply(middle, right)
         )
+
+
+def test_natural_semiring_refuses_unbounded_operand_and_result_growth() -> None:
+    semiring = NaturalSemiring()
+    maximum = (1 << MAX_NATURAL_BITS) - 1
+
+    assert semiring.add(maximum - 1, 1) == maximum
+    with pytest.raises(ValueError, match="bounded natural bit length"):
+        semiring.add(1 << MAX_NATURAL_BITS, 0)
+    with pytest.raises(ValueError, match="bounded natural bit length"):
+        semiring.add(maximum, 1)
+    with pytest.raises(ValueError, match="bounded natural bit length"):
+        semiring.multiply(1 << (MAX_NATURAL_BITS // 2), 1 << (MAX_NATURAL_BITS // 2))
 
 
 def test_evidence_semiring_records_alternatives_and_joint_requirements() -> None:

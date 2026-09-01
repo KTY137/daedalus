@@ -1,0 +1,59 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AK",
+  "title": "Bound natural-semiring scalar growth",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AJ",
+  "campaign_issue": 239,
+  "base_revision": "62b98a01a02d3884f6a716be66117cde7ebf20a3",
+  "finding": "The natural-number reference semiring bounded operation count but not scalar magnitude. Repeated path-count composition could therefore create arbitrarily large Python integers inside an otherwise bounded reference kernel.",
+  "primary_claim": "Natural-semiring operands and arithmetic results are fail-closed above a 4096-bit diagnostic envelope, preventing unbounded bigint growth without adding a new numeric abstraction or backend.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/semiring.py",
+      "tests/twin/test_semiring_reference.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01AK.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Harden the existing reference semiring in place. Do not add bigint wrappers, alternate scalar contracts, or a second arithmetic layer.",
+  "acceptance": [
+    "normal path-count semiring laws remain unchanged inside the bounded envelope",
+    "the largest 4096-bit non-negative value is accepted",
+    "oversized operands refuse before arithmetic",
+    "addition and multiplication refuse when the result crosses the 4096-bit envelope",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01AK commit; canonical Forest/Fourfold artifacts and identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
