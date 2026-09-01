@@ -71,13 +71,9 @@ def _stored(value: Any, semiring_name: str) -> Any:
         if not value.alternatives:
             raise ValueError("relation blocks must not store semiring zero values")
         return value
-    if type(value) in (bool, int):
-        return value
-    if type(value) is float and math.isfinite(value):
-        return 0.0 if value == 0.0 else value
-    if isinstance(value, EvidenceValue):
-        return value
-    raise ValueError("relation-block values must be JSON-safe scalar values")
+    raise ValueError(
+        f"unsupported persisted semiring {semiring_name!r}; add an explicit scalar contract first"
+    )
 
 
 def _json_scalar(value: Any) -> Any:
