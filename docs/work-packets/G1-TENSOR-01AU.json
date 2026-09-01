@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AU",
+  "title": "Bound evidence product alternatives before Cartesian materialization",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AT",
+  "campaign_issue": 239,
+  "base_revision": "78eb48f8bb0711ad8ef0d668665d6a73b1050515",
+  "finding": "EvidenceDagSemiring.multiply bounded the raw Cartesian product at 65536 candidates even though EvidenceValue can accept at most 4096 outer alternatives before canonical absorption. Products above the retained alternative envelope could therefore materialize clauses that the result constructor must reject.",
+  "primary_claim": "Evidence multiplication now fails closed at the actual retained-alternative envelope before Cartesian term materialization, and the redundant product-candidate constant is removed without changing the canonical evidence algebra inside the bound.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/semiring.py",
+      "tests/twin/test_tensor_evidence_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01AU.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse MAX_EVIDENCE_ALTERNATIVES as the one observable outer-alternative bound and delete the redundant 65536 product-candidate constant instead of adding another evidence representation or execution layer.",
+  "acceptance": [
+    "an oversized evidence Cartesian product refuses before product-term materialization",
+    "a product exactly at the retained-alternative bound remains accepted",
+    "the redundant MAX_EVIDENCE_PRODUCT_CANDIDATES constant and export are removed",
+    "canonical evidence semantics inside the bounded envelope remain unchanged",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "bounded Tensor/Forest diagnostic on the designated Python 3.12 hash-seed 0 cell",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01AU commits; canonical Forest/Fourfold artifacts and identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
