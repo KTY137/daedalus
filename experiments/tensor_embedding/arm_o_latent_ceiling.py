@@ -186,7 +186,10 @@ def evaluate(corpus: Corpus) -> dict[str, Any]:
     predictions = tuple(row for row in corpus.rows if row.status == "prediction")
     counts = Counter(row.bucket for row in measured)
     measured_n = len(measured)
-    complete = measured_n == corpus.expected_total
+    complete = (
+        corpus.expected_total == FROZEN_EXPECTED_TOTAL
+        and measured_n == corpus.expected_total
+    )
     ceiling: float | None = None
     if complete:
         if measured_n <= 0:
