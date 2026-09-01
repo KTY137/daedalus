@@ -109,6 +109,36 @@ def test_malformed_or_ambiguous_corpus_is_refused(mutator, match: str) -> None:
         O.Corpus.parse(payload)
 
 
+@pytest.mark.parametrize(
+    "target,replacement,match",
+    [
+        (
+            f'"schema":"{O.SCHEMA}"',
+            f'"schema":"shadow","schema":"{O.SCHEMA}"',
+            "duplicate JSON object key 'schema'",
+        ),
+        (
+            '"id":"a"',
+            '"id":"shadow","id":"a"',
+            "duplicate JSON object key 'id'",
+        ),
+    ],
+)
+def test_load_refuses_duplicate_json_object_keys(
+    tmp_path: Path, target: str, replacement: str, match: str
+) -> None:
+    rendered = json.dumps(
+        _corpus([_row("a", "already_covered")]),
+        separators=(",", ":"),
+    )
+    ambiguous = rendered.replace(target, replacement, 1)
+    assert ambiguous != rendered
+    path = tmp_path / "ambiguous.json"
+    path.write_text(ambiguous, encoding="utf-8")
+    with pytest.raises(O.CeilingCorpusError, match=match):
+        O.load(path)
+
+
 def test_thresholds_do_not_turn_midrange_or_tiny_headroom_into_a_win() -> None:
     close = O.evaluate(
         O.Corpus.parse(_corpus([
