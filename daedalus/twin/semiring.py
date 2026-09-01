@@ -193,11 +193,11 @@ class EvidenceValue:
     def from_dict(cls, payload: Any) -> "EvidenceValue":
         if not isinstance(payload, dict) or set(payload) != {"alternatives"}:
             raise ValueError("evidence value must contain only alternatives")
-        alternatives = payload["alternatives"]
-        if not isinstance(alternatives, Sequence) or isinstance(
-            alternatives, (str, bytes)
-        ):
-            raise ValueError("evidence.alternatives must be a sequence")
+        alternatives = _bounded_sequence(
+            payload["alternatives"],
+            "evidence.alternatives",
+            MAX_EVIDENCE_ALTERNATIVES,
+        )
         return cls(tuple(alternatives))
 
     def to_dict(self) -> dict[str, Any]:

@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from daedalus.twin.semiring import MAX_EVIDENCE_ALTERNATIVES, EvidenceValue
 from daedalus.twin.tensor import (
     MAX_ENTRY_EVIDENCE_DIGESTS,
     MAX_TENSOR_AXES,
@@ -104,3 +105,12 @@ def test_wire_entry_count_refuses_before_record_materialization() -> None:
         TensorView.from_dict(_tensor_wire_payload(entries=entries))
 
     assert entries.accessed is False
+
+
+def test_evidence_wire_alternatives_refuse_before_copy() -> None:
+    alternatives = ExplodingSequence(MAX_EVIDENCE_ALTERNATIVES + 1)
+
+    with pytest.raises(ValueError, match="evidence.alternatives exceeds bounded limit"):
+        EvidenceValue.from_dict({"alternatives": alternatives})
+
+    assert alternatives.accessed is False
