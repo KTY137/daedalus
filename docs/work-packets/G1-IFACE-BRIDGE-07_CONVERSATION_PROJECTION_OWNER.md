@@ -25,13 +25,16 @@ projection, transient-failure classification, reconciliation validation, and
 projection-only requeue. `daedalus.file_bridge` remains the registered effect
 facade and reexports the exact owner exception objects.
 
-## Authority and preserved seams
+## Scope
 
 - The owner receives the canonical Conversation database path/store, report
   field derivation, SQLite exception type, completed-report reader, journal,
   archive/outbox paths, and move operations as explicit ports.
 - It imports no Daedalus facade, Effect Registry, conversation store,
   SQLite implementation, provider, process, or network module.
+
+## Contracts and behavior
+
 - The facade resolves `_conversation_report_fields`,
   `_is_transient_projection_failure`, `_completed_report`,
   `_project_report_to_conversation`, `_requeue_for_projection`, paths, and
@@ -40,9 +43,6 @@ facade and reexports the exact owner exception objects.
   canonical owner classes reexported by the old module. Old and new imports
   therefore reference the same class objects; old pickle lookups remain
   resolvable through the facade.
-
-## Preserved behavior
-
 - Unlinked work remains a strict no-op and does not create the canonical
   database.
 - Stable source identity remains `file_bridge.report:<request-key>` and the
@@ -70,11 +70,18 @@ facade and reexports the exact owner exception objects.
 | Registry stability | semantic digest assertion | exact existing digest |
 | Provider/network budget | builder tests only | zero live provider or network calls |
 
-## Migration, rollback, and evidence
+## Migration and rollback
 
 There is no persistent migration. Rollback restores the projection and retry
 bodies plus exception definitions inside `file_bridge.py` and removes the
 conversation owner target from the shim registry.
+
+The generated Work-Packet index is refreshed centrally after parallel packet
+integration. This packet does not edit the Master Plan, amendment chain,
+historical `runs/`, generated web distribution, Registry target, provider
+admission, or promotion state.
+
+## Evidence, expected failures and review
 
 - Python 3.13: 296 focused bridge, conversation, crash, Effect, envelope,
   hardening, and HTTP-loop tests passed; 16 subtests passed.
@@ -86,8 +93,3 @@ conversation owner target from the shim registry.
 - The packet base still carries the previously identified dangling budget shim
   locator. G1-HIER-06E owns that independent architecture-contract repair;
   this packet neither changes nor weakens its baseline.
-
-The generated Work-Packet index is refreshed centrally after parallel packet
-integration. This packet does not edit the Master Plan, amendment chain,
-historical `runs/`, generated web distribution, Registry target, provider
-admission, or promotion state.

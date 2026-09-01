@@ -30,7 +30,17 @@ it does not claim that all historical runners have already been converted.
 Later packets may add specs and replace old scripts only after their callers
 and retained negative evidence have been audited.
 
-## Contracts and safety
+## Scope
+
+This packet establishes the declarative mutation runner pattern: a JSON spec
+owns the target paths, source anchors, test selections, and timeout; the
+`tools.mutation_score` module executes the score deterministically in an
+isolated snapshot; and the legacy shell script at its original path becomes a
+thin compatibility wrapper that no longer modifies production source. The scope
+covers the first representative runner migration; remaining runners are out of
+scope and require separate packets with caller and evidence audits.
+
+## Contracts and behavior
 
 - Every spec path stays inside the selected repository and every explicit
   source anchor must occur exactly once before a run starts.
@@ -45,7 +55,7 @@ and retained negative evidence have been audited.
 - Scoring continues through the existing registered `tools.mutation_score`
   effect door; no Registry target, effect, wiring or digest changes.
 
-## Shadow evidence and retained failure
+## Evidence, expected failures and review
 
 The first old/new comparison exposed non-deterministic survivor sets in the
 legacy in-place runner. CPython timestamp/size bytecode caching could reuse a
@@ -57,7 +67,8 @@ After disabling bytecode writes in a cache-free sandbox, three consecutive
 repository-tree shadows produced the same result: seven mutations caught and
 `allow-symlink-component` survived. The surviving mutation remains visible and
 the wrapper exits non-zero; this packet does not weaken or silently bless the
-test gap.
+test gap. Budget: zero live provider or network calls; offline builder tests
+only.
 
 ## Acceptance matrix
 

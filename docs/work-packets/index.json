@@ -9,13 +9,13 @@
     "master_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
   },
   "counts": {
-    "assigned_artifacts": 221,
+    "assigned_artifacts": 267,
     "legacy_artifacts": 204,
-    "packet_artifacts": 223,
-    "packet_ids": 158,
-    "post_index_artifacts": 19,
+    "packet_artifacts": 269,
+    "packet_ids": 204,
+    "post_index_artifacts": 65,
     "registry_artifacts": 1,
-    "tracked_files": 224,
+    "tracked_files": 270,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2006,6 +2006,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-HERMES-01_SHARED_LOOPBACK_PREDICATE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "50324965bbc011941d2900a36f4f926a47569492",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HERMES-01",
+      "primary_artifact": "docs/work-packets/G1-HERMES-01_SHARED_LOOPBACK_PREDICATE.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-HIER-01_ARCHITECTURE_LOCATOR_CONTRACT.md"
       ],
       "metadata": {
@@ -2051,6 +2067,22 @@
       "origin": "post_index",
       "packet_id": "G1-HIER-02A",
       "primary_artifact": "docs/work-packets/G1-HIER-02A_KERNEL_LAZY_COMPATIBILITY_FACADE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-02B_RUNTIME_PROVIDER_REPORT_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "aa19b663c8abc285a63dbbad16cdfb5be9dd7bf1",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-02, G1-RUNTIME-PROVIDER-02",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-02B",
+      "primary_artifact": "docs/work-packets/G1-HIER-02B_RUNTIME_PROVIDER_REPORT_CONTRACT.md"
     },
     {
       "artifacts": [
@@ -2102,6 +2134,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-HIER-03D_ATTEMPT_PRODUCTION_COMPOSITION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "aded80f1a619124b0594ffa2e106e29ef6fa4b5e",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-03B, G1-HIER-03C, G1-ORCH-01, G1-IKARUS-15",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-03D",
+      "primary_artifact": "docs/work-packets/G1-HIER-03D_ATTEMPT_PRODUCTION_COMPOSITION.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-HIER-04_REPOSITORY_HEAD_VERIFIER_PORT.md"
       ],
       "metadata": {
@@ -2118,6 +2166,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-HIER-04B_OFFLOAD_LEASE_OUTER_PORTS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e9cf58a9e97db93d8f2627b52a59e2d58808db4b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01 import-boundary contract; G1-HIER-04 repository-head verifier port; G1-HIER-05 neutral receipt contracts",
+        "owner": "kernel/runtime/orchestration/chip-design maintainers"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-04B",
+      "primary_artifact": "docs/work-packets/G1-HIER-04B_OFFLOAD_LEASE_OUTER_PORTS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-HIER-05_NEUTRAL_GATE_RECEIPT_CONTRACTS.md"
       ],
       "metadata": {
@@ -2131,6 +2195,134 @@
       "origin": "post_index",
       "packet_id": "G1-HIER-05",
       "primary_artifact": "docs/work-packets/G1-HIER-05_NEUTRAL_GATE_RECEIPT_CONTRACTS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-06A_BUDGET_PRICING_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "0e8cd9061bf977cc7daf1d6720369736342f0e33",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-02, G1-RUNTIME-02",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-06A",
+      "primary_artifact": "docs/work-packets/G1-HIER-06A_BUDGET_PRICING_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-06B_BUDGET_LEDGER_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "fb4dd37a5392735706ca5621b8b22086a6d895ee",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-02, G1-HIER-06A",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-06B",
+      "primary_artifact": "docs/work-packets/G1-HIER-06B_BUDGET_LEDGER_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-06C_BUDGET_PROCESS_ADAPTER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "bacd9e6e69d58de6aebde4847e6afd6101b2ca72",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-06A, G1-HIER-06B, G1-RUNTIME-02",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-06C",
+      "primary_artifact": "docs/work-packets/G1-HIER-06C_BUDGET_PROCESS_ADAPTER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-06D_BUDGET_LOCATOR_CLOSEOUT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "5340dec799a11cddddd0d5570cb38d5c072db17f",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-06A, G1-HIER-06B, G1-HIER-06C",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-06D",
+      "primary_artifact": "docs/work-packets/G1-HIER-06D_BUDGET_LOCATOR_CLOSEOUT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-06E_BUDGET_SHIM_AND_BOUNDARY_CLOSEOUT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24f5102b8704794f7434064788361889344d5423",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-03B, G1-HIER-06A, G1-HIER-06B, G1-HIER-06C, G1-HIER-06D",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-06E",
+      "primary_artifact": "docs/work-packets/G1-HIER-06E_BUDGET_SHIM_AND_BOUNDARY_CLOSEOUT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-07A_IMPORT_SCC_LEDGER_PATH_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "526e867b3a2091826adc915de46e3ab391dc959b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-03B, G1-HIER-04B, G1-HIER-06E",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-07A",
+      "primary_artifact": "docs/work-packets/G1-HIER-07A_IMPORT_SCC_LEDGER_PATH_PORT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-07B_OBSERVATION_CONTRACT_SCC.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "bce1066e7cd8c5c400ece963425bffdf47606a75",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-06E, G1-HIER-07A",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-07B",
+      "primary_artifact": "docs/work-packets/G1-HIER-07B_OBSERVATION_CONTRACT_SCC.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-HIER-08_POLICY_LAZY_FACADE_RESTORATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e91ce02e7611de19013e75d2191dac19725fcc55",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-02A, G1-HIER-06A, G1-HIER-06B",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-08",
+      "primary_artifact": "docs/work-packets/G1-HIER-08_POLICY_LAZY_FACADE_RESTORATION.md"
     },
     {
       "artifacts": [
@@ -2214,6 +2406,262 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-02_CRASH_JOURNAL_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1d13176180cd60f0f7ddffd8e161186f9f1f7cbb",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-ORCH-01, G1-IFACE-BRIDGE-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-02",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-02_CRASH_JOURNAL_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-03_QUEUE_DOCUMENT_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "2ed9678b27a6cf5b9933c0a7fc9997b8c78488f8",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-IFACE-BRIDGE-01, G1-IFACE-BRIDGE-02",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-03",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-03_QUEUE_DOCUMENT_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-04_WATCHER_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "bb33e72ca127477a48218ce59fdf66f23b3f3720",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-IFACE-BRIDGE-01, G1-IFACE-BRIDGE-02,",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-04",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-04_WATCHER_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-05_REPORT_TRUTH_PROJECTION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "4b8ef61631a667bda48fdea3b88a7aba78c4daef",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-IFACE-BRIDGE-01, G1-IFACE-BRIDGE-02,",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-05",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-05_REPORT_TRUTH_PROJECTION.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-06A_DISPATCH_CLAIM_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b6ee91eb0cb7129fbfdef6239ef5ed00e9a67f23",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-IFACE-BRIDGE-01, G1-IFACE-BRIDGE-02,",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-06A",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-06A_DISPATCH_CLAIM_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-06B_CLAIMED_DISPATCH_STATE_MACHINE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "888c08361104c0cf8052ce389ead2a1420ff47dc",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-IFACE-BRIDGE-01,",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-06B",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-06B_CLAIMED_DISPATCH_STATE_MACHINE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-07_CONVERSATION_PROJECTION_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "24f5102b8704794f7434064788361889344d5423",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-IFACE-BRIDGE-01 through",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-07",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-07_CONVERSATION_PROJECTION_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-08_QUARANTINE_TRANSACTION_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c15fed857dbf120bfe2940dd72a046f7c1bb107c",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-IFACE-BRIDGE-01 through",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-08",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-08_QUARANTINE_TRANSACTION_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-09_POISON_RECOVERY_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "526e867b3a2091826adc915de46e3ab391dc959b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-06E, G1-IFACE-BRIDGE-01 through",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-09",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-09_POISON_RECOVERY_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-10_TERMINAL_BOOKKEEPING_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "8bc85e6a9b89a46c239b1c981594f33985e2ea7c",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-06E, G1-IFACE-BRIDGE-01 through",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-10",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-10_TERMINAL_BOOKKEEPING_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-11_STORAGE_SIGNAL_OWNERS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "7d0a89d90da92e792e7696aada77d1b53cde2b38",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-06E, G1-IFACE-BRIDGE-01 through",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-11",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-11_STORAGE_SIGNAL_OWNERS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-12_QUEUE_ADMISSION_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "17288bb9b17c55644ff0c640a9cbba2a2b8c7dc7",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-06E, G1-IFACE-BRIDGE-01 through",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-12",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-12_QUEUE_ADMISSION_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-BRIDGE-13_CLI_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e1b06da5de46c6bd6badeac59704f8ff0596446b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-IFACE-BRIDGE-01 through",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-BRIDGE-13",
+      "primary_artifact": "docs/work-packets/G1-IFACE-BRIDGE-13_CLI_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-DESKTOP-01_DESKTOP_RUNTIME_STRANGLER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e9cf58a9e97db93d8f2627b52a59e2d58808db4b",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IDE-13 at fc4fdbfcf623e5659e349e2c81f709cd9afa3bea; G1-IFACE-HTTP-01 at e2f5e34714cad292963b6bb9e8b8fb11a09ad12d; G1-WP-INDEX-01 at b2e74d601ab1af274cf670c58be53645c1001114",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-DESKTOP-01",
+      "primary_artifact": "docs/work-packets/G1-IFACE-DESKTOP-01_DESKTOP_RUNTIME_STRANGLER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-DESKTOP-02_CONFIGURATION_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b0d22beb0897690816fe699608274bcc4943b1e3",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IFACE-DESKTOP-01 at bacd9e6e69d58de6aebde4847e6afd6101b2ca72",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-DESKTOP-02",
+      "primary_artifact": "docs/work-packets/G1-IFACE-DESKTOP-02_CONFIGURATION_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-DESKTOP-03_SETTINGS_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "0ce7414a3c22e3357816e08a76ed0b1478f3e41d",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IFACE-DESKTOP-02 at 0ce7414a3c22e3357816e08a76ed0b1478f3e41d",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-DESKTOP-03",
+      "primary_artifact": "docs/work-packets/G1-IFACE-DESKTOP-03_SETTINGS_OWNER.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IFACE-HTTP-01_HTTP_STRANGLER_FACADE.md"
       ],
       "metadata": {
@@ -2227,6 +2675,38 @@
       "origin": "post_index",
       "packet_id": "G1-IFACE-HTTP-01",
       "primary_artifact": "docs/work-packets/G1-IFACE-HTTP-01_HTTP_STRANGLER_FACADE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-HTTP-02_SERVER_ADMISSION_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "013a945b122e160646d19a980dc1bbad09b9b003",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IFACE-HTTP-01, G1-HIER-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-HTTP-02",
+      "primary_artifact": "docs/work-packets/G1-IFACE-HTTP-02_SERVER_ADMISSION_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IFACE-HTTP-03_SSE_DELIVERY_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "81bc5670f67d1482ab9523a9498a9bdd90467194",
+        "classification": "ALIGNED",
+        "dependencies": "G1-IFACE-HTTP-01, G1-IFACE-HTTP-02, G1-WEB-01, G1-IKARUS-14",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IFACE-HTTP-03",
+      "primary_artifact": "docs/work-packets/G1-IFACE-HTTP-03_SSE_DELIVERY_OWNER.md"
     },
     {
       "artifacts": [
@@ -2662,6 +3142,118 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-MUT-01_DECLARATIVE_MUTATION_RUNNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c2dd8d132ae7299020be4bd090d90f892256d791",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MUT-01",
+      "primary_artifact": "docs/work-packets/G1-MUT-01_DECLARATIVE_MUTATION_RUNNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-MUT-02A_PROVIDER_RUNTIME_MUTATION_SPECS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c68433d1b4835a6159241a425e7b76b657e2865d",
+        "classification": "ALIGNED",
+        "dependencies": "G1-MUT-01, G1-WP-INDEX-01, G1-HIER-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MUT-02A",
+      "primary_artifact": "docs/work-packets/G1-MUT-02A_PROVIDER_RUNTIME_MUTATION_SPECS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-MUT-02B_GATE_PROMOTION_MUTATION_SPECS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "77bcce1973b325bc2140822fb7526bd9f2e98d03",
+        "classification": "ALIGNED",
+        "dependencies": "G1-MUT-01, G1-MUT-02A, G1-WP-INDEX-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MUT-02B",
+      "primary_artifact": "docs/work-packets/G1-MUT-02B_GATE_PROMOTION_MUTATION_SPECS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-MUT-02C_ATTEMPT_OFFLOAD_LEASE_MUTATION_SPECS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "af5b9f09fd80b8be86ecb4859f6c13e850a8bc76",
+        "classification": "ALIGNED",
+        "dependencies": "G1-MUT-01, G1-MUT-02B, G1-HIER-04B, G1-WP-INDEX-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MUT-02C",
+      "primary_artifact": "docs/work-packets/G1-MUT-02C_ATTEMPT_OFFLOAD_LEASE_MUTATION_SPECS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-MUT-02D_ATTEMPT_EFFECT_INVENTORY_MUTATION_SPEC.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "aa19b663c8abc285a63dbbad16cdfb5be9dd7bf1",
+        "classification": "ALIGNED",
+        "dependencies": "G1-MUT-01, G1-MUT-02C, G1-HIER-03D, G1-WP-INDEX-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MUT-02D",
+      "primary_artifact": "docs/work-packets/G1-MUT-02D_ATTEMPT_EFFECT_INVENTORY_MUTATION_SPEC.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-MUT-02E_ATTEMPT_EVENT_TIME_TRANSPORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cbc73362501ad2dca30dbb8ec92ce937e9f33ad3",
+        "classification": "ALIGNED",
+        "dependencies": "G1-MUT-02C, G1-MUT-02D, G1-HIER-03D, G1-WP-INDEX-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MUT-02E",
+      "primary_artifact": "docs/work-packets/G1-MUT-02E_ATTEMPT_EVENT_TIME_TRANSPORT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-MUT-02F_ATTEMPT_EVENT_TIME_MUTATION_SPEC.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "de6ad51984aeaef04587a4af67416cc988ae1da6",
+        "classification": "ALIGNED",
+        "dependencies": "G1-MUT-02E, G1-MUT-02D, G1-MUT-02C, G1-WP-INDEX-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-MUT-02F",
+      "primary_artifact": "docs/work-packets/G1-MUT-02F_ATTEMPT_EVENT_TIME_MUTATION_SPEC.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-OPS-04_BRANCH_CONSOLIDATION_ROLLBACK.md"
       ],
       "metadata": {
@@ -2743,6 +3335,102 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-RUNTIME-PROVIDER-01_CLAUDE_CONTRACT_STRANGLER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "bacd9e6e69d58de6aebde4847e6afd6101b2ca72",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01 at 72f7e326c70e4404504e9dd04075f0dd0c150cc3; G1-RUNTIME-02 at d30136e8e351e311fb9b72db7b3d1a3222b1c6e5; G1-WP-INDEX-01 at b2e74d601ab1af274cf670c58be53645c1001114",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-PROVIDER-01",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-PROVIDER-01_CLAUDE_CONTRACT_STRANGLER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-RUNTIME-PROVIDER-02_BASE_CONTRACT_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e961d0ec554d52cac0531a155d281a7e51cb54a1",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-06E, G1-RUNTIME-PROVIDER-01",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-PROVIDER-02",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-PROVIDER-02_BASE_CONTRACT_OWNER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-RUNTIME-PROVIDER-03_HELPER_OWNERS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "af50ca183c24c02ff067539e95a11507c7ce7537",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-02B, G1-RUNTIME-PROVIDER-02",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-PROVIDER-03",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-PROVIDER-03_HELPER_OWNERS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-RUNTIME-PROVIDER-04_CONTEXT_PORTS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "0ce7414a3c22e3357816e08a76ed0b1478f3e41d",
+        "classification": "ALIGNED",
+        "dependencies": "G1-RUNTIME-PROVIDER-03",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-PROVIDER-04",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-PROVIDER-04_CONTEXT_PORTS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-RUNTIME-PROVIDER-05_PACKAGED_PERSONA_CATALOGUE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1db7425cfde63cd0263d61ba40df4430232e16f7",
+        "classification": "ALIGNED",
+        "dependencies": "G1-PKG-01, G1-RUNTIME-PROVIDER-04",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-PROVIDER-05",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-PROVIDER-05_PACKAGED_PERSONA_CATALOGUE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-RUNTIME-PROVIDER-06_CATALOGUE_OWNER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "de6ad51984aeaef04587a4af67416cc988ae1da6",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-RUNTIME-02, G1-RUNTIME-PROVIDER-05",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-RUNTIME-PROVIDER-06",
+      "primary_artifact": "docs/work-packets/G1-RUNTIME-PROVIDER-06_CATALOGUE_OWNER.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-TAURI-CI-AUTH-271.json"
       ],
       "metadata": {
@@ -2772,6 +3460,54 @@
       "origin": "legacy",
       "packet_id": "G1-TWIN-GARDEN-01R",
       "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-UI-01_SHARED_APP_BOOTSTRAP_STRANGLER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "869922863bae01d00de37c117de92d24c22ca2ec",
+        "classification": "ALIGNED",
+        "dependencies": "G1-WP-INDEX-01 at b2e74d601ab1af274cf670c58be53645c1001114; themed Cockpit baseline at 0d3ea5d1b6357c78037a6a8837e0f778fac904c2; interrupted-stream contract G1-IKARUS-14 at ba1254ca3de171ca486f7d22b44981125df4e068",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-UI-01",
+      "primary_artifact": "docs/work-packets/G1-UI-01_SHARED_APP_BOOTSTRAP_STRANGLER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-UI-02_COCKPIT_SINGLE_IMPLEMENTATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "1d13176180cd60f0f7ddffd8e161186f9f1f7cbb",
+        "classification": "ALIGNED",
+        "dependencies": "G1-UI-01 integrated at 1d13176180cd60f0f7ddffd8e161186f9f1f7cbb; G1-IKARUS-14 interrupted-stream contract at ba1254ca3de171ca486f7d22b44981125df4e068",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-UI-02",
+      "primary_artifact": "docs/work-packets/G1-UI-02_COCKPIT_SINGLE_IMPLEMENTATION.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-UI-03_FRONTEND_DIRECTED_HIERARCHY.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "e133e09b85534ff3350fce982ee1aa2ad57ebb9e",
+        "classification": "ALIGNED",
+        "dependencies": "G1-UI-02 integrated at e133e09b85534ff3350fce982ee1aa2ad57ebb9e; G1-WP-INDEX-01 schema and metadata contract present in the base",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-UI-03",
+      "primary_artifact": "docs/work-packets/G1-UI-03_FRONTEND_DIRECTED_HIERARCHY.md"
     },
     {
       "artifacts": [
@@ -2826,6 +3562,20 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-HERMES-01",
+      "path": "docs/work-packets/G1-HERMES-01_SHARED_LOOPBACK_PREDICATE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-HIER-01",
       "path": "docs/work-packets/G1-HIER-01_ARCHITECTURE_LOCATOR_CONTRACT.md",
       "sections": [
@@ -2842,6 +3592,20 @@
       "format": "markdown",
       "packet_id": "G1-HIER-02A",
       "path": "docs/work-packets/G1-HIER-02A_KERNEL_LAZY_COMPATIBILITY_FACADE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-02B",
+      "path": "docs/work-packets/G1-HIER-02B_RUNTIME_PROVIDER_REPORT_CONTRACT.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -2910,6 +3674,34 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-HIER-03D",
+      "path": "docs/work-packets/G1-HIER-03D_ATTEMPT_PRODUCTION_COMPOSITION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-04B",
+      "path": "docs/work-packets/G1-HIER-04B_OFFLOAD_LEASE_OUTER_PORTS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-HIER-04",
       "path": "docs/work-packets/G1-HIER-04_REPOSITORY_HEAD_VERIFIER_PORT.md",
       "sections": [
@@ -2926,6 +3718,118 @@
       "format": "markdown",
       "packet_id": "G1-HIER-05",
       "path": "docs/work-packets/G1-HIER-05_NEUTRAL_GATE_RECEIPT_CONTRACTS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-06A",
+      "path": "docs/work-packets/G1-HIER-06A_BUDGET_PRICING_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-06B",
+      "path": "docs/work-packets/G1-HIER-06B_BUDGET_LEDGER_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-06C",
+      "path": "docs/work-packets/G1-HIER-06C_BUDGET_PROCESS_ADAPTER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-06D",
+      "path": "docs/work-packets/G1-HIER-06D_BUDGET_LOCATOR_CLOSEOUT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-06E",
+      "path": "docs/work-packets/G1-HIER-06E_BUDGET_SHIM_AND_BOUNDARY_CLOSEOUT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-07A",
+      "path": "docs/work-packets/G1-HIER-07A_IMPORT_SCC_LEDGER_PATH_PORT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-07B",
+      "path": "docs/work-packets/G1-HIER-07B_OBSERVATION_CONTRACT_SCC.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-08",
+      "path": "docs/work-packets/G1-HIER-08_POLICY_LAZY_FACADE_RESTORATION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -2966,8 +3870,260 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-02",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-02_CRASH_JOURNAL_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-03",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-03_QUEUE_DOCUMENT_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-04",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-04_WATCHER_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-05",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-05_REPORT_TRUTH_PROJECTION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-06A",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-06A_DISPATCH_CLAIM_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-06B",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-06B_CLAIMED_DISPATCH_STATE_MACHINE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-07",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-07_CONVERSATION_PROJECTION_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-08",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-08_QUARANTINE_TRANSACTION_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-09",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-09_POISON_RECOVERY_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-10",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-10_TERMINAL_BOOKKEEPING_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-11",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-11_STORAGE_SIGNAL_OWNERS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-12",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-12_QUEUE_ADMISSION_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-BRIDGE-13",
+      "path": "docs/work-packets/G1-IFACE-BRIDGE-13_CLI_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-DESKTOP-01",
+      "path": "docs/work-packets/G1-IFACE-DESKTOP-01_DESKTOP_RUNTIME_STRANGLER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-DESKTOP-02",
+      "path": "docs/work-packets/G1-IFACE-DESKTOP-02_CONFIGURATION_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-DESKTOP-03",
+      "path": "docs/work-packets/G1-IFACE-DESKTOP-03_SETTINGS_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-IFACE-HTTP-01",
       "path": "docs/work-packets/G1-IFACE-HTTP-01_HTTP_STRANGLER_FACADE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-HTTP-02",
+      "path": "docs/work-packets/G1-IFACE-HTTP-02_SERVER_ADMISSION_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IFACE-HTTP-03",
+      "path": "docs/work-packets/G1-IFACE-HTTP-03_SSE_DELIVERY_OWNER.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -2996,6 +4152,104 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-15",
       "path": "docs/work-packets/G1-IKARUS-15_MISSION_SUPERVISOR_COMPOSITION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MUT-01",
+      "path": "docs/work-packets/G1-MUT-01_DECLARATIVE_MUTATION_RUNNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MUT-02A",
+      "path": "docs/work-packets/G1-MUT-02A_PROVIDER_RUNTIME_MUTATION_SPECS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MUT-02B",
+      "path": "docs/work-packets/G1-MUT-02B_GATE_PROMOTION_MUTATION_SPECS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MUT-02C",
+      "path": "docs/work-packets/G1-MUT-02C_ATTEMPT_OFFLOAD_LEASE_MUTATION_SPECS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MUT-02D",
+      "path": "docs/work-packets/G1-MUT-02D_ATTEMPT_EFFECT_INVENTORY_MUTATION_SPEC.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MUT-02E",
+      "path": "docs/work-packets/G1-MUT-02E_ATTEMPT_EVENT_TIME_TRANSPORT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-MUT-02F",
+      "path": "docs/work-packets/G1-MUT-02F_ATTEMPT_EVENT_TIME_MUTATION_SPEC.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -3053,6 +4307,132 @@
       "packet_id": "G1-RUNTIME-02",
       "path": "docs/work-packets/G1-RUNTIME-02_SHIM_REGISTER.json",
       "sections": []
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-PROVIDER-01",
+      "path": "docs/work-packets/G1-RUNTIME-PROVIDER-01_CLAUDE_CONTRACT_STRANGLER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-PROVIDER-02",
+      "path": "docs/work-packets/G1-RUNTIME-PROVIDER-02_BASE_CONTRACT_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-PROVIDER-03",
+      "path": "docs/work-packets/G1-RUNTIME-PROVIDER-03_HELPER_OWNERS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-PROVIDER-04",
+      "path": "docs/work-packets/G1-RUNTIME-PROVIDER-04_CONTEXT_PORTS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-PROVIDER-05",
+      "path": "docs/work-packets/G1-RUNTIME-PROVIDER-05_PACKAGED_PERSONA_CATALOGUE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-RUNTIME-PROVIDER-06",
+      "path": "docs/work-packets/G1-RUNTIME-PROVIDER-06_CATALOGUE_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-UI-01",
+      "path": "docs/work-packets/G1-UI-01_SHARED_APP_BOOTSTRAP_STRANGLER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-UI-02",
+      "path": "docs/work-packets/G1-UI-02_COCKPIT_SINGLE_IMPLEMENTATION.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-UI-03",
+      "path": "docs/work-packets/G1-UI-03_FRONTEND_DIRECTED_HIERARCHY.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
     },
     {
       "artifact_role": "primary",

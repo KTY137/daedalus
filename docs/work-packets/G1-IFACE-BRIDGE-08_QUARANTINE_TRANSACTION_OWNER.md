@@ -25,7 +25,7 @@ identity-conflict eviction, and final quarantine moves. The stable
 `daedalus.file_bridge` facade reexports the exact exception objects and
 constructs explicit operation ports on each call.
 
-## Authority and preserved seams
+## Scope
 
 - `IdentityConflictPorts` receives the inbox, quarantine locator, clock,
   atomic JSON writer, and move operations.
@@ -34,14 +34,14 @@ constructs explicit operation ports on each call.
   projector, arrival projection, atomic writer, and final move operation.
 - The owner imports no Daedalus facade, effect boundary, provider, process,
   network, database, store, or second ledger.
+
+## Contracts and behavior
+
 - `RequestIdentityConflict`, `TerminalReportPreserved`, and
   `QuarantineMovePending` are canonical dispatch-owner classes reexported by
   the legacy facade. Old and new imports are identical objects and old pickle
   lookups remain available.
 - Facade wrappers resolve all paths and monkeypatch seams per call.
-
-## Preserved behavior
-
 - A contradictory request is moved under its observed-digest suffix without
   overwriting the first request's journal or terminal report.
 - Quarantine identity is the same canonical hash of request key, raw digest,
@@ -69,11 +69,18 @@ constructs explicit operation ports on each call.
 | Registry stability | semantic digest assertion | exact existing digest |
 | Provider/network budget | builder tests only | zero live provider or network calls |
 
-## Migration, rollback, and evidence
+## Migration and rollback
 
 There is no persistent migration. Rollback restores the quarantine bodies and
 exception definitions inside `file_bridge.py`; retained requests, reports,
 journals, sidecars, conversation events, and archives stay in place.
+
+The generated Work-Packet index is refreshed centrally after parallel packet
+integration. This packet does not edit the Master Plan, amendment chain,
+historical `runs/`, generated web distribution, Registry target, provider
+admission, or promotion state.
+
+## Evidence, expected failures and review
 
 - Python 3.13: 299 focused bridge, quarantine, conversation, crash, Effect,
   envelope, hardening, and HTTP-loop tests passed; 16 subtests passed.
@@ -84,8 +91,3 @@ journals, sidecars, conversation events, and archives stay in place.
 - G1-HIER-06E independently closes the architecture-contract drift inherited
   by this packet base. Integration verification reruns the zero-edge contract
   after both commits are present.
-
-The generated Work-Packet index is refreshed centrally after parallel packet
-integration. This packet does not edit the Master Plan, amendment chain,
-historical `runs/`, generated web distribution, Registry target, provider
-admission, or promotion state.

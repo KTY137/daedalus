@@ -24,17 +24,26 @@ new canonical budget owners after the pricing, ledger, and process-adapter
 split; the legacy `daedalus.budget` effect facade is no longer misidentified as
 the persistence implementation.
 
-## Scope and contracts
+## Scope
 
 - `UNCONVERTED_PRODUCERS` moves the existing period-ledger classification from
   `daedalus/budget.py` to `daedalus/kernel/policy/ledger.py`.
-- The classification remains unchanged: budget state is period-wide policy
-  authority, not a per-run record, so adding an ambient trace would make a
-  false correlation.
 - The shim registry now records the budget facade, its three hierarchy owners,
   and the Effect Registry plus pickle audits required before retirement.
-- No JSON field, digest, SQLite row, budget path, lock path, price, reservation,
-  process interception, effect target, or runtime behavior changes.
+- Out of scope: retiring the facade itself, migrating the Effect Registry
+  target, and any change to pricing, reservation, or process-adapter logic.
+
+## Contracts and behavior
+
+The producer classification remains unchanged: budget state is period-wide
+policy authority, not a per-run record, so adding an ambient trace would make a
+false correlation. Only the locator of that classification moves.
+
+No JSON field, digest, SQLite row, budget path, lock path, price, reservation,
+process interception, effect target, or runtime behavior changes. The legacy
+`daedalus.budget` names and the new `daedalus.kernel.policy.ledger` names
+resolve to the same objects, so importers on either path observe identical
+behavior.
 
 ## Acceptance matrix
 
@@ -54,3 +63,20 @@ key and removes the shim row; it does not touch the budget ledger or its lock.
 The facade remains required until a dedicated Effect Registry target migration
 and source, runtime-string, wheel, documentation, monkeypatch, and pickle audits
 prove that every compatibility consumer has moved.
+
+## Evidence, expected failures and review
+
+Evidence is builder-level and offline: the envelope drift detector over the
+producer census, the budget hierarchy tests asserting old and new paths resolve
+to the same objects, and the budget suite covering path, fields, locks,
+reservations, and refusal behavior. Zero live provider or network calls.
+
+Expected failure retained as negative evidence: this packet does not reduce the
+shim count. `daedalus.budget` stays a declared compatibility facade with an open
+retirement criterion, so a census that expects the facade to be gone will fail
+by design until the Registry target migration packet runs.
+
+Review questions: is the period-ledger classification still the only producer
+declaration for budget state; does the Effect Registry digest hold unchanged;
+and does the shim registry name a concrete removal criterion for each of the
+three new owners rather than an open-ended one.

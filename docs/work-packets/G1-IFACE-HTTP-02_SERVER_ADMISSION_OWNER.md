@@ -24,20 +24,29 @@ canonical implementation in `daedalus.interfaces.http.server`.
 `daedalus.web_api` retains the historical names as thin seams and remains the
 only concrete server and registered effect facade.
 
-## Scope and contracts
+## Scope
+
+This packet extracts HTTP host-bind admission and desktop startup-nonce
+validation into `daedalus.interfaces.http.server`. The scope covers the three
+functions `_resolve_bind`, `_desktop_startup_nonce`, and `_refusal`, plus the
+`NonLoopbackBindRefused` exception class and bind constants. The following
+remain in `daedalus.web_api`: `run`, `main`, `DaedalusHandler`, socket
+construction, static delivery, and the real Registry anchors. The global shim
+registry is updated with the interface family only in the combined HIER closeout,
+avoiding a second concurrent authority over its frozen baseline.
+
+## Contracts and behavior
 
 - Numeric loopback admission, explicit non-loopback opt-in, bearer-token
   length, refusal text, environment names and nonce grammar are unchanged.
 - `NonLoopbackBindRefused` is the exact same class object through legacy and
   hierarchy imports. Public constants retain their values.
-- `run`, `main`, `DaedalusHandler`, socket construction, static delivery and
-  the real Registry anchors remain in `daedalus.web_api`.
-- Importing the owner starts no server, opens no socket/store, calls no
+- Importing the owner module starts no server, opens no socket/store, calls no
   provider, and begins no effect.
 - Existing callers may still monkeypatch `web_api._resolve_bind` because
   `run` and `main` continue to call the legacy seam at runtime.
 
-## Compatibility shim and retirement
+### Compatibility shim and retirement
 
 | Shim | Owner | Removal criterion |
 |---|---|---|
@@ -45,9 +54,7 @@ only concrete server and registered effect facade.
 | bind constants and refusal class | `interfaces.http.server` | the same audit proves external callers use the hierarchy owner and serialized exception references are absent |
 
 This packet does not retire the broader `daedalus.web_api` facade and does not
-change the global Effect Registry target. The global shim registry is updated
-with the interface family only in the combined HIER closeout, avoiding a
-second concurrent authority over its frozen baseline.
+change the global Effect Registry target.
 
 ## Acceptance matrix
 
@@ -67,10 +74,11 @@ function bodies, class and constants in `daedalus.web_api` and removes the
 owner module. Historical evidence, CAS, ledgers, databases, generated web
 artifacts, Master Plan and amendment chain are untouched.
 
-## Retained negative evidence
+## Evidence, expected failures and review
 
-The broad host-predicate matrix remains red for the pre-existing isolated
-Hermes `tool_gateway.py` local-host table. The same single offender reproduces
-on this packet's parent. This packet neither allowlists nor changes that row;
-it introduces no additional predicate implementation and the HTTP-specific,
-CLI, desktop and host behavior tests otherwise pass.
+The HTTP-specific, CLI, desktop and host behavior tests pass. The broad
+host-predicate matrix remains red for the pre-existing isolated Hermes
+`tool_gateway.py` local-host table. The same single offender reproduces on this
+packet's parent. This packet neither allowlists nor changes that row; it
+introduces no additional predicate implementation. Budget: zero live provider or
+network calls; offline builder tests only.

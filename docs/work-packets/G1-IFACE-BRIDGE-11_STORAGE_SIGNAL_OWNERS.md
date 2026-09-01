@@ -26,7 +26,16 @@ projection owns read-state/arrival locators and append semantics, and dispatch
 owns memory replay probing plus fixed-destination archive moves. The root
 module contains compatibility wrappers only.
 
-## Ownership
+## Scope
+
+This packet assigns ownership of bridge storage and arrival-signal operations
+to dedicated modules under `daedalus.interfaces.bridge`: journal, projection,
+and dispatch each own their respective helpers, with the root module providing
+thin compatibility wrappers.
+
+## Contracts and behavior
+
+### Ownership and delegation
 
 - `interfaces.bridge.journal`: `write_json_atomic` and `completed_report`.
   The actual atomic publisher remains an injected canonical `daedalus.atomic`
@@ -39,7 +48,7 @@ module contains compatibility wrappers only.
 - Every legacy helper resolves its path/clock/hash/move/atomic seam per call,
   preserving tests and supported compatibility callers.
 
-## Preserved behavior
+### Preserved behavior
 
 - JSON continues to use `indent=2` and the same random-suffix atomic writer.
 - A report is reusable only when it parses to one complete JSON object.
@@ -65,11 +74,13 @@ module contains compatibility wrappers only.
 | Registry stability | semantic digest assertion | exact existing digest |
 | Provider/network budget | builder tests only | zero live provider or network calls |
 
-## Migration, rollback, and evidence
+## Migration and rollback
 
 There is no persistent migration. Rollback restores these small helper bodies
 inside `file_bridge.py`; existing reports, journals, read markers, arrival
 lines, memory records, and archive files are not moved.
+
+## Evidence, expected failures and review
 
 - Python 3.13: 301 focused bridge, storage, signal, crash, Effect, envelope,
   hardening, and HTTP-loop tests passed; 16 subtests passed.

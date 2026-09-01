@@ -25,7 +25,15 @@ retained Codex-brief admission before queue publication. The registered root
 facade injects the current heartbeat, thresholds, warning projection, and
 stderr emitter, then starts the unchanged effect before atomic publication.
 
-## Authority and preserved seams
+## Scope
+
+This packet extracts queue admission ownership into a dedicated module under
+`daedalus.interfaces.bridge.queue`. The scope covers consumer-liveness checks
+and Codex-brief admission logic before a request is published to the queue.
+
+## Contracts and behavior
+
+### Authority and preserved seams
 
 - `WatcherNotRunning` is the canonical queue-owner class reexported by
   `daedalus.file_bridge`; old and new imports are identical objects.
@@ -38,7 +46,7 @@ stderr emitter, then starts the unchanged effect before atomic publication.
   injects the canonical trace stamper plus atomic publisher into
   `publish_request`.
 
-## Preserved behavior
+### Preserved behavior
 
 - Admission runs before the effect and before any outbox write. A default
   refusal therefore leaves no ambiguous queued artifact.
@@ -64,11 +72,13 @@ stderr emitter, then starts the unchanged effect before atomic publication.
 | Registry stability | semantic digest assertion | exact existing digest |
 | Provider/network budget | builder tests only | zero live provider or network calls |
 
-## Migration, rollback, and evidence
+## Migration and rollback
 
 There is no persistent migration. Rollback restores the admission body and
 exception definition inside `file_bridge.py`; queued and archived requests are
 not moved.
+
+## Evidence, expected failures and review
 
 - Python 3.13: 303 focused bridge, queue admission, crash, Effect, envelope,
   hardening, and HTTP-loop tests passed; 16 subtests passed.

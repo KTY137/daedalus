@@ -25,7 +25,16 @@ arrival, memory, and archive projections below an already durable terminal
 report. `daedalus.file_bridge` reexports the exact pending exception and
 injects all local projection operations per call.
 
-## Authority and preserved seams
+## Scope
+
+This packet extracts the terminal report bookkeeping ownership into a dedicated
+module under `daedalus.interfaces.bridge.dispatch`. The scope covers ordered
+arrival, memory replay, and archive projections applied after a report is
+already durably stored.
+
+## Contracts and behavior
+
+### Authority and preserved seams
 
 - `TerminalBookkeepingPorts` receives the clock, existing crash-journal writer,
   arrival projection, memory replay probe, canonical memory recorder, and
@@ -39,7 +48,7 @@ injects all local projection operations per call.
   `_memory_already_recorded`, `record_from_bridge_report`, `_archive_once`, and
   `_now_iso` on every call, preserving monkeypatch seams.
 
-## Preserved behavior
+### Preserved behavior
 
 - The report remains authoritative before all bookkeeping. Arrival is deduped
   by request key, memory uses the same `pending` crash probe, and archive is
@@ -67,11 +76,13 @@ injects all local projection operations per call.
 | Registry stability | semantic digest assertion | exact existing digest |
 | Provider/network budget | builder tests only | zero live provider or network calls |
 
-## Migration, rollback, and evidence
+## Migration and rollback
 
 There is no persistent migration. Rollback restores the bookkeeping body and
 exception definition inside `file_bridge.py`; retained reports, journals,
 arrival lines, memory records, conversation events, and archives stay put.
+
+## Evidence, expected failures and review
 
 - Python 3.13: 301 focused bridge, bookkeeping, poison, quarantine,
   conversation, crash, Effect, envelope, hardening, and HTTP-loop tests passed;

@@ -49,6 +49,13 @@ CURRENT_CROSS_DOMAIN_COMPONENT = REMAINING_CROSS_DOMAIN_COMPONENT - {
 CURRENT_COMPONENTS_SHA256 = (
     "36d80ea6d701892c1cbb08057c2715477fbfcad972aa36b9f331d3065f3434a1"
 )
+# Moving census, not an architecture invariant: any packet that legitimately
+# splits or adds a leaf module changes these two totals without touching the
+# cycle structure. Re-measure and update them in the packet that moves them;
+# the SCC claims below (count, maximum size, component digest, membership) are
+# the assertions that must not weaken.
+CENSUS_MODULES = 433
+CENSUS_EDGES = 1603
 
 
 def _module_name(path: str) -> str:
@@ -133,8 +140,8 @@ def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
     components = nontrivial_components(graph)
     component_sets = tuple(frozenset(component) for component in components)
 
-    assert len(graph) == 420
-    assert sum(len(targets) for targets in graph.values()) == 1575
+    assert len(graph) == CENSUS_MODULES
+    assert sum(len(targets) for targets in graph.values()) == CENSUS_EDGES
     assert len(components) == 12
     assert max(map(len, components)) == 18
     component_bytes = json.dumps(

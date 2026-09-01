@@ -27,7 +27,7 @@ The full crash-safe claimed-request state machine is owned by
 retains the compatibility and monkeypatch surface, constructs explicit ports,
 and delegates the claimed transaction exactly once.
 
-## Scope and authority
+## Scope
 
 - Journal recovery, request-body binding, poison replay, terminal-report reuse,
   attempt bounding, provider dispatch, report publication, conversation
@@ -37,11 +37,11 @@ and delegates the claimed transaction exactly once.
   trace adoption, stamping, and the already-admitted bridge-payload dispatcher.
 - The owner imports no Daedalus facade, effect boundary, process, network,
   database, provider, or store implementation.
+
+## Contracts and behavior
+
 - The root facade resolves every legacy seam per call. Existing tests and
   integrations that patch those seams therefore observe the same objects.
-
-## Preserved contracts
-
 - The `file_bridge.process` registry row and its admission order are unchanged.
 - Request/report filenames, normalized request digest, trace field, attempt
   bound, journal states, JSON shape, conversation projection identity, archive
@@ -76,7 +76,7 @@ integration. This packet does not edit the Master Plan, amendment chain,
 historical `runs/`, generated web distribution, registry target, provider
 admission, or promotion state.
 
-## Measured evidence
+## Evidence, expected failures and review
 
 - Python 3.13: 250 focused bridge, crash, queue, journal, projection, Effect,
   envelope, and hardening tests passed; 2 subtests passed.

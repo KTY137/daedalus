@@ -25,7 +25,7 @@ complete poison-recovery decision. `daedalus.file_bridge` remains the stable
 watch/effect facade and injects the current quarantine, projection, locator,
 output, and exception seams on every call.
 
-## Authority and preserved seams
+## Scope
 
 - `looks_unfinished` receives the settle grace and clock; it reads only the
   supplied request stat and owns no queue or persistence authority.
@@ -34,12 +34,12 @@ output, and exception seams on every call.
   types, and output function.
 - The watcher owner still imports no Daedalus facade, Effect Registry,
   provider, subprocess, network, database, or store implementation.
+
+## Contracts and behavior
+
 - Existing tests and callers that patch `_looks_unfinished`,
   `quarantine_request`, `_quarantine_dir`, `_request_key`, paths, or exception
   classes observe the same current facade objects.
-
-## Preserved behavior
-
 - Only fresh JSON/Unicode decode failures stay in place as `SETTLING`; structural
   request defects are poison immediately.
 - The exact `< 5s` boundary is preserved: age 4.9s settles and age 5.0s does
@@ -64,10 +64,17 @@ output, and exception seams on every call.
 | Registry stability | semantic digest assertion | exact existing digest |
 | Provider/network budget | builder tests only | zero live provider or network calls |
 
-## Migration, rollback, and evidence
+## Migration and rollback
 
 There is no persistent migration. Rollback restores the settling and recovery
 bodies inside `file_bridge.py`; all existing retained artifacts stay in place.
+
+The generated Work-Packet index is refreshed centrally after parallel packet
+integration. This packet does not edit the Master Plan, amendment chain,
+historical `runs/`, generated web distribution, Registry target, provider
+admission, or promotion state.
+
+## Evidence, expected failures and review
 
 - Python 3.13: 301 focused bridge, poison, quarantine, conversation, crash,
   Effect, envelope, hardening, and HTTP-loop tests passed; 16 subtests passed.
@@ -76,8 +83,3 @@ bodies inside `file_bridge.py`; all existing retained artifacts stay in place.
 - G1-HIER-06E's zero forbidden-edge architecture contract is unchanged.
 - The semantic Effect Registry digest remains exactly
   `ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec`.
-
-The generated Work-Packet index is refreshed centrally after parallel packet
-integration. This packet does not edit the Master Plan, amendment chain,
-historical `runs/`, generated web distribution, Registry target, provider
-admission, or promotion state.
