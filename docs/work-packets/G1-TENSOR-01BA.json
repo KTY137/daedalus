@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BA",
+  "title": "Preserve Compose compatibility before budget preflight",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AZ",
+  "campaign_issue": 239,
+  "base_revision": "18e270f742cae1eade1483d8cbb3afa9f4a22184",
+  "finding": "The Compose budget preflight counted right-row work from left.column_indices before reapplying the relation-block compatibility and exact typed middle-axis contract. A structurally incompatible left block could therefore index beyond the right CSR row boundaries and raise IndexError, or report a budget failure before the semantic incompatibility that TypedRelationBlock.matmul would have rejected.",
+  "primary_claim": "ReferenceContractionInterpreter now validates same-subject/semiring compatibility and exact typed middle-axis equality before deriving Compose operation cost. Incompatible plans fail closed with the existing matrix-composition contract before CSR preflight or matmul execution; compatible plans retain the existing exact operation count and plan-wide budget semantics.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/contractions.py",
+      "tests/twin/test_contraction_operation_budget.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BA.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the existing TypedRelationBlock compatibility checks and matrix middle-axis contract rather than introduce a planner, cost-model object, validation layer, or alternate contraction path. The only production change is to move those existing semantic preconditions in front of the Compose budget scan while retaining matmul defense in depth.",
+  "acceptance": [
+    "a Compose node with incompatible typed middle axes refuses with the existing matrix-composition ValueError before CSR cost indexing can escape its row bounds",
+    "TypedRelationBlock.matmul is not invoked for incompatible Compose operands",
+    "compatible Compose budget preflight and inclusive exact-budget behavior remain unchanged",
+    "cross-subject and semiring incompatibilities remain fail-closed before operation-cost derivation",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "bounded Tensor/Forest diagnostic on the designated Python 3.12 hash-seed 0 cell",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BA commits; Forest/Fourfold authority, relation-block wire contracts, semiring semantics and persisted identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
