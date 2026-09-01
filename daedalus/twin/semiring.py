@@ -19,7 +19,6 @@ T = TypeVar("T")
 MAX_NATURAL_BITS = 4_096
 MAX_EVIDENCE_ALTERNATIVES = 4_096
 MAX_EVIDENCE_TERM_ATOMS = 128
-MAX_EVIDENCE_PRODUCT_CANDIDATES = 65_536
 
 
 def _bounded_sequence(values: Any, name: str, limit: int) -> Sequence[Any]:
@@ -259,8 +258,8 @@ class EvidenceDagSemiring:
         if not first.alternatives or not second.alternatives:
             return self.zero
         candidate_count = len(first.alternatives) * len(second.alternatives)
-        if candidate_count > MAX_EVIDENCE_PRODUCT_CANDIDATES:
-            raise ValueError("evidence multiplication exceeds bounded candidate limit")
+        if candidate_count > MAX_EVIDENCE_ALTERNATIVES:
+            raise ValueError("evidence multiplication exceeds bounded alternative limit")
 
         clauses: list[tuple[str, ...]] = []
         for first_term in first.alternatives:
@@ -280,7 +279,6 @@ class EvidenceDagSemiring:
 __all__ = [
     "MAX_NATURAL_BITS",
     "MAX_EVIDENCE_ALTERNATIVES",
-    "MAX_EVIDENCE_PRODUCT_CANDIDATES",
     "MAX_EVIDENCE_TERM_ATOMS",
     "BooleanSemiring",
     "EvidenceDagSemiring",
