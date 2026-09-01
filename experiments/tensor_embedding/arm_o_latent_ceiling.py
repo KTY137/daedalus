@@ -32,6 +32,7 @@ SCHEMA = "daedalus-tensor-latent-ceiling-corpus/1"
 REPORT_SCHEMA = "daedalus-tensor-latent-ceiling-report/1"
 BUCKETS = ("already_covered", "present_not_expressible", "absent")
 STATUSES = ("prediction", "measured")
+FROZEN_SOURCE_REVISION = "68721e3208194391d71b0ae64d24157fd1876207"
 FROZEN_EXPECTED_TOTAL = 1383
 CORPUS_FIELDS = frozenset({"schema", "source_revision", "expected_total", "items"})
 ROW_FIELDS = frozenset(
@@ -174,6 +175,10 @@ def load(path: str | Path) -> Corpus:
     if not isinstance(payload, Mapping):
         raise CeilingCorpusError("corpus root must be an object")
     corpus = Corpus.parse(payload)
+    if corpus.source_revision != FROZEN_SOURCE_REVISION:
+        raise CeilingCorpusError(
+            f"source_revision must remain frozen at {FROZEN_SOURCE_REVISION}"
+        )
     if corpus.expected_total != FROZEN_EXPECTED_TOTAL:
         raise CeilingCorpusError(
             f"expected_total must remain frozen at {FROZEN_EXPECTED_TOTAL}"
@@ -187,7 +192,8 @@ def evaluate(corpus: Corpus) -> dict[str, Any]:
     counts = Counter(row.bucket for row in measured)
     measured_n = len(measured)
     complete = (
-        corpus.expected_total == FROZEN_EXPECTED_TOTAL
+        corpus.source_revision == FROZEN_SOURCE_REVISION
+        and corpus.expected_total == FROZEN_EXPECTED_TOTAL
         and measured_n == corpus.expected_total
     )
     ceiling: float | None = None
