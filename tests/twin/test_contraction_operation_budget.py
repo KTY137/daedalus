@@ -71,4 +71,6 @@ def test_reference_interpreter_operation_budget_is_plan_wide() -> None:
         BooleanSemiring(),
         max_operations=2,
     ).evaluate(plan, blocks)
+    assert result.signature == RelationSignature("code", "abc", "type")
+    assert result.subject == SUBJECT
     assert tuple(result.iter_entries()) == (("s", "T", True),)
