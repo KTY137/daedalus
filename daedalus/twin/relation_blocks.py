@@ -15,7 +15,15 @@ from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 from ..schemas import _identifier, _non_empty, _revision, _sha256
 from ..spine.envelope import canonical_json, canonical_sha
 from .contracts import FOURFOLD_PLANES
-from .semiring import MAX_NATURAL_BITS, EvidenceValue, Semiring
+from .semiring import (
+    MAX_NATURAL_BITS,
+    BooleanSemiring,
+    EvidenceDagSemiring,
+    EvidenceValue,
+    NaturalSemiring,
+    Semiring,
+    TropicalSemiring,
+)
 
 T = TypeVar("T")
 MAX_BLOCK_AXIS_LABELS = 100_000
@@ -92,6 +100,29 @@ def _operation_limit(value: Any) -> int:
             f"max_operations must be an integer from 0 to {MAX_REFERENCE_OPERATIONS}"
         )
     return value
+
+
+def _reference_semiring(semiring: Semiring[Any]) -> Semiring[Any]:
+    """Resolve a supported semantic name to the canonical reference oracle.
+
+    ``TypedRelationBlock`` is the executable reference interpreter. Alternate
+    protocol backends may select a supported semantic name, but they cannot
+    redefine the algebra that is persisted under that name.
+    """
+
+    if not isinstance(semiring, Semiring):
+        raise ValueError("semiring must implement the Semiring protocol")
+    if semiring.name == "boolean":
+        return BooleanSemiring()
+    if semiring.name == "natural":
+        return NaturalSemiring()
+    if semiring.name == "tropical":
+        return TropicalSemiring()
+    if semiring.name == "evidence-dag":
+        return EvidenceDagSemiring()
+    raise ValueError(
+        f"unsupported persisted semiring {semiring.name!r}; add an explicit scalar contract first"
+    )
 
 
 @dataclass(frozen=True)
@@ -247,8 +278,7 @@ class TypedRelationBlock(Generic[T]):
         coordinates: Sequence[Sequence[Any]],
         semiring: Semiring[T],
     ) -> "TypedRelationBlock[T]":
-        if not isinstance(semiring, Semiring):
-            raise ValueError("semiring must implement the Semiring protocol")
+        reference = _reference_semiring(semiring)
         if not isinstance(subject, ProjectionSubject) or not isinstance(
             signature, RelationSignature
         ):
@@ -273,13 +303,13 @@ class TypedRelationBlock(Generic[T]):
             if column not in columns:
                 raise ValueError(f"unknown column label {column!r}")
             key = (rows[row], columns[column])
-            value = semiring.add(entries.get(key, semiring.zero), raw[2])
-            if value == semiring.zero:
+            value = reference.add(entries.get(key, reference.zero), raw[2])
+            if value == reference.zero:
                 entries.pop(key, None)
             else:
                 entries[key] = value
         return cls._from_indexed(
-            subject, signature, row_axis, column_axis, entries, semiring
+            subject, signature, row_axis, column_axis, entries, reference
         )
 
     @classmethod
@@ -328,7 +358,7 @@ class TypedRelationBlock(Generic[T]):
                 )
 
     def get(self, row_label: str, column_label: str, semiring: Semiring[T]) -> T:
-        self._require_semiring(semiring)
+        reference = self._require_semiring(semiring)
         row, column = _label(row_label, "row_label"), _label(column_label, "column_label")
         rows, columns = self.row_axis.label_index, self.column_axis.label_index
         if row not in rows:
@@ -343,7 +373,7 @@ class TypedRelationBlock(Generic[T]):
                 return self.values[position]
             if current > target:
                 break
-        return semiring.zero
+        return reference.zero
 
     def matmul(
         self,
@@ -353,7 +383,7 @@ class TypedRelationBlock(Generic[T]):
         relation: str,
         max_operations: int = MAX_REFERENCE_OPERATIONS,
     ) -> "TypedRelationBlock[T]":
-        self._require_compatible(other, semiring)
+        reference = self._require_compatible(other, semiring)
         if self.column_axis != other.row_axis:
             raise ValueError("matrix composition requires an exactly shared typed middle axis")
         limit, operations = _operation_limit(max_operations), 0
@@ -372,11 +402,11 @@ class TypedRelationBlock(Generic[T]):
                     if operations > limit:
                         raise ValueError("reference contraction exceeds bounded operation limit")
                     key = (row, column)
-                    value = semiring.add(
-                        result.get(key, semiring.zero),
-                        semiring.multiply(self.values[position], right_value),
+                    value = reference.add(
+                        result.get(key, reference.zero),
+                        reference.multiply(self.values[position], right_value),
                     )
-                    if value == semiring.zero:
+                    if value == reference.zero:
                         result.pop(key, None)
                     else:
                         result[key] = value
@@ -385,7 +415,7 @@ class TypedRelationBlock(Generic[T]):
             self.row_axis,
             other.column_axis,
             result,
-            semiring,
+            reference,
         )
 
     def hadamard(
@@ -396,7 +426,7 @@ class TypedRelationBlock(Generic[T]):
         relation: str,
         max_operations: int = MAX_REFERENCE_OPERATIONS,
     ) -> "TypedRelationBlock[T]":
-        self._require_compatible(other, semiring)
+        reference = self._require_compatible(other, semiring)
         if self.row_axis != other.row_axis or self.column_axis != other.column_axis:
             raise ValueError("Hadamard composition requires identical typed axes")
         limit = _operation_limit(max_operations)
@@ -406,15 +436,15 @@ class TypedRelationBlock(Generic[T]):
         for count, key in enumerate(sorted(left.keys() & right.keys()), 1):
             if count > limit:
                 raise ValueError("reference contraction exceeds bounded operation limit")
-            value = semiring.multiply(left[key], right[key])
-            if value != semiring.zero:
+            value = reference.multiply(left[key], right[key])
+            if value != reference.zero:
                 result[key] = value
         return self._derived(
             RelationSignature(self.signature.source_plane, relation, self.signature.target_plane),
             self.row_axis,
             self.column_axis,
             result,
-            semiring,
+            reference,
         )
 
     def _indexed_entries(self) -> Iterator[tuple[int, int, T]]:
@@ -434,19 +464,24 @@ class TypedRelationBlock(Generic[T]):
             self.subject, signature, row_axis, column_axis, entries, semiring
         )
 
-    def _require_semiring(self, semiring: Semiring[T]) -> None:
-        if not isinstance(semiring, Semiring):
-            raise ValueError("semiring must implement the Semiring protocol")
+    def _require_semiring(self, semiring: Semiring[T]) -> Semiring[Any]:
+        reference = _reference_semiring(semiring)
         if semiring.name != self.semiring_name:
             raise ValueError(f"block uses semiring {self.semiring_name!r}, not {semiring.name!r}")
+        return reference
 
-    def _require_compatible(self, other: "TypedRelationBlock[T]", semiring: Semiring[T]) -> None:
+    def _require_compatible(
+        self,
+        other: "TypedRelationBlock[T]",
+        semiring: Semiring[T],
+    ) -> Semiring[Any]:
         if not isinstance(other, TypedRelationBlock):
             raise ValueError("other must be TypedRelationBlock")
-        self._require_semiring(semiring)
+        reference = self._require_semiring(semiring)
         other._require_semiring(semiring)
         if self.subject != other.subject:
             raise ValueError("relation blocks must bind the same exact Fourfold subject")
+        return reference
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -1,0 +1,59 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AN",
+  "title": "Pin relation blocks to canonical semiring oracle",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AM",
+  "campaign_issue": 239,
+  "base_revision": "c4d7425534fb24a8e7c6b99032e9d5d213019d87",
+  "finding": "TypedRelationBlock accepted any protocol backend whose name matched a persisted semantic name, then executed that backend's zero/add/multiply operations directly. A divergent backend could therefore reuse names such as boolean or natural while producing a block or contraction with different algebraic meaning under the same semiring_name.",
+  "primary_claim": "The stdlib TypedRelationBlock interpreter now resolves supported semantic names to the existing canonical reference semiring and executes only that oracle. Alternate protocol backend objects remain acceptable selectors for supported names, but they cannot redefine persisted Boolean, Natural, Tropical, or Evidence-DAG semantics.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_semiring_retention.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01AN.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the four existing executable semiring oracles instead of inventing backend fingerprints, a semantic registry, or a second algebra contract. TypedRelationBlock remains the bounded reference interpreter; accelerated backends can be compared against it elsewhere but cannot silently redefine its named semantics.",
+  "acceptance": [
+    "a backend claiming boolean cannot spoof Boolean zero or duplicate-coordinate addition",
+    "a backend claiming natural cannot spoof multiplication during relation-block contraction",
+    "a protocol-conforming alternate backend with correct boolean semantics remains accepted",
+    "unknown non-empty persisted semiring values remain fail-closed",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert G1-TENSOR-01AN; Forest/Fourfold artifacts, identities, and authority are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
