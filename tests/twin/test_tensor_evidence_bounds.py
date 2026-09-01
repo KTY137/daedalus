@@ -234,4 +234,9 @@ def test_evidence_multiply_allows_exact_alternative_bound(
 
     result = semiring.multiply(first, second)
 
-    assert len(result.alternatives) == 4
+    assert result.alternatives == (
+        (_digest(0), _digest(2)),
+        (_digest(0), _digest(3)),
+        (_digest(1), _digest(2)),
+        (_digest(1), _digest(3)),
+    )
