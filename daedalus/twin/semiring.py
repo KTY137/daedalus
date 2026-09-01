@@ -261,12 +261,20 @@ class EvidenceDagSemiring:
         candidate_count = len(first.alternatives) * len(second.alternatives)
         if candidate_count > MAX_EVIDENCE_PRODUCT_CANDIDATES:
             raise ValueError("evidence multiplication exceeds bounded candidate limit")
-        clauses = tuple(
-            tuple(sorted(set(first_term).union(second_term)))
-            for first_term in first.alternatives
-            for second_term in second.alternatives
-        )
-        return EvidenceValue(clauses)
+
+        clauses: list[tuple[str, ...]] = []
+        for first_term in first.alternatives:
+            first_atoms = set(first_term)
+            for second_term in second.alternatives:
+                merged_atoms = set(first_atoms)
+                for atom in second_term:
+                    merged_atoms.add(atom)
+                    if len(merged_atoms) > MAX_EVIDENCE_TERM_ATOMS:
+                        raise ValueError(
+                            "evidence multiplication term exceeds bounded atom limit"
+                        )
+                clauses.append(tuple(sorted(merged_atoms)))
+        return EvidenceValue(tuple(clauses))
 
 
 __all__ = [
