@@ -116,6 +116,49 @@ def test_reference_interpreter_preflights_compose_budget_before_matmul(
     )
 
 
+def test_reference_interpreter_compose_preflight_stops_after_budget_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = TypedAxis("source", "code", ("s",))
+    middle = TypedAxis("middle", "code", ("m", "n"))
+    target = TypedAxis("target", "type", ("T", "U", "V"))
+    semiring = BooleanSemiring()
+    left = TypedRelationBlock.from_coordinates(
+        subject=SUBJECT,
+        signature=RelationSignature("code", "a", "code"),
+        row_axis=source,
+        column_axis=middle,
+        coordinates=(("s", "m", True), ("s", "n", True)),
+        semiring=semiring,
+    )
+    right = TypedRelationBlock.from_coordinates(
+        subject=SUBJECT,
+        signature=RelationSignature("code", "b", "type"),
+        row_axis=middle,
+        column_axis=target,
+        coordinates=(("m", "T", True), ("m", "U", True), ("n", "V", True)),
+        semiring=semiring,
+    )
+    plan = ContractionPlan("ab", Compose(BlockRef("a"), BlockRef("b"), "ab"))
+
+    class ExplodingColumns(tuple):
+        def __iter__(self):
+            yield self[0]
+            raise AssertionError("Compose preflight scanned after the budget was exhausted")
+
+    object.__setattr__(left, "column_indices", ExplodingColumns(left.column_indices))
+
+    def unexpected_matmul(*args: object, **kwargs: object) -> object:
+        raise AssertionError("matmul must not run after an over-budget preflight")
+
+    monkeypatch.setattr(TypedRelationBlock, "matmul", unexpected_matmul)
+    with pytest.raises(ValueError, match="bounded operation limit"):
+        ReferenceContractionInterpreter(
+            semiring,
+            max_operations=1,
+        ).evaluate(plan, {"a": left, "b": right})
+
+
 def test_reference_interpreter_compose_preflight_preserves_middle_axis_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
