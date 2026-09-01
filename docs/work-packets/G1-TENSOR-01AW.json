@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AW",
+  "title": "Enforce one plan-wide reference operation budget",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AV",
+  "campaign_issue": 239,
+  "base_revision": "23396e455c709732a90f10b3eaab2ab33ec57893",
+  "finding": "ReferenceContractionInterpreter forwarded the full max_operations allowance independently to every Compose and Hadamard node. A multi-step plan could therefore execute several individually bounded contractions whose cumulative work exceeded the interpreter budget.",
+  "primary_claim": "ReferenceContractionInterpreter now threads one remaining operation allowance through the whole expression evaluation, so the configured max_operations bound applies cumulatively to the complete logical plan rather than separately to each operator.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/contractions.py"
+    ],
+    "added": [
+      "tests/twin/test_contraction_operation_budget.py",
+      "docs/work-packets/G1-TENSOR-01AW.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Thread an integer remainder through the existing recursive oracle instead of adding a scheduler, planner state object, parallel budget abstraction, or backend API. Direct TypedRelationBlock operation limits keep their existing per-call contract.",
+  "acceptance": [
+    "a two-compose plan that needs two reference operations refuses when max_operations is one even though each individual compose needs only one operation",
+    "the same plan succeeds at the exact cumulative boundary of two operations",
+    "direct relation-block operation limits retain their existing per-call behavior",
+    "existing Fourfold revision and semiring compatibility checks remain authoritative",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "bounded Tensor/Forest diagnostic on the designated Python 3.12 hash-seed 0 cell",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01AW commits; canonical Forest/Fourfold artifacts, relation-block wire contracts, and identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
