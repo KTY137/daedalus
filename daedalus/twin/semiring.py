@@ -242,6 +242,8 @@ class EvidenceDagSemiring:
             return second
         if not second.alternatives:
             return first
+        if first == second:
+            return first
         if len(first.alternatives) + len(second.alternatives) > (
             MAX_EVIDENCE_ALTERNATIVES
         ):
@@ -257,6 +259,12 @@ class EvidenceDagSemiring:
         second = self._value(right, "right")
         if not first.alternatives or not second.alternatives:
             return self.zero
+        if first == second:
+            return first
+        if first == self.one:
+            return second
+        if second == self.one:
+            return first
         candidate_count = len(first.alternatives) * len(second.alternatives)
         if candidate_count > MAX_EVIDENCE_ALTERNATIVES:
             raise ValueError("evidence multiplication exceeds bounded alternative limit")
