@@ -338,3 +338,59 @@ daedalus/runtimes/provider_target_verification_contracts.py -text
 daedalus/runtimes/admission/offload_egress.py -text
 daedalus/orchestration/workspace_containment.py -text
 daedalus/text_integrity.py -text
+
+# Gate-1 evaluator-bundle closure members added by the hierarchy refactor.
+# The closure is recomputed from source on every run by
+# tests/test_ignition_bundle_gitattributes.py, so it grows whenever a packet
+# splits a module or introduces an owner -- and every new member arrives
+# unlisted, which is the recurrence this section's D7 header describes. These
+# 46 are the ones the interfaces/, kernel/contracts/, orchestration/ and
+# runtimes/providers/ splits produced. One explicit line each, not a
+# `daedalus/**/*.py` wildcard: that was measured to -text-pin ~170 modules
+# the bundle never reads.
+daedalus/build_exec.py -text
+daedalus/conversation.py -text
+daedalus/ikarus_runtime_role.py -text
+daedalus/ikarus_supervisor.py -text
+daedalus/interfaces/bridge/__init__.py -text
+daedalus/interfaces/bridge/cli.py -text
+daedalus/interfaces/bridge/conversation.py -text
+daedalus/interfaces/bridge/dispatch.py -text
+daedalus/interfaces/bridge/journal.py -text
+daedalus/interfaces/bridge/projection.py -text
+daedalus/interfaces/bridge/queue.py -text
+daedalus/interfaces/bridge/watcher.py -text
+daedalus/kernel/__init__.py -text
+daedalus/kernel/attempt_execution.py -text
+daedalus/kernel/contracts/__init__.py -text
+daedalus/kernel/contracts/canonical.py -text
+daedalus/kernel/contracts/evaluation.py -text
+daedalus/kernel/contracts/observations.py -text
+daedalus/kernel/events/__init__.py -text
+daedalus/kernel/events/durability.py -text
+daedalus/kernel/events/envelope.py -text
+daedalus/kernel/events/ledger.py -text
+daedalus/kernel/policy/ledger.py -text
+daedalus/kernel/policy/limits.py -text
+daedalus/kernel/policy/pricing.py -text
+daedalus/orchestration/__init__.py -text
+daedalus/orchestration/execution/attempts.py -text
+daedalus/orchestration/legacy_reports.py -text
+daedalus/progress.py -text
+daedalus/progress_sources.py -text
+daedalus/resources/__init__.py -text
+daedalus/runtimes/contracts/claude.py -text
+daedalus/runtimes/contracts/ports.py -text
+daedalus/runtimes/contracts/provider_report.py -text
+daedalus/runtimes/contracts/python_targets.py -text
+daedalus/runtimes/contracts/repository.py -text
+daedalus/runtimes/contracts/retention.py -text
+daedalus/runtimes/execution/budget_process.py -text
+daedalus/runtimes/providers/budget_admission.py -text
+daedalus/runtimes/providers/catalogue.py -text
+daedalus/runtimes/providers/context.py -text
+daedalus/runtimes/providers/contracts.py -text
+daedalus/runtimes/providers/execution_policy.py -text
+daedalus/runtimes/providers/personas.py -text
+daedalus/runtimes/providers/reporting.py -text
+daedalus/runtimes/providers/token_policy.py -text
