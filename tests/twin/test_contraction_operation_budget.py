@@ -162,3 +162,28 @@ def test_reference_interpreter_preflights_hadamard_budget_before_execution(
         ("s", "T", True),
         ("s", "U", True),
     )
+
+
+def test_reference_interpreter_hadamard_preflight_preserves_axis_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = TypedAxis("rows", "code", ("s",))
+    left_columns = TypedAxis("columns", "type", ("T",))
+    right_columns = TypedAxis("renamed-columns", "type", ("T",))
+    semiring = BooleanSemiring()
+    left = _block("left", rows, left_columns, "s", "T")
+    right = _block("right", rows, right_columns, "s", "T")
+    plan = ContractionPlan(
+        "both",
+        Hadamard(BlockRef("left"), BlockRef("right"), "both"),
+    )
+
+    def unexpected_hadamard(*args: object, **kwargs: object) -> object:
+        raise AssertionError("hadamard must not run for incompatible typed axes")
+
+    monkeypatch.setattr(TypedRelationBlock, "hadamard", unexpected_hadamard)
+    with pytest.raises(ValueError, match="identical typed axes"):
+        ReferenceContractionInterpreter(semiring).evaluate(
+            plan,
+            {"left": left, "right": right},
+        )
