@@ -47,11 +47,13 @@
       "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_tensor_latent_ceiling.py",
       "python experiments/tensor_embedding/arm_o_latent_ceiling.py experiments/tensor_embedding/arm_o_latent_ceiling_corpus.json"
     ],
-    "pre_push_local_probe": "15 passed in 0.05s; py_compile succeeded; prediction-only CLI exit 3 with complete=false, ceiling=null, measured_rows=0, prediction_rows=10, expected_total=1383 on byte-identical production/test blobs and a structurally equivalent 10-row prediction fixture",
+    "exact_blob_local_probe": "15 passed in 0.03s; py_compile succeeded; prediction-only CLI exit 3 with complete=false, ceiling=null, measured_rows=0, prediction_rows=10, expected_total=1383",
     "production_blob_sha": "163a7195267033ce39a404da634f0157e504ab90",
     "test_blob_sha": "5947c00f89688694bb129764915599c59a8afb3f",
-    "committed_corpus_blob_unchanged": "ceb22596086027038deaae78450a6f1c96ea6246",
-    "claim_boundary": "Hosted CI or an exact repository checkout run is claimed only if it actually executes on the recorded final head; the pre-push probe is focused evidence, not a full-suite or benchmark claim."
+    "corpus_blob_sha": "ceb22596086027038deaae78450a6f1c96ea6246",
+    "blob_identity_check": "The locally executed production, test, and committed corpus files were independently Git-blob hashed and matched the three repository blob SHAs recorded above byte-for-byte.",
+    "hosted_ci": "No pull-request workflow run exists for the packet head at record time.",
+    "claim_boundary": "This is focused exact-blob evidence for the latent-ceiling slice, not a full-repository test, package, platform, promotion, or benchmark claim."
   },
   "branch_hygiene": {
     "remote_branch": "exp/tensor-latent-ceiling-01",
