@@ -32,6 +32,10 @@ SCHEMA = "daedalus-tensor-latent-ceiling-corpus/1"
 REPORT_SCHEMA = "daedalus-tensor-latent-ceiling-report/1"
 BUCKETS = ("already_covered", "present_not_expressible", "absent")
 STATUSES = ("prediction", "measured")
+CORPUS_FIELDS = frozenset({"schema", "source_revision", "expected_total", "items"})
+ROW_FIELDS = frozenset(
+    {"id", "source", "bucket", "status", "reason", "evidence_refs"}
+)
 
 
 class CeilingCorpusError(ValueError):
@@ -76,6 +80,10 @@ class Row:
     @classmethod
     def parse(cls, raw: Mapping[str, Any], index: int) -> "Row":
         where = f"items[{index}]"
+        if set(raw) != ROW_FIELDS:
+            raise CeilingCorpusError(
+                f"{where} fields must be exactly {', '.join(sorted(ROW_FIELDS))}"
+            )
         item_id = _nonempty_string(raw.get("id"), f"{where}.id")
         source = _nonempty_string(raw.get("source"), f"{where}.source")
         bucket = _nonempty_string(raw.get("bucket"), f"{where}.bucket")
@@ -111,6 +119,10 @@ class Corpus:
 
     @classmethod
     def parse(cls, raw: Mapping[str, Any]) -> "Corpus":
+        if set(raw) != CORPUS_FIELDS:
+            raise CeilingCorpusError(
+                f"corpus fields must be exactly {', '.join(sorted(CORPUS_FIELDS))}"
+            )
         if raw.get("schema") != SCHEMA:
             raise CeilingCorpusError(f"schema must be {SCHEMA!r}")
         revision = _nonempty_string(raw.get("source_revision"), "source_revision")
