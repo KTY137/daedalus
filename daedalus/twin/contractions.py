@@ -173,13 +173,19 @@ class ReferenceContractionInterpreter(Generic[T]):
             raise ValueError("plan must be ContractionPlan")
         if not isinstance(blocks, Mapping):
             raise ValueError("blocks must be a mapping")
-        return self._evaluate_expression(plan.expression, blocks)
+        result, _ = self._evaluate_expression(
+            plan.expression,
+            blocks,
+            self._max_operations,
+        )
+        return result
 
     def _evaluate_expression(
         self,
         expression: ContractionExpression,
         blocks: Mapping[str, TypedRelationBlock[T]],
-    ) -> TypedRelationBlock[T]:
+        remaining_operations: int,
+    ) -> tuple[TypedRelationBlock[T], int]:
         if isinstance(expression, BlockRef):
             try:
                 block = blocks[expression.name]
@@ -192,25 +198,47 @@ class ReferenceContractionInterpreter(Generic[T]):
                     f"contraction input {expression.name!r} is not a relation block"
                 )
             block._require_semiring(self._semiring)
-            return block
+            return block, remaining_operations
         if isinstance(expression, Compose):
-            left = self._evaluate_expression(expression.left, blocks)
-            right = self._evaluate_expression(expression.right, blocks)
-            return left.matmul(
+            left, remaining_operations = self._evaluate_expression(
+                expression.left,
+                blocks,
+                remaining_operations,
+            )
+            right, remaining_operations = self._evaluate_expression(
+                expression.right,
+                blocks,
+                remaining_operations,
+            )
+            result = left.matmul(
                 right,
                 self._semiring,
                 relation=expression.relation,
-                max_operations=self._max_operations,
+                max_operations=remaining_operations,
             )
+            operations = sum(
+                right.row_offsets[middle + 1] - right.row_offsets[middle]
+                for middle in left.column_indices
+            )
+            return result, remaining_operations - operations
         if isinstance(expression, Hadamard):
-            left = self._evaluate_expression(expression.left, blocks)
-            right = self._evaluate_expression(expression.right, blocks)
-            return left.hadamard(
+            left, remaining_operations = self._evaluate_expression(
+                expression.left,
+                blocks,
+                remaining_operations,
+            )
+            right, remaining_operations = self._evaluate_expression(
+                expression.right,
+                blocks,
+                remaining_operations,
+            )
+            result = left.hadamard(
                 right,
                 self._semiring,
                 relation=expression.relation,
-                max_operations=self._max_operations,
+                max_operations=remaining_operations,
             )
+            return result, remaining_operations - result.entry_count
         raise ValueError("unsupported contraction expression")
 
 
