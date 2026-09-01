@@ -234,13 +234,34 @@ class ReferenceContractionInterpreter(Generic[T]):
                 blocks,
                 remaining_operations,
             )
+            operations = 0
+            for row in range(len(left.row_axis.labels)):
+                left_position = left.row_offsets[row]
+                left_stop = left.row_offsets[row + 1]
+                right_position = right.row_offsets[row]
+                right_stop = right.row_offsets[row + 1]
+                while left_position < left_stop and right_position < right_stop:
+                    left_column = left.column_indices[left_position]
+                    right_column = right.column_indices[right_position]
+                    if left_column == right_column:
+                        operations += 1
+                        if operations > remaining_operations:
+                            raise ValueError(
+                                "reference contraction exceeds bounded operation limit"
+                            )
+                        left_position += 1
+                        right_position += 1
+                    elif left_column < right_column:
+                        left_position += 1
+                    else:
+                        right_position += 1
             result = left.hadamard(
                 right,
                 self._semiring,
                 relation=expression.relation,
                 max_operations=remaining_operations,
             )
-            return result, remaining_operations - result.entry_count
+            return result, remaining_operations - operations
         raise ValueError("unsupported contraction expression")
 
 
