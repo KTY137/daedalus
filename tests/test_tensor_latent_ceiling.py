@@ -44,10 +44,21 @@ def _corpus(items: list[dict], expected_total: int | None = None) -> dict:
     }
 
 
+def _complete_corpus(b_count: int, c_count: int = 0):
+    a_count = O.FROZEN_EXPECTED_TOTAL - b_count - c_count
+    assert a_count >= 0
+    items = [
+        *[_row(f"a{i}", "already_covered") for i in range(a_count)],
+        *[_row(f"b{i}", "present_not_expressible") for i in range(b_count)],
+        *[_row(f"c{i}", "absent") for i in range(c_count)],
+    ]
+    return O.Corpus.parse(_corpus(items, expected_total=O.FROZEN_EXPECTED_TOTAL))
+
+
 def test_committed_corpus_preserves_predictions_without_claiming_a_result() -> None:
     corpus = O.load(CORPUS)
     report = O.evaluate(corpus)
-    assert corpus.expected_total == 1383
+    assert corpus.expected_total == O.FROZEN_EXPECTED_TOTAL == 1383
     assert len(corpus.rows) == 10
     assert report["prediction_rows"] == 10
     assert report["measured_rows"] == 0
@@ -59,20 +70,13 @@ def test_committed_corpus_preserves_predictions_without_claiming_a_result() -> N
 
 
 def test_complete_measured_corpus_computes_only_bucket_b_headroom() -> None:
-    corpus = O.Corpus.parse(
-        _corpus([
-            _row("a1", "already_covered"),
-            _row("a2", "already_covered"),
-            _row("b1", "present_not_expressible"),
-            _row("c1", "absent"),
-        ])
-    )
+    corpus = _complete_corpus(b_count=346, c_count=1)
     report = O.evaluate(corpus)
     assert report["complete"] is True
-    assert report["ceiling"] == 0.25
+    assert report["ceiling"] == round(346 / O.FROZEN_EXPECTED_TOTAL, 6)
     assert report["measured_bucket_counts"] == {
-        "already_covered": 2,
-        "present_not_expressible": 1,
+        "already_covered": 1036,
+        "present_not_expressible": 346,
         "absent": 1,
     }
     assert report["decision"].startswith("LICENSE_ONE_EXPERIMENT")
@@ -84,6 +88,17 @@ def test_partial_measured_subset_cannot_publish_a_ceiling() -> None:
     )
     report = O.evaluate(corpus)
     assert report["measured_bucket_counts"]["present_not_expressible"] == 1
+    assert report["complete"] is False
+    assert report["ceiling"] is None
+    assert report["decision"].startswith("INCOMPLETE")
+
+
+def test_changed_denominator_cannot_publish_a_ceiling_via_direct_evaluation() -> None:
+    corpus = O.Corpus.parse(
+        _corpus([_row("b1", "present_not_expressible")], expected_total=1)
+    )
+    report = O.evaluate(corpus)
+    assert report["measured_rows"] == 1
     assert report["complete"] is False
     assert report["ceiling"] is None
     assert report["decision"].startswith("INCOMPLETE")
@@ -128,7 +143,7 @@ def test_load_refuses_duplicate_json_object_keys(
     tmp_path: Path, target: str, replacement: str, match: str
 ) -> None:
     rendered = json.dumps(
-        _corpus([_row("a", "already_covered")]),
+        _corpus([_row("a", "already_covered")], expected_total=O.FROZEN_EXPECTED_TOTAL),
         separators=(",", ":"),
     )
     ambiguous = rendered.replace(target, replacement, 1)
@@ -139,25 +154,23 @@ def test_load_refuses_duplicate_json_object_keys(
         O.load(path)
 
 
-def test_thresholds_do_not_turn_midrange_or_tiny_headroom_into_a_win() -> None:
-    close = O.evaluate(
-        O.Corpus.parse(_corpus([
-            *[_row(f"a{i}", "already_covered") for i in range(98)],
-            _row("b", "present_not_expressible"),
-            _row("c", "absent"),
-        ]))
+def test_load_refuses_changed_frozen_denominator(tmp_path: Path) -> None:
+    path = tmp_path / "changed-denominator.json"
+    path.write_text(
+        json.dumps(_corpus([_row("b", "present_not_expressible")], expected_total=1)),
+        encoding="utf-8",
     )
-    assert close["ceiling"] == 0.01
+    with pytest.raises(O.CeilingCorpusError, match="expected_total must remain frozen at 1383"):
+        O.load(path)
+
+
+def test_thresholds_do_not_turn_midrange_or_tiny_headroom_into_a_win() -> None:
+    close = O.evaluate(_complete_corpus(b_count=13, c_count=1))
+    assert close["ceiling"] == round(13 / O.FROZEN_EXPECTED_TOTAL, 6)
     assert close["decision"].startswith("CLOSE")
 
-    ambiguous = O.evaluate(
-        O.Corpus.parse(_corpus([
-            *[_row(f"a{i}", "already_covered") for i in range(8)],
-            _row("b", "present_not_expressible"),
-            _row("c", "absent"),
-        ]))
-    )
-    assert ambiguous["ceiling"] == 0.1
+    ambiguous = O.evaluate(_complete_corpus(b_count=138, c_count=1))
+    assert ambiguous["ceiling"] == round(138 / O.FROZEN_EXPECTED_TOTAL, 6)
     assert ambiguous["decision"].startswith("AMBIGUOUS")
 
 
