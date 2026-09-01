@@ -1,0 +1,59 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AL",
+  "title": "Align direct natural relation-block scalar bound",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AK",
+  "campaign_issue": 239,
+  "base_revision": "f27c86ab956771ce31dbc26f148715ec3dfb003a",
+  "finding": "G1-TENSOR-01AK bounded NaturalSemiring operands and results, but the direct TypedRelationBlock constructor validates only non-negative integer kind and structural zero. A caller could therefore retain and serialize a natural scalar larger than the semiring's 4096-bit execution envelope without invoking NaturalSemiring arithmetic.",
+  "primary_claim": "Direct natural TypedRelationBlock construction now fails closed above the same MAX_NATURAL_BITS envelope used by NaturalSemiring, closing the retention bypass without adding a numeric wrapper, backend, registry, or second scalar contract.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_contractions.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01AL.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the existing MAX_NATURAL_BITS constant at the retention boundary. Do not introduce bigint wrapper types, a second numeric configuration, or a parallel relation-block constructor.",
+  "acceptance": [
+    "direct CSR construction accepts the largest natural scalar inside the existing 4096-bit envelope",
+    "direct CSR construction rejects a natural scalar above that envelope before it can be retained or serialized",
+    "existing scalar-kind and structural-zero refusals remain intact",
+    "NaturalSemiring arithmetic semantics and the Fourfold/Forest authority boundary remain unchanged",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01AL commit; canonical Forest/Fourfold artifacts and identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}

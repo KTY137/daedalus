@@ -16,6 +16,7 @@ from daedalus.twin.relation_blocks import (
     TypedRelationBlock,
 )
 from daedalus.twin.semiring import (
+    MAX_NATURAL_BITS,
     BooleanSemiring,
     EvidenceDagSemiring,
     EvidenceValue,
@@ -349,3 +350,23 @@ def test_direct_csr_contract_refuses_wrong_scalar_kind_and_structural_zero() -> 
             values=(-1,),
             **kwargs,
         )
+
+
+def test_direct_csr_contract_reuses_natural_scalar_bound() -> None:
+    rows = TypedAxis("rows", "code", ("a",))
+    columns = TypedAxis("columns", "type", ("T",))
+    kwargs = {
+        "subject": subject(),
+        "signature": RelationSignature("code", "declares", "type"),
+        "row_axis": rows,
+        "column_axis": columns,
+        "semiring_name": "natural",
+        "row_offsets": (0, 1),
+        "column_indices": (0,),
+    }
+    maximum = (1 << MAX_NATURAL_BITS) - 1
+
+    accepted = TypedRelationBlock(values=(maximum,), **kwargs)
+    assert accepted.values == (maximum,)
+    with pytest.raises(ValueError, match="bounded bit length"):
+        TypedRelationBlock(values=(1 << MAX_NATURAL_BITS,), **kwargs)

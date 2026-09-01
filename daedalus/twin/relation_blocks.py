@@ -15,7 +15,7 @@ from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 from ..schemas import _identifier, _non_empty, _revision, _sha256
 from ..spine.envelope import canonical_json, canonical_sha
 from .contracts import FOURFOLD_PLANES
-from .semiring import EvidenceValue, Semiring
+from .semiring import MAX_NATURAL_BITS, EvidenceValue, Semiring
 
 T = TypeVar("T")
 MAX_BLOCK_AXIS_LABELS = 100_000
@@ -48,6 +48,10 @@ def _stored(value: Any, semiring_name: str) -> Any:
     if semiring_name == "natural":
         if type(value) is not int or value < 0:
             raise ValueError("natural relation blocks must contain non-negative integers")
+        if value.bit_length() > MAX_NATURAL_BITS:
+            raise ValueError(
+                f"natural relation-block values exceed bounded bit length {MAX_NATURAL_BITS}"
+            )
         if value == 0:
             raise ValueError("relation blocks must not store semiring zero values")
         return value
