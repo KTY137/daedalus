@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import daedalus.twin.contractions as contractions_module
 from daedalus.twin.contractions import (
     BlockRef,
     Compose,
@@ -324,6 +325,34 @@ def test_contraction_plan_digest_is_canonical_and_missing_inputs_refuse() -> Non
     assert first.digest == second.digest
     with pytest.raises(ValueError, match="unknown block"):
         ReferenceContractionInterpreter(BooleanSemiring()).evaluate(first, {})
+
+
+def test_contraction_plan_structural_bound_is_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(contractions_module, "_MAX_CONTRACTION_PLAN_NODES", 5)
+    at_limit = Compose(
+        Compose(BlockRef("a"), BlockRef("b"), "ab"),
+        BlockRef("c"),
+        "abc",
+    )
+    oversized = Compose(at_limit, BlockRef("d"), "abcd")
+
+    accepted = ContractionPlan("bounded", at_limit)
+    assert len(accepted.digest) == 64
+    with pytest.raises(ValueError, match="exceeds bounded node limit 5"):
+        ContractionPlan("oversized", oversized)
+
+
+def test_contraction_plan_cycle_terminates_at_structural_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(contractions_module, "_MAX_CONTRACTION_PLAN_NODES", 5)
+    cyclic = Compose(BlockRef("left"), BlockRef("right"), "cycle")
+    object.__setattr__(cyclic, "left", cyclic)
+
+    with pytest.raises(ValueError, match="exceeds bounded node limit 5"):
+        ContractionPlan("cyclic", cyclic)
 
 
 def test_direct_csr_contract_refuses_wrong_scalar_kind_and_structural_zero() -> None:
