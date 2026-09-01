@@ -5,7 +5,11 @@ from typing import Any
 
 import pytest
 
-from daedalus.twin.semiring import MAX_EVIDENCE_ALTERNATIVES, EvidenceValue
+from daedalus.twin.semiring import (
+    MAX_EVIDENCE_ALTERNATIVES,
+    MAX_EVIDENCE_TERM_ATOMS,
+    EvidenceValue,
+)
 from daedalus.twin.tensor import (
     MAX_ENTRY_EVIDENCE_DIGESTS,
     MAX_TENSOR_AXES,
@@ -28,6 +32,23 @@ class ExplodingSequence(Sequence[object]):
     def __getitem__(self, index: int) -> object:
         self.accessed = True
         raise AssertionError(f"oversized tensor input was accessed at {index}")
+
+
+class FirstThenExplodes(Sequence[object]):
+    """Expose one invalid term and fail if parsing advances past it."""
+
+    def __init__(self, first: object) -> None:
+        self.first = first
+        self.tail_accessed = False
+
+    def __len__(self) -> int:
+        return 2
+
+    def __getitem__(self, index: int) -> object:
+        if index == 0:
+            return self.first
+        self.tail_accessed = True
+        raise AssertionError(f"evidence parser advanced past invalid term at {index}")
 
 
 def _digest(index: int) -> str:
@@ -114,3 +135,17 @@ def test_evidence_wire_alternatives_refuse_before_copy() -> None:
         EvidenceValue.from_dict({"alternatives": alternatives})
 
     assert alternatives.accessed is False
+
+
+def test_evidence_wire_oversized_term_refuses_before_copying_tail() -> None:
+    term = ExplodingSequence(MAX_EVIDENCE_TERM_ATOMS + 1)
+    alternatives = FirstThenExplodes(term)
+
+    with pytest.raises(
+        ValueError,
+        match=r"evidence\.alternatives\[0\] exceeds bounded limit",
+    ):
+        EvidenceValue.from_dict({"alternatives": alternatives})
+
+    assert term.accessed is False
+    assert alternatives.tail_accessed is False
