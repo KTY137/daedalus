@@ -1,0 +1,75 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-04",
+  "title": "Pin the frozen latent-ceiling denominator before claims",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-03",
+  "campaign_issue": 239,
+  "base_revision": "ddf8ef984a0b9a7cb90a7407ebc8e6043d5f2af9",
+  "authority_refs": [
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+    "https://github.com/KTY137/daedalus/issues/239"
+  ],
+  "finding": "The preregistered experiment freezes a 1,383-item denominator, but the loader previously accepted any positive expected_total and evaluate treated that mutable value as the completeness target. A one-row measured corpus with expected_total=1 could therefore emit a numeric ceiling despite not being the frozen experiment.",
+  "primary_claim": "The file-backed claim path now refuses any denominator other than the preregistered 1,383 items, and direct evaluation defensively withholds complete=true and a numeric ceiling when a Corpus carries a different denominator.",
+  "scope": {
+    "changed": [
+      "experiments/tensor_embedding/arm_o_latent_ceiling.py",
+      "tests/test_tensor_latent_ceiling.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-04.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_embedding_backend": false,
+    "adds_tensor_backend": false,
+    "adds_graph_authority": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler": false,
+    "adds_schema_framework": false,
+    "adds_semantic_plane": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Add one frozen denominator constant and reuse it at the existing load/evaluate boundaries. Do not add a configuration object, schema migration, corpus registry, validator framework, alternate evidence format, or retrieval backend.",
+  "acceptance": [
+    "the committed prediction-only corpus remains valid, incomplete, and fixed at 1,383 expected items",
+    "a file-backed corpus with expected_total changed to 1 is refused before it can emit a ceiling",
+    "direct evaluation of a one-row measured Corpus with expected_total=1 remains incomplete and emits ceiling=null",
+    "the complete fixed-denominator fixture still exercises the >=20% decision boundary",
+    "the <=3% and 3-20% threshold regressions use the fixed 1,383-item denominator",
+    "no prediction or partial corpus can publish a numeric ceiling",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "focused_commands": [
+      "python -m py_compile experiments/tensor_embedding/arm_o_latent_ceiling.py tests/test_tensor_latent_ceiling.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_tensor_latent_ceiling.py",
+      "python experiments/tensor_embedding/arm_o_latent_ceiling.py experiments/tensor_embedding/arm_o_latent_ceiling_corpus.json"
+    ],
+    "exact_blob_local_probe": "17 passed in 0.10s; py_compile succeeded; prediction-only CLI exit 3 with complete=false, ceiling=null, measured_rows=0, prediction_rows=10, expected_total=1383",
+    "production_blob_sha": "a1dbc3431eaf0063ae6a79aada119e1ca7569a0d",
+    "test_blob_sha": "77ae2e8dba416ae9c707bb77f8621ae9ecf2fc64",
+    "corpus_blob_sha": "ceb22596086027038deaae78450a6f1c96ea6246",
+    "blob_identity_check": "The locally executed production, test, and committed corpus files were independently Git-blob hashed and matched the three repository blob SHAs recorded above byte-for-byte.",
+    "hosted_ci": "No hosted-CI success is claimed by this packet; final exact-head workflow/status state is checked separately after the record commit.",
+    "claim_boundary": "This is focused exact-blob evidence for the isolated latent-ceiling slice, not a full-repository test, package, platform, promotion, latent-benefit, or benchmark-green claim."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-latent-ceiling-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-EXP-TENSOR-LATENT-CEILING-04 commits. No production Tensor/embedding authority, store, scheduler, or promotion path depends on this experiment.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
