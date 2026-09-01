@@ -213,12 +213,11 @@ class ReferenceContractionInterpreter(Generic[T]):
             left._require_compatible(right, self._semiring)
             if left.column_axis != right.row_axis:
                 raise ValueError("matrix composition requires an exactly shared typed middle axis")
-            operations = sum(
-                right.row_offsets[middle + 1] - right.row_offsets[middle]
-                for middle in left.column_indices
-            )
-            if operations > remaining_operations:
-                raise ValueError("reference contraction exceeds bounded operation limit")
+            operations = 0
+            for middle in left.column_indices:
+                operations += right.row_offsets[middle + 1] - right.row_offsets[middle]
+                if operations > remaining_operations:
+                    raise ValueError("reference contraction exceeds bounded operation limit")
             result = left.matmul(
                 right,
                 self._semiring,
