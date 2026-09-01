@@ -74,3 +74,33 @@ def test_reference_interpreter_operation_budget_is_plan_wide() -> None:
     assert result.signature == RelationSignature("code", "abc", "type")
     assert result.subject == SUBJECT
     assert tuple(result.iter_entries()) == (("s", "T", True),)
+
+
+def test_reference_interpreter_preflights_compose_budget_before_matmul(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = TypedAxis("source", "code", ("s",))
+    middle = TypedAxis("middle", "code", ("m",))
+    target = TypedAxis("target", "type", ("T", "U"))
+    semiring = BooleanSemiring()
+    left = _block("a", source, middle, "s", "m")
+    right = TypedRelationBlock.from_coordinates(
+        subject=SUBJECT,
+        signature=RelationSignature("code", "b", "type"),
+        row_axis=middle,
+        column_axis=target,
+        coordinates=(("m", "T", True), ("m", "U", True)),
+        semiring=semiring,
+    )
+    plan = ContractionPlan("ab", Compose(BlockRef("a"), BlockRef("b"), "ab"))
+
+    def unexpected_matmul(*args: object, **kwargs: object) -> object:
+        raise AssertionError("matmul must not run after an over-budget preflight")
+
+    monkeypatch.setattr(TypedRelationBlock, "matmul", unexpected_matmul)
+
+    with pytest.raises(ValueError, match="bounded operation limit"):
+        ReferenceContractionInterpreter(
+            semiring,
+            max_operations=1,
+        ).evaluate(plan, {"a": left, "b": right})
