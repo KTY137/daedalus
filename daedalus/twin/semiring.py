@@ -244,9 +244,9 @@ class EvidenceDagSemiring:
         if not second.alternatives:
             return first
         if len(first.alternatives) + len(second.alternatives) > (
-            MAX_EVIDENCE_PRODUCT_CANDIDATES
+            MAX_EVIDENCE_ALTERNATIVES
         ):
-            raise ValueError("evidence addition exceeds bounded candidate limit")
+            raise ValueError("evidence addition exceeds bounded alternative limit")
         return EvidenceValue(first.alternatives + second.alternatives)
 
     def multiply(
