@@ -8,6 +8,7 @@ import pytest
 from daedalus.twin.semiring import (
     MAX_EVIDENCE_ALTERNATIVES,
     MAX_EVIDENCE_TERM_ATOMS,
+    EvidenceDagSemiring,
     EvidenceValue,
 )
 from daedalus.twin.tensor import (
@@ -149,3 +150,27 @@ def test_evidence_wire_oversized_term_refuses_before_copying_tail() -> None:
 
     assert term.accessed is False
     assert alternatives.tail_accessed is False
+
+
+def test_evidence_multiply_rejects_oversized_merged_term() -> None:
+    semiring = EvidenceDagSemiring()
+    first = EvidenceValue((tuple(_digest(index) for index in range(MAX_EVIDENCE_TERM_ATOMS)),))
+    second = EvidenceValue(
+        (
+            tuple(
+                _digest(MAX_EVIDENCE_TERM_ATOMS + index)
+                for index in range(MAX_EVIDENCE_TERM_ATOMS)
+            ),
+        )
+    )
+
+    with pytest.raises(ValueError, match="multiplication term exceeds bounded atom limit"):
+        semiring.multiply(first, second)
+
+
+def test_evidence_multiply_allows_overlapping_terms_at_bound() -> None:
+    semiring = EvidenceDagSemiring()
+    term = tuple(_digest(index) for index in range(MAX_EVIDENCE_TERM_ATOMS))
+    value = EvidenceValue((term,))
+
+    assert semiring.multiply(value, value) == value
