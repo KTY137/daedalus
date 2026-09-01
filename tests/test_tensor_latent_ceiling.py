@@ -93,8 +93,10 @@ def test_partial_measured_subset_cannot_publish_a_ceiling() -> None:
     "mutator,match",
     [
         (lambda payload: payload.update(schema="wrong"), "schema"),
+        (lambda payload: payload.update(shadow="ignored"), "corpus fields"),
         (lambda payload: payload.update(source_revision="abc"), "source_revision"),
         (lambda payload: payload["items"].append(dict(payload["items"][0])), "duplicate item id"),
+        (lambda payload: payload["items"][0].update(shadow="ignored"), "items\\[0\\] fields"),
         (lambda payload: payload["items"][0].update(bucket="maybe"), "bucket"),
         (lambda payload: payload["items"][0].update(status="inferred"), "status"),
         (lambda payload: payload["items"][0].update(evidence_refs=[]), "evidence_refs"),
