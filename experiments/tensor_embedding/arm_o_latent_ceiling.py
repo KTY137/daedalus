@@ -32,6 +32,7 @@ SCHEMA = "daedalus-tensor-latent-ceiling-corpus/1"
 REPORT_SCHEMA = "daedalus-tensor-latent-ceiling-report/1"
 BUCKETS = ("already_covered", "present_not_expressible", "absent")
 STATUSES = ("prediction", "measured")
+FROZEN_EXPECTED_TOTAL = 1383
 CORPUS_FIELDS = frozenset({"schema", "source_revision", "expected_total", "items"})
 ROW_FIELDS = frozenset(
     {"id", "source", "bucket", "status", "reason", "evidence_refs"}
@@ -172,7 +173,12 @@ def load(path: str | Path) -> Corpus:
         raise CeilingCorpusError(f"cannot read corpus {corpus_path}: {exc}") from exc
     if not isinstance(payload, Mapping):
         raise CeilingCorpusError("corpus root must be an object")
-    return Corpus.parse(payload)
+    corpus = Corpus.parse(payload)
+    if corpus.expected_total != FROZEN_EXPECTED_TOTAL:
+        raise CeilingCorpusError(
+            f"expected_total must remain frozen at {FROZEN_EXPECTED_TOTAL}"
+        )
+    return corpus
 
 
 def evaluate(corpus: Corpus) -> dict[str, Any]:
