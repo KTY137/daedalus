@@ -344,10 +344,16 @@ daedalus/text_integrity.py -text
 # tests/test_ignition_bundle_gitattributes.py, so it grows whenever a packet
 # splits a module or introduces an owner -- and every new member arrives
 # unlisted, which is the recurrence this section's D7 header describes. These
-# 46 are the ones the interfaces/, kernel/contracts/, orchestration/ and
+# 51 are the ones the interfaces/, kernel/contracts/, orchestration/ and
 # runtimes/providers/ splits produced. One explicit line each, not a
 # `daedalus/**/*.py` wildcard: that was measured to -text-pin ~170 modules
 # the bundle never reads.
+#
+# 46 -> 51 in G1-HIER-10, which added no file: pointing eighteen kernel
+# modules at their contract owners instead of the `daedalus.schemas` facade
+# pulled base/evidence/policy/promotion/resources into the bundle's import
+# closure for the first time. Exactly the arrival-unlisted case the paragraph
+# above predicts, caught by the guard test rather than by review.
 daedalus/build_exec.py -text
 daedalus/conversation.py -text
 daedalus/ikarus_runtime_role.py -text
@@ -363,9 +369,14 @@ daedalus/interfaces/bridge/watcher.py -text
 daedalus/kernel/__init__.py -text
 daedalus/kernel/attempt_execution.py -text
 daedalus/kernel/contracts/__init__.py -text
+daedalus/kernel/contracts/base.py -text
 daedalus/kernel/contracts/canonical.py -text
 daedalus/kernel/contracts/evaluation.py -text
+daedalus/kernel/contracts/evidence.py -text
 daedalus/kernel/contracts/observations.py -text
+daedalus/kernel/contracts/policy.py -text
+daedalus/kernel/contracts/promotion.py -text
+daedalus/kernel/contracts/resources.py -text
 daedalus/kernel/events/__init__.py -text
 daedalus/kernel/events/durability.py -text
 daedalus/kernel/events/envelope.py -text

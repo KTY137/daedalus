@@ -30,6 +30,15 @@ every moved symbol proven to be the same object it was before.
 is the deterministic instrument for that claim, and it was red at the base
 revision.
 
+The claim is deliberately about **one entrypoint**. That test transitively
+loads only 13 `daedalus.kernel.*` modules, so it does not exercise most of the
+eighteen; what covers all eighteen is the static `kernel-no-outer-layers` rule,
+which reads direct import syntax in every tracked kernel file. Neither
+instrument makes a kernel-wide transitive claim, and this packet does not make
+one either — `daedalus.kernel.fourfold_evidence` still reaches orchestration
+and runtimes through `daedalus.twin`, which is recorded as an open item below
+rather than papered over.
+
 ## Scope
 
 In scope — repointed imports only, no behavior change:
@@ -57,6 +66,8 @@ In scope — contract and census artifacts:
 
 - `docs/architecture/import-boundaries.json` (two forbidden target prefixes)
 - `docs/architecture/shim-registry.json` (one registered facade)
+- `.gitattributes` (five closure members the repoint pulled into the Gate-1
+  evaluator bundle), and the working-copy line endings of those five files
 - `tests/test_architecture_boundaries.py` (moved shim count)
 - `tests/contracts/test_import_scc_hierarchy.py` (moved edge census)
 - `tests/kernel/test_contract_hierarchy.py` (two added tests: the eighteen
@@ -177,6 +188,13 @@ to the working copy, so no file received an incidental end-of-line rewrite;
 | 9 | Byte-pin end-of-line durability | `pytest tests/test_byte_pin_eol_durability.py -q` | — | 17 passed |
 | 10 | Effect Registry digest unchanged | `test_check_is_read_only_and_effect_registry_digest_is_unchanged` | `ac020278…` | `ac020278…` |
 | 11 | Import census re-measured, cycle structure unchanged | `tests/contracts/test_import_scc_hierarchy.py` | 1603 edges | 1618 edges; modules, component count, max size and digest all unchanged |
+| 12 | Gate-1 bundle closure members are all EOL-declared | `tests/test_ignition_bundle_gitattributes.py` + `tests/test_byte_pin_eol_durability.py` | 8 passed / 17 passed | 2 failed on 5 undeclared closure members, then 25 passed after the `.gitattributes` repair |
+| 13 | Full suite, `tests/` only | `pytest -q` | 19 failed (inherited, not measured by me) | 18 failed (21 total, 3 of them under `experiments/`) |
+
+Row 13 carries the one number in this matrix I did not establish end to end
+myself: the 19-failure `tests/` baseline is INHERITED from the instruction that
+opened this packet. What I measured is the after-state and, for the twelve
+files carrying every non-obvious failure, an isolated baseline at `aeef64bf`.
 
 ## Migration and rollback
 
@@ -214,10 +232,18 @@ interpreter again.
   parametrized identity cases to `tests/kernel/test_contract_hierarchy.py` and
   the selection gained `tests/test_architecture_boundaries.py`.
 - `tests/kernel/test_contract_hierarchy.py`: 54 passed before, 156 passed
-  after. Red-proofed by rebinding `daedalus.kernel.attempt_clock._utc_timestamp`
-  to a wrapper (1 failure, exactly the affected case) and by deleting
-  `_egress_endpoint` from `daedalus/kernel/contracts/base.py` (31 failures,
-  including `test_base_is_the_owner_locator_for_private_validators[_egress_endpoint]`).
+  after. Red-proofed twice. Probe one rebound
+  `daedalus.kernel.attempt_clock._utc_timestamp` to a wrapper: 1 failed / 155
+  passed, the failure being exactly
+  `test_kernel_modules_bind_the_one_contract_object[daedalus.kernel.attempt_clock-_utc_timestamp]`.
+  Probe two additionally deleted `_egress_endpoint` from
+  `daedalus/kernel/contracts/base.py`: 31 failed / 125 passed. The 31 is
+  probe one's single failure plus 30 from probe two, which cascades through
+  every module whose import chain reaches `daedalus/kernel/effects.py`. An
+  independent reviewer running probe two alone measured 30 / 126 and reported
+  the 31 as unreproducible; both numbers are correct and the difference is
+  that the two probes were live together here. This document previously stated
+  the 31 without saying that, which made it unreproducible as written.
   Both probes were removed and the file returned to 156 passed.
 - `tests/test_effect_boundary.py tests/test_cli_effect_boundary.py
   tests/test_ikarus_os_boundary.py`: 103 passed, exit 0.
@@ -228,6 +254,49 @@ interpreter again.
   1967 passed, 75 skipped, exit 0.
 - `tools/run_gate_checks.py g1`: 5 failed / 132 passed / 1 skipped, before and
   after, identically.
+- `tests/test_ignition_bundle_gitattributes.py tests/test_byte_pin_eol_durability.py`:
+  25 passed, after the `.gitattributes` repair described below.
+- Full suite, `pytest -q` from the worktree root, run twice.
+  - Before the `.gitattributes` repair, 44m05s: 23 failed / 10613 passed /
+    276 skipped / 9 xfailed. Three of the 23 are under `experiments/` and
+    outside the `tests/` count this packet is judged on, leaving 20 — two of
+    them introduced here.
+  - After the repair, 51m03s: **21 failed** / 10615 passed / 276 skipped /
+    9 xfailed. The same three `experiments/` failures, leaving **18 under
+    `tests/`** — the expected 19 → 18, with the one repaired test accounting
+    for the whole difference and no new failure anywhere.
+
+### One regression this packet introduced, and the guard that caught it
+
+`tests/test_ignition_bundle_gitattributes.py` recomputes the Gate-1 evaluator
+bundle's transitive import closure from source on every run. Pointing the
+kernel at `daedalus.kernel.contracts.{base,evidence,policy,promotion,resources}`
+pulled those five modules into that closure for the first time, and none of
+them carried the explicit `-text` declaration the D7 section of
+`.gitattributes` requires of every closure member. Two tests went red:
+`test_every_bundle_file_has_a_filter_stable_declaration` and
+`test_the_gitattributes_pin_is_an_explicit_list_not_a_wildcard`, both naming
+the same five files.
+
+This is exactly the recurrence that `.gitattributes` section predicts in
+prose — "every new member arrives unlisted" — and it was caught by the
+mechanical guard, not by review. The fix is the one the guard's own docstring
+prescribes: five explicit `<path> -text` lines, no wildcard. The section's
+count moves 46 → 51 although no file was added.
+
+The five files were CRLF in this worktree over LF-committed blobs. `-text`
+disables the conversion that had been hiding that, so their working copies
+were normalized to their blob bytes in the same change; otherwise the next
+`git add` to touch one of them would have silently committed CRLF, which is
+the "CRLF daemon" the D7 header describes. `git diff HEAD` shows no content
+change for the five — only `.gitattributes` moves.
+
+Baseline discipline for this claim: the twelve test files carrying every
+non-obvious full-suite failure were re-run against `aeef64bf` materialized
+into an isolated `git archive` copy, giving 13 failed / 208 passed. The same
+twelve on this branch gave 14 before the `.gitattributes` repair. That
+one-failure delta — two test cases in one file — is how the regression was
+attributed to this packet rather than assumed away.
 
 ### Expected failures, named separately
 
@@ -302,9 +371,33 @@ the 1967-test targeted run and the identity proof.
 - The boundary checker remains non-transitive. The only transitive instrument
   covers one kernel module. Extending either is a separate packet with its own
   measurement, not a side effect of this one.
-- Roughly eighty-five non-kernel modules and tests still import through
-  `daedalus.schemas`. They are out of scope by construction; the registered
-  removal criteria now say what has to be true before the facade can go.
+- 148 non-kernel files still import through `daedalus.schemas` — 58 under
+  `daedalus/` and 90 under `tests/`, measured with
+  `grep -rlE "^(from daedalus\.schemas import|import daedalus\.schemas)"
+  --include="*.py" daedalus tests tools`, excluding the facade itself and
+  `daedalus/kernel/`. An earlier draft of this document said "roughly
+  eighty-five", a number inherited from a delegate's report and never
+  measured; the independent review caught it. That is the exact failure mode
+  this repository's rules name — an inference stamped as a measurement — and
+  the corrected figure nearly doubles the blast radius the facade's removal
+  criteria have to characterise.
+- **The kernel still reaches orchestration and runtimes, one hop further out,
+  and this packet does not close it.** `daedalus/kernel/fourfold_evidence.py:41`
+  imports `daedalus.twin.contracts`, and four modules under `daedalus/twin/`
+  import the facade by *relative* import (`from ..schemas import ...`):
+  `contracts.py:20`, `_reference_claims.py:6`, `legacy_forest.py:14`,
+  `reference_compiler.py:14`. A cold `import daedalus.kernel.fourfold_evidence`
+  therefore still loads the same eleven `daedalus.runtimes` modules, both
+  `daedalus.orchestration` modules and `daedalus.schemas` — measured, not
+  inferred. This predates the packet (the `daedalus.twin` import is unchanged
+  at `aeef64bf`) and is out of its declared scope, but it means the class of
+  defect is closed for **one entrypoint**, not kernel-wide.
+  `kernel-no-outer-layers` does not catch it because `daedalus.kernel` →
+  `daedalus.twin` is a permitted direct edge and the leak is transitive. Adding
+  `daedalus.twin` to the forbidden list would go red immediately and cannot be
+  done without first repointing those four `daedalus/twin/` modules — which is
+  the obvious next packet, and the reason this one does not add the prefix and
+  does not baseline it.
 
 ### Review
 
