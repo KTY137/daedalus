@@ -234,6 +234,9 @@ class ReferenceContractionInterpreter(Generic[T]):
                 blocks,
                 remaining_operations,
             )
+            left._require_compatible(right, self._semiring)
+            if left.row_axis != right.row_axis or left.column_axis != right.column_axis:
+                raise ValueError("Hadamard composition requires identical typed axes")
             operations = 0
             for row in range(len(left.row_axis.labels)):
                 left_position = left.row_offsets[row]
