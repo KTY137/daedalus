@@ -56,6 +56,15 @@ def _sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
 
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise CeilingCorpusError(f"duplicate JSON object key {key!r}")
+        value[key] = item
+    return value
+
+
 def _nonempty_string(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CeilingCorpusError(f"{field} must be a non-empty string")
@@ -158,7 +167,7 @@ def load(path: str | Path) -> Corpus:
     corpus_path = Path(path)
     try:
         raw_text = corpus_path.read_text(encoding="utf-8")
-        payload = json.loads(raw_text)
+        payload = json.loads(raw_text, object_pairs_hook=_unique_object)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CeilingCorpusError(f"cannot read corpus {corpus_path}: {exc}") from exc
     if not isinstance(payload, Mapping):
