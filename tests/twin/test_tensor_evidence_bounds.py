@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+import daedalus.twin.semiring as semiring_module
 from daedalus.twin.semiring import (
     MAX_EVIDENCE_ALTERNATIVES,
     MAX_EVIDENCE_TERM_ATOMS,
@@ -174,3 +175,33 @@ def test_evidence_multiply_allows_overlapping_terms_at_bound() -> None:
     value = EvidenceValue((term,))
 
     assert semiring.multiply(value, value) == value
+
+
+def test_evidence_add_rejects_before_result_materialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semiring = EvidenceDagSemiring()
+    first = EvidenceValue(((_digest(0),), (_digest(1),), (_digest(2),)))
+    second = EvidenceValue(((_digest(3),), (_digest(4),)))
+    monkeypatch.setattr(semiring_module, "MAX_EVIDENCE_ALTERNATIVES", 4)
+
+    def _unexpected_init(self: EvidenceValue, alternatives: object) -> None:
+        raise AssertionError("oversized evidence addition materialized a result")
+
+    monkeypatch.setattr(EvidenceValue, "__init__", _unexpected_init)
+
+    with pytest.raises(ValueError, match="addition exceeds bounded alternative limit"):
+        semiring.add(first, second)
+
+
+def test_evidence_add_allows_exact_alternative_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semiring = EvidenceDagSemiring()
+    first = EvidenceValue(((_digest(0),), (_digest(1),), (_digest(2),)))
+    second = EvidenceValue(((_digest(3),), (_digest(4),)))
+    monkeypatch.setattr(semiring_module, "MAX_EVIDENCE_ALTERNATIVES", 5)
+
+    result = semiring.add(first, second)
+
+    assert len(result.alternatives) == 5
