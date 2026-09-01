@@ -157,6 +157,12 @@ evidence is on this page; the decision is not mine to take at 4am.
 `catalogue/gui/*.json`. A superset of shadcn's `registry-item`, minus the
 payload, plus the two fields that make an entry *choosable* and *accountable*.
 
+The block below is the retired `glass/GlassSheet` entry, quoted from history as
+a shape illustration because it exercises every field at once. **It is not a
+live locator**: commit `e133e09b` deleted `apps/web/src/components/glass/` with
+the Classic app, and G1-UI-04 removed the entry. Read it for the schema, not for
+the path.
+
 ```json
 {
   "name": "glass/GlassSheet",
@@ -280,16 +286,27 @@ text — good, because the text is curated, and not a claim of semantic search.
 and found nothing"*, and a dead embedder degrades to the lexical answer with
 `status="error"` rather than a silent zero.
 
-MEASURED, offline, against the shipped catalogue:
+MEASURED, offline, against the shipped catalogue. Re-run 2026-09-01, after
+G1-UI-04 removed the twelve `glass/*` component entries:
 
 ```
-'a modal overlay that slides over the page' -> glass/GlassSheet   (1.000)
-'chat message transcript'                   -> glass/ChatBubble   (1.000)
-'status indicator dot'                      -> glass/LiveDot      (1.000)
-'charts and dashboard metrics'              -> ext/tremor         (1.000)
-'animated marketing landing page'           -> ext/magic-ui       (1.000)
-                                               ext/aceternity-ui  (0.858, reference_only)
+'a modal overlay that slides over the page' -> ext/magic-ui         (1.000)
+                                               ext/radix-primitives (0.979)
+'chat message transcript'                   -> (no hit)
+'status indicator dot'                      -> (no hit)
+'charts and dashboard metrics'              -> ext/tremor           (1.000)
+'animated marketing landing page'           -> ext/magic-ui         (1.000)
+                                               ext/aceternity-ui    (0.851, reference_only)
+'reduced motion preference'                 -> motion/useReducedMotionPref (1.000)
 ```
+
+The two `(no hit)` lines are the cost of the retirement, printed rather than
+dropped. They used to read `glass/ChatBubble (1.000)` and `glass/LiveDot
+(1.000)`. Nothing in this repository answers those two queries any more, and
+BM25 returning nothing is the right answer to a question the catalogue cannot
+answer — better than promoting a loose external match into the gap. The
+previous measurement, and the entries it ranked, are recoverable at
+`e133e09b^`.
 
 ---
 
@@ -321,27 +338,57 @@ subprocess, and no writer.
 
 ## 5. What was seeded
 
-**29 entries, 0 rejected, 0 unresolved dependencies** (MEASURED).
+**17 entries, 0 rejected, 0 unresolved dependencies** (MEASURED 2026-09-01).
 
-### Ours first — 14 entries, Apache-2.0, source in this repo
+It was 29 at seeding. G1-UI-04 removed twelve, and the paragraph below says
+why in the place a reader will look.
 
-The `apps/web/src/components/glass/` set and the motion vocabulary. These are
-what a Daedalus-built GUI should actually reach for: they exist, they work,
-their licence is not in question, and their props were **read from the `.tsx`
-definition sites**, not inferred.
+### Ours — 2 entries, Apache-2.0, source in this repo
+
+`motion/tokens` · `motion/useReducedMotionPref`
+
+The motion vocabulary, and nothing else. Their values were **read at the
+definition sites** under `apps/web/src/shared/ui/motion/`, not inferred, and
+re-read there on 2026-09-01 when G1-UI-04 repointed both entries off the
+`apps/web/src/motion/` re-export shims that `G1-UI-03` had kept alive *for this
+catalogue's sake* (see the `shared-ui-source-facades` group in
+`apps/web/src/app/hierarchy-shims.json`, whose removal criteria name exactly
+this migration).
+
+A test asserts every first-party entry's `source_path` **resolves to a file
+that exists** — provenance naming a path that is not there is a claim, not a
+receipt. That test is the one that caught what follows.
+
+### What used to be here, and what it cost — 12 entries removed
+
+Commit `e133e09b` (*"refactor(web): retire Classic app in G1-UI-02"*) deleted
+all twelve sources under `apps/web/src/components/glass/`:
 
 `glass/GlassPanel` · `glass/GlassCard` · `glass/GlassButton` ·
 `glass/GlassSheet` · `glass/SegmentedControl` · `glass/Dock` · `glass/DockItem` ·
 `glass/LiveRail` · `glass/RailCard` · `glass/LiveDot` · `glass/ChatBubble` ·
-`glass/Composer` · `motion/tokens` · `motion/useReducedMotionPref`
+`glass/Composer`
 
-A test asserts every first-party entry's `source_path` **resolves to a file
-that exists** — provenance naming a path that is not there is a claim, not a receipt.
+The catalogue went on naming all twelve — each with a licence, a licence URL, a
+provenance origin and a retrieval date — for ten commits, and
+`daedalus/resources/catalogue/gui/glass.json` is a byte-identical packaged
+copy, so the wheel shipped the claim too. None of the twelve has a successor:
+zero references survive anywhere under `apps/web`, and no exported replacement
+component exists in `src/shared/ui` or `src/features`. Several of the *roles*
+survive as hand-written inline markup — the palette dialog in
+`src/app/Cockpit.tsx`, the status dot written out separately in `StatusLine`,
+`Decision` and `Settings` — which is a duplication finding, not a successor.
 
-The entries carry the caveats too, because those are what stop a bad choice:
-`GlassSheet` sets `role="dialog"` and `aria-modal` but **does not trap focus**;
-`LiveRail`'s collapse is deliberately not animated; `ChatBubble` deliberately
-avoids `layout`; `GlassButton` and `LiveDot` pull in **no motion runtime**.
+The entries and their `.tsx` sources are recoverable at `e133e09b^`. Their
+caveats are part of that record: `GlassSheet` set `role="dialog"` and
+`aria-modal` but **did not trap focus**; `LiveRail`'s collapse was deliberately
+not animated; `ChatBubble` deliberately avoided `layout`; `GlassButton` and
+`LiveDot` pulled in **no motion runtime**.
+
+**Consequence, stated plainly: Daedalus has no first-party GUI component to
+offer a build.** Every component-shaped answer this catalogue can now give
+belongs to somebody else, by reference, under their licence and its derived
+`use_mode`.
 
 ### Then external — 15 entries, by reference only
 
@@ -349,10 +396,12 @@ No third party's source is stored. Each carries name, URL, licence, purpose and
 the caveat that matters. Three resolve to `reference_only`, one to `reciprocal`,
 and the rest to `copy_in`.
 
-The genuine gap the glass set has, named honestly in the catalogue: **it has no
-data visualisation and no focus-trapping modal.** `ext/tremor` (Apache-2.0) and
-`ext/radix-primitives` (MIT) are the entries that answer those, and both are
-npm dependencies — a human's decision, not a build skill's.
+The gaps are now larger than the two originally named. Data visualisation and a
+focus-trapping modal were never covered first-party — `ext/tremor` (Apache-2.0)
+and `ext/radix-primitives` (MIT) answer those, and both are npm dependencies, a
+human's decision and not a build skill's. Since the retirement, **surface, card,
+button, sheet, segmented control, navigation rail, status dot, chat bubble and
+composer are gaps too**, and every candidate for them is external.
 
 ---
 

@@ -428,9 +428,14 @@ def test_latent_uses_the_repo_embedding_store_not_a_new_one():
 # THE SHIPPED CATALOGUE                                                         #
 # --------------------------------------------------------------------------- #
 def test_shipped_catalogue_loads_clean():
+    # The floor moved from 25 to 17 in G1-UI-04, when the twelve `glass/*`
+    # component entries were removed because commit e133e09b had deleted every
+    # one of their sources. A floor equal to the current count still refuses a
+    # silent shrink; additive entries stay welcome. Lowering it again requires
+    # saying, in a packet, what was removed and where it is recoverable.
     catalogue = gc.load_catalogue(SHIPPED)
     assert catalogue.rejected == (), [r.to_dict() for r in catalogue.rejected]
-    assert len(catalogue.entries) >= 25
+    assert len(catalogue.entries) >= 17
     assert catalogue.unresolved_dependencies() == ()
 
 
@@ -442,19 +447,29 @@ def test_every_shipped_entry_has_a_licence_and_a_provenance():
         assert entry.use_mode in gc.USE_MODES
 
 
-def test_the_glass_set_is_present_and_ours():
+def test_the_first_party_set_is_exactly_what_this_repo_still_has():
+    """Ours, named one at a time, so losing one is an edit and not a drift.
+
+    This assertion used to list twelve `glass/*` components. Commit e133e09b
+    deleted every one of their `.tsx` sources along with the Classic app, and
+    this test went on passing, because "is the name in the catalogue" and "is
+    the file on disk" are different questions. The second question is
+    ``test_every_first_party_entry_points_at_a_file_that_exists``, and it is
+    the one that went red. Both are needed: that test catches the rot, this
+    one records what the rot cost. The twelve entries and their sources are
+    recoverable at ``e133e09b^``; the removal is Work Packet G1-UI-04.
+
+    An EXACT set, not ``<=``: a superset assertion is what let twelve dead
+    entries sit here unremarked.
+    """
     catalogue = gc.load_catalogue(SHIPPED)
-    expected = {
-        "glass/GlassPanel", "glass/GlassCard", "glass/GlassButton",
-        "glass/GlassSheet", "glass/SegmentedControl", "glass/Dock",
-        "glass/DockItem", "glass/LiveRail", "glass/RailCard", "glass/LiveDot",
-        "glass/ChatBubble", "glass/Composer",
+    assert {entry.name for entry in catalogue.first_party()} == {
+        "motion/tokens",
+        "motion/useReducedMotionPref",
     }
-    assert expected <= set(catalogue.names)
-    for name in expected:
-        entry = catalogue.by_name(name)
+    for entry in catalogue.first_party():
         assert entry.licence == "Apache-2.0"
-        assert entry.is_first_party, f"{name} should carry an in-repo source_path"
+        assert entry.provenance.origin == "daedalus (this repository)"
         assert entry.vendorable
 
 
@@ -498,13 +513,32 @@ def test_split_licence_entries_force_a_human_decision():
 
 
 def test_shipped_catalogue_answers_a_real_build_question():
-    """End to end, offline: 'build me a chat UI' should reach for our own
-    components before anyone else's."""
+    """End to end, offline -- and the honest part is WHOSE answer it is.
+
+    This used to assert that 'build me a chat UI' reached for
+    ``glass/ChatBubble`` and ``glass/Composer`` before anyone else's. Commit
+    e133e09b deleted both sources with the Classic app and nothing replaced
+    them, so G1-UI-04 removed the entries and this question is now answered by
+    a third party. That is the finding, not a detail to smooth over: the top
+    answer carries a RECIPROCAL licence, and the prompt the model would see
+    says so and forbids copying the source. A catalogue that ranked an entry
+    without carrying its terms would be worse than no catalogue.
+    """
     catalogue = gc.load_catalogue(SHIPPED)
     hits = gc.search(catalogue, "a chat window with a message list and an input box", limit=4)
     names = [hit.entry.name for hit in hits.hits]
-    assert "glass/ChatBubble" in names
-    assert "glass/Composer" in names
+    assert names, "BM25 returned nothing for a seeded question"
+
+    # Ranking is real and not insertion order.
+    assert names[0] != catalogue.entries[0].name
+    assert names[0] == "ext/origin-ui"
+
+    top = catalogue.by_name(names[0])
+    assert top.use_mode == "reciprocal" and top.vendorable is False
+
     rendered = gc.render_for_prompt(hits.entries, header="Build a chat UI.")
     assert PROMPT_DATA_NOTICE in rendered
     assert rendered.count("<<<CATALOGUE_ENTRY") == len(hits.hits)
+    # The terms travel with the answer, in the same bytes the model reads.
+    assert "use_mode: reciprocal" in rendered
+    assert "MUST NOT" in rendered

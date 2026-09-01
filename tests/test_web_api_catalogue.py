@@ -85,10 +85,20 @@ class CatalogueRouteTest(unittest.TestCase):
         self.assertEqual(search["objective"], "animated glass card")
         self.assertLessEqual(len(search["hits"]), 3)
         self.assertTrue(search["hits"], "BM25 returned nothing for a seeded term")
-        # Ranking is real, not insertion order: a glass query puts a glass
-        # entry on top, and every hit name resolves against the entries the
+        # Ranking is real, not insertion order: the animation library wins an
+        # "animated" query rather than whichever entry the response happens to
+        # carry first, and every hit name resolves against the entries the
         # same response carried.
-        self.assertTrue(search["hits"][0]["name"].startswith("glass/"))
+        #
+        # This asserted `startswith("glass/")` until G1-UI-04. Commit e133e09b
+        # deleted the sources of all twelve `glass/*` components with the
+        # Classic app, so those entries were removed and no first-party
+        # COMPONENT is left to win a component query. The property under test
+        # here is ranking, not whose component wins; the loss itself is
+        # recorded in tests/test_gui_catalogue.py.
+        ordered = [e["name"] for e in captured["payload"]["catalogue"]["entries"]]
+        self.assertNotEqual(search["hits"][0]["name"], ordered[0])
+        self.assertEqual(search["hits"][0]["name"], "ext/magic-ui")
         names = {e["name"] for e in captured["payload"]["catalogue"]["entries"]}
         for hit in search["hits"]:
             self.assertIn(hit["name"], names)
