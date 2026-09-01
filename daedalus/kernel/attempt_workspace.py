@@ -5,8 +5,8 @@ import os
 import stat
 from pathlib import Path
 
+from daedalus.kernel.contracts.attempts import AttemptContract
 from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
-from daedalus.schemas import AttemptContract
 from daedalus.spine.envelope import canonical_json, canonical_sha
 
 from .attempt_contracts import (

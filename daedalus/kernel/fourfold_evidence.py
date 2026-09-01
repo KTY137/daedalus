@@ -21,17 +21,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Sequence
 
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     ContractProvenance,
-    EvidenceItem,
-    EvidencePacket,
-    NominationReceipt,
-    ResourceUsage,
     _artifact_locator,
     _locator_sha256,
     _revision,
     _sha256,
 )
+from daedalus.kernel.contracts.evidence import EvidenceItem, EvidencePacket
+from daedalus.kernel.contracts.promotion import NominationReceipt
+from daedalus.kernel.contracts.resources import ResourceUsage
 from daedalus.storage import (
     ArtifactStore,
     ArtifactStoreError,

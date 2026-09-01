@@ -20,16 +20,16 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
 
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     ContractProvenance,
-    EffectScope,
-    PolicyDecision,
     _egress_endpoint,
     _identifier,
     _repo_path,
     _sha256,
     _sorted_strings,
 )
+from daedalus.kernel.contracts.policy import PolicyDecision
+from daedalus.kernel.contracts.resources import EffectScope
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
     Effect,

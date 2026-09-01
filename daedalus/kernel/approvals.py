@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable, Mapping
 
 from daedalus.kernel.contracts import OwnerApproval
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     ContractProvenance,
     _identifier,
     _revision,

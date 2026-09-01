@@ -28,11 +28,13 @@
         "daedalus.eval",
         "daedalus.gates",
         "daedalus.kairos",
+        "daedalus.orchestration",
         "daedalus.providers",
-        "daedalus.runtimes"
+        "daedalus.runtimes",
+        "daedalus.schemas"
       ],
-      "rationale": "The canonical kernel cannot depend on verification, provider, orchestration, runtime, or product-domain implementations.",
-      "target_owner": "G1-HIER-02 through G1-HIER-05"
+      "rationale": "The canonical kernel cannot depend on verification, provider, orchestration, runtime, or product-domain implementations. daedalus.schemas is listed because it is a legacy compatibility facade that re-exports kernel contracts alongside orchestration and runtime records: importing it pulls those outer layers into every kernel process, so the kernel names the owning module under daedalus.kernel.contracts instead. This checker observes direct import syntax only; a leak through an unlisted intermediate module stays invisible to it, which is why daedalus.orchestration is listed even though no kernel module imports it today.",
+      "target_owner": "G1-HIER-02 through G1-HIER-05, G1-HIER-10"
     },
     {
       "id": "runtimes-no-gates",

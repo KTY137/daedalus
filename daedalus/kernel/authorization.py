@@ -16,6 +16,7 @@ from types import MappingProxyType
 from typing import Callable, Iterable, Mapping, Sequence
 
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.contracts.policy import PolicyDecision
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
@@ -26,7 +27,6 @@ from daedalus.kernel.effects import (
     verify_effect_lease,
 )
 from daedalus.limit_policy import ExecutionLimitPolicy
-from daedalus.schemas import PolicyDecision
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
     EntrypointSpec,

@@ -5,7 +5,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from daedalus.schemas import _utc_timestamp
+from daedalus.kernel.contracts.base import _utc_timestamp
 
 
 class AttemptLifecycleClock:

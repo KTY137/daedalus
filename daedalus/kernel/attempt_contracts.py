@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any, ClassVar, Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
-from daedalus.schemas import (
-    AttemptContract,
+from daedalus.kernel.contracts.attempts import AttemptContract
+from daedalus.kernel.contracts.base import (
     CanonicalContract,
     ContractProvenance,
     _identifier,

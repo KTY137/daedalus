@@ -7,8 +7,9 @@ import sqlite3
 from typing import Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
+from daedalus.kernel.contracts.attempts import AttemptContract
+from daedalus.kernel.contracts.base import ContractProvenance, _sha256
 from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
-from daedalus.schemas import AttemptContract, ContractProvenance, _sha256
 from daedalus.spine.durability import (
     Gate0DurabilityError,
     Gate0DurabilityStatus,

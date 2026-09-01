@@ -137,7 +137,8 @@ from daedalus.primary_tree import (
     overlap_reason as _overlap_reason,
     planned_overlap_reason as _planned_overlap_reason,
 )
-from daedalus.schemas import ContractProvenance, ResourceBudget, ResourceUsage
+from daedalus.kernel.contracts.base import ContractProvenance
+from daedalus.kernel.contracts.resources import ResourceBudget, ResourceUsage
 from daedalus.kernel.events.durability import open_gate0_spine_writer
 from daedalus.kernel.events.envelope import current_trace_id
 from daedalus.kernel.events.ledger import SpineLedger, canonical_json

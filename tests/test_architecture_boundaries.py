@@ -114,7 +114,10 @@ def test_frozen_repository_baseline_is_exact_and_green() -> None:
     assert report.allowlisted == contract.baseline
     assert report.new == ()
     assert report.resolved == ()
-    assert report.shim_entry_count == 20
+    # 21 since G1-HIER-10 registered ``daedalus.schemas``, the last unowned
+    # facade of this class. A moving census, not an invariant: re-measure it in
+    # the packet that adds or retires a shim.
+    assert report.shim_entry_count == 21
     assert report.passed is True
 
 

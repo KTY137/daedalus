@@ -31,16 +31,16 @@ from daedalus.kernel.effects import (
     issue_effect_lease,
     verify_effect_lease,
 )
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     CanonicalContract,
     ContractProvenance,
-    PolicyDecision,
     _identifier,
     _require_provenance_inputs,
     _revision,
     _sha256,
     _utc_timestamp,
 )
+from daedalus.kernel.contracts.policy import PolicyDecision
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
     EntrypointSpec,

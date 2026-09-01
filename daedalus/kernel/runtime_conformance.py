@@ -13,11 +13,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping
 
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import ContractProvenance
+from daedalus.kernel.contracts.resources import ResourceUsage
+from daedalus.kernel.contracts.runtime import (
     RUNTIME_CONFORMANCE_CHECKS,
     ConformanceCheck,
-    ContractProvenance,
-    ResourceUsage,
     RuntimeConformanceReceipt,
     RuntimeManifest,
 )

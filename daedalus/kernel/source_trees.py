@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Mapping, Sequence
 
 from daedalus.kernel.artifacts import ArtifactRef, artifact_locator
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     CanonicalContract,
     ContractProvenance,
     _artifact_locator,

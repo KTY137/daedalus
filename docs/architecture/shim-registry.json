@@ -185,6 +185,17 @@
       "removal_criteria": "Source, wheel, and runtime-string audits show no compatibility imports and fault-contract object identities remain stable."
     },
     {
+      "import_path": "daedalus.schemas",
+      "owner": "kernel-contracts-and-orchestration",
+      "targets": [
+        "daedalus.kernel.contracts.canonical",
+        "daedalus.orchestration.legacy_reports",
+        "daedalus.runtimes.contracts.provider_report"
+      ],
+      "kind": "mixed_owner_contract_reexport_facade",
+      "removal_criteria": "Source, runtime-string, wheel, documentation, monkeypatch, and pickle audits show no remaining caller importing kernel contracts, agent tasks, or provider reports through this module; each caller names the owning module directly. The kernel is already migrated by G1-HIER-10 and the boundary contract forbids it from returning."
+    },
+    {
       "import_path": "daedalus.spine.attempt",
       "owner": "kernel-attempt-execution",
       "targets": [

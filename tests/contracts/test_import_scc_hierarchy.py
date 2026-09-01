@@ -55,7 +55,12 @@ CURRENT_COMPONENTS_SHA256 = (
 # the SCC claims below (count, maximum size, component digest, membership) are
 # the assertions that must not weaken.
 CENSUS_MODULES = 433
-CENSUS_EDGES = 1603
+# 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
+# kernel modules stopped importing the ``daedalus.schemas`` facade and now name
+# the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
+# that needs contracts from n owners spends n edges where it used to spend one.
+# The +15 is exactly the sum of (owners named - 1) over those eighteen files.
+CENSUS_EDGES = 1618
 
 
 def _module_name(path: str) -> str:

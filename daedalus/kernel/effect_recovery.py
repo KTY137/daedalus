@@ -18,7 +18,7 @@ from daedalus.kernel.effects import (
     EffectTerminalReceipt,
     LeasedEffectStartReceipt,
 )
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     ContractProvenance,
     _identifier,
     _revision,
