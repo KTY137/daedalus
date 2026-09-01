@@ -1,0 +1,68 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-02",
+  "title": "Fail-closed latent ceiling corpus wire shape",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-01",
+  "campaign_issue": 239,
+  "base_revision": "6095fc466301451a0dada863f771e97ec9f49efb",
+  "authority_refs": [
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+    "https://github.com/KTY137/daedalus/issues/239"
+  ],
+  "finding": "The latent-ceiling parser consumed only a fixed set of corpus and row fields but accepted arbitrary additional keys. Because the report binds corpus_sha256 to the complete raw payload, shadow fields could alter retained corpus identity without changing any parsed classification semantics, leaving an ambiguous evidence wire shape.",
+  "primary_claim": "The frozen latent-ceiling experiment now refuses corpus roots and item rows unless they contain exactly the declared schema fields. Unrecognized shadow metadata can no longer enter corpus identity while being ignored by classification semantics.",
+  "scope": {
+    "changed": [
+      "experiments/tensor_embedding/arm_o_latent_ceiling.py",
+      "tests/test_tensor_latent_ceiling.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-02.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_embedding_backend": false,
+    "adds_tensor_backend": false,
+    "adds_graph_authority": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler": false,
+    "adds_semantic_plane": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Tighten the existing experimental parser in place. Do not add a schema framework, validator registry, migration layer, embedding service, vector store, or second corpus representation.",
+  "acceptance": [
+    "the committed prediction-only corpus remains valid and incomplete",
+    "an unknown root field is refused before it can alter corpus identity as semantically ignored metadata",
+    "an unknown item field is refused before it can alter row identity as semantically ignored metadata",
+    "existing bucket/status/evidence and duplicate-id refusals remain unchanged",
+    "a complete measured corpus still computes only present_not_expressible / expected_total",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m py_compile experiments/tensor_embedding/arm_o_latent_ceiling.py tests/test_tensor_latent_ceiling.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_tensor_latent_ceiling.py",
+      "python experiments/tensor_embedding/arm_o_latent_ceiling.py experiments/tensor_embedding/arm_o_latent_ceiling_corpus.json"
+    ],
+    "expected_cli_exit_for_prediction_only_seed": 3,
+    "claim": "Only checks that actually execute on the recorded exact head count as green evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-latent-ceiling-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-EXP-TENSOR-LATENT-CEILING-02 commits; the experiment remains prediction-only and no production Tensor/embedding authority is affected.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
