@@ -12,7 +12,7 @@ on:
       - "daedalus/ikarus_effect_bridge.py"
       - "daedalus/ikarus_oneshot.py"
       - "daedalus/ikarus_tool_scope.py"
-      - "daedalus/kernel/contracts.py"
+      - "daedalus/kernel/contracts/**"
       - "daedalus/kernel/effects.py"
       - "daedalus/schemas.py"
       - "daedalus/spine/effect_boundary.py"
@@ -56,7 +56,7 @@ jobs:
           daedalus/ikarus_effect_bridge.py
           daedalus/ikarus_oneshot.py
           daedalus/ikarus_tool_scope.py
-          daedalus/kernel/contracts.py
+          daedalus/kernel/contracts/*.py
           daedalus/kernel/effects.py
           tests/test_ikarus_effect_bridge.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
