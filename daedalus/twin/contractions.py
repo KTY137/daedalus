@@ -19,6 +19,7 @@ from .relation_blocks import (
 from .semiring import Semiring
 
 T = TypeVar("T")
+_MAX_CONTRACTION_PLAN_NODES = 256
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,28 @@ def _require_expression(value: Any, name: str) -> None:
         raise ValueError(f"{name} must be a contraction expression")
 
 
+def _require_bounded_expression(value: Any, name: str) -> None:
+    """Validate a complete expression iteratively before recursive use."""
+
+    _require_expression(value, name)
+    pending: list[ContractionExpression] = [value]
+    node_count = 0
+    while pending:
+        expression = pending.pop()
+        node_count += 1
+        if node_count > _MAX_CONTRACTION_PLAN_NODES:
+            raise ValueError(
+                "contraction expression exceeds bounded node limit "
+                f"{_MAX_CONTRACTION_PLAN_NODES}"
+            )
+        if isinstance(expression, BlockRef):
+            continue
+        _require_expression(expression.left, f"{name}.left")
+        _require_expression(expression.right, f"{name}.right")
+        pending.append(expression.right)
+        pending.append(expression.left)
+
+
 @dataclass(frozen=True)
 class ContractionPlan:
     output_name: str
@@ -99,7 +122,7 @@ class ContractionPlan:
             "output_name",
             _identifier(self.output_name, "plan.output_name"),
         )
-        _require_expression(self.expression, "plan.expression")
+        _require_bounded_expression(self.expression, "plan.expression")
 
     def to_dict(self) -> dict[str, Any]:
         return {
