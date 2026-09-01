@@ -210,15 +210,17 @@ class ReferenceContractionInterpreter(Generic[T]):
                 blocks,
                 remaining_operations,
             )
+            operations = sum(
+                right.row_offsets[middle + 1] - right.row_offsets[middle]
+                for middle in left.column_indices
+            )
+            if operations > remaining_operations:
+                raise ValueError("reference contraction exceeds bounded operation limit")
             result = left.matmul(
                 right,
                 self._semiring,
                 relation=expression.relation,
                 max_operations=remaining_operations,
-            )
-            operations = sum(
-                right.row_offsets[middle + 1] - right.row_offsets[middle]
-                for middle in left.column_indices
             )
             return result, remaining_operations - operations
         if isinstance(expression, Hadamard):
