@@ -1,0 +1,61 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01AX",
+  "title": "Preserve bounded evidence-semiring algebra shortcuts",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01AW",
+  "campaign_issue": 239,
+  "base_revision": "15776c4090645e7eec622db05d4b8d2c0644d692",
+  "finding": "The pre-materialization alternative guards added to EvidenceDagSemiring correctly bounded distinct oversized candidate sets, but they also rejected algebraically trivial cases before canonicalization. In particular, add(v, v) could fail when the raw concatenated count exceeded MAX_EVIDENCE_ALTERNATIVES, and multiply(v, v) could fail when the raw cartesian count exceeded the same bound even though canonical EvidenceValue semantics reduce both expressions exactly to v. Multiplication by the semiring one also performed avoidable cartesian work.",
+  "primary_claim": "EvidenceDagSemiring now applies zero/identity/idempotence laws before raw candidate-count guards. Canonically equal operands return the already validated EvidenceValue directly, and multiplication by one returns the other validated operand. Distinct oversized additions and products retain their existing fail-closed pre-materialization bounds.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/semiring.py",
+      "tests/twin/test_tensor_evidence_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01AX.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Use the existing canonical EvidenceValue equality and semiring constants as cheap algebraic short-circuits instead of weakening bounds, adding a second canonicalizer, or materializing larger intermediate candidate collections. This removes duplicate work while keeping the executable oracle small.",
+  "acceptance": [
+    "evidence addition preserves idempotence and returns the existing canonical value before a raw candidate-count guard can reject v + v",
+    "evidence multiplication preserves idempotence and returns the existing canonical value before a raw cartesian-count guard can reject v * v",
+    "evidence multiplication by the canonical one returns the other validated operand without cartesian materialization",
+    "distinct oversized evidence additions and multiplications still refuse before result/cartesian materialization",
+    "existing Fourfold revision, persisted-semiring, evidence atom, term-size, and alternative-count contracts remain unchanged",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "bounded Tensor/Forest diagnostic on the designated Python 3.12 hash-seed 0 cell",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01AX commits; canonical Forest/Fourfold artifacts, relation-block wire contracts, and identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
