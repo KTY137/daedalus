@@ -88,51 +88,6 @@ def _require_expression(value: Any, name: str) -> None:
         raise ValueError(f"{name} must be a contraction expression")
 
 
-def boolean_overlap_disagreements(
-    left: TypedRelationBlock[bool],
-    right: TypedRelationBlock[bool],
-) -> tuple[tuple[str, str], ...]:
-    """Return Boolean disagreements on the blocks' explicitly shared extent.
-
-    Axis labels present in both blocks define this diagnostic's local overlap.
-    Sparse absence inside that overlap is Boolean false; labels outside either
-    block are unobserved and are never coerced to false.  This is a bounded
-    computational observer only, not a Fourfold coverage or promotion authority.
-    """
-
-    if not isinstance(left, TypedRelationBlock) or not isinstance(
-        right, TypedRelationBlock
-    ):
-        raise ValueError("overlap comparison requires relation blocks")
-    if left.semiring_name != "boolean" or right.semiring_name != "boolean":
-        raise ValueError("overlap comparison requires boolean relation blocks")
-    if left.subject != right.subject:
-        raise ValueError("overlap comparison requires the same exact Fourfold subject")
-    if left.signature != right.signature:
-        raise ValueError("overlap comparison requires the same relation signature")
-
-    common_rows = frozenset(left.row_axis.labels).intersection(right.row_axis.labels)
-    common_columns = frozenset(left.column_axis.labels).intersection(
-        right.column_axis.labels
-    )
-    if not common_rows or not common_columns:
-        raise ValueError("overlap comparison requires a non-empty declared axis overlap")
-
-    disagreements: set[tuple[str, str]] = set()
-    for block in (left, right):
-        for row, column, value in block.iter_entries():
-            if row not in common_rows or column not in common_columns:
-                continue
-            if value is not True:
-                raise ValueError("boolean relation blocks may only store true entries")
-            coordinate = (row, column)
-            if coordinate in disagreements:
-                disagreements.remove(coordinate)
-            else:
-                disagreements.add(coordinate)
-    return tuple(sorted(disagreements))
-
-
 @dataclass(frozen=True)
 class ContractionPlan:
     output_name: str
@@ -243,5 +198,4 @@ __all__ = [
     "ContractionPlan",
     "Hadamard",
     "ReferenceContractionInterpreter",
-    "boolean_overlap_disagreements",
 ]
