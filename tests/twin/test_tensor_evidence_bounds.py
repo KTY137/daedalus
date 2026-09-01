@@ -214,7 +214,10 @@ def test_evidence_add_preserves_idempotence_before_candidate_bound(
     value = EvidenceValue(((_digest(0),), (_digest(1),), (_digest(2),)))
     monkeypatch.setattr(semiring_module, "MAX_EVIDENCE_ALTERNATIVES", 4)
 
-    assert semiring.add(value, value) is value
+    result = semiring.add(value, value)
+
+    assert result is value
+    assert result.digest == value.digest
 
 
 def test_evidence_multiply_rejects_before_cartesian_materialization(
@@ -259,6 +262,11 @@ def test_evidence_multiply_preserves_idempotence_and_identity_before_candidate_b
     value = EvidenceValue(((_digest(0),), (_digest(1),), (_digest(2),)))
     monkeypatch.setattr(semiring_module, "MAX_EVIDENCE_ALTERNATIVES", 2)
 
-    assert semiring.multiply(value, value) is value
-    assert semiring.multiply(semiring.one, value) is value
-    assert semiring.multiply(value, semiring.one) is value
+    squared = semiring.multiply(value, value)
+    left_identity = semiring.multiply(semiring.one, value)
+    right_identity = semiring.multiply(value, semiring.one)
+
+    assert squared is value
+    assert left_identity is value
+    assert right_identity is value
+    assert squared.digest == value.digest
