@@ -131,6 +131,15 @@ ALLOWED = {
         "runtime state seeded below the external profile root, not a repository file",
     ("docs/DESKTOP.md", "daedalus/openvscode-server"):
         "a local Docker image tag, not a repository path",
+    ("packaging/openvscode/README.md", "vscode-agent-env/dist/daedalus-vscode.vsix"):
+        "a build artifact the Dockerfile copies; it exists after packaging, not in the tree",
+    # These two name App.tsx BECAUSE it is gone: G1-UI-02 retired the Classic
+    # app in e133e09b, and both pages cite the old path to say what the current
+    # pointer replaced. Repairing the mention would delete the provenance.
+    ("docs/MISSION_CONTROL.md", "apps/web/src/App.tsx"):
+        "cited as the retired predecessor of apps/web/src/app/Cockpit.tsx (e133e09b)",
+    ("vscode-agent-env/DESIGN.md", "apps/web/src/App.tsx"):
+        "cited as the retired surface whose behaviour two paragraphs here assumed (e133e09b)",
     ("docs/chip-design/README.md", ".agentenv/chip-eda-policy.json"):
         "an operator-owned authority-root policy path; the page explicitly records that it is absent here",
     ("docs/chip-design/WORKFLOWS.md", ".agentenv/chip-eda-policy.json"):

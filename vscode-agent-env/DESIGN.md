@@ -9,8 +9,10 @@ top tabs and `--vscode-*` variables — this spec extends that convention rather
 > spec describes has zero callers in `extension.js`. Both real webview entry points
 > (`daedalus.openDashboard` and the Activity Bar view) render `agentOsHtml()`: an iframe onto
 > the React app in `apps/web/`, which is where the live Mission Control / Ikarus cockpit
-> actually renders today (its own trio surface — chat / graph / knowledge — is documented in
-> `apps/web/src/App.tsx`, not here). `extension.js` carries a code comment above `dashboardHtml`
+> actually renders today (its own trio surface — map / chat / ide — is documented in
+> `apps/web/src/app/Cockpit.tsx`, not here; it was chat / graph / knowledge in
+> `apps/web/src/App.tsx` until G1-UI-02 retired the Classic app in `e133e09b`).
+> `extension.js` carries a code comment above `dashboardHtml`
 > explaining this, and `tests/test_ui_governance.py::test_dead_mission_control_template_is_labelled_not_believed`
 > holds that comment to the code. The sections below are kept as a historical/reference spec —
 > useful if these tabs are ever revived as a real, non-iframed surface — not as a description of
@@ -324,9 +326,12 @@ webview; `agentOsHtml` itself is a static iframe with no channel back to the ext
 
 ### Chat-first entry points
 
-`apps/web/src/App.tsx` already opens into its `chat` space by default (`useState<Space>('chat')`,
-"THREE SPACES. Chat is home.") — the trio IA (chat / graph / knowledge) is real and lives there,
-not here. So making the extension "chat-first" is NOT a second chat implementation; per
+`apps/web/src/app/Cockpit.tsx` owns the trio IA (`map / chat / ide`) and it is real and lives
+there, not here. **This paragraph's premise has expired** [MEASURED 2026-09-01]: it was written
+when `apps/web/src/App.tsx` opened into `chat` by default ("THREE SPACES. Chat is home.").
+G1-UI-02 retired that surface in `e133e09b`, and `Cockpit.tsx:96` now defaults to `map`, falling
+back to a saved `chat` or `ide` only if one was persisted. "Chat is home" is no longer true of
+the shipped surface, so an extension built to match it would be matching a retired design. So making the extension "chat-first" is NOT a second chat implementation; per
 `tests/test_ui_governance.py::test_vscode_surface_reaches_governance_through_the_web_app`, the
 VS Code surface is required to stay a window onto that app, not a second renderer. What the
 extension *can* add natively:
@@ -340,11 +345,18 @@ extension *can* add natively:
 - `daedalus.askAboutFile` ("Daedalus: Ask Ikarus About This File", editor context menu) — copies
   a suggested objective (current file, plus the selection if there is one) to the clipboard and
   opens the chat panel. This is a **designed-against-an-assumed-seam** feature, stated plainly in
-  its own code comment: `apps/web`'s URL handling (`apps/web/src/App.tsx`) currently reads only
-  `project` from `location.search`, not an initial-message param, so VS Code cannot deep-link a
-  pre-filled chat turn today. Clipboard + an explicit "paste it in" notification is honest about
-  that limitation instead of pretending the deep link exists; it upgrades for free the day
-  `apps/web` grows that param.
+  its own code comment: `apps/web`'s URL handling read only `project` from `location.search`,
+  not an initial-message param, so VS Code could not deep-link a pre-filled chat turn.
+  Clipboard + an explicit "paste it in" notification is honest about that limitation instead of
+  pretending the deep link exists; it upgrades for free the day `apps/web` grows that param.
+
+  **The seam has moved since this was written** [MEASURED 2026-09-01]. `App.tsx` was retired by
+  G1-UI-02 in `e133e09b`, and its successors read three params, not one:
+  `Cockpit.tsx:92` reads `view`, `Cockpit.tsx:136` reads `project`, and
+  `features/conversation/Conversation.tsx:152` reads `context_ref`. Still no initial-message
+  param, so the clipboard behaviour remains correct — but the stated reason ("reads only
+  `project`") is no longer the measured one, and whoever revisits this should check
+  `context_ref` before assuming a new param is needed.
 
 ### What this section deliberately does not cover
 
