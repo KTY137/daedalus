@@ -116,6 +116,29 @@ def test_reference_interpreter_preflights_compose_budget_before_matmul(
     )
 
 
+def test_reference_interpreter_compose_preflight_preserves_middle_axis_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = TypedAxis("source", "code", ("s",))
+    left_middle = TypedAxis("left-middle", "code", ("m", "n"))
+    right_middle = TypedAxis("right-middle", "code", ("m",))
+    target = TypedAxis("target", "type", ("T",))
+    semiring = BooleanSemiring()
+    left = _block("a", source, left_middle, "s", "n")
+    right = _block("b", right_middle, target, "m", "T")
+    plan = ContractionPlan("ab", Compose(BlockRef("a"), BlockRef("b"), "ab"))
+
+    def unexpected_matmul(*args: object, **kwargs: object) -> object:
+        raise AssertionError("matmul must not run for incompatible typed middle axes")
+
+    monkeypatch.setattr(TypedRelationBlock, "matmul", unexpected_matmul)
+    with pytest.raises(ValueError, match="exactly shared typed middle axis"):
+        ReferenceContractionInterpreter(semiring).evaluate(
+            plan,
+            {"a": left, "b": right},
+        )
+
+
 def test_reference_interpreter_preflights_hadamard_budget_before_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
