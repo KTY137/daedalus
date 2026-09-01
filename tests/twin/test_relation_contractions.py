@@ -340,6 +340,7 @@ def test_contraction_plan_structural_bound_is_fail_closed(
 
     accepted = ContractionPlan("bounded", at_limit)
     assert len(accepted.digest) == 64
+    assert accepted.to_dict()["expression"]["op"] == "compose"
     with pytest.raises(ValueError, match="exceeds bounded node limit 5"):
         ContractionPlan("oversized", oversized)
 
