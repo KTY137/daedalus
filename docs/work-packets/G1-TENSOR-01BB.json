@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BB",
+  "title": "Short-circuit Compose budget preflight",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BA",
+  "campaign_issue": 239,
+  "base_revision": "bcec909a2455f822c83a0cf1215346a4acb24a3e",
+  "finding": "The Compose budget preflight computed the complete operation count with sum(...) before comparing it to the remaining plan-wide budget. A plan that exceeded its budget on the first middle row could therefore continue scanning every later left CSR entry even though refusal was already inevitable.",
+  "primary_claim": "ReferenceContractionInterpreter now accumulates exact Compose work incrementally and refuses immediately when the remaining plan-wide operation budget is exceeded. It does not scan later left column indices or enter TypedRelationBlock.matmul after the budget is already exhausted; exact inclusive-budget behavior is unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/contractions.py",
+      "tests/twin/test_contraction_operation_budget.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BB.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Replace the eager aggregate sum with the same bounded incremental accounting shape already used by the Hadamard preflight. Do not add a planner, cost-model object, cache, alternate executor, or public API. Keep the existing relation-block operation guard as defense in depth.",
+  "acceptance": [
+    "a Compose whose first referenced right row already exceeds the remaining budget refuses before requesting any later left column index",
+    "TypedRelationBlock.matmul is not invoked after the Compose preflight budget is exhausted",
+    "compatible Compose execution at the exact inclusive budget remains unchanged",
+    "same-subject/semiring and exact middle-axis checks still precede cost scanning",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "bounded Tensor/Forest diagnostic on the designated Python 3.12 hash-seed 0 cell",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as evidence."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BB commits; Forest/Fourfold authority, relation-block wire contracts, semiring semantics and persisted identities are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
