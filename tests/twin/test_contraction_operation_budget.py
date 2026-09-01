@@ -140,13 +140,14 @@ def test_reference_interpreter_compose_preflight_stops_after_budget_exhaustion(
         semiring=semiring,
     )
     plan = ContractionPlan("ab", Compose(BlockRef("a"), BlockRef("b"), "ab"))
+    original_columns = left.column_indices
 
     class ExplodingColumns(tuple):
         def __iter__(self):
             yield self[0]
             raise AssertionError("Compose preflight scanned after the budget was exhausted")
 
-    object.__setattr__(left, "column_indices", ExplodingColumns(left.column_indices))
+    object.__setattr__(left, "column_indices", ExplodingColumns(original_columns))
 
     def unexpected_matmul(*args: object, **kwargs: object) -> object:
         raise AssertionError("matmul must not run after an over-budget preflight")
@@ -157,6 +158,18 @@ def test_reference_interpreter_compose_preflight_stops_after_budget_exhaustion(
             semiring,
             max_operations=1,
         ).evaluate(plan, {"a": left, "b": right})
+
+    monkeypatch.undo()
+    object.__setattr__(left, "column_indices", original_columns)
+    result = ReferenceContractionInterpreter(
+        semiring,
+        max_operations=3,
+    ).evaluate(plan, {"a": left, "b": right})
+    assert tuple(result.iter_entries()) == (
+        ("s", "T", True),
+        ("s", "U", True),
+        ("s", "V", True),
+    )
 
 
 def test_reference_interpreter_compose_preflight_preserves_middle_axis_contract(
