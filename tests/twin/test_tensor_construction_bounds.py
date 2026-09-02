@@ -162,6 +162,35 @@ def test_tensor_view_select_avoids_linear_axis_label_membership_scan() -> None:
         tensor.select(node="x")
 
 
+def test_tensor_view_reuses_already_canonical_entry_tuple() -> None:
+    axis = TensorAxis("node", ("a", "z"))
+    canonical_entries = (
+        SparseTensorEntry(
+            coordinates=(("node", "a"),),
+            relation="membership",
+            evidence_sha256s=("d" * 64,),
+        ),
+        SparseTensorEntry(
+            coordinates=(("node", "z"),),
+            relation="membership",
+            evidence_sha256s=("e" * 64,),
+        ),
+    )
+
+    tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=(axis,),
+        entries=canonical_entries,
+        provenance=provenance(),
+    )
+
+    assert tensor.entries is canonical_entries
+
+
 def test_tensor_view_duplicate_tracking_does_not_hash_every_semantic_key() -> None:
     axis = TensorAxis("node", ("a", "z"))
     left = SparseTensorEntry(
