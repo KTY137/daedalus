@@ -330,6 +330,36 @@ export function resumedTurns(view: ConversationView, threadId: string): Turn[] {
   });
 }
 
+/**
+ * A dispatch this conversation started that has not reported back.
+ *
+ * `ConversationStore.resume()` has always returned `open_dispatches` — a
+ * dispatch whose latest lifecycle is still `dispatched` — and its own
+ * docstring calls it a display of what has not been heard from, never an
+ * instruction to redo it. Nothing rendered it until the work rail.
+ */
+export interface OpenDispatch {
+  ref: string;
+  turnId?: number;
+  /** when the dispatch was linked, from the link row */
+  since?: string;
+  /** what the dispatch said it was, from the dispatched event */
+  summary?: string;
+}
+
+export function openDispatchesFrom(view: ConversationView | undefined): OpenDispatch[] {
+  const rows = view?.open_dispatches || [];
+  const out: OpenDispatch[] = [];
+  for (const row of rows) {
+    const ref = typeof row.link?.dispatch_ref === 'string' ? row.link.dispatch_ref : '';
+    if (!ref) continue;
+    const summary = typeof row.latest?.summary === 'string' && row.latest.summary ? row.latest.summary : undefined;
+    const since = typeof row.link?.created_ts === 'string' && row.link.created_ts ? row.link.created_ts : undefined;
+    out.push({ ref, turnId: positiveTurnId(row.link?.turn_id), since, summary });
+  }
+  return out;
+}
+
 /* ---------------------------------------------------------------- labels */
 
 export function taskStateLabel(task: TaskSnapshot): string {

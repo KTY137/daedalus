@@ -6,6 +6,7 @@ import { MarkdownMessage } from './MarkdownMessage';
 import {
   envelopeFrom,
   ledgerFor,
+  openDispatchesFrom,
   relativeTime,
   resumedTurns,
   settleTurn,
@@ -187,6 +188,25 @@ export function runConversationSpec(): ConversationSpecResult[] {
   check('a resumed turn draws route, context, answer, dispatch from stored data', keys(resumedRows) === 'route,context,answer,dispatch', keys(resumedRows));
   check('a resumed answer has no measured wait', resumedRows.find((r) => r.key === 'answer')?.datum === 'GEMESSEN · lokaler Index');
   check('a resumed dispatch reads PRESENT as done, not applied', resumedRows.find((r) => r.key === 'dispatch')?.datum === 'fertig · req_9 · Lane local_only' && resumedRows.find((r) => r.key === 'dispatch')?.detail?.includes('Übergabe: nicht bestätigt') === true);
+
+  /* ---- open dispatches: what has not reported back ---- */
+  const openView = {
+    conversation_id: 'conv_1',
+    exists: true,
+    turn_count: 1,
+    turns: [],
+    turns_returned: 0,
+    open_dispatches: [
+      { link: { turn_id: 44, dispatch_ref: 'req_open', created_ts: '2026-09-02T11:00:00+00:00' }, latest: { lifecycle: 'dispatched', summary: 'Parser härten' } },
+      { link: { turn_id: 45 }, latest: { lifecycle: 'dispatched', summary: 'kein ref' } },
+      { link: { dispatch_ref: 'req_bare' }, latest: null }
+    ]
+  };
+  const open = openDispatchesFrom(openView);
+  check('an open dispatch is read from the link and its dispatched event', open.length === 2 && open[0].ref === 'req_open' && open[0].turnId === 44 && open[0].since === '2026-09-02T11:00:00+00:00' && open[0].summary === 'Parser härten', JSON.stringify(open));
+  check('a dispatch with no ref is not a row', open.every((d) => d.ref !== ''));
+  check('a dispatch with no event still counts, with nothing invented', open[1].ref === 'req_bare' && open[1].summary === undefined && open[1].since === undefined);
+  check('no open dispatches is an empty list, never undefined', openDispatchesFrom(undefined).length === 0 && openDispatchesFrom({ ...openView, open_dispatches: [] }).length === 0);
 
   /* ---- relative time ---- */
   const now = Date.parse('2026-09-02T12:00:00Z');

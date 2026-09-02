@@ -28,11 +28,13 @@ import {
   citationsFrom,
   elapsedLabel,
   ledgerFor,
+  openDispatchesFrom,
   positiveTurnId,
   resumedTurns,
   settleTurn,
   stampForTurn,
   type Citation,
+  type OpenDispatch,
   type Turn
 } from './model';
 
@@ -187,8 +189,14 @@ export interface ConversationProps {
   /** a thread chosen in the rail; a new serial makes the same id a fresh request */
   pickThread?: { id: string; serial: number };
   /** what this page holds, for the rail: the open thread, how many turns
-   *  settled, and the runtime names this page has learned */
-  onThreadState?: (state: { id: string; settled: number; labels: Record<string, string> }) => void;
+   *  settled, the runtime names this page has learned, and the dispatches
+   *  this thread started that have not reported back */
+  onThreadState?: (state: {
+    id: string;
+    settled: number;
+    labels: Record<string, string>;
+    openDispatches: OpenDispatch[];
+  }) => void;
 }
 
 /* ------------------------------------------------------------ component */
@@ -235,6 +243,8 @@ export function Conversation({
   const [unread, setUnread] = useState(false);
   /** how many turns settled on this page — the rail re-reads on it */
   const [settled, setSettled] = useState(0);
+  /** dispatches this thread started that have not reported back */
+  const [openDispatches, setOpenDispatches] = useState<OpenDispatch[]>([]);
 
   const sentAt = useRef(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -448,6 +458,7 @@ export function Conversation({
     setLastProvider('');
     setTurns([]);
     setThread(id);
+    setOpenDispatches([]);
     freshFrom.current = 0;
     if (!id) {
       setResuming(false);
@@ -465,6 +476,7 @@ export function Conversation({
         const lastIkarus = [...rows].reverse().find((t) => t.role === 'ikarus');
         if (lastIkarus?.origin?.provider_used) setLastProvider(lastIkarus.origin.provider_used);
         setTurns(rows);
+        setOpenDispatches(openDispatchesFrom(view));
       })
       .catch(() => {
         // A thread that cannot be read is not a thread that never existed, and
@@ -496,8 +508,8 @@ export function Conversation({
   }, [runtimes]);
 
   useEffect(() => {
-    onThreadState?.({ id: thread, settled, labels: runtimeLabels });
-  }, [onThreadState, runtimeLabels, settled, thread]);
+    onThreadState?.({ id: thread, settled, labels: runtimeLabels, openDispatches });
+  }, [onThreadState, openDispatches, runtimeLabels, settled, thread]);
 
   const ensureThread = useCallback(async (scope: number): Promise<string> => {
     if (threadRef.current) return threadRef.current;

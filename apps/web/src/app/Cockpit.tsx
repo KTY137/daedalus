@@ -14,6 +14,7 @@ import {
 import { useThemes } from '@/shared/ui/theme/ThemeProvider';
 import { ThemeStudio } from '@/shared/ui/theme/ThemeStudio';
 import type { GovernancePayload, ProjectRow, StructurePayload, TopologyPayload } from '@/shared/contracts';
+import type { DraftRow } from '@/shared/api';
 import GlassSurface from '@/shared/ui/glass/GlassSurface';
 import {
   listItemVariants,
@@ -27,6 +28,8 @@ import {
 import { loadAutonomy, saveAutonomy, type AutonomyLevel } from '@/features/settings/autonomy';
 import { Conversation } from '@/features/conversation/Conversation';
 import { ThreadList } from '@/features/conversation/ThreadList';
+import { WorkRail, type LiveState } from '@/features/mission/WorkRail';
+import type { OpenDispatch } from '@/features/conversation/model';
 import { Settings } from '@/features/settings/Settings';
 import { Decision } from '@/features/mission/Decision';
 import { IdeWorkspace } from '@/features/ide/IdeWorkspace';
@@ -114,19 +117,42 @@ export function Cockpit() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteActive, setPaletteActive] = useState(0);
   const [query, setQuery] = useState('');
-  const [live, setLive] = useState<{ inFlight?: number; queued?: number }>({});
+  /**
+   * The live counters, all of them.
+   *
+   * `stream_state` (interfaces/bridge/projection.py) has always sent the
+   * watcher state, the unread and quarantined counts and the last report
+   * brief; this held two of the seven and discarded the rest, including the
+   * whole `report` payload. The work rail is what reads them.
+   */
+  const [live, setLive] = useState<Omit<LiveState, 'connected'>>({});
   const [streamLive, setStreamLive] = useState(false);
   const [budget, setBudget] = useState<{ hidden1: number; hidden2: number; ids: string[] }>({ hidden1: 0, hidden2: 0, ids: [] });
   const [paletteScope, setPaletteScope] = useState<'all' | 'hidden'>('all');
   const [draftSignal, setDraftSignal] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
-  /** The rail beside the conversation: this project's threads, or the map reference. */
-  const [railTab, setRailTab] = useState<'verlauf' | 'karte'>('verlauf');
+  /** The rail beside the conversation: threads, the work overview, or the map. */
+  const [railTab, setRailTab] = useState<'verlauf' | 'arbeit' | 'karte'>('verlauf');
+  /** Every pending draft, handed up by the decision card that already read them. */
+  const [pendingDrafts, setPendingDrafts] = useState<{ rows: DraftRow[]; scoped: boolean }>({ rows: [], scoped: false });
+  const onPendingDrafts = useCallback(
+    (rows: DraftRow[], scoped: boolean) => setPendingDrafts({ rows, scoped }),
+    []
+  );
   /** A thread chosen in the rail; the serial makes re-picking the same id a fresh request. */
   const [threadPick, setThreadPick] = useState<{ id: string; serial: number } | undefined>();
   /** What the conversation holds, so the rail can mark it and re-read after a turn. */
-  const [threadState, setThreadState] = useState<{ id: string; settled: number; labels: Record<string, string> }>({ id: '', settled: 0, labels: {} });
-  const onThreadState = useCallback((state: { id: string; settled: number; labels: Record<string, string> }) => setThreadState(state), []);
+  const [threadState, setThreadState] = useState<{
+    id: string;
+    settled: number;
+    labels: Record<string, string>;
+    openDispatches: OpenDispatch[];
+  }>({ id: '', settled: 0, labels: {}, openDispatches: [] });
+  const onThreadState = useCallback(
+    (state: { id: string; settled: number; labels: Record<string, string>; openDispatches: OpenDispatch[] }) =>
+      setThreadState(state),
+    []
+  );
   const projectsSerial = useRef(0);
   const serial = useRef(0);
   /** the project the map on screen belongs to, read outside render */
@@ -252,16 +278,48 @@ export function Cockpit() {
   useEffect(() => {
     if (!project) return;
     const es = openEventStream(project, (name, data) => {
-      const d = (data || {}) as Record<string, number>;
+      const d = (data || {}) as Record<string, unknown>;
+      const num = (v: unknown): number | undefined =>
+        typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+      const text = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+      const brief = (v: unknown): LiveState['report'] => {
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+        const r = v as Record<string, unknown>;
+        const name_ = text(r.name);
+        if (!name_) return undefined;
+        return {
+          name: name_,
+          status: text(r.status) || 'unbekannt',
+          lane: text(r.lane) || '',
+          project: text(r.project),
+          summary: text(r.summary)
+        };
+      };
       if (name === 'hello') {
         setStreamLive(true);
-        setLive({ inFlight: d.in_flight, queued: d.queue_depth });
+        setLive({
+          inFlight: num(d.in_flight),
+          queued: num(d.queue_depth),
+          unread: num(d.unread_count),
+          quarantined: num(d.quarantined_count),
+          watcher: text(d.watcher_state),
+          report: brief(d.latest_report)
+        });
       } else if (name === 'heartbeat') {
         setStreamLive(true);
-        setLive((prev) => ({ ...prev, inFlight: d.in_flight ?? prev.inFlight }));
+        setLive((prev) => ({
+          ...prev,
+          inFlight: num(d.in_flight) ?? prev.inFlight,
+          watcher: text(d.watcher_state) ?? prev.watcher
+        }));
       } else if (name === 'queue') {
-        setLive((prev) => ({ ...prev, queued: d.depth ?? prev.queued }));
+        // `queue_depth`, not `depth`. The server has always sent the former
+        // (interfaces/http/sse.py) and the contract has always declared it;
+        // this read the latter, so the counter froze at the hello snapshot
+        // and every later change was silently dropped.
+        setLive((prev) => ({ ...prev, queued: num(d.queue_depth) ?? prev.queued }));
       } else if (name === 'report') {
+        setLive((prev) => ({ ...prev, report: brief(d) ?? prev.report }));
         setDraftSignal((n) => n + 1);
       }
     });
@@ -417,6 +475,14 @@ export function Cockpit() {
     setPaletteOpen(true);
   }, []);
 
+  /**
+   * How many things genuinely wait on a person, for the rail's badge. Same
+   * arithmetic as the rail itself: an unscoped draft pile is never counted
+   * under this project's name.
+   */
+  const workWaiting =
+    (pendingDrafts.scoped ? pendingDrafts.rows.length : 0) + (live.quarantined || 0) + (live.unread || 0);
+
   const contextModule = nh?.focus;
   const selectedProject = projects.find((row) => row.name === project);
 
@@ -445,6 +511,7 @@ export function Cockpit() {
       signal={draftSignal}
       onChanged={() => setDraftSignal((n) => n + 1)}
       onCount={setPendingCount}
+      onPending={onPendingDrafts}
     />
   );
 
@@ -641,10 +708,24 @@ export function Cockpit() {
               <button type="button" role="tab" aria-selected={railTab === 'verlauf'} className={railTab === 'verlauf' ? 'on' : ''} onClick={() => setRailTab('verlauf')}>
                 Verlauf
               </button>
+              <button type="button" role="tab" aria-selected={railTab === 'arbeit'} className={railTab === 'arbeit' ? 'on' : ''} onClick={() => setRailTab('arbeit')}>
+                Arbeit
+                {workWaiting > 0 && <span className="rail-badge">{workWaiting}</span>}
+              </button>
               <button type="button" role="tab" aria-selected={railTab === 'karte'} className={railTab === 'karte' ? 'on' : ''} onClick={() => setRailTab('karte')}>
                 Karte
               </button>
             </div>
+            {railTab === 'arbeit' && (
+              <WorkRail
+                project={project}
+                drafts={pendingDrafts.rows}
+                draftsScoped={pendingDrafts.scoped}
+                live={{ ...live, connected: streamLive }}
+                openDispatches={threadState.openDispatches}
+                onGoDecision={() => setRailTab('verlauf')}
+              />
+            )}
             {railTab === 'verlauf' && (
               <ThreadList
                 key={project}

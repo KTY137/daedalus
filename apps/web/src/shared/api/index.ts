@@ -314,12 +314,16 @@ export interface ConversationDispatch {
   link?: {
     turn_id?: number;
     dispatch_ref?: string;
+    /** when the dispatch was linked — what "seit" is measured from */
+    created_ts?: string;
+    kind?: string;
   } | null;
   latest?: {
     lifecycle?: string;
     summary?: string;
     outcome_state?: string | null;
     detail?: Record<string, unknown> | null;
+    ts?: string;
   } | null;
 }
 

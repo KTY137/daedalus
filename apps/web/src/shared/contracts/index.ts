@@ -214,11 +214,14 @@ export interface LiveHello {
   latest_report?: unknown;
 }
 
-/** A task finished. */
+/** A task finished. `report_brief` (interfaces/bridge/projection.py) emits
+ *  all five; the cockpit used to decode three and drop the payload. */
 export interface LiveReport {
   name: string;
   status: string;
   lane: string;
+  project?: string;
+  summary?: string;
 }
 
 /** Watcher liveness tick. */

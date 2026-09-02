@@ -93,6 +93,105 @@
 .decision-list ul { margin: var(--u1) 0 0 var(--u3); }
 .decision-list.risk ul { color: var(--bad); }
 
+/* ------------------------------------------------------------ work rail */
+
+/*
+ * ARBEIT — the overview panel. Three sections, each a small heading with a
+ * count and a list of one-line facts. It is deliberately the same grammar as
+ * the Protokoll under an answer: a glyph-free label, a datum, and never a
+ * padded row for something nobody measured.
+ */
+.work { display: grid; gap: var(--u4); min-width: 0; }
+.work-section { display: grid; gap: var(--u1); min-width: 0; }
+.work-head { display: flex; align-items: baseline; gap: var(--u2); margin: 0; }
+.work-title {
+  font-size: var(--fs-xs);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.work-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.work-section.wait .work-count { background: var(--warn); color: var(--warn-ink); }
+.work-section.live .work-count { background: color-mix(in srgb, var(--live) 26%, transparent); color: var(--ink); }
+.work-none { margin: 0; font-size: var(--fs-xs); color: var(--ink3); line-height: 1.5; }
+.work-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.work-row {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--u1) 0 var(--u1) var(--u2);
+  border-left: 2px solid var(--line);
+}
+.work-row.live { border-left-color: var(--live); }
+.work-row.bad { border-left-color: var(--bad); }
+.work-row.quiet { border-left-color: transparent; padding-top: var(--u1); }
+.work-row > button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.work-row > button:hover .work-row-what,
+.work-row > button:focus-visible .work-row-what { color: var(--accent); }
+.work-row > button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius-sm); }
+.work-row-what {
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  color: var(--ink);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.work-row.quiet .work-row-what { color: var(--ink3); }
+.work-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u1) var(--u2);
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+  line-height: 1.45;
+}
+.work-row-meta > * + *::before { content: '·'; margin-right: var(--u2); }
+.work-row-meta code { font-family: var(--font-mono); color: var(--ink2); }
+.work-row-meta b { font-weight: var(--datum-weight); color: var(--ink2); }
+.work-row-meta b.mono { font-family: var(--font-mono); }
+.work-stale { color: var(--warn); }
+
+/* The rail tab says how many things wait, the same way the view switch does. */
+.rail-badge {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  text-align: center;
+}
+.rail-tabs button.on .rail-badge { background: color-mix(in srgb, var(--accent-ink) 22%, transparent); color: var(--accent-ink); }
+
 /* ------------------------------------------------------------ statusline */
 
 .statusline {

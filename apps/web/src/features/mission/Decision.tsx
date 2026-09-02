@@ -40,9 +40,17 @@ export interface DecisionProps {
   onChanged?: () => void;
   /** how many drafts are pending, so the navigation can say so */
   onCount?: (n: number) => void;
+  /**
+   * The whole pending queue, and whether it is honestly this project's.
+   *
+   * The card reads every pending draft and draws exactly one — the rest were
+   * fetched and dropped. The work rail lists them instead of issuing a second
+   * GET against an endpoint measured at 12.5s on this machine.
+   */
+  onPending?: (rows: DraftRow[], scoped: boolean) => void;
 }
 
-export function Decision({ project, signal = 0, onChanged, onCount }: DecisionProps) {
+export function Decision({ project, signal = 0, onChanged, onCount, onPending }: DecisionProps) {
   const [pending, setPending] = useState<DraftRow[]>([]);
   /** `null` until proven otherwise — see the file doc comment. Only a
    *  resolved path makes `pending` this project's to show or act on. */
@@ -80,14 +88,16 @@ export function Decision({ project, signal = 0, onChanged, onCount }: DecisionPr
       setScopeWarning(payload.warnings?.[0] || '');
       // Never hand the nav badge an unscoped count under this project's name.
       onCount?.(payload.scope !== null ? rows.length : 0);
+      onPending?.(rows, payload.scope !== null);
       setError('');
     } catch (e) {
       if (loadId.current !== id) return;
       setError(e instanceof Error ? e.message : 'Entwürfe konnten nicht gelesen werden.');
+      onPending?.([], false);
     } finally {
       if (loadId.current === id) setLoaded(true);
     }
-  }, [onCount, project]);
+  }, [onCount, onPending, project]);
 
   useEffect(() => {
     void load();
