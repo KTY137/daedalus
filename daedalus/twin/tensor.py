@@ -308,7 +308,7 @@ class TensorView(CanonicalContract):
         prefix_coordinates: list[tuple[str, str]] = []
         while len(prefix_coordinates) in normalized:
             position = len(prefix_coordinates)
-            prefix_coordinates.append((self.axes[position].name, normalized[position]))
+            prefix_coordinates.append((self.axes[position].name, normalized.pop(position)))
         if prefix_coordinates:
             prefix = tuple(prefix_coordinates)
             prefix_length = len(prefix)
