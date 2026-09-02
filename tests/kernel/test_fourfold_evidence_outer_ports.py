@@ -277,6 +277,17 @@ def test_twin_boundary_rule_is_registered_and_at_least_as_strict_as_the_kernel()
     assert "daedalus.twin" not in kernel_rule.forbidden_target_prefixes
 
     report = evaluate_repository(ROOT, contract)
-    assert contract.baseline == ()
+    # Scoped to this rule for the reason given in
+    # tests/contracts/test_spine_outer_ports.py: `contract.baseline == ()`
+    # asserted a property of the WHOLE contract from inside a twin test, so
+    # b3cc415b recording the kernel's offload inversion as debt turned this
+    # red without anything about the twin having changed. The twin claim is
+    # that no TWIN violation is absorbed into the baseline; that is what is
+    # asserted now. `report.new == ()` below still catches any unrecorded
+    # violation anywhere, so nothing is lost by narrowing.
+    assert [
+        entry for entry in contract.baseline
+        if entry.rule_id == twin_rule.rule_id
+    ] == []
     assert report.new == ()
     assert report.passed is True

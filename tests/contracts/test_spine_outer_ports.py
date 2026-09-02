@@ -246,10 +246,31 @@ def test_spine_boundary_rule_forbids_the_facade_and_keeps_an_empty_baseline() ->
     # restriction. Assert that relationship instead of just the membership.
     for laundered in ("daedalus.orchestration", "daedalus.runtimes"):
         assert laundered in rule.forbidden_target_prefixes
-    # `baseline` is [], so nothing here can be absorbed by an allowlist.
-    assert contract.baseline == ()
+    # What this line is actually for: no SPINE violation may hide in the
+    # baseline. It used to say `contract.baseline == ()`, which held only
+    # while the whole contract had zero recorded debt. b3cc415b recorded one
+    # entry -- the kernel's `attempt_execution.py:1209 -> daedalus.offload`
+    # inversion -- deliberately, because the alternative on offer was leaving
+    # it in an ALLOWLIST, a field that grants permission and that no
+    # instrument counts. Asserting global emptiness made this test a tripwire
+    # for any recorded debt anywhere, including debt that has nothing to do
+    # with the spine; scoping it to this rule keeps the guard and drops the
+    # false coupling. The whole-contract shape stays pinned, entry by entry,
+    # in tests/test_architecture_boundaries.py.
+    assert [
+        entry for entry in contract.baseline if entry.rule_id == rule.rule_id
+    ] == []
+    # Same narrowing, one line down and for the same reason: scan_repository
+    # returns RAW violations for every rule in the contract, not just this
+    # one, so `violations == ()` was a whole-tree claim asserted from a spine
+    # test -- and the kernel's recorded offload inversion is a raw violation
+    # by construction (that is what a baseline entry IS). The spine claim is
+    # that the spine rule has no violations at all, recorded or otherwise,
+    # which is strictly stronger than what the baseline check above says and
+    # is the property this test exists to defend.
     violations, tracked = scan_repository(ROOT, contract)
-    assert violations == (), violations
+    spine_violations = [v for v in violations if v.rule_id == rule.rule_id]
+    assert spine_violations == [], spine_violations
     assert tracked >= 400
 
 
