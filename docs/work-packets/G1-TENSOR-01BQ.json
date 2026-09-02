@@ -1,0 +1,77 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BQ",
+  "title": "Canonicalize TensorView axes without a transient name map",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BP",
+  "campaign_issue": 239,
+  "base_revision": "810c4ce5fad713a7bcc6877caa9c793d514cf366",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView construction bounded and froze tensor.axes, then built a complete axis-name-to-axis dictionary solely to reject duplicate names and recover canonical name order. That transient map duplicated the already-retained bounded axis records, introduced unnecessary hashing, and rebuilt even an exact tuple that was already canonical.",
+  "primary_claim": "TensorView now validates axis records while tracking whether their existing name order is already nondecreasing. An exact canonical tuple is retained directly. Noncanonical input uses the existing deterministic name sort, and duplicate axis names are rejected by adjacent comparison after canonicalization. Axis hashing is no longer required for constructor canonicalization.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_construction_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BQ.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 55,
+    "code_test_deletions": 7,
+    "production_additions": 18,
+    "production_deletions": 7,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Use the axis tuple's mandatory canonical ordering itself for validation and duplicate detection rather than maintaining a second name map. Preserve deterministic sorting only as the fallback for noncanonical input, and reuse an already-canonical exact tuple by identity.",
+  "acceptance": [
+    "constructor axis canonicalization does not require hashing every axis name into a transient dictionary",
+    "an exact already-canonical tuple of TensorAxis records is retained by identity",
+    "unsorted axes remain deterministically canonicalized by axis name",
+    "duplicate axis names remain fail-closed after canonicalization",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "d20338749ce6db77e57bd988b1b24c26cfefc2a7",
+    "code_test_revision": "f8429ad1ed69d286815f69bb60475c83928c352f",
+    "production_blob": "defff09dc54dc78666e4e168a548f20d0d34c112",
+    "focused_test_blob": "7ba9582a3bcb9376a87ed052556c4456bb7fcb56",
+    "fourfold_v2_run": 33671773232,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision f8429ad1ed69d286815f69bb60475c83928c352f",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision f8429ad1ed69d286815f69bb60475c83928c352f. The source diff plus adversarial HashForbiddenName regression establish removal of the transient constructor name-map requirement, and the identity assertion establishes direct retention of an already-canonical exact axis tuple. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BQ commits; Fourfold/Forest authority, Tensor wire contracts, status/provenance identity and public product surfaces remain unchanged, while TensorView returns to transient dictionary-based axis canonicalization.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
