@@ -735,6 +735,33 @@ UNCONVERTED_PRODUCERS = {
         "in CONVERTED_PRODUCERS. Revisit if the heartbeat ever records the "
         "request currently in flight as an attempt record rather than as the "
         "opaque 'current' marker it is today.",
+    # NOTE TO THE NEXT EDITOR: the row below deliberately spells no path
+    # literal and no predicate token. This MODULE is inside the scanned tree,
+    # so a note that quotes the three shapes it is describing makes the LEDGER
+    # match all three and reports itself as a new producer. That is not
+    # hypothetical -- it happened while this row was being written, and the
+    # drift detector caught it, which is the row's own thesis demonstrated on
+    # the row itself. Describe the shapes; do not quote them.
+    "daedalus/ikarus_os.py":
+        "NOT A RUN RECORD, AND NOT A PRODUCER AT ALL -- a SCAN FALSE POSITIVE, "
+        "declared so the next reader does not repeat the diagnosis. MEASURED "
+        "2026-09-02 at eb5228ac: the three co-located predicates hit in three "
+        "UNRELATED places in this 1700-line module. The serialiser is a digest "
+        "input -- a receipt dict is dumped sorted, fed straight to sha256, and "
+        "the hex returned in memory; nothing is ever written. The persist is a "
+        "write of the codex PROMPT to a temp file inside a "
+        "TemporaryDirectory, not a record, and it exists only because "
+        "G1-SEC-02 took the chat argv out of the .cmd relay's reach. The "
+        "run-state target is two DOCSTRING mentions of other modules' paths, "
+        "neither of them a write destination. Conversion cost is therefore "
+        "not LOW or HIGH but MEANINGLESS: there is no record here to carry a "
+        "trace id. Declared rather than fixed by teaching the scan to ignore "
+        "comments and docstrings, because that reshape was MEASURED and would "
+        "SUBTRACT five genuine producers -- among them lanes/fanout.py, which "
+        "is CONVERTED -- whose only run-state literal lives in prose. Losing "
+        "five real producers to suppress one false one is the weakening the "
+        "coverage test's docstring forbids. Revisit if this module ever "
+        "writes a record of its own.",
 
     # -- genuine run records, in value order. THIS IS THE WORKLIST. --------- #
     "daedalus/council/bus.py":
