@@ -432,8 +432,9 @@ class TypedRelationBlock(Generic[T]):
         if self.column_axis != other.row_axis:
             raise ValueError("matrix composition requires an exactly shared typed middle axis")
         limit, operations = _operation_limit(max_operations), 0
-        result: dict[tuple[int, int], T] = {}
+        offsets, indices, values = [0], [], []
         for row in range(len(self.row_axis.labels)):
+            row_result: dict[int, T] = {}
             for position in range(self.row_offsets[row], self.row_offsets[row + 1]):
                 middle = self.column_indices[position]
                 for right_position in range(
@@ -445,21 +446,29 @@ class TypedRelationBlock(Generic[T]):
                         raise ValueError("reference contraction exceeds bounded operation limit")
                     column = other.column_indices[right_position]
                     right_value = other.values[right_position]
-                    key = (row, column)
                     value = reference.add(
-                        result.get(key, reference.zero),
+                        row_result.get(column, reference.zero),
                         reference.multiply(self.values[position], right_value),
                     )
                     if value == reference.zero:
-                        result.pop(key, None)
+                        row_result.pop(column, None)
                     else:
-                        result[key] = value
-        return self._derived(
+                        row_result[column] = value
+            if len(values) + len(row_result) > MAX_BLOCK_ENTRIES:
+                raise ValueError(f"block entries exceed bounded limit {MAX_BLOCK_ENTRIES}")
+            for column, value in sorted(row_result.items()):
+                indices.append(column)
+                values.append(value)
+            offsets.append(len(values))
+        return type(self)(
+            self.subject,
             RelationSignature(self.signature.source_plane, relation, other.signature.target_plane),
             self.row_axis,
             other.column_axis,
-            result,
-            reference,
+            reference.name,
+            tuple(offsets),
+            tuple(indices),
+            tuple(values),
         )
 
     def hadamard(
@@ -508,18 +517,6 @@ class TypedRelationBlock(Generic[T]):
             tuple(offsets),
             tuple(indices),
             tuple(values),
-        )
-
-    def _derived(
-        self,
-        signature: RelationSignature,
-        row_axis: TypedAxis,
-        column_axis: TypedAxis,
-        entries: Mapping[tuple[int, int], T],
-        semiring: Semiring[T],
-    ) -> "TypedRelationBlock[T]":
-        return type(self)._from_indexed(
-            self.subject, signature, row_axis, column_axis, entries, semiring
         )
 
     def _require_semiring(self, semiring: Semiring[T]) -> Semiring[Any]:
