@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import inspect
 import sqlite3
@@ -168,7 +169,7 @@ def test_factory_writer_remains_compatible_with_canonical_transactions(tmp_path)
     finally:
         writer.close()
 
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("SELECT COUNT(*) FROM intents").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM intent_events").fetchone()[0] == 2

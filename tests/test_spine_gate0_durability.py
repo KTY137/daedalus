@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 import json
@@ -66,7 +67,7 @@ def test_profile_hardens_the_exact_existing_connection_without_new_store(tmp_pat
     finally:
         ledger.close()
 
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("SELECT COUNT(*) FROM intents").fetchone()[0] == 2
         tables = {

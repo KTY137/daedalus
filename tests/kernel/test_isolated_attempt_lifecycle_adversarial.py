@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 from pathlib import Path
@@ -96,7 +97,7 @@ def test_attempt_facade_uses_the_supplied_canonical_spine_instance(tmp_path) -> 
     ledger = AttemptLedger(spine, store)
     assert ledger.spine is spine
     assert ledger.path == spine.path
-    with sqlite3.connect(ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(ledger.path)) as connection:
         tables = {
             row[0]
             for row in connection.execute(
@@ -191,7 +192,7 @@ def test_persisted_start_wire_tampering_fails_closed(tmp_path) -> None:
     captured = _captured(store, source)
     ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", store)
     _begin(ledger, captured)
-    with sqlite3.connect(ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(ledger.path)) as connection:
         connection.execute(
             "UPDATE intents SET payload = ? WHERE kind = 'attempt.lifecycle'",
             (
@@ -199,6 +200,7 @@ def test_persisted_start_wire_tampering_fails_closed(tmp_path) -> None:
                 '"schema":"duplicate"}',
             ),
         )
+        connection.commit()
     with pytest.raises(AttemptStateError, match="duplicate key|malformed"):
         _begin(ledger, captured)
 
@@ -218,7 +220,7 @@ def test_terminal_effect_id_tampering_fails_closed(tmp_path) -> None:
         candidate_tree=None,
         completed_at=NOW,
     )
-    with sqlite3.connect(ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(ledger.path)) as connection:
         row = connection.execute(
             "SELECT id, detail FROM intent_events "
             "WHERE state = 'COMPLETED' ORDER BY id DESC LIMIT 1"
@@ -230,6 +232,7 @@ def test_terminal_effect_id_tampering_fails_closed(tmp_path) -> None:
             "UPDATE intent_events SET detail = ? WHERE id = ?",
             (json.dumps(detail, sort_keys=True, separators=(",", ":")), row[0]),
         )
+        connection.commit()
     with pytest.raises(AttemptStateError, match="effect_id"):
         _begin(ledger, captured)
 

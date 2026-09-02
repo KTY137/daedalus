@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import dataclasses
 import importlib.util
 import os
@@ -431,11 +432,12 @@ def test_corrupt_or_duplicate_terminal_json_refuses_replay(tmp_path: Path) -> No
         expected_source_revision=REVISION,
         reconciled_at=NOW + timedelta(seconds=2),
     )
-    with sqlite3.connect(str(ledger.path)) as connection:
+    with contextlib.closing(sqlite3.connect(str(ledger.path))) as connection:
         connection.execute(
             "UPDATE effect_executions SET terminal_receipt_json=? WHERE execution_id=?",
             ('{"outcome":"COMPLETED","outcome":"FAILED"}', execution.execution_id),
         )
+        connection.commit()
     with pytest.raises(EffectRecoveryStateError, match="malformed"):
         reconcile_unknown_effect(
             ledger,

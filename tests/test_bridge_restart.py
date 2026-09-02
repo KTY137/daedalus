@@ -27,6 +27,7 @@ provider-to-report window to one canonical effect and one provider invocation.
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import json
 import os
@@ -538,7 +539,7 @@ def test_leased_provider_completion_survives_crash_before_bridge_report(
 
         # One exact lease and one terminal execution are the authority for the
         # second call's refusal; the bridge journal is not a side effect ledger.
-        with sqlite3.connect(lease_ledger_path(repo_root)) as connection:
+        with contextlib.closing(sqlite3.connect(lease_ledger_path(repo_root))) as connection:
             leases = connection.execute(
                 "SELECT lease_id FROM effect_leases"
             ).fetchall()

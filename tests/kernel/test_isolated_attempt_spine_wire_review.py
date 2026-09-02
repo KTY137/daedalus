@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import inspect
 import sqlite3
 from datetime import datetime, timezone
@@ -35,12 +36,13 @@ def _spine(tmp_path):
 
 
 def _insert_event(path, intent_id: int, state: str, detail: str) -> None:
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         connection.execute(
             "INSERT INTO intent_events (intent_id, state, ts, detail) "
             "VALUES (?, ?, ?, ?)",
             (intent_id, state, "2026-08-03T22:30:00+00:00", detail),
         )
+        connection.commit()
 
 
 def test_strict_reader_uses_sqlite_read_only_mode() -> None:
@@ -110,12 +112,13 @@ def test_noncanonical_start_detail_fails_closed(tmp_path) -> None:
     spine, intent = _spine(tmp_path)
     path = spine.path
     spine._conn.close()
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         connection.execute(
             "UPDATE intent_events SET detail = ? "
             "WHERE intent_id = ? AND state = 'INTENDED'",
             ('{"payload_sha": "' + intent.payload_sha + '"}', intent.id),
         )
+        connection.commit()
 
     with pytest.raises(AttemptStateError, match="noncanonical"):
         read_attempt_intents(path, effect_key=EFFECT_KEY)
@@ -125,11 +128,12 @@ def test_malformed_persisted_payload_is_normalized_to_attempt_state_error(tmp_pa
     spine, intent = _spine(tmp_path)
     path = spine.path
     spine._conn.close()
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         connection.execute(
             "UPDATE intents SET payload = ? WHERE id = ?",
             ("{", intent.id),
         )
+        connection.commit()
 
     with pytest.raises(AttemptStateError, match="strict JSON"):
         read_attempt_intents(path, effect_key=EFFECT_KEY)

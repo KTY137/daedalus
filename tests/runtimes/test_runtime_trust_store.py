@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -322,7 +323,7 @@ def test_database_tampering_with_recomputed_digest_still_fails_authentication(
     path = tmp_path / "runtime-trust.sqlite3"
     trust_ledger = ledger(path)
     record, _, _, _, _ = admit(trust_ledger, monkeypatch)
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
             "SELECT * FROM runtime_trust_records WHERE envelope_sha256=?",
@@ -338,6 +339,7 @@ def test_database_tampering_with_recomputed_digest_still_fails_authentication(
             "record_sha256=? WHERE envelope_sha256=?",
             ("f" * 64, forged_digest, record.envelope_sha256),
         )
+        connection.commit()
     with pytest.raises(RuntimeTrustCorrupt, match="authentication"):
         trust_ledger.records()
 

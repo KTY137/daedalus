@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 from datetime import datetime, timedelta, timezone
@@ -779,7 +780,7 @@ def test_corrupt_persisted_trust_authentication_fails(tmp_path: Path) -> None:
     subject, classification, blobs, attestation, manifest, ledger = _fixture(
         tmp_path
     )
-    with ledger._connect() as connection:  # noqa: SLF001 - adversarial fixture
+    with contextlib.closing(ledger._connect()) as connection:  # noqa: SLF001 - adversarial fixture
         connection.execute(
             "UPDATE runtime_trust_records SET record_hmac_sha256=?",
             ("f" * 64,),
