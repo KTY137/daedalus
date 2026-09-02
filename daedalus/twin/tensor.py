@@ -141,6 +141,17 @@ class SparseTensorEntry:
         return cls(**_record_payload(cls, payload, "sparse tensor entry"))
 
 
+def _entry_order(
+    axes: Sequence[TensorAxis],
+    entry: SparseTensorEntry,
+) -> tuple[Any, ...]:
+    indices = tuple(
+        bisect_left(axes[position].labels, label)
+        for position, (_, label) in enumerate(entry.coordinates)
+    )
+    return indices, entry.relation, entry.masked, entry.value, entry.evidence_sha256s
+
+
 @dataclass(frozen=True)
 class TensorView(CanonicalContract):
     """Immutable derived view; completeness describes the projection only."""
@@ -191,14 +202,7 @@ class TensorView(CanonicalContract):
                 if _sorted_label_index(axes[position].labels, label) is None:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis!r}")
 
-        def order(entry: SparseTensorEntry) -> tuple[Any, ...]:
-            indices = tuple(
-                bisect_left(axes[position].labels, label)
-                for position, (_, label) in enumerate(entry.coordinates)
-            )
-            return indices, entry.relation, entry.masked, entry.value, entry.evidence_sha256s
-
-        ordered_entries = tuple(sorted(entries, key=order))
+        ordered_entries = tuple(sorted(entries, key=lambda entry: _entry_order(axes, entry)))
         for index in range(1, len(ordered_entries)):
             previous = ordered_entries[index - 1]
             current = ordered_entries[index]
@@ -248,12 +252,20 @@ class TensorView(CanonicalContract):
         return MappingProxyType({axis.name: axis for axis in self.axes})
 
     def index_coordinate(self, entry: SparseTensorEntry) -> tuple[int, ...]:
-        if entry not in self.entries:
+        if not isinstance(entry, SparseTensorEntry):
             raise ValueError("entry is not retained by this TensorView")
-        return tuple(
-            bisect_left(axis.labels, entry.coordinates[position][1])
-            for position, axis in enumerate(self.axes)
+        try:
+            order = _entry_order(self.axes, entry)
+        except IndexError as exc:
+            raise ValueError("entry is not retained by this TensorView") from exc
+        position = bisect_left(
+            self.entries,
+            order,
+            key=lambda candidate: _entry_order(self.axes, candidate),
         )
+        if position == len(self.entries) or self.entries[position] != entry:
+            raise ValueError("entry is not retained by this TensorView")
+        return order[0]
 
     def select(self, **coordinates: str) -> tuple[SparseTensorEntry, ...]:
         normalized: dict[int, str] = {}
