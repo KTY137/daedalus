@@ -1,0 +1,74 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BK",
+  "title": "Detect TypedAxis duplicates after canonical sort without a full hash set",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BJ",
+  "campaign_issue": 239,
+  "base_revision": "dd4172f4cafcc2267853ec23a3cfb8c448ddf6ad",
+  "finding": "TypedAxis already had to canonicalize each bounded label sequence by sorting it, but construction first copied all validated labels into a tuple, materialized a complete hash set solely for duplicate detection, then allocated a sorted list and the final retained tuple. At the declared 100,000-label axis ceiling this kept redundant O(n) transient containers even though the mandatory canonical sort makes duplicates adjacent.",
+  "primary_claim": "TypedAxis now sorts the validated bounded label stream once, detects duplicates by adjacent comparison in that canonical order, and retains the resulting tuple. Duplicate refusal, Fourfold plane typing, axis wire/digest semantics, CSR contracts and Tensor/Fourfold authority remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_axis_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BK.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 21,
+    "code_test_deletions": 3,
+    "production_additions": 3,
+    "production_deletions": 3,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the canonical sort already required by TypedAxis as the duplicate proof and delete the complete transient hash index. Do not introduce a cache, lookup service, alternate axis/block type, planner, store, registry, scheduler or sparse backend.",
+  "acceptance": [
+    "valid TypedAxis construction does not require hashing labels solely for duplicate detection",
+    "duplicate labels still fail closed",
+    "canonical retained label ordering and wire/digest semantics remain unchanged",
+    "the affected Fourfold/Tensor contract workflow and isolated wheel execute successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, gate transition, measured latency/memory improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "f731fd20ce24151ee7d93ee37b2546a852d4cd0e",
+    "code_test_revision": "5d1ecc8a72d257095360658be7f53e6d1ba643da",
+    "production_blob": "ad881dd9bf67c5e1c648bf115a21901b452e59ed",
+    "focused_test_blob": "27201865fbb45d08691dea8d6186bc54755cd21c",
+    "fourfold_v2_run": 33628141943,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 5d1ecc8a72d257095360658be7f53e6d1ba643da",
+      "all four Python 3.10/3.12 by hash-seed contract jobs completed success on real GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 5d1ecc8a72d257095360658be7f53e6d1ba643da. The source diff structurally removes the full duplicate-detection hash set and the pre-sort retained tuple, but no measured peak-memory, latency, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BK commits; Fourfold subject authority, relation-block wire contracts, semiring semantics and the existing TypedAxis compatibility surface remain available.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
