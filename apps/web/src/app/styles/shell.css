@@ -14,6 +14,10 @@
 body { margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
 h1, h2, h3, p, ul, ol, figure { margin: 0; }
+/* The `hidden` attribute must win over an author `display`: the status
+   line's collapsible details row (StatusLine.tsx) is a flex row that carries
+   `hidden` on a narrow viewport, and without this the attribute lost. */
+[hidden] { display: none !important; }
 :root { color-scheme: light dark; }
 
 .cockpit {
@@ -78,6 +82,7 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .viewswitch { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--radius); background: var(--surface2); }
 .viewswitch button {
   display: flex;
+  min-width: 44px;
   min-height: 44px;
   padding: 0;
   border: 0;
@@ -351,6 +356,27 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
 .cockpit-body.talk .turn-text { font-size: var(--fs-lg); line-height: 1.5; }
 .cockpit-body.talk .composer textarea { min-height: 52px; padding: 15px var(--u3); font-size: var(--fs-lg); }
 .cockpit-body.talk .composer button { min-width: 52px; min-height: 52px; }
+
+/* The rail's two tabs. Same grammar as the view switch in the chrome — a
+   filled pill travels — one level quieter, because this chooses what sits
+   beside the conversation, not which page is open. */
+.rail-tabs { display: flex; gap: 2px; padding: 3px; border-radius: var(--radius); background: var(--surface2); }
+.rail-tabs button {
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.rail-tabs button:hover { color: var(--ink); }
+.rail-tabs button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.rail-tabs button.on { background: var(--accent); color: var(--accent-ink); }
 
 .focuscard {
   display: grid;

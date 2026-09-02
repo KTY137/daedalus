@@ -274,7 +274,29 @@ export interface ConversationTurn {
   provider_used?: string;
   model_used?: string;
   created?: string;
+  /** When the spine recorded this turn (ISO). Absent on an older server. */
+  created_ts?: string;
+  project?: string;
+  status?: string;
   proposed_action?: Record<string, unknown> | null;
+  /**
+   * The bounded final envelope the server stored with the turn (clipped by
+   * `_loop_shape`). The ledger reads its receipts from here on resume; a
+   * field that was not stored is simply absent.
+   */
+  envelope?: Record<string, unknown> | null;
+}
+
+/** One row of GET /api/conversations?project= — a thread, newest activity first. */
+export interface ConversationListRow {
+  conversation_id: string;
+  turn_count: number;
+  first_message: string;
+  last_message: string;
+  last_ts: string;
+  last_intent?: string | null;
+  last_provider_used?: string | null;
+  last_status?: string | null;
 }
 
 export interface ConversationView {
@@ -311,6 +333,13 @@ export function newConversation() {
     method: 'POST',
     body: '{}'
   });
+}
+
+/** This project's threads from the canonical spine, newest first. Read-only. */
+export function listConversations(project: string, limit = 20) {
+  return request<ApiEnvelope & { conversations: ConversationListRow[] }>(
+    `/api/conversations?project=${encodeURIComponent(project)}&limit=${limit}`
+  );
 }
 
 /** The resumable view: the narrative, the bounded turn list, open dispatches. */

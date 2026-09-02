@@ -8,7 +8,7 @@
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -69,8 +69,11 @@ async function architectureSpec() {
     outsideHierarchy.join(', ')
   );
 
+  // Line endings are a checkout property, not a shim's content: a Windows
+  // worktree with autocrlf carries CRLF and the two-line GlassSurface shim
+  // would otherwise fail on its own carriage return.
   const changedShims = [...expectedImportShims].filter(
-    ([file, expected]) => (sources.get(file) || '').trim() !== expected
+    ([file, expected]) => (sources.get(file) || '').replace(/\r\n/g, '\n').trim() !== expected
   );
   check(
     'reviewed legacy TypeScript paths are import-only compatibility shims',
@@ -187,15 +190,22 @@ async function architectureSpec() {
   return results;
 }
 
-const workdir = await mkdtemp(path.join(tmpdir(), 'daedalus-app-spec-'));
+// Inside the web root's node_modules cache rather than the OS temp dir: with
+// packages external, Node resolves react and react-dom/server relative to the
+// bundle, and the temp dir has no node_modules above it. Ignored by Git.
+const cacheRoot = path.join(repoRoot, 'apps', 'web', 'node_modules', '.cache');
+await mkdir(cacheRoot, { recursive: true });
+const workdir = await mkdtemp(path.join(cacheRoot, 'daedalus-app-spec-'));
 const surfaceOutfile = path.join(workdir, 'surface.js');
 const systemOutfile = path.join(workdir, 'system.js');
+const conversationOutfile = path.join(workdir, 'conversation.js');
 
 try {
   await build({
     entryPoints: {
       surface: path.join(here, 'surface.spec.ts'),
-      system: path.join(here, '..', 'features', 'system', 'system.spec.ts')
+      system: path.join(here, '..', 'features', 'system', 'system.spec.ts'),
+      conversation: path.join(here, '..', 'features', 'conversation', 'conversation.spec.ts')
     },
     bundle: true,
     absWorkingDir: repoRoot,
@@ -203,15 +213,21 @@ try {
     format: 'esm',
     platform: 'node',
     target: 'node18',
+    // Node resolves packages itself: the conversation spec renders through
+    // react-dom/server, whose CommonJS build requires node builtins that an
+    // ESM bundle cannot carry. First-party sources are still bundled.
+    packages: 'external',
     outdir: workdir,
     logLevel: 'warning'
   });
 
   const { runSurfaceSpec } = await import(pathToFileURL(surfaceOutfile).href);
   const { runSystemCapabilitiesSpec } = await import(pathToFileURL(systemOutfile).href);
+  const { runConversationSpec } = await import(pathToFileURL(conversationOutfile).href);
   const results = [
     ...runSurfaceSpec(),
     ...(await runSystemCapabilitiesSpec()),
+    ...runConversationSpec(),
     ...(await architectureSpec())
   ];
   let failed = 0;

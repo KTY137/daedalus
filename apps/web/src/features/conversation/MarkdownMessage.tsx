@@ -1,48 +1,36 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import Markdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MarkdownMessageProps {
   text: string;
   streaming?: boolean;
+  /** seconds since the turn went out; drawn while the stream is still empty */
+  elapsed?: number;
 }
 
-function safeHref(value: string): string | undefined {
+/**
+ * Model output is Markdown, and this page typesets it — through
+ * react-markdown, which builds React nodes and never HTML, so a model answer
+ * cannot become an XSS surface. Three deliberate limits on top of that:
+ *
+ * - raw HTML in the answer is skipped, not rendered (`skipHtml`);
+ * - links open only for http(s) targets; anything else is plain text;
+ * - images are never fetched. An `<img src="https://…">` in a model answer
+ *   would make THIS browser reach an external host, which is egress the
+ *   effect boundary never approved. The alt text is printed instead.
+ *
+ * Headings are clamped to h3…h5 so an answer cannot outrank the page.
+ */
+
+function safeHref(value?: string): string | undefined {
+  if (!value) return undefined;
   try {
     const url = new URL(value);
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
   } catch {
     return undefined;
   }
-}
-
-/** Small, dependency-free Markdown renderer for model output.
- *
- * It intentionally supports the conversational subset Ikarus emits: headings,
- * paragraphs, ordered/unordered lists, quotes, fenced code, inline code,
- * emphasis and http(s) links. React owns escaping, so model text never becomes
- * HTML and a Markdown feature cannot turn into an XSS surface.
- */
-function inline(text: string): ReactNode[] {
-  const token = /(https?:\/\/[^\s<]+)|`([^`\n]+)`|\*\*([^*\n]+)\*\*|__([^_\n]+)__|\*([^*\n]+)\*/g;
-  const out: ReactNode[] = [];
-  let at = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
-  while ((match = token.exec(text)) !== null) {
-    if (match.index > at) out.push(text.slice(at, match.index));
-    if (match[1]) {
-      const href = safeHref(match[1]);
-      out.push(href ? <a key={key++} href={href} target="_blank" rel="noreferrer">{match[1]}</a> : match[1]);
-    } else if (match[2]) {
-      out.push(<code key={key++}>{match[2]}</code>);
-    } else if (match[3] || match[4]) {
-      out.push(<strong key={key++}>{inline(match[3] || match[4])}</strong>);
-    } else if (match[5]) {
-      out.push(<em key={key++}>{inline(match[5])}</em>);
-    }
-    at = match.index + match[0].length;
-  }
-  if (at < text.length) out.push(text.slice(at));
-  return out;
 }
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
@@ -56,10 +44,12 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
       setCopied(false);
     }
   };
+  const lines = code ? code.split('\n').length : 0;
   return (
     <div className="md-codeblock">
       <div className="md-codebar">
-        <span>{language || 'code'}</span>
+        <span className="md-codelang">{language || 'code'}</span>
+        <span className="md-codelines">{lines} {lines === 1 ? 'Zeile' : 'Zeilen'}</span>
         <button type="button" onClick={() => void copy()} aria-label="Code kopieren">{copied ? 'Kopiert' : 'Kopieren'}</button>
       </div>
       <pre><code className={language ? `language-${language}` : undefined}>{code}</code></pre>
@@ -67,112 +57,64 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   );
 }
 
-type Block =
-  | { kind: 'code'; language: string; value: string }
-  | { kind: 'text'; value: string };
-
-function splitFences(text: string): Block[] {
-  const lines = text.split('\n');
-  const blocks: Block[] = [];
-  let plain: string[] = [];
-  let code: string[] = [];
-  let language = '';
-  let fenced = false;
-  const flushPlain = () => {
-    if (plain.length) blocks.push({ kind: 'text', value: plain.join('\n') });
-    plain = [];
-  };
-  const flushCode = () => {
-    blocks.push({ kind: 'code', language, value: code.join('\n') });
-    code = [];
-    language = '';
-  };
-  for (const line of lines) {
-    const fence = /^```\s*([\w.+-]*)\s*$/.exec(line);
-    if (fence) {
-      if (fenced) {
-        flushCode();
-        fenced = false;
-      } else {
-        flushPlain();
-        language = fence[1] || '';
-        fenced = true;
-      }
-      continue;
-    }
-    (fenced ? code : plain).push(line);
-  }
-  if (fenced) flushCode();
-  flushPlain();
-  return blocks;
+/** The raw text and language of a fenced block, read off the hast node so a
+ *  custom `pre` needs no knowledge of how `code` rendered its children. */
+function fenced(node: unknown): { language: string; code: string } {
+  const pre = node as { children?: Array<{ properties?: { className?: unknown }; children?: Array<{ value?: unknown }> }> } | undefined;
+  const codeNode = pre?.children?.[0];
+  const classes = codeNode?.properties?.className;
+  const classList = Array.isArray(classes) ? classes.map(String) : typeof classes === 'string' ? [classes] : [];
+  const language = classList.map((c) => /^language-(.+)$/.exec(c)?.[1]).find(Boolean) || '';
+  const code = (codeNode?.children || []).map((c) => (typeof c.value === 'string' ? c.value : '')).join('').replace(/\n$/, '');
+  return { language, code };
 }
 
-function TextBlocks({ text }: { text: string }) {
-  const lines = text.split('\n');
-  const nodes: ReactNode[] = [];
-  let i = 0;
-  let key = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (!line.trim()) { i += 1; continue; }
-    const heading = /^(#{1,4})\s+(.+)$/.exec(line);
-    if (heading) {
-      const level = Math.min(4, heading[1].length + 1);
-      const body = inline(heading[2]);
-      if (level === 2) nodes.push(<h2 key={key++}>{body}</h2>);
-      else if (level === 3) nodes.push(<h3 key={key++}>{body}</h3>);
-      else nodes.push(<h4 key={key++}>{body}</h4>);
-      i += 1; continue;
-    }
-    if (/^>\s?/.test(line)) {
-      const quoted: string[] = [];
-      while (i < lines.length && /^>\s?/.test(lines[i])) quoted.push(lines[i++].replace(/^>\s?/, ''));
-      nodes.push(<blockquote key={key++}>{quoted.map((q, n) => <p key={n}>{inline(q)}</p>)}</blockquote>);
-      continue;
-    }
-    const unordered = /^\s*[-*+]\s+(.+)$/.exec(line);
-    if (unordered) {
-      const items: string[] = [];
-      while (i < lines.length) {
-        const m = /^\s*[-*+]\s+(.+)$/.exec(lines[i]);
-        if (!m) break;
-        items.push(m[1]); i += 1;
-      }
-      nodes.push(<ul key={key++}>{items.map((item, n) => <li key={n}>{inline(item)}</li>)}</ul>);
-      continue;
-    }
-    const ordered = /^\s*\d+[.)]\s+(.+)$/.exec(line);
-    if (ordered) {
-      const items: string[] = [];
-      while (i < lines.length) {
-        const m = /^\s*\d+[.)]\s+(.+)$/.exec(lines[i]);
-        if (!m) break;
-        items.push(m[1]); i += 1;
-      }
-      nodes.push(<ol key={key++}>{items.map((item, n) => <li key={n}>{inline(item)}</li>)}</ol>);
-      continue;
-    }
-    const paragraph: string[] = [line];
-    i += 1;
-    while (i < lines.length && lines[i].trim() && !/^(#{1,4})\s+|^>\s?|^\s*[-*+]\s+|^\s*\d+[.)]\s+/.test(lines[i])) {
-      paragraph.push(lines[i++]);
-    }
-    nodes.push(<p key={key++}>{inline(paragraph.join('\n'))}</p>);
-  }
-  return <>{nodes}</>;
-}
+const components: Components = {
+  a: ({ href, children }) => {
+    const safe = safeHref(href);
+    return safe ? <a href={safe} target="_blank" rel="noreferrer">{children}</a> : <span>{children}</span>;
+  },
+  img: ({ alt }) => <span className="md-img" title="Bilder werden nicht geladen">{alt ? `Bild: ${alt}` : 'Bild'}</span>,
+  h1: ({ children }) => <h3>{children}</h3>,
+  h2: ({ children }) => <h3>{children}</h3>,
+  h3: ({ children }) => <h4>{children}</h4>,
+  h4: ({ children }) => <h5>{children}</h5>,
+  h5: ({ children }) => <h5>{children}</h5>,
+  h6: ({ children }) => <h5>{children}</h5>,
+  pre: ({ node }) => {
+    const { language, code } = fenced(node);
+    return <CodeBlock language={language} code={code} />;
+  },
+  table: ({ children }) => (
+    <div className="md-table">
+      <table>{children}</table>
+    </div>
+  ),
+  // GFM task items render a real checkbox; a disabled form control is a
+  // picture of a control, so it becomes a glyph the text describes.
+  input: ({ checked }) => <span className={checked ? 'md-task on' : 'md-task'} aria-hidden="true" />
+};
 
-export function MarkdownMessage({ text, streaming = false }: MarkdownMessageProps) {
-  const blocks = useMemo(() => splitFences(text), [text]);
+export function MarkdownMessage({ text, streaming = false, elapsed }: MarkdownMessageProps) {
   if (!text && streaming) {
-    return <div className="turn-text markdown thinking" role="status"><span>Ikarus denkt</span><i /><i /><i /></div>;
+    return (
+      <div className="turn-text markdown thinking" role="status">
+        <span>Ikarus denkt{elapsed !== undefined && elapsed >= 2 ? ` · ${elapsed} s` : ''}</span>
+        <i /><i /><i />
+      </div>
+    );
   }
   return (
     <div className="turn-text markdown">
-      {blocks.map((block, i) => block.kind === 'code'
-        ? <CodeBlock key={i} language={block.language} code={block.value} />
-        : <TextBlocks key={i} text={block.value} />)}
+      <Markdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
+        {text}
+      </Markdown>
       {streaming && <span className="caret" aria-hidden="true" />}
     </div>
   );
+}
+
+/** A local note the surface wrote itself — help, a command hint. */
+export function NoteMessage({ children }: { children: ReactNode }) {
+  return <div className="turn-text markdown note">{children}</div>;
 }

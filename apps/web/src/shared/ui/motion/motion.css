@@ -22,6 +22,22 @@
    glass primitive imports. It never edits styles.css.
    ========================================================================= */
 
+/* ---- the CSS half of the tokens ----
+   `tokens.ts` is the owner of every duration and easing; these four custom
+   properties are its projection into CSS, so a feature stylesheet can write
+   `transition: color var(--dur-fast) var(--ease)` without writing a number.
+   They used to live only in the classic surface's styles.css, which the
+   cockpit never loads, so on the cockpit every CSS transition written against
+   them silently did not run (recorded twice in the 2026-08-26 handoffs).
+   useMotion.ts reads these back at startup and warns if they ever drift from
+   DURATION_MS.ack / .move / .ambient and EASE.glass. */
+:root {
+  --dur-fast: 140ms;
+  --dur: 240ms;
+  --dur-slow: 420ms;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* Doubling the attribute lifts specificity to (0,2,0) so this beats the
    single-class rules in styles.css regardless of stylesheet order. Only the
    transition PROPERTY list is narrowed — colour, border and shadow
