@@ -191,6 +191,43 @@ def test_tensor_view_reuses_already_canonical_entry_tuple() -> None:
     assert tensor.entries is canonical_entries
 
 
+def test_tensor_view_axis_canonicalization_avoids_transient_name_map() -> None:
+    left = TensorAxis("a", ("x",))
+    right = TensorAxis("z", ("x",))
+
+    class HashForbiddenName(str):
+        def __hash__(self) -> int:
+            raise AssertionError("TensorView hashed axis names into a transient map")
+
+    object.__setattr__(left, "name", HashForbiddenName(left.name))
+    object.__setattr__(right, "name", HashForbiddenName(right.name))
+
+    tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=(right, left),
+        entries=(),
+        provenance=provenance(),
+    )
+    canonical_axes = (left, right)
+    canonical_tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=canonical_axes,
+        entries=(),
+        provenance=provenance(),
+    )
+
+    assert tensor.axes == canonical_axes
+    assert canonical_tensor.axes is canonical_axes
+
+
 def test_tensor_view_duplicate_tracking_does_not_hash_every_semantic_key() -> None:
     axis = TensorAxis("node", ("a", "z"))
     left = SparseTensorEntry(
