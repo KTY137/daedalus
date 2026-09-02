@@ -171,3 +171,12 @@ memory/offload_metrics.local.jsonl.lock
 # 5375f0c3 removed. The four tracked sibling rows point at C:\Users\nukei and
 # are stale history, not a precedent to follow.
 projects/daedalus.json
+
+# Fleet analysis scratch. The .md dossiers under runs/analysis/ are the
+# deliverable; the .py files beside them are one-off probes and mutation
+# harnesses. Two got committed with G1-SEC-01 as exploit evidence and the
+# Effect Registry scanner correctly refused them: a script with a main()
+# that spawns subprocesses IS an unregistered effectful entrypoint, and
+# runs/ is scanned by design. The durable record of that exploit is the
+# payload and canary result quoted in the packet's commit message.
+runs/analysis/**/*.py
