@@ -53,9 +53,26 @@ HOW EACH EFFECT CLASS IS DERIVED
   credential-named VARIABLE, because ``daedalus.kernel.approvals`` takes the
   variable name from ``--secret-env`` and the literal-only rule cannot see it.
 
-THE CLOSURE IS A LOWER BOUND, and the two places it cannot see are declared as
-BRIDGES rather than waved through: each names the hop, the reason, and a fact
-this file re-checks, so the exception cannot rot silently.
+THE CLOSURE IS A LOWER BOUND, and the one place it cannot see is declared as a
+BRIDGE rather than waved through: it names the hop, the reason, and a fact this
+file re-checks, so the exception cannot rot silently. There were two until
+2026-09-02; teaching the walk to resolve an annotated port made the
+``cli.project_memory`` one unnecessary, and it was DELETED rather than left
+lying around, because a bridge suppresses the painted-label check for its row.
+
+WHAT THE WALK LEARNED IN 2026-09 (and why the closure grew)
+------------------------------------------------------------
+The hierarchy refactor moved implementations one layer down and left the
+historical locators behind as facades. The name-based walk kept resolving to
+the locator, found an empty module, and derived nothing -- 14 of 42 declared
+effects lost their justification while the UNDER-declaration direction went on
+passing, because a walk that reaches nothing reports no undeclared effect
+either. tests/registry_facades.py teaches it the six constructs involved
+(module aliases, re-exports, module-class facades, PEP 562 tables, inherited
+doors, and receivers named by a type annotation) and refuses rather than
+resolving to nothing when a hop lands on a module that cannot be parsed.
+tests/test_registry_facade_order.py plants a real sink behind each construct
+and checks every fixture against a blinded control.
 
 NO PYTEST, NO UNITTEST: plain asserts, callable as ``python
 tests/test_registry_new_doors.py`` and collectable by a suite either way.
@@ -76,6 +93,7 @@ from __future__ import annotations
 import ast
 import re
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,9 +109,17 @@ from daedalus.spine.effect_boundary import (  # noqa: E402
     Wiring,
     _called_names,
     _direct_effects,
-    _models,
     _target_node,
     check_conformance,
+)
+
+if str(Path(__file__).resolve().parent) not in sys.path:  # noqa: E402
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from registry_facades import (  # noqa: E402
+    Resolver,
+    models as _facade_models,
+    resolver,
 )
 
 # --------------------------------------------------------------------------- #
@@ -172,15 +198,31 @@ NO_ROW: dict[str, str] = {
 #: effect, reason, checker name) and every one is re-verified by
 #: ``test_the_bridges_are_checked_not_believed`` below.  This list is the
 #: honest alternative to widening the closure until it says what the author
-#: wanted: two named exceptions beat one unfalsifiable heuristic.
+#: wanted: a named exception beats an unfalsifiable heuristic.
+#:
+#: RETIRED 2026-09-02, ``("cli.project_memory", "network_egress")``.  Its reason
+#: was that ``EventVectorStore._backend()`` RETURNS the backend
+#: (``self._backend_override or OllamaEmbeddingBackend(host)``) and the closure
+#: resolved methods only on constructor-bound names.  That is no longer true:
+#: the consumers take ``backend: EmbeddingBackend`` as an annotated parameter,
+#: and the walk now resolves an annotated port to the classes that implement it,
+#: so it reaches ``memory/embeddings.py OllamaEmbeddingBackend.embed``
+#: (``urllib.request.urlopen@517``) on its own -- MEASURED, and re-asserted in
+#: ``test_the_bridges_are_checked_not_believed``.  The measured path is
+#: ``projection_worker:main -> ProjectionWorker.run ->
+#: EventVectorStore.ingest_events_report -> _verify_identity ->
+#: OllamaEmbeddingBackend.embed``; with the port hop disabled the row drops back
+#: to ``filesystem_write`` alone, so it really is the annotation carrying it.
+#: The one caveat: that hop rests on ``EmbeddingBackend`` having exactly one
+#: repository-local implementation.  A second one widens the closure rather than
+#: breaking it, and the painted-label direction is what would notice.
+#:
+#: The entry is deleted rather than kept as a harmless leftover.  A bridge
+#: suppresses the painted-label check for its row and effect, so a stale one is
+#: a standing pre-authorisation: delete the POST tomorrow and the row would stay
+#: green on the strength of an exception nobody needed.  Narrowing this table is
+#: the opposite of the widening that would have "fixed" this packet cheaply.
 BRIDGES: dict[tuple[str, str], str] = {
-    ("cli.project_memory", "network_egress"): (
-        "EventVectorStore._backend() RETURNS the embedding backend "
-        "(`self._backend_override or OllamaEmbeddingBackend(host)`), and the "
-        "closure resolves methods on constructor-bound names, not on "
-        "method-returned ones. The POST is at "
-        "memory/embeddings.py OllamaEmbeddingBackend.embed."
-    ),
     ("cli.build_exec", "repository_mutation"): (
         "WaveExecutor.run_wave hands the write path to "
         "kairos.gated_writes:run_write_wave, which lives in the retained "
@@ -206,7 +248,7 @@ BILLABLE = {
 #: Effects with no AST sink at all; they are derived from another authority.
 NO_SINK = {Effect.SPEND, Effect.REPOSITORY_MUTATION, Effect.SECRETS}
 
-MODELS = {model.module: model for model in _models(ROOT)[0]}
+MODELS = _facade_models(ROOT)
 
 
 # --------------------------------------------------------------------------- #
@@ -245,15 +287,60 @@ def _aliases(module: str, node: ast.AST) -> dict[str, str]:
     return out
 
 
+#: Follows the four facade constructs the hierarchy refactor left on the
+#: derivation path -- whole-module ``sys.modules`` aliases, re-exports, the
+#: module-class fallback, and PEP 562 tables. See tests/registry_facades.py for
+#: what each one means for a lookup, why module-scope statements are
+#: interpreted in ORDER, and why an unreadable owner raises instead of
+#: resolving to nothing.
+RESOLVER = resolver(ROOT)
+
+
 def _owner(absolute: str) -> tuple[str, str] | None:
-    """Split a dotted absolute name into (scanned module, remainder)."""
-    parts = absolute.split(".")
-    for cut in range(len(parts) - 1, 0, -1):
-        module, rest = ".".join(parts[:cut]), ".".join(parts[cut:])
-        for candidate in (module, module + ".__init__"):
-            if candidate in MODELS:
-                return candidate, rest
-    return None
+    """Split a dotted absolute name into (owning scanned module, remainder).
+
+    The split alone is no longer enough. ``daedalus.spine.ledger`` still
+    resolves as a module, but it is twelve lines that replace themselves in
+    ``sys.modules`` with ``daedalus.kernel.events.ledger``; stopping at the
+    locator finds a module with no functions and reports no effects. The
+    resolver carries the name the rest of the way to the module that defines
+    it, and REFUSES rather than reporting nothing when a hop lands on a
+    scanned module the model set could not parse.
+    """
+    return RESOLVER.resolve(absolute)
+
+
+def _module_aliases(module: str) -> dict[str, str]:
+    """Module-scope names with the dead ones removed; see ``Resolver.aliases``."""
+    return RESOLVER.aliases(module)
+
+
+@contextmanager
+def walk_over(replacement: dict):
+    """Run this file's walk over a DIFFERENT model set, then restore this one.
+
+    The walk reads the repository through module-level state
+    (``MODELS``/``RESOLVER`` and three memo tables), which is right for an
+    instrument whose subject is one fixed tree. It also means the walk cannot
+    be pointed at a planted example, and a derivation nobody can aim at a known
+    answer is a derivation nobody has tested.
+
+    ``tests/test_registry_facade_order.py`` uses this to plant a real sink
+    behind each construct the walk claims to follow, and to plant the six
+    statement-order shapes that must NOT open a facade, and checks both against
+    a blinded control. Nothing in the production path calls it.
+    """
+    global MODELS, RESOLVER, _CLOSURE, _BINDINGS, _LOCAL, _DERIVED
+    saved = (MODELS, RESOLVER, _CLOSURE, _BINDINGS, _LOCAL, _DERIVED)
+    MODELS, RESOLVER = replacement, Resolver(replacement)
+    # EVERY memo, including _DERIVED. A cache left behind here does not fail --
+    # it answers the new tree's question with the old tree's answer, which is
+    # the one result a fixture cannot detect.
+    _CLOSURE, _BINDINGS, _LOCAL, _DERIVED = {}, {}, {}, {}
+    try:
+        yield RESOLVER
+    finally:
+        MODELS, RESOLVER, _CLOSURE, _BINDINGS, _LOCAL, _DERIVED = saved
 
 
 def _dotted(node: ast.AST) -> str:
@@ -279,7 +366,7 @@ def _bindings(module: str) -> dict[str, tuple[str, str]]:
     if module in _BINDINGS:
         return _BINDINGS[module]
     model = MODELS[module]
-    aliases = _aliases(module, model.tree)
+    aliases = _module_aliases(module)
     out: dict[str, tuple[str, str]] = {}
 
     def note(target: ast.AST, value: ast.AST) -> None:
@@ -353,16 +440,118 @@ _CLOSURE: dict[str, set[tuple[str, str]]] = {}
 _DERIVED: dict[str, tuple[dict[str, list[str]], set[tuple[str, str]]]] = {}
 
 
+def _constructed_class(
+    module: str, model, aliases: dict[str, str], call: ast.Call
+) -> tuple[str, str] | None:
+    """``(module, class)`` for a ``Cls(...)`` call, or None if it is not one."""
+    called = _dotted(call.func)
+    if not called:
+        return None
+    if called in model.class_bases:
+        return module, called
+    head = called.split(".")[0]
+    hit = _owner(aliases.get(head, head) + called[len(head) :])
+    if hit is not None and hit[1] in MODELS[hit[0]].class_bases:
+        return hit
+    return None
+
+
+def _annotation_names(node: ast.AST | None) -> list[str]:
+    """Every dotted type name in an annotation, with ``| None`` unwrapped."""
+    if node is None:
+        return []
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return _annotation_names(node.left) + _annotation_names(node.right)
+    if isinstance(node, ast.Subscript):
+        # ``Optional[X]`` and ``Annotated[X, ...]`` still describe the RECEIVER.
+        # Every other generic -- ``Sequence[X]``, ``Mapping[str, X]``,
+        # ``Callable[[X], Y]`` -- describes the CONTENTS, and treating a
+        # container's element type as the receiver's type would attribute
+        # ``mapping.get(...)`` to a method on the value class. Narrow on
+        # purpose: an annotation this reader cannot use yields nothing, and a
+        # missing witness fails loudly in the painted-label direction, while a
+        # wrong one quietly justifies an effect.
+        if _dotted(node.value).rsplit(".", 1)[-1] not in {"Optional", "Annotated"}:
+            return []
+        inner = node.slice
+        if isinstance(inner, ast.Tuple) and inner.elts:
+            inner = inner.elts[0]
+        return _annotation_names(inner)
+    if isinstance(node, ast.Tuple):
+        return [name for element in node.elts for name in _annotation_names(element)]
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            return _annotation_names(ast.parse(node.value, mode="eval").body)
+        except SyntaxError:
+            return []
+    dotted = _dotted(node)
+    return [dotted] if dotted else []
+
+
+def _ports(
+    module: str,
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    aliases: dict[str, str],
+) -> dict[str, tuple[tuple[str, str], ...]]:
+    """Parameter name -> the classes that satisfy its annotated Protocol.
+
+    The refactor moved the workspace and evaluator capabilities behind neutral
+    ports, so the kernel now says ``evaluator_port.command_gate(...)``. No
+    constructor binds that receiver -- it is a parameter -- which is why the
+    walk stopped there and three doors lost the gate child that justifies their
+    PROCESS_CONTROL. The annotation is the evidence, and
+    ``Resolver.implementations`` turns it into named classes rather than a
+    guess; a parameter whose annotation is not a repository-local Protocol
+    yields nothing.
+    """
+    out: dict[str, tuple[tuple[str, str], ...]] = {}
+    arguments = node.args
+    for arg in (
+        *arguments.posonlyargs,
+        *arguments.args,
+        *arguments.kwonlyargs,
+        *([arguments.vararg] if arguments.vararg else []),
+        *([arguments.kwarg] if arguments.kwarg else []),
+    ):
+        implementations: list[tuple[str, str]] = []
+        for name in _annotation_names(arg.annotation):
+            if name in MODELS[module].class_bases:
+                # Declared in this very module; ``_owner`` needs a dotted
+                # prefix and would refuse a bare local name.
+                hit: tuple[str, str] | None = (module, name)
+            else:
+                head = name.split(".")[0]
+                hit = _owner(aliases.get(head, head) + name[len(head) :])
+            if hit is None or "." in hit[1]:
+                continue
+            implementations.extend(RESOLVER.receivers(hit[0], hit[1]))
+        if implementations:
+            out[arg.arg] = tuple(dict.fromkeys(implementations))
+    return out
+
+
 def closure(target: str) -> set[tuple[str, str]]:
     """Every repository-local function the door can reach.
 
     Follows same-module calls, imported functions, methods on names bound to a
     constructor, ``self.method()``, ``self.property`` reads (a property read
-    IS a call), ``Cls(...)`` into ``Cls.__init__``, and bare references to a
-    function (passing a callable is how it gets called). It does NOT claim
-    whole-program reachability: dynamic dispatch, methods returned from
-    methods and non-``.py`` sources are exactly what BRIDGES and
-    DISPATCH_ROOTS exist to name.
+    IS a call), ``Cls(...)`` into ``Cls.__init__``, ``Cls(...).method()``, and
+    bare references to a function (passing a callable is how it gets called).
+
+    Since the hierarchy refactor it also follows the six constructs the moved
+    implementations hide behind -- module aliases, re-exports, module-class
+    facades, PEP 562 tables, inherited doors including ``super()``, and a
+    receiver whose type an annotation names. Those live in
+    tests/registry_facades.py, which documents each one and refuses (rather
+    than resolving to nothing) when a hop lands on a module that cannot be
+    parsed. tests/test_registry_facade_order.py plants a real sink behind every
+    one of them and checks each fixture against a blinded control, so a
+    construct the walk stops following fails there.
+
+    It still does NOT claim whole-program reachability: a callable with no
+    readable type -- passed through ``**kwargs``, taken out of a dict, or
+    returned by a method -- plus non-``.py`` sources are exactly what BRIDGES
+    and DISPATCH_ROOTS exist to name.
     """
     if target in _CLOSURE:
         return _CLOSURE[target]
@@ -378,10 +567,10 @@ def closure(target: str) -> set[tuple[str, str]]:
             continue
         seen.add((mod, qual))
         node = model.functions[qual]
-        aliases = dict(model.aliases)
-        aliases.update(_aliases(mod, model.tree))
+        aliases = _module_aliases(mod)
         aliases.update(_aliases(mod, node))
         binds = _bindings(mod)
+        ports = _ports(mod, node, aliases)
         klass = qual.split(".", 1)[0] if "." in qual else None
         for child in ast.walk(node):
             if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load):
@@ -398,27 +587,69 @@ def closure(target: str) -> set[tuple[str, str]]:
                 and isinstance(child.value, ast.Name)
                 and child.value.id == "self"
                 and klass
-                and f"{klass}.{child.attr}" in model.functions
             ):
-                stack.append((mod, f"{klass}.{child.attr}"))
+                inherited = RESOLVER.method(mod, klass, child.attr)
+                if inherited is not None:
+                    stack.append(inherited)
             if not isinstance(child, ast.Call):
                 continue
+            # ``super().m(...)``: the base's ``m``, not this class's. The dotted
+            # name of that call is bare ``m`` -- indistinguishable from a call
+            # to a module-level ``m`` -- so it is matched on the AST shape.
+            if (
+                isinstance(child.func, ast.Attribute)
+                and isinstance(child.func.value, ast.Call)
+                and _dotted(child.func.value.func) == "super"
+                and klass
+            ):
+                for base in RESOLVER.bases(mod, klass):
+                    found = _owner(base)
+                    if found is None or "." in found[1]:
+                        continue
+                    inherited = RESOLVER.method(found[0], found[1], child.func.attr)
+                    if inherited is not None:
+                        stack.append(inherited)
+                        break
+            # ``Cls(...).method()``: the construct-and-call shape. No name is
+            # ever bound, so ``_bindings`` cannot see it -- and it is how
+            # ``run_attempt`` reaches the whole Attempt lifecycle
+            # (``TaskAttempt(task, **kwargs).run()``).
+            if isinstance(child.func, ast.Attribute) and isinstance(
+                child.func.value, ast.Call
+            ):
+                constructed = _constructed_class(
+                    mod, model, aliases, child.func.value
+                )
+                if constructed is not None:
+                    inherited = RESOLVER.method(*constructed, child.func.attr)
+                    if inherited is not None:
+                        stack.append(inherited)
             called = _dotted(child.func)
             if not called:
                 continue
             if "." in called:
                 receiver, _, method = called.rpartition(".")
-                if receiver == "self" and klass and f"{klass}.{method}" in model.functions:
-                    stack.append((mod, f"{klass}.{method}"))
+                if receiver == "self" and klass:
+                    inherited = RESOLVER.method(mod, klass, method)
+                    if inherited is not None:
+                        stack.append(inherited)
                 bound = binds.get(receiver) or binds.get(
                     "self." + receiver.split(".")[-1]
                 )
-                if bound is not None and f"{bound[1]}.{method}" in MODELS[bound[0]].functions:
-                    stack.append((bound[0], f"{bound[1]}.{method}"))
+                if bound is not None:
+                    inherited = RESOLVER.method(bound[0], bound[1], method)
+                    if inherited is not None:
+                        stack.append(inherited)
+                for port_module, port_class in ports.get(receiver, ()):
+                    implemented = RESOLVER.method(port_module, port_class, method)
+                    if implemented is not None:
+                        stack.append(implemented)
             if called in model.functions:
                 stack.append((mod, called))
-            if f"{called}.__init__" in model.functions:
-                stack.append((mod, f"{called}.__init__"))
+            if called in model.class_bases:
+                constructor = RESOLVER.method(mod, called, "__init__")
+                if constructor is not None:
+                    stack.append(constructor)
             head = called.split(".")[0]
             hit = _owner(aliases.get(head, head) + called[len(head) :])
             if hit is None:
@@ -426,12 +657,16 @@ def closure(target: str) -> set[tuple[str, str]]:
             hmod, rest = hit
             if rest in MODELS[hmod].functions:
                 stack.append((hmod, rest))
-            else:
-                candidate = f"{rest.split('.')[0]}.{rest.split('.')[-1]}"
-                if candidate in MODELS[hmod].functions:
-                    stack.append((hmod, candidate))
-            if f"{rest}.__init__" in MODELS[hmod].functions:
-                stack.append((hmod, f"{rest}.__init__"))
+            elif "." in rest:
+                inherited = RESOLVER.method(
+                    hmod, rest.split(".")[0], rest.rsplit(".", 1)[-1]
+                )
+                if inherited is not None:
+                    stack.append(inherited)
+            if rest in MODELS[hmod].class_bases:
+                constructor = RESOLVER.method(hmod, rest, "__init__")
+                if constructor is not None:
+                    stack.append(constructor)
     _CLOSURE[target] = seen
     return seen
 
@@ -615,18 +850,24 @@ def test_no_reachable_effect_is_left_undeclared():
 
 
 def test_the_bridges_are_checked_not_believed():
-    """The two hops the closure cannot follow are still really there.
+    """The one remaining hop the closure cannot follow is still really there.
 
     A declared exception that nobody re-checks is how a derivation quietly
-    stops deriving. Each bridge names a fact; this asserts the fact.
+    stops deriving. The bridge names a fact; this asserts the fact.
+
+    Part 1 is the RETIRED project_memory bridge, kept as a check rather than an
+    exception: the same three facts are asserted, plus the one that made the
+    exception unnecessary -- the egress is now DERIVED. If it stops being
+    derived this fails and demands a real answer, instead of a bridge quietly
+    absorbing the loss again.
     """
-    # 1. project_memory -> the embedding POST, through a method-returned object.
+    # 1. project_memory -> the embedding POST, now derived rather than bridged.
     embeddings = (ROOT / "daedalus" / "memory" / "embeddings.py").read_text(
         encoding="utf-8"
     )
     assert "OllamaEmbeddingBackend(host)" in embeddings, (
-        "EventVectorStore no longer constructs the embedding backend; the "
-        "cli.project_memory network_egress bridge is stale"
+        "EventVectorStore no longer constructs the embedding backend; "
+        "re-derive the cli.project_memory row"
     )
     backend_effects, _e, _c = _local("daedalus.memory.embeddings")[
         "OllamaEmbeddingBackend.embed"
@@ -638,6 +879,20 @@ def test_the_bridges_are_checked_not_believed():
     store_reached = closure("daedalus.memory.projection_worker:main")
     assert ("daedalus.memory.embeddings", "EventVectorStore._backend") in store_reached, (
         "the worker no longer reaches the backend selector; re-derive the row"
+    )
+    assert ("daedalus.memory.embeddings", "OllamaEmbeddingBackend.embed") in (
+        store_reached
+    ), (
+        "the walk stopped reaching the embedding POST, so cli.project_memory's "
+        "network_egress has no justification again. It is reached through the "
+        "`backend: EmbeddingBackend` parameter annotation, NOT through the "
+        "method-returned object the retired bridge described -- restore that "
+        "hop rather than re-adding the exception."
+    )
+    assert ("cli.project_memory", "network_egress") not in BRIDGES, (
+        "the retired project_memory bridge is back. It was removed because the "
+        "effect is derived; a bridge here would suppress the painted-label "
+        "check for a row that no longer needs it."
     )
 
     # 2. build_exec -> the worktree, through a retained non-.py legacy source.
