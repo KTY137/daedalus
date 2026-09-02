@@ -84,28 +84,42 @@ direction, and ``tests/test_envelope_join.py`` pins both directions.
 
 THE LEDGER OF UNCONVERTED PRODUCERS
 ------------------------------------
-FOUR producers are converted end-to-end, chosen so ONE run demonstrates a
+SEVEN producers are converted end-to-end, chosen so ONE run demonstrates a
 join. The rest are listed rather than forgotten. MEASURED 2026-07-29 by scan,
 plus ``lanes/fanout.py`` on 2026-07-30 -- caught by the drift detector rather
 than declared, which is the mechanism working: the module was written that day,
 its per-task result files were a new island, and the scan found it before a
 reader six months out did. The count lives in this sentence AND in
-``tests/test_envelope_coverage.py``, so a fifth conversion that forgets the
+``tests/test_envelope_coverage.py``, so a conversion that forgets the
 prose is caught;
 ``UNCONVERTED_PRODUCERS`` below is the machine-readable copy and
 ``tests/test_envelope_coverage.py`` goes RED when a producer appears in neither
 table.
 
+FOUR of the seven arrived on 2026-09-02 and converted NOTHING: the thirteen
+G1-IFACE-BRIDGE packets split ``file_bridge.py`` into a composition root plus
+owner modules, and the scan -- which until then knew only co-located producers
+-- had gone blind to all four. The trace was already in three of those records.
+What changed is that the instrument can see them, so they had to be declared.
+The fourth, ``watcher.py``, is in ``UNCONVERTED_PRODUCERS``: its heartbeat is
+liveness state and carries no trace. That is the same drift detector working
+again, one refactor later.
+
 CONVERTED
 =========
-=================================  ===============  ==============  ===================================
-module                             format           local id        how the trace is carried
-=================================  ===============  ==============  ===================================
-daedalus/kernel/events/ledger.py   SQLite           intent_id       ``intents.trace_id`` column (v2)
-daedalus/loop.py                   JSON doc         run_id          ``trace_id`` + per-attempt copy
-daedalus/file_bridge.py            JSON per file    request key     ``trace_id`` in request AND report
-daedalus/lanes/fanout.py           JSON per task    task key         ``trace_id``, resolved once per run
-=================================  ===============  ==============  ===================================
+=========================================  ===============  ==============  ===================================
+module                                     format           local id        how the trace is carried
+=========================================  ===============  ==============  ===================================
+daedalus/kernel/events/ledger.py           SQLite           intent_id       ``intents.trace_id`` column (v2)
+daedalus/loop.py                           JSON doc         run_id          ``trace_id`` + per-attempt copy
+daedalus/file_bridge.py                    composition root request key     owns runs/ paths + atomic writer;
+                                                                            serialises nothing itself now
+daedalus/interfaces/bridge/queue.py        JSON per file    request key     ``trace_id`` stamped into request
+daedalus/interfaces/bridge/dispatch.py     JSON per file    request key     ``trace_id`` stamped into report
+daedalus/interfaces/bridge/journal.py      JSON per file    request key     ``trace_id`` present, set by
+                                                                            dispatch before write_journal
+daedalus/lanes/fanout.py                   JSON per task    task key        ``trace_id``, resolved once per run
+=========================================  ===============  ==============  ===================================
 
 UNCONVERTED -- module, format, id scheme, one line on conversion cost
 MEASURED 2026-07-29 by the scan in ``tests/test_envelope_coverage.py``.
@@ -156,11 +170,19 @@ daedalus/file_bridge.py (heartbeat)    JSON        epoch               N/A BY DE
                                                                        has no run to correlate to.
 =====================================  ==========  ==================  =========================================
 
-The scan also flags twelve modules that serialise JSON into ``runs/`` or
+The scan also flags 26 modules that serialise JSON into ``runs/`` or
 ``memory/`` and are NOT run records -- latest-only mirrors, config scaffolds,
 cursors, sealed fixtures. They are listed in :data:`UNCONVERTED_PRODUCERS` with
 the reason, because a detector whose output is not fully accounted for is a
 detector people learn to ignore.
+
+That count said "twelve" until 2026-09-02 and MEASURED 26 when someone finally
+counted the rows it describes; it had been wrong for some time and only one of
+the 26 was added that day. Unlike the CONVERTED count above, no test pins this
+number, which is exactly why it drifted -- an unpinned number in prose is a
+claim nobody re-measures. It is corrected rather than deleted because the ratio
+it reports is the point: most of what this detector finds is deliberately not a
+run record, and a reader who does not know that reads the ledger as a backlog.
 
 WHICH SPINE DB PATH THIS READS THROUGH
 ---------------------------------------
@@ -605,7 +627,33 @@ CONVERTED_PRODUCERS = {
     "daedalus/loop.py":
         "LoopLedger.trace_id + per-attempt trace_ids, schema daedalus.loop.ledger/2",
     "daedalus/file_bridge.py":
-        "trace_id in the outbox request, propagated into the inbox report",
+        "trace_id in the outbox request, propagated into the inbox report. "
+        "COMPOSITION ROOT since the G1-IFACE-BRIDGE packets: this module no "
+        "longer serialises anything itself, it owns the runs/ paths and the "
+        "concrete atomic writer and injects both into the interfaces/bridge/ "
+        "modules below. Kept as the row a reader grepping 'file_bridge' lands "
+        "on, and it still names the whole trace journey the four rows split.",
+    # -- the bridge producer, split across its owner modules by the thirteen
+    #    G1-IFACE-BRIDGE packets. Four rows rather than one because they are
+    #    four record families with four different answers to "does this carry
+    #    a trace", and collapsing them would hide that the heartbeat does not.
+    "daedalus/interfaces/bridge/queue.py":
+        "trace_id stamped into the outbox request document by stamp_trace(), "
+        "which file_bridge injects as envelope.stamp. This is where the "
+        "bridge's trace ENTERS the record: the run's trace crosses the process "
+        "boundary as a field of the queued request.",
+    "daedalus/interfaces/bridge/dispatch.py":
+        "trace_id adopted from the request via adopt_trace() and stamped into "
+        "the inbox report by stamp_report(). This is the other end of the "
+        "join: the report carries the trace of the run that queued the "
+        "request, not of the watcher process that executed it.",
+    "daedalus/interfaces/bridge/journal.py":
+        "trace_id present in the journal entry, but NOT stamped here -- "
+        "dispatch sets entry[trace_key] from the request payload before "
+        "calling write_journal(), which publishes the dict through an injected "
+        "WriteJsonPort and serialises nothing itself. Recorded as converted "
+        "because the record carries the field; recorded with this caveat "
+        "because grepping this module for a stamp call finds nothing.",
     "daedalus/lanes/fanout.py":
         "FanoutResult.trace_id, resolved ONCE per fan_out and written into every "
         "per-task result file. NOT re-stamped on the resume path: a cached answer "
@@ -676,6 +724,17 @@ UNCONVERTED_PRODUCERS = {
         "config/known_hosts are latest-only desktop settings/trust material; "
         "runs/desktop_runtime.log is an unstructured lifecycle log. None is an "
         "attempt or mission record with a trace to join.",
+    "daedalus/interfaces/bridge/watcher.py":
+        "LIVENESS STATE, NOT A RUN RECORD. runs/bridge_heartbeat.json, one "
+        "latest-only document keyed by pid + owner_token + process_identity. "
+        "It asserts that the watcher PROCESS is alive, and the watcher outlives "
+        "every request it dispatches, so there is no single run for a trace id "
+        "to name -- stamping one would pick an arbitrary request and imply the "
+        "heartbeat belonged to it. The fourth of the four bridge record "
+        "families and the only one that carries no trace; the other three are "
+        "in CONVERTED_PRODUCERS. Revisit if the heartbeat ever records the "
+        "request currently in flight as an attempt record rather than as the "
+        "opaque 'current' marker it is today.",
 
     # -- genuine run records, in value order. THIS IS THE WORKLIST. --------- #
     "daedalus/council/bus.py":
