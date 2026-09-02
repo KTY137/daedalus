@@ -107,6 +107,11 @@ shift shift_ticker skills status storage text_integrity token_monitor
 token_policy verifier web_api
 ```
 
+That listing is the output of the command above at `851ff43c` and is left as
+it ran. Since then G1-FLAT-02 deleted seven of those names and G1-FLAT-03
+moved nineteen more into `daedalus/orchestration/` (2026-09-02); re-run the
+command rather than subtracting by hand.
+
 ---
 
 ## 2. The tree as TARGETED

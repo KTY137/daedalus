@@ -5,9 +5,9 @@ import json
 from pathlib import Path
 
 from ..file_bridge import enqueue
-from ..fallback import DEFAULT_POLICY
+from ..orchestration.fallback import DEFAULT_POLICY
 from ..memory import MemoryEvent, append_event
-from ..projects import load_project, resolve_repo_root
+from ..foundation.projects import load_project, resolve_repo_root
 from ..router import route_task
 from ..status import collect_status
 from ..token_policy import MAX_TODO_CHARS, trim_paths, trim_text

@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus import categories as cats
+from daedalus.orchestration import categories as cats
 from daedalus import core
 
 

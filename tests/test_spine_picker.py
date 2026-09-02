@@ -89,7 +89,7 @@ GATE_RESULT = {
          "current_recall": 0.6, "missed": ["extract_units"]},
     ],
     "errored_primary": [
-        {"id": "web_api_file", "target": "daedalus/web_api.py",
+        {"id": "web_api_file", "target": "daedalus/interfaces/http/web_api.py",
          "error": "FileNotFoundError: gone"},
     ],
     "errored_quarantine": [{"id": "minted_1", "error": "whatever"}],

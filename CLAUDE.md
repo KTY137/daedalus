@@ -11,7 +11,7 @@ Amendment-Kette oder `AGENTS.md`.
 
 - **Stand heute (gemessen 2026-09-01):** `daedalus/orchestration/langgraph_adapter.py` deckt
   genau *einen* Ablauf ab — die Komposition des Run-Briefs in
-  `daedalus.runbook.create_run(..., engine="langgraph")`. Default bleibt
+  `daedalus.orchestration.runbook.create_run(..., engine="langgraph")`. Default bleibt
   `engine="stdlib"`. `tests/test_langgraph_adapter.py`: 35 passed. Vertrag,
   Failure-Modes und Ersatzpfad stehen in
   [docs/LANGGRAPH_ADAPTER_20260825.md](docs/LANGGRAPH_ADAPTER_20260825.md).

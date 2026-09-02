@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from daedalus import claude_detect as cd
+from daedalus.foundation import claude_detect as cd
 from daedalus import core
 
 SAMPLE_SINGLE = """---

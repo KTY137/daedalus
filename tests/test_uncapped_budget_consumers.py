@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from daedalus.token_monitor import _render_budget_view
+from daedalus.interfaces.cli.token_monitor import _render_budget_view
 from tools import funnel
 
 

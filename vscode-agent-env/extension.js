@@ -178,7 +178,7 @@ async function ensureWebServerForCommand(context) {
 
 // ---------------------------------------------------------------------------
 // Task lifecycle client: GET /api/queue/<id> [/artifacts | /events]. Additive
-// endpoints landed 2026-07-29 in daedalus/web_api.py's "task lifecycle"
+// endpoints landed 2026-07-29 in daedalus/interfaces/http/web_api.py's "task lifecycle"
 // section -- read that section's docstring for the full vocabulary
 // (queued/running/done/failed/quarantined/unknown) and why `applied` is
 // tri-state. Every helper here degrades exactly like probeWebServer() /
@@ -262,7 +262,7 @@ function shortAge(ageS) {
 }
 
 // THE property that matters more than anything else rendered by this file:
-// `applied` is TRUE / FALSE / null-with-a-reason (daedalus/web_api.py
+// `applied` is TRUE / FALSE / null-with-a-reason (daedalus/interfaces/http/web_api.py
 // `_derive_applied` never guesses true). null must never be rendered as
 // either of the other two, and the reason string travels with it always.
 function appliedWord(snap) {
@@ -316,7 +316,7 @@ function stateThemeIcon(snap) {
 
 // SSE client for GET /api/queue/<id>/events. Node has no built-in
 // EventSource, so this parses the same "event: X\ndata: {...}\n\n" framing
-// daedalus/web_api.py's _handle_task_events emits by hand. ONE-SHOT, exactly
+// daedalus/interfaces/http/web_api.py's _handle_task_events emits by hand. ONE-SHOT, exactly
 // like the server contract: reading stops after 'final', after a non-2xx
 // response (an old server without this endpoint answers 404 JSON, not SSE --
 // checked explicitly below rather than fed into the frame parser), or on a
@@ -886,7 +886,7 @@ function renderTaskStatusDoc(id, body) {
     if (snap.objective) lines.push(`Objective: ${snap.objective}`);
     lines.push(`Lane: ${snap.lane || "n/a"}  Project: ${snap.project || "n/a"}`);
     lines.push(`Observed: ${snap.observed_at || "n/a"} (${shortAge(snap.age_s)})`);
-    // conversation_dispatch is daedalus.conversation's OWN read of this
+    // conversation_dispatch is daedalus.orchestration.conversation's OWN read of this
     // dispatch's timeline, and it can lag behind -- e.g. still say
     // "dispatched" after the task is long finished -- because
     // record_dispatch_event is deliberately NOT called from web_api.py (see
@@ -947,7 +947,7 @@ async function showTaskArtifacts(context, item) {
     return;
   }
   if (art.available === false) {
-    // NOT an error -- see daedalus/web_api.py: available:false while a run is
+    // NOT an error -- see daedalus/interfaces/http/web_api.py: available:false while a run is
     // still in flight is the honest, expected answer, not a failure. Shown
     // as information, never as a warning or error.
     vscode.window.showInformationMessage(`Task '${id}': artifacts not available yet -- ${art.reason || "the run has not finished"}.`);

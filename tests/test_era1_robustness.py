@@ -18,7 +18,7 @@ from unittest import mock
 
 from daedalus import metrics
 from daedalus.provider_router import route_and_select
-from daedalus.verifier import verify
+from daedalus.orchestration.verifier import verify
 # THE LIVE CASCADE TAKES A LEASE NOW, AND SO DOES THIS TEST. The shim that
 # used to stand here called ``daedalus.offload._offload_impl`` directly with
 # ``live=True`` -- a complete, un-leased write path. That second caller is

@@ -27,7 +27,7 @@ $env:OLLAMA_MODEL = "qwen3-coder"     # or "devstral", "qwen2.5-coder:14b"
 ```
 
 Re-benchmark tool-use reliability before trusting a new model on `write` mode;
-the verifier gate (`daedalus/verifier.py`) is your backstop either way.
+the verifier gate (`daedalus/orchestration/verifier.py`) is your backstop either way.
 
 ## Running the bench
 

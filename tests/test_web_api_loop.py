@@ -37,11 +37,18 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
 
-from daedalus import web_api
+from daedalus.interfaces.http import web_api
 from daedalus.sensitivity import ENV_TRUSTED_HOSTS, is_loopback_host, lane_for_host
 from daedalus.spine.ledger import SpineLedger
 
 ATTEMPT_KIND = "attempt.candidate"
+
+#: Anchored on THIS file, never on ``web_api.__file__``. The subprocess
+#: checks below run with this as their cwd, so deriving it from the module
+#: under test moved the cwd down with the module -- into
+#: ``daedalus/interfaces``, where the sibling package ``http`` shadows the
+#: standard library and ``from http.server import ...`` fails at import.
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 # --------------------------------------------------------------------------- #
@@ -774,9 +781,9 @@ class LocalOnlySurfaceTest(LoopApiTestCase):
                    "PYTHONIOENCODING": "utf-8"}
             proc = subprocess.run(
                 [sys.executable, "-c",
-                 "import sys, daedalus.web_api as w;"
+                 "import sys, daedalus.interfaces.http.web_api as w;"
                  " print(w.DaedalusHandler.server_version)"],
-                cwd=str(Path(web_api.__file__).resolve().parents[1]),
+                cwd=str(REPO_ROOT),
                 capture_output=True, encoding="utf-8", errors="replace",
                 timeout=180, env=env)
             self.assertEqual(proc.returncode, 0, proc.stderr[-500:])
@@ -875,7 +882,7 @@ class NonLoopbackBindIsRefusedTest(unittest.TestCase):
             proc = subprocess.run(
                 [sys.executable, "-m", "daedalus.cli", "web",
                  "--host", "0.0.0.0", "--port", str(port)],
-                cwd=str(Path(web_api.__file__).resolve().parents[1]),
+                cwd=str(REPO_ROOT),
                 capture_output=True, encoding="utf-8", errors="replace",
                 # A refusal returns immediately. The only way this deadline is
                 # reached is a server that started and is now serving, so the

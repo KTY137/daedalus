@@ -15,7 +15,7 @@ import subprocess
 from pathlib import Path
 from unittest import mock
 
-from daedalus.loop import IterationResult, LoopBounds, LoopDriver, LoopReport
+from daedalus.orchestration.loop import IterationResult, LoopBounds, LoopDriver, LoopReport
 
 REPO_ROOT = str(Path(__file__).resolve().parents[1])
 
@@ -124,7 +124,7 @@ def test_governance_about_this_checkout_is_left_alone(tmp_path, monkeypatch):
 
 
 def test_ledger_detail_carries_the_capability(tmp_path):
-    from daedalus.loop import LoopLedger
+    from daedalus.orchestration.loop import LoopLedger
 
     ledger = LoopLedger(tmp_path / "ledger.json", trace_id="tr-test")
     ledger.record("cand-1", outcome="clean", iteration=0,

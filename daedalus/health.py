@@ -1573,11 +1573,11 @@ def _p_bench_crashes(ctx: Ctx) -> Report:
 @probe("context.latent_seed",
        asks="does the weight the planner puts on latent memory describe anything?")
 def _p_latent(ctx: Ctx) -> Report:
-    plan_path = ctx.repo_root / "daedalus" / "context_plan.py"
+    plan_path = ctx.repo_root / "daedalus" / "orchestration" / "context_plan.py"
     try:
         import inspect
 
-        from . import context_plan
+        from .orchestration import context_plan
         weight = inspect.signature(
             context_plan.fuse_seed_scores).parameters["latent_weight"].default
     except Exception as exc:                     # noqa: BLE001
@@ -1627,10 +1627,10 @@ def _p_route(ctx: Ctx) -> Report:
     ``keyword_fallback`` means the latent half could not be used -- so a
     fallback is degraded here rather than a quiet success.
     """
-    path = ctx.repo_root / "daedalus" / "semantic_route.py"
+    path = ctx.repo_root / "daedalus" / "orchestration" / "semantic_route.py"
     if not path.exists():
         return absent("route.latent", f"{_rel(path)} is not present")
-    callers = production_importers("daedalus.semantic_route", ctx.repo_root)
+    callers = production_importers("daedalus.orchestration.semantic_route", ctx.repo_root)
     wiring = [measured("production callers",
                        ", ".join(callers) if callers else "NONE")]
     if not callers:
@@ -1645,7 +1645,7 @@ def _p_route(ctx: Ctx) -> Report:
                        f"(~7s cold, see --deep)", wiring,
                        remedy="python -m daedalus.health --deep --only route")
     try:
-        from .semantic_route import FALLBACK, semantic_route_explained
+        from .orchestration.semantic_route import FALLBACK, semantic_route_explained
         t0 = time.time()
         result = semantic_route_explained(PROBE_TEXT, [],
                                           repo_root=str(ctx.repo_root))
@@ -1730,7 +1730,7 @@ def _p_room(ctx: Ctx) -> Report:
 CAPABILITY_MODULES = (
     "daedalus.spine.containment",
     "daedalus.spine.cancel",
-    "daedalus.semantic_route",
+    "daedalus.orchestration.semantic_route",
     # "daedalus.compaction" was here until 2026-07-29, when it was DELETED
     # rather than wired. It was not merely uncalled -- it was superseded. The
     # only place in the repo that accumulates a message list, the Ollama
@@ -1741,7 +1741,7 @@ CAPABILITY_MODULES = (
     # hardcoded 30_000. Wiring it into the one plausible caller would have
     # REPLACED a measured guard with a guess. See the deletion commit.
     "daedalus.memory.embeddings",
-    "daedalus.context_plan",
+    "daedalus.orchestration.context_plan",
 )
 
 #: Directories that are not the product: a test importing a module is exactly

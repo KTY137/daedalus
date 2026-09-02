@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 import pytest
 
-from daedalus import ikarus_supervisor as supervisor_module
+from daedalus.orchestration import ikarus_supervisor as supervisor_module
 from daedalus.ignition import gate1
-from daedalus.ikarus_supervisor import (
+from daedalus.orchestration.ikarus_supervisor import (
     MissionSupervisor,
     PlannedItem,
     RoleHarness,

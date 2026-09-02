@@ -31,7 +31,7 @@ from daedalus.council.vendors import (
     CouncilAdapter,
     RunResult,
 )
-from daedalus.projects import list_projects, resolve_repo_root
+from daedalus.foundation.projects import list_projects, resolve_repo_root
 from daedalus.spine.cancel import DEFAULT_GRACE_S
 from daedalus.spine.killswitch import KillSwitch, LoopHalted
 
@@ -348,7 +348,7 @@ def _required(mapping: Mapping[str, Any], key: str) -> Any:
 def load_config(path: str | Path) -> FleetConfig:
     """Load and validate one explicit JSON configuration.
 
-    Project roots come only from :mod:`daedalus.projects`; the JSON cannot
+    Project roots come only from :mod:`daedalus.foundation.projects`; the JSON cannot
     smuggle an arbitrary checkout into the experiment.
     """
 

@@ -33,7 +33,7 @@ python -m daedalus.doctor          # must say READY
 
 ```powershell
 python -m daedalus.kairos.scheduler  # spawn plan: who'd run where
-python -m daedalus.benchmark       # projected token/cost picture
+python -m daedalus.orchestration.benchmark       # projected token/cost picture
 ```
 
 ## 4. First LIVE task — on a safe, low-risk target

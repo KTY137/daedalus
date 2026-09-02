@@ -1,6 +1,6 @@
 """The run brief, built as a graph instead of as a line.
 
-WHAT THIS IS. ``daedalus.runbook.create_run`` composes a run brief in four
+WHAT THIS IS. ``daedalus.orchestration.runbook.create_run`` composes a run brief in four
 steps: route the objective to one agent, build the pruned ``AgentTask``, open a
 ``RunState``, record the ``task_created`` event. That is a straight line, and it
 is written as one. This module expresses the *same four steps* as a LangGraph

@@ -19,7 +19,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from daedalus import file_bridge, memory, metrics, verifier
+from daedalus import file_bridge, memory, metrics
+from daedalus.orchestration import verifier
 from daedalus.providers.base import Provider, ProviderCapabilities
 from daedalus.sensitivity import (
     DEFAULT_POLICY,
@@ -30,7 +31,7 @@ from daedalus.sensitivity import (
     load_policy,
     path_write_blocked,
 )
-from daedalus.token_monitor import read_usage_samples, summarize_usage
+from daedalus.interfaces.cli.token_monitor import read_usage_samples, summarize_usage
 from daedalus.token_policy import MAX_PATHS_PER_REQUEST, trim_paths, trim_text
 
 
@@ -179,7 +180,7 @@ class VerifierHardeningTests(unittest.TestCase):
 
     def test_test_command_wiring_success(self):
         fake = SimpleNamespace(returncode=0, stdout="2 passed", stderr="")
-        with patch("daedalus.verifier.subprocess.run", return_value=fake) as run:
+        with patch("daedalus.orchestration.verifier.subprocess.run", return_value=fake) as run:
             res = verifier.verify(_report(), "/repo",
                                   test_command="pytest -q tests", test_cwd="/elsewhere")
         run.assert_called_once()
@@ -193,7 +194,7 @@ class VerifierHardeningTests(unittest.TestCase):
 
     def test_test_command_failure_and_default_cwd(self):
         fake = SimpleNamespace(returncode=1, stdout="1 failed", stderr="boom")
-        with patch("daedalus.verifier.subprocess.run", return_value=fake) as run:
+        with patch("daedalus.orchestration.verifier.subprocess.run", return_value=fake) as run:
             res = verifier.verify(_report(), "/repo", test_command="pytest -q")
         self.assertEqual(run.call_args.kwargs["cwd"], "/repo")  # falls back to repo_root
         self.assertFalse(res.ok)
@@ -240,7 +241,7 @@ class TokenMonitorParsingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log.jsonl"
             log.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            with patch("daedalus.token_monitor._iter_project_logs", return_value=[log]):
+            with patch("daedalus.interfaces.cli.token_monitor._iter_project_logs", return_value=[log]):
                 samples = read_usage_samples()
         self.assertEqual(len(samples), 2)
         self.assertEqual(samples[0].fresh_tokens, 16)  # 10 + 5 + 1, cache reads excluded
@@ -259,7 +260,7 @@ class TokenMonitorParsingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log.jsonl"
             log.write_text("[1, 2, 3]\n", encoding="utf-8")
-            with patch("daedalus.token_monitor._iter_project_logs", return_value=[log]):
+            with patch("daedalus.interfaces.cli.token_monitor._iter_project_logs", return_value=[log]):
                 with self.assertRaises(AttributeError):
                     read_usage_samples()
 

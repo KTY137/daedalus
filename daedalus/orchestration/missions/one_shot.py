@@ -12,17 +12,17 @@ from collections.abc import Mapping
 from datetime import datetime
 
 from daedalus.build import BuildSession
-from daedalus.ikarus_effect_bridge import (
+from daedalus.orchestration.ikarus_effect_bridge import (
     IkarusEffectBridgeRefused,
     build_oneshot_effect_execution_request,
     build_oneshot_effect_lease_request,
 )
-from daedalus.ikarus_oneshot import (
+from daedalus.orchestration.ikarus_oneshot import (
     OneShotRequest,
     OneShotRuntimeEvidenceBinding,
     OneShotRuntimeRefused,
 )
-from daedalus.ikarus_tool_scope import IkarusToolScopeProjection
+from daedalus.orchestration.ikarus_tool_scope import IkarusToolScopeProjection
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.schemas import MissionContract

@@ -1,4 +1,4 @@
-"""daedalus.dotenv -- fills gaps in os.environ from a .env file, and refuses
+"""daedalus.foundation.dotenv -- fills gaps in os.environ from a .env file, and refuses
 to load one git tracks.
 
 The git-tracked-file case uses a REAL git repo (skipped if git is not on
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.dotenv import DotEnvRefused, describe, load, parse
+from daedalus.foundation.dotenv import DotEnvRefused, describe, load, parse
 
 
 def _run(args, cwd):

@@ -522,7 +522,7 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
         # missing ceiling would cost the most, because it is the only one that
         # spends REPEATEDLY by design. Its bounds (iterations, wall-clock,
         # spend) are its own; the process guard is the floor under all three.
-        "daedalus/loop.py",
+        "daedalus/orchestration/loop.py",
         # WIDENED 2026-08-18 by the Gate-0 central-wiring migration: the
         # contract module itself now calls install_process_guard() inside
         # process_guard_boundary_decision(), the canonical way an entrypoint

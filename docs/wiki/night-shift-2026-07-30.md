@@ -25,7 +25,7 @@ harness's own external lane, under the egress fence. 244 reports, 1,226 claims,
 ## The defect: content substitution in rewrites
 
 Three modules silently destroyed. Agents were asked to rewrite one file; they
-returned another. A `daedalus/shift.py` rewrite request returned a test module.
+returned another. A `daedalus/interfaces/cli/shift.py` rewrite request returned a test module.
 Both guards were blind: truncation (test module was **39% larger**), and
 elision-marker (nothing was omitted, just the wrong file).
 

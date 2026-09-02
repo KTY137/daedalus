@@ -303,7 +303,7 @@ test.describe('cockpit', () => {
 
     /**
      * "status" is the one word that routes deterministically
-     * (daedalus/ikarus_os.py::classify -> SHELL_DETERMINISTIC), so this spec
+     * (daedalus/orchestration/ikarus_os.py::classify -> SHELL_DETERMINISTIC), so this spec
      * exercises the whole conversation path — stream, deltas, final envelope,
      * provenance stamp — without reaching a paid vendor. A test that spends
      * money to prove a text box works is a test nobody runs twice.
@@ -501,7 +501,7 @@ test.describe('cockpit', () => {
     /**
      * THE POINT. A row of one-shot answers looks identical to a conversation
      * until you reload. The backend has had a durable conversation store the
-     * whole time (daedalus/conversation.py); it simply had no caller.
+     * whole time (daedalus/orchestration/conversation.py); it simply had no caller.
      */
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('.talk-main')).toBeVisible({ timeout: 60_000 });

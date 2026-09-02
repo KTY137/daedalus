@@ -162,5 +162,5 @@ def test_legacy_package_defines_no_metadata_or_health_algorithm() -> None:
 
 def test_structure_packet_keeps_effect_registry_exact() -> None:
     assert registry_sha256() == (
-        "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+        "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
     )

@@ -159,7 +159,7 @@ def test_desktop_rust_shell_uses_loopback_and_owns_child_lifecycle() -> None:
 
 
 def test_desktop_backend_readiness_is_child_nonce_bound() -> None:
-    web_api = (ROOT / "daedalus" / "web_api.py").read_text(encoding="utf-8")
+    web_api = (ROOT / "daedalus" / "interfaces" / "http" / "web_api.py").read_text(encoding="utf-8")
     http_server = (
         ROOT / "daedalus" / "interfaces" / "http" / "server.py"
     ).read_text(encoding="utf-8")

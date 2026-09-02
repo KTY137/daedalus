@@ -177,14 +177,14 @@ def test_independent_submodule_and_web_import_do_not_require_campaigns():
     observed = _isolated_json(
         "import json, sys\n"
         "import daedalus.kernel.artifacts as artifacts\n"
-        "import daedalus.web_api as web_api\n"
+        "import daedalus.interfaces.http.web_api as web_api\n"
         "print(json.dumps({'artifact_owner': artifacts.ArtifactRef.__module__, "
         "'web': web_api.__name__, "
         "'campaign_loaded': 'daedalus.kernel.campaigns' in sys.modules}))\n"
     )
     assert observed == {
         "artifact_owner": "daedalus.kernel.artifacts",
-        "web": "daedalus.web_api",
+        "web": "daedalus.interfaces.http.web_api",
         "campaign_loaded": False,
     }
 

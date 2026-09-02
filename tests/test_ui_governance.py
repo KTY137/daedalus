@@ -32,7 +32,8 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
-from daedalus import core, web_api
+from daedalus import core
+from daedalus.interfaces.http import web_api
 
 REPO = Path(__file__).resolve().parents[1]
 EXTENSION_JS = REPO / "vscode-agent-env" / "extension.js"

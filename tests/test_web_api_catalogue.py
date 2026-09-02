@@ -6,7 +6,7 @@ made the route safe to add in the first place: it is a PURE READ.
 
 Why the purity assertion is not decoration: ``do_POST`` and ``do_PUT`` call
 ``effect_boundary.begin_effect`` with a registry row. ``do_GET`` has no row --
-there is no ``daedalus.web_api:DaedalusHandler.do_GET`` entry in
+there is no ``daedalus.interfaces.http.web_api:DaedalusHandler.do_GET`` entry in
 ``daedalus/spine/effect_boundary.py``. So every GET route must stay inside "no
 declared effect", and a route that opened the latent vector store, wrote a
 cache, or reached the network would be an UNDECLARED effect on an undeclared
@@ -27,7 +27,7 @@ def _get(path: str) -> dict:
     unmatched path falls through to ``_send_static``, so "static not called"
     is the proof that the route literal actually matched.
     """
-    from daedalus.web_api import DaedalusHandler
+    from daedalus.interfaces.http.web_api import DaedalusHandler
 
     handler = object.__new__(DaedalusHandler)
     handler.path = path

@@ -2,7 +2,7 @@
 
 This module decides whether bytes may leave the machine and validates the
 desktop parent nonce.  Socket creation and the registered CLI/effect doors stay
-in :mod:`daedalus.web_api`; this owner has no server, process, ledger, provider,
+in :mod:`daedalus.interfaces.http.web_api`; this owner has no server, process, ledger, provider,
 or network side effect at import time.
 """
 from __future__ import annotations

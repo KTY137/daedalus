@@ -35,7 +35,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus import ikarus_os
+from daedalus.orchestration import ikarus_os
 
 
 def _fake_codex_run(reply_text: str):
@@ -82,7 +82,7 @@ class DeepSeekUnitTest(unittest.TestCase):
 
 class CodexUnitTest(unittest.TestCase):
     def test_missing_cli_returns_none(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value=None):
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command", return_value=None):
             self.assertIsNone(ikarus_os._codex("hello"))
 
     def test_uses_read_only_sandbox_and_neutral_cwd(self):
@@ -92,7 +92,7 @@ class CodexUnitTest(unittest.TestCase):
             captured["args"] = args
             return _fake_codex_run("hi from codex")(args, **kwargs)
 
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             out = ikarus_os._codex("hello")
         self.assertEqual(out, "hi from codex")
@@ -103,7 +103,7 @@ class CodexUnitTest(unittest.TestCase):
         self.assertNotIn("--output-schema", args)  # freeform chat -> plain text, not a report schema
 
     def test_spawn_failure_returns_none(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch("subprocess.run", side_effect=OSError("no exec")):
             self.assertIsNone(ikarus_os._codex("hello"))
 
@@ -122,14 +122,14 @@ class UnconfiguredBrainTest(unittest.TestCase):
         self.assertIn("DEEPSEEK_API_KEY", res["assistant"])
 
     def test_codex_without_cli_gives_clear_message(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value=None):
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command", return_value=None):
             res = ikarus_os.ask(self.PROJECT, "hello there", provider="codex_cli")
         self.assertEqual(res["provider_used"], "codex_cli")
         self.assertNotEqual(res["provider_used"], "deterministic")
         self.assertIn("Codex CLI", res["assistant"])
 
     def test_unconfigured_reply_never_crashes_the_turn(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value=None):
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command", return_value=None):
             res = ikarus_os.ask(self.PROJECT, "hello", provider="codex_cli")
         self.assertTrue(res["ok"])
         # Intent remains the user's classified request; provider availability
@@ -148,7 +148,7 @@ class ConfiguredBrainAnswersTest(unittest.TestCase):
         self.assertEqual(res["assistant"], "hi from deepseek")
 
     def test_codex_configured_returns_reply(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch("subprocess.run", side_effect=_fake_codex_run("hi from codex")):
             res = ikarus_os.ask(self.PROJECT, "hello there", provider="codex_cli")
         self.assertEqual(res["provider_used"], "codex_cli")
@@ -179,7 +179,7 @@ class LaneSafetyTest(unittest.TestCase):
 
     def test_codex_uses_untrusted_lane(self):
         captured = {}
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch.object(ikarus_os, "_project_context", side_effect=self._capture_lane(captured)), \
              mock.patch("subprocess.run", side_effect=_fake_codex_run("ok")):
             ikarus_os.ask(self.PROJECT, "hello", provider="codex_cli")
@@ -214,7 +214,7 @@ class DeepSeekStreamTest(unittest.TestCase):
         self.assertIn("DEEPSEEK_API_KEY", evs[-1][1]["assistant"])
 
     def test_codex_never_streams_but_still_answers_via_blocking_fallback(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command", return_value="codex"), \
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command", return_value="codex"), \
              mock.patch("subprocess.run", side_effect=_fake_codex_run("hi from codex")):
             evs = list(ikarus_os.ask_stream(self.PROJECT, "hi", provider="codex_cli"))
         self.assertNotIn("delta", [e for e, _ in evs])

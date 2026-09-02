@@ -1,6 +1,6 @@
 """The latent route is WIRED: ``route_and_select`` actually reaches it.
 
-``daedalus/semantic_route.py`` was dead code -- importing every module in the
+``daedalus/orchestration/semantic_route.py`` was dead code -- importing every module in the
 package never pulled it in, and production routing went straight to
 ``router.route_task``. These tests pin the wiring itself, at the seam
 (:func:`daedalus.provider_router.route_and_select`) that ``offload`` calls.
@@ -39,7 +39,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from daedalus import semantic_route as sr
+from daedalus.orchestration import semantic_route as sr
 from daedalus.provider_router import (
     LATENT_DISABLED,
     LATENT_ENV,

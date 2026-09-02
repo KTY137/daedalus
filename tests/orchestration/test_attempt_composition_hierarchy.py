@@ -223,7 +223,7 @@ def test_all_live_attempt_callers_name_explicit_composition() -> None:
         "ignition": (ROOT / "daedalus" / "ignition" / "gate1.py").read_text(
             encoding="utf-8"
         ),
-        "supervisor": (ROOT / "daedalus" / "ikarus_supervisor.py").read_text(
+        "supervisor": (ROOT / "daedalus" / "orchestration" / "ikarus_supervisor.py").read_text(
             encoding="utf-8"
         ),
         "picker": (ROOT / "daedalus" / "spine" / "picker.py").read_text(
@@ -302,7 +302,7 @@ def test_registered_locator_anchor_digest_pickle_and_shim_are_unchanged() -> Non
     ]
     assert command_row.target == "daedalus.spine.attempt:command_gate"
     assert registry_sha256() == (
-        "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+        "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
     )
     assert pickle.loads(
         b"cdaedalus.spine.attempt\nTaskAttempt\n."

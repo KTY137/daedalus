@@ -3,16 +3,16 @@ from unittest.mock import patch
 
 from daedalus.claude_bridge import _blocked_report_from_wrapper, _extract_json, build_prompt
 from daedalus.file_bridge import _read_request
-from daedalus.fallback import fallback_decision
+from daedalus.orchestration.fallback import fallback_decision
 from daedalus.memory import MemoryEvent
 from daedalus.kairos.orchestrate import _infer_paths
 from daedalus.kairos.scheduler import KairosScheduler
-from daedalus.projects import list_projects, load_project, resolve_repo_root
+from daedalus.foundation.projects import list_projects, load_project, resolve_repo_root
 from daedalus.router import route_task
 from daedalus.status import _count_open_todos
 from daedalus.schemas import validate_report
 from daedalus.token_policy import STATIC_PROMPT_PREFIX, trim_paths, trim_text
-from daedalus.token_monitor import STATUS_PATH, UsageSample, checkpoint_if_needed, should_checkpoint, summarize_usage
+from daedalus.interfaces.cli.token_monitor import STATUS_PATH, UsageSample, checkpoint_if_needed, should_checkpoint, summarize_usage
 
 
 class DaedalusTests(unittest.TestCase):
@@ -123,7 +123,7 @@ class DaedalusTests(unittest.TestCase):
             "team": {"max_workers": 5, "active_agents": ["docs-dev"]},
             "policy": {},
         }
-        with patch("daedalus.projects.load_project", return_value=project_data):
+        with patch("daedalus.foundation.projects.load_project", return_value=project_data):
             ikarus = KairosScheduler(project="demo")
         self.assertEqual(ikarus.max_workers, 5)
         self.assertEqual(ikarus.active_agents, ["docs-dev"])

@@ -59,7 +59,7 @@ USAGE
     python tools/mutation_score.py --module daedalus/sensitivity.py \
         --tests tests/test_hardening.py tests/test_fence_anchoring.py
 
-    python tools/mutation_score.py --module daedalus/token_monitor.py \
+    python tools/mutation_score.py --module daedalus/interfaces/cli/token_monitor.py \
         --tests tests/test_agent_env.py --sample 12 --json out.json
 
     # falsification control for the SCORER ITSELF: drop a covering test and

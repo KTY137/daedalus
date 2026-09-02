@@ -20,7 +20,7 @@ from .interfaces.bridge import projection as bridge_projection
 from .interfaces.bridge import queue as bridge_queue
 from .interfaces.bridge import watcher as bridge_watcher
 from .memory import record_from_bridge_report
-from .projects import resolve_repo_root
+from .foundation.projects import resolve_repo_root
 from .spine import envelope
 
 
@@ -514,7 +514,7 @@ def _conversation_report_fields(
     DEGRADED. An unfamiliar terminal word stays UNKNOWN rather than becoming a
     sixth, accidentally-green state.
     """
-    from . import conversation
+    from .orchestration import conversation
     return bridge_projection.conversation_report_fields(
         key,
         report,
@@ -536,7 +536,7 @@ def _project_report_to_conversation(key: str, report: dict[str, Any]):
     returns the existing fact instead of appending a duplicate. No second
     ledger or file-journal marker decides authoritative event identity.
     """
-    from . import conversation
+    from .orchestration import conversation
 
     return bridge_conversation.project_report(
         key,

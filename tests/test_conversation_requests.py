@@ -5,8 +5,8 @@ import time
 
 import pytest
 
-from daedalus import conversation
-from daedalus import conversation_requests as requests
+from daedalus.orchestration import conversation
+from daedalus.orchestration import conversation_requests as requests
 
 
 def _wait_for(manager: requests.ConversationRequestManager, request_id: int,

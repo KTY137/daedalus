@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import inspect
 
-from daedalus import ikarus_os
+from daedalus.orchestration import ikarus_os
 from daedalus.limit_policy import ExecutionLimitPolicy
-from daedalus.llm_client import LLMSelection
+from daedalus.orchestration.llm_client import LLMSelection
 
 
 class _FakeClient:

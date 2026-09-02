@@ -110,7 +110,7 @@ def _spawn(argv: list[str]) -> None:
     import argparse
     import json
     from .kairos.scheduler import KairosScheduler
-    from .projects import resolve_repo_root
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus spawn",
@@ -175,7 +175,7 @@ def _build(argv: list[str]) -> None:
     import argparse
     import json
     from .build import plan_build
-    from .projects import resolve_repo_root
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus build",
@@ -222,7 +222,7 @@ def _init(argv: list[str]) -> None:
 
 
 def _projects(argv: list[str]) -> None:
-    from .projects import list_projects
+    from .foundation.projects import list_projects
     projects = list_projects()
     if not projects:
         print("no registered projects")
@@ -235,7 +235,7 @@ def _accelerators(argv: list[str]) -> None:
     import argparse
     import json
 
-    from .accelerators import accelerator_status
+    from .foundation.accelerators import accelerator_status
 
     parser = argparse.ArgumentParser(
         prog="daedalus accelerators",
@@ -278,8 +278,8 @@ def _context(argv: list[str]) -> None:
     import argparse
     import json
 
-    from .context_plan import plan_context
-    from .projects import load_project, resolve_repo_root
+    from .orchestration.context_plan import plan_context
+    from .foundation.projects import load_project, resolve_repo_root
     from .structcore.churn import co_change_pairs
     from .structcore.index import cached_index
 
@@ -362,8 +362,8 @@ def _agents(argv: list[str]) -> None:
     override under .agentenv/agents/; otherwise the built-in global agents/."""
     import argparse
     import json
-    from . import agents_registry as reg
-    from .projects import resolve_repo_root
+    from .orchestration import agents_registry as reg
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus agents",
@@ -453,8 +453,8 @@ def _categories(argv: list[str]) -> None:
     otherwise the built-in global agents/categories.json."""
     import argparse
     import json
-    from . import categories as cats
-    from .projects import resolve_repo_root
+    from .orchestration import categories as cats
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus categories",
@@ -1019,8 +1019,8 @@ def _claude_crew(argv: list[str]) -> None:
     import argparse
     import json
     from pathlib import Path
-    from .claude_detect import detect_claude_crew
-    from .projects import resolve_repo_root
+    from .foundation.claude_detect import detect_claude_crew
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus claude-crew",
@@ -1120,7 +1120,7 @@ def main() -> None:
     # the call cap, the declared subscription vendors -- is exactly the kind of
     # thing that belongs in `.env`. Loading after it would read the defaults and
     # silently ignore what the operator configured.
-    from .dotenv import DotEnvRefused, load as _load_dotenv
+    from .foundation.dotenv import DotEnvRefused, load as _load_dotenv
 
     try:
         _load_dotenv()
@@ -1152,7 +1152,7 @@ def main() -> None:
     elif cmd == "metrics":
         from .metrics import main as m; m()
     elif cmd == "benchmark":
-        from .benchmark import main as m; m()
+        from .orchestration.benchmark import main as m; m()
     elif cmd == "status":
         # The verdict is the point of this command, so it must reach the shell.
         # `m()` alone discarded it and every `daedalus status` looked like a
@@ -1201,7 +1201,7 @@ def main() -> None:
     elif cmd == "drafts":
         _drafts(rest)
     elif cmd == "selftest":
-        from .selftest import main as m; m(rest)
+        from .interfaces.cli.selftest import main as m; m(rest)
     elif cmd == "tokens":
         # Observability, not enforcement. It READS the budget ledger and the
         # intent spine and writes only its own report under memory/; the spend
@@ -1209,15 +1209,15 @@ def main() -> None:
         # here so the monitor is reachable the way every other verb is -- it
         # was registered on the effect boundary with no console door, which is
         # how a monitor ends up trusted and never run.
-        from .token_monitor import main as m; raise SystemExit(m(rest))
+        from .interfaces.cli.token_monitor import main as m; raise SystemExit(m(rest))
     elif cmd == "bookkeeper":
-        from .bookkeeper import main as m; m(rest)
+        from .interfaces.cli.bookkeeper import main as m; m(rest)
     elif cmd == "map":
         from .mapping.render import main as m; raise SystemExit(m(rest))
     elif cmd == "web":
-        from .web_api import main as m; m(rest)
+        from .interfaces.http.web_api import main as m; m(rest)
     elif cmd == "enforce":
-        from .enforce import main as m; m()
+        from .interfaces.cli.enforce import main as m; m()
     elif cmd == "improve":
         from .orchestration.execution import (
             attempt_ports,

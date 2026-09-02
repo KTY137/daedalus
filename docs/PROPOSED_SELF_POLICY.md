@@ -89,7 +89,7 @@ and a candidate patch is inert bytes a human applies. The decision is narrower:
     // accident.
     "high_risk_paths": [
       "daedalus/sensitivity.py",     // the egress fence and the secret floor
-      "daedalus/enforce.py",
+      "daedalus/interfaces/cli/enforce.py",
       "daedalus/budget.py",          // the spend ceiling
       "daedalus/spine/",             // attempt, containment, killswitch, ledger
       "daedalus/kairos/worktree.py", // the guarded deletes

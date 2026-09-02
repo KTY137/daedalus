@@ -12,9 +12,9 @@ on:
       - g1/ikarus-effect-bridge-06
       - main
     paths:
-      - "daedalus/ikarus_effect_bridge.py"
-      - "daedalus/ikarus_oneshot.py"
-      - "daedalus/ikarus_tool_scope.py"
+      - "daedalus/orchestration/ikarus_effect_bridge.py"
+      - "daedalus/orchestration/ikarus_oneshot.py"
+      - "daedalus/orchestration/ikarus_tool_scope.py"
       - "daedalus/runtimes/provider_executable_pre_admission.py"
       - "daedalus/runtimes/provider_executable_object_registry.py"
       - "daedalus/runtimes/provider_runtime_executable_binding.py"
@@ -91,9 +91,9 @@ jobs:
       - run: python -m pip install -e . pytest
       - run: >-
           python -m py_compile
-          daedalus/ikarus_effect_bridge.py
-          daedalus/ikarus_oneshot.py
-          daedalus/ikarus_tool_scope.py
+          daedalus/orchestration/ikarus_effect_bridge.py
+          daedalus/orchestration/ikarus_oneshot.py
+          daedalus/orchestration/ikarus_tool_scope.py
           daedalus/runtimes/provider_executable_pre_admission.py
           daedalus/runtimes/provider_executable_object_registry.py
           daedalus/runtimes/provider_runtime_executable_binding.py

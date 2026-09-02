@@ -187,7 +187,7 @@ class TheGraphBriefIsInjected(unittest.TestCase):
 
     def test_a_task_with_paths_gets_a_brief(self):
         task = F.FanoutTask(task_id="b", objective="q",
-                            paths=("daedalus/shift.py",))
+                            paths=("daedalus/interfaces/cli/shift.py",))
         F.fan_out([task], self.dir, repo_root=".", concurrency=1)
         self.assertTrue(self.briefs and self.briefs[0],
                         "a path-bearing task must carry structural context; "

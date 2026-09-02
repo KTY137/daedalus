@@ -19,7 +19,7 @@ obfuscation surface specifically.
 
 **Scope.** 1668 lines; consumers `daedalus/tools/inventory.py` (`vet_skill`,
 `vet_mcp_server`) and the `daedalus.tools` facade; contract neighbours
-`daedalus/skills.py`, `daedalus/sensitivity.py`.
+`daedalus/foundation/skills.py`, `daedalus/sensitivity.py`.
 
 ## Verdict
 

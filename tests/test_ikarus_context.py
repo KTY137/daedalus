@@ -20,7 +20,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus import ikarus_os
+from daedalus.orchestration import ikarus_os
 
 
 FAKE_PEM = (
@@ -200,7 +200,7 @@ class BrainLaneContextTest(unittest.TestCase):
             m.stdout = "ok"
             return m
 
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             reply, mdl, ctx = ikarus_os._llm("claude", "explain widget.py", None, "low", "p")
@@ -222,7 +222,7 @@ class BrainLaneContextTest(unittest.TestCase):
             return
 
         with mock.patch("daedalus.providers.ollama.warm_model_async", side_effect=fake_warm), \
-             mock.patch("daedalus.ikarus_os.chat_completion", side_effect=fake_chat):
+             mock.patch("daedalus.orchestration.ikarus_os.chat_completion", side_effect=fake_chat):
             reply, mdl, ctx = ikarus_os._llm("ollama", "explain widget.py", None, "low", "p")
 
         self.assertEqual(reply, "ok")
@@ -240,7 +240,7 @@ class BrainLaneContextTest(unittest.TestCase):
             return m
 
         # "hello there" has no dotted token -> _project_context short-circuits.
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             reply, mdl, ctx = ikarus_os._llm("claude", "hello there", None, "low", "p")

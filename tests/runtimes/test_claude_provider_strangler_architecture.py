@@ -25,7 +25,7 @@ PACKET_PATH = (
     "docs/work-packets/"
     "G1-RUNTIME-PROVIDER-01_CLAUDE_CONTRACT_STRANGLER.md"
 )
-REGISTRY_SHA256 = "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+REGISTRY_SHA256 = "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
 
 
 def _module_name(path: str) -> str:

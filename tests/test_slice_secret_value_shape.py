@@ -249,7 +249,8 @@ class SelfDistillabilityTests(unittest.TestCase):
         self._assert_source_not_floored("sensitivity.py")
 
     def test_token_machinery_source_not_floored(self):
-        for rel in ("token_policy.py", "token_monitor.py", "structcore/tokens.py"):
+        for rel in ("token_policy.py", "interfaces/cli/token_monitor.py",
+                    "structcore/tokens.py"):
             self._assert_source_not_floored(rel)
 
     def test_clones_source_not_floored(self):

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import arch_memory
+from daedalus.interfaces.cli import arch_memory
 from daedalus.hooks import __main__ as entry
 from daedalus.hooks import _common, events
 
@@ -325,7 +325,7 @@ def test_with_deadline_gives_up_and_says_which_answer_that_is() -> None:
 def test_a_hanging_clock_costs_the_budget_and_not_the_prompt(repo: Path, monkeypatch) -> None:
     import time as _time
 
-    from daedalus import shift as shift_mod
+    from daedalus.interfaces.cli import shift as shift_mod
 
     monkeypatch.setattr(events, "SHIFT_BUDGET_S", 0.05)
     monkeypatch.setattr(shift_mod, "load", lambda *a, **k: _time.sleep(30))
