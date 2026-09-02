@@ -126,6 +126,46 @@ def test_entry_count_limit_refuses_before_copying_records() -> None:
     assert entries.accessed is False
 
 
+def test_tensor_view_validates_entry_axis_bindings_positionally() -> None:
+    axes = (TensorAxis("alpha", ("a",)), TensorAxis("omega", ("z",)))
+    entry = SparseTensorEntry(
+        coordinates=(("alpha", "a"), ("omega", "z")),
+        relation="membership",
+        evidence_sha256s=("d" * 64,),
+    )
+
+    class IndexOnlyCoordinates(tuple):
+        def __iter__(self):  # type: ignore[no-untyped-def]
+            raise AssertionError("TensorView rebuilt a transient entry axis-name tuple")
+
+    object.__setattr__(entry, "coordinates", IndexOnlyCoordinates(entry.coordinates))
+    tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=axes,
+        entries=(entry,),
+        provenance=provenance(),
+    )
+
+    assert tensor.entries[0] is entry
+
+    object.__setattr__(entry, "coordinates", (("alpha", "a"),))
+    with pytest.raises(ValueError, match="every sparse entry must bind exactly the TensorView axes"):
+        TensorView(
+            repository_id="KTY137/daedalus",
+            source_revision=REVISION,
+            source_forest_sha256=FOREST,
+            source_fourfold_sha256=FOURFOLD,
+            status="complete",
+            axes=axes,
+            entries=(entry,),
+            provenance=provenance(),
+        )
+
+
 def test_tensor_view_avoids_full_axis_label_index_materialization() -> None:
     axis = TensorAxis("node", ("a", "m", "z"))
 
