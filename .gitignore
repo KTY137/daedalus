@@ -183,3 +183,4 @@ runs/analysis/**/*.py
 runs/analysis/**/tmp/
 runs/analysis/**/_scratch/
 runs/analysis/**/*.txt
+memory/events.local.jsonl.lock
