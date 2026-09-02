@@ -893,6 +893,21 @@ def _conversation_view(conversation_id: str, limit: int = LOOP_MAX_LIMIT) -> dic
     }
 
 
+def _conversation_list_view(project: str, limit: int = 20) -> list[dict[str, Any]]:
+    """Everything GET /api/conversations?project= serves: this project's
+    conversations from the canonical spine, newest first, every free-text
+    field clipped by the same bound the turn view uses. Read-only; minting a
+    conversation stays on the POST route and creation stays on the first
+    turn."""
+    from . import conversation as conv
+
+    rows = conv.default_store().list_conversations(project, limit=limit)
+    for row in rows:
+        row["first_message"] = _clip(row.get("first_message") or "")
+        row["last_message"] = _clip(row.get("last_message") or "")
+    return rows
+
+
 def _dispatch_status_view(task_id: str) -> dict[str, Any] | None:
     """The conversation timeline's OWN record for this dispatch, if any turn
     ever linked it (POST /api/queue's optional ``conversation_id``). ``None``
@@ -1093,6 +1108,7 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             ports=http_read.ReadPorts(
                 clip=_clip,
                 conversation_view=_conversation_view,
+                conversation_list_view=_conversation_list_view,
                 dispatch_status_view=_dispatch_status_view,
                 host_capabilities=_host_capabilities,
                 loop_architecture=_loop_architecture,
