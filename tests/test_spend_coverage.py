@@ -23,6 +23,7 @@ the moment a new one appears. The holes themselves are written up in
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -174,6 +175,49 @@ def _is_generated_source(path: Path, root: Path) -> bool:
     return relative.startswith(_GENERATED_SOURCE_PREFIXES)
 
 
+def _iter_census_python_files(root: Path):
+    """Every ``*.py`` under ``root`` that belongs to THIS checkout.
+
+    A directory holding its own ``.git`` entry is a DIFFERENT repository -- a
+    linked worktree (where ``.git`` is a file) or a nested clone (where it is a
+    directory) -- and every file inside it is a copy of some other checkout,
+    not a new door in this one. ``rglob`` cannot tell the difference, so it
+    counted the copies as fresh surprises.
+
+    MEASURED 2026-09-02 against the primary checkout, which carries six nested
+    checkouts (five under ``.claude/worktrees/agent-*`` plus one under
+    ``.daedalus_worktrees/``): descending into them invented 42 unguarded
+    entry-point "surprises" and 48 extra installers -- 42/42 and 48/48 of them
+    inside a nested checkout, every one a duplicate of a file already counted
+    here. Excluding nested repositories, both assertions are exactly satisfied.
+
+    A name-based entry in ``_SKIP_PARTS`` cannot express this: the two nesting
+    directories on this machine are named differently, and the next one will be
+    named something else again. So the census asks the filesystem where a
+    repository boundary is instead of guessing at directory names.
+
+    Untracked files are deliberately still scanned. Restricting the census to
+    ``git ls-files`` would kill the same class, but ``runs/`` and ``tools/``
+    scratch paths are not gitignored here, uncommitted code in this tree is
+    live for every session, and the threat this file detects is a runnable
+    process that reaches a paid vendor -- a surprising invoice does not wait
+    for ``git add``.
+
+    ``root`` itself is never tested for ``.git``, so the checkout being
+    censused stays in scope even though it is, of course, a repository.
+    """
+    root = Path(root)
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        dirnames[:] = [
+            name for name in dirnames
+            if name not in _SKIP_PARTS and not (here / name / ".git").exists()
+        ]
+        for name in filenames:
+            if name.endswith(".py"):
+                yield here / name
+
+
 def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
     """``{repo-relative path: installs_the_guard}`` for every file that is BOTH
     directly runnable (``python <file>``) and able to reach a paid vendor.
@@ -184,7 +228,7 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
     there today, which is exactly when a scope guard is worth installing.
     """
     out: dict[str, bool] = {}
-    for path in Path(root).rglob("*.py"):
+    for path in _iter_census_python_files(root):
         if any(part in _SKIP_PARTS for part in path.parts) or _is_generated_source(
             path, Path(root)
         ):
@@ -438,7 +482,7 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
     silently. If a second install site appears, the coverage story changed and
     docs/SPEND_AND_EGRESS_COVERAGE.md needs rewriting."""
     installers = set()
-    for path in Path(ROOT).rglob("*.py"):
+    for path in _iter_census_python_files(ROOT):
         if any(part in _SKIP_PARTS for part in path.parts) or _is_generated_source(
             path, ROOT
         ):
