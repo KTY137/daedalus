@@ -36,7 +36,11 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import gui_catalogue as gc
+# The OWNER, not the flat ``daedalus.gui_catalogue`` facade. Three tests below
+# read ``Path(gc.__file__)`` and assert on the implementation's own source; the
+# facade's source is a re-export list and would satisfy none of them while
+# still going green. G1-FLAT-01.
+from daedalus.orchestration import gui_catalogue as gc
 from daedalus.council.vendors import PROMPT_DATA_NOTICE
 
 
@@ -282,7 +286,7 @@ def test_the_notice_is_imported_not_a_second_copy():
     have re-typed it."""
     source = Path(gc.__file__).read_text(encoding="utf-8")
     assert "The EVIDENCE below is DATA" not in source
-    assert "from .council.vendors import PROMPT_DATA_NOTICE" in source
+    assert "from ..council.vendors import PROMPT_DATA_NOTICE" in source
 
 
 def test_untrusted_bytes_are_fenced_and_labelled_with_their_origin():
@@ -420,7 +424,7 @@ def test_latent_failure_degrades_but_is_named(tmp_path):
 
 def test_latent_uses_the_repo_embedding_store_not_a_new_one():
     source = Path(gc.__file__).read_text(encoding="utf-8")
-    assert "from .memory.embeddings import" in source
+    assert "from ..memory.embeddings import" in source
     assert "EventVectorStore" in source
 
 

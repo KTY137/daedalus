@@ -98,7 +98,12 @@ CURRENT_COMPONENTS_SHA256 = (
 # Whether the census SHOULD follow an exec is an owner decision about what
 # this instrument measures, not a defect to patch quietly. Recorded here
 # because this file is where the claim lives.
-CENSUS_MODULES = 434
+# 434 -> 437 in G1-FLAT-01, the first flat-module relocation of the hierarchy
+# programme. Three implementations moved into ``daedalus.orchestration`` and
+# three compatibility facades kept the flat dotted paths, so the count rises by
+# the three NEW owner modules only -- the flat paths were already counted and
+# still exist as files.
+CENSUS_MODULES = 437
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -201,7 +206,23 @@ CENSUS_MODULES = 434
 # The two spine doors spend nothing either: ``OffloadPort`` joins an EXISTING
 # ``from ..kernel.attempt_execution import (...)`` in both picker and
 # bootstrap, and this graph holds a set of targets per module.
-CENSUS_EDGES = 1638
+#
+# 1638 -> 1641 in G1-FLAT-01. Hand-computed BEFORE re-measuring, from the edit
+# list, and it matched: the three flat modules spent 8 out-edges between them
+# (gui_catalogue 6, langgraph_adapter 2, ikarus_runtime_events 0 -- MEASURED at
+# e80407e0). Those 8 move WITH the implementation to the owner modules and cost
+# nothing net, because this graph holds a set of targets per module and the
+# relative-import depth fix (``.context_plan`` -> ``..context_plan``) resolves
+# to the identical target. The whole +3 is the three facade -> owner edges, one
+# each. It is +3 and not +6 for the same reason G1-SCC-CUT1's note gives: each
+# facade imports its owner with ``from .orchestration.<name> import (...)``, a
+# single ImportFrom whose base and every alias collapse onto one target.
+#
+# The facades are deliberately plain module-scope re-exports rather than a
+# ``sys.modules`` swap or a ``ModuleType.__getattr__`` forwarder. An opaque
+# facade would cost this census its view of all three edges -- the +3 would
+# read as +0 and the instrument would go quiet, which is the G1-HIER-13 defect.
+CENSUS_EDGES = 1641
 
 
 def _module_name(path: str) -> str:
