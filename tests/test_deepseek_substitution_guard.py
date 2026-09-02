@@ -211,6 +211,43 @@ class InventedImports(unittest.TestCase):
     def test_unparsable_content_is_left_to_another_guard(self):
         self.assertEqual(_unresolved_first_party_imports("def (:::", self.root), [])
 
+    def test_a_real_name_behind_a_module_alias_is_left_alone(self):
+        """``daedalus/spine/envelope.py`` is twelve lines that end with
+        ``sys.modules[__name__] = _owner``. Read literally its exports are
+        ``{_sys, _owner}``, so this import looked invented -- MEASURED
+        2026-09-01 at 4efa2a53, that single misreading plus the forwarding
+        facade on ``daedalus.spine.attempt`` accounted for all 134 offenders
+        below. Both names resolve at runtime and always did."""
+        self.assertEqual(
+            _unresolved_first_party_imports(
+                "from daedalus.spine.envelope import canonical_json, canonical_sha\n",
+                self.root), [])
+        self.assertEqual(
+            _unresolved_first_party_imports(
+                "from daedalus.spine.ledger import SpineLedger, _uri_path\n",
+                self.root), [])
+
+    def test_an_invented_name_behind_a_module_alias_is_still_caught(self):
+        """The red proof against the REAL aliases, not a fixture.
+
+        Following an alias has to buy precision, not silence: a reader taught
+        to resolve through ``sys.modules[__name__] = _owner`` could just as
+        easily have been taught to stop judging those locators, which would
+        have handed every module behind one a free pass. The owner does not
+        define these, so the legacy locator does not either."""
+        for line, wanted in (
+            ("from daedalus.spine.envelope import canonical_jsonn\n",
+             "canonical_jsonn"),
+            ("from daedalus.spine.ledger import SpineLedgerManager\n",
+             "SpineLedgerManager"),
+            ("from daedalus.spine.durability import verify_durability\n",
+             "verify_durability"),
+        ):
+            with self.subTest(line=line):
+                bad = _unresolved_first_party_imports(line, self.root)
+                self.assertTrue(bad)
+                self.assertIn(wanted, bad[0])
+
     def test_no_false_positives_across_the_real_tree(self):
         """The control that decides whether this gate can be switched on at all.
         A gate with false positives costs twice: the work is discarded AND the

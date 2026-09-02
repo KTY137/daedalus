@@ -21,7 +21,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 __all__ = [
     "BASELINE",
@@ -159,16 +159,609 @@ def _module_path(root: Path, dotted: str) -> Path | None:
     return None
 
 
-def _exports(path: Path) -> tuple[frozenset[str], bool]:
+#: How many alias hops :func:`_exports` will follow. The tree uses exactly one
+#: (``daedalus/spine/*.py`` -> ``daedalus/kernel/events/*.py``); the bound is
+#: here so that a cycle -- A aliasing B aliasing A -- terminates instead of
+#: recursing until the interpreter does it for us.
+_MAX_ALIAS_HOPS = 4
+
+
+def _alias_target(tree: ast.Module) -> str | None:
+    """The dotted module a file hands its own locator to, or ``None``.
+
+    Recognises exactly one construct, the module alias::
+
+        import sys as _sys
+        from daedalus.kernel.events import ledger as _owner
+        _sys.modules[__name__] = _owner
+
+    After that statement runs, ``daedalus.spine.ledger`` IS the owner module
+    object: every name the owner defines resolves through the old locator, and
+    nothing this file's own body defines is reachable at all.
+
+    MEASURED 2026-09-01 at 4efa2a53. Without this, :func:`_exports` read
+    ``daedalus/spine/envelope.py`` literally and reported its exports as
+    ``{_sys, _owner}``, so ``unresolved_first_party_imports`` refused 134 real
+    committed files for importing names that demonstrably resolve at runtime --
+    ``'daedalus.spine.envelope' does not define 'canonical_json'`` and 21 more
+    of that shape. That is the failure mode this module already learned once
+    from namespace packages (see :func:`_module_path`): a gate with false
+    positives costs twice, because the work is discarded AND everyone is taught
+    to ignore the gate.
+
+    Deliberately narrow, because a reader taught to follow aliases can be taught
+    to follow too much. All of these must hold:
+
+    * the assignment is at MODULE scope -- a swap inside a function or an ``if``
+      is not this construct and is not followed;
+    * the subscripted object is ``<sys>.modules`` where ``<sys>`` is a name this
+      same file bound to the real :mod:`sys` module, or a bare ``modules`` bound
+      by ``from sys import modules``;
+    * the key is literally ``__name__``, not some other module's name -- writing
+      into another entry of ``sys.modules`` is a different act and is not an
+      alias for THIS locator;
+    * the right-hand side is a plain name that this same file bound with an
+      import, so the target is statically known.
+
+    Anything else returns ``None`` and the file is read literally, as before.
+    """
+    imports = _module_scope_imports(tree)
+    target: str | None = None
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        dest, value = node.targets[0], node.value
+        if not isinstance(value, ast.Name):
+            continue
+        if not _is_own_sys_modules_slot(dest, imports):
+            continue
+        # Last one wins, exactly as it would at runtime.
+        target = imports.modules.get(value.id)
+    return target
+
+
+#: The two hooks that let a type answer with a name no reader of a module's top
+#: level can enumerate. ``__getattr__`` is the one this tree uses; a custom
+#: ``__getattribute__`` intercepts even more.
+_DYNAMIC_ATTRIBUTE_HOOKS = frozenset({"__getattr__", "__getattribute__"})
+
+#: Attribute names the import machinery writes into EVERY file-backed module's
+#: ``__dict__`` before any user code can observe it. Reading one off a genuine
+#: module object therefore CANNOT reach a PEP 562 ``__getattr__`` -- module
+#: ``__getattr__`` is consulted only when normal ``__dict__`` lookup fails --
+#: so it is the one attribute load :func:`_installs_dynamic_module_protocol`
+#: can prove executes no user code. The real facade needs exactly this: its
+#: last statement is ``_module.__file__ = _owner.__file__``.
+#:
+#: MEMBERSHIP IS THE ARGUMENT, not the description that motivates it.
+#: ``__path__`` sat here for one round because "the import machinery writes
+#: it" is true -- of PACKAGES. MEASURED 2026-09-02: it is the one name of the
+#: seven absent from a plain module's ``__dict__`` and present on a package,
+#: so reading it off a non-package misses the dict and fires exactly the
+#: ``__getattr__`` this set exists to prove unreachable. The security review's
+#: fifth round ran arbitrary code through it, in both binding spellings.
+#: ``test_the_machinery_dunder_set_holds_its_own_argument`` now checks every
+#: member against a plain module rather than against a sentence.
+_IMPORT_MACHINERY_DUNDERS = frozenset({
+    "__name__", "__file__", "__doc__", "__package__",
+    "__loader__", "__spec__",
+})
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    """One file under two spellings?
+
+    ``Path.samefile`` compares OS file identity, which is what the question
+    actually is: on this case-insensitive filesystem ``Case_Self.py`` and
+    ``case_self.py`` are the same file, and 8.3 short names and directory
+    junctions produce still more spellings a string comparison cannot see.
+    When the OS cannot answer, the answer is "same" -- the caller then refuses
+    to treat the pair as an alias hop, which is the closed direction.
+    """
+    try:
+        return a.samefile(b)
+    except OSError:
+        return True
+
+
+def _installs_dynamic_module_protocol(tree: ast.Module, root: Path) -> bool:
+    """Does this file put a name-SYNTHESIZING type on its own module object?
+
+    Recognises the second construct in this tree, ``daedalus/spine/attempt.py``::
+
+        class _AttemptFacade(ModuleType):
+            def __getattr__(self, name): return getattr(_owner, name)
+
+        _module = sys.modules[__name__]
+        _module.__class__ = _AttemptFacade
+
+    After that, attribute lookup on ``daedalus.spine.attempt`` can answer with
+    names no reader of this file's top level can enumerate, so :func:`_exports`
+    reports ``opaque``.
+
+    That is not a new concession. The gate already grants exactly this to the
+    eleven modules in the tree that spell the same thing as a module-level
+    ``def __getattr__`` (PEP 562). MEASURED 2026-09-01: without this branch the
+    gate refused 34 real committed files with 24 distinct messages, every one of
+    them ``'daedalus.spine.attempt' does not define '<a forwarded name>'``.
+
+    The ``__getattr__`` requirement is the whole rule, and it is here because an
+    earlier version of this function did not have it. ADVERSARIAL REVIEW
+    2026-09-02 broke that version with nine lines::
+
+        class _Facade(ModuleType):
+            pass
+        def real_function():
+            return 1
+        sys.modules[__name__].__class__ = _Facade
+
+    An ordinary, working, non-crashing module -- and every invented import from
+    it was accepted, because retyping alone was read as "unjudgeable". It is
+    not: a ``ModuleType`` subclass with no hook forwards NOTHING, the module's
+    own top level is still the whole truth, and ``from that import invented``
+    raises ``ImportError`` at runtime. Requiring the hook puts this rule at
+    exactly the cost of the PEP 562 rule beside it and buys no new surface: a
+    file that wants to be unjudgeable has to actually install a forwarder, which
+    it could already do in one line at module scope.
+
+    The class must be a module-scope ``class`` statement in THIS file. An
+    imported or expression-valued class is not resolvable here, and treating an
+    unreadable one as a licence is the same mistake one paragraph up.
+
+    Following through to the owner instead of going opaque was rejected: it
+    would require proving statically that ``__getattr__`` forwards everything
+    and synthesizes nothing, which is exactly the claim a reader of a class body
+    cannot make.
+
+    FLOW-SENSITIVE, and that is the second correction. SECURITY REVIEW
+    2026-09-02 broke the first, name-based version of this function six ways --
+    a hook class shadowed by a same-named hookless one, the slot holder rebound
+    before the retype, the retype written before the slot binding, a chained
+    target rebound, a retype later undone, and a hook ``del``-eted in its own
+    class body. Every one was accepted as opaque while the runtime module ends
+    up plain (or never imports at all), because two unordered passes collected
+    "names that ever held the slot" and "names of classes that ever had a
+    hook". `_alias_target` already models last-write-wins for the swap; this
+    detector now walks the module body once, in statement order, tracking what
+    each name currently holds, and grants opacity only when a hook-bearing
+    retype of the module's own object is the SURVIVING state.
+
+    THE THIRD ROUND (2026-09-02) broke the second fix five ways, three root
+    causes, and each fix below carries its construct:
+
+    * ``class_has_surviving_hook`` was itself still a flat scan -- the exact
+      defect the module walk had just shed -- so a hook ``del``-eted or
+      overwritten inside an ``if`` IN THE CLASS BODY was invisible. Any
+      compound statement in a class body now kills hook survival at its
+      position; only a hook whose survival is provable from flat statements
+      counts.
+    * ``decorator_list`` was ignored: a decorator can replace the class
+      outright (measured -- a decorator returning plain ``ModuleType`` left
+      the runtime module untyped while the reader trusted the body's hook).
+      A decorated class binds as unknown, never as a class.
+    * ``hooked`` was the one piece of state no unmodelled statement reset.
+      ``kill_bound_names`` conservatively killed name BINDINGS, so the
+      "unknowns bias to refuse" claim was true of the env and FALSE of the
+      only output that matters: an eight-line module that retypes itself and
+      undoes it inside ``if 1:`` stayed opaque. Every statement shape the
+      walk does not fully model -- compound statements, ``Expr``, ``Assert``,
+      non-Name deletion/annotation/augmentation targets, and any
+      ``__class__`` store whose holder cannot be attributed to the slot --
+      now resets ``hooked`` to False as well.
+
+    THE FOURTH ROUND (2026-09-02) found the gap between round three's claim to
+    have "closed the adjacent import-time-execution family" and its dispatch
+    table: ``ast.Import`` and ``ast.ImportFrom`` were the only two branches that
+    never touched ``hooked``, and an import statement executes an ENTIRE MODULE
+    BODY while containing ZERO ``Call`` nodes, so the Call-based reset never
+    fired either. Four lines got an invented import past the gate --
+    ``import pkg.h``, ``from pkg import h``, ``from pkg.h import marker``, and
+    the subscript bound round three had documented as an exotic corner. The
+    reviewer's reading of that bound was right and mine was wrong: it is the
+    import hole wearing a different hat, because an ``ImportFrom`` is what puts
+    the malicious object in scope at all.
+
+    MEASURED, and it is why the fix is not the two instructed lines alone: in
+    that construct the import sits BEFORE the retype, so resetting ``hooked``
+    at the import does not close it -- and the same attack one keystroke away
+    (``EVIL.__file__`` instead of ``EVIL[0]``) shows that closing subscripts
+    alone would have been theatre. The Call heuristic is therefore replaced by
+    an INERTNESS WHITELIST: after a retype, ``hooked`` survives only statements
+    whose every expression is provably incapable of running user code --
+    constants, name loads, and a single narrow attribute case. A whitelist is
+    the right shape for a guard because new syntax defaults to "not inert",
+    i.e. to refusing.
+
+    The one attribute case is sound rather than convenient: reading an
+    import-machinery dunder (``__file__`` and friends) off a name this file
+    bound to a **module that resolves under** ``root`` cannot reach a PEP 562
+    ``__getattr__``, because the import machinery has already put that name in
+    the module ``__dict__`` and module ``__getattr__`` runs only when
+    ``__dict__`` lookup fails. That is exactly the shape the real facade in
+    ``daedalus/spine/attempt.py`` ends with, and a fixture pins it.
+
+    The bias is uniform: anything unprovable costs the ACCEPT, never the
+    refusal.
+    """
+    hooked = False
+    env: dict[str, object] = {}
+    _SELF, _SYS, _MODULES, _MODULE, _OTHER = (
+        "self", "sys", "modules", "module", "other")
+
+    def is_own_slot(node: ast.expr) -> bool:
+        if not isinstance(node, ast.Subscript):
+            return False
+        key = node.slice
+        if not isinstance(key, ast.Name) or key.id != "__name__":
+            return False
+        table = node.value
+        if (isinstance(table, ast.Attribute) and table.attr == "modules"
+                and isinstance(table.value, ast.Name)
+                and env.get(table.value.id) is _SYS):
+            return True
+        return isinstance(table, ast.Name) and env.get(table.id) is _MODULES
+
+    def value_of(node: ast.expr) -> object:
+        if is_own_slot(node):
+            return _SELF
+        if isinstance(node, ast.Name):
+            return env.get(node.id, _OTHER)
+        return _OTHER
+
+    def class_has_surviving_hook(node: ast.ClassDef) -> bool:
+        # Last-write-wins inside the class body too, and ORDER- and
+        # SCOPE-honest after round three: a compound statement (``if``,
+        # ``for``, ``try``, ...) in a class body can delete or overwrite the
+        # hook where a flat scan cannot see it, so it kills survival at its
+        # position. Only a hook whose survival is provable from the flat
+        # statements after the last unprovable one counts.
+        state = False
+        for member in node.body:
+            if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if member.name in _DYNAMIC_ATTRIBUTE_HOOKS:
+                    state = True
+            elif isinstance(member, ast.Delete):
+                for target in member.targets:
+                    if (isinstance(target, ast.Name)
+                            and target.id in _DYNAMIC_ATTRIBUTE_HOOKS):
+                        state = False
+            elif isinstance(member, ast.Assign):
+                for target in member.targets:
+                    if (isinstance(target, ast.Name)
+                            and target.id in _DYNAMIC_ATTRIBUTE_HOOKS):
+                        state = False
+            elif isinstance(member, ast.AnnAssign):
+                if (isinstance(member.target, ast.Name)
+                        and member.target.id in _DYNAMIC_ATTRIBUTE_HOOKS):
+                    state = False
+            elif isinstance(member, (ast.Expr, ast.Pass)):
+                pass    # docstrings and no-ops cannot unbind a method
+            else:
+                state = False
+        return state
+
+    def kill_bound_names(node: ast.stmt | ast.expr) -> None:
+        # Fail-closed default for unmodelled statements: whatever names they
+        # bind (loop variables, walrus targets, ``with ... as`` names) lose
+        # any tracked meaning, so a stale ``self``/class binding can never
+        # survive a construct this walk did not understand.
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+                env[child.id] = _OTHER
+            elif isinstance(child, ast.NamedExpr) and isinstance(
+                    child.target, ast.Name):
+                env[child.target.id] = _OTHER
+
+    def inert_load(node: ast.expr | None) -> bool:
+        """Can evaluating this expression run no user code at all?
+
+        A WHITELIST, so that syntax this reader has never heard of defaults to
+        "not inert" and therefore to refusing. Everything absent -- calls,
+        subscripts, comprehensions, f-strings, operators, walruses, awaits --
+        can reach ``__getitem__``, ``__getattr__``, a descriptor, or an
+        operator overload, any of which can undo a retype.
+        """
+        if node is None:
+            return True
+        if isinstance(node, ast.Constant):
+            return True
+        if isinstance(node, ast.Name):
+            return True
+        if isinstance(node, (ast.Tuple, ast.List)):
+            return all(inert_load(e) for e in node.elts)
+        if isinstance(node, ast.Attribute):
+            # The single narrow case, argued in the docstring: an
+            # import-machinery dunder is in a real module's ``__dict__``
+            # before any user code observes it, so this load cannot reach a
+            # PEP 562 ``__getattr__``. Both halves are required -- the
+            # attribute must be one of those dunders AND the base must be a
+            # name this file bound to a module that resolves under ``root``.
+            return (node.attr in _IMPORT_MACHINERY_DUNDERS
+                    and isinstance(node.value, ast.Name)
+                    and env.get(node.value.id) is _MODULE)
+        return False
+
+    def inert_store(node: ast.expr) -> bool:
+        """Is storing into this target free of user code?
+
+        A bare name always is: binding a local runs nothing.
+
+        An attribute store is allowed ONLY on the module's own slot, because a
+        store runs the target's ``__setattr__``. The previous version allowed
+        it on any Name, which the security review's fifth round turned into a
+        working bypass in one line: ``EVIL.anything = 1`` has an inert value
+        and an attribute target on a Name, so the whole statement was called
+        inert while ``_E.__setattr__`` undid the retype. That was the same
+        r4/r5 attack with LOAD replaced by STORE, and -- worse -- it sat
+        OUTSIDE the residual bound this packet had documented, which scoped
+        the ``__setattr__`` risk to the retyped module's own facade class.
+
+        Restricting to the own slot is exactly what the real facade's last
+        statement (``_module.__file__ = _owner.__file__``) needs and nothing
+        more, so the documented bound and the code now describe the same
+        surface.
+        """
+        if isinstance(node, ast.Name):
+            return True
+        if isinstance(node, ast.Attribute):
+            return value_of(node.value) is _SELF or is_own_slot(node.value)
+        return False
+
+    def statement_is_inert(node: ast.stmt) -> bool:
+        """Can executing this whole statement run no user code?
+
+        Imports are the reason this function exists: an import statement runs
+        an entire module body and contains no ``Call`` node, which is exactly
+        how the fourth review round walked past round three's heuristic.
+        """
+        if isinstance(node, ast.Pass):
+            return True
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            return False        # executes a whole module body
+        if isinstance(node, ast.ClassDef):
+            return False        # a class body executes at import time
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return (not node.decorator_list
+                    and all(inert_load(d) for d in node.args.defaults)
+                    and all(inert_load(d) for d in node.args.kw_defaults))
+        if isinstance(node, ast.Assign):
+            return (inert_load(node.value)
+                    and all(inert_store(t) for t in node.targets))
+        if isinstance(node, ast.AnnAssign):
+            return inert_load(node.value) and inert_store(node.target)
+        if isinstance(node, ast.Delete):
+            return all(isinstance(t, ast.Name) for t in node.targets)
+        return False
+
+    for node in tree.body:
+        # Any statement that is not PROVABLY inert may run an undo the walk
+        # cannot see, and it runs before the statement's own binding effect
+        # settles. The pre-dispatch reset makes that cost the standing
+        # opacity, while the dispatch below still decides what THIS statement
+        # proves -- so a retype whose RHS is a call proves nothing (its value
+        # is unknowable), while a clean retype after such a line still counts.
+        if hooked and not statement_is_inert(node):
+            hooked = False
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "sys":
+                    env[alias.asname or "sys"] = _SYS
+                elif alias.asname:
+                    # ``import a.b as c`` binds the module a.b to c.
+                    env[alias.asname] = _MODULE
+                else:
+                    # ``import a.b`` binds the top package ``a``.
+                    env[alias.name.split(".")[0]] = _MODULE
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                bound = alias.asname or alias.name
+                if (not node.level and node.module == "sys"
+                        and alias.name == "modules"):
+                    env[bound] = _MODULES
+                elif (not node.level and node.module
+                        and _module_path(root, f"{node.module}.{alias.name}")
+                        is not None):
+                    # ``from a.b import c`` where a.b.c is itself a module in
+                    # the tree binds a genuine module object. That, and only
+                    # that, is what makes an import-machinery dunder read off
+                    # this name provably free of user code.
+                    env[bound] = _MODULE
+                else:
+                    env[bound] = _OTHER
+        elif isinstance(node, ast.ClassDef):
+            # A class BODY executes at import time and may contain the undo;
+            # the walk does not descend into it looking for one, so a class
+            # statement after a retype costs the standing opacity.
+            hooked = False
+            if node.decorator_list:
+                # A decorator may replace the class with anything at all;
+                # what the BODY says about hooks proves nothing about the
+                # object this name ends up bound to.
+                env[node.name] = _OTHER
+            else:
+                env[node.name] = ("class", class_has_surviving_hook(node))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # Defining a function runs nothing -- unless its decorators or
+            # parameter defaults execute at def time.
+            if (node.decorator_list or node.args.defaults
+                    or any(d is not None for d in node.args.kw_defaults)):
+                hooked = False
+            env[node.name] = _OTHER
+        elif isinstance(node, ast.Assign):
+            rhs = value_of(node.value)
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    env[target.id] = rhs
+                elif (isinstance(target, ast.Attribute)
+                        and target.attr == "__class__"):
+                    if value_of(target.value) is _SELF:
+                        hooked = rhs == ("class", True)
+                    else:
+                        # A ``__class__`` store the walk cannot attribute to
+                        # the slot may still reach the module (e.g. through a
+                        # container). It cannot prove opacity and it may have
+                        # unproven it.
+                        hooked = False
+                        kill_bound_names(target)
+                else:
+                    kill_bound_names(target)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name):
+                env[node.target.id] = (
+                    value_of(node.value) if node.value is not None else _OTHER)
+            else:
+                hooked = False
+                kill_bound_names(node)
+        elif isinstance(node, ast.AugAssign):
+            if isinstance(node.target, ast.Name):
+                env[node.target.id] = _OTHER
+            else:
+                hooked = False
+                kill_bound_names(node)
+        elif isinstance(node, ast.Delete):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    env.pop(target.id, None)
+                else:
+                    hooked = False
+                    kill_bound_names(target)
+        elif isinstance(node, ast.Pass):
+            pass        # fully modelled: does nothing, undoes nothing
+        else:
+            # Everything else -- ``if``/``try``/``for``/``while``/``with``,
+            # ``Expr``, ``Assert``, ``Match`` -- may contain or invoke an
+            # undo the walk cannot see. It kills the bindings it stores AND
+            # the opacity flag: after round three, no unmodelled statement
+            # leaves ``hooked`` standing.
+            hooked = False
+            kill_bound_names(node)
+    return hooked
+
+
+@dataclass(frozen=True)
+class _ModuleScopeImports:
+    """What a file's module-scope imports bound, as far as ``ast`` can tell."""
+
+    sys_aliases: frozenset[str]
+    modules_aliases: frozenset[str]
+    modules: Mapping[str, str]
+
+
+def _module_scope_imports(tree: ast.Module) -> _ModuleScopeImports:
+    """Names bound by MODULE-SCOPE imports only.
+
+    Scope matters for both alias rules: an import nested in a function or an
+    ``if`` block does not establish the module-level binding the constructs
+    below rely on, so it is not collected.
+    """
+    sys_aliases: set[str] = set()
+    modules_aliases: set[str] = set()
+    modules: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "sys":
+                    sys_aliases.add(alias.asname or "sys")
+                elif alias.asname:
+                    modules[alias.asname] = alias.name
+        elif isinstance(node, ast.ImportFrom):
+            if node.level or not node.module:
+                continue
+            for alias in node.names:
+                if node.module == "sys" and alias.name == "modules":
+                    modules_aliases.add(alias.asname or "modules")
+                elif alias.name != "*":
+                    modules[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return _ModuleScopeImports(
+        frozenset(sys_aliases), frozenset(modules_aliases), modules)
+
+
+def _is_own_sys_modules_slot(node: ast.expr,
+                             imports: _ModuleScopeImports) -> bool:
+    """Is ``node`` the expression ``sys.modules[__name__]`` for THIS module?
+
+    The key must literally be ``__name__``. Reading or writing some other
+    module's ``sys.modules`` entry is a different act, and treating it as an
+    alias for this locator is precisely the "taught to follow too much" failure
+    these two rules have to avoid.
+    """
+    if not isinstance(node, ast.Subscript):
+        return False
+    key = node.slice
+    if not isinstance(key, ast.Name) or key.id != "__name__":
+        return False
+    table = node.value
+    if (isinstance(table, ast.Attribute) and table.attr == "modules"
+            and isinstance(table.value, ast.Name)
+            and table.value.id in imports.sys_aliases):
+        return True
+    return isinstance(table, ast.Name) and table.id in imports.modules_aliases
+
+
+def _exports(path: Path, root: Path,
+             _hops: int = _MAX_ALIAS_HOPS) -> tuple[frozenset[str], bool]:
     """(top-level names, opaque).
 
     ``opaque`` means static reading is not authoritative for this module -- it
     star-imports or defines a module-level ``__getattr__``, either of which can
     legitimately provide a name no reader can see.
+
+    A module that replaces its own ``sys.modules`` entry (see
+    :func:`_alias_target`) is read THROUGH to its owner, because that is what an
+    importer of the old locator actually gets. Following buys PRECISION, not
+    silence: an invented name is still refused for every module whose alias
+    target is readable, which is all three of them in this tree.
+
+    When the owner CANNOT be opened or parsed -- outside the tree, a
+    namespace-package directory, the file itself, unparsable text, or past
+    ``_MAX_ALIAS_HOPS`` -- the file is not treated as an alias at all and is
+    read literally, which in practice refuses. That direction is deliberate
+    and it is a correction, twice over. ADVERSARIAL REVIEW 2026-09-02 broke
+    the version that answered ``opaque`` there, three ways, all of them cheap:
+    a three-line module aliasing itself; a five-file chain ``a1 -> ... -> a5``
+    that exhausts the budget one hop before a perfectly readable terminal; and
+    an alias to a namespace-package directory, which this repository really
+    has two of (``tools`` and ``tests`` -- see :func:`_module_path`). The
+    SECOND review round added the unparsable owner: a UTF-8 BOM read as utf-8
+    leaves U+FEFF in the text, ``ast.parse`` refuses it, and the plain
+    recursive call inherited the top-level "unreadable file -> opaque"
+    fail-open, so a freshly written alias to a BOM'd file was accepted where
+    the base reader refused it. That top-level fail-open is pre-existing and
+    stays; a HOP no longer inherits it -- the owner is parsed *before* the
+    walk continues, and a parse failure means the aliasing file is judged on
+    what is provable, which is its own literal top level. Each of these turned
+    an honest "I cannot judge this owner" into a blanket accept for every
+    invented name behind it. A guard whose job is to refuse must not fail open
+    on the cases it cannot follow, and no module in this tree needs it to: all
+    three real aliases are one hop to a parsable ``.py`` file.
+
+    The self-comparison is by FILE IDENTITY (``Path.samefile``), not by path
+    spelling: on this case-insensitive filesystem ``pkg.Case_Self`` and
+    ``pkg/case_self.py`` are one file under two spellings, and 8.3 short names
+    and directory junctions offer more. An identity check the OS cannot answer
+    counts as "same", which refuses to follow -- the closed direction.
     """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
     except (OSError, SyntaxError, ValueError, RecursionError):
+        return frozenset(), True
+    if _hops > 0 and (alias := _alias_target(tree)) is not None:
+        owner = _module_path(root, alias)
+        if (owner is not None and owner.is_file()
+                and not _same_file(owner, path)):
+            try:
+                owner_tree = ast.parse(
+                    owner.read_text(encoding="utf-8", errors="replace"))
+            except (OSError, SyntaxError, ValueError, RecursionError):
+                owner_tree = None
+            if owner_tree is not None:
+                return _exports(owner, root, _hops - 1)
+        # The file names an owner this reader cannot open, parse, or
+        # distinguish from itself. It is then NOT treated as an alias and is
+        # read literally below.
+    if _installs_dynamic_module_protocol(tree, root):
         return frozenset(), True
     names: set[str] = set()
     opaque = False
@@ -339,7 +932,7 @@ def unresolved_first_party_imports(
             if path is None:
                 bad.append(f"module '{node.module}' does not exist")
                 continue
-            names, opaque = _exports(path)
+            names, opaque = _exports(path, root)
             if opaque:
                 continue
             for alias in node.names:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import dataclasses
 import inspect
 import sqlite3
@@ -140,34 +139,78 @@ def test_attempt_path_uses_pre_migration_factory(tmp_path, monkeypatch) -> None:
         ledger.spine.close()
 
 
+class _ProbeBase:
+    """Not ``object``: a direct ``object`` subclass also gets ``__dict__`` and
+    ``__weakref__`` descriptors, which the class under test inherits instead."""
+
+
+class _CompilerMetadataProbe(_ProbeBase):
+    """Shaped exactly like the class under test: a docstring and one method."""
+
+    def _apply_pragmas(self) -> None:  # pragma: no cover -- never called
+        raise NotImplementedError
+
+
+#: What CPython writes into ANY class body's ``__dict__`` on its own, MEASURED
+#: from the probe above instead of enumerated by hand.
+#:
+#: The hand-written list this replaces was ``{"__module__", "__doc__"}``, and it
+#: had been red since the day it was written (2026-08-04, bde0d0e1) on this
+#: repository's own interpreter: CPython 3.13 also emits ``__firstlineno__`` and
+#: ``__static_attributes__`` for every class, so the assertion was measuring the
+#: compiler, not the subclass. Adding those two names to the literal set would
+#: have gone green while re-arming the same trap for 3.14 -- and widening a
+#: guard's expected set until it passes is the shape AGENTS.md calls a
+#: release-blocking defect. Deriving the baseline keeps the claim the test
+#: actually makes: this subclass adds ONE method and nothing else.
+_COMPILER_METADATA = frozenset(_CompilerMetadataProbe.__dict__) - {"_apply_pragmas"}
+
+# Carried over from the packet that fixed this same defect independently
+# (G1-FIX-04, merged as 41e1b265): the probe may only ever excuse
+# interpreter-owned dunders. Two agents reached the derive-it-from-a-probe
+# answer without seeing each other's work, which is the strongest evidence
+# available that it is the right one -- but a probe is only as good as what
+# is allowed into it, and a future author who adds a real member here would
+# silently widen the guard instead of arming it.
+assert all(n.startswith("__") and n.endswith("__") for n in _COMPILER_METADATA), (
+    f"the probe excused a non-dunder: {sorted(_COMPILER_METADATA)}"
+)
+
+
 def test_factory_is_only_an_opening_profile_not_a_second_ledger_authority() -> None:
     subclass = durability._Gate0OpeningSpineLedger
     assert subclass.__bases__ == (SpineLedger,)
-
-    # Every class body gets interpreter-owned bookkeeping in ``__dict__``, and
-    # which names those are is a property of the running CPython, not of this
-    # repository (3.13 added ``__firstlineno__`` and ``__static_attributes__``).
-    # Derive that baseline from an empty control class instead of hardcoding it,
-    # so an interpreter bump cannot make this guard red for no reason -- and so
-    # it stays armed rather than being widened by hand each time.  ``__dict__``
-    # and ``__weakref__`` exist only because the probe has no base; the subject
-    # inherits them, so they are excluded and remain forbidden here.
-    class _EmptyProbe:
-        pass
-
-    interpreter_owned = set(_EmptyProbe.__dict__) - {"__dict__", "__weakref__"}
-    # The probe may only ever excuse interpreter dunders, never a real member.
-    assert all(
-        name.startswith("__") and name.endswith("__") for name in interpreter_owned
-    )
-
-    assert set(subclass.__dict__) - interpreter_owned - {"_apply_pragmas"} == set()
+    assert set(subclass.__dict__) - {"_apply_pragmas"} == _COMPILER_METADATA
+    assert "__init__" not in subclass.__dict__
     source = inspect.getsource(subclass._apply_pragmas)
     assert "super()._apply_pragmas()" in source
     assert source.count("PRAGMA synchronous=FULL") == 1
     assert "CREATE TABLE" not in source
     assert "record_intent" not in subclass.__dict__
     assert "_Gate0OpeningSpineLedger" not in durability.__all__
+
+
+def test_the_opening_profile_check_can_still_go_red() -> None:
+    """The red proof for the derived baseline one test up.
+
+    A baseline measured from the interpreter is only worth having if it still
+    refuses the thing the guard exists to refuse. This is the second ledger
+    authority the real subclass must never become; the same comparison rejects
+    it, and rejects it for the added member rather than for a dunder.
+    """
+
+    class _SecondLedgerAuthority(SpineLedger):
+        """A subclass that grew a write path of its own."""
+
+        def _apply_pragmas(self) -> None:  # pragma: no cover -- never called
+            raise NotImplementedError
+
+        def record_intent(self, *args, **kwargs):  # pragma: no cover
+            raise NotImplementedError
+
+    leaked = set(_SecondLedgerAuthority.__dict__) - {"_apply_pragmas"}
+    assert leaked != _COMPILER_METADATA
+    assert leaked - _COMPILER_METADATA == {"record_intent"}
 
 
 def test_factory_writer_remains_compatible_with_canonical_transactions(tmp_path) -> None:
@@ -183,7 +226,7 @@ def test_factory_writer_remains_compatible_with_canonical_transactions(tmp_path)
     finally:
         writer.close()
 
-    with contextlib.closing(sqlite3.connect(path)) as connection:
+    with sqlite3.connect(path) as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("SELECT COUNT(*) FROM intents").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM intent_events").fetchone()[0] == 2
