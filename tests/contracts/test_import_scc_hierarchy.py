@@ -54,6 +54,28 @@ CURRENT_COMPONENTS_SHA256 = (
 # cycle structure. Re-measure and update them in the packet that moves them;
 # the SCC claims below (count, maximum size, component digest, membership) are
 # the assertions that must not weaken.
+# EVERY NUMBER BELOW IS A LOWER BOUND, and the gap is measured, not feared.
+# `daedalus/kairos/gated_writes.py` executes a 65,009-byte git-blob-pinned
+# source file with `exec(compile(_retained_source_bytes, ...))`. No AST walk
+# sees the imports inside it -- including this one, which is why the graph
+# this file pins is smaller than the graph the interpreter builds.
+#
+# Measured 2026-09-02 by parsing the retained blob and adding its edges:
+#
+#     AST census (what this file asserts)   largest SCC = 18
+#     with the exec'd source's imports      largest SCC = 21
+#
+# Seven edges are reachable only through the blob (config, core,
+# kairos.scheduler, kairos.worktree, orchestration.execution, spine.attempt,
+# spine.killswitch), and three modules sit in the real cycle solely because of
+# them: eval.correctness, orchestration.execution, orchestration.execution
+# .attempts. A cut plan derived from the numbers here alone will therefore
+# over-promise -- the same cut that reads 18 -> 7 on this graph reads 18 -> 16
+# on the corrected one.
+#
+# Whether the census SHOULD follow an exec is an owner decision about what
+# this instrument measures, not a defect to patch quietly. Recorded here
+# because this file is where the claim lives.
 CENSUS_MODULES = 434
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
