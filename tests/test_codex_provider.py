@@ -47,14 +47,31 @@ def _completed(returncode=0, stdout="", stderr=""):
                                        stdout=stdout, stderr=stderr)
 
 
-def _write_last_message(payload_text):
+class _FakeCodex:
     """Side effect for the mocked subprocess.run: emulate `codex exec` writing
-    its final agent message to the --output-last-message file."""
-    def _side_effect(cmd, **kwargs):
+    its final agent message to the --output-last-message file, and record the
+    prompt it was handed.
+
+    The prompt arrives on the child's STDIN, not in argv (packet G1-SEC-01: a
+    Windows .cmd shim re-parses argv through cmd.exe). It is read here while
+    the handle is still open -- the provider's temp dir is gone by the time a
+    test inspects ``call_args``."""
+
+    def __init__(self, payload_text):
+        self.payload_text = payload_text
+        self.prompt = ""
+
+    def __call__(self, cmd, **kwargs):
         out_path = cmd[cmd.index("--output-last-message") + 1]
-        Path(out_path).write_text(payload_text, encoding="utf-8")
+        Path(out_path).write_text(self.payload_text, encoding="utf-8")
+        stdin = kwargs.get("stdin")
+        if hasattr(stdin, "read"):
+            self.prompt = stdin.read().decode("utf-8")
         return _completed(0)
-    return _side_effect
+
+
+def _write_last_message(payload_text):
+    return _FakeCodex(payload_text)
 
 
 class CodexProviderRunTests(unittest.TestCase):
@@ -91,6 +108,10 @@ class CodexProviderRunTests(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--sandbox") + 1], "workspace-write")
         self.assertIn("--skip-git-repo-check", cmd)
         self.assertIn("--output-schema", cmd)
+        # PROMPT is "-": codex reads the instructions from stdin, so no argv
+        # element carries model/user text into the .CMD shim's cmd.exe relay.
+        self.assertEqual(cmd[-1], "-")
+        self.assertNotIn("Daedalus Bridge Protocol v1.", " ".join(cmd))
         self.assertEqual(run.call_args.kwargs.get("cwd"), self.repo)
         self.assertEqual(run.call_args.kwargs.get("timeout"), 5)
 
@@ -150,9 +171,10 @@ class CodexProviderRunTests(unittest.TestCase):
     def test_unbounded_policy_removes_timeout_token_and_path_hint_caps(self):
         paths = [f"docs/note-{index}.md" for index in range(20)]
         policy = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)
+        fake = _write_last_message(json.dumps(VALID_REPORT))
         with patch(
             "daedalus.providers.codex_cli.subprocess.run",
-            side_effect=_write_last_message(json.dumps(VALID_REPORT)),
+            side_effect=fake,
         ) as run:
             out = self._run(
                 paths=paths,
@@ -161,7 +183,7 @@ class CodexProviderRunTests(unittest.TestCase):
             )
 
         self.assertIsNone(run.call_args.kwargs["timeout"])
-        prompt = run.call_args.args[0][-1]
+        prompt = fake.prompt
         self.assertIn(paths[-1], prompt)
         self.assertNotIn("Minimize tokens:", prompt)
         self.assertIn("unabridged detail", prompt)
@@ -176,21 +198,23 @@ class CodexProviderRunTests(unittest.TestCase):
             mode=MODE_CUSTOM,
             configured=LimitAxes(work_scope=False),
         )
+        unbounded = _write_last_message(json.dumps(VALID_REPORT))
         with patch(
             "daedalus.providers.codex_cli.subprocess.run",
-            side_effect=_write_last_message(json.dumps(VALID_REPORT)),
-        ) as run:
+            side_effect=unbounded,
+        ):
             self._run(paths=paths, execution_limit_policy=work_scope_off)
-        unbounded_scope_prompt = run.call_args.args[0][-1]
+        unbounded_scope_prompt = unbounded.prompt
         self.assertIn(paths[-1], unbounded_scope_prompt)
         self.assertIn("Minimize tokens:", unbounded_scope_prompt)
 
+        bounded = _write_last_message(json.dumps(VALID_REPORT))
         with patch(
             "daedalus.providers.codex_cli.subprocess.run",
-            side_effect=_write_last_message(json.dumps(VALID_REPORT)),
+            side_effect=bounded,
         ) as run:
             self._run(paths=paths)
-        bounded_prompt = run.call_args.args[0][-1]
+        bounded_prompt = bounded.prompt
         self.assertNotIn(paths[-1], bounded_prompt)
         self.assertIn(paths[11], bounded_prompt)
         self.assertEqual(run.call_args.kwargs["timeout"], 5)

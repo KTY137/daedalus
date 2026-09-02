@@ -40,6 +40,20 @@ The gate runs in dry-run mode too. A dry run is a rehearsal of the live call, no
 a bypass: if a body would be refused live it is refused dry, so a preview can
 never show an operator a comment the gate would not actually post.
 
+ARGV GATE
+---------
+The comment body never was in argv (it goes on stdin via ``--body-file -``),
+but the ``pr`` reference and ``repo`` slug were, as bare ``str()`` coercions.
+Two things now stand between them and ``gh``: they must match
+:data:`_GH_REFERENCE_RE` (which starts alphanumeric, so a value cannot be read
+as an option), and the positional is emitted after a ``--`` end-of-options
+separator. MEASURED against gh 2.98.0: flag parsing happens BEFORE the auth
+check, ``-- 1 2`` is rejected as "accepts at most 1 arg(s), received 2", and
+``-- 1 --json title`` counts THREE positionals -- i.e. gh really does stop
+parsing flags at ``--``, so the positional is a positional by construction.
+A refusal is a status (``unsafe_argument``), never an exception, and it fires
+in dry run too.
+
 DUCK-TYPED INPUTS
 -----------------
 ``verdict`` and ``transcript`` are read structurally (attribute OR dict key, with
@@ -60,6 +74,7 @@ stdin keeps the payload equally inspectable by a fake runner.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -85,16 +100,17 @@ STATUS_PR_NOT_FOUND = "pr_not_found"      # no such PR (or no access to it)
 STATUS_RATE_LIMITED = "rate_limited"      # primary/secondary rate limit or abuse detection
 STATUS_BAD_PAYLOAD = "bad_payload"        # gh exited 0 but its JSON was unparseable
 STATUS_GH_ERROR = "gh_error"              # explicit catch-all: gh failed for another reason
+STATUS_UNSAFE_ARGUMENT = "unsafe_argument"  # pr/repo value refused; gh never invoked
 
 PUBLISH_STATUSES: frozenset[str] = frozenset({
     STATUS_PUBLISHED, STATUS_DRY_RUN, STATUS_REFUSED_SECRET, STATUS_GH_MISSING,
     STATUS_GH_UNAUTHENTICATED, STATUS_PR_NOT_FOUND, STATUS_RATE_LIMITED,
-    STATUS_GH_ERROR,
+    STATUS_GH_ERROR, STATUS_UNSAFE_ARGUMENT,
 })
 READ_STATUSES: frozenset[str] = frozenset({
     STATUS_READ_OK, STATUS_REFUSED_SECRET, STATUS_GH_MISSING,
     STATUS_GH_UNAUTHENTICATED, STATUS_PR_NOT_FOUND, STATUS_RATE_LIMITED,
-    STATUS_BAD_PAYLOAD, STATUS_GH_ERROR,
+    STATUS_BAD_PAYLOAD, STATUS_GH_ERROR, STATUS_UNSAFE_ARGUMENT,
 })
 STATUSES: frozenset[str] = PUBLISH_STATUSES | READ_STATUSES
 
@@ -600,8 +616,63 @@ def screen_egress(channels: Mapping[str, str],
     return None
 
 
-def _gh_argv(base: list[str], repo: str | None) -> list[str]:
-    return base + (["--repo", str(repo)] if repo else [])
+# --------------------------------------------------------------------------- #
+# argv safety -- packet G1-SEC-01, finding F-W1-02                             #
+# --------------------------------------------------------------------------- #
+#: What a ``pr`` reference or ``repo`` slug is allowed to look like. Must START
+#: alphanumeric, which is the leading-dash guard: ``gh pr view --foo`` reads as
+#: a flag, not as a PR. The rest of the class covers every legitimate form --
+#: ``7``, ``feature/branch``, ``owner/repo``, ``ghe.example.com/owner/repo``,
+#: ``https://github.com/owner/repo/pull/7`` -- and nothing else. Excluded on
+#: purpose: whitespace and newlines, quotes, and ``& | < > ^ % $ ` \``.
+#:
+#: Two distinct risks, one rule:
+#:
+#: * FLAG CONFUSION is host-independent -- a value starting with ``-`` is read
+#:   by gh's own parser as an option wherever it runs.
+#: * SHIM REINTERPRETATION needs ``gh`` to be a ``.CMD``. On this box it is not
+#:   (MEASURED 2026-09-02: ``shutil.which("gh")`` -> ``...\\GitHub CLI\\gh.EXE``,
+#:   ``gh.cmd`` -> ``None``), but the resolution is per-host: gh installed by
+#:   scoop/npm IS a shim, and then Windows routes it through ``cmd.exe`` even
+#:   with ``shell=False``, where ``"`` and ``%`` are not inert. This class of
+#:   value has no legitimate reason to contain either, so refusing costs
+#:   nothing and does not depend on guessing the operator's package manager.
+_GH_REFERENCE_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:/~+-]*\Z")
+
+
+def gh_reference_refusal(label: str, value: Any) -> str | None:
+    """Reason to refuse a gh ``pr``/``repo`` value, or None when it is safe.
+
+    Never raises and never echoes the whole value: the refusal names the field
+    and the first offending character, so an operator can fix a typo without a
+    log line reproducing whatever was passed in.
+    """
+    text = _text(value)
+    if not text:
+        return None  # empty is "not given"; the callers map that to pr_not_found
+    if _GH_REFERENCE_RE.match(text):
+        return None
+    if text[0] == "-":
+        return (f"{label} starts with '-', so gh would parse it as an option "
+                f"rather than a value")
+    bad = next((c for c in text if not _GH_REFERENCE_RE.match("a" + c)), text[0])
+    return (f"{label} contains {bad!r}, which is not allowed in a PR reference "
+            f"or repository slug")
+
+
+def _gh_argv(base: list[str], repo: str | None, pr: Any = None) -> list[str]:
+    """Assemble a gh argv. Values MUST already have passed
+    :func:`gh_reference_refusal` -- this builder cannot report a refusal
+    (it returns an argv, not a status), so the two entrypoints screen first.
+
+    ``pr`` is placed after a ``--`` end-of-options separator so it is a
+    positional by construction and not merely by charset."""
+    argv = list(base)
+    if repo:
+        argv += ["--repo", str(repo)]
+    if pr is not None:
+        argv += ["--", _text(pr)]
+    return argv
 
 
 def _classify_failure(result: RunResult) -> tuple[str, str]:
@@ -767,6 +838,17 @@ def publish_to_pr(verdict: Any,
                     f"to GitHub; the bus remains the canonical record."),
         )
 
+    # ARGV GATE. Before the dry-run exit on purpose: a dry run is a rehearsal
+    # of the live call, so a reference that would be refused live is refused in
+    # the preview too, exactly as the secret floor above is.
+    for label, value in (("PR reference", pr), ("repository slug", repo)):
+        why = gh_reference_refusal(label, value)
+        if why:
+            return PublishResult(
+                status=STATUS_UNSAFE_ARGUMENT,
+                detail=f"refused before building the gh argv: {why}. "
+                       f"gh was not invoked.")
+
     if dry_run:
         return PublishResult(status=STATUS_DRY_RUN, markdown=body,
                              detail="dry run: gh was not invoked")
@@ -777,7 +859,7 @@ def publish_to_pr(verdict: Any,
             detail="no PR reference given; nothing to comment on")
 
     run = runner or _subprocess_runner
-    argv = _gh_argv(["gh", "pr", "comment", _text(pr), "--body-file", "-"], repo)
+    argv = _gh_argv(["gh", "pr", "comment", "--body-file", "-"], repo, pr)
     result = run(argv, body)
     if result.returncode != 0:
         status, detail = _classify_failure(result)
@@ -807,12 +889,19 @@ def read_pr_thread(pr: str | int = "",
         return ThreadResult(
             status=STATUS_REFUSED_SECRET,
             detail=f"secret floor fired on {channel}: {rule}. gh was not invoked.")
+    for label, value in (("PR reference", pr), ("repository slug", repo)):
+        why = gh_reference_refusal(label, value)
+        if why:
+            return ThreadResult(
+                status=STATUS_UNSAFE_ARGUMENT,
+                detail=f"refused before building the gh argv: {why}. "
+                       f"gh was not invoked.")
     if not _text(pr):
         return ThreadResult(status=STATUS_PR_NOT_FOUND,
                             detail="no PR reference given; nothing to read")
 
     run = runner or _subprocess_runner
-    argv = _gh_argv(["gh", "pr", "view", _text(pr), "--json", "comments"], repo)
+    argv = _gh_argv(["gh", "pr", "view", "--json", "comments"], repo, pr)
     result = run(argv, None)
     if result.returncode != 0:
         status, detail = _classify_failure(result)
