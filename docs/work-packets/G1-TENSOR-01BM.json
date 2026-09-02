@@ -1,0 +1,77 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BM",
+  "title": "Bisect canonical TensorView entries for coordinate indexing",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BL",
+  "campaign_issue": 239,
+  "base_revision": "831be61a8b683f6307789847c1f88824b3c454ff",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView entries are already canonicalized and sorted during construction, but index_coordinate() still used tuple membership and therefore linearly scanned up to the full retained sparse-entry sequence before projecting the coordinate to integer axis positions. The lookup repeated work over an ordering invariant the TensorView already owns.",
+  "primary_claim": "TensorView.index_coordinate() now reuses the exact canonical entry ordering and bisect_left to locate a retained entry without a full membership scan. Exact retained-entry equality remains the acceptance boundary, so foreign entries still fail closed; source Forest/Fourfold authority, Tensor wire semantics, projection status, provenance and canonical ordering remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py"
+    ],
+    "added": [
+      "tests/twin/test_tensor_index_coordinate_lookup.py",
+      "docs/work-packets/G1-TENSOR-01BM.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 95,
+    "code_test_deletions": 13,
+    "production_additions": 25,
+    "production_deletions": 13,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse and centralize the canonical TensorView entry-order key already required by construction, then bisect the immutable ordered tuple. Do not add a label/entry cache, lookup index, service, alternate tensor representation, planner or backend.",
+  "acceptance": [
+    "construction and coordinate indexing use one canonical entry-order definition",
+    "index_coordinate locates retained entries with bisect_left over the canonical ordered entry tuple instead of tuple membership",
+    "an adversarial 256-entry probe rejects linear membership and bounds integer-index reads to the binary-search shape",
+    "a foreign entry with the same coordinate/relation but a different scalar value still fails closed",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured latency/memory improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "35c11a30451d720c66cb9127c732fb549ab2c008",
+    "code_test_revision": "0184e32fdf9193ac70aec2cae44835c1ea0ce2f1",
+    "production_blob": "bea7d56f6975509f332f82f240cdff08ccbeae37",
+    "focused_test_blob": "d2d802a0b136661337802f1b0be3c22e02682f61",
+    "fourfold_v2_run": 33640112182,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 0184e32fdf9193ac70aec2cae44835c1ea0ce2f1",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 0184e32fdf9193ac70aec2cae44835c1ea0ce2f1. The source diff and adversarial read probe establish binary search over the existing canonical TensorView entry order and removal of the previous full tuple-membership scan shape. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BM commits; Fourfold/Forest authority, Tensor wire contracts, canonical entry ordering and the prior linear index_coordinate membership behavior remain otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
