@@ -1,0 +1,75 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BG",
+  "title": "Avoid full TensorView axis-label index materialization",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BF",
+  "campaign_issue": 239,
+  "base_revision": "f90e3c7fecc9af6d61bb8ba192b1e832acf19022",
+  "finding": "TensorView.__post_init__ duplicated every canonical sorted axis label into a transient nested label-to-index dictionary before validating sparse entries and sorting them. With up to 16 axes and 100000 labels per axis this construction scaled transient retained state with all declared labels even when the sparse entry set touched only a tiny subset. The module already had binary lookup over canonical sorted labels for coordinate indexing.",
+  "primary_claim": "TensorView construction now reuses the canonical sorted axis label tuples directly and performs exact binary lookup with bisect_left for entry validation and ordering. It no longer creates a full auxiliary label-index mapping. Fourfold/Forest source identity, tensor status, provenance, duplicate-claim refusal, canonical ordering and public wire contracts remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_construction_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BG.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 36,
+    "code_test_deletions": 7,
+    "production_additions": 8,
+    "production_deletions": 7,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the already canonical, sorted TensorAxis.labels storage and the existing stdlib bisect dependency. Do not add an index cache, builder, alternate tensor type, lookup service, planner, store or backend abstraction merely to avoid the transient duplicate map.",
+  "acceptance": [
+    "TensorView validates entry labels without iterating every label merely to construct an auxiliary lookup map",
+    "entry canonical ordering remains derived from the exact canonical axis order",
+    "unknown labels, duplicate semantic claims, status/provenance drift and construction bounds continue to refuse through existing contracts",
+    "an adversarial tuple-compatible label container that forbids full iteration still permits valid TensorView construction and exact coordinate indexing",
+    "the affected Fourfold/Tensor contract matrix and isolated wheel execute successfully on the exact code/test revision",
+    "repository-wide CI evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, gate transition, measured memory-speedup or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "6113bebeca6e1843aec69f193f27d83c8f1c4425",
+    "code_test_revision": "15cfe1a860fa8ddd858487a011d44eb11264e919",
+    "production_blob": "3f45e16d27777d2a82f7f8b5adae3863d498b7a2",
+    "focused_test_blob": "38941621328cb04f022e0953405147247e1156da",
+    "fourfold_v2_run": 33601666963,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "contracts (3.10, 0): success with real checkout/install/test steps",
+      "contracts (3.10, 123456): success with real checkout/install/test steps",
+      "contracts (3.12, 0): success; designated bounded Tensor/Forest diagnostic is part of this matrix cell",
+      "contracts (3.12, 123456): success with real checkout/install/test steps",
+      "isolated-wheel: success",
+      "repository-collection: success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 15cfe1a860fa8ddd858487a011d44eb11264e919. The structural change removes an auxiliary label-index materialization, but no measured peak-memory, latency, Tensor-vs-Forest, or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BG commits; Forest/Fourfold authority, TensorView wire contracts, provenance identity and public product surfaces remain unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
