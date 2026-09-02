@@ -155,3 +155,12 @@ runs/watchdog/.work.lock
 runs/watchdog/ledger.json
 runs/watchdog/ledger.json.lock
 runs/watchdog/docs-commitmsg.txt
+
+# conport's MCP database, migrations and log. Tool state, 1.8 MB, rebuilt
+# on demand -- the knowledge it holds is projected from tracked sources.
+context_portal/
+
+# Fixed, crash-released offload-metrics OS-lock identity. Same reasoning as
+# the bridge and registry locks above: the file survives process exit by
+# design, only the ownership is transient.
+memory/offload_metrics.local.jsonl.lock
