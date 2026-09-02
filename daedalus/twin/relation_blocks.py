@@ -201,15 +201,15 @@ class TypedAxis:
         object.__setattr__(self, "name", _identifier(self.name, "axis.name"))
         if self.plane not in FOURFOLD_PLANES:
             raise ValueError(f"axis.plane must be one of {FOURFOLD_PLANES}")
-        labels = tuple(
+        labels = sorted(
             _label(item, f"axis.labels[{index}]")
             for index, item in enumerate(
                 _sequence(self.labels, "axis.labels", MAX_BLOCK_AXIS_LABELS)
             )
         )
-        if len(labels) != len(set(labels)):
+        if any(labels[index - 1] == labels[index] for index in range(1, len(labels))):
             raise ValueError("axis.labels must not contain duplicates")
-        object.__setattr__(self, "labels", tuple(sorted(labels)))
+        object.__setattr__(self, "labels", tuple(labels))
 
     @property
     def label_index(self) -> Mapping[str, int]:
