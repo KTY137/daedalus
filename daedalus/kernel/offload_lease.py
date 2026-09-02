@@ -1693,6 +1693,61 @@ def wave_containment_roots(
     return str(root), str(Path(planned).resolve())
 
 
+# --------------------------------------------------------------------------- #
+# receipt evidence is a CONTRACT FIELD, so the filesystem may not size it       #
+# --------------------------------------------------------------------------- #
+# MEASURED (G1-CHIP-01). ``PolicyDecision.reasons`` refuses any entry longer
+# than 1000 characters (``kernel/contracts/canonical.py::_sorted_strings``), and
+# ``spine/receipts.py`` renders every guard row into one of those entries as
+# ``f"{contract}: {evidence}"``. ``derive_wave_containment`` interpolated up to
+# five ABSOLUTE PATHS into one evidence string and the caller's mechanism was
+# appended after it, so the length of the deployment path decided whether a
+# refusal could be represented at all. Under a 92-character pytest
+# ``--basetemp`` the ``containment.attempt`` reason reached 1046 characters and
+# the contract raised: the structured REFUSAL became an unstructured
+# ``ValueError`` whose payload had no ``steps`` at all -- the guard's answer was
+# destroyed by the guard's own diagnostics.
+#
+# THE BOUND BELONGS AT THE MINT SITE. Truncating in ``spine/receipts.py`` or in
+# ``GuardDecision`` would bound every row in the system at once and hide this
+# whole class of overflow instead of fixing the rows that overflow; the renderer
+# would then be silently editing evidence it did not write.
+#
+# ELISION, NOT RELATIVISATION. These paths are asserted to be DISJOINT from one
+# another, so none of them is a legitimate base for the others -- rendering one
+# relative to another would state the containment relation that is the very
+# thing under test. The MIDDLE is dropped instead: a path's head names the
+# volume and its tail names the leaf, and those two are what identify which
+# directory overlapped.
+_EVIDENCE_PATH_MAX_CHARS = 90
+_EVIDENCE_DETAIL_MAX_CHARS = 200
+_CONTAINMENT_EVIDENCE_MAX_CHARS = 700
+_CONTAINMENT_MECHANISM_MAX_CHARS = 200
+
+
+def _elide_middle(text: str, limit: int) -> str:
+    """Bound *text* to *limit* characters by dropping its middle, never its ends.
+
+    ``...`` marks the cut, so an elided path cannot be misread as a real one.
+    Shorter text is returned unchanged, so the common case is verbatim evidence
+    and the bound is visible only where it actually bit.
+    """
+
+    if limit < 8:
+        raise ValueError("an evidence budget below 8 characters cannot elide")
+    if len(text) <= limit:
+        return text
+    keep = limit - 3
+    head = (keep + 1) // 2
+    return f"{text[:head]}...{text[len(text) - (keep - head):]}"
+
+
+def _evidence_path(value: object) -> str:
+    """One filesystem path, bounded, for a receipt evidence field."""
+
+    return _elide_middle(str(value), _EVIDENCE_PATH_MAX_CHARS)
+
+
 def derive_wave_containment(
     repo_root: str | Path,
     worktree_root: str | Path | None = None,
@@ -1750,18 +1805,30 @@ def derive_wave_containment(
             worktree_root_resolver=worktree_root_resolver,
         )
     except Exception as exc:  # noqa: BLE001 - unknown containment is no containment
-        return False, (
-            f"the isolation root for {root} could not be resolved "
-            f"({type(exc).__name__}: {exc}), so containment cannot be derived"
+        return False, _elide_middle(
+            f"the isolation root for {_evidence_path(root)} could not be "
+            f"resolved ({type(exc).__name__}: "
+            f"{_elide_middle(str(exc), _EVIDENCE_DETAIL_MAX_CHARS)}), so "
+            f"containment cannot be derived",
+            _CONTAINMENT_EVIDENCE_MAX_CHARS,
         )
     # A PLANNED directory: the manager creates it after the check, so it is
     # asked about the name it will land on, not about its existing ancestor
     # (which contains the checkout for every sibling root -- 57a2e7cb).
     overlap = planned_overlap_reason(Path(planned), root)
+    # Every path below goes through `_evidence_path`, and every already-composed
+    # sub-reason through `_elide_middle`, so the length of this evidence is a
+    # property of the CONTRACT and not of where the operator happened to check
+    # the tree out. The final `_elide_middle` on each return is the backstop: a
+    # sixth interpolation added later cannot reintroduce the 1046-character
+    # refusal that could not be represented.
+    shown_planned = _evidence_path(planned)
+    shown_root = _evidence_path(root)
     if overlap is not None:
-        return False, (
-            f"the attempt isolation root {planned} overlaps the primary "
-            f"checkout: {overlap}"
+        return False, _elide_middle(
+            f"the attempt isolation root {shown_planned} overlaps the primary "
+            f"checkout: {_elide_middle(overlap, _EVIDENCE_DETAIL_MAX_CHARS)}",
+            _CONTAINMENT_EVIDENCE_MAX_CHARS,
         )
     authority = (
         Path(authority_root).resolve() if authority_root is not None else None
@@ -1771,22 +1838,28 @@ def derive_wave_containment(
         # caller could name any throwaway subject and still land its writes
         # inside the installation.
         authority_overlap = planned_overlap_reason(Path(planned), authority)
+        shown_authority = _evidence_path(authority)
         if authority_overlap is not None:
-            return False, (
-                f"the attempt isolation root {planned} is disjoint from the "
-                f"subject checkout {root} but overlaps the AUTHORITY checkout "
-                f"{authority}: {authority_overlap}"
+            return False, _elide_middle(
+                f"the attempt isolation root {shown_planned} is disjoint from "
+                f"the subject checkout {shown_root} but overlaps the AUTHORITY "
+                f"checkout {shown_authority}: "
+                f"{_elide_middle(authority_overlap, _EVIDENCE_DETAIL_MAX_CHARS)}",
+                _CONTAINMENT_EVIDENCE_MAX_CHARS,
             )
-        return True, (
-            f"primary_tree.planned_overlap_reason({planned}, {root}) and "
-            f"({planned}, {authority}) are both None: worktrees allocated "
-            f"under {planned} land outside the subject checkout AND outside "
-            f"the authority checkout, in both directions"
+        return True, _elide_middle(
+            f"primary_tree.planned_overlap_reason({shown_planned}, "
+            f"{shown_root}) and ({shown_planned}, {shown_authority}) are both "
+            f"None: worktrees allocated under {shown_planned} land outside the "
+            f"subject checkout AND outside the authority checkout, in both "
+            f"directions",
+            _CONTAINMENT_EVIDENCE_MAX_CHARS,
         )
-    return True, (
-        f"primary_tree.planned_overlap_reason({planned}, {root}) is "
-        f"None: TaskAttempt worktrees allocated under {planned} land "
-        f"outside the primary checkout in both directions"
+    return True, _elide_middle(
+        f"primary_tree.planned_overlap_reason({shown_planned}, {shown_root}) is "
+        f"None: TaskAttempt worktrees allocated under {shown_planned} land "
+        f"outside the primary checkout in both directions",
+        _CONTAINMENT_EVIDENCE_MAX_CHARS,
     )
 
 
@@ -2684,7 +2757,14 @@ def _acquire_effect_lease_impl(
                 not containment_refusals,
                 "; ".join(containment_refusals)
                 if containment_refusals
-                else f"{derived_evidence}; caller mechanism: {declared_mechanism}",
+                # The mechanism is CALLER TEXT appended to issuer evidence
+                # inside one 1000-character contract field. Unbounded, it can
+                # push a derivation that fits over the edge and destroy the
+                # refusal it was meant to explain, so it carries its own budget.
+                else (
+                    f"{derived_evidence}; caller mechanism: "
+                    f"{_elide_middle(declared_mechanism, _CONTAINMENT_MECHANISM_MAX_CHARS)}"
+                ),
             )
         )
 

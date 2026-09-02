@@ -2623,14 +2623,27 @@ class TaskAttempt:
         from daedalus.budget import process_guard_boundary_decision
         from daedalus.spine.effect_boundary import GuardDecision
 
+        # ONE bound for containment evidence, shared with the issuer that mints
+        # the same family of rows. A guard row is rendered into
+        # `PolicyDecision.reasons`, which refuses an entry over 1000 characters,
+        # so an absolute path interpolated raw lets the checkout location decide
+        # whether a refusal can be represented (G1-CHIP-01, measured at 1046).
+        # Imported here, beside the other locals this method already needs, so
+        # the module's import surface is unchanged.
+        from daedalus.kernel.offload_lease import (
+            _EVIDENCE_DETAIL_MAX_CHARS,
+            _elide_middle,
+            _evidence_path,
+        )
+
         ledger_path = getattr(ledger, "path", None) or self._ledger_path
         ledger_decision = GuardDecision(
             "spine.intent_ledger",
             True,
-            f"gate-0 durable spine writer open at {ledger_path}; intent "
-            f"kind={INTENT_KIND!r} effect_key={self.effect_key!r} is committed "
-            "before the worktree and before the runner, so a crash leaves a "
-            "findable branch rather than an unrecorded effect",
+            f"gate-0 durable spine writer open at {_evidence_path(ledger_path)}; "
+            f"intent kind={INTENT_KIND!r} effect_key={self.effect_key!r} is "
+            "committed before the worktree and before the runner, so a crash "
+            "leaves a findable branch rather than an unrecorded effect",
         )
 
         # The root is a PLANNED directory: the manager creates it after this
@@ -2644,12 +2657,16 @@ class TaskAttempt:
             "containment.worktree",
             overlap is None,
             (
-                f"primary_tree.planned_overlap_reason({planned_root}, "
-                f"{self.repo_root}) is None: candidate checkouts land outside "
-                f"the primary checkout in both directions"
+                f"primary_tree.planned_overlap_reason("
+                f"{_evidence_path(planned_root)}, "
+                f"{_evidence_path(self.repo_root)}) is None: candidate "
+                f"checkouts land outside the primary checkout in both directions"
             )
             if overlap is None
-            else f"worktree root overlaps the primary checkout: {overlap}",
+            else (
+                f"worktree root overlaps the primary checkout: "
+                f"{_elide_middle(overlap, _EVIDENCE_DETAIL_MAX_CHARS)}"
+            ),
         )
 
         exposed = tuple(f.name for f in _fields(RunnerContext))
