@@ -1,0 +1,79 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BN",
+  "title": "Narrow TensorView prefix selectors without full entry scans",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BM",
+  "campaign_issue": 239,
+  "base_revision": "5ed6097cc1603cd122ed007170608ad6241c931a",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView.select() validated selectors against canonical axes but rebuilt an axis-name map on every call and then linearly scanned the entire retained sparse-entry tuple even when selectors fixed the leading coordinate axes. select() with no selectors also rebuilt an equal result tuple instead of reusing the immutable retained tuple.",
+  "primary_claim": "TensorView.select() now reuses the canonical sorted axis and entry orders. Empty selection returns the immutable retained entries tuple directly. Selectors that bind a contiguous leading axis prefix use bisect_left/bisect_right to bound the candidate interval before applying the existing exact predicate; non-prefix selectors retain the prior exact filtering semantics and fail-closed validation.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py"
+    ],
+    "added": [
+      "tests/twin/test_tensor_select_lookup.py",
+      "docs/work-packets/G1-TENSOR-01BN.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 145,
+    "code_test_deletions": 12,
+    "production_additions": 45,
+    "production_deletions": 12,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Exploit ordering already owned by TensorView rather than adding an entry index, selector cache, lookup service, alternate sparse representation or planner. Preserve full filtering for selectors that cannot be narrowed by the current canonical leading-axis order.",
+  "acceptance": [
+    "select() with no coordinates reuses the immutable retained entries tuple instead of rematerializing it",
+    "selector axis lookup reuses canonical sorted TensorView axes rather than materializing a full per-call axis-name map",
+    "a selector over the leading canonical axis bounds the candidate entry interval with binary search before exact filtering",
+    "an adversarial 512-entry probe refuses linear iteration or slicing and caps integer entry reads at 28 while selecting the final two-entry prefix",
+    "non-prefix selectors preserve exact filtering semantics",
+    "unknown axes and undeclared labels continue to fail closed",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured latency/memory improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "8101a1b7298f39390aaa38f5ef6cc9ee062e2c6c",
+    "code_test_revision": "a7187ae0ab3aae7bb59ea009754d00ac7da2136b",
+    "production_blob": "c2dc6d5a55fad3b3914eca92935c1c51d70a9b48",
+    "focused_test_blob": "28d29b8b6f81beafd683cece4beb524059015ebd",
+    "fourfold_v2_run": 33646413863,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision a7187ae0ab3aae7bb59ea009754d00ac7da2136b",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision a7187ae0ab3aae7bb59ea009754d00ac7da2136b. The source diff and adversarial read probe establish canonical-prefix narrowing, no full tuple iteration/slicing on that path, and direct reuse for unfiltered selection. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BN commits; Fourfold/Forest authority, Tensor wire contracts, canonical entry ordering and the prior full-scan select behavior remain otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
