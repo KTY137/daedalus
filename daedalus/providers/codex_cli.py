@@ -27,11 +27,51 @@ Flags used (grounded in ``codex exec --help``, codex-cli 0.144.1):
 * ``--output-last-message <FILE>``the final agent message (our report JSON)
 * ``--color never``               no ANSI noise in captured output
 * ``--model <MODEL>``             only when explicitly configured
+* ``-``                           PROMPT: read the instructions from stdin
 
 ``codex exec`` is the documented non-interactive mode; it never prompts for
 approval, so no approval flag is needed (``--ask-for-approval`` is only
 documented for the interactive CLI). Auth comes from ``codex login`` (run by
 the operator); this provider never triggers a login flow.
+
+THE PROMPT IS NEVER IN ARGV (packet G1-SEC-01, finding F-W1-01)
+---------------------------------------------------------------
+npm ships ``codex`` as a ``.CMD`` shim, and on this box that is the ONLY form
+it has (MEASURED 2026-09-02: ``shutil.which("codex")`` ->
+``...\\hermes\\node\\codex.CMD``; ``codex.exe`` -> ``None``, so preferring a
+native ``.exe`` -- what ``council.canary.resolve_exe`` does -- would not help
+here). Windows routes ``.cmd``/``.bat`` through ``cmd.exe`` EVEN WITH
+``shell=False``, and CPython's ``list2cmdline`` escapes for the MSVCRT argv
+parser, not for ``cmd.exe``. The prompt embeds ``objective``, which is
+model/user-influenced text. MEASURED on this box (CPython 3.13.5, real
+``.cmd`` shim, ``shell=False``):
+
+* an objective containing ``"`` unbalances the relay's outer quoting and every
+  following ``&``-separated token RUNS AS A COMMAND -- a canary file was
+  created by a payload passed only as a prompt argument;
+* ``%NAME%`` is expanded by ``cmd.exe`` BEFORE the child sees it, so the
+  process environment is substituted into a prompt that then leaves the
+  machine to OpenAI -- after :func:`classify_data` already screened the text;
+* a multi-line argument is CUT AT THE FIRST NEWLINE, which is how the whole
+  prompt used to arrive as its 28-character first line (the 2026-07-28
+  incident recorded in :mod:`daedalus.council.canary`, fixed there and not
+  here).
+
+So the prompt now travels on the child's stdin -- ``codex exec --help``
+(codex-cli 0.152.0, quoted live): "Initial instructions for the agent. If not
+provided as an argument (or if ``-`` is used), instructions are read from
+stdin." That is the same shape :mod:`daedalus.council.vendors` already runs
+against this binary, and stdin is a temp FILE rather than a pipe for its
+reason: a CLI that never drains stdin deadlocks the writer outside every
+timeout. A file handle also reaches EOF immediately, which is what the old
+``stdin=DEVNULL`` was protecting against.
+
+:func:`cmd_shim_refusal` then keeps the REMAINING argv honest: ``--cd`` takes a
+caller-supplied path and ``--model`` takes ``$CODEX_MODEL``. If a ``.cmd``/
+``.bat`` is being spawned and any argv element still carries a character the
+relay would not pass through as data, this provider REFUSES rather than let
+``cmd.exe`` reinterpret it. It is also what stops this fix from silently
+regressing: put the prompt back in argv and the spawn refuses.
 """
 
 from __future__ import annotations
@@ -42,7 +82,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from ..limit_policy import ExecutionLimitPolicy
 from ..runtimes.contracts.provider_report import REPORT_KEYS
@@ -91,6 +131,56 @@ REPORT_SCHEMA: dict[str, Any] = {
     "required": sorted(REPORT_KEYS),
     "additionalProperties": False,
 }
+
+
+#: Characters a Windows ``.cmd``/``.bat`` relay does NOT hand to the child as
+#: inert data. Split by what was actually measured, because a fail-closed guard
+#: that overstates its evidence is the kind of claim this repo treats as a
+#: defect:
+#:
+#: * DEMONSTRATED break-out on this box (CPython 3.13.5, real ``.cmd``,
+#:   ``shell=False``): ``"`` (arbitrary command execution -- canary file
+#:   created), ``%`` (environment expansion into the argument), ``\n``/``\r``
+#:   (the argument is truncated at the newline).
+#: * NOT demonstrated in isolation: ``& | < > ^``. Measured negative -- both a
+#:   quoted ``a & b`` and an unquoted ``a&b`` reached the child intact, because
+#:   the relay wraps the whole command line in its own quotes. They are refused
+#:   anyway: five probes are not a proof of safety, and the one thing that
+#:   makes them live (an unbalancing ``"``) is already in the set above.
+#:
+#: Refusing is a visible failure; being reinterpreted is a silent one.
+CMD_SHIM_METACHARACTERS: str = "\"%\r\n&|<>^"
+
+#: Executable suffixes that Windows routes through ``cmd.exe`` even when
+#: ``shell=False``. Compared case-insensitively (``which`` returns ``.CMD``).
+CMD_SHIM_SUFFIXES: tuple[str, ...] = (".cmd", ".bat")
+
+
+def cmd_shim_refusal(argv: Sequence[str]) -> str | None:
+    """Reason to refuse this spawn, or None when the argv is safe to pass.
+
+    Only fires when argv[0] resolves to a ``.cmd``/``.bat``: on a native
+    executable there is no ``cmd.exe`` in the path and nothing to reinterpret,
+    so the guard must not cost a POSIX host or an ``.exe`` install anything.
+
+    The reason names the argv POSITION and the offending character, never the
+    element's value -- ``--model`` comes from the environment and an argument
+    echoed into a report is an argument that can leak.
+    """
+    if not argv:
+        return None
+    exe = str(argv[0])
+    if not exe.lower().endswith(CMD_SHIM_SUFFIXES):
+        return None
+    for index, element in enumerate(argv):
+        for char in str(element):
+            if char in CMD_SHIM_METACHARACTERS:
+                return (
+                    f"argv element {index} contains {char!r}, which the Windows "
+                    f".cmd/.bat relay ({Path(exe).name}) would reinterpret "
+                    f"instead of passing through as data"
+                )
+    return None
 
 
 def build_prompt(
@@ -224,6 +314,12 @@ class CodexCLIProvider(Provider):
             schema_path = Path(td) / "report_schema.json"
             schema_path.write_text(json.dumps(REPORT_SCHEMA), encoding="utf-8")
             message_path = Path(td) / "last_message.json"
+            # The prompt is DATA, not argv -- see the module docstring. A file
+            # (not a pipe) because a CLI that never drains stdin deadlocks the
+            # writer outside every timeout; the same choice council/vendors.py
+            # made for this binary.
+            prompt_path = Path(td) / "prompt.md"
+            prompt_path.write_text(prompt, encoding="utf-8")
 
             # npm installs `codex` as a .CMD shim on Windows; subprocess cannot
             # spawn it by bare name (WinError 2), so resolve the real path.
@@ -240,26 +336,39 @@ class CodexCLIProvider(Provider):
             chosen_model = model or os.environ.get("CODEX_MODEL", "")
             if chosen_model:
                 cmd += ["--model", chosen_model]
-            cmd.append(prompt)
+            # PROMPT == "-": codex exec reads the instructions from stdin.
+            cmd.append("-")
+
+            # Fail closed on anything the shim relay would still reinterpret.
+            # Nothing is spawned and no bytes leave the machine on refusal.
+            refusal = cmd_shim_refusal(cmd)
+            if refusal is not None:
+                return _out(blocked_report(
+                    f"Refused to spawn the Codex CLI: {refusal}.",
+                    "Remove the character from the repo path / CODEX_MODEL, or "
+                    "install codex as a native .exe.",
+                ))
 
             try:
-                completed = subprocess.run(
-                    cmd, cwd=repo_root, text=True, capture_output=True,
-                    # codex emits UTF-8 (em-dashes, box-drawing chars); WITHOUT
-                    # an explicit encoding, text=True decodes with the Windows
-                    # locale (cp1252) and the capture reader-thread dies on
-                    # bytes like 0x9d -> corrupted/empty output, watcher thread
-                    # crash (live-fired 2026-07-12, tasks C2/C3). Force UTF-8
-                    # and never let a stray byte kill the reader.
-                    encoding="utf-8", errors="replace",
-                    # stdin MUST be closed: with a prompt arg, `codex exec`
-                    # still appends piped/inherited stdin as a <stdin> block
-                    # and blocks until EOF. Under the file-bridge watcher the
-                    # inherited stdin never closes -> codex hangs at ~0 CPU
-                    # (live-fired 2026-07-11, task C1).
-                    stdin=subprocess.DEVNULL,
-                    timeout=effective_timeout, check=False,
-                )
+                # A real file handle, so the child sees EOF immediately. The
+                # old stdin=DEVNULL guarded against an INHERITED stdin that
+                # never closes (live-fired 2026-07-11, task C1: codex hung at
+                # ~0 CPU under the file-bridge watcher); an owned file handle
+                # keeps that property and carries the prompt.
+                with open(prompt_path, "rb") as fin:
+                    completed = subprocess.run(
+                        cmd, cwd=repo_root, text=True, capture_output=True,
+                        # codex emits UTF-8 (em-dashes, box-drawing chars);
+                        # WITHOUT an explicit encoding, text=True decodes with
+                        # the Windows locale (cp1252) and the capture
+                        # reader-thread dies on bytes like 0x9d -> corrupted/
+                        # empty output, watcher thread crash (live-fired
+                        # 2026-07-12, tasks C2/C3). Force UTF-8 and never let a
+                        # stray byte kill the reader.
+                        encoding="utf-8", errors="replace",
+                        stdin=fin,
+                        timeout=effective_timeout, check=False,
+                    )
             except subprocess.TimeoutExpired:
                 timeout_label = (
                     f" after {effective_timeout:g}s"
