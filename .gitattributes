@@ -369,14 +369,17 @@ daedalus/interfaces/bridge/watcher.py -text
 daedalus/kernel/__init__.py -text
 daedalus/kernel/attempt_execution.py -text
 daedalus/kernel/contracts/__init__.py -text
+daedalus/kernel/contracts/attempts.py -text
 daedalus/kernel/contracts/base.py -text
 daedalus/kernel/contracts/canonical.py -text
 daedalus/kernel/contracts/evaluation.py -text
 daedalus/kernel/contracts/evidence.py -text
+daedalus/kernel/contracts/missions.py -text
 daedalus/kernel/contracts/observations.py -text
 daedalus/kernel/contracts/policy.py -text
 daedalus/kernel/contracts/promotion.py -text
 daedalus/kernel/contracts/resources.py -text
+daedalus/kernel/contracts/runtime.py -text
 daedalus/kernel/events/__init__.py -text
 daedalus/kernel/events/durability.py -text
 daedalus/kernel/events/envelope.py -text

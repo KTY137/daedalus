@@ -45,20 +45,19 @@ from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import Any, Mapping, Sequence
 
-from daedalus.limit_policy import ExecutionLimitPolicy, load_from_env
-from daedalus.schemas import (
-    AttemptContract,
-    AttemptReceipt,
-    ContractProvenance,
+from daedalus.kernel.contracts.attempts import AttemptContract, AttemptReceipt
+from daedalus.kernel.contracts.base import ContractProvenance
+from daedalus.kernel.contracts.evidence import EvidencePacket
+from daedalus.kernel.contracts.missions import MissionContract
+from daedalus.kernel.contracts.policy import PolicyDecision
+from daedalus.kernel.contracts.resources import (
     EffectScope,
-    EvidencePacket,
-    MissionContract,
-    PolicyDecision,
     ResourceBudget,
     ResourceUsage,
     RuntimeCapabilities,
-    RuntimeManifest,
 )
+from daedalus.kernel.contracts.runtime import RuntimeManifest
+from daedalus.limit_policy import ExecutionLimitPolicy, load_from_env
 
 
 #: The effect-boundary row this spine is registered under. Its ``wiring`` is

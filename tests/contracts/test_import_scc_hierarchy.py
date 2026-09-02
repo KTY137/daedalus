@@ -70,7 +70,27 @@ CENSUS_MODULES = 433
 # "unchanged" is a legitimate measured outcome here and the twin edges did
 # move -- ``daedalus.twin.contracts`` now points at the kernel contract owner
 # rather than the facade.
-CENSUS_EDGES = 1618
+#
+# 1618 -> 1624 in G1-HIER-12, which also added no module and deleted none. The
+# +6 decomposes exactly, and the two repointed files behave differently for the
+# reason G1-HIER-11's note gives -- a repoint moves this number only when a file
+# ends up naming more owners than it named before:
+#
+#   daedalus/spine/receipts.py  -1 (daedalus.schemas)  +7 owners  = +6
+#       .contracts.{attempts,base,evidence,missions,policy,resources,runtime}
+#   daedalus/spine/picker.py    -1 (daedalus.schemas)  +1 owner   =  0
+#       .contracts.resources, its single owner for ResourceBudget. The file
+#       already named .contracts.evaluation, and this graph holds a set of
+#       targets per module, so nothing is double-counted.
+#
+# This graph counts an edge wherever the import appears, module scope or
+# function scope, because it walks the whole AST. Hoisting picker's
+# ResourceBudget import out of ``_default_attempt`` to module level therefore
+# moves no edge by itself: the edge already existed, it merely fired later in
+# time. That is also why this census was NOT an instrument that could have
+# caught the deferred facade import G1-HIER-12 removed -- it saw the edge all
+# along and had no opinion about when it ran.
+CENSUS_EDGES = 1624
 
 
 def _module_name(path: str) -> str:
