@@ -107,11 +107,32 @@ def _init_repository(root: Path) -> Path:
     return _write_contract(root)
 
 
+#: The single piece of recorded architecture debt, pinned field by field. A
+#: design review (2026-09-02, offload-ports memo §0) found the previous
+#: arrangement was laundering: the exception lived in the kernel rule's
+#: ``allowed_target_prefixes`` -- a field that GRANTS permission -- while the
+#: rationale prose claimed it was being recorded. The instrument reported
+#: zero. ``baseline`` is the field this contract's machinery actually counts:
+#: the entry shows up as ``allowlisted_violation_count``, vanishing flags it
+#: as resolved-delete-me, and moving the import even one line reds the check.
+#: The debt itself is the G1 offload inversion; the packet that removes it
+#: must delete this constant and restore the ``()`` assertion below.
+_RECORDED_DEBT = {
+    "rule_id": "kernel-no-outer-layers",
+    "source_path": "daedalus/kernel/attempt_execution.py",
+    "source_module": "daedalus.kernel.attempt_execution",
+    "target_module": "daedalus.offload",
+    "line": 1209,
+    "column": 8,
+    "kind": "import_from",
+}
+
+
 def test_frozen_repository_baseline_is_exact_and_green() -> None:
     contract = load_contract(CONTRACT_PATH)
     report = evaluate_repository(ROOT, contract)
 
-    assert contract.baseline == ()
+    assert [entry.to_dict() for entry in contract.baseline] == [_RECORDED_DEBT]
     assert report.current == contract.baseline
     assert report.allowlisted == contract.baseline
     assert report.new == ()
@@ -318,3 +339,50 @@ def test_the_allowlist_must_be_sorted_and_free_of_duplicates() -> None:
     for bad in (["daedalus.spine", "daedalus.budget"], ["daedalus.budget"] * 2):
         with pytest.raises(ArchitectureBoundaryError):
             _rule(forbidden=["daedalus.gates"], allowed=bad)
+
+
+def test_the_allowlists_cannot_grow_quietly() -> None:
+    """Pin every rule's allowed_target_prefixes to its exact membership.
+
+    An allowlist entry GRANTS permission -- that is its ground-2 semantics in
+    ``ImportBoundaryRule.forbidden_target``. The offload design review showed
+    what happens when one is added without a counting instrument watching:
+    a genuine inversion read as zero violations for a day. After this pin,
+    widening any allowlist is a reviewed diff of this test, never a quiet
+    JSON edit.
+    """
+
+    contract = load_contract(CONTRACT_PATH)
+    memberships = {
+        rule.rule_id: list(rule.allowed_target_prefixes)
+        for rule in contract.rules
+    }
+    assert memberships == {
+        "kernel-no-outer-layers": [
+            "daedalus.atomic",
+            "daedalus.budget",
+            "daedalus.config",
+            "daedalus.limit_policy",
+            "daedalus.primary_tree",
+            "daedalus.sensitivity",
+            "daedalus.spine",
+            "daedalus.storage",
+            "daedalus.twin",
+        ],
+        "runtimes-no-gates": [],
+        "spine-no-outer-layers": [
+            "daedalus.atomic",
+            "daedalus.budget",
+            "daedalus.config",
+            "daedalus.kernel",
+            "daedalus.limit_policy",
+            "daedalus.mapping",
+            "daedalus.sensitivity",
+            "daedalus.structcore",
+        ],
+        "twin-no-outer-layers": [
+            "daedalus.kernel",
+            "daedalus.spine",
+            "daedalus.structcore",
+        ],
+    }

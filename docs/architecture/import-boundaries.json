@@ -38,14 +38,13 @@
         "daedalus.budget",
         "daedalus.config",
         "daedalus.limit_policy",
-        "daedalus.offload",
         "daedalus.primary_tree",
         "daedalus.sensitivity",
         "daedalus.spine",
         "daedalus.storage",
         "daedalus.twin"
       ],
-      "rationale": "kernel stays below the outer layers. allowed_target_prefixes is an allowlist because the forbidden list could only refuse what it enumerated: measured 2026-09-02 it named eight package prefixes while 76 modules sat flat under daedalus/, so kernel imports of daedalus.offload, daedalus.core or daedalus.doctor read as clean. Seven allowed flat entries (atomic, budget, config, limit_policy, primary_tree, sensitivity, storage) are foundation the kernel is meant to sit on. daedalus.offload is NOT: it is a workload, and attempt_execution.py:1209 importing it is a genuine inversion. It is named here rather than left invisible, and rather than entered as baseline debt, which this repository forbids by test. Removing it needs the packet that decides which layer offload belongs to -- moving offload_runner into the spine facade only relocates the edge, and tests/kernel/test_attempt_execution_hierarchy.py asserts the kernel owns that name today.",
+      "rationale": "kernel stays below the outer layers. allowed_target_prefixes is an allowlist because the forbidden list could only refuse what it enumerated (measured 2026-09-02: eight named prefixes, 76 flat modules, kernel imports of daedalus.offload/core/doctor all read as clean). The seven flat entries (atomic, budget, config, limit_policy, primary_tree, sensitivity, storage) are foundation the kernel is meant to sit on; spine and twin are peer layers it legitimately reaches. daedalus.offload is deliberately NOT here: it is a workload, and attempt_execution.py importing it is a genuine inversion, recorded below as the single baseline entry -- the field this contract's instrument actually counts -- after a design review found that naming it in this prose granted permission while claiming to record debt.",
       "target_owner": "G1-HIER-02 through G1-HIER-05, G1-HIER-10"
     },
     {
@@ -124,6 +123,16 @@
       "target_owner": "G1-HIER-11"
     }
   ],
-  "baseline": [],
+  "baseline": [
+    {
+      "rule_id": "kernel-no-outer-layers",
+      "source_path": "daedalus/kernel/attempt_execution.py",
+      "source_module": "daedalus.kernel.attempt_execution",
+      "target_module": "daedalus.offload",
+      "line": 1209,
+      "column": 8,
+      "kind": "import_from"
+    }
+  ],
   "shim_registry": "docs/architecture/shim-registry.json"
 }
