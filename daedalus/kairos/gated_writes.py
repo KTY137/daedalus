@@ -53,6 +53,43 @@ exec(
 # replacement defined below.
 del promote_candidates
 
+# COMPOSE THE OFFLOAD CAPABILITY FOR THE WRITE WAVE (G1-SCC-CUT1). The kernel's
+# ``offload_runner`` no longer imports ``daedalus.offload``; it takes the
+# workload as a port. The retained source calls ``offload_runner(**kwargs)``
+# through its own ``_recording_runner`` (two call sites: ``_attempt_assignment``
+# and ``_reattempt``) and cannot be edited to pass one -- it is pinned by the
+# Git blob SHA-1 verified above. It does not need to be: its
+# ``_recording_runner(**offload_kwargs)`` forwards every keyword verbatim, so
+# shadowing that ONE global here supplies the port without duplicating a line
+# of the frozen logic. The retained functions resolve this global name
+# dynamically, exactly as the ``promote_candidates`` note above describes.
+#
+# This layer may legally name the workload: the boundary contract constrains
+# ``daedalus.kernel``, ``daedalus.spine``, ``daedalus.runtimes`` and
+# ``daedalus.twin`` as sources, not ``daedalus.kairos``.
+_retained_recording_runner = _recording_runner
+
+
+def _recording_runner(**offload_kwargs):
+    """``_recording_runner`` from the retained source, with the port supplied.
+
+    Late binding is preserved without a forwarder here: ``OffloadCapability``
+    calls the module-level ``offload`` through its GLOBAL name, so the
+    write-wave fixtures that monkeypatch ``daedalus.offload.offload`` keep
+    steering the runner. Constructing the workload's own class rather than
+    wrapping it also keeps ``OffloadPort`` resolving to exactly one
+    implementation, which is what lets the effect derivation follow the port.
+
+    ``setdefault`` rather than assignment: a caller that composed its own port
+    keeps it, which is what the write-wave tests rely on to inject a stub.
+    """
+
+    from daedalus.offload import OffloadCapability
+
+    offload_kwargs.setdefault("offload_port", OffloadCapability())
+    return _retained_recording_runner(**offload_kwargs)
+
+
 from daedalus.kernel.promotion import (
     PromotionAuthorizationError,
     snapshot_promotion_candidates as _snapshot_promotion_candidates,

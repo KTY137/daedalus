@@ -198,3 +198,64 @@ def test_definitions_and_registry_targets_remain_single_and_stable() -> None:
     assert registry_sha256() == (
         "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
     )
+
+
+def test_offload_runner_refuses_without_the_injected_workload_port() -> None:
+    """The kernel takes the workload as a port and refuses without it.
+
+    G1-SCC-CUT1 retired the repository's single recorded boundary violation --
+    ``daedalus/kernel/attempt_execution.py`` importing ``daedalus.offload`` --
+    by handing the workload in instead. The refusal is what stops that from
+    being a silent capability loss: a caller that forgot to compose the port
+    gets told, at COMPOSITION time, before a worktree, a branch or a provider
+    call exists.
+    """
+    owner = importlib.import_module("daedalus.kernel.attempt_execution")
+
+    with pytest.raises(owner.AttemptPortMissing) as excinfo:
+        owner.offload_runner(live=True)
+    assert "offload" in str(excinfo.value)
+
+    # The kernel names the workload in no import statement, at any scope. The
+    # census in tests/contracts/test_import_scc_hierarchy.py counts an edge
+    # wherever an import APPEARS, module or function body, so a deferred
+    # re-import inside the runner would reinstate the violation while looking
+    # local. Assert over the parsed imports, not over the source text: the
+    # docstring and the refusal message both mention daedalus.offload on
+    # purpose, and a substring check would forbid explaining the boundary.
+    assert not [
+        (line, name)
+        for line, name in _imports(OWNER_PATH)
+        if name == "daedalus.offload" or name.startswith("daedalus.offload.")
+    ]
+
+
+def test_offload_port_resolves_the_workload_attribute_at_call_time(monkeypatch) -> None:
+    """The composed port must re-read the module attribute on every call.
+
+    This is the fixture-killing shape this repository keeps meeting: if
+    ``offload_port()`` returned ``daedalus.offload.offload`` itself, it would
+    bind the function object once at composition time. Every existing test that
+    monkeypatches that exact module attribute would keep passing while the
+    runner called the original -- green, and testing nothing.
+
+    So: compose the port FIRST, patch the attribute AFTERWARDS, and require the
+    patch to win. Capturing at composition time reds this test.
+    """
+    from daedalus.orchestration.execution import offload_port
+
+    port = offload_port()
+
+    calls: list[tuple[object, ...]] = []
+
+    def _fake_offload(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"action": "stubbed", "wrote": []}
+
+    monkeypatch.setattr("daedalus.offload.offload", _fake_offload)
+
+    assert port.run_offload("objective", "/tmp/wt", live=False) == {
+        "action": "stubbed",
+        "wrote": [],
+    }
+    assert calls == [(("objective", "/tmp/wt"), {"live": False})]

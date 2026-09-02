@@ -72,6 +72,7 @@ from typing import Any, Callable, Mapping, Sequence
 from ..kernel.attempt_execution import (
     AttemptEvaluatorPort,
     AttemptWorkspacePort,
+    OffloadPort,
 )
 from ..kernel.contracts.evaluation import EvaluationPorts
 # MEASURED, not assumed: hoisting this out of ``_default_attempt`` costs zero
@@ -2829,6 +2830,7 @@ def _default_attempt(
         [str | Path | None],
         tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
     ] | None = None,
+    offload_port: OffloadPort | None = None,
 ) -> Any:
     """Run one real :class:`daedalus.spine.attempt.TaskAttempt`.
 
@@ -2839,6 +2841,15 @@ def _default_attempt(
     It is also where one MissionContract per picked candidate is minted: the
     picker is the only live code that decides what to work on next, so it is
     the only place a mission can honestly be compiled from user-facing intent.
+
+    ``offload_port`` arrives the same way ``attempt_ports_factory`` already
+    does, and for the same reason: the spine may not import
+    ``daedalus.offload`` (the ``spine-no-outer-layers`` rule of
+    ``docs/architecture/import-boundaries.json`` names it explicitly), so the
+    workload is composed by ``daedalus.cli`` and handed down. This door
+    already refused without its ports, so requiring one more changes no
+    reachable behaviour: ``python -m daedalus.spine.picker`` could not run a
+    live attempt before this packet either.
     """
     from daedalus.spine.attempt import (
         AttemptPortMissing,
@@ -2909,7 +2920,7 @@ def _default_attempt(
             mission_id = None
     return run_attempt(
         spec,
-        runner=offload_runner(live=bool(args.live)),
+        runner=offload_runner(offload_port=offload_port, live=bool(args.live)),
         repo_root=args.repo_root,
         workspace_port=workspace_port,
         evaluator_port=evaluator_port,
@@ -2990,7 +3001,8 @@ def main(argv: Sequence[str] | None = None, *,
          attempt_ports_factory: Callable[
              [str | Path | None],
              tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
-         ] | None = None) -> int:
+         ] | None = None,
+         offload_port: OffloadPort | None = None) -> int:
     """``daedalus improve``. Returns a process exit code; applies nothing.
 
     Default behaviour with no flags is the DRY RUN. An operator who types
@@ -3081,6 +3093,7 @@ def main(argv: Sequence[str] | None = None, *,
             candidate,
             parsed,
             attempt_ports_factory=attempt_ports_factory,
+            offload_port=offload_port,
         )
     )
     result = run(top, args)

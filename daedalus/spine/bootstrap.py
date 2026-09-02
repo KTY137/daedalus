@@ -69,6 +69,7 @@ from typing import Any, Callable, Mapping, Sequence
 from ..kernel.attempt_execution import (
     AttemptEvaluatorPort,
     AttemptWorkspacePort,
+    OffloadPort,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -673,6 +674,7 @@ def main(
         [str | Path | None],
         tuple[AttemptWorkspacePort, AttemptEvaluatorPort],
     ] | None = None,
+    offload_port: OffloadPort | None = None,
 ) -> int:
     import argparse
 
@@ -723,7 +725,15 @@ def main(
 
     from daedalus.spine.attempt import offload_runner
 
-    kwargs: dict[str, Any] = {"live": bool(args.live)}
+    # ``offload`` is composed by the caller, not imported here: the
+    # ``spine-no-outer-layers`` rule of docs/architecture/import-boundaries.json
+    # names ``daedalus.offload`` as forbidden to this layer. shadow_run already
+    # refuses without ``attempt_ports_factory``, so this door could not run a
+    # live attempt uncomposed before this packet either.
+    kwargs: dict[str, Any] = {
+        "offload_port": offload_port,
+        "live": bool(args.live),
+    }
     if args.local_only:
         kwargs["availability"] = {"claude_cli": False, "ollama": True,
                                   "deepseek": False, "codex_cli": False}

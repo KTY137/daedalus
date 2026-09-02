@@ -963,6 +963,31 @@ def offload(
     return result
 
 
+class OffloadCapability:
+    """This workload, handed to the kernel as a port it may legally hold.
+
+    The kernel's ``offload_runner`` used to ``from daedalus.offload import
+    offload`` inside its runner. ``daedalus.offload`` is a WORKLOAD and the
+    kernel sits below it, so that import was the repository's single recorded
+    boundary violation; G1-SCC-CUT1 retired it by inverting the direction --
+    this module hands itself down, rather than the kernel reaching up.
+
+    THE ONLY IMPLEMENTATION of ``daedalus.kernel.attempt_execution.OffloadPort``,
+    and it must stay that way. The effect derivation resolves that Protocol to
+    every repository-local class defining ``run_offload``, so a second one would
+    widen two doors' derived effect set rather than describe it.
+
+    ``run_offload`` calls the module-level ``offload`` through its GLOBAL name,
+    not a captured reference, so ``monkeypatch.setattr("daedalus.offload.offload",
+    ...)`` still steers every caller that goes through this port.
+    """
+
+    __slots__ = ()
+
+    def run_offload(self, objective: str, repo_root: str, **kwargs: Any) -> Any:
+        return offload(objective, repo_root, **kwargs)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Offload one task to the free bench (verified).")
     p.add_argument("objective")
