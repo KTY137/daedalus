@@ -210,6 +210,256 @@ class UnresolvedImportsTests(unittest.TestCase):
         self.assertEqual(unresolved_first_party_imports(content, "."), [])
 
 
+#: A scratch package carrying every shape of "this module is not what its own
+#: top level says it is" that the reader must tell apart. Kept as source text so
+#: the fixture and the construct it stands for are the same thing.
+_ALIAS_FIXTURE = {
+    "__init__.py": "",
+    "owner.py": "REAL_NAME = 1\n\n\ndef real_func():\n    return REAL_NAME\n",
+    # the construct in daedalus/spine/{envelope,ledger,durability}.py
+    "alias_ok.py": (
+        "import sys as _sys\n"
+        "from pkg import owner as _owner\n"
+        "_sys.modules[__name__] = _owner\n"),
+    "alias_from_sys_modules.py": (
+        "from sys import modules as _m\n"
+        "from pkg import owner as _owner\n"
+        "_m[__name__] = _owner\n"),
+    "alias_in_function.py": (
+        "import sys as _sys\n"
+        "from pkg import owner as _owner\n"
+        "def install():\n"
+        "    _sys.modules[__name__] = _owner\n"),
+    "alias_conditional.py": (
+        "import sys as _sys\n"
+        "from pkg import owner as _owner\n"
+        "if _sys.version_info >= (3, 0):\n"
+        "    _sys.modules[__name__] = _owner\n"),
+    "alias_other_slot.py": (
+        "import sys as _sys\n"
+        "from pkg import owner as _owner\n"
+        '_sys.modules["pkg.something_else"] = _owner\n'),
+    "alias_missing_target.py": (
+        "import sys as _sys\n"
+        "from pkg import nothing_provides_this as _owner\n"
+        "_sys.modules[__name__] = _owner\n"),
+    "cycle_a.py": (
+        "import sys as _sys\n"
+        "from pkg import cycle_b as _owner\n"
+        "_sys.modules[__name__] = _owner\n"),
+    "cycle_b.py": (
+        "import sys as _sys\n"
+        "from pkg import cycle_a as _owner\n"
+        "_sys.modules[__name__] = _owner\n"),
+    "self_alias.py": (
+        "import sys as _sys\n"
+        "from pkg import self_alias as _owner\n"
+        "_sys.modules[__name__] = _owner\n"),
+    "ns_alias.py": (
+        "import sys as _sys\n"
+        "from pkg import nsdir as _owner\n"
+        "_sys.modules[__name__] = _owner\n"),
+    # chain_1 -> ... -> chain_5 -> owner is five aliasing hops, one past the
+    # budget; short_1 -> ... -> short_4 -> owner is exactly four and must work.
+    **{f"chain_{n}.py": (
+        "import sys as _sys\n"
+        f"from pkg import {'chain_%d' % (n + 1) if n < 5 else 'owner'} as _owner\n"
+        "_sys.modules[__name__] = _owner\n") for n in range(1, 6)},
+    **{f"short_{n}.py": (
+        "import sys as _sys\n"
+        f"from pkg import {'short_%d' % (n + 1) if n < 4 else 'owner'} as _owner\n"
+        "_sys.modules[__name__] = _owner\n") for n in range(1, 5)},
+    # the construct in daedalus/spine/attempt.py
+    "retype_ok.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "from pkg import owner as _owner\n"
+        "class _Facade(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        return getattr(_owner, name)\n"
+        "_module = sys.modules[__name__]\n"
+        "_module.__class__ = _Facade\n"),
+    "retype_in_function.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "from pkg import owner as _owner\n"
+        "class _Facade(ModuleType):\n"
+        "    pass\n"
+        "def install():\n"
+        "    m = sys.modules[__name__]\n"
+        "    m.__class__ = _Facade\n"),
+    "retype_other_object.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "from pkg import owner as _owner\n"
+        "class _Facade(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        return getattr(_owner, name)\n"
+        '_other = sys.modules["pkg.owner"]\n'
+        "_other.__class__ = _Facade\n"),
+    # ADVERSARIAL REVIEW 2026-09-02: an ordinary, working module wearing two
+    # lines that used to switch the reader off. `_Facade` forwards NOTHING.
+    "retype_without_a_hook.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _Facade(ModuleType):\n"
+        "    pass\n"
+        "def real_func():\n"
+        "    return 1\n"
+        "sys.modules[__name__].__class__ = _Facade\n"),
+    "retype_to_object.py": (
+        "import sys\n"
+        "def real_func():\n"
+        "    return 1\n"
+        "sys.modules[__name__].__class__ = object\n"),
+}
+
+#: A namespace package (PEP 420): a directory with a ``.py`` file and no
+#: ``__init__.py``. ``_module_path`` resolves an import of it, and ``_exports``
+#: cannot read it -- which is why an alias POINTING at one must not be followed.
+_ALIAS_FIXTURE_NAMESPACE_DIR = {"nsdir/leaf.py": "NS_LEAF = 1\n"}
+
+
+class AliasedModuleTests(unittest.TestCase):
+    """A module whose own top level is not what an importer of it gets.
+
+    MEASURED 2026-09-01 at 4efa2a53, the reason this class exists. Three modules
+    in this repository end with ``sys.modules[__name__] = _owner`` and a fourth
+    installs a forwarding ``ModuleType`` subclass on itself. Reading those files
+    literally, ``unresolved_first_party_imports`` refused 134 real committed
+    files -- 100 of them for the swap, 34 for the facade -- with messages like
+    ``'daedalus.spine.envelope' does not define 'canonical_json'`` for a name
+    that resolves perfectly at runtime. A gate with that false-positive rate is
+    worse than no gate, because it teaches its readers to ignore it.
+
+    The other half of the class is the part worth not losing: a reader taught to
+    follow an alias can be taught to follow too much, so every case below that
+    expects a REFUSAL is pinning a hop the reader must NOT take.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import tempfile
+        from pathlib import Path
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.root = cls._tmp.name
+        pkg = Path(cls.root) / "pkg"
+        pkg.mkdir()
+        for name, text in _ALIAS_FIXTURE.items():
+            (pkg / name).write_text(text, encoding="utf-8")
+        for rel, text in _ALIAS_FIXTURE_NAMESPACE_DIR.items():
+            target = pkg / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        assert not (pkg / "nsdir" / "__init__.py").exists()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def judge(self, module, name):
+        return unresolved_first_party_imports(
+            f"from pkg.{module} import {name}\n", self.root, ("pkg",))
+
+    # -- the alias is followed -------------------------------------------
+    def test_a_swapped_module_resolves_through_its_owner(self):
+        self.assertEqual(self.judge("alias_ok", "REAL_NAME"), [])
+        self.assertEqual(self.judge("alias_ok", "real_func"), [])
+
+    def test_the_from_sys_import_modules_spelling_is_recognised(self):
+        self.assertEqual(self.judge("alias_from_sys_modules", "REAL_NAME"), [])
+
+    def test_an_invented_name_is_still_refused_through_the_alias(self):
+        """The red proof for the whole rule. Following the alias must buy
+        PRECISION, not silence: if the owner does not define it, the fact that
+        it was reached through a legacy locator changes nothing."""
+        bad = self.judge("alias_ok", "INVENTED")
+        self.assertTrue(bad)
+        self.assertIn("INVENTED", bad[0])
+
+    def test_an_invented_name_is_refused_through_the_other_spelling(self):
+        self.assertTrue(self.judge("alias_from_sys_modules", "INVENTED"))
+
+    # -- hops the reader must NOT take -----------------------------------
+    def test_a_swap_inside_a_function_is_not_an_alias(self):
+        """A swap that only happens when someone calls the function has not
+        happened. Reading the file literally is the correct answer."""
+        self.assertTrue(self.judge("alias_in_function", "REAL_NAME"))
+
+    def test_a_swap_inside_an_if_is_not_followed(self):
+        """Deliberately strict, and the one case where strictness costs a false
+        positive: a conditional swap MIGHT run. No module in this tree spells it
+        that way (measured 2026-09-01: three swaps, all unconditional, at module
+        scope). If one ever appears, widening this rule is a decision to take
+        on purpose rather than a hole to discover."""
+        self.assertTrue(self.judge("alias_conditional", "REAL_NAME"))
+
+    def test_writing_another_modules_slot_is_not_an_alias_for_this_one(self):
+        self.assertTrue(self.judge("alias_other_slot", "REAL_NAME"))
+
+    def test_retyping_another_module_does_not_make_this_one_opaque(self):
+        self.assertTrue(self.judge("retype_other_object", "REAL_NAME"))
+
+    def test_a_retype_inside_a_function_does_not_make_this_one_opaque(self):
+        self.assertTrue(self.judge("retype_in_function", "REAL_NAME"))
+
+    # -- what an unfollowable alias must NOT buy --------------------------
+    # ADVERSARIAL REVIEW 2026-09-02 broke the first version of these rules three
+    # ways, all cheap, all in the permissive direction: every "I cannot follow
+    # this owner" answered `opaque`, which accepted every invented name behind
+    # it. A guard whose job is to refuse must not fail open on what it cannot
+    # follow. Each case below is one of those three, and each must REFUSE.
+
+    def test_an_alias_to_a_target_that_does_not_exist_is_not_followed(self):
+        self.assertTrue(self.judge("alias_missing_target", "anything"))
+
+    def test_an_alias_to_a_namespace_package_is_not_followed(self):
+        """``pkg/nsdir/`` has a ``.py`` file and no ``__init__.py``, so
+        ``_module_path`` resolves it and ``_exports`` cannot read it. This
+        repository really has two such directories (``tools`` and ``tests``),
+        which is what made this the cheapest of the three bypasses: aliasing to
+        one needed no fake class and no chain."""
+        self.assertTrue(self.judge("ns_alias", "anything"))
+
+    def test_an_alias_cycle_terminates_and_refuses(self):
+        self.assertTrue(self.judge("cycle_a", "anything"))
+        self.assertTrue(self.judge("cycle_b", "anything"))
+        self.assertTrue(self.judge("self_alias", "anything"))
+
+    def test_a_chain_past_the_hop_budget_refuses_and_one_within_it_resolves(self):
+        """The boundary is exact and was measured, not assumed: four aliasing
+        hops reach the owner and judge normally; five exhaust the budget one
+        hop before a perfectly readable terminal."""
+        self.assertEqual(self.judge("short_1", "REAL_NAME"), [])
+        self.assertTrue(self.judge("short_1", "INVENTED"))
+        self.assertTrue(self.judge("chain_1", "REAL_NAME"))
+        self.assertTrue(self.judge("chain_1", "INVENTED"))
+
+    # -- opacity costs a forwarder, exactly as PEP 562 does ---------------
+    def test_a_module_that_installs_a_forwarding_type_is_opaque(self):
+        """Same concession this module already makes for the eleven PEP 562
+        modules in the tree that define a module-level ``__getattr__``: a type
+        in control of attribute lookup can answer with names no reader of the
+        file can enumerate. Only the spelling differs."""
+        self.assertEqual(self.judge("retype_ok", "anything"), [])
+
+    def test_retyping_without_an_attribute_hook_is_not_opaque(self):
+        """The adversarial review's most serious finding, pinned.
+
+        A ``ModuleType`` subclass with no ``__getattr__`` forwards NOTHING: the
+        module imports cleanly, ``real_func`` works, and importing an invented
+        name from it raises ``ImportError`` at runtime. The first version of the
+        rule read the two-line retype alone as "unjudgeable" and accepted every
+        invented import from an otherwise ordinary module."""
+        self.assertTrue(self.judge("retype_without_a_hook", "INVENTED"))
+        self.assertEqual(self.judge("retype_without_a_hook", "real_func"), [])
+
+    def test_retyping_to_a_class_this_file_does_not_define_is_not_opaque(self):
+        """``__class__ = object`` does not even survive import. Nothing about
+        it says a reader should stop reading."""
+        self.assertTrue(self.judge("retype_to_object", "INVENTED"))
+
+
 class RunChecksTests(unittest.TestCase):
     def test_clean_write_passes(self):
         attempt = _attempt(proposed=MODULE.replace("return path", "return str(path)"),

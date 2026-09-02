@@ -90,6 +90,19 @@ CENSUS_MODULES = 433
 # time. That is also why this census was NOT an instrument that could have
 # caught the deferred facade import G1-HIER-12 removed -- it saw the edge all
 # along and had no opinion about when it ran.
+#
+# 1624 -> 1624 in G1-HIER-13, and 433 -> 433. RE-MEASURED 2026-09-02, not
+# inherited: `_tracked_module_graph()` was run against the packet tree and
+# returned exactly these two totals. Following G1-HIER-11's precedent that an
+# unchanged number is otherwise indistinguishable from a skipped measurement,
+# the reason is recorded here -- and it is a weaker claim than that packet had
+# to make. G1-HIER-13 touched one tracked production file,
+# `daedalus/lanes/checks.py`, and that file contributes ZERO edges to this
+# graph -- measured, `graph["daedalus.lanes.checks"] == set()` -- because it
+# imports only `ast`, `dataclasses`, `pathlib` and `typing`, none of which is a
+# `daedalus.*` module. The change added `Mapping` to the existing `typing`
+# import and two module-scope helper functions. No module was added, removed,
+# split or renamed. There was no arithmetic available to change.
 CENSUS_EDGES = 1624
 
 

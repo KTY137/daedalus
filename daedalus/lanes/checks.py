@@ -21,7 +21,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 __all__ = [
     "BASELINE",
@@ -159,16 +159,258 @@ def _module_path(root: Path, dotted: str) -> Path | None:
     return None
 
 
-def _exports(path: Path) -> tuple[frozenset[str], bool]:
+#: How many alias hops :func:`_exports` will follow. The tree uses exactly one
+#: (``daedalus/spine/*.py`` -> ``daedalus/kernel/events/*.py``); the bound is
+#: here so that a cycle -- A aliasing B aliasing A -- terminates instead of
+#: recursing until the interpreter does it for us.
+_MAX_ALIAS_HOPS = 4
+
+
+def _alias_target(tree: ast.Module) -> str | None:
+    """The dotted module a file hands its own locator to, or ``None``.
+
+    Recognises exactly one construct, the module alias::
+
+        import sys as _sys
+        from daedalus.kernel.events import ledger as _owner
+        _sys.modules[__name__] = _owner
+
+    After that statement runs, ``daedalus.spine.ledger`` IS the owner module
+    object: every name the owner defines resolves through the old locator, and
+    nothing this file's own body defines is reachable at all.
+
+    MEASURED 2026-09-01 at 4efa2a53. Without this, :func:`_exports` read
+    ``daedalus/spine/envelope.py`` literally and reported its exports as
+    ``{_sys, _owner}``, so ``unresolved_first_party_imports`` refused 134 real
+    committed files for importing names that demonstrably resolve at runtime --
+    ``'daedalus.spine.envelope' does not define 'canonical_json'`` and 21 more
+    of that shape. That is the failure mode this module already learned once
+    from namespace packages (see :func:`_module_path`): a gate with false
+    positives costs twice, because the work is discarded AND everyone is taught
+    to ignore the gate.
+
+    Deliberately narrow, because a reader taught to follow aliases can be taught
+    to follow too much. All of these must hold:
+
+    * the assignment is at MODULE scope -- a swap inside a function or an ``if``
+      is not this construct and is not followed;
+    * the subscripted object is ``<sys>.modules`` where ``<sys>`` is a name this
+      same file bound to the real :mod:`sys` module, or a bare ``modules`` bound
+      by ``from sys import modules``;
+    * the key is literally ``__name__``, not some other module's name -- writing
+      into another entry of ``sys.modules`` is a different act and is not an
+      alias for THIS locator;
+    * the right-hand side is a plain name that this same file bound with an
+      import, so the target is statically known.
+
+    Anything else returns ``None`` and the file is read literally, as before.
+    """
+    imports = _module_scope_imports(tree)
+    target: str | None = None
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        dest, value = node.targets[0], node.value
+        if not isinstance(value, ast.Name):
+            continue
+        if not _is_own_sys_modules_slot(dest, imports):
+            continue
+        # Last one wins, exactly as it would at runtime.
+        target = imports.modules.get(value.id)
+    return target
+
+
+#: The two hooks that let a type answer with a name no reader of a module's top
+#: level can enumerate. ``__getattr__`` is the one this tree uses; a custom
+#: ``__getattribute__`` intercepts even more.
+_DYNAMIC_ATTRIBUTE_HOOKS = frozenset({"__getattr__", "__getattribute__"})
+
+
+def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
+    """Does this file put a name-SYNTHESIZING type on its own module object?
+
+    Recognises the second construct in this tree, ``daedalus/spine/attempt.py``::
+
+        class _AttemptFacade(ModuleType):
+            def __getattr__(self, name): return getattr(_owner, name)
+
+        _module = sys.modules[__name__]
+        _module.__class__ = _AttemptFacade
+
+    After that, attribute lookup on ``daedalus.spine.attempt`` can answer with
+    names no reader of this file's top level can enumerate, so :func:`_exports`
+    reports ``opaque``.
+
+    That is not a new concession. The gate already grants exactly this to the
+    eleven modules in the tree that spell the same thing as a module-level
+    ``def __getattr__`` (PEP 562). MEASURED 2026-09-01: without this branch the
+    gate refused 34 real committed files with 24 distinct messages, every one of
+    them ``'daedalus.spine.attempt' does not define '<a forwarded name>'``.
+
+    The ``__getattr__`` requirement is the whole rule, and it is here because an
+    earlier version of this function did not have it. ADVERSARIAL REVIEW
+    2026-09-02 broke that version with nine lines::
+
+        class _Facade(ModuleType):
+            pass
+        def real_function():
+            return 1
+        sys.modules[__name__].__class__ = _Facade
+
+    An ordinary, working, non-crashing module -- and every invented import from
+    it was accepted, because retyping alone was read as "unjudgeable". It is
+    not: a ``ModuleType`` subclass with no hook forwards NOTHING, the module's
+    own top level is still the whole truth, and ``from that import invented``
+    raises ``ImportError`` at runtime. Requiring the hook puts this rule at
+    exactly the cost of the PEP 562 rule beside it and buys no new surface: a
+    file that wants to be unjudgeable has to actually install a forwarder, which
+    it could already do in one line at module scope.
+
+    The class must be a module-scope ``class`` statement in THIS file. An
+    imported or expression-valued class is not resolvable here, and treating an
+    unreadable one as a licence is the same mistake one paragraph up.
+
+    Following through to the owner instead of going opaque was rejected: it
+    would require proving statically that ``__getattr__`` forwards everything
+    and synthesizes nothing, which is exactly the claim a reader of a class body
+    cannot make.
+    """
+    dynamic_classes = {
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+        and any(
+            isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and member.name in _DYNAMIC_ATTRIBUTE_HOOKS
+            for member in node.body
+        )
+    }
+    if not dynamic_classes:
+        return False
+    imports = _module_scope_imports(tree)
+    own: set[str] = set()
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Subscript):
+            continue
+        if _is_own_sys_modules_slot(node.value, imports):
+            own.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not isinstance(node.value, ast.Name) or node.value.id not in dynamic_classes:
+            continue
+        for dest in node.targets:
+            if not isinstance(dest, ast.Attribute) or dest.attr != "__class__":
+                continue
+            holder = dest.value
+            if isinstance(holder, ast.Name) and holder.id in own:
+                return True
+            if _is_own_sys_modules_slot(holder, imports):
+                return True
+    return False
+
+
+@dataclass(frozen=True)
+class _ModuleScopeImports:
+    """What a file's module-scope imports bound, as far as ``ast`` can tell."""
+
+    sys_aliases: frozenset[str]
+    modules_aliases: frozenset[str]
+    modules: Mapping[str, str]
+
+
+def _module_scope_imports(tree: ast.Module) -> _ModuleScopeImports:
+    """Names bound by MODULE-SCOPE imports only.
+
+    Scope matters for both alias rules: an import nested in a function or an
+    ``if`` block does not establish the module-level binding the constructs
+    below rely on, so it is not collected.
+    """
+    sys_aliases: set[str] = set()
+    modules_aliases: set[str] = set()
+    modules: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "sys":
+                    sys_aliases.add(alias.asname or "sys")
+                elif alias.asname:
+                    modules[alias.asname] = alias.name
+        elif isinstance(node, ast.ImportFrom):
+            if node.level or not node.module:
+                continue
+            for alias in node.names:
+                if node.module == "sys" and alias.name == "modules":
+                    modules_aliases.add(alias.asname or "modules")
+                elif alias.name != "*":
+                    modules[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return _ModuleScopeImports(
+        frozenset(sys_aliases), frozenset(modules_aliases), modules)
+
+
+def _is_own_sys_modules_slot(node: ast.expr,
+                             imports: _ModuleScopeImports) -> bool:
+    """Is ``node`` the expression ``sys.modules[__name__]`` for THIS module?
+
+    The key must literally be ``__name__``. Reading or writing some other
+    module's ``sys.modules`` entry is a different act, and treating it as an
+    alias for this locator is precisely the "taught to follow too much" failure
+    these two rules have to avoid.
+    """
+    if not isinstance(node, ast.Subscript):
+        return False
+    key = node.slice
+    if not isinstance(key, ast.Name) or key.id != "__name__":
+        return False
+    table = node.value
+    if (isinstance(table, ast.Attribute) and table.attr == "modules"
+            and isinstance(table.value, ast.Name)
+            and table.value.id in imports.sys_aliases):
+        return True
+    return isinstance(table, ast.Name) and table.id in imports.modules_aliases
+
+
+def _exports(path: Path, root: Path,
+             _hops: int = _MAX_ALIAS_HOPS) -> tuple[frozenset[str], bool]:
     """(top-level names, opaque).
 
     ``opaque`` means static reading is not authoritative for this module -- it
     star-imports or defines a module-level ``__getattr__``, either of which can
     legitimately provide a name no reader can see.
+
+    A module that replaces its own ``sys.modules`` entry (see
+    :func:`_alias_target`) is read THROUGH to its owner, because that is what an
+    importer of the old locator actually gets. Following buys PRECISION, not
+    silence: an invented name is still refused for every module whose alias
+    target is readable, which is all three of them in this tree.
+
+    When the owner CANNOT be opened -- outside the tree, a namespace-package
+    directory, the file itself, or past ``_MAX_ALIAS_HOPS`` -- the file is not
+    treated as an alias at all and is read literally, which in practice refuses.
+    That direction is deliberate and it is a correction. ADVERSARIAL REVIEW
+    2026-09-02 broke the version that answered ``opaque`` there, three ways, all
+    of them cheap: a three-line module aliasing itself; a five-file chain
+    ``a1 -> ... -> a5`` that exhausts the budget one hop before a perfectly
+    readable terminal; and an alias to a namespace-package directory, which this
+    repository really has two of (``tools`` and ``tests`` -- see
+    :func:`_module_path`). Each turned an honest "I cannot judge this owner"
+    into a blanket accept for every invented name behind it. A guard whose job
+    is to refuse must not fail open on the cases it cannot follow, and no module
+    in this tree needs it to: all three real aliases are one hop to a ``.py``
+    file.
     """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
     except (OSError, SyntaxError, ValueError, RecursionError):
+        return frozenset(), True
+    if _hops > 0 and (alias := _alias_target(tree)) is not None:
+        owner = _module_path(root, alias)
+        if owner is not None and owner != path and owner.is_file():
+            return _exports(owner, root, _hops - 1)
+        # The file names an owner this reader cannot open: outside the tree, a
+        # namespace-package directory, itself, or past the hop budget. It is
+        # then NOT treated as an alias and is read literally below.
+    if _installs_dynamic_module_protocol(tree):
         return frozenset(), True
     names: set[str] = set()
     opaque = False
@@ -339,7 +581,7 @@ def unresolved_first_party_imports(
             if path is None:
                 bad.append(f"module '{node.module}' does not exist")
                 continue
-            names, opaque = _exports(path)
+            names, opaque = _exports(path, root)
             if opaque:
                 continue
             for alias in node.names:

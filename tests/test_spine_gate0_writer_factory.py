@@ -139,20 +139,67 @@ def test_attempt_path_uses_pre_migration_factory(tmp_path, monkeypatch) -> None:
         ledger.spine.close()
 
 
+class _ProbeBase:
+    """Not ``object``: a direct ``object`` subclass also gets ``__dict__`` and
+    ``__weakref__`` descriptors, which the class under test inherits instead."""
+
+
+class _CompilerMetadataProbe(_ProbeBase):
+    """Shaped exactly like the class under test: a docstring and one method."""
+
+    def _apply_pragmas(self) -> None:  # pragma: no cover -- never called
+        raise NotImplementedError
+
+
+#: What CPython writes into ANY class body's ``__dict__`` on its own, MEASURED
+#: from the probe above instead of enumerated by hand.
+#:
+#: The hand-written list this replaces was ``{"__module__", "__doc__"}``, and it
+#: had been red since the day it was written (2026-08-04, bde0d0e1) on this
+#: repository's own interpreter: CPython 3.13 also emits ``__firstlineno__`` and
+#: ``__static_attributes__`` for every class, so the assertion was measuring the
+#: compiler, not the subclass. Adding those two names to the literal set would
+#: have gone green while re-arming the same trap for 3.14 -- and widening a
+#: guard's expected set until it passes is the shape AGENTS.md calls a
+#: release-blocking defect. Deriving the baseline keeps the claim the test
+#: actually makes: this subclass adds ONE method and nothing else.
+_COMPILER_METADATA = frozenset(_CompilerMetadataProbe.__dict__) - {"_apply_pragmas"}
+
+
 def test_factory_is_only_an_opening_profile_not_a_second_ledger_authority() -> None:
     subclass = durability._Gate0OpeningSpineLedger
     assert subclass.__bases__ == (SpineLedger,)
-    assert set(subclass.__dict__) - {
-        "__module__",
-        "__doc__",
-        "_apply_pragmas",
-    } == set()
+    assert set(subclass.__dict__) - {"_apply_pragmas"} == _COMPILER_METADATA
+    assert "__init__" not in subclass.__dict__
     source = inspect.getsource(subclass._apply_pragmas)
     assert "super()._apply_pragmas()" in source
     assert source.count("PRAGMA synchronous=FULL") == 1
     assert "CREATE TABLE" not in source
     assert "record_intent" not in subclass.__dict__
     assert "_Gate0OpeningSpineLedger" not in durability.__all__
+
+
+def test_the_opening_profile_check_can_still_go_red() -> None:
+    """The red proof for the derived baseline one test up.
+
+    A baseline measured from the interpreter is only worth having if it still
+    refuses the thing the guard exists to refuse. This is the second ledger
+    authority the real subclass must never become; the same comparison rejects
+    it, and rejects it for the added member rather than for a dunder.
+    """
+
+    class _SecondLedgerAuthority(SpineLedger):
+        """A subclass that grew a write path of its own."""
+
+        def _apply_pragmas(self) -> None:  # pragma: no cover -- never called
+            raise NotImplementedError
+
+        def record_intent(self, *args, **kwargs):  # pragma: no cover
+            raise NotImplementedError
+
+    leaked = set(_SecondLedgerAuthority.__dict__) - {"_apply_pragmas"}
+    assert leaked != _COMPILER_METADATA
+    assert leaked - _COMPILER_METADATA == {"record_intent"}
 
 
 def test_factory_writer_remains_compatible_with_canonical_transactions(tmp_path) -> None:
