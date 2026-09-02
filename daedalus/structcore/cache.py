@@ -273,7 +273,20 @@ class FileCache:
             self.conn.execute("DELETE FROM files WHERE schema IS NOT ?", (_SCHEMA,))
             self.conn.commit()
         except Exception:
-            self.conn = None  # optimization only -- never break the build
+            # Degrading to recompute is the intended behavior of an optimization
+            # layer, and it stays intended; only the bookkeeping changes. A
+            # corrupt DB file still opens -- sqlite validates the header lazily,
+            # so ``connect()`` succeeds and the first ``execute()`` raises. That
+            # leaves a live connection whose only reference is the one being
+            # dropped here, and on Windows the handle under it is not released
+            # synchronously with the object becoming unreachable, so the file
+            # stays locked against unlink. Closing first makes the handle's end
+            # a fact of the code rather than a function of when the collector
+            # runs. Unlike ``kernel/effects.py::_initialize`` -- same close-vs-
+            # discard family, different variant -- this is not a ``with`` block
+            # whose transaction scope was mistaken for a connection scope; it is
+            # an except-handler that discarded a reference. Do not conflate them.
+            self.close()  # optimization only -- never break the build
 
     def get_many(self, keys: list[str]) -> dict[str, FileAnalysis]:
         if self.conn is None or not keys:
