@@ -422,12 +422,9 @@ class TypedRelationBlock(Generic[T]):
         if column_position is None:
             raise ValueError(f"unknown column label {column!r}")
         start, stop = self.row_offsets[row_position], self.row_offsets[row_position + 1]
-        for position in range(start, stop):
-            current = self.column_indices[position]
-            if current == column_position:
-                return self.values[position]
-            if current > column_position:
-                break
+        position = bisect_left(self.column_indices, column_position, start, stop)
+        if position < stop and self.column_indices[position] == column_position:
+            return self.values[position]
         return reference.zero
 
     def matmul(
