@@ -187,11 +187,13 @@ class TensorView(CanonicalContract):
         object.__setattr__(self, "axes", axes)
 
         raw_entries = _bounded_sequence(self.entries, "tensor.entries", MAX_TENSOR_ENTRIES)
-        entries = tuple(raw_entries)
-        if any(not isinstance(entry, SparseTensorEntry) for entry in entries):
-            raise ValueError("tensor.entries must contain SparseTensorEntry records")
+        entries = raw_entries if type(raw_entries) is tuple else tuple(raw_entries)
         axis_names = tuple(axis.name for axis in axes)
+        entries_are_canonical = True
+        previous_order: tuple[Any, ...] | None = None
         for entry in entries:
+            if not isinstance(entry, SparseTensorEntry):
+                raise ValueError("tensor.entries must contain SparseTensorEntry records")
             # SparseTensorEntry already canonicalizes coordinates by axis name.
             # TensorView canonicalizes axes by the same key, so positional
             # comparison is sufficient and avoids allocating one mapping per
@@ -201,8 +203,16 @@ class TensorView(CanonicalContract):
             for position, (axis, label) in enumerate(entry.coordinates):
                 if _sorted_label_index(axes[position].labels, label) is None:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis!r}")
+            order = _entry_order(entry)
+            if previous_order is not None and order < previous_order:
+                entries_are_canonical = False
+            previous_order = order
 
-        ordered_entries = tuple(sorted(entries, key=_entry_order))
+        ordered_entries = (
+            entries
+            if entries_are_canonical
+            else tuple(sorted(entries, key=_entry_order))
+        )
         for index in range(1, len(ordered_entries)):
             previous = ordered_entries[index - 1]
             current = ordered_entries[index]
@@ -327,5 +337,4 @@ class TensorView(CanonicalContract):
         return cls(**body)
 
 
-def parse_tensor_view(payload: Mapping[str, Any]) -> TensorView:
-    return TensorView.from_dict(payload)
+def parse_tensor_view(payload: Mapping[str, Any]) -> TensorView.from_dict(payload)
