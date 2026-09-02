@@ -67,6 +67,28 @@ def test_coordinate_limit_refuses_before_coordinate_parsing() -> None:
     assert coordinates.accessed is False
 
 
+def test_coordinate_canonicalization_avoids_transient_duplicate_axis_set() -> None:
+    class HashForbiddenAxis(str):
+        def __hash__(self) -> int:
+            raise AssertionError("SparseTensorEntry hashed axis names into a duplicate set")
+
+    alpha = HashForbiddenAxis("alpha")
+    omega = HashForbiddenAxis("omega")
+    entry = SparseTensorEntry(
+        coordinates=((omega, "z"), (alpha, "a")),
+        relation="membership",
+        evidence_sha256s=("d" * 64,),
+    )
+
+    assert entry.coordinates == (("alpha", "a"), ("omega", "z"))
+    with pytest.raises(ValueError, match="entry.coordinates must name every axis at most once"):
+        SparseTensorEntry(
+            coordinates=((alpha, "a"), (alpha, "b")),
+            relation="membership",
+            evidence_sha256s=("e" * 64,),
+        )
+
+
 def test_axis_count_limit_refuses_before_copying_records() -> None:
     axes = ExplodingSequence(MAX_TENSOR_AXES + 1)
 
