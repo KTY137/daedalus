@@ -1221,6 +1221,7 @@ def main() -> None:
     elif cmd == "improve":
         from .orchestration.execution import (
             attempt_ports,
+            offload_port,
             picker_evaluation_ports,
         )
         from .spine.picker import main as m
@@ -1228,6 +1229,7 @@ def main() -> None:
             rest,
             evaluation_ports=picker_evaluation_ports(),
             attempt_ports_factory=attempt_ports,
+            offload_port=offload_port(),
         ))
     elif cmd == "init":
         _init(rest)

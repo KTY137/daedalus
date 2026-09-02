@@ -177,6 +177,37 @@ def pytest_gate(
     return _door.pytest_gate(paths, **kwargs)
 
 
+def offload_port() -> _owner.OffloadPort:
+    """The ``daedalus.offload`` workload, as a capability the kernel can take.
+
+    ``daedalus.kernel.attempt_execution.offload_runner`` used to import the
+    workload directly. That inversion was the single entry in this repository's
+    recorded architecture debt; the kernel now takes this port instead, and
+    this module -- an orchestration layer, which may legally name a workload --
+    is one of the two places that composes it.
+
+    Returns the workload's OWN ``OffloadCapability`` rather than a forwarder
+    defined here. Two reasons, both load-bearing:
+
+    * late binding survives, because that class calls the module-level
+      ``offload`` through its global name, so
+      ``monkeypatch.setattr("daedalus.offload.offload", ...)`` still steers
+      every caller that goes through this port;
+    * the effect derivation resolves ``OffloadPort`` to every repository-local
+      class defining ``run_offload``, so a forwarder class here would be a
+      SECOND implementation and would widen two doors' derived effect set
+      instead of describing it.
+
+    ``from daedalus.offload import ...`` rather than ``from daedalus import
+    offload``: the latter spends a second import edge on the package root for
+    no gain.
+    """
+
+    from daedalus.offload import OffloadCapability
+
+    return OffloadCapability()
+
+
 __all__ = [
     "AttemptEvaluatorAdapter",
     "attempt_evaluator_port",
@@ -184,6 +215,7 @@ __all__ = [
     "attempt_workspace_port",
     "command_gate",
     "compose_task_attempt",
+    "offload_port",
     "pytest_gate",
     "remove_gate_tmpdir",
     "run_attempt",

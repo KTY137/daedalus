@@ -158,6 +158,7 @@ __all__ = [
     "GateResult",
     "GitCommandError",
     "INTENT_KIND",
+    "OffloadPort",
     "PatchArtifact",
     "PrimaryCheckoutWrite",
     "READ_ONLY_REPO_VERBS",
@@ -246,6 +247,36 @@ class TaskSpecInvalid(ValueError):
 
 class AttemptPortMissing(RuntimeError):
     """A lifecycle capability was not injected at the composition boundary."""
+
+
+@runtime_checkable
+class OffloadPort(Protocol):
+    """The offload WORKLOAD, as a capability the kernel may hold.
+
+    ``daedalus.offload`` sits ABOVE the kernel, so the kernel may not import
+    it -- that import was this repository's single recorded boundary violation
+    until G1-SCC-CUT1 retired it (see :func:`offload_runner`).
+
+    DECLARED AS A PROTOCOL, AND CALLED AS A METHOD, ON PURPOSE. The effect
+    derivation in ``tests/test_registry_new_doors.py`` follows an injected port
+    through its parameter ANNOTATION: a Protocol expands to the repository-local
+    classes that define its declared methods, and the walk then continues into
+    those method bodies. That hop fires only for ``receiver.method(...)``; a
+    bare ``callable(...)`` parameter annotated ``Callable[..., Any]`` yields
+    nothing (``_annotation_names`` discards ``Callable`` because its arguments
+    describe contents, not the receiver).
+
+    So the annotation is what keeps ``cli.picker`` and ``cli.bootstrap`` able to
+    justify NETWORK_EGRESS, SECRETS and SPEND after the import was removed. It
+    is not a bridge absorbing a lost hop -- the walk really does reach
+    ``daedalus.offload`` again, through the contract written here. Keep
+    ``run_offload`` distinctively named: the Protocol expands to EVERY local
+    class defining its whole method set, so a generic name like ``run`` would
+    widen the closure instead of resolving it.
+    """
+
+    def run_offload(self, objective: str, repo_root: str, **kwargs: Any) -> Any:
+        ...
 
 
 @runtime_checkable
@@ -1195,18 +1226,52 @@ def _command_gate(argv: Sequence[str], *,
     return _gate
 
 
-def offload_runner(**offload_kwargs: Any) -> Callable[[RunnerContext], Any]:
-    """Opt-in runner backed by :func:`daedalus.offload.offload`.
+def offload_runner(
+    *,
+    offload_port: OffloadPort | None = None,
+    **offload_kwargs: Any,
+) -> Callable[[RunnerContext], Any]:
+    """Opt-in runner backed by an INJECTED ``offload`` capability.
 
     ``repo_root`` is pinned to the WORKTREE, so offload's snapshot / verify /
     rollback machinery operates entirely inside the isolated checkout.
 
     Deliberately not the default: :class:`TaskAttempt` refuses to construct
     without an explicit runner, so no attempt can quietly reach a model because
-    a caller forgot an argument.
+    a caller forgot an argument. The ``offload`` capability now obeys the same
+    rule, one layer down, for the same reason.
+
+    THE PORT, NOT AN IMPORT (G1-SCC-CUT1). ``daedalus.offload`` is a WORKLOAD
+    and the kernel sits below it; importing it here was the repository's single
+    recorded boundary violation (the ``baseline`` entry of
+    ``docs/architecture/import-boundaries.json``, retired by this packet).
+    Composition moved to layers that may legally name the workload:
+    ``daedalus.orchestration.execution.offload_port`` for the picker and
+    bootstrap doors, and ``daedalus.kairos.gated_writes`` for the write wave.
+
+    The symbol does NOT move. G1-HIER-07A rejected this edge for carrying "the
+    exact public offload_runner identity" -- that objection is about relocating
+    the name, which would break the facade-identity assertions in
+    ``tests/kernel/test_attempt_execution_hierarchy.py``. Only the thing this
+    function CALLS is handed in; ``daedalus.spine.attempt.offload_runner`` is
+    still this exact object.
+
+    Refuses at COMPOSITION time rather than at runner-invocation time: a caller
+    that forgot the port learns about it before a worktree, a branch or a
+    provider call exists, instead of halfway through an attempt.
+
+    The port is an :class:`OffloadPort`, not a bare callable, so that the effect
+    derivation can still follow this door into the workload it reaches. See that
+    class for why the annotation is load-bearing.
     """
+    if not isinstance(offload_port, OffloadPort):
+        raise AttemptPortMissing(
+            "offload_runner requires an injected OffloadPort; the kernel does "
+            "not import the daedalus.offload workload. Compose it with "
+            "daedalus.orchestration.execution.offload_port()"
+        )
+
     def _runner(ctx: RunnerContext) -> Any:
-        from daedalus.offload import offload
         kwargs = dict(offload_kwargs)
         kwargs.pop("repo_root", None)
         if ctx.task.target_paths:
@@ -1219,7 +1284,9 @@ def offload_runner(**offload_kwargs: Any) -> Callable[[RunnerContext], Any]:
             "branch": ctx.branch,
             "base_revision": ctx.base_revision,
         }
-        return offload(ctx.task.instruction, str(ctx.worktree), **kwargs)
+        return offload_port.run_offload(
+            ctx.task.instruction, str(ctx.worktree), **kwargs
+        )
     return _runner
 
 

@@ -44,7 +44,7 @@
         "daedalus.storage",
         "daedalus.twin"
       ],
-      "rationale": "kernel stays below the outer layers. allowed_target_prefixes is an allowlist because the forbidden list could only refuse what it enumerated (measured 2026-09-02: eight named prefixes, 76 flat modules, kernel imports of daedalus.offload/core/doctor all read as clean). The seven flat entries (atomic, budget, config, limit_policy, primary_tree, sensitivity, storage) are foundation the kernel is meant to sit on; spine and twin are peer layers it legitimately reaches. daedalus.offload is deliberately NOT here: it is a workload, and attempt_execution.py importing it is a genuine inversion, recorded below as the single baseline entry -- the field this contract's instrument actually counts -- after a design review found that naming it in this prose granted permission while claiming to record debt.",
+      "rationale": "kernel stays below the outer layers. allowed_target_prefixes is an allowlist because the forbidden list could only refuse what it enumerated (measured 2026-09-02: eight named prefixes, 76 flat modules, kernel imports of daedalus.offload/core/doctor all read as clean). The seven flat entries (atomic, budget, config, limit_policy, primary_tree, sensitivity, storage) are foundation the kernel is meant to sit on; spine and twin are peer layers it legitimately reaches. daedalus.offload is deliberately NOT here: it is a workload, and attempt_execution.py importing it was a genuine inversion. It was recorded as the single baseline entry -- the field this contract's instrument actually counts -- after a design review found that naming it in this prose granted permission while claiming to record debt. G1-SCC-CUT1 retired it: offload_runner now takes the workload as an injected port and refuses at composition time without it, so baseline is empty and this prose grants nothing.",
       "target_owner": "G1-HIER-02 through G1-HIER-05, G1-HIER-10"
     },
     {
@@ -123,16 +123,6 @@
       "target_owner": "G1-HIER-11"
     }
   ],
-  "baseline": [
-    {
-      "rule_id": "kernel-no-outer-layers",
-      "source_path": "daedalus/kernel/attempt_execution.py",
-      "source_module": "daedalus.kernel.attempt_execution",
-      "target_module": "daedalus.offload",
-      "line": 1209,
-      "column": 8,
-      "kind": "import_from"
-    }
-  ],
+  "baseline": [],
   "shim_registry": "docs/architecture/shim-registry.json"
 }

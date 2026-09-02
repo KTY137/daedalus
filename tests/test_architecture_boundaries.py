@@ -107,34 +107,33 @@ def _init_repository(root: Path) -> Path:
     return _write_contract(root)
 
 
-#: The single piece of recorded architecture debt, pinned field by field. A
-#: design review (2026-09-02, offload-ports memo §0) found the previous
-#: arrangement was laundering: the exception lived in the kernel rule's
-#: ``allowed_target_prefixes`` -- a field that GRANTS permission -- while the
-#: rationale prose claimed it was being recorded. The instrument reported
-#: zero. ``baseline`` is the field this contract's machinery actually counts:
-#: the entry shows up as ``allowlisted_violation_count``, vanishing flags it
-#: as resolved-delete-me, and moving the import even one line reds the check.
-#: The debt itself is the G1 offload inversion; the packet that removes it
-#: must delete this constant and restore the ``()`` assertion below.
-_RECORDED_DEBT = {
-    "rule_id": "kernel-no-outer-layers",
-    "source_path": "daedalus/kernel/attempt_execution.py",
-    "source_module": "daedalus.kernel.attempt_execution",
-    "target_module": "daedalus.offload",
-    "line": 1209,
-    "column": 8,
-    "kind": "import_from",
-}
+#: The repository carries NO recorded architecture debt. It carried exactly one
+#: until G1-SCC-CUT1: ``daedalus/kernel/attempt_execution.py:1209`` imported the
+#: ``daedalus.offload`` workload from inside the kernel. A design review
+#: (2026-09-02, offload-ports memo §0) had first found the arrangement was
+#: laundering -- the exception lived in the kernel rule's
+#: ``allowed_target_prefixes``, a field that GRANTS permission, while the
+#: rationale prose claimed it was being recorded, and the instrument reported
+#: zero. Moving it into ``baseline``, the field this contract's machinery
+#: actually counts, made it visible; G1-SCC-CUT1 then removed the import
+#: itself, so ``offload_runner`` takes the workload as an injected port and
+#: refuses at composition time without one.
+#:
+#: The empty assertion below is the point. ``baseline`` is a pre-authorisation:
+#: every entry in it is a violation the check agrees not to fail on, so a stale
+#: entry silently licenses a re-import at that exact line. Restoring ``()`` the
+#: moment the last entry is resolved is what keeps the field honest -- and it is
+#: why a future packet that needs an exception must ADD a row here deliberately
+#: rather than inherit one.
 
 
 def test_frozen_repository_baseline_is_exact_and_green() -> None:
     contract = load_contract(CONTRACT_PATH)
     report = evaluate_repository(ROOT, contract)
 
-    assert [entry.to_dict() for entry in contract.baseline] == [_RECORDED_DEBT]
-    assert report.current == contract.baseline
-    assert report.allowlisted == contract.baseline
+    assert contract.baseline == ()
+    assert report.current == ()
+    assert report.allowlisted == ()
     assert report.new == ()
     assert report.resolved == ()
     # 21 since G1-HIER-10 registered ``daedalus.schemas``, the last unowned

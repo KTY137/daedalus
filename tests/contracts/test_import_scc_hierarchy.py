@@ -43,11 +43,33 @@ REMAINING_CROSS_DOMAIN_COMPONENT = OLD_CROSS_DOMAIN_COMPONENT - {
     KERNEL_LEASE,
     RUNTIME_EGRESS,
 }
-CURRENT_CROSS_DOMAIN_COMPONENT = REMAINING_CROSS_DOMAIN_COMPONENT - {
+PRE_OFFLOAD_PORT_CROSS_DOMAIN_COMPONENT = REMAINING_CROSS_DOMAIN_COMPONENT - {
     "daedalus.conversation",
 }
+# G1-SCC-CUT1 cut ``daedalus.kernel.attempt_execution -> daedalus.offload``,
+# the repository's single recorded boundary violation: ``offload_runner`` takes
+# the workload as an injected port instead of importing it. The whole KERNEL
+# and SPINE layer leaves this component as a result -- five modules, and the
+# only five that are not flat/kairos modules. What remains is a genuine
+# workload-level cycle among the flat root modules and the Kairos write wave.
+#
+# ``daedalus.offload`` STAYS in the component, and that is not a failure of the
+# cut. It was previously held in by the kernel importing it; it is now held in
+# by ``daedalus.kairos.gated_writes`` importing it directly, because the write
+# wave really does depend on the workload and the workload reaches back through
+# ``build_exec -> kairos.scheduler``. The kernel's debt was HIDING that cycle,
+# not preventing it. Making it visible is the honest outcome; dissolving it is
+# a different packet, and one that has to touch the Git-blob-pinned retained
+# source the wave executes.
+CURRENT_CROSS_DOMAIN_COMPONENT = PRE_OFFLOAD_PORT_CROSS_DOMAIN_COMPONENT - {
+    "daedalus.kernel.attempt_execution",
+    "daedalus.kernel.promotion",
+    "daedalus.spine.attempt",
+    "daedalus.spine.bootstrap",
+    SPINE_PICKER,
+}
 CURRENT_COMPONENTS_SHA256 = (
-    "36d80ea6d701892c1cbb08057c2715477fbfcad972aa36b9f331d3065f3434a1"
+    "8679914e123c7b29c498d862868de0272ee479ee24db8abe61e22fd8926e0728"
 )
 # Moving census, not an architecture invariant: any packet that legitimately
 # splits or adds a leaf module changes these two totals without touching the
@@ -155,7 +177,31 @@ CENSUS_MODULES = 434
 # from daedalus.providers.codex_cli rather than re-implementing it, so the
 # Windows .cmd-relay refusal has one owner across all four CLI sinks. One new
 # edge, one file, no module added. Structure and digest unchanged.
-CENSUS_EDGES = 1637
+#
+# 1637 -> 1638 in G1-SCC-CUT1, which added no module and deleted none. Unlike
+# every repoint above, this one MOVES THE STRUCTURE: the maximum non-trivial
+# SCC drops 18 -> 14 and the cross-domain component drops 18 -> 13. The +1 is a
+# net of three, hand-computed from the edit list BEFORE re-measuring, and the
+# measurement agreed exactly:
+#
+#   kernel.attempt_execution  -> offload   -1  the recorded boundary violation
+#   orchestration.execution.attempts -> offload  +1  offload_port(), for the
+#       picker and bootstrap doors, threaded through daedalus.cli
+#   kairos.gated_writes       -> offload   +1  the write wave, which composes
+#       the port itself because the retained Git-blob-pinned source it exec()s
+#       calls offload_runner through a frozen _recording_runner
+#
+# ``daedalus.cli`` is NOT in that list: it already imported daedalus.offload
+# for the ``offload`` subcommand, so threading the port through it spends no
+# edge. Both new sites import ``OffloadCapability`` with
+# ``from daedalus.offload import ...`` rather than ``from daedalus import
+# offload`` on purpose -- the latter resolves to TWO targets here (the package
+# root and the module) and would have made this +1 a +3.
+#
+# The two spine doors spend nothing either: ``OffloadPort`` joins an EXISTING
+# ``from ..kernel.attempt_execution import (...)`` in both picker and
+# bootstrap, and this graph holds a set of targets per module.
+CENSUS_EDGES = 1638
 
 
 def _module_name(path: str) -> str:
@@ -243,7 +289,7 @@ def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
     assert len(graph) == CENSUS_MODULES
     assert sum(len(targets) for targets in graph.values()) == CENSUS_EDGES
     assert len(components) == 12
-    assert max(map(len, components)) == 18
+    assert max(map(len, components)) == 14
     component_bytes = json.dumps(
         components,
         ensure_ascii=True,
@@ -251,7 +297,22 @@ def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
     ).encode("utf-8")
     assert hashlib.sha256(component_bytes).hexdigest() == CURRENT_COMPONENTS_SHA256
     assert REMAINING_CROSS_DOMAIN_COMPONENT not in component_sets
+    assert PRE_OFFLOAD_PORT_CROSS_DOMAIN_COMPONENT not in component_sets
     assert CURRENT_CROSS_DOMAIN_COMPONENT in component_sets
+    # The claim of G1-SCC-CUT1, stated as membership rather than as a count: a
+    # count of 13 would also be satisfied by dropping five unrelated modules.
+    # The kernel and the spine are the layers that left, and the kernel no
+    # longer names the workload at all.
+    assert "daedalus.offload" not in graph["daedalus.kernel.attempt_execution"]
+    cyclic = frozenset().union(*component_sets)
+    for departed in (
+        "daedalus.kernel.attempt_execution",
+        "daedalus.kernel.promotion",
+        "daedalus.spine.attempt",
+        "daedalus.spine.bootstrap",
+        SPINE_PICKER,
+    ):
+        assert departed not in cyclic
     assert "daedalus.conversation" not in frozenset().union(*component_sets)
     assert "daedalus.health" not in graph["daedalus.conversation"]
     assert "daedalus.kernel.contracts.observations" in graph[
