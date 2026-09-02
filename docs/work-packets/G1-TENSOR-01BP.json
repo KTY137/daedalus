@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BP",
+  "title": "Reuse already-canonical TensorView entry tuples",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BO",
+  "campaign_issue": 239,
+  "base_revision": "edbc66bbdc128a21a2a73b0323448889e657750a",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView construction bounded and froze tensor.entries, then unconditionally called sorted() and tuple() even when the supplied immutable tuple was already in the exact canonical _entry_order. At the declared one-million-entry ceiling, already-canonical producers therefore paid an avoidable full sorting/rematerialization path and transient container overlap despite no ordering work being required.",
+  "primary_claim": "TensorView now validates entries while tracking whether their existing _entry_order is already nondecreasing. A bounded non-tuple Sequence is frozen once; an exact tuple is reused directly. When the validated entries are already canonical, that tuple becomes the retained TensorView.entries object without a sort/list/final-tuple rematerialization. Unsorted inputs still use the existing deterministic sort, and adjacent duplicate coordinate/relation claims still fail closed after canonicalization.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_construction_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BP.json"
+    ],
+    "code_test_commits": 3,
+    "code_test_additions": 44,
+    "code_test_deletions": 5,
+    "production_additions": 15,
+    "production_deletions": 5,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the canonical immutable entry tuple already provided by upstream producers when it satisfies the mandatory order, rather than adding an entry cache/index or always rebuilding the same representation. Keep the legacy deterministic sort only as the fallback for noncanonical input.",
+  "acceptance": [
+    "an exact already-canonical tuple of SparseTensorEntry records is retained by identity after TensorView construction",
+    "unsorted entry input remains deterministically canonicalized by the existing _entry_order",
+    "duplicate coordinate/relation claims remain fail-closed after canonicalization",
+    "bounded-sequence refusal, axis-label lookup and existing construction regressions remain in the focused contract surface",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "41fc1cdbdf53bf3c99cff016ce00df10fa4b8561",
+    "code_test_revision": "18b5ea2403caea67da128af8efc77f2187edfb4d",
+    "production_blob": "32405120d9de154112f9aad1fea616712192ae86",
+    "focused_test_blob": "edd1846d11e9aa065cbe16a53000af3637744fe9",
+    "fourfold_v2_run": 33664928318,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 18b5ea2403caea67da128af8efc77f2187edfb4d",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 18b5ea2403caea67da128af8efc77f2187edfb4d. The source diff plus identity regression establish removal of the unconditional canonical-entry rematerialization path for already-canonical tuples. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "development_note": "The first production file-replacement commit 2eceea5643f150c0061dfdd49ebae5719c237aba accidentally malformed the parse_tensor_view return annotation while applying the construction refactor. Commit 41fc1cdbdf53bf3c99cff016ce00df10fa4b8561 immediately restored the parser contract before the focused test commit. The superseded intermediate head receives no green or product claim; evidence is bound only to the corrected descendant 18b5ea2403caea67da128af8efc77f2187edfb4d.",
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BP commits; Fourfold/Forest authority, Tensor wire contracts, status/provenance identity and public product surfaces remain unchanged, while TensorView returns to always rebuilding a sorted entry tuple during construction.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
