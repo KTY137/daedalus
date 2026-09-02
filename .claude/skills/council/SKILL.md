@@ -101,6 +101,7 @@ for turn in thread.turns:
 | `published` | comment posted (`res.comment_url`) | report the URL |
 | `dry_run` | rendered, gh not invoked | show `res.markdown` |
 | `refused_secret` | the secret floor fired; nothing left the machine | report the rule from `res.detail`; do NOT retry, do NOT strip and resend without the operator |
+| `unsafe_argument` | the `pr` or `repo` value would reach `gh`'s argv as something other than data; `gh` was never invoked | fix the value at its source -- it must start alphanumeric; do NOT resend it quoted or escaped |
 | `gh_missing` | gh not installed / not on PATH | tell the operator; do not fall back to raw git |
 | `gh_unauthenticated` | no valid credentials | operator runs `gh auth login` |
 | `pr_not_found` | no such PR, or no access to it | check the number and the repo |
