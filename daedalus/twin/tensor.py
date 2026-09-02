@@ -326,6 +326,11 @@ class TensorView(CanonicalContract):
             lower = 0
             upper = len(self.entries)
 
+        if prefix_coordinates and not normalized:
+            if lower == 0 and upper == len(self.entries):
+                return self.entries
+            return tuple(self.entries[index] for index in range(lower, upper))
+
         def matching_entries():
             for index in range(lower, upper):
                 entry = self.entries[index]
