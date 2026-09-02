@@ -333,3 +333,45 @@ def test_direct_matmul_streams_only_referenced_right_rows() -> None:
 
     with pytest.raises(ValueError, match="bounded operation limit"):
         left.matmul(right, semiring, relation="bounded", max_operations=1)
+
+
+def test_direct_matmul_emits_canonical_csr_without_reindexing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = TypedAxis("source", "code", ("a", "b"))
+    middle = TypedAxis("middle", "code", ("m", "n"))
+    target = TypedAxis("target", "type", ("T", "U", "V"))
+    semiring = BooleanSemiring()
+    left = TypedRelationBlock.from_coordinates(
+        subject=SUBJECT,
+        signature=RelationSignature("code", "left", "code"),
+        row_axis=source,
+        column_axis=middle,
+        coordinates=(("a", "m", True), ("a", "n", True), ("b", "n", True)),
+        semiring=semiring,
+    )
+    right = TypedRelationBlock.from_coordinates(
+        subject=SUBJECT,
+        signature=RelationSignature("code", "right", "type"),
+        row_axis=middle,
+        column_axis=target,
+        coordinates=(("m", "T", True), ("m", "U", True), ("n", "T", True), ("n", "V", True)),
+        semiring=semiring,
+    )
+
+    def explode(*args: object, **kwargs: object) -> object:
+        raise AssertionError("matmul rematerialized row-local results")
+
+    monkeypatch.setattr(TypedRelationBlock, "_from_indexed", classmethod(explode))
+
+    result = left.matmul(right, semiring, relation="composed", max_operations=6)
+
+    assert result.row_offsets == (0, 3, 5)
+    assert result.column_indices == (0, 1, 2, 0, 2)
+    assert tuple(result.iter_entries()) == (
+        ("a", "T", True),
+        ("a", "U", True),
+        ("a", "V", True),
+        ("b", "T", True),
+        ("b", "V", True),
+    )
