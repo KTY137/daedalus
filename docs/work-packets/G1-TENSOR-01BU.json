@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BU",
+  "title": "Return proven prefix-only selector ranges without residual scans",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BT",
+  "campaign_issue": 239,
+  "base_revision": "d57057884524bffedf0adde2416d7a5ccb70137f",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView.select() already consumes a contiguous leading selector prefix and proves its exact candidate interval with bisect_left/bisect_right. When that prefix contains every requested selector, the remaining normalized selector map is empty, but the implementation still entered matching_entries(), walked every entry in the proven interval, evaluated all() over an empty predicate set, and rematerialized the result. A prefix covering the complete TensorView therefore performed a redundant full-range traversal after its bounds were already established.",
+  "primary_claim": "TensorView.select() now returns immediately when canonical bisect bounds have consumed every selector. A full-range prefix reuses the existing immutable entries tuple, while a proper prefix-only subrange materializes only the already-proven interval without executing residual predicates. Queries with genuine non-prefix predicates keep the existing residual fail-closed filtering path.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_select_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BU.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 38,
+    "code_test_deletions": 2,
+    "production_additions": 6,
+    "production_deletions": 1,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the existing canonical bisect bounds and immutable entries tuple. Do not add an entry index, cache, selector result cache, planner, alternate Tensor representation, or second filtering abstraction. Once normalized is empty after prefix consumption, return the proven range directly; keep the existing matching_entries loop only for genuine residual selectors.",
+  "acceptance": [
+    "prefix selectors remain validated fail-closed before query execution",
+    "binary search still narrows canonical TensorView.entries without a full entry scan",
+    "a prefix-only query whose bounds cover the complete TensorView reuses the immutable entries tuple without traversing all retained entries",
+    "proper prefix-only subranges preserve exact selected-entry semantics",
+    "non-prefix selectors retain exact residual predicate filtering",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "700165b2c8af2a92eb67ffa84acfbbe9588b88f8",
+    "code_test_revision": "c59f91284089275d7451d878be470291d565410a",
+    "production_blob": "f171e6343bf75107617d43c095a48a84969f33a1",
+    "focused_test_blob": "e0c9c123d7aecdf4c292c88d9cfd9094fc92f3ee",
+    "fourfold_v2_run": 33694062719,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision c59f91284089275d7451d878be470291d565410a",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision c59f91284089275d7451d878be470291d565410a. The source diff plus the 512-entry adversarial _ReadBoundEntries regression establish that a prefix-only selector covering the complete canonical TensorView returns the already-retained immutable tuple after bounded bisect access rather than walking the full proven range through an empty residual predicate loop. Existing focused regressions retain proper prefix subrange, non-prefix filter and fail-closed validation behavior. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BU commits; Fourfold/Forest authority, Tensor wire contracts, status/provenance identity and public product surfaces remain unchanged, while prefix-only TensorView.select queries return to traversing their proven bisect interval through the residual matching loop.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
