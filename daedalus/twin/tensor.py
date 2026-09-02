@@ -6,7 +6,7 @@ Fourfold remain authoritative; this module adds no fifth plane or state store.
 from __future__ import annotations
 
 import math
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, ClassVar, Mapping, Sequence
@@ -268,21 +268,54 @@ class TensorView(CanonicalContract):
         return order[0]
 
     def select(self, **coordinates: str) -> tuple[SparseTensorEntry, ...]:
-        normalized: dict[int, str] = {}
-        axis_positions = {axis.name: index for index, axis in enumerate(self.axes)}
+        if not coordinates:
+            return self.entries
+
+        normalized: dict[int, tuple[str, int]] = {}
         for name, raw in coordinates.items():
-            if name not in axis_positions:
+            position = bisect_left(self.axes, name, key=lambda axis: axis.name)
+            if position == len(self.axes) or self.axes[position].name != name:
                 raise ValueError(f"unknown tensor axis {name!r}")
-            position = axis_positions[name]
             label = _non_empty(raw, f"selector.{name}", max_length=1000)
-            if _sorted_label_index(self.axes[position].labels, label) is None:
+            label_index = _sorted_label_index(self.axes[position].labels, label)
+            if label_index is None:
                 raise ValueError(f"selector label {label!r} is not declared by axis {name!r}")
-            normalized[position] = label
-        return tuple(
-            entry
-            for entry in self.entries
-            if all(entry.coordinates[position][1] == label for position, label in normalized.items())
-        )
+            normalized[position] = (label, label_index)
+
+        prefix_indices: list[int] = []
+        while len(prefix_indices) in normalized:
+            prefix_indices.append(normalized[len(prefix_indices)][1])
+        if prefix_indices:
+            prefix = tuple(prefix_indices)
+            prefix_length = len(prefix)
+            lower = bisect_left(
+                self.entries,
+                prefix,
+                key=lambda candidate: _entry_order(self.axes, candidate)[0][
+                    :prefix_length
+                ],
+            )
+            upper = bisect_right(
+                self.entries,
+                prefix,
+                key=lambda candidate: _entry_order(self.axes, candidate)[0][
+                    :prefix_length
+                ],
+            )
+        else:
+            lower = 0
+            upper = len(self.entries)
+
+        def matching_entries():
+            for index in range(lower, upper):
+                entry = self.entries[index]
+                if all(
+                    entry.coordinates[position][1] == label
+                    for position, (label, _) in normalized.items()
+                ):
+                    yield entry
+
+        return tuple(matching_entries())
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "TensorView":
