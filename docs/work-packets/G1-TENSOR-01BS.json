@@ -1,0 +1,76 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BS",
+  "title": "Validate TensorView axis bindings positionally without transient name tuples",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BR",
+  "campaign_issue": 239,
+  "base_revision": "154521afaf14a399b29e14c00594cc530bc105ea",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView entry construction already requires SparseTensorEntry coordinates and TensorView axes to share the same canonical axis-name order, but it still materialized a complete tuple of TensorView axis names and then rebuilt a complete tuple of every entry's coordinate axis names solely to compare those bindings. The subsequent label validation already visited the same coordinates positionally, so the temporary name tuples duplicated work and allocation on the bounded high-cardinality entry path.",
+  "primary_claim": "TensorView now validates coordinate cardinality, axis-name binding and label membership in one positional pass over the already-canonical axes and coordinates. Constructor binding validation no longer rebuilds transient axis-name tuples per entry, while exact binding refusal, deterministic entry ordering and fail-closed unknown-label behavior are preserved.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_construction_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BS.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 51,
+    "code_test_deletions": 11,
+    "production_additions": 10,
+    "production_deletions": 10,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the mandatory shared canonical axis ordering directly. Validate coordinate count first, then compare each coordinate axis name with the axis at the same position and validate its label against that axis. Do not retain a parallel axis-name tuple, coordinate-name tuple, cache or lookup abstraction for constructor binding checks.",
+  "acceptance": [
+    "TensorView constructor binding validation does not iterate an entry solely to rebuild its axis-name tuple",
+    "exact coordinate cardinality and axis-name binding remain fail-closed",
+    "entry label membership remains fail-closed against the positionally bound canonical axis",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "187d98f2e93eab6fcb114227cda17e9840f5ec2c",
+    "code_test_revision": "8d0014c8dafa82a414ab047f6806a32c9f6213ef",
+    "production_blob": "645394877d3a79ceb1569e6b87069b11d40f86b9",
+    "focused_test_blob": "58d338414564f7b7113c13ee20845991a5f00a5e",
+    "fourfold_v2_run": 33683551473,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 8d0014c8dafa82a414ab047f6806a32c9f6213ef",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 8d0014c8dafa82a414ab047f6806a32c9f6213ef. The source diff plus adversarial IndexOnlyCoordinates regression establish positional constructor binding validation without rebuilding a transient per-entry axis-name tuple, while preserving fail-closed binding cardinality. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BS commits; Fourfold/Forest authority, Tensor wire contracts, status/provenance identity and public product surfaces remain unchanged, while TensorView returns to transient tuple-based constructor binding comparison.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
