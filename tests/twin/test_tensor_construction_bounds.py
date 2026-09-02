@@ -162,6 +162,68 @@ def test_tensor_view_select_avoids_linear_axis_label_membership_scan() -> None:
         tensor.select(node="x")
 
 
+def test_tensor_view_duplicate_tracking_does_not_hash_every_semantic_key() -> None:
+    axis = TensorAxis("node", ("a", "z"))
+    left = SparseTensorEntry(
+        coordinates=(("node", "a"),),
+        relation="membership",
+        evidence_sha256s=("d" * 64,),
+    )
+    right = SparseTensorEntry(
+        coordinates=(("node", "z"),),
+        relation="membership",
+        evidence_sha256s=("e" * 64,),
+    )
+
+    class HashForbiddenRelation(str):
+        def __hash__(self) -> int:
+            raise AssertionError("TensorView hashed every semantic key into a duplicate set")
+
+    object.__setattr__(left, "relation", HashForbiddenRelation(left.relation))
+    object.__setattr__(right, "relation", HashForbiddenRelation(right.relation))
+
+    tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=(axis,),
+        entries=(right, left),
+        provenance=provenance(),
+    )
+
+    assert tuple(entry.coordinates[0][1] for entry in tensor.entries) == ("a", "z")
+
+
+def test_tensor_view_still_rejects_duplicate_claims_after_canonical_sort() -> None:
+    axis = TensorAxis("node", ("a",))
+    first = SparseTensorEntry(
+        coordinates=(("node", "a"),),
+        relation="membership",
+        masked=False,
+        evidence_sha256s=("d" * 64,),
+    )
+    duplicate = SparseTensorEntry(
+        coordinates=(("node", "a"),),
+        relation="membership",
+        masked=True,
+        evidence_sha256s=("e" * 64,),
+    )
+
+    with pytest.raises(ValueError, match="must not repeat a coordinate/relation claim"):
+        TensorView(
+            repository_id="KTY137/daedalus",
+            source_revision=REVISION,
+            source_forest_sha256=FOREST,
+            source_fourfold_sha256=FOURFOLD,
+            status="complete",
+            axes=(axis,),
+            entries=(duplicate, first),
+            provenance=provenance(),
+        )
+
+
 def test_unsized_iterables_are_not_silently_consumed() -> None:
     consumed = False
 
