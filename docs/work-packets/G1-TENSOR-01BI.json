@@ -1,0 +1,75 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BI",
+  "title": "Detect duplicate TensorView claims after canonical sort",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BH",
+  "campaign_issue": 239,
+  "base_revision": "ffdcc726ed6e852d081ecee860930cf60d95f844",
+  "finding": "TensorView already canonically sorts every retained sparse entry, but construction also maintained a separate Python set containing every (coordinates, relation) semantic key solely to reject duplicates. At the declared one-million-entry ceiling that duplicates O(n) semantic-key retention during construction even though identical semantic claims are necessarily adjacent after the mandatory canonical sort.",
+  "primary_claim": "TensorView now reuses its mandatory canonical ordering as the duplicate-detection boundary: after sorting, adjacent entries are compared by coordinates and relation and duplicate claims still fail closed. The extra full semantic-key hash set is removed. Fourfold/Forest authority, revision/provenance identity, tensor status, canonical ordering and wire contracts remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_construction_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BI.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 73,
+    "code_test_deletions": 6,
+    "production_additions": 10,
+    "production_deletions": 5,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the mandatory canonical sort for duplicate detection rather than retaining a second full semantic-key index. Do not add a cache, index service, alternate TensorView type, planner, store, registry, scheduler or sparse backend for an invariant the existing ordering already exposes.",
+  "acceptance": [
+    "TensorView construction does not retain and hash one extra semantic-key record per sparse entry solely for duplicate detection",
+    "canonical TensorView entry ordering remains deterministic",
+    "duplicate coordinate/relation claims still fail closed even when masked/value/evidence fields differ",
+    "adversarial prevalidated relation values that refuse hashing do not break construction of unique claims",
+    "the affected Fourfold/Tensor contract matrix and isolated wheel execute successfully on the exact code/test revision",
+    "repository-wide CI evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "eac72cf3f3ad9ea3c78da9ba6c796cd7ed45eccc",
+    "code_test_revision": "652d7236c323673b7359841360e9e5ff90012c74",
+    "production_blob": "42c4a4f854dd96775b01143df94f89e1f30cce35",
+    "focused_test_blob": "c4caeb862fa0423255f15eef8bd77bceee3a3dc7",
+    "fourfold_v2_run": 33617571554,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "contracts (3.10, 0): success with real checkout/install/test steps",
+      "contracts (3.10, 123456): success with real checkout/install/test steps",
+      "contracts (3.12, 0): success; designated bounded Tensor/Forest diagnostic succeeded in this matrix cell",
+      "contracts (3.12, 123456): success with real checkout/install/test steps",
+      "isolated-wheel: success",
+      "repository-collection: success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 652d7236c323673b7359841360e9e5ff90012c74. The structural change removes the extra O(n) duplicate semantic-key set, but no measured peak-memory, latency, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BI commits; Forest/Fourfold authority, TensorView wire contracts, provenance identity and public product surfaces remain unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
