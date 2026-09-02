@@ -189,15 +189,15 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "275 tracked files" in message
+    assert "276 tracked files" in message
     assert payload["counts"] == {
-        "assigned_artifacts": 272,
+        "assigned_artifacts": 273,
         "legacy_artifacts": 204,
-        "packet_artifacts": 274,
-        "packet_ids": 209,
-        "post_index_artifacts": 70,
+        "packet_artifacts": 275,
+        "packet_ids": 210,
+        "post_index_artifacts": 71,
         "registry_artifacts": 1,
-        "tracked_files": 275,
+        "tracked_files": 276,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -269,6 +269,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-HIER-08",
         "G1-HIER-09",
         "G1-HIER-10",
+        "G1-HIER-11",
         "G1-IDE-13",
         "G1-IFACE-BRIDGE-01",
         "G1-IFACE-BRIDGE-02",

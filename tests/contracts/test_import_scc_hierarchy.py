@@ -60,6 +60,16 @@ CENSUS_MODULES = 433
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
 # that needs contracts from n owners spends n edges where it used to spend one.
 # The +15 is exactly the sum of (owners named - 1) over those eighteen files.
+#
+# 1618 -> 1618 in G1-HIER-11, which did the same kind of repoint for four
+# ``daedalus.twin`` modules and moved neither total. That is not a sign the
+# re-measurement was skipped: all nine symbols those files took from the facade
+# have one owner, ``daedalus.kernel.contracts.base``, so each file trades its
+# single ``daedalus.schemas`` edge for a single new one. A repoint changes this
+# number only when a file ends up naming more owners than it named before, so
+# "unchanged" is a legitimate measured outcome here and the twin edges did
+# move -- ``daedalus.twin.contracts`` now points at the kernel contract owner
+# rather than the facade.
 CENSUS_EDGES = 1618
 
 
