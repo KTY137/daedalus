@@ -1,0 +1,74 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BJ",
+  "title": "Reuse canonical TypedAxis ordering instead of per-operation label-index maps",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BI",
+  "campaign_issue": 239,
+  "base_revision": "6f50e96f440518e6cbe9a9da3e7ca309e4055568",
+  "finding": "TypedAxis already canonicalizes and retains labels as a sorted tuple, but TypedRelationBlock.from_coordinates() and get() rebuilt complete label-to-index dictionaries for both axes before resolving one coordinate or lookup. At the declared 100,000-label axis ceiling this duplicated the full axis label surface during ordinary sparse construction and point lookup even though the retained canonical ordering already supports exact logarithmic membership and index resolution.",
+  "primary_claim": "Relation-block construction and point lookup now resolve labels directly against the existing sorted TypedAxis labels with bisect_left and retain the public label_index compatibility property without using it internally. Fourfold subject identity, typed plane signatures, CSR canonicalization, semiring behavior, operation bounds and wire contracts remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py"
+    ],
+    "added": [
+      "tests/twin/test_relation_axis_lookup.py",
+      "docs/work-packets/G1-TENSOR-01BJ.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 102,
+    "code_test_deletions": 11,
+    "production_additions": 21,
+    "production_deletions": 11,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the canonical sorted axis labels already retained by TypedAxis instead of materializing complete transient dictionaries inside sparse construction and point lookup. Keep label_index only as the existing compatibility surface; do not add a cache, lookup service, alternate axis type, planner, store, registry, scheduler or sparse backend.",
+  "acceptance": [
+    "TypedRelationBlock.from_coordinates does not materialize complete row and column label-index mappings",
+    "TypedRelationBlock.get does not materialize complete row and column label-index mappings",
+    "canonical CSR output and duplicate-coordinate semiring accumulation remain unchanged",
+    "unknown row and column labels still fail closed",
+    "an adversarial regression that makes TypedAxis.label_index raise still permits valid construction and point lookup",
+    "the affected Fourfold/Tensor contract workflow and isolated wheel execute successfully on the exact code/test revision",
+    "repository-wide CI evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, gate transition, measured latency/memory improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "ee0636ab9d65046b5f97ec425790a294e8117149",
+    "code_test_revision": "184760c5bcce07ef3ea4320898b61fa5a8ca8ee2",
+    "production_blob": "3a70026bac10e8f98bdbbe59527d6116a36404c6",
+    "focused_test_blob": "32e2bf9018be049bb91688a1da64497f0f75d4d3",
+    "fourfold_v2_run": 33622488271,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on the exact code/test revision",
+      "contracts matrix executed with real checkout/install/test steps; the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic succeeded",
+      "isolated-wheel: success",
+      "repository-collection: success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 184760c5bcce07ef3ea4320898b61fa5a8ca8ee2. The structural change removes repeated full-axis mapping materialization from construction and point lookup, but no measured peak-memory, latency, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BJ commits; Fourfold subject authority, relation-block wire contracts, semiring semantics and the existing TypedAxis.label_index compatibility property remain available.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
