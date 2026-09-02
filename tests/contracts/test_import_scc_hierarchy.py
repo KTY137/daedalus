@@ -128,7 +128,12 @@ CENSUS_MODULES = 434
 # The SCC structure and CURRENT_COMPONENTS_SHA256 are UNCHANGED, which is the
 # claim worth making about a new node: journal_io sits on foundation and is
 # imported by five leaves, so it joins no cycle and moves no component.
-CENSUS_EDGES = 1636
+#
+# 1636 -> 1637 in G1-SEC-02: daedalus/ikarus_os.py imports cmd_shim_refusal
+# from daedalus.providers.codex_cli rather than re-implementing it, so the
+# Windows .cmd-relay refusal has one owner across all four CLI sinks. One new
+# edge, one file, no module added. Structure and digest unchanged.
+CENSUS_EDGES = 1637
 
 
 def _module_name(path: str) -> str:

@@ -180,3 +180,6 @@ projects/daedalus.json
 # runs/ is scanned by design. The durable record of that exploit is the
 # payload and canary result quoted in the packet's commit message.
 runs/analysis/**/*.py
+runs/analysis/**/tmp/
+runs/analysis/**/_scratch/
+runs/analysis/**/*.txt
