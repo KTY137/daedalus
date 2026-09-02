@@ -300,3 +300,36 @@ def test_reference_interpreter_hadamard_preflight_preserves_axis_contract(
             plan,
             {"left": left, "right": right},
         )
+
+
+def test_direct_matmul_streams_only_referenced_right_rows() -> None:
+    source = TypedAxis("source", "code", ("s",))
+    middle = TypedAxis("middle", "code", ("m", "n"))
+    target = TypedAxis("target", "type", ("T", "U", "V"))
+    semiring = BooleanSemiring()
+    left = _block("left", source, middle, "s", "m")
+    right = TypedRelationBlock.from_coordinates(
+        subject=SUBJECT,
+        signature=RelationSignature("code", "right", "type"),
+        row_axis=middle,
+        column_axis=target,
+        coordinates=(("m", "T", True), ("m", "U", True), ("n", "V", True)),
+        semiring=semiring,
+    )
+    original_columns = right.column_indices
+
+    class ExplodingColumns(tuple):
+        def __getitem__(self, index: object) -> object:
+            if isinstance(index, int) and index >= 2:
+                raise AssertionError("matmul materialized an unreferenced right CSR row")
+            return super().__getitem__(index)
+
+    object.__setattr__(right, "column_indices", ExplodingColumns(original_columns))
+    result = left.matmul(right, semiring, relation="streamed", max_operations=2)
+    assert tuple(result.iter_entries()) == (
+        ("s", "T", True),
+        ("s", "U", True),
+    )
+
+    with pytest.raises(ValueError, match="bounded operation limit"):
+        left.matmul(right, semiring, relation="bounded", max_operations=1)
