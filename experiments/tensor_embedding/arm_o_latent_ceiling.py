@@ -70,7 +70,9 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def _nonempty_string(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CeilingCorpusError(f"{field} must be a non-empty string")
-    return value.strip()
+    if value != value.strip():
+        raise CeilingCorpusError(f"{field} must not contain surrounding whitespace")
+    return value
 
 
 def _positive_int(value: Any, field: str) -> int:
@@ -137,8 +139,14 @@ class Corpus:
         if raw.get("schema") != SCHEMA:
             raise CeilingCorpusError(f"schema must be {SCHEMA!r}")
         revision = _nonempty_string(raw.get("source_revision"), "source_revision")
-        if len(revision) != 40 or any(c not in "0123456789abcdef" for c in revision.lower()):
-            raise CeilingCorpusError("source_revision must be a full 40-hex Git SHA")
+        if (
+            len(revision) != 40
+            or revision != revision.lower()
+            or any(c not in "0123456789abcdef" for c in revision)
+        ):
+            raise CeilingCorpusError(
+                "source_revision must be a lowercase full 40-hex Git SHA"
+            )
         expected = _positive_int(raw.get("expected_total"), "expected_total")
         items = raw.get("items")
         if not isinstance(items, list):
@@ -158,7 +166,7 @@ class Corpus:
                 f"items has {len(rows)} rows but expected_total is {expected}"
             )
         return cls(
-            source_revision=revision.lower(),
+            source_revision=revision,
             expected_total=expected,
             rows=tuple(rows),
             corpus_sha256=_sha256(raw),
