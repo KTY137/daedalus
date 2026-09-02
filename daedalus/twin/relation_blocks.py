@@ -474,7 +474,7 @@ class TypedRelationBlock(Generic[T]):
         if self.row_axis != other.row_axis or self.column_axis != other.column_axis:
             raise ValueError("Hadamard composition requires identical typed axes")
         limit, operations = _operation_limit(max_operations), 0
-        result: dict[tuple[int, int], T] = {}
+        offsets, indices, values = [0], [], []
         for row in range(len(self.row_axis.labels)):
             left_position, left_stop = self.row_offsets[row], self.row_offsets[row + 1]
             right_position, right_stop = other.row_offsets[row], other.row_offsets[row + 1]
@@ -494,15 +494,20 @@ class TypedRelationBlock(Generic[T]):
                     self.values[left_position], other.values[right_position]
                 )
                 if value != reference.zero:
-                    result[(row, left_column)] = value
+                    indices.append(left_column)
+                    values.append(value)
                 left_position += 1
                 right_position += 1
-        return self._derived(
+            offsets.append(len(values))
+        return type(self)(
+            self.subject,
             RelationSignature(self.signature.source_plane, relation, self.signature.target_plane),
             self.row_axis,
             self.column_axis,
-            result,
-            reference,
+            reference.name,
+            tuple(offsets),
+            tuple(indices),
+            tuple(values),
         )
 
     def _derived(
