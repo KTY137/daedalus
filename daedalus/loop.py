@@ -101,7 +101,7 @@ from .spine.envelope import (
     unwrap,
 )
 from .spine.killswitch import KillSwitch, LoopHalted
-from .text_integrity import safe_terminal_text
+from .foundation.text_integrity import safe_terminal_text
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -1658,7 +1658,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # guard and before its registry receipt. The guard reads its live budget
     # configuration when a priced call is attempted, so installing it before
     # the declarations does not freeze stale values.
-    from .dotenv import DotEnvRefused, load as _load_dotenv
+    from .foundation.dotenv import DotEnvRefused, load as _load_dotenv
 
     try:
         _load_dotenv()

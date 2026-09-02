@@ -281,7 +281,7 @@ def _apply_repo_confinement(data: dict | None, repo_root: str) -> dict | None:
 def resolve_project(repo_root: str, project: str | None = None) -> dict | None:
     """Return a project-config dict (with a 'policy' block) or None."""
     if project:
-        from .projects import load_project
+        from .foundation.projects import load_project
         return _apply_repo_confinement(load_project(project), repo_root)
     f = Path(repo_root) / REPO_CONFIG
     if f.exists():

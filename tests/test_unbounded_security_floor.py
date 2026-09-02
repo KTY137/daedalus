@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from daedalus import accelerators
+from daedalus.foundation import accelerators
 from daedalus.config import resolve_write_wave_policy
 from daedalus.kairos import gated_writes
 from daedalus.kairos.scheduler import Assignment, KairosScheduler

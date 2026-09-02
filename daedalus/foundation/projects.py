@@ -10,7 +10,7 @@ import unicodedata
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable
 
-from .atomic import (
+from ..atomic import (
     ExclusiveFileLock,
     FileLockUnavailable,
     publish_bytes_once,
@@ -18,7 +18,7 @@ from .atomic import (
 )
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 PROJECT_DIR = ROOT / "projects"
 PROJECT_REGISTRY_LOCK_TIMEOUT_S = 5.0
 

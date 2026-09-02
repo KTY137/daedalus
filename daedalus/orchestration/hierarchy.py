@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .. import core
-from ..projects import ProjectRowUpdateError, load_project, rewrite_project_team
+from ..foundation.projects import ProjectRowUpdateError, load_project, rewrite_project_team
 from ..router import load_agents
 
 CAPABILITIES = [

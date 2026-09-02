@@ -4,10 +4,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from . import core
-from .projects import load_project
+from ... import core
+from ...foundation.projects import load_project
 
-HARNESS_ROOT = Path(__file__).resolve().parents[1]
+HARNESS_ROOT = Path(__file__).resolve().parents[3]
 
 
 def claude_bootstrap_prompt(project: str) -> dict[str, Any]:

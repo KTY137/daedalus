@@ -59,7 +59,7 @@ def main() -> int:
                    "error": "empty objective", "sent": {}}, sys.stdout)
         return 0
 
-    from daedalus.env import load_env
+    from daedalus.foundation.env import load_env
     load_env()
 
     # Canonical Gate-0 effect start. The budget decision installs the real

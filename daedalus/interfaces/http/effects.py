@@ -10,7 +10,7 @@ from urllib.parse import unquote
 from ...kairos import drafts
 from ... import core, file_bridge, ikarus_os
 from ...orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, ikarus_chat, runtime_registry
-from ...projects import (
+from ...foundation.projects import (
     ProjectRegistrationError,
     ProjectRegistryUnavailable,
 )

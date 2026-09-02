@@ -55,7 +55,7 @@ class TestLoopBoundSafety(unittest.TestCase):
             ("--max-wall-clock-s", "inf"),
         ):
             with self.subTest(flag=flag, value=value), \
-                 mock.patch("daedalus.dotenv.load"), \
+                 mock.patch("daedalus.foundation.dotenv.load"), \
                  mock.patch("daedalus.budget.install_process_guard"), \
                  mock.patch(
                      "daedalus.budget.process_guard_boundary_decision",

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from daedalus.preservation import (
+from daedalus.foundation.preservation import (
     BLOCKING, DEMOTED, LOST, RECASED, REDUCED, SECTION, STRUCTURE,
     check_preservation, is_prose_path, project,
 )

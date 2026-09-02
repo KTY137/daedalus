@@ -20,7 +20,7 @@ from .interfaces.bridge import projection as bridge_projection
 from .interfaces.bridge import queue as bridge_queue
 from .interfaces.bridge import watcher as bridge_watcher
 from .memory import record_from_bridge_report
-from .projects import resolve_repo_root
+from .foundation.projects import resolve_repo_root
 from .spine import envelope
 
 

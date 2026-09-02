@@ -18,7 +18,7 @@ from daedalus.orchestration.ikarus_effect_bridge import (
     build_oneshot_effect_lease_request,
 )
 from daedalus.orchestration.ikarus_oneshot import OneShotRuntimeRefused
-from daedalus.ikarus_supervisor import (
+from daedalus.orchestration.ikarus_supervisor import (
     MissionSupervisor,
     SupervisorRefused,
     verify_state_ledger,

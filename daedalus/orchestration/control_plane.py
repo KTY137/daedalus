@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from .. import core
-from ..claude_detect import detect_claude_crew
-from ..projects import (
+from ..foundation.claude_detect import detect_claude_crew
+from ..foundation.projects import (
     ProjectRegistryUnavailable,
     ProjectRowUpdateError,
     load_project,

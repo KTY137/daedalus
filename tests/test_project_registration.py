@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import atomic, projects, web_api
+from daedalus import atomic, web_api
+from daedalus.foundation import projects
 from daedalus.spine import effect_boundary
 
 
@@ -26,7 +27,7 @@ import sys
 import time
 from pathlib import Path
 
-from daedalus import projects
+from daedalus.foundation import projects
 
 repo = Path(sys.argv[1])
 registry = Path(sys.argv[2])

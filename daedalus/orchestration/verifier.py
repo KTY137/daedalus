@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..limit_policy import ExecutionLimitPolicy
-from ..preservation import check_preservation, is_prose_path
+from ..foundation.preservation import check_preservation, is_prose_path
 from ..runtimes.contracts.provider_report import validate_report
 
 # How long the project suite may run before we kill it. This is a RUNAWAY

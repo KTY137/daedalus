@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from unittest import mock
 
-from daedalus import accelerators
+from daedalus.foundation import accelerators
 
 
 def _hardware(available: bool = True) -> dict:

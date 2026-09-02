@@ -19,7 +19,7 @@ from daedalus.orchestration.ikarus_runtime_role import (  # noqa: E402
     RuntimeRoleRegistry,
     RuntimeRoleRegistryError,
 )
-from daedalus.ikarus_supervisor import (  # noqa: E402
+from daedalus.orchestration.ikarus_supervisor import (  # noqa: E402
     MissionSupervisor as _MissionSupervisor,
     PlannedItem,
     RoleHarness,
@@ -982,7 +982,7 @@ def test_port_has_no_provider_import_process_spawn_or_vendor_branch():
     root = Path(__file__).resolve().parents[1]
     paths = (
         root / "daedalus" / "orchestration" / "ikarus_runtime_role.py",
-        root / "daedalus" / "ikarus_supervisor.py",
+        root / "daedalus" / "orchestration" / "ikarus_supervisor.py",
     )
     vendor_tokens = {"claude", "codex", "hermes"}
     for path in paths:

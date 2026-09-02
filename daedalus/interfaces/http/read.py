@@ -6,11 +6,12 @@ from typing import Any, Callable, Pattern
 from urllib.parse import unquote
 
 from ...kairos import drafts
-from ... import accelerators, core
+from ... import core
+from ...foundation import accelerators
 from ...orchestration import control_plane, conversation_requests, editor_context, hierarchy, runtime_registry
-from ...bootstrap_prompt import claude_bootstrap_prompt
+from .bootstrap_prompt import claude_bootstrap_prompt
 from ...orchestration.context_plan import plan_context
-from ...env import env_status
+from ...foundation.env import env_status
 from ...structcore.churn import co_change_pairs
 from ...structcore.report import structure_summary
 from ...structcore.topology import spectral_partition
@@ -443,7 +444,7 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
         root, perr = "", ""
         if project:
             try:
-                from ...projects import load_project
+                from ...foundation.projects import load_project
 
                 root = str(load_project(project).get("repo_root") or "")
             except ValueError as exc:

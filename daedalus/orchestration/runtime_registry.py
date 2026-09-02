@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..env import load_env
+from ..foundation.env import load_env
 from ..providers.ollama import DEFAULT_HOST, DEFAULT_MODEL
 
 

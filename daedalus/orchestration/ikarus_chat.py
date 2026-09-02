@@ -12,7 +12,7 @@ from typing import Any
 
 from .. import core
 from . import agents_registry, control_plane, hierarchy
-from ..projects import resolve_repo_root
+from ..foundation.projects import resolve_repo_root
 
 
 BLUEPRINTS: list[dict[str, Any]] = [

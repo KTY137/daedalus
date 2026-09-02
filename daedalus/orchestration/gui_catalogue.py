@@ -668,7 +668,12 @@ def load_catalogue(path: str | Path | None = None) -> Catalogue:
     which is a coin flip wearing a lookup's clothes.
     """
     if path is None:
-        legacy_root = Path(__file__).resolve().parent.parent / CATALOGUE_DIR
+        # parents[2], not parent.parent: this file sits at
+        # daedalus/orchestration/, so the repository root is two hops up.
+        # G1-FLAT-01 moved the module and left the hop count behind, which
+        # pointed the legacy fallback at daedalus/catalogue/gui -- a directory
+        # that does not exist. The packaged path masked it.
+        legacy_root = Path(__file__).resolve().parents[2] / CATALOGUE_DIR
         source_files = iter_builtin_files(
             "catalogue/gui", legacy=legacy_root, suffix=".json"
         )

@@ -23,7 +23,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterable
 
 from ..kernel.artifacts import ArtifactIdentityError, store_canonical_json
-from ..projects import load_project, resolve_repo_root
+from ..foundation.projects import load_project, resolve_repo_root
 from ..sensitivity import load_policy, secret_floor_rule, slice_egress_rule
 from ..spine.envelope import canonical_sha
 
@@ -70,7 +70,7 @@ def _artifact_root() -> Path:
     override = os.environ.get("DAEDALUS_EDITOR_CONTEXT_DIR", "").strip()
     if override:
         return Path(override).resolve()
-    return (Path(__file__).resolve().parents[1] / "runs" / "artifacts" /
+    return (Path(__file__).resolve().parents[2] / "runs" / "artifacts" /
             "editor-contexts").resolve()
 
 

@@ -35,7 +35,7 @@ from .limit_policy import (
     MODE_CUSTOM,
     store_in_env as store_limit_policy_in_env,
 )
-from .projects import ProjectRegistryUnavailable, resolve_registered_project_root
+from .foundation.projects import ProjectRegistryUnavailable, resolve_registered_project_root
 from .spine.cancel import ManagedProcess
 
 CONFIG_REL = Path("config/connections.json")

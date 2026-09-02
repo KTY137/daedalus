@@ -19,12 +19,13 @@ from .interfaces.http import server as http_server
 from .interfaces.http import sse as http_sse
 
 from .kairos import drafts
-from . import accelerators, core
+from . import core
+from .foundation import accelerators
 from .orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, ikarus_chat, runtime_registry
-from .bootstrap_prompt import claude_bootstrap_prompt
+from .interfaces.http.bootstrap_prompt import claude_bootstrap_prompt
 from .orchestration.context_plan import plan_context
-from .env import env_status, load_env
-from .projects import (
+from .foundation.env import env_status, load_env
+from .foundation.projects import (
     ProjectRegistrationError,
     ProjectRegistryUnavailable,
     ProjectRowNotFound,
@@ -59,7 +60,7 @@ def _project_center(project: str | None) -> list[str]:
     if not project:
         return []
     try:
-        from .projects import load_project
+        from .foundation.projects import load_project
 
         raw = load_project(project).get("center") or []
     except (ValueError, OSError):
@@ -80,7 +81,7 @@ def _project_ignore(project: str | None) -> list[str]:
     if not project:
         return []
     try:
-        from .projects import load_project
+        from .foundation.projects import load_project
 
         raw = load_project(project).get("ignore") or []
     except (ValueError, OSError):
@@ -106,7 +107,7 @@ def _project_list() -> dict[str, Any]:
     rows = []
     for name in list_projects():
         try:
-            from .projects import load_project
+            from .foundation.projects import load_project
 
             data = load_project(name)
         except ValueError:

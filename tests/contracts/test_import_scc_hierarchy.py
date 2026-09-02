@@ -68,8 +68,16 @@ CURRENT_CROSS_DOMAIN_COMPONENT = PRE_OFFLOAD_PORT_CROSS_DOMAIN_COMPONENT - {
     "daedalus.spine.bootstrap",
     SPINE_PICKER,
 }
+# G1-FLAT-04 moved ``ikarus_supervisor`` into ``daedalus.orchestration``.
+# It did NOT leave the cycle and this line does not claim it did: the member
+# is RENAMED, one in for one out, so the component's size is unchanged at 13.
+# Relocating a module cannot dissolve a cycle it is in -- only cutting an edge
+# can, which is what G1-SCC-CUT1 did and what the note above describes.
+CURRENT_CROSS_DOMAIN_COMPONENT = (
+    CURRENT_CROSS_DOMAIN_COMPONENT - {"daedalus.ikarus_supervisor"}
+) | {"daedalus.orchestration.ikarus_supervisor"}
 CURRENT_COMPONENTS_SHA256 = (
-    "8679914e123c7b29c498d862868de0272ee479ee24db8abe61e22fd8926e0728"
+    "dec12f217f49c172c75760c45cfb405efb3bd1934cc269d3642e0daeadee9c01"
 )
 # Moving census, not an architecture invariant: any packet that legitimately
 # splits or adds a leaf module changes these two totals without touching the
@@ -108,7 +116,11 @@ CURRENT_COMPONENTS_SHA256 = (
 # langgraph_adapter) and the four zero-caller Ikarus->Kairos rename shims
 # (decompose, drafts, ikarus, mission_control) are gone. Their owners were
 # already counted and are unchanged.
-CENSUS_MODULES = 430
+# 430 -> 432 in G1-FLAT-04, and both are package roots this packet created:
+# ``daedalus.foundation`` for the leaf utilities and ``daedalus.interfaces.cli``
+# for the console entrypoints. No implementation module was added or deleted;
+# the eleven relocations are renames.
+CENSUS_MODULES = 432
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -259,7 +271,23 @@ CENSUS_MODULES = 430
 # the rename table applied to HEAD, which left exactly those thirteen.
 # Structure and digest are UNCHANGED -- 12 components, max 14, same
 # CURRENT_COMPONENTS_SHA256 -- because none of the nineteen was in a cycle.
-CENSUS_EDGES = 1642
+#
+# 1642 -> 1644 in G1-FLAT-04. The +2 is a net of four, and every one is the
+# same ``from <package> import <module>`` two-target construct as last time:
+#
+#   +3  interfaces.http.read, web_api and tools.inventory gained
+#       ``-> daedalus.foundation``
+#    -1  tools.inventory lost ``-> daedalus``: it named the root package only
+#        to reach ``skills``, which left
+#
+# The eleven new package edges the moved modules THEMSELVES spend are already
+# counted -- each was importing the same owners before, from one level up.
+# The digest below DID move this time, and only because
+# ``ikarus_supervisor`` is a member of the 13-module cross-domain component:
+# renaming a member renames it inside the component too. Count and maximum
+# are unchanged at 12 and 14, and the membership assertion is restated
+# explicitly above rather than left to the digest.
+CENSUS_EDGES = 1644
 
 
 def _module_name(path: str) -> str:

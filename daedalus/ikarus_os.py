@@ -95,7 +95,7 @@ from typing import Sequence
 from . import core
 from .orchestration import ikarus_act
 from .orchestration.ikarus_act import ActDecision
-from .projects import resolve_repo_root
+from .foundation.projects import resolve_repo_root
 from .providers._openai_compat import chat_completion
 from .orchestration.llm_client import IkarusLLMClient
 from .limit_policy import ExecutionLimitPolicy

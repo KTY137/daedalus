@@ -223,7 +223,7 @@ def test_all_live_attempt_callers_name_explicit_composition() -> None:
         "ignition": (ROOT / "daedalus" / "ignition" / "gate1.py").read_text(
             encoding="utf-8"
         ),
-        "supervisor": (ROOT / "daedalus" / "ikarus_supervisor.py").read_text(
+        "supervisor": (ROOT / "daedalus" / "orchestration" / "ikarus_supervisor.py").read_text(
             encoding="utf-8"
         ),
         "picker": (ROOT / "daedalus" / "spine" / "picker.py").read_text(

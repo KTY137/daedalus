@@ -31,7 +31,7 @@ from typing import Any, Sequence
 
 from .limit_policy import ExecutionLimitPolicy, load_from_env
 from .memory import MEMORY_DIR, MemoryEvent, append_event, refresh_todo_snapshot
-from .projects import ROOT as REPO_ROOT, resolve_repo_root
+from .foundation.projects import ROOT as REPO_ROOT, resolve_repo_root
 
 
 CLAUDE_HOME = Path.home() / ".claude"

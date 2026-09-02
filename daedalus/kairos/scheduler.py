@@ -158,7 +158,7 @@ class KairosScheduler:
         # Extra pool workers Ikarus can spin up for fan-out beyond the role shadows.
         self._bench = cycle(roster("ollama"))
         if self.policy is None and self.project:
-            from ..projects import load_project
+            from ..foundation.projects import load_project
             from ..sensitivity import load_policy
             project_data = load_project(self.project)
             self.policy = load_policy(project_data)

@@ -14,7 +14,7 @@ import pytest
 from daedalus import budget as budget_kernel
 from daedalus import desktop_runtime as desktop_runtime_module
 from daedalus import file_bridge
-from daedalus import projects
+from daedalus.foundation import projects
 from daedalus import sensitivity
 from daedalus.limit_policy import (
     ExecutionLimitPolicy,

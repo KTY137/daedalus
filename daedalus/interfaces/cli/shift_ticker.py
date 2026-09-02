@@ -2,8 +2,8 @@
 
 Run it in tmux, screen, or any spare terminal:
 
-    python -m daedalus.shift_ticker            # 60s cadence
-    python -m daedalus.shift_ticker --every 300
+    python -m daedalus.interfaces.cli.shift_ticker            # 60s cadence
+    python -m daedalus.interfaces.cli.shift_ticker --every 300
 
 WHAT IT IS FOR, AND WHAT IT IS NOT
 ----------------------------------
@@ -30,7 +30,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from daedalus import shift as shift_mod  # noqa: E402
 
 BAR = 28
@@ -74,12 +74,12 @@ def render(root: Path) -> str:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(prog="daedalus.shift_ticker",
+    p = argparse.ArgumentParser(prog="daedalus.interfaces.cli.shift_ticker",
                                 description="Watch a declared working window.")
     p.add_argument("--every", type=float, default=60.0, help="seconds between ticks")
     p.add_argument("--once", action="store_true", help="print one tick and exit")
     args = p.parse_args(argv)
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[3]
 
     try:
         while True:

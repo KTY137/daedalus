@@ -110,7 +110,7 @@ def _spawn(argv: list[str]) -> None:
     import argparse
     import json
     from .kairos.scheduler import KairosScheduler
-    from .projects import resolve_repo_root
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus spawn",
@@ -175,7 +175,7 @@ def _build(argv: list[str]) -> None:
     import argparse
     import json
     from .build import plan_build
-    from .projects import resolve_repo_root
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus build",
@@ -222,7 +222,7 @@ def _init(argv: list[str]) -> None:
 
 
 def _projects(argv: list[str]) -> None:
-    from .projects import list_projects
+    from .foundation.projects import list_projects
     projects = list_projects()
     if not projects:
         print("no registered projects")
@@ -235,7 +235,7 @@ def _accelerators(argv: list[str]) -> None:
     import argparse
     import json
 
-    from .accelerators import accelerator_status
+    from .foundation.accelerators import accelerator_status
 
     parser = argparse.ArgumentParser(
         prog="daedalus accelerators",
@@ -279,7 +279,7 @@ def _context(argv: list[str]) -> None:
     import json
 
     from .orchestration.context_plan import plan_context
-    from .projects import load_project, resolve_repo_root
+    from .foundation.projects import load_project, resolve_repo_root
     from .structcore.churn import co_change_pairs
     from .structcore.index import cached_index
 
@@ -363,7 +363,7 @@ def _agents(argv: list[str]) -> None:
     import argparse
     import json
     from .orchestration import agents_registry as reg
-    from .projects import resolve_repo_root
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus agents",
@@ -454,7 +454,7 @@ def _categories(argv: list[str]) -> None:
     import argparse
     import json
     from .orchestration import categories as cats
-    from .projects import resolve_repo_root
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus categories",
@@ -1019,8 +1019,8 @@ def _claude_crew(argv: list[str]) -> None:
     import argparse
     import json
     from pathlib import Path
-    from .claude_detect import detect_claude_crew
-    from .projects import resolve_repo_root
+    from .foundation.claude_detect import detect_claude_crew
+    from .foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus claude-crew",
@@ -1120,7 +1120,7 @@ def main() -> None:
     # the call cap, the declared subscription vendors -- is exactly the kind of
     # thing that belongs in `.env`. Loading after it would read the defaults and
     # silently ignore what the operator configured.
-    from .dotenv import DotEnvRefused, load as _load_dotenv
+    from .foundation.dotenv import DotEnvRefused, load as _load_dotenv
 
     try:
         _load_dotenv()

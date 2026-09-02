@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from . import metrics
-from .claude_detect import detect_claude_crew
-from .projects import PROJECT_DIR, list_projects, load_project, resolve_repo_root
+from .foundation.claude_detect import detect_claude_crew
+from .foundation.projects import PROJECT_DIR, list_projects, load_project, resolve_repo_root
 from .providers import provider_health as _provider_health
 from .router import load_agents
 from .status import collect_status
@@ -1241,7 +1241,7 @@ def _try_ikarus(
 
     try:
         from .build_exec import EffectBounds, WaveExecutor
-        from .ikarus_supervisor import MissionSupervisor
+        from .orchestration.ikarus_supervisor import MissionSupervisor
         from .orchestration import run_mission
 
         session = _one_task_session(payload, assignment)

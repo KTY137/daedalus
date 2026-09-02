@@ -22,7 +22,8 @@ from typing import Any
 
 import pytest
 
-from daedalus import atomic, projects, web_api
+from daedalus import atomic, web_api
+from daedalus.foundation import projects
 from daedalus.orchestration import control_plane, hierarchy
 from daedalus.spine import effect_boundary
 
@@ -35,7 +36,7 @@ import sys
 import time
 from pathlib import Path
 
-from daedalus import projects
+from daedalus.foundation import projects
 from daedalus.orchestration import control_plane, hierarchy
 
 registry = Path(sys.argv[1])

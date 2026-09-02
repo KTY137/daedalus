@@ -23,7 +23,7 @@ from daedalus.limit_policy import (
     MODE_UNBOUNDED_EXECUTION,
 )
 from daedalus.offload import offload
-from daedalus.projects import load_project
+from daedalus.foundation.projects import load_project
 from daedalus.provider_router import route_and_select
 from daedalus.providers import get_provider
 from daedalus.providers.codex_cli import CodexCLIProvider

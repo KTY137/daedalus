@@ -87,7 +87,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from daedalus.projects import list_projects, resolve_repo_root
+from daedalus.foundation.projects import list_projects, resolve_repo_root
 
 # agent_env repo root == parents[2] of this file (daedalus/eval/tasks.py).
 AGENT_ENV_ROOT = str(Path(__file__).resolve().parents[2])
@@ -100,7 +100,7 @@ def resolve_task_repo(repo: str) -> str:
     """Map a task's ``repo`` label to an absolute repo root.
 
     "agent_env"        -> this harness repo (dogfood target)
-    a registered name  -> daedalus.projects.resolve_repo_root (e.g. sunny_garden)
+    a registered name  -> daedalus.foundation.projects.resolve_repo_root (e.g. sunny_garden)
     an absolute path   -> used as-is (temp fixtures in tests)
     """
     if repo == "agent_env":
@@ -267,7 +267,7 @@ TASKS: list[dict] = [
         "label_provenance": "hand_reachable",
         "tier": "primary",
         "repo": "agent_env",
-        "target": "daedalus/projects.py::resolve_repo_root",
+        "target": "daedalus/foundation/projects.py::resolve_repo_root",
         "must_include": ["load_project"],
         "question": "How does resolve_repo_root turn a project name into a "
                     "repo path?",

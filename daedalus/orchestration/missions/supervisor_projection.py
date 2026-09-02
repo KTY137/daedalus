@@ -14,7 +14,7 @@ from typing import Any, Mapping
 from daedalus.atomic import publish_bytes_once
 from daedalus.build import BuildSession, BuildTask
 from daedalus.build_exec import BuildRunReport, WaveResult
-from daedalus.ikarus_supervisor import (
+from daedalus.orchestration.ikarus_supervisor import (
     MissionSupervisor,
     StateLedger,
     SupervisorRefused,

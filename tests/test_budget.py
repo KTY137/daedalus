@@ -928,8 +928,8 @@ _NOT_BILLABLE = {
         "does not itself select or invoke a vendor",
     "daedalus/doctor.py": "`codex --version` / `login status`: no tokens generated",
     "daedalus/orchestration/runtime_registry.py": "`<binary> --version` probe only",
-    "daedalus/claude_detect.py": "detects the CLI, never invokes it",
-    "daedalus/accelerators.py": "nvidia-smi and a local /api/tags probe",
+    "daedalus/foundation/claude_detect.py": "detects the CLI, never invokes it",
+    "daedalus/foundation/accelerators.py": "nvidia-smi and a local /api/tags probe",
     "daedalus/core.py": "dispatches to the sites below; spawns nothing itself",
     "daedalus/providers/claude_cli.py": "delegates to claude_bridge.ask_claude",
     "runs/council/room_server.py": "delegates to room.ask_*; its own urlopen is "

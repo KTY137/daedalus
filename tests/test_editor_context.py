@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import projects
+from daedalus.foundation import projects
 from daedalus.orchestration import editor_context
 
 

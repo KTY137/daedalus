@@ -187,7 +187,7 @@ daedalus/chip_design/sources.py -text
 daedalus/chip_design/toolchains.py -text
 daedalus/chip_design/vivado_tcl.py -text
 daedalus/claude_bridge.py -text
-daedalus/claude_detect.py -text
+daedalus/foundation/claude_detect.py -text
 daedalus/config.py -text
 daedalus/orchestration/context_plan.py -text
 daedalus/core.py -text
@@ -237,9 +237,9 @@ daedalus/memory/__init__.py -text
 daedalus/memory/embeddings.py -text
 daedalus/metrics.py -text
 daedalus/offload.py -text
-daedalus/preservation.py -text
+daedalus/foundation/preservation.py -text
 daedalus/primary_tree.py -text
-daedalus/projects.py -text
+daedalus/foundation/projects.py -text
 daedalus/provider_router.py -text
 daedalus/providers/__init__.py -text
 daedalus/providers/_ollama_native.py -text
@@ -337,7 +337,7 @@ daedalus/runtimes/provider_target_verification.py -text
 daedalus/runtimes/provider_target_verification_contracts.py -text
 daedalus/runtimes/admission/offload_egress.py -text
 daedalus/orchestration/workspace_containment.py -text
-daedalus/text_integrity.py -text
+daedalus/foundation/text_integrity.py -text
 
 # Gate-1 evaluator-bundle closure members added by the hierarchy refactor.
 # The closure is recomputed from source on every run by
@@ -357,7 +357,7 @@ daedalus/text_integrity.py -text
 daedalus/build_exec.py -text
 daedalus/orchestration/conversation.py -text
 daedalus/orchestration/ikarus_runtime_role.py -text
-daedalus/ikarus_supervisor.py -text
+daedalus/orchestration/ikarus_supervisor.py -text
 daedalus/interfaces/bridge/__init__.py -text
 daedalus/interfaces/bridge/cli.py -text
 daedalus/interfaces/bridge/conversation.py -text
