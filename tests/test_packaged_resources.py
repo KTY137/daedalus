@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import agents_registry, categories, config, gui_catalogue, router
+from daedalus import agents_registry, categories, config, router
+
+# The OWNER, not the flat facade: the catalogue test below fakes
+# ``gui_catalogue.__file__`` to a site-packages path, and ``load_catalogue``
+# resolves the packaged data from the owner module's own ``__file__``.
+# Faking it on the facade would patch a name nothing reads. G1-FLAT-01.
+from daedalus.orchestration import gui_catalogue
 from daedalus.resources import (
     ResourceDriftError,
     iter_builtin_files,
@@ -75,7 +81,9 @@ def test_init_repo_reads_packaged_templates_without_checkout_root(
 def test_catalogue_reads_packaged_data_without_checkout_root(
     monkeypatch, tmp_path: Path
 ) -> None:
-    fake_module = tmp_path / "site-packages" / "daedalus" / "gui_catalogue.py"
+    fake_module = (
+        tmp_path / "site-packages" / "daedalus" / "orchestration" / "gui_catalogue.py"
+    )
     monkeypatch.setattr(gui_catalogue, "__file__", str(fake_module))
     catalogue = gui_catalogue.load_catalogue()
     assert set(catalogue.sources) == {"external.json", "glass.json"}

@@ -20,7 +20,12 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import langgraph_adapter, runbook
+# The OWNER, not the flat ``daedalus.langgraph_adapter`` facade. Three tests
+# below monkeypatch ``langgraph_available``; the owner's ``build_graph``
+# resolves that name in the owner's own globals, so patching the facade would
+# rebind a copy and silently assert nothing. G1-FLAT-01.
+from daedalus import runbook
+from daedalus.orchestration import langgraph_adapter
 
 needs_langgraph = pytest.mark.skipif(
     not langgraph_adapter.langgraph_available(),
