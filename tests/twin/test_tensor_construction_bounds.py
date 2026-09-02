@@ -104,6 +104,34 @@ def test_entry_count_limit_refuses_before_copying_records() -> None:
     assert entries.accessed is False
 
 
+def test_tensor_view_avoids_full_axis_label_index_materialization() -> None:
+    axis = TensorAxis("node", ("a", "m", "z"))
+
+    class BisectOnlyLabels(tuple):
+        def __iter__(self):  # type: ignore[no-untyped-def]
+            raise AssertionError("TensorView iterated every axis label to build an index")
+
+    object.__setattr__(axis, "labels", BisectOnlyLabels(axis.labels))
+    tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=(axis,),
+        entries=(
+            SparseTensorEntry(
+                coordinates=(("node", "m"),),
+                relation="membership",
+                evidence_sha256s=("d" * 64,),
+            ),
+        ),
+        provenance=provenance(),
+    )
+
+    assert tensor.index_coordinate(tensor.entries[0]) == (1,)
+
+
 def test_unsized_iterables_are_not_silently_consumed() -> None:
     consumed = False
 
