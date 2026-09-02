@@ -4,6 +4,7 @@ Status: projection, not authority
 Active gate: 1
 Observed revision: `851ff43cc63dd788d1da63a6f7fa44fcc6ed0291`
 Observed: 2026-09-02
+Superseded in part: see section 0, measured 2026-09-03
 Owner: whoever holds the next G1-HIER packet
 
 The owner asked what the proposed file tree is. Until this file existed the
@@ -18,6 +19,83 @@ command that produced it, `[INHERITED]` with the run it came from named, or
 `[ASSUMED]`. There are no unstamped numbers. Where this document disagrees with
 the brief that commissioned it, the disagreement is recorded rather than
 smoothed — see §2.3.
+
+---
+
+## 0. What has landed since this file was written `[MEASURED 2026-09-03]`
+
+Every count below section 0 is a measurement of `851ff43c` and has been
+OVERTAKEN. This section is the delta; the sections below are left as they
+were written, because a chronicle that edits its own past measurements
+stops being evidence. Re-run the commands in section 1.1 rather than
+subtracting from them by hand.
+
+Four packets landed on 2026-09-02 and -03. The flat top level went
+**76 -> 28** `[MEASURED: git ls-files -- ':(glob)daedalus/*.py' | grep -v
+__init__ | wc -l]`.
+
+| packet | what it did | flat before -> after |
+| --- | --- | --- |
+| G1-FLAT-02 | deleted seven pure re-export facades once every caller named its owner | 76 -> 69 |
+| G1-FLAT-03 | nineteen modules with a dossier destination, no effect-registry row and no cycle membership, into `orchestration` | 69 -> 50 |
+| G1-FLAT-04 | created `foundation/` and `interfaces/cli/`; eleven modules, including one cycle member | 50 -> 39 |
+| G1-FLAT-05 | eleven REGISTERED effect doors, and `daedalus.interfaces` added to the kernel, spine and twin fences | 39 -> 28 |
+
+### 0.1 The packages now `[MEASURED 2026-09-03]`
+
+```text
+runtimes      64      interfaces    31      integrations  14
+kernel        50      structcore    24      twin          13
+orchestration 37      eval          19      kairos        11
+gates         35      spine         15      providers     11
+                      chip_design   15      foundation     9
+```
+
+`interfaces/` now has four subpackages rather than three: `bridge` (7),
+`cli` (7), `desktop` (5) and `http` (7), plus its own `__init__`.
+
+### 0.2 The 28 that are still flat, and why `[MEASURED 2026-09-03]`
+
+```text
+atomic budget build build_exec claude_bridge cli config core dctx
+desktop_runtime doctor file_bridge health journal_io limit_policy metrics
+offload orchestrate primary_tree progress progress_sources provider_router
+router schemas sensitivity status storage token_policy
+```
+
+They fall into four groups, and only the last is undecided:
+
+1. **Named by the boundary contract** (7): `atomic`, `budget`, `config`,
+   `limit_policy`, `primary_tree`, `sensitivity`, `storage`. Each appears by
+   dotted path in the `allowed_target_prefixes` of the kernel, spine and twin
+   rules, so moving one rewrites three live rules at once. That is a
+   contract migration with its own review, not a rename.
+2. **Cycle members** (10 of the 13): `build`, `build_exec`, `core`, `doctor`,
+   `file_bridge`, `health`, `offload`, `progress`, `progress_sources`,
+   `status`. Section 3 is still correct about these: relocating a module in a
+   cycle moves the cycle, it does not dissolve it. Only cutting an edge does.
+3. **Registered facades with a recorded removal criterion** (3): `orchestrate`,
+   `schemas`, `token_policy`. Each has a row in `shim-registry.json` naming
+   what must be true before it goes.
+4. **No recorded destination** (8): `claude_bridge`, `cli`, `dctx`,
+   `desktop_runtime`, `journal_io`, `metrics`, `provider_router`, `router`.
+   `cli` is the console script named in `pyproject.toml`; `dctx` and
+   `claude_bridge` have dossier destinations inside CONSTRAINED layers
+   (`twin`, `runtimes`), which means their moves must satisfy those layers'
+   forbidden sets and are therefore packets, not renames.
+
+### 0.3 Two rules the packets added `[MEASURED 2026-09-03]`
+
+- `daedalus.interfaces` is now a forbidden target of `kernel-no-outer-layers`,
+  `spine-no-outer-layers` and `twin-no-outer-layers`. Without it, moving
+  `web_api` out of spine's forbidden set and into `interfaces/` would have
+  been laundering rather than layering. Green with an empty baseline.
+- `tests/contracts/test_repo_root_derivation_depth.py` counts hops: a module
+  N components below the root that binds `ROOT`/`REPO`/`HARNESS_ROOT` to a
+  `__file__` derivation must use `parents[N-1]`. Six such bindings were
+  silently wrong after one relocation batch, and a seventh had been wrong
+  since G1-FLAT-01. This is the single highest-yield instrument the
+  relocation programme produced.
 
 ---
 
