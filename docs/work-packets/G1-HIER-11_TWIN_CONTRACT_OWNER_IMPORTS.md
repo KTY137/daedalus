@@ -169,8 +169,10 @@ read directly, never through a pipe.
 | 11 | Import census | re-measured | 433 modules, 1618 edges, 12 components, max 18, digest unchanged |
 | 12 | Effect-registry digest | `registry_sha256()` | `ac02027836…96211ec`, unchanged |
 | 13 | Gate profile | `tools/run_gate_checks.py g1` | exit 1, the same 5 pre-existing failures, 132 passed |
-| 14 | Full suite | `pytest -q` (44m57s) | 19 failed, 10637 passed, 276 skipped, 9 xfailed, 2224 subtests |
-| 15 | All 19 failures are pre-existing | same 19 node IDs at `515b5fce` | 19 failed — none introduced here |
+| 14 | Full suite | `pytest -q` (40m35s) | 20 failed, 10636 passed, 276 skipped, 9 xfailed, 2224 subtests |
+| 15 | 19 of 20 failures pre-existing | same node IDs at `515b5fce` | 19 failed — none introduced here |
+| 16 | 20th failure is a pre-existing flake | isolated repeats | base 1 of 3 red; branch 5 of 5 green |
+| 17 | Collection intact | `pytest --collect-only -q`, both trees | 10934 at base → 10939 here (+5, this packet's file) |
 
 Row 13 is deliberately non-zero. The five failures in
 `tests/test_registry_new_doors.py` (3) and `tests/test_registry_retired_rows.py`
@@ -230,24 +232,41 @@ this packet removes four of its consumers but not the facade or its ownership.
   base revision, unrelated to this packet, and named here separately so they
   cannot be folded into one total that hides a regression. Verified identical
   before and after: same 5 test IDs, both runs.
-- The full suite (`pytest -q`, 44m57s) ends `19 failed, 10637 passed,
-  276 skipped, 9 xfailed, 2224 subtests passed`, exit 1.
+- The full suite at the committed state (`pytest -q`, 40m35s) ends
+  `20 failed, 10636 passed, 276 skipped, 9 xfailed, 2224 subtests passed`,
+  exit 1.
 
-**Zero of the 19 belong to this packet, and that is measured rather than
-asserted.** The 19 failing node IDs were re-run in a detached worktree at the
-base revision `515b5fce` with none of this packet's changes present, and all 19
-failed there too: `19 failed in 42.76s`. Since 19 is also the complete failure
-set of the run on this branch, no failure exists on this branch that does not
-exist at the base.
+**Zero of the 20 belong to this packet, and that is measured rather than
+asserted.**
+
+- 19 of them were re-run by exact node ID in a detached worktree at the base
+  revision `515b5fce`, with none of this packet's changes present. All 19
+  failed there: `19 failed in 42.76s`.
+- The 20th,
+  `tests/test_conversation_requests.py::test_cancel_is_requested_then_confirmed_only_after_worker_stops`,
+  is a pre-existing thread-timing flake, not a regression. It races a
+  `threading.Event` against a 0.2 s poll. MEASURED in isolation: at the base
+  revision it failed 1 of 3 runs; on this branch it passed 5 of 5, and the
+  whole file passes (7 passed). It is in the cancellation surface, which this
+  packet does not touch.
+- Collection is intact and grew by exactly this packet's new file: 10934 tests
+  collected at base, 10939 here, `--collect-only` exit 0 both times.
 
 The briefing for this packet expected 16 pre-existing failures at `515b5fce`.
-That number did not reproduce; the measured count is 19, and the extra three
-are pre-existing all the same. Recorded here rather than rounded to the
-expected figure. One of the 19,
+That number did not reproduce; the measured set is 19 deterministic plus at
+least one flake. Recorded rather than rounded to the expected figure. A second
+member of the set,
 `tests/test_structcore_parallel.py::PersistentCacheTest::test_corrupt_cache_degrades_to_recompute`,
-fails with `PermissionError: [WinError 32]` on a temp SQLite file, which reads
-like host contention rather than a deterministic defect — it may be why the
-count moves between runs. Not investigated further; out of scope.
+fails with `PermissionError: [WinError 32]` on a temp SQLite file, which also
+reads like host contention. Neither flake was investigated further; both are
+out of scope and neither is in `daedalus/twin`, `daedalus/kernel`, or the
+boundary contract.
+
+**Not evidence:** two intermediate full-suite attempts were truncated by the
+host at 45% and 72% with no summary line (one recorded `exit 127`, a killed
+process, not a test result). They are named here so they are not mistaken for
+runs, and neither is counted anywhere above. The 40m35s run is the one that
+completed at the committed state.
 
 ### Open items this packet found and did not fix
 
