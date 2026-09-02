@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import sqlite3
@@ -239,18 +240,19 @@ def test_cross_execution_identity_is_refused_not_treated_as_missing(tmp_path) ->
 
 def test_noncanonical_request_json_is_refused(tmp_path) -> None:
     authorization, execution, _generation, _start = grant_and_start(tmp_path)
-    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(authorization.effect_ledger.path)) as connection:
         connection.execute(
             "UPDATE effect_executions SET request_json=? WHERE execution_id=?",
             (json.dumps(execution.to_dict(), indent=2), execution.execution_id),
         )
+        connection.commit()
     with pytest.raises(EffectReplayProjectionError, match="request_json"):
         inspect_effect_execution(authorization, execution)
 
 
 def test_coherently_rehashed_start_subject_substitution_is_refused(tmp_path) -> None:
     authorization, execution, _generation, _start = grant_and_start(tmp_path)
-    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(authorization.effect_ledger.path)) as connection:
         raw = connection.execute(
             "SELECT start_receipt_json FROM effect_executions WHERE execution_id=?",
             (execution.execution_id,),
@@ -269,24 +271,26 @@ def test_coherently_rehashed_start_subject_substitution_is_refused(tmp_path) -> 
             """,
             (canonical_json(parsed), parsed["receipt_sha256"], execution.execution_id),
         )
+        connection.commit()
     with pytest.raises(EffectReplayProjectionError, match="execution_id"):
         inspect_effect_execution(authorization, execution)
 
 
 def test_row_start_digest_must_bind_exact_start_receipt(tmp_path) -> None:
     authorization, execution, _generation, _start = grant_and_start(tmp_path)
-    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(authorization.effect_ledger.path)) as connection:
         connection.execute(
             "UPDATE effect_executions SET start_receipt_sha256=? WHERE execution_id=?",
             ("8" * 64, execution.execution_id),
         )
+        connection.commit()
     with pytest.raises(EffectReplayProjectionError, match="start digest"):
         inspect_effect_execution(authorization, execution)
 
 
 def test_started_row_cannot_hide_terminal_material(tmp_path) -> None:
     authorization, execution, _generation, _start = grant_and_start(tmp_path)
-    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(authorization.effect_ledger.path)) as connection:
         connection.execute(
             """
             UPDATE effect_executions
@@ -300,6 +304,7 @@ def test_started_row_cannot_hide_terminal_material(tmp_path) -> None:
                 execution.execution_id,
             ),
         )
+        connection.commit()
     with pytest.raises(EffectReplayProjectionError, match="terminal material"):
         inspect_effect_execution(authorization, execution)
 
@@ -307,11 +312,12 @@ def test_started_row_cannot_hide_terminal_material(tmp_path) -> None:
 def test_terminal_row_state_and_receipt_outcome_must_match(tmp_path) -> None:
     authorization, execution, _generation, start = grant_and_start(tmp_path)
     authorization.finish_effect(start, outcome="completed")
-    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(authorization.effect_ledger.path)) as connection:
         connection.execute(
             "UPDATE effect_executions SET state='FAILED' WHERE execution_id=?",
             (execution.execution_id,),
         )
+        connection.commit()
     with pytest.raises(EffectReplayProjectionError, match="outcome"):
         inspect_effect_execution(authorization, execution)
 
@@ -319,11 +325,12 @@ def test_terminal_row_state_and_receipt_outcome_must_match(tmp_path) -> None:
 def test_row_terminal_digest_must_bind_exact_terminal_receipt(tmp_path) -> None:
     authorization, execution, _generation, start = grant_and_start(tmp_path)
     authorization.finish_effect(start, outcome="failed")
-    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(authorization.effect_ledger.path)) as connection:
         connection.execute(
             "UPDATE effect_executions SET terminal_receipt_sha256=? WHERE execution_id=?",
             ("9" * 64, execution.execution_id),
         )
+        connection.commit()
     with pytest.raises(EffectReplayProjectionError, match="terminal digest"):
         inspect_effect_execution(authorization, execution)
 

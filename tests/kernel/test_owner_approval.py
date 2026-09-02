@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import dataclasses
 import json
 import os
@@ -233,7 +234,7 @@ def test_tampered_signature_or_wrong_expectation_leaves_no_row(tmp_path) -> None
             approval(),
             expected=expectation(candidate_artifact_sha256="a" * 64),
         )
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM owner_approval_consumptions_v2"
         ).fetchone()[0] == 0
@@ -333,22 +334,24 @@ def test_corrupt_consumption_and_row_mismatch_fail_closed(tmp_path) -> None:
     corrupt_path = tmp_path / "corrupt.sqlite3"
     corrupt = ledger(corrupt_path)
     receipt = consume(corrupt, signed)
-    with sqlite3.connect(corrupt_path) as connection:
+    with contextlib.closing(sqlite3.connect(corrupt_path)) as connection:
         connection.execute(
             "UPDATE owner_approval_consumptions_v2 SET consumption_json=?",
             ("{",),
         )
+        connection.commit()
     with pytest.raises(ApprovalStateError, match="corrupt"):
         corrupt.verify_consumption(receipt, keyring=KEYRING)
 
     mismatch_path = tmp_path / "mismatch.sqlite3"
     mismatch = ledger(mismatch_path)
     receipt2 = consume(mismatch, signed)
-    with sqlite3.connect(mismatch_path) as connection:
+    with contextlib.closing(sqlite3.connect(mismatch_path)) as connection:
         connection.execute(
             "UPDATE owner_approval_consumptions_v2 SET capability_sha256=?",
             ("f" * 64,),
         )
+        connection.commit()
     with pytest.raises(ApprovalStateError, match="persisted authority"):
         mismatch.verify_consumption(receipt2, keyring=KEYRING)
 
@@ -358,7 +361,7 @@ def test_persisted_approval_and_expectation_bytes_are_reauthenticated(tmp_path) 
     path = tmp_path / "approvals.sqlite3"
     authority = ledger(path)
     receipt = consume(authority, signed)
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         stored = json.loads(
             connection.execute(
                 "SELECT approval_json FROM owner_approval_consumptions_v2"
@@ -369,6 +372,7 @@ def test_persisted_approval_and_expectation_bytes_are_reauthenticated(tmp_path) 
             "UPDATE owner_approval_consumptions_v2 SET approval_json=?",
             (json.dumps(stored, sort_keys=True, separators=(",", ":")),),
         )
+        connection.commit()
     with pytest.raises(
         (ApprovalSignatureError, ApprovalStateError),
         match="signature mismatch|persisted authority|corrupt",
@@ -378,7 +382,7 @@ def test_persisted_approval_and_expectation_bytes_are_reauthenticated(tmp_path) 
 
 def test_nonempty_legacy_authority_requires_explicit_migration(tmp_path) -> None:
     path = tmp_path / "approvals.sqlite3"
-    with sqlite3.connect(path) as connection:
+    with contextlib.closing(sqlite3.connect(path)) as connection:
         connection.execute(
             "CREATE TABLE owner_approval_consumptions (approval_sha256 TEXT)"
         )
@@ -386,6 +390,7 @@ def test_nonempty_legacy_authority_requires_explicit_migration(tmp_path) -> None
             "INSERT INTO owner_approval_consumptions VALUES (?)",
             ("a" * 64,),
         )
+        connection.commit()
     with pytest.raises(ApprovalStateError, match="explicit migration"):
         ApprovalLedger(path)
 

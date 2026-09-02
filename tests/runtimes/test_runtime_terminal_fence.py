@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import importlib.util
 import sys
@@ -170,7 +171,7 @@ def _rotate_record_identity(ledger, record) -> None:
         reason="",
     )
     assert rotated.record_sha256 != record.record_sha256
-    with ledger._connect() as connection:
+    with contextlib.closing(ledger._connect()) as connection:
         connection.execute("BEGIN IMMEDIATE")
         ledger._replace(connection, rotated)
         connection.execute("COMMIT")

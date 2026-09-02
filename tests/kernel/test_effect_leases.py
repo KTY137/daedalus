@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -543,7 +544,7 @@ def test_grant_authenticates_before_persisting(tmp_path) -> None:
     ledger = EffectLeaseLedger(tmp_path / "leases.sqlite3")
     with pytest.raises(EffectLeaseSignatureError):
         grant(ledger, tampered, req, policy)
-    with sqlite3.connect(tmp_path / "leases.sqlite3") as connection:
+    with contextlib.closing(sqlite3.connect(tmp_path / "leases.sqlite3")) as connection:
         assert connection.execute("SELECT COUNT(*) FROM effect_leases").fetchone()[0] == 0
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import os
 import sqlite3
@@ -236,12 +237,13 @@ def test_missing_and_tampered_persisted_binding_refuse(tmp_path: Path) -> None:
     assert ledger.load(execution.execution_id) is None
     ledger.bind_start(authority, start, bound_at=NOW)
 
-    with sqlite3.connect(ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(ledger.path)) as connection:
         connection.execute(
             "UPDATE provider_observation_bindings "
             "SET record_hmac_sha256=? WHERE execution_id=?",
             ("0" * 64, execution.execution_id),
         )
+        connection.commit()
     with pytest.raises(
         ProviderObservationAuthoritySignatureError,
         match="HMAC column mismatch",
@@ -257,12 +259,13 @@ def test_malformed_and_noncanonical_rows_stay_inside_authority_error_domain(
     authority = _authority(execution)
     ledger = _ledger(tmp_path)
     ledger.bind_start(authority, start, bound_at=NOW)
-    with sqlite3.connect(ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(ledger.path)) as connection:
         connection.execute(
             "UPDATE provider_observation_bindings "
             "SET record_json=? WHERE execution_id=?",
             ('{"record_hmac_sha256":"bad"}', execution.execution_id),
         )
+        connection.commit()
     with pytest.raises(ProviderObservationAuthorityStateError):
         ledger.load(execution.execution_id)
 

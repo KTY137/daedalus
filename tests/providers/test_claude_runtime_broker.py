@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import contextlib
 import dataclasses
 import hashlib
 import json
@@ -701,13 +702,13 @@ def _lease_rows(tmp_path: Path) -> int:
     db = tmp_path / "claude-effect-leases.sqlite3"
     if not db.exists():
         return 0
-    with sqlite3.connect(db) as conn:
+    with contextlib.closing(sqlite3.connect(db)) as conn:
         return conn.execute("SELECT COUNT(*) FROM effect_leases").fetchone()[0]
 
 
 def _execution_row(tmp_path: Path, execution_id: str):
     db = tmp_path / "claude-effect-leases.sqlite3"
-    with sqlite3.connect(db) as conn:
+    with contextlib.closing(sqlite3.connect(db)) as conn:
         conn.row_factory = sqlite3.Row
         return conn.execute(
             "SELECT state, terminal_receipt_json FROM effect_executions "

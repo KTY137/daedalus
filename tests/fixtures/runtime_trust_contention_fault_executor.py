@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -338,10 +339,24 @@ def _seed_record(
         state_changed_at=_timestamp(admitted),
         reason="",
     )
-    with ledger._connect() as connection:  # noqa: SLF001 - fixture setup
-        connection.execute("BEGIN IMMEDIATE")
-        ledger._insert(connection, record)  # noqa: SLF001 - fixture setup
-        connection.execute("COMMIT")
+    # The ``with`` here is load-bearing and is deliberately NOT replaced by
+    # ``contextlib.closing``. ``TerminalFenceContentionTrustLedger._connect``
+    # returns a ``_FenceArmingConnection``, which arms the competing writer only
+    # for a connection whose ``BEGIN`` arrives while ``_entered`` is False --
+    # that flag is set by ``__enter__``, and it is exactly how the fault tells
+    # the terminal fence's bare connection apart from every ordinary
+    # trust-store operation. Dropping the ``with`` would route this seeding
+    # ``BEGIN IMMEDIATE`` into the arming path and inject the writer at setup
+    # time instead of inside the fence's window. Only the missing ``close()``
+    # is added, wrapped around the unchanged transaction scope.
+    connection = ledger._connect()  # noqa: SLF001 - fixture setup
+    try:
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+            ledger._insert(connection, record)  # noqa: SLF001 - fixture setup
+            connection.execute("COMMIT")
+    finally:
+        connection.close()
     return record
 
 
@@ -504,7 +519,7 @@ def _is_contention(exc: sqlite3.OperationalError) -> bool:
 
 
 def _terminal(path: Path, execution_id: str) -> dict[str, Any] | None:
-    with sqlite3.connect(str(path)) as connection:
+    with contextlib.closing(sqlite3.connect(str(path))) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
             "SELECT state, terminal_receipt_json FROM effect_executions "

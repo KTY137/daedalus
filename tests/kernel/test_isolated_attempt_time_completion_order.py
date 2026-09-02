@@ -18,6 +18,7 @@ index retains the poisoned row -- permanent for that attempt id.
 """
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 import threading
 from pathlib import Path
@@ -214,7 +215,7 @@ def test_begin_refused_at_time_inversion_leaves_a_durable_receipt_free_intent(
     with pytest.raises(AttemptStateError, match="follows its Event-Store start event"):
         coordinator.prepare(attempt, captured, start_id="start-clock-window")
 
-    with sqlite3.connect(ledger.path) as connection:
+    with contextlib.closing(sqlite3.connect(ledger.path)) as connection:
         intents = connection.execute(
             "SELECT id, payload FROM intents WHERE kind = 'attempt.lifecycle'"
         ).fetchall()
