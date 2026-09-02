@@ -14,6 +14,11 @@ REVISION = "a" * 40
 FOURFOLD = "b" * 64
 
 
+class _HashProbeLabel(str):
+    def __hash__(self) -> int:
+        raise AssertionError("TypedAxis duplicate detection materialized a full hash set")
+
+
 def _subject() -> ProjectionSubject:
     return ProjectionSubject(
         repository_id="KTY137/daedalus",
@@ -24,6 +29,19 @@ def _subject() -> ProjectionSubject:
 
 def _forbid_full_label_index(_axis: TypedAxis) -> object:
     raise AssertionError("relation-block lookup materialized a full axis label index")
+
+
+def test_typed_axis_detects_duplicates_after_canonical_sort() -> None:
+    axis = TypedAxis(
+        "code",
+        "code",
+        (_HashProbeLabel("src/z.py"), _HashProbeLabel("src/a.py")),
+    )
+
+    assert axis.labels == ("src/a.py", "src/z.py")
+
+    with pytest.raises(ValueError, match="axis.labels must not contain duplicates"):
+        TypedAxis("code", "code", ("src/a.py", "src/a.py"))
 
 
 def test_coordinate_build_and_get_reuse_sorted_axis_labels(monkeypatch: pytest.MonkeyPatch) -> None:
