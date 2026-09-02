@@ -173,6 +173,39 @@ class Corpus:
         )
 
 
+def _semantic_payload(corpus: Corpus) -> dict[str, Any]:
+    try:
+        items = [
+            {
+                "id": row.item_id,
+                "source": row.source,
+                "bucket": row.bucket,
+                "status": row.status,
+                "reason": row.reason,
+                "evidence_refs": list(row.evidence_refs),
+            }
+            for row in corpus.rows
+        ]
+    except (AttributeError, TypeError) as exc:
+        raise CeilingCorpusError(
+            "corpus rows cannot be rebound to the canonical evidence shape"
+        ) from exc
+    return {
+        "schema": SCHEMA,
+        "source_revision": corpus.source_revision,
+        "expected_total": corpus.expected_total,
+        "items": items,
+    }
+
+
+def _require_claim_binding(corpus: Corpus) -> None:
+    rebound = Corpus.parse(_semantic_payload(corpus))
+    if rebound != corpus:
+        raise CeilingCorpusError(
+            "corpus identity does not bind the exact validated evidence semantics"
+        )
+
+
 def load(path: str | Path) -> Corpus:
     corpus_path = Path(path)
     try:
@@ -204,6 +237,8 @@ def evaluate(corpus: Corpus) -> dict[str, Any]:
         and corpus.expected_total == FROZEN_EXPECTED_TOTAL
         and measured_n == corpus.expected_total
     )
+    if complete:
+        _require_claim_binding(corpus)
     ceiling: float | None = None
     if complete:
         if measured_n <= 0:
