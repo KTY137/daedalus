@@ -172,10 +172,6 @@ class TensorView(CanonicalContract):
         if any(not isinstance(entry, SparseTensorEntry) for entry in entries):
             raise ValueError("tensor.entries must contain SparseTensorEntry records")
         axis_names = tuple(axis.name for axis in axes)
-        label_index = {
-            axis.name: {label: index for index, label in enumerate(axis.labels)}
-            for axis in axes
-        }
         seen: set[tuple[tuple[tuple[str, str], ...], str]] = set()
         for entry in entries:
             # SparseTensorEntry already canonicalizes coordinates by axis name.
@@ -184,15 +180,20 @@ class TensorView(CanonicalContract):
             # entry during construction.
             if tuple(axis for axis, _ in entry.coordinates) != axis_names:
                 raise ValueError("every sparse entry must bind exactly the TensorView axes")
-            for axis, label in entry.coordinates:
-                if label not in label_index[axis]:
+            for position, (axis, label) in enumerate(entry.coordinates):
+                labels = axes[position].labels
+                label_position = bisect_left(labels, label)
+                if label_position == len(labels) or labels[label_position] != label:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis!r}")
             if entry.semantic_key in seen:
                 raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
             seen.add(entry.semantic_key)
 
         def order(entry: SparseTensorEntry) -> tuple[Any, ...]:
-            indices = tuple(label_index[axis][label] for axis, label in entry.coordinates)
+            indices = tuple(
+                bisect_left(axes[position].labels, label)
+                for position, (_, label) in enumerate(entry.coordinates)
+            )
             return indices, entry.relation, entry.masked, entry.value, entry.evidence_sha256s
 
         object.__setattr__(self, "entries", tuple(sorted(entries, key=order)))
