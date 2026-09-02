@@ -104,9 +104,27 @@ _SERIALIZE = re.compile(r"json\.dumps\(|canonical_json\(")
 #
 # Note the two are matched WITHOUT a leading ``\.`` -- they are module-level
 # functions, not methods, so ``.write_text(`` does not cover them.
+#
+# ``append_lines(`` is the THIRD, and it cost the same red baseline on
+# 2026-09-02. G1-PORT-01 replaced the inline ``open(path, "a")`` append in
+# progress.py with ``daedalus.journal_io.append_lines``, the locked
+# short-write-checked appender. Behaviour unchanged; the detector stopped
+# recognising progress.py, and the calibration test below refused to trust its
+# own green -- the third time this exact shape has been caught by the third
+# time this exact comment was written, which is why the comment says "this list
+# grows" rather than naming a fixed set.
+#
+# MEASURED at eb5228ac: progress.py was not the only casualty. Teaching the
+# scan this one name restores THREE modules -- daedalus/progress.py,
+# daedalus/council/canary.py and daedalus/metrics.py -- and subtracts none.
+# kairos/archive.py and memory/__init__.py also append through the helper but
+# were still visible on another persist match, which is exactly how a
+# name-based detector rots quietly: partial coverage reads as coverage. All
+# five callers were already DECLARED in the ledger, so the blindness cost no
+# ledger row -- it cost the guarantee that a sixth caller would be noticed.
 _PERSIST = re.compile(
     r"""\.write_text\(|open\([^)]*["']a["']|_write_json_atomic\("""
-    r"""|write_text_atomic\(|write_bytes_atomic\(""")
+    r"""|write_text_atomic\(|write_bytes_atomic\(|append_lines\(""")
 # A RUN-STATE target: the record lands in runs/ or memory/, or it is a .jsonl.
 # Deliberately NOT a bare `.json"`, which matched every config writer.
 _TARGET = re.compile(r"""\.jsonl|["']runs["'/]|runs/|["']memory["'/]|memory/""")
