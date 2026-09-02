@@ -90,6 +90,26 @@ def _tensor() -> TensorView:
     )
 
 
+def _full_prefix_tensor() -> TensorView:
+    return TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=(TensorAxis("group", ("g",)),),
+        entries=tuple(
+            SparseTensorEntry(
+                coordinates=(("group", "g"),),
+                relation=f"relation-{index:03d}",
+                evidence_sha256s=("d" * 64,),
+            )
+            for index in range(512)
+        ),
+        provenance=_provenance(),
+    )
+
+
 def test_select_reuses_entries_for_unfiltered_query() -> None:
     tensor = _tensor()
 
@@ -107,6 +127,17 @@ def test_select_bisects_canonical_prefix_without_full_entry_scan() -> None:
         "code",
         "knowledge",
     )
+    assert probed_entries.reads <= 28
+
+
+def test_select_reuses_full_range_when_prefix_proves_every_entry() -> None:
+    tensor = _full_prefix_tensor()
+    probed_entries = _ReadBoundEntries(tensor.entries)
+    object.__setattr__(tensor, "entries", probed_entries)
+
+    selected = tensor.select(group="g")
+
+    assert selected is probed_entries
     assert probed_entries.reads <= 28
 
 
