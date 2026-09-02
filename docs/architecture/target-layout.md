@@ -254,7 +254,36 @@ them.**
 
 ---
 
-## 3. UNRESOLVED — the 18-member cross-domain SCC
+## 3. UNRESOLVED - the cross-domain SCC, now 13 members
+
+> **Updated 2026-09-02 after G1-SCC-01 (merged 22cff7bf).** The section below
+> was written when the component had 18 members, and every word of its
+> argument still holds; what changed is the membership.
+> `kernel.attempt_execution` no longer imports `daedalus.offload` - the
+> workload arrives as an annotated `OffloadPort` - and with that one edge the
+> ENTIRE kernel and spine layer left the cycle: `kernel.attempt_execution`,
+> `kernel.promotion`, `spine.attempt`, `spine.bootstrap`, `spine.picker`.
+> Measured: census max SCC 18 -> 14, cross-domain 18 -> 13; corrected graph
+> (including the `gated_writes` exec blob) 21 -> 15. Twelve components before
+> and after, none new.
+>
+> Two consequences for the argument below. **Point 2 is now history**: no
+> member of the cycle sits inside a protected layer any more, so the thirteen
+> that remain are flat modules and `kairos.*` only - a materially easier
+> problem than the one this section was written about. And **`daedalus.offload`
+> stays**, which is a finding rather than a failed cut: it was held in by the
+> kernel importing it and is now held in by `kairos.gated_writes`, because the
+> write wave genuinely depends on the workload. The kernel's debt was hiding
+> that cycle, not preventing it.
+>
+> The boundary contract's `baseline` is empty again - that inversion was the
+> repository's only recorded architecture debt, and it is retired.
+>
+> The thirteen: `build`, `build_exec`, `core`, `doctor`, `file_bridge`,
+> `health`, `ikarus_supervisor`, `kairos.gated_writes`, `kairos.scheduler`,
+> `offload`, `progress`, `progress_sources`, `status`.
+
+### The original 18-member record, retained
 
 `[MEASURED]` at `851ff43c`: the largest non-trivial import SCC has 18 members.
 It is asserted as `CURRENT_CROSS_DOMAIN_COMPONENT` in
