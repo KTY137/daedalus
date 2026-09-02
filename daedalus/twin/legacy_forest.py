@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Iterable
 
-from ..schemas import ContractProvenance
+from ..kernel.contracts.base import ContractProvenance
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import ForestEdge, ForestHyperedge, KnowledgeForest
 from .contracts import CrossPlaneBinding, FourfoldSnapshot, PlaneSnapshot

@@ -33,7 +33,7 @@
         "daedalus.runtimes",
         "daedalus.schemas"
       ],
-      "rationale": "The canonical kernel cannot depend on verification, provider, orchestration, runtime, or product-domain implementations. daedalus.schemas is listed because it is a legacy compatibility facade that re-exports kernel contracts alongside orchestration and runtime records: importing it pulls those outer layers into every kernel process, so the kernel names the owning module under daedalus.kernel.contracts instead. This checker observes direct import syntax only; a leak through an unlisted intermediate module stays invisible to it, which is why daedalus.orchestration is listed even though no kernel module imports it today.",
+      "rationale": "The canonical kernel cannot depend on verification, provider, orchestration, runtime, or product-domain implementations. daedalus.schemas is listed because it is a legacy compatibility facade that re-exports kernel contracts alongside orchestration and runtime records: importing it pulls those outer layers into every kernel process, so the kernel names the owning module under daedalus.kernel.contracts instead. This checker observes direct import syntax only; a leak through an unlisted intermediate module stays invisible to it, which is why daedalus.orchestration is listed even though no kernel module imports it today. daedalus.twin is deliberately NOT listed here and adding it is not the fix for a leak through the twin layer: daedalus.kernel.fourfold_evidence imports daedalus.twin.contracts on purpose -- projecting a FourfoldSnapshot into the evidence chain is that module's entire reason to exist -- so this rule would go red on the one edge it is meant to protect (MEASURED at 515b5fce in G1-HIER-11: exactly one violation, daedalus.kernel.fourfold_evidence line 41). A transitive leak through a permitted edge is owned by the rule for the intermediate layer, which is twin-no-outer-layers below.",
       "target_owner": "G1-HIER-02 through G1-HIER-05, G1-HIER-10"
     },
     {
@@ -74,6 +74,24 @@
       ],
       "rationale": "The event spine is canonical infrastructure and cannot depend on product, orchestration, evaluator, provider, runtime, or interface implementations.",
       "target_owner": "G1-HIER-03"
+    },
+    {
+      "id": "twin-no-outer-layers",
+      "source_prefixes": [
+        "daedalus.twin"
+      ],
+      "forbidden_target_prefixes": [
+        "daedalus.chip_design",
+        "daedalus.eval",
+        "daedalus.gates",
+        "daedalus.kairos",
+        "daedalus.orchestration",
+        "daedalus.providers",
+        "daedalus.runtimes",
+        "daedalus.schemas"
+      ],
+      "rationale": "daedalus.kernel.fourfold_evidence imports daedalus.twin.contracts, and kernel -> twin is a permitted direct edge, so daedalus.twin is a dependency of the kernel and everything twin can reach the kernel reaches too. The forbidden set is therefore exactly the one kernel-no-outer-layers names: anything narrower would let the kernel rule be satisfied in syntax while the layer it forbids is loaded in every kernel process anyway. That is not hypothetical -- it is what this rule was written to close. MEASURED at 515b5fce, before G1-HIER-11: four daedalus.twin modules imported the daedalus.schemas facade by relative import, and a cold import daedalus.kernel.fourfold_evidence loaded eleven daedalus.runtimes modules and two daedalus.orchestration modules, all of them invisible to kernel-no-outer-layers because the leak crossed a permitted edge. This checker observes direct import syntax only, so this rule constrains the twin layer's own imports and cannot see a further leak through daedalus.spine or daedalus.structcore; those layers need their own rule if they ever acquire an outer edge.",
+      "target_owner": "G1-HIER-11"
     }
   ],
   "baseline": [],

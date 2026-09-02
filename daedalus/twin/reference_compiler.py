@@ -11,7 +11,12 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
-from ..schemas import ContractProvenance, _identifier, _revision, _sha256
+from ..kernel.contracts.base import (
+    ContractProvenance,
+    _identifier,
+    _revision,
+    _sha256,
+)
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import KnowledgeForest
 from ._reference_claims import verify_claims
