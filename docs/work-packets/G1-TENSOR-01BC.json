@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BC",
+  "title": "Stream direct CSR matmul rows instead of materializing the full right block",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BB",
+  "campaign_issue": 239,
+  "base_revision": "cc7ef20bbb35deb9f27e67503f678bc7177b98b3",
+  "finding": "TypedRelationBlock.matmul eagerly copied every row of the right CSR block into a Python list of tuples before beginning multiplication. Direct bounded calls therefore touched and duplicated unrelated right rows even when the left block never referenced them, and an over-budget call could allocate that copy before the operation guard fired.",
+  "primary_claim": "The reference matmul now reads the canonical right CSR arrays only for middle-axis rows actually referenced by left entries. It preserves exact semiring composition and the existing operation limit while removing the eager right_rows materialization.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_contraction_operation_budget.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BC.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Delete the transient right_rows copy and traverse the already-canonical CSR row slices in place. Do not add a cache, sparse backend, planner, alternate block type, or cost-model abstraction.",
+  "acceptance": [
+    "direct matmul does not access an unreferenced right CSR row",
+    "direct matmul still refuses when max_operations is exceeded",
+    "exact inclusive-budget Boolean composition remains unchanged",
+    "Fourfold subject, semiring, and exact typed middle-axis compatibility checks remain unchanged",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "bounded Tensor/Forest diagnostic on the designated Python 3.12 hash-seed 0 cell",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "claim": "Only exact-head executed workflow steps count as hosted CI evidence; local or structural inspection is reported separately."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BC commits; Forest/Fourfold authority, relation-block wire contracts, persisted identities, semiring semantics and public product surfaces are unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
