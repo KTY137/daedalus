@@ -17,7 +17,7 @@ export const THEME_VARS = [
   '--surface', '--surface2',
   '--ink', '--ink2', '--ink3',
   '--line', '--line2',
-  '--accent', '--accent-ink',
+  '--accent', '--accent-ink', '--ring',
   '--live', '--bad', '--ok', '--warn', '--warn-ink',
   '--node', '--node2', '--edge', '--edge-hot',
   '--heat-1', '--heat-2', '--heat-3', '--heat-4', '--heat-5',
@@ -123,6 +123,11 @@ export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.docume
   s.setProperty('--line2', c.line2);
   s.setProperty('--accent', c.accent);
   s.setProperty('--accent-ink', c.accentInk);
+  // The focus ring is a token, not a mix written at every call site. A 20%
+  // mix of a pale accent on a pale surface was nearly invisible in leitstand
+  // and loud in kammer (Ikarus lane handoff, twice); the weight now follows
+  // the theme's base so both read as one ring.
+  s.setProperty('--ring', `color-mix(in srgb, ${c.accent} ${theme.base === 'light' ? 34 : 26}%, transparent)`);
   s.setProperty('--live', c.live);
   s.setProperty('--bad', c.bad);
   s.setProperty('--ok', c.ok);

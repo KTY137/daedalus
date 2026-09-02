@@ -26,6 +26,7 @@ import {
 } from '@/shared/ui/motion';
 import { loadAutonomy, saveAutonomy, type AutonomyLevel } from '@/features/settings/autonomy';
 import { Conversation } from '@/features/conversation/Conversation';
+import { ThreadList } from '@/features/conversation/ThreadList';
 import { Settings } from '@/features/settings/Settings';
 import { Decision } from '@/features/mission/Decision';
 import { IdeWorkspace } from '@/features/ide/IdeWorkspace';
@@ -119,6 +120,13 @@ export function Cockpit() {
   const [paletteScope, setPaletteScope] = useState<'all' | 'hidden'>('all');
   const [draftSignal, setDraftSignal] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
+  /** The rail beside the conversation: this project's threads, or the map reference. */
+  const [railTab, setRailTab] = useState<'verlauf' | 'karte'>('verlauf');
+  /** A thread chosen in the rail; the serial makes re-picking the same id a fresh request. */
+  const [threadPick, setThreadPick] = useState<{ id: string; serial: number } | undefined>();
+  /** What the conversation holds, so the rail can mark it and re-read after a turn. */
+  const [threadState, setThreadState] = useState<{ id: string; settled: number; labels: Record<string, string> }>({ id: '', settled: 0, labels: {} });
+  const onThreadState = useCallback((state: { id: string; settled: number; labels: Record<string, string> }) => setThreadState(state), []);
   const projectsSerial = useRef(0);
   const serial = useRef(0);
   /** the project the map on screen belongs to, read outside render */
@@ -418,6 +426,7 @@ export function Cockpit() {
       project={project}
       resolveModule={resolveModule}
       onFocusModule={chooseFocus}
+      onGoMap={() => goto('map')}
       contextModule={contextModule}
       provider={brain || undefined}
       onProvider={chooseBrain}
@@ -426,6 +435,8 @@ export function Cockpit() {
         setDraftSignal((n) => n + 1);
         setAutoLog((n) => n + 1);
       }}
+      pickThread={threadPick}
+      onThreadState={onThreadState}
     />
   );
   const decision = (
@@ -621,7 +632,31 @@ export function Cockpit() {
             {conversation}
           </section>
           <aside className="talk-side">
-            {nh && (
+            {/* Two things belong beside a conversation: the other conversations,
+                and the map it is about. Tabs, because both want the full rail
+                and neither is a standing panel (owner ruling: Knowledge is an
+                inspector). Verlauf opens first: the first question on this page
+                is "where was I". */}
+            <div className="rail-tabs" role="tablist" aria-label="Neben dem Gespräch">
+              <button type="button" role="tab" aria-selected={railTab === 'verlauf'} className={railTab === 'verlauf' ? 'on' : ''} onClick={() => setRailTab('verlauf')}>
+                Verlauf
+              </button>
+              <button type="button" role="tab" aria-selected={railTab === 'karte'} className={railTab === 'karte' ? 'on' : ''} onClick={() => setRailTab('karte')}>
+                Karte
+              </button>
+            </div>
+            {railTab === 'verlauf' && (
+              <ThreadList
+                key={project}
+                project={project}
+                current={threadState.id}
+                refreshKey={threadState.settled}
+                onPick={(id) => setThreadPick((prev) => ({ id, serial: (prev?.serial || 0) + 1 }))}
+                onNew={() => setThreadPick((prev) => ({ id: '', serial: (prev?.serial || 0) + 1 }))}
+                labelOf={(id) => threadState.labels[id]}
+              />
+            )}
+            {railTab === 'karte' && nh && (
               <div className="focuscard">
                 <span className="focuscard-eyebrow">Auf der Karte</span>
                 <b className="focuscard-name">{shortLabel(nh.focus)}</b>
@@ -635,7 +670,7 @@ export function Cockpit() {
                 </button>
               </div>
             )}
-            <HotList nodes={hottest} focus={focus} onPick={chooseFocus} />
+            {railTab === 'karte' && <HotList nodes={hottest} focus={focus} onPick={chooseFocus} />}
           </aside>
         </main>
       ) : (

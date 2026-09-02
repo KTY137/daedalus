@@ -446,12 +446,17 @@ test.describe('IDE and project registration', () => {
     await page.getByRole('button', { name: 'Gespräch', exact: true }).click();
 
     const details = page.locator('#cockpit-status-details');
-    const toggle = page.getByRole('button', { name: 'Statusdetails anzeigen' });
-    await expect(toggle).toBeVisible();
+    // The toggle renames itself once open ("Statusdetails ausblenden"), so
+    // it is held by its stable class rather than by the name it has while
+    // closed — otherwise the last assertion looks for a button that no
+    // longer exists.
+    const toggle = page.locator('.status-details-toggle');
+    await expect(toggle).toHaveText('Statusdetails anzeigen');
     await expect(details).toBeHidden();
     await toggle.click();
     await expect(details).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(toggle).toHaveText('Statusdetails ausblenden');
   });
 
   test('an editor context from the URL is visibly attached and sent only in the canonical turn POST', async ({ page }) => {

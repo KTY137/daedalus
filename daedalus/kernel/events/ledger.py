@@ -785,6 +785,46 @@ class SpineLedger:
             rows = self._conn.execute(sql, args).fetchall()
             return [self._hydrate(r) for r in rows]
 
+    def effect_key_groups(self, kind: str, *, limit: int,
+                          payload_match: tuple[str, str] | None = None,
+                          ) -> list[dict[str, Any]]:
+        """The effect keys that group ``kind`` rows, newest group first.
+
+        One SQL ``GROUP BY`` -- the read a conversation LIST needs and which
+        ``intents_by_effect_key`` cannot give without first knowing every key.
+        Each row carries the key, the newest and oldest intent id in the group
+        and the row count, so a caller hydrates exactly two bounded rows per
+        group instead of the whole group.
+
+        ``payload_match`` narrows the groups to rows whose canonical payload
+        records ``key`` as ``value`` -- the same escaped-LIKE test
+        ``intents_matching_payload`` relies on, exact for the same reason
+        (``canonical_json`` is deterministic). A caller that needs the match to
+        be the row's OWN field, not a nested one, re-checks the hydrated row.
+        READ-ONLY: nothing here records, resolves or caches.
+        """
+        if int(limit) <= 0:
+            return []
+        sql = ("SELECT effect_key, MAX(id) AS newest_id, MIN(id) AS oldest_id, "
+               "COUNT(*) AS n FROM intents "
+               "WHERE kind = ? AND effect_key IS NOT NULL")
+        args: list[Any] = [str(kind)]
+        if payload_match is not None:
+            key, value = payload_match
+            fragment = canonical_json({str(key): str(value)})[1:-1]
+            escaped = (fragment.replace("\\", "\\\\").replace("%", "\\%")
+                       .replace("_", "\\_"))
+            sql += " AND payload LIKE ? ESCAPE '\\'"
+            args.append(f"%{escaped}%")
+        sql += " GROUP BY effect_key ORDER BY newest_id DESC LIMIT ?"
+        args.append(int(limit))
+        with self._lock:
+            rows = self._conn.execute(sql, args).fetchall()
+        return [{"effect_key": str(r["effect_key"]),
+                 "newest_id": int(r["newest_id"]),
+                 "oldest_id": int(r["oldest_id"]),
+                 "count": int(r["n"])} for r in rows]
+
     def resolve_by_effect(self, effect_key: str) -> list[Intent]:
         """Every intent recorded under ``effect_key``, oldest first.
 

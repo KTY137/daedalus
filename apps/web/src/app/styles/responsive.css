@@ -64,15 +64,8 @@
   .masthead-meta { flex-wrap: wrap; row-gap: var(--u2); justify-content: flex-start; }
   .cockpit-body.talk { gap: var(--u3); padding: var(--u3); }
   .talk-side { max-height: 28vh; }
-  .composer {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'line line'
-      'brain ask'
-      'stage stage'
-      'attachment attachment'
-      'plan plan';
-  }
+  .composer-rail { gap: var(--u1); }
+  .ctxplan-toggle { margin-left: 0; }
   .cockpit-body.talk .composer textarea { min-height: 44px; padding: 11px var(--u2); font-size: var(--fs-md); }
   .cockpit-body.talk .composer .composer-send { min-width: 44px; min-height: 44px; }
   .composer-stage { overflow: hidden; }

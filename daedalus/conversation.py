@@ -476,6 +476,44 @@ class ConversationStore:
             key, kind=KIND_TURN, limit=1, newest_first=True))
 
     # -- writes: dispatch attribution ---------------------------------------- #
+    def list_conversations(self, project: str, *, limit: int = 20) -> list[dict[str, Any]]:
+        """This project's conversations, newest activity first, bounded.
+
+        A LIST over the canonical spine, not a second registry: each row is
+        derived from the group of ``conversation.turn`` facts under one
+        conversation key and hydrated as exactly two bounded reads (newest and
+        oldest turn). Nothing is written, cached or invented -- a project no
+        turn ever named yields an empty list. The spine's payload match is a
+        substring test over canonical JSON, so the hydrated row's own
+        ``project`` field is re-checked before it may stand for the project.
+        """
+        project = str(project or "").strip()
+        if not project or int(limit) <= 0:
+            return []
+        groups = self.spine.effect_key_groups(
+            KIND_TURN, limit=int(limit), payload_match=("project", project))
+        out: list[dict[str, Any]] = []
+        for group in groups:
+            newest = self.spine.get(group["newest_id"])
+            oldest = self.spine.get(group["oldest_id"])
+            if newest is None or oldest is None or newest.kind != KIND_TURN:
+                continue
+            last = _turn_from_intent(newest, max(0, int(group["count"]) - 1))
+            first = _turn_from_intent(oldest, 0)
+            if last.project != project:
+                continue
+            out.append({
+                "conversation_id": last.conversation_id,
+                "turn_count": int(group["count"]),
+                "first_message": first.user_message,
+                "last_message": last.user_message,
+                "last_ts": last.created_ts,
+                "last_intent": last.intent,
+                "last_provider_used": last.provider_used,
+                "last_status": last.status,
+            })
+        return out
+
     def link_dispatch(self, conversation_id: str, dispatch_ref: str, *,
                       turn_id: int | None = None, kind: str = "dispatch",
                       summary: str = "dispatched", detail: Any = None) -> DispatchLink:

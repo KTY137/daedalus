@@ -33,6 +33,7 @@ class ReadPorts:
 
     clip: RoutePort
     conversation_view: RoutePort
+    conversation_list_view: RoutePort
     dispatch_status_view: RoutePort
     host_capabilities: RoutePort
     loop_architecture: RoutePort
@@ -54,6 +55,7 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
     self = handler
     _clip = ports.clip
     _conversation_view = ports.conversation_view
+    _conversation_list_view = ports.conversation_list_view
     _dispatch_status_view = ports.dispatch_status_view
     _host_capabilities = ports.host_capabilities
     _loop_architecture = ports.loop_architecture
@@ -510,6 +512,29 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
             self._handle_task_events(task_id)
             return
         self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+    elif path == "/api/conversations":
+        # GET /api/conversations?project=&limit= -> this project's threads,
+        # newest first, read from the canonical spine (_conversation_list_view).
+        # Listing is a read; minting stays on POST and existence on the first
+        # appended turn.
+        project = ((qs.get("project") or [""])[0] or "").strip()
+        if not project:
+            self._send_json({"ok": False, "error": "project is required"}, status=400)
+            return
+        try:
+            limit = _loop_limit(qs, 20)
+        except ValueError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=400)
+            return
+        try:
+            rows = _conversation_list_view(project, limit=limit)
+        except Exception as exc:
+            self._send_json(
+                {"ok": False,
+                 "error": f"the conversation store failed: {type(exc).__name__}: {exc}"},
+                status=500)
+            return
+        self._send_json(core.envelope(project, conversations=rows))
     elif path.startswith("/api/conversations/") and "/turns/" in path:
         parts = [unquote(p) for p in path.strip("/").split("/")]
         if len(parts) not in {5, 6} or parts[:2] != ["api", "conversations"] or parts[3] != "turns":

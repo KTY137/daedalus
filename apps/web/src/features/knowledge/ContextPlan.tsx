@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getContextPlan } from '@/shared/api';
 import type { ContextPlanPayload } from '@/shared/contracts';
 import { shortLabel } from '@/features/twin/graph';
@@ -29,20 +29,22 @@ export interface ContextPlanProps {
   onFocusModule: (module: string) => void;
   /** used to check a seed is a module the stage can actually open */
   resolveModule: (needle: string) => string | undefined;
+  /** bump to open the plan for the current objective (`/plan <Frage>`) */
+  openSignal?: number;
 }
 
 const TOP = 8;
 
-export function ContextPlan({ project, objective, onFocusModule, resolveModule }: ContextPlanProps) {
+export function ContextPlan({ project, objective, onFocusModule, resolveModule, openSignal }: ContextPlanProps) {
   const [plan, setPlan] = useState<ContextPlanPayload['context_plan'] | undefined>();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const question = objective.trim();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!question || !project) return;
-    if (open) {
+    if (open && !force) {
       setOpen(false);
       return;
     }
@@ -59,6 +61,15 @@ export function ContextPlan({ project, objective, onFocusModule, resolveModule }
       setBusy(false);
     }
   }, [open, project, question]);
+
+  // `/plan <Frage>` sets the draft and bumps the signal in the same render;
+  // the read runs once the question it names is the one in the box.
+  const handledSignal = useRef(0);
+  useEffect(() => {
+    if (!openSignal || openSignal === handledSignal.current || !question || !project) return;
+    handledSignal.current = openSignal;
+    void load(true);
+  }, [load, openSignal, project, question]);
 
   const seeds = plan ? Object.entries(plan.seeds?.scores || {}).sort((a, b) => b[1] - a[1]) : [];
   const terms = plan?.seeds?.lexical?.query_terms || [];
