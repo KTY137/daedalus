@@ -54,7 +54,7 @@ CURRENT_COMPONENTS_SHA256 = (
 # cycle structure. Re-measure and update them in the packet that moves them;
 # the SCC claims below (count, maximum size, component digest, membership) are
 # the assertions that must not weaken.
-CENSUS_MODULES = 433
+CENSUS_MODULES = 434
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -115,7 +115,20 @@ CENSUS_MODULES = 433
 # The five decomposed files were checked against the RESOLVED graph, not just
 # their import text, before the edit: none of them already named the owner it
 # was about to gain, so no line of the +6 is double-counted.
-CENSUS_EDGES = 1630
+#
+# 1630 -> 1636 and 433 -> 434 MODULES in G1-PORT-01, the first packet in this
+# series to ADD a module rather than repoint imports: daedalus/journal_io.py
+# came across from wip/g1-freeze-2026-08-31 with the atomic-append fix. The +6
+# decomposes exactly and needs no owner-counting argument:
+#
+#   daedalus.journal_io -> daedalus.atomic                            +1
+#   memory, metrics, progress, kairos.archive, council.canary
+#       -> daedalus.journal_io                          5 importers   +5
+#
+# The SCC structure and CURRENT_COMPONENTS_SHA256 are UNCHANGED, which is the
+# claim worth making about a new node: journal_io sits on foundation and is
+# imported by five leaves, so it joins no cycle and moves no component.
+CENSUS_EDGES = 1636
 
 
 def _module_name(path: str) -> str:
