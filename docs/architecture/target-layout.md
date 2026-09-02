@@ -283,6 +283,58 @@ them.**
 > `health`, `ikarus_supervisor`, `kairos.gated_writes`, `kairos.scheduler`,
 > `offload`, `progress`, `progress_sources`, `status`.
 
+### Why the next cut is a decision, not a packet `[MEASURED 2026-09-02]`
+
+Three packets in a row proposed an edge and stopped at the same wall. The
+wall is now measured, and it is a property of the component rather than of
+any one edge:
+
+```text
+modules outside the cycle that reach INTO it            20
+of those, ones the cycle does NOT import back            0
+```
+
+**There is no composition root outside this component.** Every candidate --
+`cli`, `ikarus_os`, `desktop_runtime`, `web_api`, `interfaces.http.*`,
+`kairos.orchestrate` and fourteen more -- is itself reachable from inside, so
+injecting a port and composing it *anywhere* reinstates the cycle through the
+composer. Measured on the corrected graph, cutting `file_bridge -> core` and
+then supplying the port gives:
+
+```text
+pure cut, no supplier                    15 -> 9   file_bridge acyclic
+supplier = orchestration.execution       15 -> 15
+supplier = desktop_runtime               15 -> 16
+supplier = interfaces.bridge.watcher     15 -> 17
+supplier = ikarus_os                     15 -> 19
+supplier = web_api                       15 -> 25
+supplier = cli                           15 -> 28
+```
+
+Every supplier makes it WORSE, because they all reach `core`. That is why
+G1-SCC-01 worked and this does not: `kernel.attempt_execution` had suppliers
+(`spine.bootstrap`, `spine.picker`) that the cycle did not import back. This
+component has none.
+
+So the remaining work is not another port extraction. It is one of:
+
+1. **Create a composition root outside the component** -- a module the cycle
+   cannot import, which owns the wiring for the bridge/build/mission path.
+   This is the shape `ignition.gate1` already has for the attempt path.
+2. **Decide that one member leaves by becoming that root**, which means
+   severing its inbound edges from the cycle rather than its outbound ones.
+   `core` (out-degree 9, and described in its own dossier as half
+   orchestration and half interfaces) is the obvious subject, and splitting it
+   is a larger packet than anything in this programme so far.
+3. **Accept the component** and record it as the boundary of what the
+   hierarchy refactor reaches, with the 15 members named.
+
+This is an owner decision because the three differ in cost by an order of
+magnitude and in meaning entirely -- and because option 3 is legitimate. A
+cycle among flat modules that no protected layer touches is a smell, not a
+violation: the boundary contract is green, `baseline` is empty, and no rule
+in `import-boundaries.json` is broken by it.
+
 ### The original 18-member record, retained
 
 `[MEASURED]` at `851ff43c`: the largest non-trivial import SCC has 18 members.
