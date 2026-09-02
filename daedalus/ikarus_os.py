@@ -90,6 +90,7 @@ import time as _time
 from collections import namedtuple
 from itertools import count
 from pathlib import Path
+from typing import Sequence
 
 from . import core, ikarus_act
 from .ikarus_act import ActDecision
@@ -1453,6 +1454,55 @@ def _provider_start(provider_key: str, *, endpoint: str | None,
             reason=str(exc))) from exc
 
 
+def _refuse_cmd_shim(provider_key: str, argv: Sequence[str], *,
+                     endpoint: str | None) -> None:
+    """Refuse this spawn if a Windows ``.cmd``/``.bat`` relay would RE-PARSE it.
+
+    ``_provider_start`` answers "may this transport run at all". This answers a
+    different question, one layer down and the last one before the spawn: given
+    that it may run, does the argv survive the trip to the child as data?
+
+    On Windows an argv[0] ending ``.cmd``/``.bat`` is executed through
+    ``cmd.exe`` EVEN WITH ``shell=False``, and CPython's ``list2cmdline``
+    escapes for the MSVCRT argv parser, not for ``cmd.exe``. Every element is
+    therefore re-read by a command interpreter. That is not hypothetical here:
+    ``resolve_runtime_command("codex_cli")`` returns
+    ``...\\hermes\\node\\codex.cmd`` on this box (MEASURED 2026-09-02), and
+    ``model`` arrives unscreened from ``POST /api/ikarus/ask``'s request body.
+    MEASURED through a stub ``.cmd``, CPython 3.13.5, ``shell=False``:
+
+    * ``model='gpt-5" & echo pwned > <path> & rem '`` CREATED A FILE -- the
+      quote unbalances the relay's own quoting and the following
+      ``&``-separated tokens run as commands;
+    * ``model='gpt-5-%USERNAME%'`` reached the child as ``'gpt-5-Administrator'``
+      -- the process environment is substituted into a value that then leaves
+      the machine to the vendor, after every screen this process applied.
+
+    The check runs on the EXACT list handed to ``subprocess``, immediately
+    before the spawn, so it cannot drift away from what is really executed. The
+    guard is :func:`daedalus.providers.codex_cli.cmd_shim_refusal` -- the one
+    written for the same defect on the provider path (packet G1-SEC-01); a
+    second copy here would be free to disagree with it. It returns ``None``
+    immediately for a native executable, so ``claude.exe``/``ollama.exe`` pay
+    nothing and a POSIX host pays nothing.
+
+    A refusal is LOUD: it raises :class:`ProviderStartRefused`, which ``ask``
+    and ``ask_stream`` already turn into a spoken refusal envelope naming the
+    contract and the endpoint. It never echoes the offending VALUE -- ``model``
+    is caller-supplied and an argument echoed into an envelope is an argument
+    that can leak.
+    """
+    from .providers.codex_cli import cmd_shim_refusal
+
+    reason = cmd_shim_refusal(argv)
+    if reason is None:
+        return
+    _, lane = _egress_decision(provider_key, endpoint)
+    raise ProviderStartRefused(_deny_receipt(
+        PROVIDER_ENTRYPOINT_ID, contract="provider.argv_shim",
+        endpoint=endpoint, lane=lane, provider=provider_key, reason=reason))
+
+
 def _refusal_envelope(project: str, receipt: dict) -> dict:
     """A refused turn, spoken. The host/endpoint is named in the text as well as
     in the receipt: a withheld call nobody can attribute to an endpoint is a
@@ -1507,9 +1557,21 @@ def _ollama_cli(message: str, model: str, effort: str | None,
     # before argv construction and applies identically to the HTTP transport.
     _provider_start("ollama_cli", endpoint=host, model=model)
     prompt = _claude_prompt(message, effort, context)
+    # The argv is a NAMED list so the shim guard below inspects the exact
+    # object handed to subprocess, not a look-alike rebuilt beside it.
+    args = [path, "run", model, prompt]
+    # `ollama` is a native .exe on this box, so this is dormant here -- which
+    # is a per-host accident, not a guard. NOTE: unlike _codex below, this
+    # prompt is still an argv element, so on a .cmd-shimmed Ollama the guard
+    # is the WHOLE defence and its cost is real: an ordinary message like
+    # "50% off, salt & pepper" would refuse the turn. That is the deliberate
+    # trade -- a refusal is a visible failure, being reinterpreted is a silent
+    # one -- and it ends when this prompt moves onto `ollama run`'s stdin,
+    # which needs a live CLI check and is its own packet.
+    _refuse_cmd_shim("ollama_cli", args, endpoint=host)
     try:
         proc = subprocess.run(
-            [path, "run", model, prompt], capture_output=True, text=True,
+            args, capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=timeout_s,
             stdin=subprocess.DEVNULL, check=False, cwd=_neutral_cwd(),
             env=runtime_subprocess_env("ollama_cli"),
@@ -1588,6 +1650,11 @@ def _claude(message: str, effort: str | None = None, model: str | None = None,
     args = [path, "-p"]
     if model:
         args += ["--model", model]
+    # The prompt is already stdin (`input=`), so only `--model` is exposed --
+    # and it arrives unscreened from POST /api/ikarus/ask's body. Dormant while
+    # `claude` resolves to claude.exe here; that is a per-host accident, and an
+    # npm/.cmd install of the CLI would make it live without a code change.
+    _refuse_cmd_shim("claude", args, endpoint=path)
     try:
         proc = subprocess.run(
             args, input=prompt, capture_output=True, text=True,
@@ -1609,7 +1676,37 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
     otherwise read whatever its cwd contains), ``--sandbox read-only`` so it
     can never write, and the SAME ``--output-last-message`` capture convention
     codex_cli.py already uses (no ``--output-schema`` here -- a freeform chat
-    reply is plain text, not the agent_report_v1 json)."""
+    reply is plain text, not the agent_report_v1 json).
+
+    THE PROMPT IS NEVER IN ARGV (packet G1-SEC-02, the chat-path sibling of
+    G1-SEC-01's F-W1-01)
+    --------------------------------------------------------------------
+    ``resolve_runtime_command("codex_cli")`` returns
+    ``...\\hermes\\node\\codex.cmd`` on this box (MEASURED 2026-09-02), so
+    Windows runs it through ``cmd.exe`` even with ``shell=False`` and every
+    argv element is re-read by a command interpreter. Two things follow, both
+    measured through a stub ``.cmd`` (runs/analysis/g1-chatprompt/), never
+    through a real codex:
+
+    * FUNCTIONAL: ``cmd.exe`` truncates an argument at its first newline, and
+      :func:`_claude_prompt` returns ``f"{SYSTEM}...\\n\\nUser: {message}"``.
+      The child therefore received the SYSTEM paragraph and NOTHING ELSE --
+      no distilled context, no user turn. Every codex chat turn has been
+      answering a prompt the user never wrote.
+    * SECURITY: the truncation is also why the chat MESSAGE could not reach
+      ``cmd.exe`` -- it is never on line one. ``--model`` is, and it arrives
+      unscreened from ``POST /api/ikarus/ask``'s request body. See
+      :func:`_refuse_cmd_shim` for the two canary measurements.
+
+    So the prompt travels on the child's stdin with ``-`` as the PROMPT
+    argument -- ``codex exec --help`` (codex-cli 0.152.0): "Initial
+    instructions for the agent. If not provided as an argument (or if ``-`` is
+    used), instructions are read from stdin." That is the shape
+    :mod:`daedalus.council.vendors` and :mod:`daedalus.providers.codex_cli`
+    already run against this same binary; a temp FILE rather than a pipe for
+    their reason -- a CLI that never drains stdin deadlocks the writer outside
+    every timeout, and a file handle reaches EOF immediately, which is the
+    property the old ``stdin=DEVNULL`` was there to provide."""
     from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("codex_cli")
@@ -1620,6 +1717,8 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
     try:
         with tempfile.TemporaryDirectory(prefix="daedalus-codex-chat-") as td:
             message_path = Path(td) / "last_message.txt"
+            prompt_path = Path(td) / "prompt.md"
+            prompt_path.write_text(prompt, encoding="utf-8")
             args = [
                 path, "exec",
                 "--cd", _neutral_cwd(),
@@ -1630,12 +1729,20 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
             ]
             if model:
                 args += ["--model", model]
-            args.append(prompt)
-            subprocess.run(
-                args, capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=timeout_s, stdin=subprocess.DEVNULL, check=False,
-                env=runtime_subprocess_env("codex_cli"),
-            )
+            # PROMPT == "-": codex exec reads the instructions from stdin.
+            args.append("-")
+            # Fail closed on whatever the relay would still reinterpret --
+            # `--model` (request body) and `--cd` (the operator's TEMP path).
+            # Nothing is spawned and no bytes leave the machine on refusal.
+            # This is also what stops the fix from regressing: put the prompt
+            # back in argv and the spawn refuses instead of being re-parsed.
+            _refuse_cmd_shim("codex", args, endpoint=path)
+            with open(prompt_path, "rb") as fin:
+                subprocess.run(
+                    args, capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", timeout=timeout_s, stdin=fin, check=False,
+                    env=runtime_subprocess_env("codex_cli"),
+                )
             return (message_path.read_text(encoding="utf-8") or "").strip() or None
     except (OSError, subprocess.SubprocessError):
         return None
@@ -1872,11 +1979,26 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         # Codex currently has no verified token-frame parser; use the same
         # resolved voice through the blocking adapter. This stays inside the
         # already-authorised streaming turn and preserves conversation context.
-        yield "final", _reconcile_final(
-            route, _chat(project, message, p or provider, model, effort,
-                          conversation_id=conversation_id,
-                          voice_client=voice_client,
-                          additional_context=additional_context))
+        try:
+            envelope = _chat(project, message, p or provider, model, effort,
+                             conversation_id=conversation_id,
+                             voice_client=voice_client,
+                             additional_context=additional_context)
+        except ProviderStartRefused as exc:
+            # The handler the streaming branch below has always had, on the
+            # branch that needs it MORE: codex is the whole reason this
+            # fallback exists, and codex is the runtime whose transport
+            # actually refuses here. Without it the refusal escaped the
+            # generator into interfaces/http/sse.py's generic
+            # ``except Exception`` and was spoken as "I hit a snag: ..." --
+            # the deterministic-fallback sentence, with the contract, the
+            # endpoint and the receipt all thrown away. ``ask`` has caught
+            # this since the boundary was written; this is the same guarantee
+            # on the route the cockpit actually takes.
+            yield "final", _reconcile_final(
+                route, _refusal_envelope(project, exc.receipt))
+            return
+        yield "final", _reconcile_final(route, envelope)
         return
 
     chunks: list[str] = []
@@ -2011,6 +2133,10 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
             "--include-partial-messages", "--verbose"]
     if model:
         args += ["--model", model]
+    # The same guard as the blocking twin, and it matters MORE here: this is
+    # the path the cockpit actually takes, so guarding only `_claude` would
+    # leave the default route unguarded.
+    _refuse_cmd_shim("claude", args, endpoint=path)
 
     proc = None
     try:
