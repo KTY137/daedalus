@@ -103,7 +103,12 @@ CURRENT_COMPONENTS_SHA256 = (
 # three compatibility facades kept the flat dotted paths, so the count rises by
 # the three NEW owner modules only -- the flat paths were already counted and
 # still exist as files.
-CENSUS_MODULES = 437
+# 437 -> 430 in G1-FLAT-02, the first packet in this series to DELETE modules:
+# the three G1-FLAT-01 facades (gui_catalogue, ikarus_runtime_events,
+# langgraph_adapter) and the four zero-caller Ikarus->Kairos rename shims
+# (decompose, drafts, ikarus, mission_control) are gone. Their owners were
+# already counted and are unchanged.
+CENSUS_MODULES = 430
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -222,7 +227,20 @@ CENSUS_MODULES = 437
 # ``sys.modules`` swap or a ``ModuleType.__getattr__`` forwarder. An opaque
 # facade would cost this census its view of all three edges -- the +3 would
 # read as +0 and the instrument would go quiet, which is the G1-HIER-13 defect.
-CENSUS_EDGES = 1641
+#
+# 1641 -> 1635 in G1-FLAT-02. Hand-computed BEFORE re-measuring, from the
+# edit list: the seven deleted facades spent one owner edge each (-7). Two
+# in-package callers were repointed. ``daedalus.runbook`` swaps
+# ``daedalus.langgraph_adapter`` for ``daedalus.orchestration.langgraph_adapter``
+# (-1, +1). ``daedalus.interfaces.http.read`` swaps ``from ... import
+# gui_catalogue`` for ``from ...orchestration import gui_catalogue``, which
+# drops ``daedalus.gui_catalogue`` (-1), keeps the ``daedalus`` root edge its
+# module-scope imports already spend, and gains BOTH ``daedalus.orchestration``
+# and ``daedalus.orchestration.gui_catalogue`` (+2), because ``from <package>
+# import <module>`` resolves to two targets here. Net -6. Structure and digest
+# unchanged: none of the seven was in a cycle, and removing a leaf's only
+# out-edge opens no path.
+CENSUS_EDGES = 1635
 
 
 def _module_name(path: str) -> str:

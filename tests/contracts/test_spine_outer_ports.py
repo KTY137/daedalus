@@ -78,7 +78,6 @@ FORBIDDEN_PREFIXES = (
     "daedalus.eval",
     "daedalus.file_bridge",
     "daedalus.gates",
-    "daedalus.ikarus",
     "daedalus.ikarus_os",
     "daedalus.integrations",
     "daedalus.kairos",

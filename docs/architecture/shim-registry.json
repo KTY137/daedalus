@@ -17,24 +17,6 @@
       "removal_criteria": "Registered budget-effect targets receive a dedicated target-migration packet and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining compatibility caller."
     },
     {
-      "import_path": "daedalus.decompose",
-      "owner": "orchestration",
-      "targets": [
-        "daedalus.kairos.decompose"
-      ],
-      "kind": "module_reexport",
-      "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, and pickle audits show no caller for one supported release."
-    },
-    {
-      "import_path": "daedalus.drafts",
-      "owner": "orchestration",
-      "targets": [
-        "daedalus.kairos.drafts"
-      ],
-      "kind": "module_reexport",
-      "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, and pickle audits show no caller for one supported release."
-    },
-    {
       "import_path": "daedalus.file_bridge",
       "owner": "interfaces-bridge",
       "targets": [
@@ -48,33 +30,6 @@
       ],
       "kind": "registered_effect_facade",
       "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining implementation caller after one supported compatibility release."
-    },
-    {
-      "import_path": "daedalus.gui_catalogue",
-      "owner": "orchestration",
-      "targets": [
-        "daedalus.orchestration.gui_catalogue"
-      ],
-      "kind": "module_reexport",
-      "removal_criteria": "The two measured flat-path callers are repointed at the owner -- daedalus/interfaces/http/read.py (deferred import in the GET /api/catalogue branch) and tools/smoke_packaged_resources.py (wheel smoke check, which must keep exercising the packaged path it actually ships) -- and source, runtime-string, wheel, documentation, effect-registry, monkeypatch, and pickle audits show no remaining caller. The wheel audit is not optional here: the smoke check imports this name out of an installed site-packages tree, so a green source audit alone would not prove the flat name is unused."
-    },
-    {
-      "import_path": "daedalus.ikarus",
-      "owner": "orchestration",
-      "targets": [
-        "daedalus.kairos.scheduler"
-      ],
-      "kind": "module_reexport",
-      "removal_criteria": "The Ikarus orchestration package owns the public name and all scheduler callers have migrated without changing serialized identities."
-    },
-    {
-      "import_path": "daedalus.ikarus_runtime_events",
-      "owner": "orchestration",
-      "targets": [
-        "daedalus.orchestration.ikarus_runtime_events"
-      ],
-      "kind": "module_reexport",
-      "removal_criteria": "MEASURED at creation (G1-FLAT-01): this facade has ZERO callers -- its only importer was tests/test_ikarus_runtime_events.py, which G1-FLAT-01 repointed at the owner because it reads the implementation source. It is retained only because the flat path is named by .github/workflows/g1-ikarus-runtime-events.yml and docs/research/hermes-agent-v2026.8.19-provenance.json, and because the module is a deliberately unwired seam (docs/work-packets/G1-IKARUS-03) whose future consumer has not landed. Delete it in the packet that lands that consumer against daedalus.orchestration.ikarus_runtime_events, or sooner if the owner decides the flat name was never public. A shim with no caller is debt, and this row exists so it is counted as debt rather than mistaken for compatibility."
     },
     {
       "import_path": "daedalus.kairos.gated_writes",
@@ -108,24 +63,6 @@
       ],
       "kind": "function_port_strangler",
       "removal_criteria": "Source, runtime-string, wheel, documentation, effect-registry, and pickle audits show no callers of the lane, worktree, or chip-publication compatibility facades; the registered effect targets and anchors remain unchanged."
-    },
-    {
-      "import_path": "daedalus.langgraph_adapter",
-      "owner": "orchestration",
-      "targets": [
-        "daedalus.orchestration.langgraph_adapter"
-      ],
-      "kind": "module_reexport",
-      "removal_criteria": "The three measured flat-path callers are repointed at the owner -- daedalus/runbook.py (deferred, inside the engine == 'langgraph' branch; the deferral is optional-dependency isolation and must survive the repoint), experiments/opus_fleet_watchdog/core.py, and tests/test_opus_fleet_watchdog.py -- CLAUDE.md's reference to daedalus/langgraph_adapter.py is updated to the owner path, and source, runtime-string, wheel, documentation, and pickle audits show no remaining caller. Removal must not convert any deferred langgraph import to module scope: tests/test_langgraph_adapter.py::test_nothing_imports_langgraph_at_module_scope pins that the package still imports with the orchestration extra absent."
-    },
-    {
-      "import_path": "daedalus.mission_control",
-      "owner": "interfaces-cli",
-      "targets": [
-        "daedalus.kairos.control"
-      ],
-      "kind": "module_reexport",
-      "removal_criteria": "CLI entrypoint, source, documentation, wheel, and runtime-string audits show no caller for one supported release."
     },
     {
       "import_path": "daedalus.orchestrate",

@@ -23,7 +23,7 @@ polyglot = [
     "tree-sitter-cpp==0.23.4",
 ]
 root = ["uproot==5.7.5"]
-# Optional graph engine for composing a run brief (daedalus/langgraph_adapter.py).
+# Optional graph engine for composing a run brief (daedalus/orchestration/langgraph_adapter.py).
 # NOT a runtime dependency of anything: `create_run` defaults to engine="stdlib",
 # nothing under daedalus/ imports langgraph at module scope, and the adapter is
 # one file to delete. Pulls langchain-core and langsmith transitively -- the

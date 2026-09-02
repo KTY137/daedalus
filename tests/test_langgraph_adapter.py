@@ -20,10 +20,11 @@ from pathlib import Path
 
 import pytest
 
-# The OWNER, not the flat ``daedalus.langgraph_adapter`` facade. Three tests
-# below monkeypatch ``langgraph_available``; the owner's ``build_graph``
-# resolves that name in the owner's own globals, so patching the facade would
-# rebind a copy and silently assert nothing. G1-FLAT-01.
+# The OWNER. Three tests below monkeypatch ``langgraph_available``; the
+# owner's ``build_graph`` resolves that name in the owner's own globals, so
+# patching the flat ``daedalus.langgraph_adapter`` facade G1-FLAT-01 left
+# behind would have rebound a copy and silently asserted nothing. G1-FLAT-02
+# retired that facade.
 from daedalus import runbook
 from daedalus.orchestration import langgraph_adapter
 

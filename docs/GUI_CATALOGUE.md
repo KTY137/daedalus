@@ -44,7 +44,7 @@ Four distribution shapes, and they have completely different cost profiles:
 ### The table
 
 All licences FETCHED on 2026-07-29 by reading the project's own `LICENSE` file
-or licence page. `use_mode` is what `daedalus/gui_catalogue.py` derives.
+or licence page. `use_mode` is what `daedalus/orchestration/gui_catalogue.py` derives.
 
 | project | shape | licence (FETCHED) | manifest | runtime dep | `use_mode` |
 | --- | --- | --- | --- | --- | --- |

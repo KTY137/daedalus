@@ -8,10 +8,10 @@ import pytest
 
 from daedalus import agents_registry, categories, config, router
 
-# The OWNER, not the flat facade: the catalogue test below fakes
-# ``gui_catalogue.__file__`` to a site-packages path, and ``load_catalogue``
-# resolves the packaged data from the owner module's own ``__file__``.
-# Faking it on the facade would patch a name nothing reads. G1-FLAT-01.
+# The OWNER: the catalogue test below fakes ``gui_catalogue.__file__`` to a
+# site-packages path, and ``load_catalogue`` resolves the packaged data from
+# the owner module's own ``__file__``. Faking it on the flat facade G1-FLAT-01
+# left behind would have patched a name nothing reads; G1-FLAT-02 retired it.
 from daedalus.orchestration import gui_catalogue
 from daedalus.resources import (
     ResourceDriftError,

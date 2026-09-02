@@ -34,7 +34,7 @@ def main() -> int:
 
     import daedalus
     from daedalus.config import init_repo
-    from daedalus.gui_catalogue import load_catalogue
+    from daedalus.orchestration.gui_catalogue import load_catalogue
     from daedalus.resources import schema_text
     from daedalus.router import load_agents
 

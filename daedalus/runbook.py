@@ -20,14 +20,15 @@ def create_run(objective: str, paths: list[str], repo_root: str,
     below is the only effect either engine produces, which is what keeps the
     optional graph an adapter rather than a second control plane
     (plan §13). ``"stdlib"`` is the default and needs no dependency;
-    ``"langgraph"`` routes composition through ``daedalus.langgraph_adapter``
-    and raises ``LangGraphUnavailable`` if the extra is not installed --
+    ``"langgraph"`` routes composition through
+    ``daedalus.orchestration.langgraph_adapter`` and raises
+    ``LangGraphUnavailable`` if the extra is not installed --
     deliberately, rather than degrading silently to the other engine, so that
     "which engine produced this brief?" always has an answer.
     """
     run_id = uuid4().hex[:12]
     if engine == "langgraph":
-        from .langgraph_adapter import run_brief
+        from .orchestration.langgraph_adapter import run_brief
 
         payload = run_brief(objective, paths, repo_root, run_id)
         return _write_brief(run_id, payload)
