@@ -160,6 +160,9 @@ def test_desktop_rust_shell_uses_loopback_and_owns_child_lifecycle() -> None:
 
 def test_desktop_backend_readiness_is_child_nonce_bound() -> None:
     web_api = (ROOT / "daedalus" / "web_api.py").read_text(encoding="utf-8")
+    http_server = (
+        ROOT / "daedalus" / "interfaces" / "http" / "server.py"
+    ).read_text(encoding="utf-8")
     http_read = (
         ROOT / "daedalus" / "interfaces" / "http" / "read.py"
     ).read_text(encoding="utf-8")
@@ -167,9 +170,16 @@ def test_desktop_backend_readiness_is_child_nonce_bound() -> None:
     sidecar = (ROOT / "scripts" / "daedalus_desktop_sidecar.py").read_text(
         encoding="utf-8"
     )
-    assert 'DESKTOP_STARTUP_NONCE_ENV = "DAEDALUS_DESKTOP_STARTUP_NONCE"' in web_api
+    # The bind-admission owner defines the env var and enforces the nonce
+    # format; ``web_api`` is now only the facade that re-exports it.  Audit
+    # both halves, so neither dropping the validation at the owner nor cutting
+    # the facade loose onto a literal of its own can pass unnoticed.
+    assert 'DESKTOP_STARTUP_NONCE_ENV = "DAEDALUS_DESKTOP_STARTUP_NONCE"' in http_server
+    assert 'r"[0-9a-f]{64}"' in http_server
+    assert (
+        "DESKTOP_STARTUP_NONCE_ENV = http_server.DESKTOP_STARTUP_NONCE_ENV" in web_api
+    )
     assert 'path == "/api/desktop-ready"' in http_read
-    assert 'r"[0-9a-f]{64}"' in web_api
     assert '"nonce": nonce' in http_read
     assert "DAEDALUS_DESKTOP_STARTUP_NONCE" in smoke
     assert "/api/desktop-ready" in smoke

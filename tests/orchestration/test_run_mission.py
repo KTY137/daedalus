@@ -25,6 +25,7 @@ CLI = ROOT / "daedalus" / "cli.py"
 BUILD_EXEC = ROOT / "daedalus" / "build_exec.py"
 HTTP_EFFECTS = ROOT / "daedalus" / "interfaces" / "http" / "effects.py"
 FILE_BRIDGE = ROOT / "daedalus" / "file_bridge.py"
+BRIDGE_DISPATCH = ROOT / "daedalus" / "interfaces" / "bridge" / "dispatch.py"
 
 REVISION = "a" * 40
 CREATED_AT = "2026-08-31T12:00:00+00:00"
@@ -279,9 +280,29 @@ def test_migrated_surfaces_delegate_without_a_second_execution_path() -> None:
     # code behind the facade cannot make this single-path assertion vacuous.
     web_post = _function(HTTP_EFFECTS, "handle_post")
     assert len(_attribute_calls(web_post, "queue_task")) == 1
+
+    # ``file_bridge`` remains the claimed-request surface, while the bridge
+    # dispatch state machine owns the single execution path.  The payload
+    # processor reaches that owner by dependency injection, so audit all three
+    # halves -- surface, injected port, owner -- or the single-path assertion
+    # goes blind the moment the call moves behind the ports object again.
     bridge = _function(FILE_BRIDGE, "_process_request_claimed")
-    assert len(_name_calls(bridge, "process_bridge_payload")) == 1
-    for surface in (web_post, bridge):
+    assert len(_attribute_calls(bridge, "process_claimed_request")) == 1
+    assert _name_calls(bridge, "process_bridge_payload") == []
+    injected = [
+        keyword.value
+        for call in _attribute_calls(bridge, "ClaimedDispatchPorts")
+        for keyword in call.keywords
+        if keyword.arg == "process_bridge_payload"
+    ]
+    assert len(injected) == 1
+    assert isinstance(injected[0], ast.Name)
+    assert injected[0].id == "process_bridge_payload"
+
+    claimed = _function(BRIDGE_DISPATCH, "process_claimed_request")
+    assert len(_attribute_calls(claimed, "process_bridge_payload")) == 1
+    assert _name_calls(claimed, "process_bridge_payload") == []
+    for surface in (web_post, bridge, claimed):
         assert _attribute_calls(surface, "dispatch") == []
         assert _attribute_calls(surface, "run_wave") == []
         assert _attribute_calls(surface, "spawn") == []
