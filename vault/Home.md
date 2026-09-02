@@ -1,6 +1,8 @@
 ---
-tags: [dashboard]
+tags:
+- dashboard
 created: 2026-08-17
+permalink: main/home
 ---
 
 # Daedalus — Projektgehirn

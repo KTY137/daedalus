@@ -1,6 +1,9 @@
 ---
-tags: [gates, dashboard]
+tags:
+- gates
+- dashboard
 created: 2026-08-17
+permalink: main/gates/gate-status
 ---
 
 # Gate-Status

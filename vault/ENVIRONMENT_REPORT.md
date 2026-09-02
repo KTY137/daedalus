@@ -1,6 +1,9 @@
 ---
-tags: [meta, report]
+tags:
+- meta
+- report
 created: 2026-08-17
+permalink: main/environment-report
 ---
 
 # Environment-Report — Claude-Code-Power-Setup für Daedalus

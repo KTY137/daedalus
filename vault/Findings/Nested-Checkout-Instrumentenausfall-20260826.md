@@ -1,7 +1,9 @@
 ---
-tags: [findings]
+tags:
+- findings
 created: 2026-08-26
 source: Athena, Live-Baum HEAD 4f71c020
+permalink: main/findings/nested-checkout-instrumentenausfall-20260826
 ---
 
 # Nested-Checkout-Instrumentenausfall

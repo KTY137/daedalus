@@ -1,7 +1,9 @@
 ---
-tags: [findings]
+tags:
+- findings
 created: 2026-08-26
 source: Athena, Review gegen HEAD e83d8d8a
+permalink: main/findings/vet-review-20260826
 ---
 
 # Vet-Review 2026-08-26

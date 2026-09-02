@@ -1,6 +1,9 @@
 ---
-tags: [findings, dashboard]
+tags:
+- findings
+- dashboard
 created: 2026-08-17
+permalink: main/findings/index
 ---
 
 # Findings — Untersuchungsergebnisse

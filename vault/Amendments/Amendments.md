@@ -1,6 +1,9 @@
 ---
-tags: [amendments, dashboard]
+tags:
+- amendments
+- dashboard
 created: 2026-08-17
+permalink: main/amendments/amendments
 ---
 
 # Amendments — Verfassungsänderungen

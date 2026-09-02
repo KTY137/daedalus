@@ -1,4 +1,8 @@
 ---
+permalink: main/templates/session
+---
+
+---
 tags: [session]
 date: {{date}}
 ---
