@@ -33,7 +33,19 @@
         "daedalus.runtimes",
         "daedalus.schemas"
       ],
-      "rationale": "The canonical kernel cannot depend on verification, provider, orchestration, runtime, or product-domain implementations. daedalus.schemas is listed because it is a legacy compatibility facade that re-exports kernel contracts alongside orchestration and runtime records: importing it pulls those outer layers into every kernel process, so the kernel names the owning module under daedalus.kernel.contracts instead. This checker observes direct import syntax only; a leak through an unlisted intermediate module stays invisible to it, which is why daedalus.orchestration is listed even though no kernel module imports it today. daedalus.twin is deliberately NOT listed here and adding it is not the fix for a leak through the twin layer: daedalus.kernel.fourfold_evidence imports daedalus.twin.contracts on purpose -- projecting a FourfoldSnapshot into the evidence chain is that module's entire reason to exist -- so this rule would go red on the one edge it is meant to protect (MEASURED at 515b5fce in G1-HIER-11: exactly one violation, daedalus.kernel.fourfold_evidence line 41). A transitive leak through a permitted edge is owned by the rule for the intermediate layer, which is twin-no-outer-layers below.",
+      "allowed_target_prefixes": [
+        "daedalus.atomic",
+        "daedalus.budget",
+        "daedalus.config",
+        "daedalus.limit_policy",
+        "daedalus.offload",
+        "daedalus.primary_tree",
+        "daedalus.sensitivity",
+        "daedalus.spine",
+        "daedalus.storage",
+        "daedalus.twin"
+      ],
+      "rationale": "kernel stays below the outer layers. allowed_target_prefixes is an allowlist because the forbidden list could only refuse what it enumerated: measured 2026-09-02 it named eight package prefixes while 76 modules sat flat under daedalus/, so kernel imports of daedalus.offload, daedalus.core or daedalus.doctor read as clean. Seven allowed flat entries (atomic, budget, config, limit_policy, primary_tree, sensitivity, storage) are foundation the kernel is meant to sit on. daedalus.offload is NOT: it is a workload, and attempt_execution.py:1209 importing it is a genuine inversion. It is named here rather than left invisible, and rather than entered as baseline debt, which this repository forbids by test. Removing it needs the packet that decides which layer offload belongs to -- moving offload_runner into the spine facade only relocates the edge, and tests/kernel/test_attempt_execution_hierarchy.py asserts the kernel owns that name today.",
       "target_owner": "G1-HIER-02 through G1-HIER-05, G1-HIER-10"
     },
     {
@@ -44,6 +56,7 @@
       "forbidden_target_prefixes": [
         "daedalus.gates"
       ],
+      "allowed_target_prefixes": [],
       "rationale": "Runtime admission consumes neutral receipts and must not call their gate producers.",
       "target_owner": "G1-HIER-05"
     },
@@ -74,6 +87,16 @@
         "daedalus.twin",
         "daedalus.web_api"
       ],
+      "allowed_target_prefixes": [
+        "daedalus.atomic",
+        "daedalus.budget",
+        "daedalus.config",
+        "daedalus.kernel",
+        "daedalus.limit_policy",
+        "daedalus.mapping",
+        "daedalus.sensitivity",
+        "daedalus.structcore"
+      ],
       "rationale": "The event spine is canonical infrastructure and cannot depend on product, orchestration, evaluator, provider, runtime, or interface implementations. daedalus.schemas was added in G1-HIER-12 and its argument is narrower and stronger than the kernel's: this rule ALREADY forbids daedalus.orchestration and daedalus.runtimes, and the facade's own shim-registry entry declares its targets to be daedalus.kernel.contracts.canonical, daedalus.orchestration.legacy_reports and daedalus.runtimes.contracts.provider_report. Importing the facade therefore loads exactly the prefixes this rule already names, one hop away, which made the rule green while the layer it forbids was resident. That is not a hypothetical: MEASURED at 4c370f2ad757da82eacb2b231d050d1baeb85212, a cold import daedalus.spine.receipts loaded 13 modules under daedalus.orchestration and daedalus.runtimes plus the facade itself, and the rule passed. The facade is a one-hop launder of this rule's own forbidden set, so listing it is not a widening of the rule's scope but a closure of a bypass in it. Unlike the twin case, no intermediate-layer rule is needed here: both offending edges were DIRECT daedalus.spine imports of the facade, which this checker sees. It sees them at any scope, because it walks the whole AST -- so this one prefix owns both daedalus/spine/receipts.py line 49 (module scope) and daedalus/spine/picker.py line 2880 (inside _default_attempt). MEASURED before G1-HIER-12 repointed them: exactly two violations, one module-scope and one function-scope; after, zero. What this rule does NOT cover is the runtime cold-import instrument, which inspects sys.modules after importing a module and is blind to every deferred import: 494 function-scope daedalus.* imports remain in the tracked tree, 34 of them in daedalus/spine. None is a forbidden target today, and this static rule -- not the cold-import test -- is what keeps that true. daedalus.gates was added in the same packet and for the reason twin-no-outer-layers already made binding one layer up: daedalus.kernel imports daedalus.spine by DIRECT MODULE-LEVEL edge (daedalus/kernel/approvals.py line 30, artifacts.py line 19, attempt_contracts.py line 24, attempt_ledger.py lines 13/19/20 among others), so everything the spine can reach the kernel reaches, and this forbidden set must be at least as strict as kernel-no-outer-layers'. It was not: it named eighteen prefixes and omitted daedalus.gates, the one prefix the kernel rule forbids and this one did not, which meant the kernel rule could be satisfied in syntax while its own forbidden layer loaded in every kernel process through the spine. That is the identical defect twin-no-outer-layers was written to close, and it was found here by adversarial probe rather than by the leak firing: MEASURED, a daedalus/spine module importing daedalus.gates.report -- an ordinary, static, module-scope import needing no dynamic trickery -- transitively loaded 19 daedalus.runtimes modules, 2 daedalus.orchestration modules and the facade, while both the boundary checker and the packet's own test file reported green. That is a larger leak than the 13 modules this packet was dispatched to close. MEASURED at the same revision: zero daedalus.spine modules import daedalus.gates today, so this addition is prospective and costs nothing now, exactly as daedalus.orchestration is listed in kernel-no-outer-layers for a leak that has not happened yet. What this rule STILL cannot see, and what no rule here claims to: dynamic imports (importlib.import_module, __import__, sys.modules, exec), a module-level __getattr__, and any file under daedalus/spine that was never git-added, since the tracked-source command is the observation boundary. All were confirmed to evade both instruments and are recorded in the packet rather than implied to be covered.",
       "target_owner": "G1-HIER-03, G1-HIER-12"
     },
@@ -91,6 +114,11 @@
         "daedalus.providers",
         "daedalus.runtimes",
         "daedalus.schemas"
+      ],
+      "allowed_target_prefixes": [
+        "daedalus.kernel",
+        "daedalus.spine",
+        "daedalus.structcore"
       ],
       "rationale": "daedalus.kernel.fourfold_evidence imports daedalus.twin.contracts, and kernel -> twin is a permitted direct edge, so daedalus.twin is a dependency of the kernel and everything twin can reach the kernel reaches too. The forbidden set is therefore exactly the one kernel-no-outer-layers names: anything narrower would let the kernel rule be satisfied in syntax while the layer it forbids is loaded in every kernel process anyway. That is not hypothetical -- it is what this rule was written to close. MEASURED at 515b5fce, before G1-HIER-11: four daedalus.twin modules imported the daedalus.schemas facade by relative import, and a cold import daedalus.kernel.fourfold_evidence loaded eleven daedalus.runtimes modules and two daedalus.orchestration modules, all of them invisible to kernel-no-outer-layers because the leak crossed a permitted edge. This checker observes direct import syntax only, so this rule constrains the twin layer's own imports and cannot see a further leak through daedalus.spine or daedalus.structcore; those layers need their own rule if they ever acquire an outer edge.",
       "target_owner": "G1-HIER-11"

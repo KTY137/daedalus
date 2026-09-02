@@ -8,6 +8,7 @@ import pytest
 
 from tools.architecture_boundaries import (
     ArchitectureBoundaryError,
+    ImportBoundaryRule,
     evaluate_repository,
     load_contract,
     scan_repository,
@@ -59,6 +60,7 @@ def _contract_payload(
                 "id": "kernel-no-outer-layers",
                 "source_prefixes": ["daedalus.kernel"],
                 "forbidden_target_prefixes": ["daedalus.gates"],
+                "allowed_target_prefixes": [],
                 "rationale": "kernel remains below gates",
                 "target_owner": "test-owner",
             }
@@ -221,3 +223,98 @@ def test_missing_shim_target_locator_fails_closed(tmp_path: Path) -> None:
         match="shim target locator is not tracked",
     ):
         evaluate_repository(tmp_path, load_contract(contract_path))
+
+
+def _rule(*, forbidden: list[str], allowed: list[str]) -> ImportBoundaryRule:
+    return ImportBoundaryRule.from_dict(
+        {
+            "id": "kernel-no-outer-layers",
+            "source_prefixes": ["daedalus.kernel"],
+            "forbidden_target_prefixes": forbidden,
+            "allowed_target_prefixes": allowed,
+            "rationale": "test rule",
+            "target_owner": "test-owner",
+        },
+        "rules[0]",
+    )
+
+
+def test_a_denylist_rule_is_blind_to_every_module_it_did_not_enumerate() -> None:
+    """The gap that made the allowlist mode necessary, pinned as a test.
+
+    This is not a bug report against the old rule -- it is the reason the new
+    mode exists, and it must keep failing loudly if anyone ever concludes the
+    denylist alone was sufficient. Measured on the real contract 2026-09-02:
+    ``kernel-no-outer-layers`` enumerated eight forbidden package prefixes
+    while 76 modules sat flat directly under ``daedalus/``, so a kernel import
+    of ``daedalus.offload`` was reported clean.
+    """
+
+    blind = _rule(forbidden=["daedalus.gates"], allowed=[])
+
+    assert blind.forbidden_target(["daedalus.offload"]) is None
+    assert blind.forbidden_target(["daedalus.core"]) is None
+    assert blind.forbidden_target(["daedalus.gates.report"]) == "daedalus.gates.report"
+
+
+def test_the_allowlist_refuses_a_target_no_denylist_entry_names() -> None:
+    """Delete the allowlist branch in ``forbidden_target`` and this fails."""
+
+    rule = _rule(forbidden=["daedalus.gates"], allowed=["daedalus.budget"])
+
+    # Caught only because it is not on the allowlist -- no denylist entry
+    # matches it, which the test above proves for the same input.
+    assert rule.forbidden_target(["daedalus.offload"]) == "daedalus.offload"
+    assert rule.forbidden_target(["daedalus.core"]) == "daedalus.core"
+
+
+def test_the_allowlist_admits_foundation_own_layer_root_and_third_party() -> None:
+    """A guard that refuses working code is worse than none; pin what passes."""
+
+    rule = _rule(forbidden=["daedalus.gates"], allowed=["daedalus.budget"])
+
+    assert rule.forbidden_target(["daedalus.budget"]) is None
+    assert rule.forbidden_target(["daedalus.budget.ledger"]) is None
+    # a layer may always import itself, without being listed as its own target
+    assert rule.forbidden_target(["daedalus.kernel.contracts.base"]) is None
+    # the bare distribution root is not a layer
+    assert rule.forbidden_target(["daedalus"]) is None
+    # anything outside the package is not this contract's business
+    assert rule.forbidden_target(["json", "pytest", "pathlib.Path"]) is None
+
+
+def test_the_denylist_keeps_priority_when_both_grounds_would_fire() -> None:
+    """An operator should read the enumerated reason, not the generic one."""
+
+    rule = _rule(forbidden=["daedalus.gates"], allowed=["daedalus.budget"])
+
+    # ``daedalus.gates`` is both forbidden AND absent from the allowlist.
+    assert rule.forbidden_target(["daedalus.gates", "daedalus.offload"]) == (
+        "daedalus.gates"
+    )
+
+
+def test_an_empty_allowlist_is_accepted_but_an_absent_key_is_not() -> None:
+    """Denylist-only must be sayable; acquiring a mode by omission must not."""
+
+    assert _rule(forbidden=["daedalus.gates"], allowed=[]).allowed_target_prefixes == ()
+
+    with pytest.raises(ArchitectureBoundaryError):
+        ImportBoundaryRule.from_dict(
+            {
+                "id": "kernel-no-outer-layers",
+                "source_prefixes": ["daedalus.kernel"],
+                "forbidden_target_prefixes": ["daedalus.gates"],
+                "rationale": "test rule",
+                "target_owner": "test-owner",
+            },
+            "rules[0]",
+        )
+
+
+def test_the_allowlist_must_be_sorted_and_free_of_duplicates() -> None:
+    """Same validation the denylist gets; an unordered contract is a diff trap."""
+
+    for bad in (["daedalus.spine", "daedalus.budget"], ["daedalus.budget"] * 2):
+        with pytest.raises(ArchitectureBoundaryError):
+            _rule(forbidden=["daedalus.gates"], allowed=bad)

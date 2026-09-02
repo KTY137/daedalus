@@ -89,6 +89,22 @@ def _require_module_prefixes(value: object, field: str) -> tuple[str, ...]:
     return prefixes
 
 
+def _optional_module_prefixes(value: object, field: str) -> tuple[str, ...]:
+    """Same validation, but an empty array is meaningful rather than invalid.
+
+    An empty ``allowed_target_prefixes`` is how a rule says "I am a denylist
+    only". That has to be expressible: the alternative is an absent key, and
+    :func:`_require_exact_keys` deliberately refuses absent keys so that a rule
+    can never acquire a mode by omission.
+    """
+
+    if not isinstance(value, list):
+        raise ArchitectureBoundaryError(f"{field} must be an array")
+    if not value:
+        return ()
+    return _require_module_prefixes(value, field)
+
+
 @dataclass(frozen=True, order=True)
 class BoundaryViolation:
     """One statically observed forbidden import edge."""
@@ -176,6 +192,7 @@ class ImportBoundaryRule:
     rule_id: str
     source_prefixes: tuple[str, ...]
     forbidden_target_prefixes: tuple[str, ...]
+    allowed_target_prefixes: tuple[str, ...]
     rationale: str
     target_owner: str
 
@@ -186,6 +203,7 @@ class ImportBoundaryRule:
             "id",
             "source_prefixes",
             "forbidden_target_prefixes",
+            "allowed_target_prefixes",
             "rationale",
             "target_owner",
         }
@@ -202,6 +220,10 @@ class ImportBoundaryRule:
                 payload["forbidden_target_prefixes"],
                 f"{field}.forbidden_target_prefixes",
             ),
+            allowed_target_prefixes=_optional_module_prefixes(
+                payload["allowed_target_prefixes"],
+                f"{field}.allowed_target_prefixes",
+            ),
             rationale=_require_non_empty_string(
                 payload["rationale"], f"{field}.rationale"
             ),
@@ -216,12 +238,63 @@ class ImportBoundaryRule:
             for prefix in self.source_prefixes
         )
 
+    @property
+    def _source_root(self) -> str:
+        """The distribution package the rule's own sources live in.
+
+        Derived rather than configured: every ``source_prefixes`` entry in this
+        contract is a dotted path under one root, so the root is already stated
+        and a second place to declare it could only ever disagree with the
+        first.
+        """
+
+        return self.source_prefixes[0].partition(".")[0]
+
+    def _is_allowed(self, candidate: str) -> bool:
+        if _is_module_or_child(candidate, self._source_root) is False:
+            return True  # outside the package entirely: stdlib, third party
+        if candidate == self._source_root:
+            return True  # the bare root package is not a layer
+        if any(
+            _is_module_or_child(candidate, prefix)
+            for prefix in self.source_prefixes
+        ):
+            return True  # a layer may always import itself
+        return any(
+            _is_module_or_child(candidate, prefix)
+            for prefix in self.allowed_target_prefixes
+        )
+
     def forbidden_target(self, candidates: Sequence[str]) -> str | None:
+        """The first candidate this rule refuses, or ``None``.
+
+        Two independent grounds, and the denylist is checked first so that its
+        message stays the one an operator sees for an edge both would catch:
+
+        1. the candidate matches ``forbidden_target_prefixes`` -- an enumerated
+           layer this source may not reach;
+        2. ``allowed_target_prefixes`` is non-empty and the candidate is inside
+           this package but on none of the allowed prefixes.
+
+        Ground 2 exists because ground 1 could not see what it did not
+        enumerate. Measured 2026-09-02: `kernel-no-outer-layers` named eight
+        forbidden package prefixes and the tree held 76 flat modules directly
+        under ``daedalus/``, none of them on that list -- so the kernel could
+        import ``daedalus.offload``, ``daedalus.core`` or ``daedalus.doctor``
+        and the contract reported clean. The rule was not wrong about what it
+        listed; its domain was simply smaller than its name.
+        """
+
         for candidate in candidates:
             if any(
                 _is_module_or_child(candidate, prefix)
                 for prefix in self.forbidden_target_prefixes
             ):
+                return candidate
+        if not self.allowed_target_prefixes:
+            return None
+        for candidate in candidates:
+            if not self._is_allowed(candidate):
                 return candidate
         return None
 
