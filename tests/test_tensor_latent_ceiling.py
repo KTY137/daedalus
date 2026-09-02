@@ -130,8 +130,18 @@ def test_changed_source_revision_cannot_publish_a_ceiling_via_direct_evaluation(
         (lambda payload: payload.update(schema="wrong"), "schema"),
         (lambda payload: payload.update(shadow="ignored"), "corpus fields"),
         (lambda payload: payload.update(source_revision="abc"), "source_revision"),
+        (
+            lambda payload: payload.update(
+                source_revision=O.FROZEN_SOURCE_REVISION.upper()
+            ),
+            "lowercase full 40-hex",
+        ),
         (lambda payload: payload["items"].append(dict(payload["items"][0])), "duplicate item id"),
         (lambda payload: payload["items"][0].update(shadow="ignored"), "items\\[0\\] fields"),
+        (
+            lambda payload: payload["items"][0].update(id=" a "),
+            "surrounding whitespace",
+        ),
         (lambda payload: payload["items"][0].update(bucket="maybe"), "bucket"),
         (lambda payload: payload["items"][0].update(status="inferred"), "status"),
         (lambda payload: payload["items"][0].update(evidence_refs=[]), "evidence_refs"),
