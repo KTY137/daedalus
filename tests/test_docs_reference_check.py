@@ -17,6 +17,7 @@ before it was pinned:
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -153,12 +154,46 @@ def test_scanned_counts_reads_not_listings(checker, monkeypatch):
     assert result["unreadable"] == ["docs/does-not-exist.md"]
 
 
+def _tracked_paths() -> frozenset[str]:
+    completed = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    return frozenset(
+        raw.decode("utf-8") for raw in completed.stdout.split(b"\0") if raw
+    )
+
+
 def test_allowlist_entries_still_describe_absent_paths(checker):
-    """An allowlist that outlives its reason is how a checker stops checking."""
+    """An allowlist that outlives its reason is how a checker stops checking.
+
+    Staleness is TRACKED existence, not filesystem existence. The distinction
+    is not pedantic -- it is what these entries say about themselves:
+
+        projects/daedalus.json          "not a repository file"
+        vscode-agent-env/dist/*.vsix    "exists after packaging, not in the tree"
+
+    Both are untracked artifacts, and both have sat on this disk since
+    2026-08-31. Against `.exists()` this test therefore failed for anyone who
+    had once run the build or started the desktop, and it reported the failure
+    as "the allowlist masks nothing" -- the opposite of the truth, since the
+    entries mask exactly what they promised to. Measured 2026-09-02: the two
+    entries and both files predate the failure being noticed, so this was never
+    a regression, just a check aimed one layer off.
+
+    An entry that names a path which becomes genuinely tracked is still stale,
+    and still fails here. That is the case the guard was written for.
+    """
+
+    tracked = _tracked_paths()
     stale = [
         (rel, target)
         for (rel, target) in checker.ALLOWED
-        if (ROOT / target).exists()
+        if target in tracked
+        or any(entry.startswith(f"{target}/") for entry in tracked)
     ]
     assert stale == [], (
         "these paths exist now, so their allowlist entries mask nothing and "

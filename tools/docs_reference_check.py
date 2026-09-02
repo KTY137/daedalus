@@ -129,6 +129,14 @@ ALLOWED = {
         "an optional operator-local file the proposal explicitly tells the reader to create",
     ("docs/DESKTOP.md", "projects/daedalus.json"):
         "runtime state seeded below the external profile root, not a repository file",
+    (
+        ".quarantine/G1-IKARUS-16/README.md",
+        "docs/work-packets/G1-IKARUS-15_TOOL_BEARING_VOICE.md",
+    ):
+        "named BECAUSE it is absent: the quarantine record reports that the "
+        "tool-bearing-Voice packet was never written, so the section explaining "
+        "that has to say which path it looked for. Repairing this mention would "
+        "delete the finding it exists to state.",
     ("docs/DESKTOP.md", "daedalus/openvscode-server"):
         "a local Docker image tag, not a repository path",
     ("packaging/openvscode/README.md", "vscode-agent-env/dist/daedalus-vscode.vsix"):

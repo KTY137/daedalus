@@ -164,3 +164,10 @@ context_portal/
 # the bridge and registry locks above: the file survives process exit by
 # design, only the ownership is transient.
 memory/offload_metrics.local.jsonl.lock
+
+# Machine-bound project registry row for the local checkout. docs/DESKTOP.md
+# calls this runtime state seeded below the external profile root, and it
+# carries an absolute repo_root -- the exact class of hardcoded machine path
+# 5375f0c3 removed. The four tracked sibling rows point at C:\Users\nukei and
+# are stale history, not a precedent to follow.
+projects/daedalus.json

@@ -113,5 +113,21 @@ plane. It is unimplemented; this file is the road not taken, kept because the
 bounded-capture, environment-sweep and receipt work in it is reusable wherever
 execution eventually lands.
 
-See `docs/work-packets/G1-IKARUS-15_TOOL_BEARING_VOICE.md` for the defects that
-were fixed and the one that remains open.
+## The packet document this used to point at does not exist
+
+The original last line sent the reader to
+`docs/work-packets/G1-IKARUS-15_TOOL_BEARING_VOICE.md` "for the defects that
+were fixed and the one that remains open". Checked 2026-09-02: no such file,
+under that name or any other — `docs/work-packets/` holds a G1-IKARUS-15, but
+it is `G1-IKARUS-15_MISSION_SUPERVISOR_COMPOSITION.md`, a different subject,
+and nothing in that directory mentions `TOOL_BEARING` or `voice_scope`.
+
+Recorded rather than quietly repaired, because a dangling pointer in retained
+negative evidence is itself evidence: it says the tool-bearing-Voice packet was
+never written down, so the two live defects listed under "Why it was stopped"
+(the bare `Bash` grant and the unbounded root collection) were fixed in
+`voice_scope.py` with no packet record of their own. The standing objection —
+items 3 to 6 above — has never been written up anywhere else either. This file
+is the whole record.
+
+Whoever restores this module writes that packet first.
