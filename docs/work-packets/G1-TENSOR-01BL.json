@@ -1,0 +1,76 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BL",
+  "title": "Bisect canonical CSR rows for point lookup",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BK",
+  "campaign_issue": 239,
+  "base_revision": "180ed72c0caaf38e0e2581bb02d5cb641f94cc65",
+  "finding": "TypedRelationBlock.get() already resolves row and column labels against canonical sorted axes and every CSR row is required to retain strictly increasing column indices, but point lookup still linearly scanned the selected stored row until equality or the first larger column. This repeated work over an ordering invariant the block already owns.",
+  "primary_claim": "TypedRelationBlock.get() now uses bisect_left directly inside the selected canonical CSR row. Unknown labels still fail closed, absent stored coordinates still return the canonical semiring zero, and Fourfold subject identity, typed axes, CSR wire format and semiring semantics remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_axis_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BL.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 38,
+    "code_test_deletions": 6,
+    "production_additions": 3,
+    "production_deletions": 6,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the canonical CSR row ordering already enforced by TypedRelationBlock and the existing bisect dependency instead of adding another lookup index, cache, service, sparse representation or planner.",
+  "acceptance": [
+    "point lookup searches only the selected canonical CSR row with bisect_left",
+    "unknown row and column labels still fail closed",
+    "a declared but unstored coordinate still returns the reference semiring zero",
+    "an adversarial 256-column row probe bounds integer-index reads tightly enough to reject the previous linear scan shape",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build and install execute successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, gate transition, measured latency/memory improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "2c667cca08e61996487c0aeb65f83375a3d17fc7",
+    "code_test_revision": "e5ca9034d6d4a7c202168759f27200b0e806d618",
+    "production_blob": "f95ffd1c58cfe9b20dab933cf0e91b3a3b141490",
+    "focused_test_blob": "d9be815c43ec6cfdf885032562ec78495bbb9606",
+    "fourfold_v2_run": 33633657666,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision e5ca9034d6d4a7c202168759f27200b0e806d618",
+      "observed Python 3.10/3.12 contract jobs executed on real GitHub-hosted runners and the overall matrix workflow completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision e5ca9034d6d4a7c202168759f27200b0e806d618. The source diff and adversarial read probe establish reuse of binary search over the selected canonical CSR row, but no measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BL commits; Fourfold subject authority, relation-block wire contracts, semiring semantics and the prior linear point-lookup behavior remain otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
