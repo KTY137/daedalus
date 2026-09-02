@@ -127,6 +127,13 @@ ALLOWED = {
     (".claude/skills/vault-sync/SKILL.md", "vault/Sessions/YYYY-MM-DD.md"): "date template",
     (".claude/proposals/README.md", ".claude/settings.local.json"):
         "an optional operator-local file the proposal explicitly tells the reader to create",
+    (
+        "docs/architecture/target-layout.md",
+        "docs/work-packets/G1-HIER-01..12",
+    ):
+        "a RANGE, not a path: the evidence table's row for the packet series, "
+        "written the way a reader says it aloud. The count beside it (23 docs "
+        "present) is the checkable claim; the range is its label.",
     ("docs/DESKTOP.md", "projects/daedalus.json"):
         "runtime state seeded below the external profile root, not a repository file",
     (
