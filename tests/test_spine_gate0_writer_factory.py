@@ -142,11 +142,25 @@ def test_attempt_path_uses_pre_migration_factory(tmp_path, monkeypatch) -> None:
 def test_factory_is_only_an_opening_profile_not_a_second_ledger_authority() -> None:
     subclass = durability._Gate0OpeningSpineLedger
     assert subclass.__bases__ == (SpineLedger,)
-    assert set(subclass.__dict__) - {
-        "__module__",
-        "__doc__",
-        "_apply_pragmas",
-    } == set()
+
+    # Every class body gets interpreter-owned bookkeeping in ``__dict__``, and
+    # which names those are is a property of the running CPython, not of this
+    # repository (3.13 added ``__firstlineno__`` and ``__static_attributes__``).
+    # Derive that baseline from an empty control class instead of hardcoding it,
+    # so an interpreter bump cannot make this guard red for no reason -- and so
+    # it stays armed rather than being widened by hand each time.  ``__dict__``
+    # and ``__weakref__`` exist only because the probe has no base; the subject
+    # inherits them, so they are excluded and remain forbidden here.
+    class _EmptyProbe:
+        pass
+
+    interpreter_owned = set(_EmptyProbe.__dict__) - {"__dict__", "__weakref__"}
+    # The probe may only ever excuse interpreter dunders, never a real member.
+    assert all(
+        name.startswith("__") and name.endswith("__") for name in interpreter_owned
+    )
+
+    assert set(subclass.__dict__) - interpreter_owned - {"_apply_pragmas"} == set()
     source = inspect.getsource(subclass._apply_pragmas)
     assert "super()._apply_pragmas()" in source
     assert source.count("PRAGMA synchronous=FULL") == 1
