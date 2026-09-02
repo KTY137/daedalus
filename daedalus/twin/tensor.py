@@ -337,4 +337,5 @@ class TensorView(CanonicalContract):
         return cls(**body)
 
 
-def parse_tensor_view(payload: Mapping[str, Any]) -> TensorView.from_dict(payload)
+def parse_tensor_view(payload: Mapping[str, Any]) -> TensorView:
+    return TensorView.from_dict(payload)
