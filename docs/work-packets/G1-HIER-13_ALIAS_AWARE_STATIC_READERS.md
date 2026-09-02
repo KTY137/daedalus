@@ -49,7 +49,7 @@ packet worktree, control scope:
 | --- | --- | --- | --- |
 | `4efa2a53` (base, both rules off) | 734 | **134** | 46 |
 | R1 only, follow the swap | 734 | 34 | 24 |
-| R1 + R2, final (all three review rounds) | 734 | **0** | 0 |
+| R1 + R2, final (after all four review rounds) | 734 | **0** | 0 |
 
 The middle row is the part worth keeping. The brief for this packet named the
 `sys.modules[__name__] = _owner` swap in `daedalus/spine/{envelope,ledger,
@@ -96,14 +96,17 @@ In scope — the taught reader:
 - `daedalus/lanes/checks.py`. New: `_alias_target`,
   `_installs_dynamic_module_protocol`, `_ModuleScopeImports`,
   `_module_scope_imports`, `_is_own_sys_modules_slot`, `_MAX_ALIAS_HOPS`,
-  `_DYNAMIC_ATTRIBUTE_HOOKS`, `_same_file`. After three security review
-  rounds the retype detector is a flow-sensitive, statement-ordered walk
-  whose opacity flag dies on every statement shape it does not fully model
-  (class bodies and decorators included), and the alias hop parses its
-  owner before following and compares OS file identity, not path spelling. Changed: `_exports` takes `root` and consults the
-  two new rules; its one caller passes `root`; `Mapping` added to the existing
-  `typing` import. No check was added to or removed from `BASELINE`, and
-  `run_checks` keeps its three-parameter signature (pinned by
+  `_DYNAMIC_ATTRIBUTE_HOOKS`, `_same_file`, `_IMPORT_MACHINERY_DUNDERS`.
+  After four security review rounds the retype detector is a flow-sensitive,
+  statement-ordered walk whose opacity flag survives only statements proved
+  inert by a whitelist — class bodies, decorators, imports, calls, subscripts
+  and every unmodelled shape kill it — and the alias hop parses its owner
+  before following and compares OS file identity, not path spelling.
+  Changed: `_exports` takes `root` and consults the two new rules;
+  `_installs_dynamic_module_protocol` takes `root` so it can prove an
+  imported name is a real module; its one caller passes both; `Mapping` added
+  to the existing `typing` import. No check was added to or removed from
+  `BASELINE`, and `run_checks` keeps its three-parameter signature (pinned by
   `test_lane_cannot_disable_baseline_by_construction`).
 
 In scope — the guard that was measuring the compiler:
@@ -115,10 +118,11 @@ In scope — the guard that was measuring the compiler:
 
 In scope — instruments and census artifacts:
 
-- `tests/test_lanes_checks.py` (new `AliasedModuleTests`, 33 tests over a
+- `tests/test_lanes_checks.py` (new `AliasedModuleTests`, 39 tests over a
   scratch package carrying every shape the reader must tell apart: the six
-  second-round laundering constructs, the seven third-round ones, the
-  BOM'd-owner hop, and the case-spelled self-alias)
+  second-round laundering constructs, the seven third-round ones, the five
+  fourth-round import/load ones, the facade-shape control that must stay
+  opaque, the BOM'd-owner hop, and the case-spelled self-alias)
 - `tests/test_deepseek_substitution_guard.py` (2 tests added beside the control
   they explain; the control itself is untouched)
 - `tests/contracts/test_import_scc_hierarchy.py` (census comment only; both
@@ -346,6 +350,9 @@ comparison still rejects a subclass that grew a `record_intent`, and rejects it
 | 4a | every round-1 bypass is closed | the 11 constructs that review built, re-run | all refuse; both real names still pass |
 | 4b | every round-2 bypass is closed, RED first | 6 constructs + BOM hop: `8 failed` at `b8c44a55`, then all refuse | 55 passed |
 | 4c | every round-3 bypass is closed, RED first | 5 reviewer constructs + n7: `7 failed` at `3e212da8`, then all refuse | 62 passed |
+| 4d | every round-4 bypass is closed, RED first | r1-r4 + the r5 attribute variant: `5 failed` at `be19e9bc`, then all refuse | 68 passed |
+| 4e | the fix is not a stone that always refuses | the real facade shape stays opaque | `spine/attempt.py` opaque=True; census 0 |
+| 4f | whole-tree containment | fixed vs base-equivalent reader, 1459 files | 3 vs 239; **zero new**; 236 false refusals removed |
 | 5 | the ledger-authority guard passes | `tests/test_spine_gate0_writer_factory.py` | 9 passed (was 7 passed / 1 failed) |
 | 6 | that guard can still go red | `test_the_opening_profile_check_can_still_go_red` | passed |
 | 7 | the alias contract is intact | `tests/kernel/test_event_hierarchy.py` | 9 passed |
@@ -650,17 +657,94 @@ anything unprovable costs the ACCEPT. The real facade in
 `daedalus/spine/attempt.py` stays provable because the only statement after
 its retype is a plain attribute assignment.
 
-**Known model bound, recorded:** a module-import-time side effect carried by
-a subscript or attribute *load* with no `Call` node (`_y = weird[0]` where
-`weird.__getitem__` undoes the retype) is not reset. There is no finite line
-where static reading of Python becomes sound against a determined adversary;
-this detector's guarantee is bounded to constructs whose execution the walk
-models, and the write gate as a whole — not this check — is the fence.
+**Known model bound as recorded at the time** — a subscript or attribute
+*load* with no `Call` node was not reset. The fourth round showed this framing
+was wrong in a way worth preserving rather than editing away: it reads as an
+exotic `__getitem__` corner, when in fact it is the import hole below wearing a
+different hat, and it was weaponisable in eight lines. It is CLOSED in round
+four. See the restated bound there.
 
 After the fix: all thirteen constructs from all three rounds REFUSED through
 the real gate, control-scope census still 0 of 734, whole-tree census 3
 pre-existing `exec`-shape offenders identical to base, blast radius still
 3 + 1 files, registry digest and import census unchanged.
+
+### Fourth adversarial round: an import runs a module body and contains no call
+
+The gap sat exactly between round three's commit message — which claimed to
+close "the adjacent import-time-execution family" — and its dispatch table.
+`ast.Import` and `ast.ImportFrom` were the only two branches that never
+touched `hooked`, and **an import statement executes an entire module body
+while containing zero `Call` nodes**, so the Call-based reset never fired
+either. Four constructs, each a handful of lines, all ACCEPTED at `be19e9bc`:
+
+| # | construct | runtime type |
+| --- | --- | --- |
+| r1 | `import pkg.h1` after the retype | plain `module` |
+| r2 | `from pkg import h2` | plain `module` |
+| r3 | `from pkg.h3 import marker` | plain `module` |
+| r4 | the documented subscript bound, weaponised | plain `module` |
+
+where each helper reaches back through `sys.modules` and retypes the
+partially-initialised importer. Every probe carried a self-check — the undo
+verified to have landed on *that* module, `real_func()` still working — held
+to the bar the reviewer set when it withdrew its own AnnAssign finding for
+targeting the wrong module name. Controls behaved: `print()` (a `Call`)
+refused, and the round-3 `if 1:` undo refused.
+
+**Two corrections to the fix direction, both measured, both mine to make.**
+The instruction was to reset `hooked` in the two import branches — one line
+each. That closes r1–r3. It does **not** close r4: MEASURED, the `ImportFrom`
+that puts the malicious object in scope sits *before* the retype, so the reset
+is a no-op there and r4 stayed accepted. And closing only subscripts would
+have been theatre — r5, built here, is the identical attack one keystroke
+away (`EVIL.__file__` instead of `EVIL[0]`, running `__getattr__` instead of
+`__getitem__`), also ACCEPTED at `be19e9bc` with the undo verified to land.
+
+So the Call heuristic is replaced by an **inertness whitelist**: after a
+retype, `hooked` survives only statements whose every expression is provably
+incapable of running user code — constants, name loads, tuples/lists of
+those, and one narrow attribute case. A whitelist is the right shape for a
+guard because syntax the reader has never heard of defaults to "not inert",
+i.e. to refusing. Calls, subscripts, comprehensions, f-strings, operators,
+walruses, awaits, imports, class bodies, and decorated/defaulted `def`s all
+fall outside it.
+
+The one attribute case is sound rather than convenient. Reading an
+import-machinery dunder (`__file__` and friends) off a name this file bound to
+a module **that resolves under `root`** cannot reach a PEP 562 `__getattr__`,
+because the import machinery has already written that name into the module
+`__dict__` and module `__getattr__` runs only when `__dict__` lookup fails.
+Both halves are required: `from pkg.h5 import EVIL` does not resolve
+`pkg.h5.EVIL` as a module, so `EVIL.__file__` is not inert and r5 refuses.
+This is exactly the shape the real facade ends with —
+`_module.__file__ = _owner.__file__` — and
+`test_the_real_facade_shape_survives_the_inertness_rule` pins it, because if
+that goes red the packet's primary claim dies with it.
+
+RED first, as every round:
+
+```text
+5 failed, 34 passed, 29 deselected      # at be19e9bc, pre-fix
+68 passed                                # after
+```
+
+**Restated bound, now much narrower.** The remaining shape is a single one:
+an attribute *store* on the retyped module runs that module's own
+`__setattr__` if the installed facade class defines one — which
+`daedalus/spine/attempt.py` does. A file granted opacity can therefore run
+its own code in the one statement form the whitelist admits after a retype.
+Closing it would refuse the real facade and return the 34 measured false
+positives, so it is kept open deliberately and named here rather than
+discovered later. It is strictly narrower than "any load": the code that runs
+is a method of the same class the gate is already trusting to forward names,
+in the same file the reader has already parsed.
+
+After the fix: all eighteen constructs from all four rounds REFUSED through
+the real gate; `daedalus/spine/attempt.py` verified still opaque; control
+census 0 of 734; whole-tree containment re-verified at 3 offenders vs 239
+base, **zero new under fixed, 236 false refusals removed**; blast radius
+still 3 + 1 files; registry digest and import census unchanged.
 
 ### Delegated measurement contaminated by my own edit
 
@@ -682,6 +766,25 @@ moving measurement as a fact is why the second construct is documented at all.
   is accepted at base — the chain adds indirection to a concession the gate
   already made, not new authority, but through-the-alias acceptance where
   base refused is introduced by this packet and is on the record.
+- **The one shape still admitted after a retype**, restated after round four
+  narrowed it: an attribute *store* on the retyped module runs that module's
+  own `__setattr__` when the installed facade class defines one — which
+  `daedalus/spine/attempt.py` does. A file granted opacity can therefore run
+  its own code in the single statement form the inertness whitelist allows
+  after a retype. Closing it refuses the real facade and returns the 34
+  measured false positives, so it is kept open deliberately. It is far
+  narrower than the "subscript/attribute load" bound round three recorded:
+  the code that runs is a method of the very class the gate is already
+  trusting to forward names, in a file the reader has already parsed.
+- **The `exec`-into-namespace shape, third dynamic construct, not this
+  packet's:** `daedalus/kairos/gated_writes.py:44` executes a retained source
+  blob into its own namespace. It causes the 3 whole-tree offenders above and
+  is invisible to every AST walk in this repository — the coordinator
+  measured its wider cost on `main` (`124d4647`): the blob hides **seven
+  import edges and three modules**, so the real cross-domain SCC is 21
+  modules where `tests/contracts/test_import_scc_hierarchy.py` reports 18.
+  That census is pinned in this packet as re-measured-and-unchanged, which is
+  true of the instrument and does not certify the instrument's blind spot.
 - **Pre-existing fail-open, recorded not fixed:** a file whose text does not
   parse (e.g. a UTF-8 BOM read as utf-8) is opaque when imported directly —
   base behavior, measured, at `_exports`' top-level `except` and the
@@ -708,10 +811,13 @@ moving measurement as a fact is why the second construct is documented at all.
   (`C:\Users\ADMINI~1\DAEDAL~2\G1AB30~1\...` vs the long path:
   `samefile` and `_same_file` both return True). DOS device names
   (`CON`, `NUL`, ...) remain UNVERIFIED -- plausible, not proven.
-- `daedalus/lanes/checks.py` is a write-lane refusal path, and BOTH earlier
-  versions of this change were measurably exploitable — the second by a
+- `daedalus/lanes/checks.py` is a write-lane refusal path, and ALL THREE
+  earlier versions of this change were measurably exploitable — the second by a
   working end-to-end exploit through the real write gate. It is not Jonas's
   file by the ownership enumeration and it sits close to the fence: **this
   packet should not be promoted without the safety owner's read**,
-  notwithstanding that the final reader refuses every construct both
-  adversarial rounds could build.
+  notwithstanding that the final reader refuses every construct all four
+  adversarial rounds could build. On the false-POSITIVE axis the fix is
+  proven to have made nothing worse (whole-tree: zero new offenders, 236
+  removed); every block in this packet's history was on the
+  false-NEGATIVE axis.

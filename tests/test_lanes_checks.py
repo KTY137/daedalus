@@ -543,6 +543,125 @@ _ALIAS_FIXTURE = {
         "_x[0].__class__ = ModuleType\n"
         "def real_func():\n"
         "    return 1\n"),
+    # SECURITY REVIEW 2026-09-02, FOURTH round. The gap sat exactly between
+    # round three's commit message ("closes the adjacent import-time-execution
+    # family") and its dispatch table: `ast.Import` and `ast.ImportFrom` were
+    # the two branches that never touched `hooked`, and an import statement
+    # executes an ENTIRE MODULE BODY while containing ZERO Call nodes, so the
+    # pre-dispatch Call reset did not fire either.
+    #
+    # Each helper reaches back through `sys.modules` and retypes the
+    # partially-initialised importer to plain `ModuleType`. VERIFIED at
+    # runtime, not assumed: every victim below ends as type `module`, its
+    # `real_func` still works, and an invented name raises -- held to the bar
+    # the reviewer set when it withdrew its own AnnAssign finding for
+    # targeting the wrong module name.
+    "h_undo1.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        'sys.modules["pkg.import_undo_plain"].__class__ = ModuleType\n'),
+    "h_undo2.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        'sys.modules["pkg.import_undo_from"].__class__ = ModuleType\n'),
+    "h_undo3.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        'sys.modules["pkg.import_undo_from_name"].__class__ = ModuleType\n'
+        "marker = 1\n"),
+    # r1: `import pkg.h_undo1` after the retype.
+    "import_undo_plain.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "import pkg.h_undo1\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # r2: `from pkg import h_undo2`.
+    "import_undo_from.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "from pkg import h_undo2\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # r3: `from pkg.h_undo3 import marker`.
+    "import_undo_from_name.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "from pkg.h_undo3 import marker\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # r4/r5: the "subscript bound" round three documented as an exotic corner,
+    # WEAPONISED -- and the reviewer was right that it is the import hole
+    # wearing a different hat, because an ImportFrom is what gets the
+    # malicious object into scope at all. MEASURED: the import sits BEFORE the
+    # retype, so resetting `hooked` at the import does NOT close these; only
+    # refusing to trust a non-inert expression AFTER the retype does. r5 is
+    # the same attack with an attribute load instead of a subscript, which is
+    # why closing only subscripts would have been theatre.
+    "h_evil_item.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _Evil:\n"
+        "    def __getitem__(self, i):\n"
+        '        sys.modules["pkg.load_undo_subscript"].__class__ = ModuleType\n'
+        "        return 1\n"
+        "EVIL = _Evil()\n"),
+    "h_evil_attr.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _Evil:\n"
+        "    def __getattr__(self, name):\n"
+        '        sys.modules["pkg.load_undo_attribute"].__class__ = ModuleType\n'
+        '        return "x"\n'
+        "EVIL = _Evil()\n"),
+    "load_undo_subscript.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "from pkg.h_evil_item import EVIL\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "_y = EVIL[0]\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    "load_undo_attribute.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "from pkg.h_evil_attr import EVIL\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "_y = EVIL.__file__\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # The shape the REAL facade uses, which the fix must keep opaque: a
+    # machinery dunder read off a name bound to a genuine SUBMODULE, then
+    # stored on the retyped module. `daedalus/spine/attempt.py` ends exactly
+    # this way, and its 34 dependent files are the control census.
+    "retype_then_module_dunder.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "from pkg import owner as _owner\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        return getattr(_owner, name)\n"
+        "_m = sys.modules[__name__]\n"
+        "_m.__class__ = _F\n"
+        "_m.__file__ = _owner.__file__\n"),
 }
 
 #: A namespace package (PEP 420): a directory with a ``.py`` file and no
@@ -806,6 +925,46 @@ class AliasedModuleTests(unittest.TestCase):
         self.assertTrue(self.judge("retype_undone_via_container", "INVENTED"))
         self.assertEqual(
             self.judge("retype_undone_via_container", "real_func"), [])
+
+    # -- SECURITY REVIEW 2026-09-02, FOURTH round -------------------------
+    # An import runs a whole module body and contains no Call node. Round
+    # three's Call-based reset could not see it, and the Import/ImportFrom
+    # branches were the only two that never touched `hooked`.
+
+    def test_a_plain_import_after_a_retype_kills_opacity(self):
+        self.assertTrue(self.judge("import_undo_plain", "INVENTED"))
+        self.assertEqual(self.judge("import_undo_plain", "real_func"), [])
+
+    def test_a_from_import_of_a_module_after_a_retype_kills_opacity(self):
+        self.assertTrue(self.judge("import_undo_from", "INVENTED"))
+        self.assertEqual(self.judge("import_undo_from", "real_func"), [])
+
+    def test_a_from_import_of_a_name_after_a_retype_kills_opacity(self):
+        self.assertTrue(self.judge("import_undo_from_name", "INVENTED"))
+        self.assertEqual(self.judge("import_undo_from_name", "real_func"), [])
+
+    def test_a_subscript_load_after_a_retype_kills_opacity(self):
+        """r4. MEASURED: the ImportFrom that puts ``EVIL`` in scope sits
+        BEFORE the retype, so resetting on imports alone does not close this.
+        Only refusing to trust a non-inert expression after the retype
+        does."""
+        self.assertTrue(self.judge("load_undo_subscript", "INVENTED"))
+        self.assertEqual(self.judge("load_undo_subscript", "real_func"), [])
+
+    def test_an_attribute_load_after_a_retype_kills_opacity(self):
+        """r5, the same attack one keystroke away from r4. Closing only
+        subscripts would have been theatre: ``EVIL.__file__`` runs
+        ``_Evil.__getattr__`` just as ``EVIL[0]`` runs ``__getitem__``."""
+        self.assertTrue(self.judge("load_undo_attribute", "INVENTED"))
+        self.assertEqual(self.judge("load_undo_attribute", "real_func"), [])
+
+    def test_the_real_facade_shape_survives_the_inertness_rule(self):
+        """The control that stops the fix from being a stone that always
+        refuses. ``daedalus/spine/attempt.py`` ends with a machinery dunder
+        read off a genuine submodule and stored on the retyped module; the
+        34 files that import through it are the control census. If this goes
+        red, the packet's primary claim dies with it."""
+        self.assertEqual(self.judge("retype_then_module_dunder", "anything"), [])
 
 
 class RunChecksTests(unittest.TestCase):

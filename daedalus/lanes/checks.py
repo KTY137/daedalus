@@ -225,6 +225,18 @@ def _alias_target(tree: ast.Module) -> str | None:
 #: ``__getattribute__`` intercepts even more.
 _DYNAMIC_ATTRIBUTE_HOOKS = frozenset({"__getattr__", "__getattribute__"})
 
+#: Attribute names the import machinery writes into a file-backed module's
+#: ``__dict__`` before any user code can observe it. Reading one off a genuine
+#: module object therefore CANNOT reach a PEP 562 ``__getattr__`` -- module
+#: ``__getattr__`` is consulted only when normal ``__dict__`` lookup fails --
+#: so it is the one attribute load :func:`_installs_dynamic_module_protocol`
+#: can prove executes no user code. The real facade needs exactly this: its
+#: last statement is ``_module.__file__ = _owner.__file__``.
+_IMPORT_MACHINERY_DUNDERS = frozenset({
+    "__name__", "__file__", "__doc__", "__package__",
+    "__loader__", "__spec__", "__path__",
+})
+
 
 def _same_file(a: Path, b: Path) -> bool:
     """One file under two spellings?
@@ -242,7 +254,7 @@ def _same_file(a: Path, b: Path) -> bool:
         return True
 
 
-def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
+def _installs_dynamic_module_protocol(tree: ast.Module, root: Path) -> bool:
     """Does this file put a name-SYNTHESIZING type on its own module object?
 
     Recognises the second construct in this tree, ``daedalus/spine/attempt.py``::
@@ -327,14 +339,44 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
       ``__class__`` store whose holder cannot be attributed to the slot --
       now resets ``hooked`` to False as well.
 
-    The bias is uniform now: anything unprovable costs the ACCEPT, never the
-    refusal. The real facade in ``daedalus/spine/attempt.py`` stays provable
-    because everything after its retype is a plain attribute assignment the
-    walk models exactly.
+    THE FOURTH ROUND (2026-09-02) found the gap between round three's claim to
+    have "closed the adjacent import-time-execution family" and its dispatch
+    table: ``ast.Import`` and ``ast.ImportFrom`` were the only two branches that
+    never touched ``hooked``, and an import statement executes an ENTIRE MODULE
+    BODY while containing ZERO ``Call`` nodes, so the Call-based reset never
+    fired either. Four lines got an invented import past the gate --
+    ``import pkg.h``, ``from pkg import h``, ``from pkg.h import marker``, and
+    the subscript bound round three had documented as an exotic corner. The
+    reviewer's reading of that bound was right and mine was wrong: it is the
+    import hole wearing a different hat, because an ``ImportFrom`` is what puts
+    the malicious object in scope at all.
+
+    MEASURED, and it is why the fix is not the two instructed lines alone: in
+    that construct the import sits BEFORE the retype, so resetting ``hooked``
+    at the import does not close it -- and the same attack one keystroke away
+    (``EVIL.__file__`` instead of ``EVIL[0]``) shows that closing subscripts
+    alone would have been theatre. The Call heuristic is therefore replaced by
+    an INERTNESS WHITELIST: after a retype, ``hooked`` survives only statements
+    whose every expression is provably incapable of running user code --
+    constants, name loads, and a single narrow attribute case. A whitelist is
+    the right shape for a guard because new syntax defaults to "not inert",
+    i.e. to refusing.
+
+    The one attribute case is sound rather than convenient: reading an
+    import-machinery dunder (``__file__`` and friends) off a name this file
+    bound to a **module that resolves under** ``root`` cannot reach a PEP 562
+    ``__getattr__``, because the import machinery has already put that name in
+    the module ``__dict__`` and module ``__getattr__`` runs only when
+    ``__dict__`` lookup fails. That is exactly the shape the real facade in
+    ``daedalus/spine/attempt.py`` ends with, and a fixture pins it.
+
+    The bias is uniform: anything unprovable costs the ACCEPT, never the
+    refusal.
     """
     hooked = False
     env: dict[str, object] = {}
-    _SELF, _SYS, _MODULES, _OTHER = "self", "sys", "modules", "other"
+    _SELF, _SYS, _MODULES, _MODULE, _OTHER = (
+        "self", "sys", "modules", "module", "other")
 
     def is_own_slot(node: ast.expr) -> bool:
         if not isinstance(node, ast.Subscript):
@@ -400,22 +442,94 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
                     child.target, ast.Name):
                 env[child.target.id] = _OTHER
 
+    def inert_load(node: ast.expr | None) -> bool:
+        """Can evaluating this expression run no user code at all?
+
+        A WHITELIST, so that syntax this reader has never heard of defaults to
+        "not inert" and therefore to refusing. Everything absent -- calls,
+        subscripts, comprehensions, f-strings, operators, walruses, awaits --
+        can reach ``__getitem__``, ``__getattr__``, a descriptor, or an
+        operator overload, any of which can undo a retype.
+        """
+        if node is None:
+            return True
+        if isinstance(node, ast.Constant):
+            return True
+        if isinstance(node, ast.Name):
+            return True
+        if isinstance(node, (ast.Tuple, ast.List)):
+            return all(inert_load(e) for e in node.elts)
+        if isinstance(node, ast.Attribute):
+            # The single narrow case, argued in the docstring: an
+            # import-machinery dunder is in a real module's ``__dict__``
+            # before any user code observes it, so this load cannot reach a
+            # PEP 562 ``__getattr__``. Both halves are required -- the
+            # attribute must be one of those dunders AND the base must be a
+            # name this file bound to a module that resolves under ``root``.
+            return (node.attr in _IMPORT_MACHINERY_DUNDERS
+                    and isinstance(node.value, ast.Name)
+                    and env.get(node.value.id) is _MODULE)
+        return False
+
+    def inert_store(node: ast.expr) -> bool:
+        """Is storing into this target free of user code?
+
+        A bare name always is. An attribute store on a name is allowed because
+        the real facade ends with one -- see the residual note in the packet
+        doc, which records that such a store runs the facade's own
+        ``__setattr__`` when one is defined.
+        """
+        if isinstance(node, ast.Name):
+            return True
+        if isinstance(node, ast.Attribute):
+            return isinstance(node.value, ast.Name) or is_own_slot(node.value)
+        return False
+
+    def statement_is_inert(node: ast.stmt) -> bool:
+        """Can executing this whole statement run no user code?
+
+        Imports are the reason this function exists: an import statement runs
+        an entire module body and contains no ``Call`` node, which is exactly
+        how the fourth review round walked past round three's heuristic.
+        """
+        if isinstance(node, ast.Pass):
+            return True
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            return False        # executes a whole module body
+        if isinstance(node, ast.ClassDef):
+            return False        # a class body executes at import time
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return (not node.decorator_list
+                    and all(inert_load(d) for d in node.args.defaults)
+                    and all(inert_load(d) for d in node.args.kw_defaults))
+        if isinstance(node, ast.Assign):
+            return (inert_load(node.value)
+                    and all(inert_store(t) for t in node.targets))
+        if isinstance(node, ast.AnnAssign):
+            return inert_load(node.value) and inert_store(node.target)
+        if isinstance(node, ast.Delete):
+            return all(isinstance(t, ast.Name) for t in node.targets)
+        return False
+
     for node in tree.body:
-        # Any statement that CONTAINS a call may invoke an undo the walk
+        # Any statement that is not PROVABLY inert may run an undo the walk
         # cannot see, and it runs before the statement's own binding effect
-        # settles. The pre-dispatch reset makes the call cost the standing
-        # opacity while the dispatch below still decides what THIS statement
+        # settles. The pre-dispatch reset makes that cost the standing
+        # opacity, while the dispatch below still decides what THIS statement
         # proves -- so a retype whose RHS is a call proves nothing (its value
-        # is unknowable), while a clean retype after a call-bearing line
-        # still counts.
-        if hooked and any(isinstance(c, ast.Call) for c in ast.walk(node)):
+        # is unknowable), while a clean retype after such a line still counts.
+        if hooked and not statement_is_inert(node):
             hooked = False
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name == "sys":
                     env[alias.asname or "sys"] = _SYS
+                elif alias.asname:
+                    # ``import a.b as c`` binds the module a.b to c.
+                    env[alias.asname] = _MODULE
                 else:
-                    env[(alias.asname or alias.name).split(".")[0]] = _OTHER
+                    # ``import a.b`` binds the top package ``a``.
+                    env[alias.name.split(".")[0]] = _MODULE
         elif isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 if alias.name == "*":
@@ -424,6 +538,14 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
                 if (not node.level and node.module == "sys"
                         and alias.name == "modules"):
                     env[bound] = _MODULES
+                elif (not node.level and node.module
+                        and _module_path(root, f"{node.module}.{alias.name}")
+                        is not None):
+                    # ``from a.b import c`` where a.b.c is itself a module in
+                    # the tree binds a genuine module object. That, and only
+                    # that, is what makes an import-machinery dunder read off
+                    # this name provably free of user code.
+                    env[bound] = _MODULE
                 else:
                     env[bound] = _OTHER
         elif isinstance(node, ast.ClassDef):
@@ -617,7 +739,7 @@ def _exports(path: Path, root: Path,
         # The file names an owner this reader cannot open, parse, or
         # distinguish from itself. It is then NOT treated as an alias and is
         # read literally below.
-    if _installs_dynamic_module_protocol(tree):
+    if _installs_dynamic_module_protocol(tree, root):
         return frozenset(), True
     names: set[str] = set()
     opaque = False
