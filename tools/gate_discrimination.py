@@ -389,18 +389,35 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         id="bridge_enqueue_collision",
         defect_class="logic",
-        file="daedalus/file_bridge.py",
-        find='    base = f"{_stamp()}-{slug or \'task\'}-{uuid.uuid4().hex[:8]}"',
+        file="daedalus/interfaces/bridge/queue.py",
+        find='    base = f"{clock()}-{slug or \'task\'}-{unique_hex()[:8]}"',
         replace=(
-            '    base = f"{_stamp()}-{slug or \'task\'}"'
+            '    base = f"{clock()}-{slug or \'task\'}"'
             "  # SEEDED DEFECT: uuid suffix dropped, same-second enqueues collide"
         ),
         incident=(
-            "file_bridge.py's own comment records the shipped defect this "
-            "reverts to: '{stamp}-{slug}.json with SECOND resolution -- two "
-            "enqueues of one objective inside a second produced the same "
-            "path and the later one silently overwrote the earlier. A queue "
-            "that drops a task under load.'"
+            "cae7aec1, 'fix(bridge): a queue that silently dropped a task, "
+            "found by the acceptance run'. The shipped defect this reverts "
+            "to: '{stamp}-{slug}.json with SECOND resolution -- two enqueues "
+            "of one objective inside a second produced the same path and the "
+            "later one silently overwrote the earlier. A queue that drops a "
+            "task under load.' That was file_bridge.py's own comment until "
+            "bb33e72c ('refactor(bridge): extract queue document owner') "
+            "moved the naming line into daedalus/interfaces/bridge/queue.py"
+            "::publish_request behind injected clock()/unique_hex() ports and "
+            "deleted the comment without carrying it across -- which is why "
+            "this row was repointed. The uniqueness argument itself survives "
+            "in file_bridge.py's _request_key docstring ('the older "
+            "second-resolution stamp was not unique, so neither was this'), "
+            "which is what makes the request stem usable as an idempotency "
+            "key: dropping the suffix breaks that key too, not only the "
+            "filename. The mutation is unchanged in substance -- collision-"
+            "free naming is still one line, and unique_hex() is still the "
+            "only thing making it collision-free, so the port injection did "
+            "not make the fault impossible by construction. The covering "
+            "tests drive it through the unchanged facade (fb.enqueue -> "
+            "publish_request) and freeze the clock, so they still exercise "
+            "this exact line."
         ),
         covering_tests=(
             "tests/test_bridge_signals.py::test_two_enqueues_in_the_same_second_do_not_overwrite",
