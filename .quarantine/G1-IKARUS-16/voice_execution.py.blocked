@@ -1,0 +1,799 @@
+"""Running this repository's tests for the Ikarus Voice, under an Effect Lease.
+
+WHY DAEDALUS RUNS THE COMMAND AND THE MODEL NEVER GETS A SHELL
+--------------------------------------------------------------
+The Claude Code CLI accepts ``--allowedTools "Bash(python -m pytest*)"``, and
+that would have been one line. It is not what this module does. Per the master
+plan (§1) a flag is not a security boundary, and "the vendor's argv matcher
+probably handles ``;`` and ``$()`` correctly" is a belief, not evidence this
+repository holds. So the shell never reaches the model at all: Daedalus builds
+the argv here, and the binary, the subcommand, the working directory, the child
+environment and the wall clock are fixed in **code**. The most a model can
+influence is a validated ``pytest -k`` selector, and even that is re-validated
+here rather than trusted from the lease.
+
+THE RESIDUAL RISK, STATED PLAINLY
+---------------------------------
+``python -m pytest`` executes **this repository's own test code**. The effect
+surface is therefore "run this repo's tests", not "spawn one inert process". A
+test module can import anything, write anywhere the invoking user can write,
+and open a socket. Nothing below turns that into a sandbox, and this module
+claims no security boundary.
+
+Two bounds are actually implemented, and each has a stated edge:
+
+1. **A credential-free child environment** (:func:`build_test_environment`).
+   An allowlist of names the interpreter and the OS genuinely need, then a
+   substring sweep that drops any surviving name containing ``KEY``, ``TOKEN``,
+   ``SECRET``, ``PASSWORD`` or ``CREDENTIAL``. The sweep runs *after* the
+   allowlist and after the forced overrides, so a later widening of the
+   allowlist cannot re-admit a secret-shaped name by being forgotten about.
+   ``HOME``/``USERPROFILE``/``APPDATA`` are deliberately absent: they are the
+   route to on-disk credential stores. This makes a selected test unable to
+   reach a paid provider *through the environment*.
+
+   WHAT IT DOES NOT COVER: credentials on disk (``~/.claude``,
+   ``~/.aws/credentials``, a repo-local ``.env``, a git credential helper, an
+   OS keyring) are unaffected by an environment sweep -- a test that reads a
+   file still reads it. A secret-bearing variable whose name contains none of
+   the five substrings (``GH_PAT``, ``NPM_AUTH``, ``DEEPSEEK``) survives the
+   sweep and is only excluded because the allowlist did not name it; the sweep
+   is the second fence, not the first.
+
+2. **A contained child with a hard deadline** (:func:`_spawn_contained`).
+   The child is spawned through :class:`daedalus.spine.cancel.ManagedProcess`,
+   which puts it in its own process group (POSIX session / win32 Job Object
+   with ``KILL_ON_JOB_CLOSE``) and fails closed if it cannot. On deadline the
+   whole *tree* is cancelled and killed -- not left inherited by this process.
+
+   WHAT IT DOES NOT COVER: there is no CPU, RAM, PID or filesystem quota here;
+   that is a sandbox contract this row does not implement. Writes the tests
+   themselves make inside the repository (pytest caches, temporary trees) are
+   real and declared as ``filesystem_write``. And the kill switch reaches this
+   child through ``ManagedProcess`` registration -- i.e. through
+   :func:`daedalus.spine.killswitch.KillSwitch.stop_children`'s sweep -- so a
+   stop that arrives *after* admission reaps the run rather than refusing it at
+   the door.
+
+A KILLED RUN IS NOT A FAILED RUN
+--------------------------------
+:class:`VoiceTestReceipt` keeps ``exit_code is None`` for any run we killed,
+even though the underlying process object has a return code after a kill.
+"The tests failed" and "we never found out" are different claims and stay
+different here and in :func:`render_receipt_for_context`. For the same reason
+``passed`` is not ``exit_code == 0``: pytest's own session header must have
+been observed, because ``python -m pytest`` against an interpreter with no
+pytest installed prints ``No module named pytest`` and an unchecked exit status
+reads exactly like a green run. Exit code 5 -- "the selector matched nothing"
+-- is conclusive but is NOT a pass: an empty selection reporting green is the
+same defect as an empty report passing a gate.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import re
+import subprocess
+import threading
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Mapping, Sequence
+
+from .spine.cancel import CancellationUnavailable, ManagedProcess
+from .voice_scope import TEST_COMMAND_PREFIX, VoiceExecutionLease
+
+__all__ = [
+    "VOICE_TEST_ENTRYPOINT_ID",
+    "ENV_ALLOWLIST",
+    "SECRET_NAME_SUBSTRINGS",
+    "VoiceExecutionRefused",
+    "VoiceTestReceipt",
+    "build_test_environment",
+    "run_tests_under_lease",
+    "render_receipt_for_context",
+]
+
+#: The canonical registry row for this effect. Declared in
+#: ``daedalus/spine/effect_boundary.py``; ``begin_effect`` refuses any other id.
+VOICE_TEST_ENTRYPOINT_ID = "ikarus_os.voice_test_execution"
+
+#: Environment names the child may inherit. Everything else is dropped. This is
+#: an allowlist and not a denylist on purpose: a denylist has to predict the
+#: name of every credential anyone will ever export.
+#:
+#: ``HOME``, ``USERPROFILE``, ``APPDATA`` and ``LOCALAPPDATA`` are deliberately
+#: NOT here -- they are the address of the on-disk credential stores. The cost
+#: is real and is not hidden: a test that calls ``Path.home()`` behaves
+#: differently under this environment than under a developer shell.
+ENV_ALLOWLIST: tuple[str, ...] = (
+    # Process/OS minimum. SYSTEMROOT is not optional on win32: CPython's socket
+    # and ssl initialisation fail without it.
+    "PATH",
+    "PATHEXT",
+    "SYSTEMROOT",
+    "SYSTEMDRIVE",
+    "WINDIR",
+    "COMSPEC",
+    "OS",
+    "NUMBER_OF_PROCESSORS",
+    "PROCESSOR_ARCHITECTURE",
+    "LD_LIBRARY_PATH",
+    "DYLD_LIBRARY_PATH",
+    # Where the child may put scratch files.
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    # Locale/encoding, so captured output is decodable.
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    # TLS trust roots. A test that legitimately talks to loopback over https
+    # should not fail for a reason that has nothing to do with the test.
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "REQUESTS_CA_BUNDLE",
+    "CURL_CA_BUNDLE",
+)
+
+#: Applied after the allowlist, before the sweep. ``PYTHONDONTWRITEBYTECODE``
+#: is here to narrow the declared ``filesystem_write`` effect, not for speed.
+FORCED_ENVIRONMENT: Mapping[str, str] = {
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUNBUFFERED": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    # Observable from inside the child, so a test can tell which lane it is on
+    # without guessing. Read-only marker; it grants nothing.
+    "DAEDALUS_VOICE_TEST_RUN": "1",
+    # The repository's own rule: no external tracing/analytics from a run
+    # nobody asked to be traced.
+    "LANGSMITH_TRACING": "false",
+    "LANGCHAIN_TRACING_V2": "false",
+    "LANGGRAPH_CLI_NO_ANALYTICS": "1",
+}
+
+#: Case-insensitive substrings that disqualify an environment name outright.
+SECRET_NAME_SUBSTRINGS: tuple[str, ...] = (
+    "KEY",
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "CREDENTIAL",
+)
+
+#: Files/directories that make a directory plausibly "a repository with tests".
+#: Without one of these, ``pytest`` in that directory means "collect and execute
+#: whatever test files exist below this point", which for a home directory is
+#: not a measurement anybody asked for. Refusing an ambiguous root is cheaper
+#: than explaining the run afterwards.
+REPO_ROOT_MARKERS: tuple[str, ...] = (
+    "pyproject.toml",
+    "setup.cfg",
+    "pytest.ini",
+    "tox.ini",
+    "tests",
+)
+
+#: Total retained capture. The digest covers everything read regardless.
+MAX_CAPTURE_BYTES = 512 * 1024
+#: Split of that budget. The head must be big enough to always contain pytest's
+#: own session header, because that header is what makes a verdict conclusive.
+HEAD_CAPTURE_BYTES = 64 * 1024
+TAIL_CAPTURE_BYTES = MAX_CAPTURE_BYTES - HEAD_CAPTURE_BYTES
+#: What the rendered context may carry.
+MAX_TAIL_CHARS = 8000
+#: An upper bound on the selector, so a pathological -k expression cannot be
+#: used to make the argv itself the payload.
+MAX_SELECTOR_CHARS = 512
+
+#: Grace before the container kill, and how long we wait for the reader thread
+#: after the child is gone.
+KILL_GRACE_S = 2.0
+READER_JOIN_S = 10.0
+
+#: pytest's own proof that pytest actually started. Either spelling is enough.
+_PYTEST_STARTED = re.compile(
+    r"test session starts|platform .{0,64}--\s*Python .{0,32}, pytest-\d",
+)
+
+#: Exit codes from which a verdict may be read at all. Deliberately NOT the
+#: full pytest set: 2 (interrupted), 3 (internal error) and 4 (usage error) all
+#: mean "we did not find out", and collapsing them into "failed" would be the
+#: same lie as calling a killed run a failure.
+CONCLUSIVE_EXIT_CODES: Mapping[int, str] = {
+    0: "passed",
+    1: "failed",
+    5: "no_tests_ran",
+}
+
+
+class VoiceExecutionRefused(RuntimeError):
+    """A test run refused, with no process spawned.
+
+    Raised for every precondition and for a spawn that could not be contained.
+    It is deliberately distinct from a :class:`VoiceTestReceipt`: a receipt
+    always means "a run was attempted and this is what was observed", so a
+    refusal must not be able to arrive dressed as an inconclusive run.
+    """
+
+    def __init__(self, reason: str, *, contract: str = "voice_execution.precondition"):
+        super().__init__(reason)
+        self.reason = reason
+        self.contract = contract
+
+
+# --------------------------------------------------------------------------- #
+# The child environment                                                        #
+# --------------------------------------------------------------------------- #
+def _sweep_secret_names(env: Mapping[str, str]) -> dict[str, str]:
+    """Drop every name that looks like it carries a credential.
+
+    Runs LAST, over the assembled environment including the forced overrides,
+    so there is no path that bypasses it. It is the second fence: the allowlist
+    is what actually decides, and this catches a future widening of it.
+    """
+    kept: dict[str, str] = {}
+    for name, value in env.items():
+        upper = str(name).upper()
+        if any(fragment in upper for fragment in SECRET_NAME_SUBSTRINGS):
+            continue
+        kept[str(name)] = str(value)
+    return kept
+
+
+def build_test_environment(
+    source_environment: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """The credential-free environment the test child gets.
+
+    ``source_environment`` defaults to this process's environment; it is a
+    parameter so the construction is testable without mutating ``os.environ``.
+    """
+    source = dict(os.environ if source_environment is None else source_environment)
+    env: dict[str, str] = {}
+    for name in ENV_ALLOWLIST:
+        value = source.get(name)
+        if value is None:
+            continue
+        text = str(value)
+        # A name or value carrying a NUL cannot be passed to CreateProcess/execve
+        # anyway; dropping it beats letting the spawn fail for an opaque reason.
+        if "\x00" in name or "\x00" in text:
+            continue
+        env[name] = text
+    env.update(FORCED_ENVIRONMENT)
+    return _sweep_secret_names(env)
+
+
+# --------------------------------------------------------------------------- #
+# Bounded capture                                                              #
+# --------------------------------------------------------------------------- #
+class _BoundedCapture:
+    """Hash everything, retain a bounded head and tail.
+
+    The digest is taken over EVERY byte read from the child, not over what
+    survived truncation, so a trimmed tail cannot misrepresent the run: two
+    runs whose retained text is identical but whose full output differed have
+    different digests.
+    """
+
+    def __init__(
+        self,
+        head_bytes: int = HEAD_CAPTURE_BYTES,
+        tail_bytes: int = TAIL_CAPTURE_BYTES,
+    ) -> None:
+        self._digest = hashlib.sha256()
+        self._head = bytearray()
+        self._tail = bytearray()
+        self._head_limit = max(0, int(head_bytes))
+        self._tail_limit = max(0, int(tail_bytes))
+        self.total_bytes = 0
+
+    def feed(self, chunk: bytes) -> None:
+        if not chunk:
+            return
+        self._digest.update(chunk)
+        self.total_bytes += len(chunk)
+        room = self._head_limit - len(self._head)
+        if room > 0:
+            self._head += chunk[:room]
+            chunk = chunk[room:]
+        if not chunk:
+            return
+        self._tail += chunk
+        overflow = len(self._tail) - self._tail_limit
+        if overflow > 0:
+            del self._tail[:overflow]
+
+    def drain(self, stream) -> None:
+        """Read to EOF. Never raises: a broken pipe after a kill is expected."""
+        if stream is None:
+            return
+        try:
+            while True:
+                chunk = stream.read(65536)
+                if not chunk:
+                    return
+                self.feed(chunk)
+        except (OSError, ValueError):
+            return
+
+    @property
+    def retained_bytes(self) -> int:
+        return len(self._head) + len(self._tail)
+
+    @property
+    def truncated(self) -> bool:
+        return self.total_bytes > self.retained_bytes
+
+    @property
+    def digest(self) -> str:
+        return self._digest.hexdigest()
+
+    def text(self) -> str:
+        joiner = b"\n...[output truncated]...\n" if self.truncated else b""
+        return (bytes(self._head) + joiner + bytes(self._tail)).decode(
+            "utf-8", errors="replace"
+        )
+
+    def tail_text(self, limit: int = MAX_TAIL_CHARS) -> str:
+        return self.text()[-max(0, int(limit)):] if limit else ""
+
+
+# --------------------------------------------------------------------------- #
+# The receipt                                                                  #
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class VoiceTestReceipt:
+    """What Daedalus observed when it ran the tests. An observation, not a gate.
+
+    Nothing here promotes anything. It records a run, its digest, and whether
+    the run answered the question at all.
+    """
+
+    lease_id: str
+    selector: str
+    command: tuple[str, ...]
+    exit_code: int | None
+    duration_seconds: float
+    timed_out: bool
+    output_digest: str
+    output_tail: str
+    truncated: bool
+    captured_bytes: int = 0
+    #: pytest's own session header was observed in the captured output.
+    pytest_started: bool = False
+    #: Which containment backend held the child (``windows-job``/``posix-session``).
+    containment: str = ""
+    evidence: Mapping[str, object] = field(default_factory=dict)
+
+    @property
+    def conclusive(self) -> bool:
+        """Did this run answer the question at all?
+
+        False for a killed run, for a run whose exit code we never saw, for a
+        run in which pytest never announced itself (the ``No module named
+        pytest`` trap), and for pytest's own "we did not get that far" codes.
+        """
+        if self.timed_out or self.exit_code is None:
+            return False
+        if not self.pytest_started:
+            return False
+        return self.exit_code in CONCLUSIVE_EXIT_CODES
+
+    @property
+    def passed(self) -> bool:
+        """Tests ran and none of them failed. Never true for exit code 5."""
+        return self.conclusive and self.exit_code == 0
+
+    @property
+    def no_tests_ran(self) -> bool:
+        return self.conclusive and self.exit_code == 5
+
+    @property
+    def outcome(self) -> str:
+        if self.timed_out:
+            return "killed"
+        if not self.conclusive:
+            return "inconclusive"
+        return CONCLUSIVE_EXIT_CODES[int(self.exit_code or 0)]
+
+    def to_evidence(self) -> dict[str, object]:
+        return {
+            "entrypoint_id": VOICE_TEST_ENTRYPOINT_ID,
+            "lease_id": self.lease_id,
+            "selector": self.selector,
+            "command": list(self.command),
+            "exit_code": self.exit_code,
+            "duration_seconds": round(self.duration_seconds, 3),
+            "timed_out": self.timed_out,
+            "output_digest": self.output_digest,
+            "captured_bytes": self.captured_bytes,
+            "truncated": self.truncated,
+            "pytest_started": self.pytest_started,
+            "containment": self.containment,
+            "outcome": self.outcome,
+            "passed": self.passed,
+            "conclusive": self.conclusive,
+            "security_boundary_claimed": False,
+            **dict(self.evidence),
+        }
+
+
+# --------------------------------------------------------------------------- #
+# Validation -- all of it before begin_effect, so a refusal costs zero spawns  #
+# --------------------------------------------------------------------------- #
+def _validated_selector(selector: str) -> str:
+    if "\x00" in selector or "\n" in selector or "\r" in selector:
+        raise VoiceExecutionRefused("test selector must be a single plain line")
+    if len(selector) > MAX_SELECTOR_CHARS:
+        raise VoiceExecutionRefused(
+            f"test selector is longer than {MAX_SELECTOR_CHARS} characters"
+        )
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in selector):
+        raise VoiceExecutionRefused("test selector contains a control character")
+    if selector.startswith("-"):
+        # argparse would refuse it as a value for -k anyway, but "the vendor's
+        # parser probably rejects it" is exactly the reasoning this module
+        # exists to avoid. A -k expression never legitimately starts with '-'.
+        raise VoiceExecutionRefused("test selector may not start with '-'")
+    return selector
+
+
+def _validated_lease(lease: VoiceExecutionLease) -> str:
+    """Re-check the lease and return the one thing it is allowed to influence.
+
+    The binary and the subcommand come from
+    :data:`daedalus.voice_scope.TEST_COMMAND_PREFIX` and are re-checked here
+    rather than trusted: a lease object can be constructed by anyone, and this
+    is the last place before a process could exist.
+    """
+    if not isinstance(lease, VoiceExecutionLease):
+        raise VoiceExecutionRefused("a voice test run requires a VoiceExecutionLease")
+    if not str(lease.lease_id).strip():
+        raise VoiceExecutionRefused("an execution lease must carry a non-empty lease id")
+    if not 1.0 <= float(lease.max_seconds) <= 3600.0:
+        raise VoiceExecutionRefused(
+            "execution lease wall time is outside the accepted range"
+        )
+
+    command = tuple(str(part) for part in lease.command)
+    prefix_len = len(TEST_COMMAND_PREFIX)
+    if command[:prefix_len] != TEST_COMMAND_PREFIX:
+        raise VoiceExecutionRefused(
+            f"lease command {command!r} does not begin with the fixed test "
+            f"command prefix {TEST_COMMAND_PREFIX!r}"
+        )
+    tail = command[prefix_len:]
+    if not tail:
+        return ""
+    if tail[0] != "-k" or len(tail) != 2:
+        raise VoiceExecutionRefused(
+            "the only argument a lease may add is a single -k selector"
+        )
+    return _validated_selector(tail[1])
+
+
+def _validated_interpreter(python_executable: str) -> str:
+    executable = str(python_executable or "").strip()
+    if not executable:
+        raise VoiceExecutionRefused("no python interpreter was supplied for the run")
+    if not Path(executable).is_file():
+        raise VoiceExecutionRefused(
+            f"the supplied python interpreter does not exist: {executable!r}"
+        )
+    return executable
+
+
+def _argv(executable: str, selector: str) -> tuple[str, ...]:
+    """Assemble the argv. Called only after the effect start was granted.
+
+    ``TEST_COMMAND_PREFIX[0]`` is the literal word ``python``; the RESOLVED
+    interpreter replaces it so the run cannot inherit whichever ``python``
+    happens to be first on PATH. ``TEST_COMMAND_PREFIX[1:]`` is copied verbatim.
+    """
+    return (executable, *TEST_COMMAND_PREFIX[1:], *(("-k", selector) if selector else ()))
+
+
+def _validated_repo_root(repo_root: str | Path) -> Path:
+    if not repo_root:
+        raise VoiceExecutionRefused("no repository root was supplied for the run")
+    try:
+        root = Path(repo_root).expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise VoiceExecutionRefused(f"repository root is not readable: {exc}") from exc
+    if not root.is_dir():
+        raise VoiceExecutionRefused("repository root is not a directory")
+    if not any((root / marker).exists() for marker in REPO_ROOT_MARKERS):
+        raise VoiceExecutionRefused(
+            f"{root} carries none of {REPO_ROOT_MARKERS!r}, so 'run this "
+            f"repository's tests' has no defined meaning there"
+        )
+    return root
+
+
+# --------------------------------------------------------------------------- #
+# Guard decisions                                                              #
+# --------------------------------------------------------------------------- #
+def _spend_net_decision():
+    """The ``budget.process_guard`` decision.
+
+    Delegates to the contract's own module, which installs the process-wide
+    spend net; the child's spawn is then classified by ``classify_argv`` before
+    it starts. No ledger reservation is made and no SPEND effect is requested:
+    the argv is a local interpreter, and the child's environment carries no
+    vendor credential. FAILS CLOSED -- a net that could not be installed is a
+    refusal, not a pass.
+    """
+    from .spine.effect_boundary import GuardDecision
+
+    try:
+        from . import budget
+
+        return budget.process_guard_boundary_decision()
+    except Exception as exc:  # noqa: BLE001 - any failure is a refusal
+        return GuardDecision(
+            "budget.process_guard",
+            False,
+            f"the process spend net could not be installed "
+            f"({type(exc).__name__}: {exc}), so no test child may start",
+        )
+
+
+def _containment_decision(deadline_s: float, env: Mapping[str, str]):
+    """The ``containment.attempt`` decision, resolved rather than asserted.
+
+    Three things are checked, and each is the thing that would actually be
+    deleted by an unsafe edit: the spawn is still bound to
+    ``daedalus.spine.cancel`` (so the child is still killable as a tree), the
+    deadline is finite and inside the lease's accepted range, and the assembled
+    child environment carries no secret-shaped name. Any of them false refuses
+    the start instead of proceeding as a raw, unbounded spawn.
+    """
+    from .spine.effect_boundary import GuardDecision
+
+    module = getattr(ManagedProcess, "__module__", "") or "<unknown>"
+    bound = module == "daedalus.spine.cancel"
+    finite = 1.0 <= float(deadline_s) <= 3600.0
+    leaked = sorted(
+        name
+        for name in env
+        if any(fragment in name.upper() for fragment in SECRET_NAME_SUBSTRINGS)
+    )
+    allowed = bound and finite and not leaked
+    if allowed:
+        evidence = (
+            f"child bound to {module}.ManagedProcess (own process group, "
+            f"killed as a tree, not inherited); hard deadline {deadline_s:.1f}s; "
+            f"{len(env)} environment names survive the allowlist and the "
+            f"{'/'.join(SECRET_NAME_SUBSTRINGS)} sweep, none secret-shaped. "
+            f"This is containment of the process, NOT a sandbox: the child runs "
+            f"this repository's own test code with the invoking user's rights"
+        )
+    else:
+        reasons = []
+        if not bound:
+            reasons.append(
+                f"the containment call resolved to {module}.ManagedProcess, not "
+                f"daedalus.spine.cancel"
+            )
+        if not finite:
+            reasons.append(f"the deadline {deadline_s!r} is outside [1, 3600] seconds")
+        if leaked:
+            reasons.append(
+                "the child environment still carries secret-shaped names: "
+                + ", ".join(leaked)
+            )
+        evidence = "refusing to start an uncontained test child: " + "; ".join(reasons)
+    return GuardDecision("containment.attempt", allowed, evidence)
+
+
+# --------------------------------------------------------------------------- #
+# The single sink                                                              #
+# --------------------------------------------------------------------------- #
+def _spawn_contained(
+    argv: Sequence[str],
+    *,
+    cwd: Path,
+    deadline_s: float,
+    env: Mapping[str, str],
+) -> tuple[int | None, bool, float, _BoundedCapture, str]:
+    """The ONLY place in this module that starts a process.
+
+    Anchored in the registry against ``ManagedProcess``, so replacing this with
+    a raw ``subprocess.Popen`` is a conformance blocker rather than a silent
+    regression.
+
+    Returns ``(exit_code, timed_out, duration_s, capture, containment)``.
+    ``exit_code`` is ``None`` whenever the run was killed -- the process object
+    does have a return code after a tree kill, and propagating it would turn
+    "we never found out" into "the tests failed".
+    """
+    capture = _BoundedCapture()
+    started = time.monotonic()
+    timed_out = False
+    exit_code: int | None = None
+    containment = ""
+    try:
+        with ManagedProcess(
+            list(argv),
+            cwd=cwd,
+            env=dict(env),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        ) as managed:
+            containment = managed.backend_name
+            reader = threading.Thread(
+                target=capture.drain,
+                args=(managed.process.stdout,),
+                name="voice-test-capture",
+                daemon=True,
+            )
+            reader.start()
+            try:
+                exit_code = int(managed.wait(timeout=deadline_s))
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                exit_code = None
+                managed.cancel(grace_s=KILL_GRACE_S)
+            reader.join(timeout=READER_JOIN_S)
+    except CancellationUnavailable as exc:
+        raise VoiceExecutionRefused(
+            f"the test child could not be placed in a killable container "
+            f"({exc}); refusing to run work this process cannot stop",
+            contract="containment.attempt",
+        ) from exc
+    except OSError as exc:
+        raise VoiceExecutionRefused(
+            f"the test child could not be started: {type(exc).__name__}: {exc}"
+        ) from exc
+    return exit_code, timed_out, time.monotonic() - started, capture, containment
+
+
+# --------------------------------------------------------------------------- #
+# Public entrypoint                                                            #
+# --------------------------------------------------------------------------- #
+def run_tests_under_lease(
+    lease: VoiceExecutionLease,
+    *,
+    repo_root: str | Path,
+    python_executable: str,
+    source_environment: Mapping[str, str] | None = None,
+) -> VoiceTestReceipt:
+    """Run the repository's tests under ``lease`` and report what was observed.
+
+    The canonical effect start is taken through ``begin_effect`` BEFORE the
+    argv exists, exactly as :func:`daedalus.ikarus_os._provider_start` does, so
+    a refused run costs zero spawns. There is no second lease type and no
+    second lease issuer here: :class:`daedalus.voice_scope.VoiceExecutionLease`
+    is the caller's authorisation and ``begin_effect`` is the only thing that
+    turns it into a start.
+
+    Raises :class:`VoiceExecutionRefused` when nothing ran. Returns a receipt
+    only when a process was actually started.
+    """
+    from .spine.effect_boundary import Effect, EffectBoundaryError, begin_effect
+
+    # Everything below is a refusal path, and every one of them runs before a
+    # single byte of argv is assembled.
+    root = _validated_repo_root(repo_root)
+    deadline_s = float(getattr(lease, "max_seconds", 0.0) or 0.0)
+    env = build_test_environment(source_environment)
+    spend = _spend_net_decision()
+    containment = _containment_decision(deadline_s, env)
+    try:
+        start = begin_effect(
+            VOICE_TEST_ENTRYPOINT_ID,
+            (
+                Effect.PROCESS_SPAWN,
+                Effect.PROCESS_CONTROL,
+                Effect.FILESYSTEM_WRITE,
+                Effect.NETWORK_EGRESS,
+            ),
+            (spend, containment),
+        )
+    except EffectBoundaryError as exc:
+        denied = next((d for d in (containment, spend) if not d.allowed), None)
+        raise VoiceExecutionRefused(
+            str(exc),
+            contract=denied.contract if denied else "effect_boundary",
+        ) from exc
+
+    argv = _validated_argv(lease, python_executable)
+    selector = argv[argv.index("-k") + 1] if "-k" in argv else ""
+
+    exit_code, timed_out, duration, capture, backend = _spawn_contained(
+        argv, cwd=root, deadline_s=deadline_s, env=env
+    )
+    text = capture.text()
+    return VoiceTestReceipt(
+        lease_id=str(lease.lease_id),
+        selector=selector,
+        command=argv,
+        exit_code=exit_code,
+        duration_seconds=duration,
+        timed_out=timed_out,
+        output_digest="sha256:" + capture.digest,
+        output_tail=capture.tail_text(),
+        truncated=capture.truncated,
+        captured_bytes=capture.total_bytes,
+        pytest_started=bool(_PYTEST_STARTED.search(text)),
+        containment=backend,
+        evidence={
+            "repo_root": str(root),
+            "deadline_seconds": deadline_s,
+            "environment_names": sorted(env),
+            "effect_receipt_sha256": start.receipt_sha256,
+            "registry_sha256": start.registry_sha256,
+        },
+    )
+
+
+_OUTCOME_LINES: Mapping[str, str] = {
+    "killed": (
+        "KILLED. The run hit its wall-clock deadline and Daedalus killed the "
+        "whole process tree. NO exit code was observed, so the result is "
+        "UNKNOWN. This is not 'the tests failed' -- we never found out."
+    ),
+    "passed": "PASSED. pytest exited 0: tests ran and none of them failed.",
+    "failed": "FAILED. pytest exited 1: at least one test failed.",
+    "no_tests_ran": (
+        "NO TESTS RAN. pytest exited 5: the selector matched nothing. That is "
+        "not a pass -- nothing was measured."
+    ),
+    "inconclusive": (
+        "INCONCLUSIVE. The run did not produce a verdict that can be read. "
+        "The result is UNKNOWN; do not report it as a pass or a failure."
+    ),
+}
+
+
+def render_receipt_for_context(receipt: VoiceTestReceipt) -> str:
+    """Project a receipt into text for the Voice's model context.
+
+    A pure projection with no authority: it decides nothing and grants nothing.
+
+    CALLER OWNS THE LANE. The rendered text contains this repository's own test
+    output, which is project content. Handing it to an external runtime would
+    make every answer an egress of the source, so the caller must apply the
+    same trusted-lane rule :func:`daedalus.voice_scope.resolve_voice_scope`
+    applies. This function cannot enforce that -- it never sees a lane.
+    """
+    if not isinstance(receipt, VoiceTestReceipt):
+        raise TypeError("render_receipt_for_context requires a VoiceTestReceipt")
+    selector = receipt.selector or "(none -- the whole suite)"
+    exit_text = "none (the run was killed)" if receipt.exit_code is None else str(
+        receipt.exit_code
+    )
+    lines = [
+        "Daedalus ran this repository's tests under Effect Lease "
+        f"{receipt.lease_id}. Daedalus built and ran the command; the model was "
+        "given no shell.",
+        f"command: {' '.join(receipt.command)}",
+        f"selector: {selector}",
+        f"duration: {receipt.duration_seconds:.1f}s"
+        + (f" (deadline reached)" if receipt.timed_out else ""),
+        f"exit code: {exit_text}",
+        f"outcome: {_OUTCOME_LINES[receipt.outcome]}",
+        f"output: {receipt.captured_bytes} bytes captured, digest "
+        f"{receipt.output_digest}"
+        + (
+            "; the text below is a TRUNCATED tail, the digest covers the whole run"
+            if receipt.truncated
+            else ""
+        ),
+    ]
+    if not receipt.pytest_started and not receipt.timed_out:
+        lines.append(
+            "warning: pytest never announced a test session in its output, so "
+            "the exit code above cannot be read as a test result at all."
+        )
+    lines.append("last output:")
+    lines.append(receipt.output_tail or "(no output was captured)")
+    lines.append(
+        "This is an OBSERVATION of a run Daedalus performed. It is not a "
+        "receipt of correctness, not a gate, and it promotes nothing."
+    )
+    return "\n".join(lines)
