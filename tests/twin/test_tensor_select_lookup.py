@@ -29,6 +29,22 @@ class _ReadBoundEntries(tuple[SparseTensorEntry, ...]):
         return super().__getitem__(index)
 
 
+class _ReadBoundLabels(tuple[str, ...]):
+    def __new__(cls, values: tuple[str, ...]) -> "_ReadBoundLabels":
+        instance = super().__new__(cls, values)
+        instance.reads = 0
+        return instance
+
+    def __getitem__(self, index: int) -> str:
+        if not isinstance(index, slice):
+            self.reads += 1
+            if self.reads > 16:
+                raise AssertionError(
+                    "entry lookup re-read canonical axis labels instead of reusing coordinates"
+                )
+        return super().__getitem__(index)
+
+
 def _provenance() -> ContractProvenance:
     return ContractProvenance(
         origin="test.tensor.select",
@@ -85,6 +101,29 @@ def test_select_bisects_canonical_prefix_without_full_entry_scan() -> None:
         "knowledge",
     )
     assert probed_entries.reads <= 28
+
+
+def test_select_and_index_reuse_validated_coordinate_label_order() -> None:
+    tensor = _tensor()
+    target = tensor.select(node="node-255")[0]
+    probes: dict[str, _ReadBoundLabels] = {}
+    for axis in tensor.axes:
+        probe = _ReadBoundLabels(axis.labels)
+        object.__setattr__(axis, "labels", probe)
+        probes[axis.name] = probe
+
+    selected = tensor.select(node="node-255")
+
+    assert selected[0] == target
+    assert probes["node"].reads <= 16
+    assert probes["plane"].reads == 0
+
+    for probe in probes.values():
+        probe.reads = 0
+
+    assert tensor.index_coordinate(target) == (255, 0)
+    assert probes["node"].reads <= 16
+    assert probes["plane"].reads <= 4
 
 
 def test_select_preserves_non_prefix_filter_and_fail_closed_validation() -> None:
