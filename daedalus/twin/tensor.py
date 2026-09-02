@@ -177,13 +177,24 @@ class TensorView(CanonicalContract):
             raise ValueError("tensor.status must be complete, partial, or absent")
 
         raw_axes = _bounded_sequence(self.axes, "tensor.axes", MAX_TENSOR_AXES)
-        axes = tuple(raw_axes)
-        if any(not isinstance(axis, TensorAxis) for axis in axes):
-            raise ValueError("tensor.axes must contain TensorAxis records")
-        by_name = {axis.name: axis for axis in axes}
-        if len(by_name) != len(axes):
-            raise ValueError("tensor.axes must have unique names")
-        axes = tuple(by_name[name] for name in sorted(by_name))
+        axes = raw_axes if type(raw_axes) is tuple else tuple(raw_axes)
+        axes_are_canonical = True
+        previous_name: str | None = None
+        for axis in axes:
+            if not isinstance(axis, TensorAxis):
+                raise ValueError("tensor.axes must contain TensorAxis records")
+            if previous_name is not None and axis.name < previous_name:
+                axes_are_canonical = False
+            previous_name = axis.name
+        ordered_axes = (
+            axes
+            if axes_are_canonical
+            else tuple(sorted(axes, key=lambda axis: axis.name))
+        )
+        for index in range(1, len(ordered_axes)):
+            if ordered_axes[index - 1].name == ordered_axes[index].name:
+                raise ValueError("tensor.axes must have unique names")
+        axes = ordered_axes
         object.__setattr__(self, "axes", axes)
 
         raw_entries = _bounded_sequence(self.entries, "tensor.entries", MAX_TENSOR_ENTRIES)
