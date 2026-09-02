@@ -1191,3 +1191,90 @@ def test_kernel_recomputes_cas_semantics_and_rejects_forged_build_receipts(
                     "chip_receipt_locator": forged_locator.locator_uri,
                 }
             )
+
+
+# --------------------------------------------------------------------------- #
+# the deployment path may not decide whether an answer can be represented       #
+# --------------------------------------------------------------------------- #
+def test_a_deep_workspace_still_yields_a_structured_run_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run's answer must survive its own diagnostics.
+
+    MEASURED (G1-CHIP-01). ``PolicyDecision.reasons`` refuses an entry longer
+    than 1000 characters, and the lease issuer interpolated up to five ABSOLUTE
+    PATHS into one ``containment.attempt`` reason. Under a 92-character pytest
+    ``--basetemp`` that reason reached 1046 characters and the contract raised:
+    ``chip_cli.main`` returned 1 and printed ``{"status": "error"}`` with no
+    ``steps`` key at all -- a structured verdict replaced by an unstructured
+    crash, decided by where the operator happened to check the tree out.
+
+    The depth is built INSIDE this test, so the proof does not depend on
+    ``--basetemp`` and cannot be silently disarmed by running pytest from a
+    short directory.
+    """
+
+    deep = tmp_path
+    for segment in ("d" * 40, "e" * 40, "f" * 40, "g" * 40):
+        deep = deep / segment
+    deep.mkdir(parents=True)
+    assert len(str(deep)) > 180
+
+    source, workspace = _project_pair(deep, same_identity=True)
+    authority = deep / "authority"
+    authority.mkdir()
+    _write_authority_head(authority)
+    _write_chip_policy(authority)
+    permit = deep / "operator-control" / "killswitch"
+    permit.parent.mkdir()
+    permit.write_text("RUN\n", encoding="ascii")
+    monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(permit))
+    vendor = deep / "vendor" / "Vivado" / "bin" / "vivado.bat"
+    vendor.parent.mkdir(parents=True)
+    vendor.write_text("@echo off\n", encoding="ascii")
+    monkeypatch.setattr(
+        chip_cli, "find_trusted_vendor_tool_path", lambda _tool: str(vendor)
+    )
+    monkeypatch.setattr(
+        executor_module, "is_trusted_vendor_tool_path", lambda _tool, _path: True
+    )
+    monkeypatch.setattr(
+        executor_module.shutil, "which", lambda _command, **_kwargs: str(vendor)
+    )
+    monkeypatch.setattr(executor_module, "ManagedProcess", _SuccessfulInspectProcess)
+    _SuccessfulInspectProcess.constructions = 0
+
+    result = chip_cli.main(
+        [
+            "run",
+            str(source),
+            "--workspace-project",
+            str(workspace),
+            "--phase",
+            "inspect",
+            "--authority-root",
+            str(authority),
+            "--source-revision",
+            REVISION,
+            "--attempt-id",
+            "canonical-inspect-deep",
+            "--writable-path",
+            ".",
+            "--confirm-project-writes",
+            "--json",
+        ]
+    )
+
+    payload = _json_stdout(capsys)
+    # The payload is STRUCTURED, whatever the verdict: a status the caller can
+    # branch on and the per-step record behind it. Before the fix this was
+    # {"status": "error", "error": "ValueError: reasons[1] must be no longer
+    # than 1000 characters"} with no `steps`.
+    assert payload["status"] != "error"
+    assert "error" not in payload
+    assert isinstance(payload["steps"], list) and payload["steps"]
+    assert result == 0
+    assert payload["status"] == "complete"
+    assert payload["steps"][0]["status"] == "ok"
