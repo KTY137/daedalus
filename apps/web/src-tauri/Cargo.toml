@@ -1,6 +1,6 @@
 [package]
 name = "daedalus-desktop"
-version = "0.1.3"
+version = "0.1.4"
 description = "Native desktop shell for the Daedalus local-first agent operating system."
 authors = ["Daedalus contributors"]
 edition = "2021"
