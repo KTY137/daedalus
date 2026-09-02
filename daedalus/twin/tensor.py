@@ -46,6 +46,14 @@ def _bounded_sequence(values: Any, name: str, limit: int) -> Sequence[Any]:
     return values
 
 
+def _sorted_label_index(labels: Sequence[str], label: str) -> int | None:
+    """Return the exact position in canonical sorted labels without a full scan."""
+    position = bisect_left(labels, label)
+    if position == len(labels) or labels[position] != label:
+        return None
+    return position
+
+
 def _coordinate(values: Sequence[Sequence[Any]]) -> tuple[tuple[str, str], ...]:
     values = _bounded_sequence(values, "entry.coordinates", MAX_TENSOR_AXES)
     out: list[tuple[str, str]] = []
@@ -181,9 +189,7 @@ class TensorView(CanonicalContract):
             if tuple(axis for axis, _ in entry.coordinates) != axis_names:
                 raise ValueError("every sparse entry must bind exactly the TensorView axes")
             for position, (axis, label) in enumerate(entry.coordinates):
-                labels = axes[position].labels
-                label_position = bisect_left(labels, label)
-                if label_position == len(labels) or labels[label_position] != label:
+                if _sorted_label_index(axes[position].labels, label) is None:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis!r}")
             if entry.semantic_key in seen:
                 raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
@@ -252,7 +258,7 @@ class TensorView(CanonicalContract):
                 raise ValueError(f"unknown tensor axis {name!r}")
             position = axis_positions[name]
             label = _non_empty(raw, f"selector.{name}", max_length=1000)
-            if label not in self.axes[position].labels:
+            if _sorted_label_index(self.axes[position].labels, label) is None:
                 raise ValueError(f"selector label {label!r} is not declared by axis {name!r}")
             normalized[position] = label
         return tuple(
