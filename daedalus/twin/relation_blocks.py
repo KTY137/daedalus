@@ -473,16 +473,30 @@ class TypedRelationBlock(Generic[T]):
         reference = self._require_compatible(other, semiring)
         if self.row_axis != other.row_axis or self.column_axis != other.column_axis:
             raise ValueError("Hadamard composition requires identical typed axes")
-        limit = _operation_limit(max_operations)
-        left = {(row, column): value for row, column, value in self._indexed_entries()}
-        right = {(row, column): value for row, column, value in other._indexed_entries()}
+        limit, operations = _operation_limit(max_operations), 0
         result: dict[tuple[int, int], T] = {}
-        for count, key in enumerate(sorted(left.keys() & right.keys()), 1):
-            if count > limit:
-                raise ValueError("reference contraction exceeds bounded operation limit")
-            value = reference.multiply(left[key], right[key])
-            if value != reference.zero:
-                result[key] = value
+        for row in range(len(self.row_axis.labels)):
+            left_position, left_stop = self.row_offsets[row], self.row_offsets[row + 1]
+            right_position, right_stop = other.row_offsets[row], other.row_offsets[row + 1]
+            while left_position < left_stop and right_position < right_stop:
+                left_column = self.column_indices[left_position]
+                right_column = other.column_indices[right_position]
+                if left_column < right_column:
+                    left_position += 1
+                    continue
+                if right_column < left_column:
+                    right_position += 1
+                    continue
+                operations += 1
+                if operations > limit:
+                    raise ValueError("reference contraction exceeds bounded operation limit")
+                value = reference.multiply(
+                    self.values[left_position], other.values[right_position]
+                )
+                if value != reference.zero:
+                    result[(row, left_column)] = value
+                left_position += 1
+                right_position += 1
         return self._derived(
             RelationSignature(self.signature.source_plane, relation, self.signature.target_plane),
             self.row_axis,
@@ -490,11 +504,6 @@ class TypedRelationBlock(Generic[T]):
             result,
             reference,
         )
-
-    def _indexed_entries(self) -> Iterator[tuple[int, int, T]]:
-        for row in range(len(self.row_axis.labels)):
-            for position in range(self.row_offsets[row], self.row_offsets[row + 1]):
-                yield row, self.column_indices[position], self.values[position]
 
     def _derived(
         self,
