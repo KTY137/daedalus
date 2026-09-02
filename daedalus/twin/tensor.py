@@ -199,21 +199,21 @@ class TensorView(CanonicalContract):
 
         raw_entries = _bounded_sequence(self.entries, "tensor.entries", MAX_TENSOR_ENTRIES)
         entries = raw_entries if type(raw_entries) is tuple else tuple(raw_entries)
-        axis_names = tuple(axis.name for axis in axes)
         entries_are_canonical = True
         previous_order: tuple[Any, ...] | None = None
         for entry in entries:
             if not isinstance(entry, SparseTensorEntry):
                 raise ValueError("tensor.entries must contain SparseTensorEntry records")
-            # SparseTensorEntry already canonicalizes coordinates by axis name.
-            # TensorView canonicalizes axes by the same key, so positional
-            # comparison is sufficient and avoids allocating one mapping per
-            # entry during construction.
-            if tuple(axis for axis, _ in entry.coordinates) != axis_names:
+            coordinates = entry.coordinates
+            if len(coordinates) != len(axes):
                 raise ValueError("every sparse entry must bind exactly the TensorView axes")
-            for position, (axis, label) in enumerate(entry.coordinates):
-                if _sorted_label_index(axes[position].labels, label) is None:
-                    raise ValueError(f"entry label {label!r} is not declared by axis {axis!r}")
+            for position in range(len(axes)):
+                axis_name, label = coordinates[position]
+                axis = axes[position]
+                if axis_name != axis.name:
+                    raise ValueError("every sparse entry must bind exactly the TensorView axes")
+                if _sorted_label_index(axis.labels, label) is None:
+                    raise ValueError(f"entry label {label!r} is not declared by axis {axis_name!r}")
             order = _entry_order(entry)
             if previous_order is not None and order < previous_order:
                 entries_are_canonical = False
