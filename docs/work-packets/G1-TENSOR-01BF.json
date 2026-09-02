@@ -1,0 +1,75 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BF",
+  "title": "Emit matmul CSR row-locally without rematerializing the full result",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BE",
+  "campaign_issue": 239,
+  "base_revision": "32b22a51b73fb6e1ef4928b525e4291364ed3335",
+  "finding": "G1-TENSOR-01BC stopped materializing the entire right operand before matrix composition, but TypedRelationBlock.matmul still accumulated every output coordinate in one block-wide Python dictionary keyed by (row, column), then routed the already row-partitionable result through _derived/_from_indexed for a global sort and CSR rebuild. After G1-TENSOR-01BE, _derived existed only to serve this remaining rematerialization path.",
+  "primary_claim": "The bounded reference matmul now accumulates only one output row at a time, sorts that row's target columns, appends it directly to canonical CSR arrays, and discards the row-local accumulator before advancing. The now-unused _derived pass-through is removed. Fourfold subject, semiring, exact typed middle-axis, zero-elision, operation-budget, and block-entry bounds remain enforced.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_contraction_operation_budget.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BF.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 59,
+    "code_test_deletions": 20,
+    "production_additions": 17,
+    "production_deletions": 20,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse CSR row ordering and the existing TypedRelationBlock constructor. Keep only the semiring aggregation state that matrix composition actually needs for the current row, emit that row directly, and delete the matmul-only _derived indirection. Do not add a builder, planner, cache, alternate sparse type, iterator layer, or cost-model abstraction.",
+  "acceptance": [
+    "matmul emits canonical CSR directly with row_offsets and strictly increasing target-column indices",
+    "matmul completes when _from_indexed is forbidden after operands are constructed",
+    "multiple middle paths contributing to the same target coordinate preserve semiring aggregation and zero elision",
+    "unreferenced right CSR rows remain unread and max_operations remains fail-closed",
+    "the output entry bound remains enforced before a row is appended",
+    "Fourfold subject, semiring, exact typed middle-axis, persisted block validation, and public wire contracts remain unchanged",
+    "no OwnerApproval, promotion, gate transition, measured memory-speedup, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "ff5325ae0fca55853f79243cc35ed4852b07dc15",
+    "code_test_revision": "b33d1072e35271f19726b2bbf7a9b81aa5df1b45",
+    "production_blob": "d41f305ae6f7e9e012c3c27b73c1bcb989dde6ae",
+    "focused_test_blob": "d38d5c548c6aa648ead7ba6cd8922ff134afa0db",
+    "fourfold_v2_run": 33597435091,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "contracts (3.10, 0): success; 167 passed, 2 skipped",
+      "contracts (3.10, 123456): success",
+      "contracts (3.12, 0): success with bounded Tensor/Forest diagnostic",
+      "contracts (3.12, 123456): success",
+      "isolated-wheel: success",
+      "repository-collection: success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for the exact code/test revision above. Repository-wide evidence is collection-only, not a full-suite execution claim. Row-local aggregation plus direct CSR emission removes a block-wide coordinate-key result map and its global reindexing/sort pass, but no memory-speedup or benchmark superiority is inferred without measurement."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BF commits; Forest/Fourfold authority, persisted relation-block wire contracts, semiring semantics, and public product surfaces remain unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
