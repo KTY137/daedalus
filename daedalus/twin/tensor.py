@@ -141,15 +141,15 @@ class SparseTensorEntry:
         return cls(**_record_payload(cls, payload, "sparse tensor entry"))
 
 
-def _entry_order(
-    axes: Sequence[TensorAxis],
-    entry: SparseTensorEntry,
-) -> tuple[Any, ...]:
-    indices = tuple(
-        bisect_left(axes[position].labels, label)
-        for position, (_, label) in enumerate(entry.coordinates)
+def _entry_order(entry: SparseTensorEntry) -> tuple[Any, ...]:
+    """Order by the already-validated canonical coordinate labels."""
+    return (
+        entry.coordinates,
+        entry.relation,
+        entry.masked,
+        entry.value,
+        entry.evidence_sha256s,
     )
-    return indices, entry.relation, entry.masked, entry.value, entry.evidence_sha256s
 
 
 @dataclass(frozen=True)
@@ -202,7 +202,7 @@ class TensorView(CanonicalContract):
                 if _sorted_label_index(axes[position].labels, label) is None:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis!r}")
 
-        ordered_entries = tuple(sorted(entries, key=lambda entry: _entry_order(axes, entry)))
+        ordered_entries = tuple(sorted(entries, key=_entry_order))
         for index in range(1, len(ordered_entries)):
             previous = ordered_entries[index - 1]
             current = ordered_entries[index]
@@ -254,53 +254,52 @@ class TensorView(CanonicalContract):
     def index_coordinate(self, entry: SparseTensorEntry) -> tuple[int, ...]:
         if not isinstance(entry, SparseTensorEntry):
             raise ValueError("entry is not retained by this TensorView")
-        try:
-            order = _entry_order(self.axes, entry)
-        except IndexError as exc:
-            raise ValueError("entry is not retained by this TensorView") from exc
-        position = bisect_left(
-            self.entries,
-            order,
-            key=lambda candidate: _entry_order(self.axes, candidate),
-        )
+        order = _entry_order(entry)
+        position = bisect_left(self.entries, order, key=_entry_order)
         if position == len(self.entries) or self.entries[position] != entry:
             raise ValueError("entry is not retained by this TensorView")
-        return order[0]
+
+        indices: list[int] = []
+        for axis_position, (_, label) in enumerate(entry.coordinates):
+            label_index = _sorted_label_index(
+                self.axes[axis_position].labels,
+                label,
+            )
+            if label_index is None:
+                raise ValueError("entry is not retained by this TensorView")
+            indices.append(label_index)
+        return tuple(indices)
 
     def select(self, **coordinates: str) -> tuple[SparseTensorEntry, ...]:
         if not coordinates:
             return self.entries
 
-        normalized: dict[int, tuple[str, int]] = {}
+        normalized: dict[int, str] = {}
         for name, raw in coordinates.items():
             position = bisect_left(self.axes, name, key=lambda axis: axis.name)
             if position == len(self.axes) or self.axes[position].name != name:
                 raise ValueError(f"unknown tensor axis {name!r}")
             label = _non_empty(raw, f"selector.{name}", max_length=1000)
-            label_index = _sorted_label_index(self.axes[position].labels, label)
-            if label_index is None:
+            if _sorted_label_index(self.axes[position].labels, label) is None:
                 raise ValueError(f"selector label {label!r} is not declared by axis {name!r}")
-            normalized[position] = (label, label_index)
+            normalized[position] = label
 
-        prefix_indices: list[int] = []
-        while len(prefix_indices) in normalized:
-            prefix_indices.append(normalized[len(prefix_indices)][1])
-        if prefix_indices:
-            prefix = tuple(prefix_indices)
+        prefix_coordinates: list[tuple[str, str]] = []
+        while len(prefix_coordinates) in normalized:
+            position = len(prefix_coordinates)
+            prefix_coordinates.append((self.axes[position].name, normalized[position]))
+        if prefix_coordinates:
+            prefix = tuple(prefix_coordinates)
             prefix_length = len(prefix)
             lower = bisect_left(
                 self.entries,
                 prefix,
-                key=lambda candidate: _entry_order(self.axes, candidate)[0][
-                    :prefix_length
-                ],
+                key=lambda candidate: candidate.coordinates[:prefix_length],
             )
             upper = bisect_right(
                 self.entries,
                 prefix,
-                key=lambda candidate: _entry_order(self.axes, candidate)[0][
-                    :prefix_length
-                ],
+                key=lambda candidate: candidate.coordinates[:prefix_length],
             )
         else:
             lower = 0
@@ -311,7 +310,7 @@ class TensorView(CanonicalContract):
                 entry = self.entries[index]
                 if all(
                     entry.coordinates[position][1] == label
-                    for position, (label, _) in normalized.items()
+                    for position, label in normalized.items()
                 ):
                     yield entry
 
