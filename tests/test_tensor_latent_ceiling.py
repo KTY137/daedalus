@@ -124,6 +124,30 @@ def test_changed_source_revision_cannot_publish_a_ceiling_via_direct_evaluation(
     assert report["decision"].startswith("INCOMPLETE")
 
 
+def test_complete_direct_corpus_with_duplicate_rows_is_refused() -> None:
+    frozen = _complete_corpus(b_count=346, c_count=1)
+    duplicate = O.Corpus(
+        source_revision=frozen.source_revision,
+        expected_total=frozen.expected_total,
+        rows=(frozen.rows[0],) * O.FROZEN_EXPECTED_TOTAL,
+        corpus_sha256=frozen.corpus_sha256,
+    )
+    with pytest.raises(O.CeilingCorpusError, match="duplicate item id"):
+        O.evaluate(duplicate)
+
+
+def test_complete_direct_corpus_with_stale_identity_is_refused() -> None:
+    frozen = _complete_corpus(b_count=346, c_count=1)
+    stale = O.Corpus(
+        source_revision=frozen.source_revision,
+        expected_total=frozen.expected_total,
+        rows=frozen.rows,
+        corpus_sha256="0" * 64,
+    )
+    with pytest.raises(O.CeilingCorpusError, match="corpus identity does not bind"):
+        O.evaluate(stale)
+
+
 @pytest.mark.parametrize(
     "mutator,match",
     [
