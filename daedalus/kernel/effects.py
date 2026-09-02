@@ -574,7 +574,19 @@ class EffectLeaseLedger:
         return conn
 
     def _initialize(self) -> None:
-        with self._connect() as conn:
+        # ``with sqlite3.Connection`` commits a transaction; it does NOT close
+        # the connection. Leaving it open handed this store's WAL companion an
+        # indeterminate lifetime: ``-wal`` and ``-shm`` exist exactly while a
+        # connection is open, and the leaked connection here was unreachable
+        # garbage held in a reference cycle, so it was finalized by the
+        # generational collector at an unpredictable moment rather than by
+        # refcounting at method exit. Anything that stats those companions --
+        # the retention-admission topology scan does -- then saw a file that
+        # could vanish between its existence check and its resolve. Closing
+        # here makes the companion state a fact of the code instead of a
+        # function of how much unrelated work the process had allocated.
+        conn = self._connect()
+        try:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS effect_leases (
@@ -615,6 +627,8 @@ class EffectLeaseLedger:
                 "CREATE INDEX IF NOT EXISTS idx_effect_executions_active "
                 "ON effect_executions(lease_sha256, state)"
             )
+        finally:
+            conn.close()
 
     def grant(
         self,
@@ -922,10 +936,16 @@ class EffectLeaseLedger:
 
     def execution_state(self, execution_id: str) -> str | None:
         value = _identifier(execution_id, "execution_id")
-        with self._connect() as conn:
+        # ``with sqlite3.Connection`` is a TRANSACTION scope, not a closing
+        # scope: it commits, it does not close. See ``_initialize`` for why
+        # leaving this connection to the garbage collector is not acceptable.
+        conn = self._connect()
+        try:
             row = conn.execute(
                 "SELECT state FROM effect_executions WHERE execution_id=?", (value,)
             ).fetchone()
+        finally:
+            conn.close()
         return None if row is None else str(row["state"])
 
 
