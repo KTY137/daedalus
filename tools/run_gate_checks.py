@@ -40,6 +40,14 @@ G1_TESTS = (
     # relaxing an assertion clears the symptom and re-blinds the instrument.
     "tests/test_registry_new_doors.py",
     "tests/test_registry_retired_rows.py",
+    # The derivation those two rely on now follows facades, alias shims,
+    # inherited doors and annotated ports. This file plants a real sink behind
+    # each of those constructs and checks every fixture against a blinded
+    # control, so a construct the walk quietly stops following fails HERE
+    # rather than being absorbed as "no witness found". Listed in the profile
+    # for the same reason the two above are: an over-declaration instrument
+    # that no profile runs is an instrument that goes blind unobserved.
+    "tests/test_registry_facade_order.py",
     "tests/ignition/test_voltage_ignition.py",
     "tests/kernel/test_fourfold_evidence.py",
     "tests/kernel/test_fourfold_approval_integration.py",

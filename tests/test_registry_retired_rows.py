@@ -32,6 +32,7 @@ one green again.
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
 
 from daedalus.spine.effect_boundary import (
@@ -39,6 +40,11 @@ from daedalus.spine.effect_boundary import (
     Effect,
     check_conformance,
 )
+
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from registry_facades import models as _models, resolver as _resolver  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -181,6 +187,25 @@ _EGRESS_MODULES = {"urllib", "socket", "http", "requests", "httpx"}
 _SPAWN_MODULES = {"subprocess", "multiprocessing"}
 
 
+#: The two bodies, named by the LOCATOR each is imported through rather than by
+#: the file it currently sits in. ``daedalus/providers/base.py`` is a seven-line
+#: re-export facade since the hierarchy refactor -- ``class Provider`` moved to
+#: ``daedalus/runtimes/providers/contracts.py`` -- and parsing the locator file
+#: for a ``ClassDef`` that is no longer written there found nothing, which made
+#: the derived effect set EMPTY and this file's central measurement vacuous.
+#:
+#: Replacing the path with the new one would fix today and break on the next
+#: move, and would say nothing about the import the code actually performs. The
+#: shared resolver in tests/registry_facades.py follows the facade instead, so
+#: this stays a statement about ``OllamaProvider``'s inherited restore loop
+#: wherever its owner lives, and refuses (rather than resolving to nothing) if
+#: an owner on the path cannot be parsed.
+_ROLLBACK_BODIES = (
+    ("daedalus.providers.ollama", "OllamaProvider", "rollback"),
+    ("daedalus.providers.base", "Provider", "_rollback_writes"),
+)
+
+
 def _reachable_bodies() -> dict[str, ast.FunctionDef]:
     """``OllamaProvider.rollback`` plus everything it can reach in one hop.
 
@@ -190,17 +215,16 @@ def _reachable_bodies() -> dict[str, ast.FunctionDef]:
     loop or adds a second call, that assertion fails first and this walk is
     never trusted over a wider graph than it actually covers.
     """
+    resolver = _resolver(ROOT)
     found: dict[str, ast.FunctionDef] = {}
-    for rel, cls, name in (
-        (Path("daedalus/providers/ollama.py"), "OllamaProvider", "rollback"),
-        (Path("daedalus/providers/base.py"), "Provider", "_rollback_writes"),
-    ):
-        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == cls:
-                for item in node.body:
-                    if isinstance(item, ast.FunctionDef) and item.name == name:
-                        found[f"{cls}.{name}"] = item
+    for module, cls, name in _ROLLBACK_BODIES:
+        owner = resolver.resolve(f"{module}.{cls}")
+        if owner is None or "." in owner[1]:
+            continue
+        located = resolver.method(owner[0], owner[1], name)
+        if located is None:
+            continue
+        found[f"{cls}.{name}"] = _models(ROOT)[located[0]].functions[located[1]]
     return found
 
 
