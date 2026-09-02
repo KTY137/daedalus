@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-from .router import ROOT, route_task
-from .schemas import AgentTask, RunState
+from ..router import ROOT, route_task
+from ..schemas import AgentTask, RunState
 
 
 RUN_DIR = ROOT / "runs"
@@ -28,7 +28,7 @@ def create_run(objective: str, paths: list[str], repo_root: str,
     """
     run_id = uuid4().hex[:12]
     if engine == "langgraph":
-        from .orchestration.langgraph_adapter import run_brief
+        from .langgraph_adapter import run_brief
 
         payload = run_brief(objective, paths, repo_root, run_id)
         return _write_brief(run_id, payload)

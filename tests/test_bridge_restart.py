@@ -43,7 +43,7 @@ import pytest
 from daedalus import file_bridge as fb
 from daedalus.orchestration import conversation as conversation_mod
 from daedalus import memory as memory_mod
-from daedalus import web_api
+from daedalus.interfaces.http import web_api
 
 
 class _Bridge:

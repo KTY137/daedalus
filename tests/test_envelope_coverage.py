@@ -218,7 +218,7 @@ def record_producers(root: Path) -> set[str]:
 #: asserting something false about the module.
 _CALIBRATION = {
     CO_LOCATED: (
-        "daedalus/loop.py",
+        "daedalus/orchestration/loop.py",
         "daedalus/council/bus.py",
         "daedalus/progress.py",
     ),
@@ -342,7 +342,7 @@ def test_the_converted_producers_are_the_ones_the_docstring_claims():
     one WITHOUT updating it is what the assertion prevents."""
     assert set(envelope.CONVERTED_PRODUCERS) == {
         "daedalus/spine/ledger.py",
-        "daedalus/loop.py",
+        "daedalus/orchestration/loop.py",
         "daedalus/file_bridge.py",
         "daedalus/lanes/fanout.py",
         # The bridge producer's three trace-carrying record families, split out

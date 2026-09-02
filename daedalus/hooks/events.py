@@ -55,7 +55,7 @@ LEGEND = (
 def _shift_line(root: Path) -> str:
     def render() -> str:
         try:
-            from daedalus import shift as shift_mod
+            from daedalus.interfaces.cli import shift as shift_mod
 
             s = shift_mod.load(root)
             line = s.render()
@@ -200,7 +200,7 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
 
     def render_arch() -> str:
         try:
-            from daedalus import arch_memory
+            from daedalus.interfaces.cli import arch_memory
 
             return arch_memory.render_delta(
                 root, shown_path=hooks_dir(root) / f"arch-{sid}.shown", silent_when_unchanged=True

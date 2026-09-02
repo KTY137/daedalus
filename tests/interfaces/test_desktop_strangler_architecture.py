@@ -29,7 +29,7 @@ SIDECAR = ROOT / "scripts" / "daedalus_desktop_sidecar.py"
 PACKET_PATH = (
     "docs/work-packets/G1-IFACE-DESKTOP-01_DESKTOP_RUNTIME_STRANGLER.md"
 )
-REGISTRY_SHA256 = "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+REGISTRY_SHA256 = "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
 HTTP_LITERAL_COUNT = 69
 HTTP_LITERAL_SHA256 = (
     "184e31150480c230aac851e1160871f1f6c0bd1204ffd249d44fefecc96cfb62"
@@ -109,13 +109,13 @@ def test_registered_effect_targets_and_digest_are_unchanged() -> None:
     rows = {
         row.id: row.target
         for row in ENTRYPOINTS
-        if row.target.startswith("daedalus.web_api")
+        if row.target.startswith("daedalus.interfaces.http.web_api")
     }
     assert rows == {
-        "web.server": "daedalus.web_api:run",
-        "web.mutations": "daedalus.web_api:DaedalusHandler.do_POST",
-        "cli.web_api": "daedalus.web_api:main",
-        "web.mutations_put": "daedalus.web_api:DaedalusHandler.do_PUT",
+        "web.server": "daedalus.interfaces.http.web_api:run",
+        "web.mutations": "daedalus.interfaces.http.web_api:DaedalusHandler.do_POST",
+        "cli.web_api": "daedalus.interfaces.http.web_api:main",
+        "web.mutations_put": "daedalus.interfaces.http.web_api:DaedalusHandler.do_PUT",
     }
 
 

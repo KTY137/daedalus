@@ -477,7 +477,7 @@ class KairosScheduler:
 
 
 def _demo_tasks() -> list[dict]:
-    from ..benchmark import TASKS
+    from ..orchestration.benchmark import TASKS
     return [{"objective": t.objective, "paths": t.paths} for t in TASKS]
 
 

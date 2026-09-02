@@ -28,7 +28,7 @@ def test_scheduled_action_uses_only_the_bounded_canonical_loop() -> None:
         "function Invoke-DaedalusModule",
     )
 
-    assert "'daedalus.loop'" in builder
+    assert "'daedalus.orchestration.loop'" in builder
     for flag in (
         "--repo-root",
         "--max-iterations",

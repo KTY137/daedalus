@@ -1,4 +1,4 @@
-"""Tests for daedalus/loop.py -- the loop driver.
+"""Tests for daedalus/orchestration/loop.py -- the loop driver.
 
 Written by Theseus (orchestration-dev) to scratchpad; tests/ is owned by Talos.
 Move to tests/test_loop.py as-is.
@@ -27,8 +27,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus import loop as loopmod
-from daedalus.loop import (
+from daedalus.orchestration import loop as loopmod
+from daedalus.orchestration.loop import (
     LoopBounds, LoopDriver, LoopLedger, LoopMisconfigured, _Spend, _path_key,
 )
 

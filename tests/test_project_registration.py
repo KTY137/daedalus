@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import atomic, web_api
+from daedalus import atomic
+from daedalus.interfaces.http import web_api
 from daedalus.foundation import projects
 from daedalus.spine import effect_boundary
 

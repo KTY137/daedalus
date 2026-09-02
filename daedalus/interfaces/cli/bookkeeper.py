@@ -18,7 +18,7 @@ import subprocess
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 DOCS = ROOT / "docs"
 SOURCE = DOCS / "ARCHITECTURE.md"
 ARTIFACT = DOCS / "architecture.html"

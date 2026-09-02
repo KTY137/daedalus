@@ -2,7 +2,7 @@
 
 THE SECOND PREDICATE, AND DELIBERATELY NOT THE FIRST ONE.
 
-:func:`daedalus.ikarus_os.classify` answers exactly one question — *which
+:func:`daedalus.orchestration.ikarus_os.classify` answers exactly one question — *which
 intent is this*, so the UI can pick an affordance — using a broad bilingual
 keyword table. What it must never become is a CAPABILITY GATE, because the two
 questions have opposite error costs:

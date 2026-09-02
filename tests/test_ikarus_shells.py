@@ -15,7 +15,8 @@ import unittest
 from collections import namedtuple
 from unittest import mock
 
-from daedalus import health, ikarus_os
+from daedalus import health
+from daedalus.orchestration import ikarus_os
 from daedalus.orchestration.ikarus_act import ActDecision, may_act
 
 _Hand = namedtuple("HandState", "state detail host")

@@ -303,7 +303,7 @@ test.describe('cockpit', () => {
 
     /**
      * "status" is the one word that routes deterministically
-     * (daedalus/ikarus_os.py::classify -> SHELL_DETERMINISTIC), so this spec
+     * (daedalus/orchestration/ikarus_os.py::classify -> SHELL_DETERMINISTIC), so this spec
      * exercises the whole conversation path — stream, deltas, final envelope,
      * provenance stamp — without reaching a paid vendor. A test that spends
      * money to prove a text box works is a test nobody runs twice.

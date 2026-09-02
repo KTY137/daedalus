@@ -65,7 +65,7 @@ def _patched(subtasks=_SUBTASKS):
     with patch.object(build, "decompose", return_value=list(subtasks)), \
             patch.object(build, "route_task", side_effect=_fake_route), \
             patch.object(build, "preset_for", side_effect=_fake_preset), \
-            patch("daedalus.bookkeeper.update", return_value=None) as bk:
+            patch("daedalus.interfaces.cli.bookkeeper.update", return_value=None) as bk:
         yield bk
 
 

@@ -35,7 +35,7 @@ if (!baseURL) {
   );
 }
 
-// Loopback, and only loopback. daedalus/web_api.py refuses a non-loopback bind
+// Loopback, and only loopback. daedalus/interfaces/http/web_api.py refuses a non-loopback bind
 // without an explicit opt-in plus a token; an acceptance harness that pointed a
 // browser at anything else would be testing a configuration nobody should run.
 if (!/^http:\/\/(127\.0\.0\.1|\[::1\]):\d+$/.test(baseURL)) {

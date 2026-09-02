@@ -5,8 +5,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .config import init_repo
-from .foundation.projects import resolve_repo_root
+from ...config import init_repo
+from ...foundation.projects import resolve_repo_root
 
 
 BEGIN = "<!-- AGENT_ENV_ENFORCED:BEGIN -->"

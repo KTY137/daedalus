@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from daedalus.config import TOOL_INSTRUCTION_TEMPLATES, init_repo
-from daedalus.enforce import BEGIN, END, enforce_repo
+from daedalus.interfaces.cli.enforce import BEGIN, END, enforce_repo
 from daedalus.interfaces.bridge.queue import read_request as _read_request
 from daedalus import core
 from daedalus.kairos import control as mission_control

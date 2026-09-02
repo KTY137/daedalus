@@ -136,7 +136,7 @@ The transition from declared to measured is observable rather than asserted.
   has the first.
 - **Temporary vs static agents** — resolved: agents hold no state, knowledge
   does. See [[Agents hold no state]].
-- **Shift / working window** — built: `daedalus/shift.py` + prompt hook +
+- **Shift / working window** — built: `daedalus/interfaces/cli/shift.py` + prompt hook +
   ticker. The same object an autonomous Ikarus loop reads to decide whether to
   continue.
 

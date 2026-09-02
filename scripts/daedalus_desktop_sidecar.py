@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # One control plane only: extend the existing authenticated/loopback server
     # instead of starting a second settings/service server beside it.
-    from daedalus import web_api
+    from daedalus.interfaces.http import web_api
 
     install_web_integration(web_api, manager)
     manager.bootstrap()

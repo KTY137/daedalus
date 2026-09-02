@@ -26,14 +26,14 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-from .provider_router import select_provider
-from .router import route_task
+from ..provider_router import select_provider
+from ..router import route_task
 
 ESTIMATE_SCHEMA = "daedalus.benchmark.cost-estimate/2"
 ESTIMATE_CLASSIFICATION = "planning_estimate"
 
 LIVE_BENCHMARK_RETIREMENT = (
-    "live provider benchmarking is retired from daedalus.benchmark: this "
+    "live provider benchmarking is retired from daedalus.orchestration.benchmark: this "
     "legacy task/price model is not a frozen, equal-budget evaluator. Use the "
     "canonical daedalus.eval evidence path for measured comparisons."
 )
@@ -214,8 +214,8 @@ def _print_table(rows: list[dict[str, Any]], summary: dict[str, Any]) -> None:
 def main() -> None:
     # Retain the existing registered CLI boundary. Retiring the live path is a
     # narrowing of capability, not permission to create an unregistered door.
-    from .budget import process_guard_boundary_decision
-    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+    from ..budget import process_guard_boundary_decision
+    from ..spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
     begin_effect(
         "cli.benchmark",

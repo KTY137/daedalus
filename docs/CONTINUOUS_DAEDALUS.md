@@ -9,7 +9,7 @@ existing bounded loop rather than inventing a second autonomous worker.
 The Windows task `\Daedalus\GateLoop` starts:
 
 ```powershell
-python -m daedalus.loop `
+python -m daedalus.orchestration.loop `
   --repo-root <this checkout> `
   --max-iterations 3 `
   --max-wall-clock-s 1500 `

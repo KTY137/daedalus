@@ -135,7 +135,7 @@ PHASE4_ROWS: dict[str, str] = {
     "cli.eval": "daedalus.eval.__main__:main",
     "cli.approvals": "daedalus.kernel.approvals:main",
     "cli.picker": "daedalus.spine.picker:main",
-    "cli.benchmark": "daedalus.benchmark:main",
+    "cli.benchmark": "daedalus.orchestration.benchmark:main",
     "cli.build_exec": "daedalus.build_exec:main",
     "cli.bootstrap": "daedalus.spine.bootstrap:main",
 }

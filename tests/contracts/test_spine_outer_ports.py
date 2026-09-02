@@ -78,16 +78,14 @@ FORBIDDEN_PREFIXES = (
     "daedalus.eval",
     "daedalus.file_bridge",
     "daedalus.gates",
-    "daedalus.ikarus_os",
     "daedalus.integrations",
+    "daedalus.interfaces",
     "daedalus.kairos",
-    "daedalus.loop",
     "daedalus.offload",
     "daedalus.orchestration",
     "daedalus.providers",
     "daedalus.runtimes",
     "daedalus.twin",
-    "daedalus.web_api",
 )
 
 #: Every symbol the two spine modules took from the facade, and the module that
@@ -294,7 +292,7 @@ def test_spine_rule_is_at_least_as_strict_as_the_kernel_rule() -> None:
 
     This assertion is what stops the two sets drifting apart again. It is a
     subset relation, not equality: the spine legitimately forbids more than the
-    kernel does (``daedalus.core``, ``daedalus.loop``, ``daedalus.web_api`` and
+    kernel does (``daedalus.core``, ``daedalus.orchestration.loop``, ``daedalus.interfaces.http.web_api`` and
     the other interface layers), and that asymmetry is fine in this direction.
     """
     contract, spine = _spine_rule()

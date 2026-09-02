@@ -633,7 +633,7 @@ def _eval(sb: Sandbox) -> Result:
     # "THE SECRET FLOOR WITHHELD THE FOCUS FILE" AND "THE HARNESS IS BROKEN"
     # ARE DIFFERENT FACTS, and this check used to report both as FAIL.
     #
-    # Measured: `daedalus/web_api.py` trips the floor on the single line
+    # Measured: `daedalus/interfaces/http/web_api.py` trips the floor on the single line
     # `AUTH_TOKEN_ENV = "DAEDALUS_WEB_TOKEN"` -- a credential-assignment shape
     # whose value is the NAME of an environment variable. A false positive, in
     # the safe direction, and the floor stays: weakening a security pattern to

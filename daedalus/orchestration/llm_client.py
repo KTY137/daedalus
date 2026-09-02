@@ -2,7 +2,7 @@
 
 Iron Plan: ALIGNED — this is the vendor-neutral runtime contract required by
 master-plan §7.  It deliberately owns *selection and call policy*, not effects:
-the actual transports remain in :mod:`daedalus.ikarus_os`, behind the existing
+the actual transports remain in :mod:`daedalus.orchestration.ikarus_os`, behind the existing
 provider effect boundary.  A model is a speaking/proposal surface; selecting it
 never grants file, tool, policy, evaluator, or promotion authority.
 

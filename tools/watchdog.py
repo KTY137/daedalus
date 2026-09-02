@@ -437,7 +437,7 @@ def docs_drift(root: Path) -> list[Drift]:
 
     # 1. architecture memory / map freshness
     try:
-        from daedalus import arch_memory
+        from daedalus.interfaces.cli import arch_memory
 
         mem = arch_memory.load(root)
         if mem.lines and mem.head and head and not head.startswith(mem.head[:8]) and not mem.head.startswith(head):
@@ -501,7 +501,7 @@ The watchdog measured these drifts; fix exactly these, nothing else:
 Rules:
 - For `deleted_file_mentioned`: append ` (replaced by daedalus/hooks/, 2026-08-23)` when the file was one of daedalus/shift_hook.py, arch_hook.py, crew_hook.py, .claude/hooks/serena-first.py, .claude/hooks/docs-drift-reminder.py; otherwise append ` (removed <YYYY-MM-DD>)` using `git log --diff-filter=D -1 --format=%cs -- <path>`. Never rewrite prose.
 - For `dead_link`: point the link at the file's new location if `git log --all --diff-filter=R` or a `find` shows one; otherwise mark it `(archived: <path>)`.
-- For `arch_memory_stale`: run `python -m daedalus.arch_memory` (writes an untracked file; do not commit it).
+- For `arch_memory_stale`: run `python -m daedalus.interfaces.cli.arch_memory` (writes an untracked file; do not commit it).
 - For `architecture_state_stale`: run `python -m daedalus.cli map`, then include docs/architecture-state.json, docs/architecture-map.html, docs/FEATURE_INVENTORY.json in the commit.
 - Any number you touch gets a provenance stamp: MEASURED / INHERITED / ASSUMED.
 - Never touch: docs/IKARUS_ARIADNE_MASTER_PLAN*.md, AGENTS.md, CLAUDE.md, .claude/, tools/, .agentenv/, .github/, daedalus/, tests/, runs/watchdog/, docs/missions/, vault/.
@@ -845,7 +845,7 @@ def health(root: Path, *, now: float | None = None, temp_root: Path | None = Non
     facts["last_recorded_test_age_s"] = test_age
 
     try:
-        from daedalus import shift as shift_mod
+        from daedalus.interfaces.cli import shift as shift_mod
 
         s = shift_mod.load(root)
         facts["shift"] = {"goal": s.goal, "until": s.until, "expired": bool(s.goal and s.expired)}

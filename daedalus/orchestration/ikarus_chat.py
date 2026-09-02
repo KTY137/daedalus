@@ -42,7 +42,7 @@ BLUEPRINTS: list[dict[str, Any]] = [
         "model_tier": "sonnet",
         "external_ok": False,
         "category": "implementation",
-        "owns": ["daedalus/web_api.py", "daedalus/orchestration/hierarchy.py", "daedalus/core.py"],
+        "owns": ["daedalus/interfaces/http/web_api.py", "daedalus/orchestration/hierarchy.py", "daedalus/core.py"],
         "triggers": ["api", "backend", "endpoint", "contract", "server", "schema"],
         "must_read": ["docs/COMMS_PROTOCOL.md"],
     },

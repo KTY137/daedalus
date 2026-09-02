@@ -25,7 +25,7 @@ import pytest
 # patching the flat ``daedalus.langgraph_adapter`` facade G1-FLAT-01 left
 # behind would have rebound a copy and silently asserted nothing. G1-FLAT-02
 # retired that facade.
-from daedalus import runbook
+from daedalus.orchestration import runbook
 from daedalus.orchestration import langgraph_adapter
 
 needs_langgraph = pytest.mark.skipif(

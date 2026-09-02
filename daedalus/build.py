@@ -47,7 +47,7 @@ thing the mission already names (Invariant 1). The mission itself is compiled
 by :func:`daedalus.spine.receipts.mission_contract_for_build_session`, which
 lives in the spine because a mission needs a policy digest and a budget, and
 those are not planning state. The reconciliation, including what is deferred
-to :mod:`daedalus.build_exec` and :mod:`daedalus.loop`, is written down in
+to :mod:`daedalus.build_exec` and :mod:`daedalus.orchestration.loop`, is written down in
 ``docs/design/BUILD_VOCABULARY_RECONCILIATION_2026-08-22.md``.
 """
 
@@ -101,7 +101,7 @@ def mission_id_for_session(slug: str, created: str = "") -> str:
     Deterministic given the session, which is what a work item id needs. It is
     not globally unique: two builds of the same feature started in the same
     second collide. A caller that cares supplies ``mission_id`` explicitly --
-    ``daedalus.loop`` has a ``run_id`` and should pass it, so the wave lease's
+    ``daedalus.orchestration.loop`` has a ``run_id`` and should pass it, so the wave lease's
     ``EffectBounds.mission_id`` and the session's mission are ONE string (that
     one-line hunk is deferred to the loop's owner; see the reconciliation doc).
 
@@ -291,7 +291,7 @@ class BuildSession:
         """Bind this session to one mission and every task to one work item.
 
         In ``__post_init__`` rather than in :func:`plan_build` because
-        ``BuildSession`` is constructed DIRECTLY as well -- ``daedalus.loop``'s
+        ``BuildSession`` is constructed DIRECTLY as well -- ``daedalus.orchestration.loop``'s
         ``_session_for`` wraps one picker candidate as a one-task session, and
         that path drives the real builds. Binding at construction means the
         loop's sessions are canonical without the loop lane editing a line.
@@ -429,7 +429,7 @@ class BuildSession:
         self.snapshot_path = str(path)
         if update_architecture:
             try:
-                from .bookkeeper import update as _bk_update
+                from .interfaces.cli.bookkeeper import update as _bk_update
                 _bk_update(note=f"after build: {self.feature[:60]}")
             except Exception:
                 pass  # never let bookkeeping break a build session

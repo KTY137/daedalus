@@ -198,7 +198,7 @@ class RealRepoRegressionTests(unittest.TestCase):
     real shift.py) was only caught by running the brief against the real tree."""
 
     def test_shift_py_brief_has_no_artefact_neighbours(self):
-        brief = graph_brief(".", ["daedalus/shift.py"], hops=1)
+        brief = graph_brief(".", ["daedalus/interfaces/cli/shift.py"], hops=1)
         for n in brief.neighbours:
             self.assertFalse(n.startswith(ARTEFACT_ROOTS), n)
         self.assertNotIn("wrecked", brief.text)

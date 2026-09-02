@@ -93,7 +93,7 @@ def test_underscore_in_a_project_name_is_literal(store):
 # --------------------------------------------------------------------------- #
 
 def _get(path: str) -> dict:
-    from daedalus.web_api import DaedalusHandler
+    from daedalus.interfaces.http.web_api import DaedalusHandler
 
     handler = object.__new__(DaedalusHandler)
     handler.path = path
@@ -120,7 +120,7 @@ def test_route_refuses_before_reading_the_store(store):
 
 
 def test_route_lists_this_projects_threads_and_clips(store):
-    from daedalus import web_api
+    from daedalus.interfaces.http import web_api
 
     long = "x" * (web_api.LOOP_TEXT_CHARS + 50)
     _turn(store, "conv_a1", long, project="A")

@@ -46,7 +46,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from .atomic import write_text_atomic
+from ...atomic import write_text_atomic
 
 ARCH_MEMORY_VERSION = "1"
 MEMORY_REL_PATH = "runs/arch_memory.json"
@@ -213,7 +213,7 @@ def render(repo_root=".") -> str:
     out = list(mem.lines)
     if live and mem.head and live != mem.head:
         out.insert(0, f"ARCH MEMORY IS STALE: built at {mem.head[:8]}, HEAD is now "
-                      f"{live[:8]} — regenerate with `python -m daedalus.arch_memory`")
+                      f"{live[:8]} — regenerate with `python -m daedalus.interfaces.cli.arch_memory`")
     return "\n".join(out)
 
 
@@ -277,7 +277,7 @@ def render_delta(repo_root=".", shown_path: Path | None = None, *, silent_when_u
     now = list(mem.lines)
     if live and mem.head and live != mem.head:
         now.insert(0, f"ARCH MEMORY IS STALE: built at {mem.head[:8]}, HEAD is now "
-                      f"{live[:8]} -- rebuild: python -m daedalus.arch_memory")
+                      f"{live[:8]} -- rebuild: python -m daedalus.interfaces.cli.arch_memory")
 
     before = _last_shown(root, shown_path)
     if not before:
@@ -297,7 +297,7 @@ def render_delta(repo_root=".", shown_path: Path | None = None, *, silent_when_u
     out += [f"  + {l.strip()}" for l in new[:6]]
     if len(gone) > 6 or len(new) > 6:
         out.append(f"  ... {max(0, len(gone) - 6) + max(0, len(new) - 6)} more line(s); "
-                   "full picture: python -m daedalus.arch_memory --show")
+                   "full picture: python -m daedalus.interfaces.cli.arch_memory --show")
     _remember_shown(root, now, shown_path)
     return NEWLINE.join(out)
 

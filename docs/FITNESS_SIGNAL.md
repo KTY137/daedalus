@@ -9,7 +9,7 @@ promotes nothing.
 
 Headline numbers, both over **green** baselines:
 `daedalus/sensitivity.py` **75.8 %** (62 seeded, 15 survived);
-`daedalus/token_monitor.py` **45.0 %** (20 seeded, 11 survived).
+`daedalus/interfaces/cli/token_monitor.py` **45.0 %** (20 seeded, 11 survived).
 Eight of the fifteen survivors in the safety core sit in one function whose own
 docstring calls itself *"the enforcement point"* — and which **no test in this
 repository calls at all**.
@@ -211,14 +211,14 @@ suite, it removed the *evidence*, and the score moved from 100 % to 0 %
 accordingly. That is the scorer being falsified in the direction that proves it
 works. Had the score not moved, everything in §4.1 would be void.
 
-### 4.3 A module with WEAK tests: `daedalus/token_monitor.py`
+### 4.3 A module with WEAK tests: `daedalus/interfaces/cli/token_monitor.py`
 
 A module referenced by only two test files, one of which reaches it by
 **mocking out the function under test**. Same tool, same rules, an evenly
 spread 20 of its 47 mutants:
 
 ```bash
-python tools/mutation_score.py --module daedalus/token_monitor.py \
+python tools/mutation_score.py --module daedalus/interfaces/cli/token_monitor.py \
   --tests tests/test_agent_env.py tests/test_hardening.py --sample 20
 ```
 
@@ -245,7 +245,7 @@ Named survivors that matter:
   checkpoint prints inverts, and nothing notices.
 - **`_iter_project_logs`, lines 39–42** — the `project_dir.exists()` guard and
   the sort order. `test_hardening.py` reaches this module by
-  `patch("daedalus.token_monitor._iter_project_logs", return_value=[log])` —
+  `patch("daedalus.interfaces.cli.token_monitor._iter_project_logs", return_value=[log])` —
   it mocks the function away, so its body has no coverage at all. The mutation
   score says so; the green suite does not.
 
@@ -259,7 +259,7 @@ parent always exists). **~3/11 ≈ 27 % equivalent** — again near the F3 line.
 | module | suite | baseline | mutation score |
 | --- | --- | --- | --- |
 | `daedalus/sensitivity.py` | 8 safety suites, 258 tests | GREEN | **75.8 %** |
-| `daedalus/token_monitor.py` | 2 suites | GREEN | **45.0 %** |
+| `daedalus/interfaces/cli/token_monitor.py` | 2 suites | GREEN | **45.0 %** |
 
 Both baselines are green. "Tests pass" assigns these two modules the same
 value. The mutation score separates them by 31 points and, more usefully,

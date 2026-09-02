@@ -3,7 +3,7 @@
 Install and operate the bounded Daedalus nomination loop as a per-user Windows task.
 
 .DESCRIPTION
-This script schedules the existing `python -m daedalus.loop` entrypoint. The
+This script schedules the existing `python -m daedalus.orchestration.loop` entrypoint. The
 loop may pick, attempt, gate, and retain candidate artifacts, but it cannot merge
 or promote them. Every scheduled run has explicit iteration, wall-clock, spend,
 and per-candidate attempt bounds.
@@ -87,7 +87,7 @@ function Resolve-RepoRoot {
         throw "RepoRoot is not a Git checkout: $resolved"
     }
     if (-not (Test-Path -LiteralPath (Join-Path $resolved 'daedalus\loop.py'))) {
-        throw "RepoRoot does not contain daedalus.loop: $resolved"
+        throw "RepoRoot does not contain daedalus.orchestration.loop: $resolved"
     }
     return $resolved
 }
@@ -125,7 +125,7 @@ function New-LoopArgumentString {
     $spend = $MaxSpendUsd.ToString('0.00', [System.Globalization.CultureInfo]::InvariantCulture)
     $parts = @(
         '-m',
-        'daedalus.loop',
+        'daedalus.orchestration.loop',
         '--repo-root',
         (Quote-TaskArgument $Root),
         '--max-iterations',
@@ -310,7 +310,7 @@ switch ($Action) {
 
     'RunOnce' {
         $args = @(
-            '-m', 'daedalus.loop',
+            '-m', 'daedalus.orchestration.loop',
             '--repo-root', $ResolvedRepoRoot,
             '--max-iterations', [string]$MaxIterations,
             '--max-wall-clock-s', [string]$MaxWallClockSeconds,

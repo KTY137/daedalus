@@ -1,6 +1,6 @@
 """conversation.py -- the chat seam's READ/WRITE FACADE over the canonical spine.
 
-WHAT THIS IS. ``daedalus/ikarus_os.py`` is the assistant seam: ``ask()`` /
+WHAT THIS IS. ``daedalus/orchestration/ikarus_os.py`` is the assistant seam: ``ask()`` /
 ``ask_stream()`` classify one message, route it to a deterministic intent or a
 freeform brain, and return a chat envelope (see :func:`daedalus.core.envelope`).
 Every call is otherwise stateless. This module is the missing piece: a

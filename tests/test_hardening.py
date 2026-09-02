@@ -31,7 +31,7 @@ from daedalus.sensitivity import (
     load_policy,
     path_write_blocked,
 )
-from daedalus.token_monitor import read_usage_samples, summarize_usage
+from daedalus.interfaces.cli.token_monitor import read_usage_samples, summarize_usage
 from daedalus.token_policy import MAX_PATHS_PER_REQUEST, trim_paths, trim_text
 
 
@@ -241,7 +241,7 @@ class TokenMonitorParsingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log.jsonl"
             log.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            with patch("daedalus.token_monitor._iter_project_logs", return_value=[log]):
+            with patch("daedalus.interfaces.cli.token_monitor._iter_project_logs", return_value=[log]):
                 samples = read_usage_samples()
         self.assertEqual(len(samples), 2)
         self.assertEqual(samples[0].fresh_tokens, 16)  # 10 + 5 + 1, cache reads excluded
@@ -260,7 +260,7 @@ class TokenMonitorParsingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log.jsonl"
             log.write_text("[1, 2, 3]\n", encoding="utf-8")
-            with patch("daedalus.token_monitor._iter_project_logs", return_value=[log]):
+            with patch("daedalus.interfaces.cli.token_monitor._iter_project_logs", return_value=[log]):
                 with self.assertRaises(AttributeError):
                     read_usage_samples()
 

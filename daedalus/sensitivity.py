@@ -207,7 +207,7 @@ GENERIC_MID_RISK_TERMS: tuple[str, ...] = (
 # THE SECOND HALF OF THIS TUPLE IS THE HARNESS'S OWN GOVERNANCE, and it was
 # missing. MEASURED against ``DEFAULT_POLICY`` -- which is what
 # ``path_write_blocked(path, None)`` uses, and what a
-# ``python -m daedalus.loop --repo-root ... --arm`` without ``--project``
+# ``python -m daedalus.orchestration.loop --repo-root ... --arm`` without ``--project``
 # reaches through ``KairosScheduler(project=None)``:
 #
 #     WRITABLE  AGENTS.md

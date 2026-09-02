@@ -965,7 +965,7 @@ def plan_ikarus(project: str, objective: str) -> dict[str, Any]:
 
 
 def enforce_harness(project: str) -> dict[str, Any]:
-    from .enforce import enforce_repo
+    from .interfaces.cli.enforce import enforce_repo
 
     repo_root = resolve_repo_root(None, project)
     result = enforce_repo(repo_root, project)

@@ -95,7 +95,7 @@ def _remove_selftest_repo(repo: Path) -> str | None:
     ``finally:``, because "the model probably behaved" is not a property this
     module can check.
     """
-    from .kairos.worktree import remove_tree_no_follow
+    from ...kairos.worktree import remove_tree_no_follow
 
     try:
         remove_tree_no_follow(repo)
@@ -117,13 +117,13 @@ def _compiles(path: Path) -> bool:
 def run() -> dict:
     """Run the live round-trip and RETURN the result dict (silent -- the CLI
     layer prints). Unit tests call this directly without console noise."""
-    from .doctor import check
+    from ...doctor import check
     ready = check()
     if not ready.get("can_offload_local"):
         return {"ok": False, "skipped": True,
                 "reason": "local bench not ready (start Ollama + pull the model; `daedalus doctor`)"}
 
-    from .offload import offload
+    from ...offload import offload
     repo = _build_repo()
     # Bound BEFORE the try: the finally below attaches a cleanup report to it,
     # and an exception raised before the assignment would otherwise turn a

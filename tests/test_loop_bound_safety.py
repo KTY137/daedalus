@@ -13,8 +13,8 @@ import json
 import unittest
 from unittest import mock
 
-from daedalus import loop as loopmod
-from daedalus.loop import LoopBounds, LoopMisconfigured
+from daedalus.orchestration import loop as loopmod
+from daedalus.orchestration.loop import LoopBounds, LoopMisconfigured
 
 
 class TestLoopBoundSafety(unittest.TestCase):

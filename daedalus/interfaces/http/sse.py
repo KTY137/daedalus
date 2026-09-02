@@ -5,7 +5,8 @@ import json
 import time
 from typing import Any, Callable, Collection, Pattern
 
-from ... import core, ikarus_os
+from ... import core
+from ...orchestration import ikarus_os
 from ...orchestration import conversation_requests
 
 SsePort = Callable[..., Any]

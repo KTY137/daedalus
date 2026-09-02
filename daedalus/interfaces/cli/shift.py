@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from .atomic import write_text_atomic
+from ...atomic import write_text_atomic
 
 SHIFT_VERSION = "1"
 SHIFT_REL_PATH = "runs/shift.json"
@@ -313,7 +313,7 @@ def main(argv: list[str]) -> int:  # pragma: no cover - thin CLI
         end()
         print("shift ended")
         return 0
-    print("usage: python -m daedalus.shift [status|start GOAL UNTIL [DONE]|note TEXT|end]")
+    print("usage: python -m daedalus.interfaces.cli.shift [status|start GOAL UNTIL [DONE]|note TEXT|end]")
     return 2
 
 

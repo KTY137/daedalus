@@ -29,9 +29,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from .limit_policy import ExecutionLimitPolicy, load_from_env
-from .memory import MEMORY_DIR, MemoryEvent, append_event, refresh_todo_snapshot
-from .foundation.projects import ROOT as REPO_ROOT, resolve_repo_root
+from ...limit_policy import ExecutionLimitPolicy, load_from_env
+from ...memory import MEMORY_DIR, MemoryEvent, append_event, refresh_todo_snapshot
+from ...foundation.projects import ROOT as REPO_ROOT, resolve_repo_root
 
 
 CLAUDE_HOME = Path.home() / ".claude"
@@ -247,7 +247,7 @@ def _budget_view(lock_timeout_s: float = BUDGET_READ_LOCK_TIMEOUT_S) -> dict[str
     ``state()`` is the ledger's own read path -- it takes the cross-process
     lock so the read cannot straddle a write, and mutates nothing.
     """
-    from .budget import BudgetError, Ledger
+    from ...budget import BudgetError, Ledger
 
     try:
         state = Ledger(lock_timeout_s=lock_timeout_s).state()
@@ -286,7 +286,7 @@ def _spine_view(recent: int = 3) -> dict[str, Any]:
     the read-only open of a MISSING database is an error, and a monitor must
     not be the thing that brings a spine database into existence.
     """
-    from .spine.ledger import SpineLedger, default_db_path
+    from ...spine.ledger import SpineLedger, default_db_path
 
     path = default_db_path()
     if not path.exists():
@@ -315,9 +315,9 @@ def _spine_view(recent: int = 3) -> dict[str, Any]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     # THE BOUNDARY COMES FIRST -- before argument parsing, exactly as
-    # daedalus/loop.py does it (72b5af82) and for the same reason. This module
+    # daedalus/orchestration/loop.py does it (72b5af82) and for the same reason. This module
     # has two doors: `daedalus tokens`, which reaches main() through cli.main's
-    # guarded dispatch, and `python -m daedalus.token_monitor`, which does not.
+    # guarded dispatch, and `python -m daedalus.interfaces.cli.token_monitor`, which does not.
     # Putting begin_effect at the top of main() means both doors pass it, so
     # adding the subcommand did not open a second, softer way in -- and no
     # branch below can reach the status write without having passed it.
@@ -329,8 +329,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     # cli.token_monitor row, the declared effects and that decision agree. The
     # registry anchor pins this call, so deleting it is a conformance failure
     # rather than a silent regression.
-    from .budget import process_guard_boundary_decision
-    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+    from ...budget import process_guard_boundary_decision
+    from ...spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
     begin_effect(
         "cli.token_monitor",
@@ -390,5 +390,5 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     # Safe BECAUSE main() starts at the canonical effect boundary: this tail is
     # a plain call into a guarded entrypoint, not a bypass of one. Same shape
-    # as daedalus/loop.py's tail, deliberately.
+    # as daedalus/orchestration/loop.py's tail, deliberately.
     raise SystemExit(main())

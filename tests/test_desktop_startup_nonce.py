@@ -7,7 +7,7 @@ from urllib.request import urlopen
 
 import pytest
 
-from daedalus import web_api
+from daedalus.interfaces.http import web_api
 
 
 def _server(nonce: str):

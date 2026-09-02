@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from daedalus import web_api
+from daedalus.interfaces.http import web_api
 from daedalus.interfaces.http import server
 from daedalus.spine.effect_boundary import registry_sha256
 
@@ -34,7 +34,7 @@ def test_legacy_bind_contracts_resolve_to_the_canonical_owner() -> None:
 
 
 def test_legacy_bind_functions_are_thin_delegating_seams() -> None:
-    tree = ast.parse((ROOT / "daedalus/web_api.py").read_text(encoding="utf-8"))
+    tree = ast.parse((ROOT / "daedalus/interfaces/http/web_api.py").read_text(encoding="utf-8"))
     expected = {
         "_desktop_startup_nonce": "http_server.desktop_startup_nonce",
         "_refusal": "http_server.refusal",
@@ -66,7 +66,7 @@ def test_admission_owner_has_no_server_or_effect_authority() -> None:
         for node in ast.walk(tree)
         if isinstance(node, ast.ImportFrom)
     }
-    assert "daedalus.web_api" not in imports | from_imports
+    assert "daedalus.interfaces.http.web_api" not in imports | from_imports
     assert "http.server" not in imports | from_imports
     assert "ThreadingHTTPServer" not in source
     assert "BaseHTTPRequestHandler" not in source
@@ -85,7 +85,7 @@ def test_cold_owner_import_does_not_load_facade_or_runtime_effect_layers() -> No
                 f"sys.path.insert(0,{str(ROOT)!r});"
                 "import daedalus.interfaces.http.server;"
                 "print(json.dumps(sorted(n for n in sys.modules if "
-                "n == 'daedalus.web_api' or n == 'daedalus.file_bridge' "
+                "n == 'daedalus.interfaces.http.web_api' or n == 'daedalus.file_bridge' "
                 "or n.startswith('daedalus.providers'))))"
             ),
         ],
@@ -99,5 +99,5 @@ def test_cold_owner_import_does_not_load_facade_or_runtime_effect_layers() -> No
 
 def test_http_admission_move_keeps_effect_registry_digest() -> None:
     assert registry_sha256() == (
-        "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+        "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
     )

@@ -166,7 +166,7 @@ TASKS: list[dict] = [
         "label_provenance": "hand_reachable",
         "tier": "primary",
         "repo": "agent_env",
-        "target": "daedalus/web_api.py",
+        "target": "daedalus/interfaces/http/web_api.py",
         "must_include": ["_structure_index", "resolve_repo_root", "cached_index"],
         "question": "In web_api.py, what does _structure_index call to obtain "
                     "the structural index for a project?",
@@ -256,7 +256,7 @@ TASKS: list[dict] = [
         "label_provenance": "hand_reachable",
         "tier": "primary",
         "repo": "agent_env",
-        "target": "daedalus/ikarus_os.py::_distill",
+        "target": "daedalus/orchestration/ikarus_os.py::_distill",
         "must_include": ["semantic_slice", "resolve_repo_root", "cached_index"],
         "question": "When the user names a file, what does _distill call to "
                     "produce the token-saving figure?",

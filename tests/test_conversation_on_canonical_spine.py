@@ -325,7 +325,7 @@ def test_later_model_context_contains_the_latest_linked_outcome_as_information(s
 
 
 def test_ikarus_voice_context_receives_the_projected_outcome(store, monkeypatch):
-    from daedalus import ikarus_os
+    from daedalus.orchestration import ikarus_os
 
     store.append_turn("c1", user_message="do it", intent="enqueue",
                       status=conv.STATUS_PROPOSED)

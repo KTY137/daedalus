@@ -31,7 +31,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from daedalus import shift as shift_mod  # noqa: E402
+from daedalus.interfaces.cli import shift as shift_mod  # noqa: E402
 
 BAR = 28
 
@@ -46,7 +46,7 @@ def render(root: Path) -> str:
     now = datetime.now().astimezone().strftime("%H:%M:%S")
     if not s.goal:
         return (f"{now}  no shift declared\n"
-                f"          start one:  python -m daedalus.shift start "
+                f"          start one:  python -m daedalus.interfaces.cli.shift start "
                 f'"the goal" "10:00" "what done means"')
 
     rem = s.remaining()

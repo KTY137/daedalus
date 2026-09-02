@@ -8,7 +8,8 @@ from typing import Any, Callable
 from urllib.parse import unquote
 
 from ...kairos import drafts
-from ... import core, file_bridge, ikarus_os
+from ... import core, file_bridge
+from ...orchestration import ikarus_os
 from ...orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, ikarus_chat, runtime_registry
 from ...foundation.projects import (
     ProjectRegistrationError,

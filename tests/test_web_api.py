@@ -8,11 +8,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from daedalus import file_bridge, web_api
+from daedalus import file_bridge
+from daedalus.interfaces.http import web_api
 from daedalus.orchestration import control_plane, conversation as conversation_mod, hierarchy, ikarus_chat, runtime_registry
 from daedalus.interfaces.http.bootstrap_prompt import claude_bootstrap_prompt
 from daedalus.foundation.env import env_status, load_env
-from daedalus.web_api import _json_safe
+from daedalus.interfaces.http.web_api import _json_safe
 
 
 class HostCapabilitiesContractTest(unittest.TestCase):
@@ -441,7 +442,7 @@ class LatentSearchRouteTest(unittest.TestCase):
 
     @staticmethod
     def _get(path: str) -> dict:
-        from daedalus.web_api import DaedalusHandler
+        from daedalus.interfaces.http.web_api import DaedalusHandler
 
         handler = object.__new__(DaedalusHandler)
         handler.path = path

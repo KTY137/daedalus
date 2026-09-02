@@ -125,11 +125,11 @@ Independently reproduced 2026-08-22 [MEASURED] by scanning every non-test
 `*.py` for a *call* to `install_process_guard()` — **8 files**, exactly the set
 the test pins, with no drift:
 
-`daedalus/budget.py`, `daedalus/cli.py`, `daedalus/loop.py`,
+`daedalus/budget.py`, `daedalus/cli.py`, `daedalus/orchestration/loop.py`,
 `runs/ab/run_arm.py`, `runs/council/room.py`, `runs/council/room_server.py`,
 `runs/council/summarize.py`, `tools/operability_drill.py`.
 
-Two of those matter structurally. `daedalus/loop.py` is the only entry point
+Two of those matter structurally. `daedalus/orchestration/loop.py` is the only entry point
 that spends **repeatedly by design**. `daedalus/budget.py` entered the set on
 2026-08-18 when `process_guard_boundary_decision()` began installing the
 ceiling for roughly forty centrally-wired entrypoints through one function —
@@ -155,7 +155,7 @@ Floored: `daedalus/council/vendors.py`, `daedalus/providers/codex_cli.py`,
   planner selects a `.env`, it ships verbatim. Open because the fix is a design
   decision: dropping a selected file silently would change what the two A/B
   arms are comparing.
-- **`daedalus/ikarus_os.py` — inspected, not egress.** `_claude_stream` reads
+- **`daedalus/orchestration/ikarus_os.py` — inspected, not egress.** `_claude_stream` reads
   the vendor's *response* file; prompt input is assembled separately. Bytes
   flow vendor -> disk -> caller.
 - **Out-of-repo witness.** `~/.claude/skills/room/room.py` exists here (26 990

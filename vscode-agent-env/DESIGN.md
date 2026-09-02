@@ -361,11 +361,11 @@ extension *can* add natively:
 ### What this section deliberately does not cover
 
 Per-turn / per-step progress (plan issued → tool call → file edit → verified) is not rendered
-natively here. `daedalus/ikarus_os.py::ask` / `ask_stream` is single-turn and stateless as of this
+natively here. `daedalus/orchestration/ikarus_os.py::ask` / `ask_stream` is single-turn and stateless as of this
 writing (no conversation/session id in the request shape) and the existing SSE surface
 (`/api/events`: `hello|report|heartbeat|queue`) is task-level, not step-level. Conversation state
 and a richer progress-event model were, at the time of this writing, being built concurrently by
-other agents against `daedalus/web_api.py` — an assumed seam, not one this extension currently
+other agents against `daedalus/interfaces/http/web_api.py` — an assumed seam, not one this extension currently
 renders. The honest thing this section can say is what already exists and is wired end-to-end
 today: chat happens in `apps/web`; queued work is visible via the existing real file-bus queue
 (pending/reports/processed, already surfaced through `daedalus dashboard --json`); the extension

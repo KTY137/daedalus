@@ -92,13 +92,13 @@ from itertools import count
 from pathlib import Path
 from typing import Sequence
 
-from . import core
-from .orchestration import ikarus_act
-from .orchestration.ikarus_act import ActDecision
-from .foundation.projects import resolve_repo_root
-from .providers._openai_compat import chat_completion
-from .orchestration.llm_client import IkarusLLMClient
-from .limit_policy import ExecutionLimitPolicy
+from .. import core
+from . import ikarus_act
+from .ikarus_act import ActDecision
+from ..foundation.projects import resolve_repo_root
+from ..providers._openai_compat import chat_completion
+from .llm_client import IkarusLLMClient
+from ..limit_policy import ExecutionLimitPolicy
 
 SYSTEM = (
     "You are Ikarus, the assistant inside the Daedalus Agent OS — a local, "
@@ -258,8 +258,8 @@ def ask(project: str, message: str, provider: str | None = None,
     describe THIS message — never a cached label from a different one.
 
     THE BOUNDARY COMES FIRST — above classification, above provider selection,
-    above the conversation lookup, exactly as ``daedalus/loop.py`` (72b5af82)
-    and ``daedalus/token_monitor.py`` (c67fd116) do it, and for the same
+    above the conversation lookup, exactly as ``daedalus/orchestration/loop.py`` (72b5af82)
+    and ``daedalus/interfaces/cli/token_monitor.py`` (c67fd116) do it, and for the same
     reason: no branch below can reach a socket or a vendor spawn without having
     passed it. ``process_guard_boundary_decision`` really installs the
     process-wide spend net and returns the decision naming what is now
@@ -270,8 +270,8 @@ def ask(project: str, message: str, provider: str | None = None,
     answers, and fail-closed here means the turn stops at the door, not that
     the caller gets an exception it has never had to handle.
     """
-    from .budget import process_guard_boundary_decision
-    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+    from ..budget import process_guard_boundary_decision
+    from ..spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
     try:
         begin_effect(ASK_ENTRYPOINT_ID,
@@ -329,7 +329,7 @@ def _prior_turn(conversation_id: str | None):
     if not conversation_id:
         return None
     try:
-        from .orchestration import conversation
+        from . import conversation
 
         return conversation.default_store().last_turn(conversation_id)
     except Exception:
@@ -429,7 +429,7 @@ def _turn_status(envelope: dict):
     """Map a chat envelope's ``intent`` to conversation.py's closed turn-status
     vocabulary. A separate, tiny function so the mapping is one place and is
     unit-testable without a real store."""
-    from .orchestration import conversation
+    from . import conversation
 
     intent = envelope.get("intent")
     if intent == "error":
@@ -456,7 +456,7 @@ def _persist_turn(conversation_id: str, project: str, message: str,
     for durable state has a right to know it didn't get it this turn.
     """
     try:
-        from .orchestration import conversation
+        from . import conversation
 
         turn = conversation.default_store().append_turn(
             conversation_id,
@@ -484,7 +484,7 @@ def _persist_turn(conversation_id: str, project: str, message: str,
 # Deterministic intents (no spend, no egress)                                  #
 # --------------------------------------------------------------------------- #
 def _status(project: str, message: str) -> dict:
-    from .file_bridge import bridge_status
+    from ..file_bridge import bridge_status
 
     st = bridge_status(project)
     watcher = (st.get("watcher") or {}).get("state", "unknown")
@@ -497,9 +497,9 @@ def _status(project: str, message: str) -> dict:
 
 
 def _distill(project: str, message: str) -> dict:
-    from .structcore.index import cached_index
-    from .structcore.report import structure_summary
-    from .structcore.slice import semantic_slice
+    from ..structcore.index import cached_index
+    from ..structcore.report import structure_summary
+    from ..structcore.slice import semantic_slice
 
     repo_root = resolve_repo_root(None, project)
     idx = cached_index(repo_root)
@@ -678,7 +678,7 @@ def _hand_state(probe: bool = True):
     if not probe:
         return None
     try:
-        from . import health
+        from .. import health
 
         # Shorter than health's own default: a chat turn must never hang on a
         # liveness question. A host that has not answered in 2s is `unknown`,
@@ -827,7 +827,7 @@ def _act_offer(project: str, message: str, act: ActDecision) -> dict:
 
 
 def _design(project: str, message: str) -> dict:
-    from .orchestration import ikarus_chat
+    from . import ikarus_chat
 
     res = ikarus_chat.chat(project, message, apply=False)
     res["intent"] = "design"
@@ -864,7 +864,7 @@ def _conversation_context(
     if not conversation_id:
         return ""
     try:
-        from .orchestration import conversation
+        from . import conversation
 
         policy = limit_policy or ExecutionLimitPolicy()
         block = conversation.recent_turns_context(
@@ -915,8 +915,8 @@ def _project_context(
     if not re.search(r"[\w./\\-]+\.\w+", message):
         return _EMPTY_CTX
     try:
-        from .structcore.index import cached_index
-        from .structcore.slice import semantic_slice
+        from ..structcore.index import cached_index
+        from ..structcore.slice import semantic_slice
 
         repo_root = resolve_repo_root(None, project)
         policy = limit_policy or ExecutionLimitPolicy()
@@ -1113,7 +1113,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
         return None, None, _EMPTY_CTX
     captured_policy = limit_policy or ExecutionLimitPolicy()
     if p in _OLLAMA_HTTP:
-        from .providers.ollama import DEFAULT_MODEL
+        from ..providers.ollama import DEFAULT_MODEL
 
         mdl = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
         ctx = _project_context(
@@ -1125,7 +1125,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
             message, mdl, effort, context, timeout_s=timeout_s,
             limit_policy=captured_policy), mdl, ctx
     if p in _OLLAMA_CLI:
-        from .providers.ollama import DEFAULT_MODEL
+        from ..providers.ollama import DEFAULT_MODEL
 
         mdl = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
         ctx = _project_context(
@@ -1142,7 +1142,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
             ctx.text, additional_context)
         return _claude(message, effort, model, context, timeout_s=timeout_s), (model or "claude"), ctx
     if p in _DEEPSEEK:
-        from .providers.deepseek import DEFAULT_MODEL
+        from ..providers.deepseek import DEFAULT_MODEL
 
         if not os.environ.get("DEEPSEEK_API_KEY"):
             return _unconfigured_reply(
@@ -1157,7 +1157,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
             message, mdl, effort, context, timeout_s=timeout_s,
             limit_policy=captured_policy), mdl, ctx
     if p in _CODEX:
-        from .orchestration.runtime_registry import resolve_runtime_command
+        from .runtime_registry import resolve_runtime_command
 
         if not resolve_runtime_command("codex_cli"):
             return _unconfigured_reply(
@@ -1184,8 +1184,8 @@ def _local_lane() -> str:
     left, source shipped off-machine, and nothing in the code or the transcript
     saying so. See :func:`daedalus.sensitivity.lane_for_host`.
     """
-    from .providers.ollama import DEFAULT_HOST
-    from .sensitivity import lane_for_host
+    from ..providers.ollama import DEFAULT_HOST
+    from ..sensitivity import lane_for_host
 
     return lane_for_host(os.environ.get("OLLAMA_HOST", DEFAULT_HOST))
 
@@ -1274,7 +1274,7 @@ def _deny_receipt(entrypoint_id: str, *, contract: str, endpoint: str | None,
         "at": core.now_iso(),
     }
     try:
-        from .spine.effect_boundary import registry_sha256
+        from ..spine.effect_boundary import registry_sha256
 
         receipt["registry_sha256"] = registry_sha256()
     except Exception:  # a registry that cannot be hashed still refuses
@@ -1303,10 +1303,10 @@ def _spend_decision(vendor: str, model: str | None, *, host: str | None = None,
     error is a denial, never a pass -- absence of a budget is not absence of a
     ceiling.
     """
-    from .spine.effect_boundary import GuardDecision
+    from ..spine.effect_boundary import GuardDecision
 
     try:
-        from . import budget
+        from .. import budget
 
         installed = budget.process_guard_boundary_decision()
     except Exception as exc:
@@ -1378,15 +1378,15 @@ def _egress_decision(provider_key: str, endpoint: str | None):
     auth -- so the decision states exactly that and refuses when the binary
     did not resolve.
     """
-    from .spine.effect_boundary import GuardDecision
+    from ..spine.effect_boundary import GuardDecision
 
     if provider_key in ("ollama", "ollama_cli"):
-        from .providers.ollama import ollama_endpoint_admission
+        from ..providers.ollama import ollama_endpoint_admission
 
         allowed, lane, why = ollama_endpoint_admission(endpoint)
         return GuardDecision("provider.egress_policy", allowed, why), lane
     if provider_key == "deepseek":
-        from .sensitivity import lane_for_host
+        from ..sensitivity import lane_for_host
 
         lane = lane_for_host(endpoint)
         keyed = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
@@ -1428,7 +1428,7 @@ def _provider_start(provider_key: str, *, endpoint: str | None,
     function only carries the answers between them and shapes a refusal into
     something a reader can act on.
     """
-    from .spine.effect_boundary import EffectBoundaryError, begin_effect
+    from ..spine.effect_boundary import EffectBoundaryError, begin_effect
 
     vendor = _PROVIDER_VENDORS.get(provider_key, provider_key)
     effects = _PROVIDER_EFFECTS.get(provider_key)
@@ -1493,7 +1493,7 @@ def _refuse_cmd_shim(provider_key: str, argv: Sequence[str], *,
     is caller-supplied and an argument echoed into an envelope is an argument
     that can leak.
     """
-    from .providers.codex_cli import cmd_shim_refusal
+    from ..providers.codex_cli import cmd_shim_refusal
 
     reason = cmd_shim_refusal(argv)
     if reason is None:
@@ -1520,7 +1520,7 @@ def _refusal_envelope(project: str, receipt: dict) -> dict:
 def _ollama(message: str, model: str, effort: str | None,
             context: str = "", *, timeout_s: float | None = 150.0,
             limit_policy: ExecutionLimitPolicy | None = None) -> str | None:
-    from .providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
+    from ..providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
     # BEFORE warm_model_async, which connects on a daemon thread, and before
@@ -1547,8 +1547,8 @@ def _ollama(message: str, model: str, effort: str | None,
 def _ollama_cli(message: str, model: str, effort: str | None,
                 context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
     """Use the installed Ollama CLI as a real transport, not an HTTP alias."""
-    from .providers.ollama import DEFAULT_HOST
-    from .orchestration.runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from ..providers.ollama import DEFAULT_HOST
+    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("ollama_cli")
     if not path:
@@ -1592,7 +1592,7 @@ def _deepseek(message: str, model: str, effort: str | None,
     ``base_url`` is used AS-IS (no ``/v1`` suffix appended) -- matching
     ``DeepSeekProvider.run()`` in providers/deepseek.py exactly, since
     DeepSeek's REST root already serves ``/chat/completions`` directly."""
-    from .providers.deepseek import DEFAULT_BASE_URL
+    from ..providers.deepseek import DEFAULT_BASE_URL
 
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
@@ -1640,7 +1640,7 @@ def _neutral_cwd() -> str:
 
 def _claude(message: str, effort: str | None = None, model: str | None = None,
             context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
-    from .orchestration.runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("claude_code_cli")
     if not path:
@@ -1708,7 +1708,7 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
     their reason -- a CLI that never drains stdin deadlocks the writer outside
     every timeout, and a file handle reaches EOF immediately, which is the
     property the old ``stdin=DEVNULL`` was there to provide."""
-    from .orchestration.runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("codex_cli")
     if not path:
@@ -1846,8 +1846,8 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     start+final instead of raised, because a generator that raises on its first
     ``next()`` is not something the SSE surface can render.
     """
-    from .budget import process_guard_boundary_decision
-    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+    from ..budget import process_guard_boundary_decision
+    from ..spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
     try:
         begin_effect(ASK_STREAM_ENTRYPOINT_ID,
@@ -1920,7 +1920,7 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     history = _conversation_context(
         conversation_id, limit_policy)
     if p in _OLLAMA_HTTP:
-        from .providers.ollama import DEFAULT_MODEL
+        from ..providers.ollama import DEFAULT_MODEL
 
         model_used = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
         ctx = _project_context(
@@ -1946,7 +1946,7 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             _merge_model_context(history, ctx.text, additional_context),
             timeout_s=selection.timeout_s)
     elif p in _DEEPSEEK and os.environ.get("DEEPSEEK_API_KEY"):
-        from .providers.deepseek import DEFAULT_MODEL
+        from ..providers.deepseek import DEFAULT_MODEL
 
         model_used = model or os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL)
         ctx = _project_context(
@@ -2068,8 +2068,8 @@ def _ollama_stream(
 ):
     """Yield text deltas from the local Ollama runtime, and refresh the VRAM
     residency TTL in the background so the NEXT turn skips the ~44s reload."""
-    from .providers._openai_compat import chat_stream
-    from .providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
+    from ..providers._openai_compat import chat_stream
+    from ..providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
     # Before warm_model_async's daemon thread and before the stream request.
@@ -2096,8 +2096,8 @@ def _deepseek_stream(
     """Yield text deltas from the DeepSeek API. Same OpenAI-compatible
     streaming client Ollama's stream uses (``chat_stream``); only
     base_url/api_key differ -- no new HTTP client."""
-    from .providers._openai_compat import chat_stream
-    from .providers.deepseek import DEFAULT_BASE_URL
+    from ..providers._openai_compat import chat_stream
+    from ..providers.deepseek import DEFAULT_BASE_URL
 
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
@@ -2123,7 +2123,7 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     process dies or emits no deltas the generator simply ends, and the caller
     falls back to the blocking path.
     """
-    from .orchestration.runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("claude_code_cli")
     if not path:

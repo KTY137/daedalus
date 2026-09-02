@@ -13,19 +13,19 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .interfaces.http import effects as http_effects
-from .interfaces.http import read as http_read
-from .interfaces.http import server as http_server
-from .interfaces.http import sse as http_sse
+from . import effects as http_effects
+from . import read as http_read
+from . import server as http_server
+from . import sse as http_sse
 
-from .kairos import drafts
-from . import core
-from .foundation import accelerators
-from .orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, ikarus_chat, runtime_registry
-from .interfaces.http.bootstrap_prompt import claude_bootstrap_prompt
-from .orchestration.context_plan import plan_context
-from .foundation.env import env_status, load_env
-from .foundation.projects import (
+from ...kairos import drafts
+from ... import core
+from ...foundation import accelerators
+from ...orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, ikarus_chat, runtime_registry
+from .bootstrap_prompt import claude_bootstrap_prompt
+from ...orchestration.context_plan import plan_context
+from ...foundation.env import env_status, load_env
+from ...foundation.projects import (
     ProjectRegistrationError,
     ProjectRegistryUnavailable,
     ProjectRowNotFound,
@@ -34,17 +34,17 @@ from .foundation.projects import (
     register_project,
     resolve_repo_root,
 )
-from .file_bridge import stream_state
-from . import file_bridge
-from . import ikarus_os
-from .structcore.index import cached_index
-from .structcore.churn import co_change_pairs
-from .structcore.report import structure_summary
-from .structcore.slice import semantic_slice
-from .structcore.topology import spectral_partition
-from . import memory as memory_mod
+from ...file_bridge import stream_state
+from ... import file_bridge
+from ...orchestration import ikarus_os
+from ...structcore.index import cached_index
+from ...structcore.churn import co_change_pairs
+from ...structcore.report import structure_summary
+from ...structcore.slice import semantic_slice
+from ...structcore.topology import spectral_partition
+from ... import memory as memory_mod
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 WEB_DIST = ROOT / "apps" / "web" / "dist"
 
 
@@ -60,7 +60,7 @@ def _project_center(project: str | None) -> list[str]:
     if not project:
         return []
     try:
-        from .foundation.projects import load_project
+        from ...foundation.projects import load_project
 
         raw = load_project(project).get("center") or []
     except (ValueError, OSError):
@@ -81,7 +81,7 @@ def _project_ignore(project: str | None) -> list[str]:
     if not project:
         return []
     try:
-        from .foundation.projects import load_project
+        from ...foundation.projects import load_project
 
         raw = load_project(project).get("ignore") or []
     except (ValueError, OSError):
@@ -107,7 +107,7 @@ def _project_list() -> dict[str, Any]:
     rows = []
     for name in list_projects():
         try:
-            from .foundation.projects import load_project
+            from ...foundation.projects import load_project
 
             data = load_project(name)
         except ValueError:
@@ -302,7 +302,7 @@ def _loop_repo_root(project: str | None) -> str | None:
 
 
 def _loop_queue(project: str | None, limit: int) -> dict[str, Any]:
-    from .spine import picker
+    from ...spine import picker
 
     queue = picker.build_queue(_loop_repo_root(project), limit=limit)
     degraded = list(queue.degraded_sources)
@@ -384,8 +384,8 @@ def _loop_attempt_row(intent: Any) -> dict[str, Any]:
 def _loop_attempts(kind: str | None, limit: int, task_id: str) -> dict[str, Any]:
     from pathlib import Path as _Path
 
-    from .spine import picker
-    from .spine.ledger import SpineLedger, default_db_path
+    from ...spine import picker
+    from ...spine.ledger import SpineLedger, default_db_path
 
     path = default_db_path()
     rows: list[dict[str, Any]] = []
@@ -453,7 +453,7 @@ def _loop_architecture(project: str | None) -> dict[str, Any]:
     """
     from pathlib import Path as _Path
 
-    from .spine import picker
+    from ...spine import picker
 
     root = _Path(_loop_repo_root(project) or picker.ROOT)
     state = picker.load_map_state(repo_root=root)
@@ -657,8 +657,8 @@ def _task_snapshot(task_id: str) -> dict[str, Any]:
     ``found=False`` covers both a wrong id and a genuinely unknown one; nothing
     here raises to tell those apart, because a filesystem check cannot.
     """
-    from . import progress as progress_mod
-    from . import progress_sources
+    from ... import progress as progress_mod
+    from ... import progress_sources
 
     now = time.time()
     prog = progress_sources.snapshot_from_bridge(task_id, now=now)
@@ -851,7 +851,7 @@ def _conversation_view(conversation_id: str, limit: int = LOOP_MAX_LIMIT) -> dic
     conversation has never had a turn appended -- ``append_turn`` is what
     creates the row; there is no separate "create conversation" write to be
     missing."""
-    from .orchestration import conversation as conv
+    from ...orchestration import conversation as conv
 
     store = conv.default_store()
     if not store.conversation_exists(conversation_id):
@@ -890,7 +890,7 @@ def _conversation_list_view(project: str, limit: int = 20) -> list[dict[str, Any
     field clipped by the same bound the turn view uses. Read-only; minting a
     conversation stays on the POST route and creation stays on the first
     turn."""
-    from .orchestration import conversation as conv
+    from ...orchestration import conversation as conv
 
     rows = conv.default_store().list_conversations(project, limit=limit)
     for row in rows:
@@ -911,7 +911,7 @@ def _dispatch_status_view(task_id: str) -> dict[str, Any] | None:
     (``task``, from :func:`_task_snapshot`) always reflects the file bus
     directly, whether or not a conversation link exists and even while a
     conversation projection retry is pending."""
-    from .orchestration import conversation as conv
+    from ...orchestration import conversation as conv
 
     try:
         status = conv.default_store().dispatch_status(task_id)

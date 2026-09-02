@@ -16,7 +16,7 @@ WHAT IT REUSES (it implements none of this):
 * :class:`daedalus.spine.killswitch.KillSwitch` -- the stop.
 * :mod:`daedalus.budget` -- the ceiling.
 * :mod:`daedalus.progress` -- per-iteration observability, into the log
-  ``daedalus.web_api``'s ``/api/events`` already serves.
+  ``daedalus.interfaces.http.web_api``'s ``/api/events`` already serves.
 
 THE FOUR BOUNDS. Three are dimensions of "how much", and any ONE of them alone
 halts the loop: iteration count, wall clock, and spend. The fourth is
@@ -61,8 +61,8 @@ report rather than papered over:
 
 Run it::
 
-    python -m daedalus.loop --max-iterations 5 --max-spend-usd 2.00
-    python -m daedalus.loop --dry-run          # picks and previews, spends nothing
+    python -m daedalus.orchestration.loop --max-iterations 5 --max-spend-usd 2.00
+    python -m daedalus.orchestration.loop --dry-run          # picks and previews, spends nothing
 
 Stop it, from anywhere, at any time::
 
@@ -82,15 +82,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from . import progress
-from .atomic import write_text_atomic
-from .limit_policy import (
+from .. import progress
+from ..atomic import write_text_atomic
+from ..limit_policy import (
     ExecutionLimitPolicy,
     LimitPolicyError,
     load_from_env as load_limit_policy,
 )
-from .spine.attempt import ATTEMPT_STATES, STATE_CANCELLED
-from .spine.envelope import (
+from ..spine.attempt import ATTEMPT_STATES, STATE_CANCELLED
+from ..spine.envelope import (
     PREDICATE_LOOP_LEDGER,
     canonical_sha,
     current_trace_id,
@@ -100,10 +100,10 @@ from .spine.envelope import (
     trace_context,
     unwrap,
 )
-from .spine.killswitch import KillSwitch, LoopHalted
-from .foundation.text_integrity import safe_terminal_text
+from ..spine.killswitch import KillSwitch, LoopHalted
+from ..foundation.text_integrity import safe_terminal_text
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 __all__ = [
     "DEFAULT_MAX_ATTEMPTS_PER_CANDIDATE",
@@ -123,7 +123,7 @@ __all__ = [
 # The ONE status string that means "a draw past the wave's LEASED ceiling was
 # refused". Re-exported from the scheduler (which mints it) rather than
 # re-spelled here: two spellings of one status is how a report starts lying.
-from .kairos.scheduler import (  # noqa: E402 - after __all__ on purpose
+from ..kairos.scheduler import (  # noqa: E402 - after __all__ on purpose
     SPEND_REFUSED_SKIPPED_STATUS,
     SPEND_REFUSED_STATUS,
     spend_refused_result,
@@ -144,7 +144,7 @@ DEFAULT_MAX_SPEND_USD = 2.0
 # does not pass".
 DEFAULT_MAX_ATTEMPTS_PER_CANDIDATE = 2
 
-PROGRESS_SOURCE = "daedalus.loop"
+PROGRESS_SOURCE = "daedalus.orchestration.loop"
 
 #: Every reason this loop can stop, as a closed vocabulary. Closed so that
 #: "why did it stop" is answerable from the report alone, and so a new stop
@@ -807,7 +807,7 @@ def read_spend() -> _Spend:
     would silently disable the spend bound. ``readable=False`` is the signal,
     and the caller treats it as a reason to STOP rather than to continue."""
     try:
-        from . import budget
+        from .. import budget
 
         state = budget.ledger().state()
         return _Spend(period_key=str(state.period_key),
@@ -879,7 +879,7 @@ class LoopDriver:
         self.source_revision = _head_revision(self.repo_root)
 
         if executor is None:
-            from .build_exec import EffectBounds, WaveExecutor
+            from ..build_exec import EffectBounds, WaveExecutor
 
             # ONE LOG FOR THE WHOLE RUN. The executor emits the attempt-level
             # lifecycle and this driver emits the iteration-level one; handing
@@ -992,7 +992,7 @@ class LoopDriver:
     def _pick(self) -> tuple[Any, list[dict[str, Any]], str]:
         """``(candidate, skipped, note)``. ``candidate`` is ``None`` when the
         queue holds nothing this loop may still attempt."""
-        from .spine.picker import build_queue
+        from ..spine.picker import build_queue
 
         queue = build_queue(
             self.repo_root,
@@ -1050,10 +1050,10 @@ class LoopDriver:
         second attempt path was forked, so the promotion lock, the governance
         AND and worktree isolation are all still the existing ones.
         """
-        from .build import BuildSession, BuildTask, Wave, assign_builder
-        from .orchestration.categories import preset_for
-        from .kairos.scheduler import KairosScheduler
-        from .router import route_task
+        from ..build import BuildSession, BuildTask, Wave, assign_builder
+        from .categories import preset_for
+        from ..kairos.scheduler import KairosScheduler
+        from ..router import route_task
 
         foreman = KairosScheduler(project=self.project)
         agent = route_task(candidate.instruction, list(candidate.target_paths),
@@ -1094,8 +1094,8 @@ class LoopDriver:
         return "not_attempted"
 
     def _run_iteration(self, index: int, candidate: Any) -> IterationResult:
-        from .budget import BudgetRefused
-        from .kairos.scheduler import KairosScheduler
+        from ..budget import BudgetRefused
+        from ..kairos.scheduler import KairosScheduler
 
         started = time.monotonic()
         spend_before = read_spend() if not self.dry_run else None
@@ -1306,7 +1306,7 @@ class LoopDriver:
 
     # -- the loop ----------------------------------------------------------- #
     def run(self) -> LoopReport:
-        from . import core
+        from .. import core
 
         gov = core.get_governance(self.project)
         promotion_allowed = bool(gov.get("promotion_allowed"))
@@ -1622,13 +1622,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     # every other spend entry point in
     # this tree (tests/test_spend_coverage.py enforces it). A loop driver is
     # the entry point where forgetting it costs the most.
-    from .budget import install_process_guard, process_guard_boundary_decision
-    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+    from ..budget import install_process_guard, process_guard_boundary_decision
+    from ..spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
     install_process_guard()
 
     # ...AND THEN PROVE IT, at the same canonical boundary every other console
-    # door uses. `python -m daedalus.loop` is not reachable from cli.main's
+    # door uses. `python -m daedalus.orchestration.loop` is not reachable from cli.main's
     # dispatch (there is no `loop` subcommand), so the line above was the only
     # thing between this process and unpriced spend -- and nothing mechanically
     # required it to still be there. A guard you have to remember is missing
@@ -1658,7 +1658,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # guard and before its registry receipt. The guard reads its live budget
     # configuration when a priced call is attempted, so installing it before
     # the declarations does not freeze stale values.
-    from .foundation.dotenv import DotEnvRefused, load as _load_dotenv
+    from ..foundation.dotenv import DotEnvRefused, load as _load_dotenv
 
     try:
         _load_dotenv()
@@ -1667,7 +1667,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     p = argparse.ArgumentParser(
-        prog="python -m daedalus.loop",
+        prog="python -m daedalus.orchestration.loop",
         description="Run pick -> attempt -> gate -> nominate -> re-pick until a "
                     "bound stops it. Stop it from anywhere with "
                     "`python -m daedalus.spine.killswitch stop`.")

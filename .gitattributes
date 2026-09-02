@@ -174,8 +174,8 @@ daedalus/__init__.py -text
 daedalus/adapters/events.py -text
 daedalus/orchestration/agents_registry.py -text
 daedalus/atomic.py -text
-daedalus/benchmark.py -text
-daedalus/bookkeeper.py -text
+daedalus/orchestration/benchmark.py -text
+daedalus/interfaces/cli/bookkeeper.py -text
 daedalus/budget.py -text
 daedalus/build.py -text
 daedalus/orchestration/categories.py -text
@@ -192,7 +192,7 @@ daedalus/config.py -text
 daedalus/orchestration/context_plan.py -text
 daedalus/core.py -text
 daedalus/doctor.py -text
-daedalus/enforce.py -text
+daedalus/interfaces/cli/enforce.py -text
 daedalus/eval/correctness.py -text
 daedalus/eval/harness.py -text
 daedalus/eval/mint.py -text

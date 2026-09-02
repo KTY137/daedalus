@@ -287,7 +287,21 @@ CENSUS_MODULES = 432
 # renaming a member renames it inside the component too. Count and maximum
 # are unchanged at 12 and 14, and the membership assertion is restated
 # explicitly above rather than left to the digest.
-CENSUS_EDGES = 1644
+#
+# 1644 -> 1643 in G1-FLAT-05, which moved eleven REGISTERED effect doors.
+# MODULES is unchanged at 432; no package root was needed, both destinations
+# already existed. The -1 is a net of five, and once again every one of them
+# is the ``from <package> import <module>`` two-target construct:
+#
+#   +2  hooks.events and interfaces.cli.shift_ticker gained
+#       ``-> daedalus.interfaces.cli``, having followed ``shift`` there
+#   -3  the same two, plus orchestration.conversation_requests, lost
+#       ``-> daedalus``: each named the root package only to reach a module
+#       that left, and none of them names it for anything else
+#
+# Structure and digest are unchanged: loop and ikarus_os are large and
+# heavily imported but sit in no cycle, so renaming them moves no component.
+CENSUS_EDGES = 1643
 
 
 def _module_name(path: str) -> str:

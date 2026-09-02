@@ -3,7 +3,7 @@
 Creating a request records an open intent *before* provider work starts.  A
 client observes that intent through a separate read path; reconnecting can
 therefore never repeat the provider call.  Final chat turns continue to be
-persisted by :mod:`daedalus.ikarus_os` through :mod:`daedalus.orchestration.conversation`.
+persisted by :mod:`daedalus.orchestration.ikarus_os` through :mod:`daedalus.orchestration.conversation`.
 
 The process-local runtime below is only a live stream projection.  After a
 server restart an unresolved request is reported as ``unknown`` and is never
@@ -17,7 +17,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
-from .. import ikarus_os
+from . import ikarus_os
 from . import conversation, editor_context
 from ..spine.ledger import STATE_COMPLETED, STATE_FAILED, STATE_INTENDED, Intent
 

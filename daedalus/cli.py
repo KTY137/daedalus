@@ -1152,7 +1152,7 @@ def main() -> None:
     elif cmd == "metrics":
         from .metrics import main as m; m()
     elif cmd == "benchmark":
-        from .benchmark import main as m; m()
+        from .orchestration.benchmark import main as m; m()
     elif cmd == "status":
         # The verdict is the point of this command, so it must reach the shell.
         # `m()` alone discarded it and every `daedalus status` looked like a
@@ -1201,7 +1201,7 @@ def main() -> None:
     elif cmd == "drafts":
         _drafts(rest)
     elif cmd == "selftest":
-        from .selftest import main as m; m(rest)
+        from .interfaces.cli.selftest import main as m; m(rest)
     elif cmd == "tokens":
         # Observability, not enforcement. It READS the budget ledger and the
         # intent spine and writes only its own report under memory/; the spend
@@ -1209,15 +1209,15 @@ def main() -> None:
         # here so the monitor is reachable the way every other verb is -- it
         # was registered on the effect boundary with no console door, which is
         # how a monitor ends up trusted and never run.
-        from .token_monitor import main as m; raise SystemExit(m(rest))
+        from .interfaces.cli.token_monitor import main as m; raise SystemExit(m(rest))
     elif cmd == "bookkeeper":
-        from .bookkeeper import main as m; m(rest)
+        from .interfaces.cli.bookkeeper import main as m; m(rest)
     elif cmd == "map":
         from .mapping.render import main as m; raise SystemExit(m(rest))
     elif cmd == "web":
-        from .web_api import main as m; m(rest)
+        from .interfaces.http.web_api import main as m; m(rest)
     elif cmd == "enforce":
-        from .enforce import main as m; m()
+        from .interfaces.cli.enforce import main as m; m()
     elif cmd == "improve":
         from .orchestration.execution import (
             attempt_ports,
