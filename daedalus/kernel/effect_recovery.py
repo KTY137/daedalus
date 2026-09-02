@@ -511,13 +511,25 @@ def _persisted_terminal(
     execution_id: str,
 ) -> EffectTerminalReceipt | None:
     uri = f"file:{Path(ledger.path).resolve().as_posix()}?mode=ro"
-    with sqlite3.connect(uri, uri=True) as connection:
+    # ``with sqlite3.Connection`` is a TRANSACTION scope, not a closing scope:
+    # it commits, it does not close. The leaked connection was unreachable
+    # garbage held in a reference cycle, so the effect-lease database stayed
+    # open until the generational collector ran. That matters here even though
+    # this reader is ``mode=ro``: the lease store is a WAL database, and its
+    # ``-wal``/``-shm`` companions are stat'd by the retention-admission
+    # topology scan, which resolves them strictly. Measured on the pre-fix
+    # tree: the file handle was still open after this call returned and only
+    # released by gc.collect(). Read-only, so there is no commit to preserve.
+    connection = sqlite3.connect(uri, uri=True)
+    try:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
             "SELECT state, terminal_receipt_sha256, terminal_receipt_json "
             "FROM effect_executions WHERE execution_id=?",
             (_identifier(execution_id, "execution_id"),),
         ).fetchone()
+    finally:
+        connection.close()
     if row is None or row["terminal_receipt_json"] is None:
         return None
     return _terminal_from_row(row)
