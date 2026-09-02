@@ -329,18 +329,79 @@ class SpineLedger:
             uri = f"file:{_uri_path(self.path)}?mode=ro"
             self._conn = sqlite3.connect(uri, uri=True, isolation_level=None,
                                          check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            # Per-connection only; neither touches the file.
-            self._conn.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
-            self._conn.execute("PRAGMA query_only=ON")
+            # Structural, not a repair of a demonstrated leak. [MEASURED]
+            # 2026-09-02: no statement currently in this block can raise once
+            # connect() has returned -- ``mode=ro`` opens EAGERLY, so a missing
+            # or unreadable file fails inside connect() with nothing yet to
+            # leak, and both pragmas below are per-connection state that never
+            # reads the file (they succeed even against a non-database file of
+            # garbage bytes). So unlike the writer path there is no test that
+            # can drive this handler today, and it is deliberately NOT claimed
+            # as a closed leak. It is here because the sidecar note above is
+            # true -- a read-only open does create ``-wal``/``-shm`` -- and the
+            # first statement added here that does touch the file would
+            # otherwise leak them by default rather than by mistake.
+            try:
+                self._conn.row_factory = sqlite3.Row
+                # Per-connection only; neither touches the file.
+                self._conn.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
+                self._conn.execute("PRAGMA query_only=ON")
+            except BaseException as exc:
+                self._abandon_failed_open(exc)
+                raise
             return
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.path), isolation_level=None,
                                      check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._apply_pragmas()
-        self._migrate()
+        # THE ASSIGNMENT ABOVE IS OUTSIDE THE TRY ON PURPOSE. ``close()`` reads
+        # ``self._conn``, so the handler can only run once that name is bound;
+        # and if connect() itself raises there is no connection in existence to
+        # release. Everything after it can raise on a real file -- see
+        # ``_abandon_failed_open``.
+        try:
+            self._conn.row_factory = sqlite3.Row
+            self._apply_pragmas()
+            self._migrate()
+        except BaseException as exc:
+            self._abandon_failed_open(exc)
+            raise
+
+    def _abandon_failed_open(self, original: BaseException) -> None:
+        """Release the connection an ``__init__`` that is about to raise opened.
+
+        A constructor that raises hands the caller no object, so nothing else
+        CAN close this connection: the name it would be bound to never binds.
+        The outer Gate-0 opener is not a substitute and was measured not to be
+        one -- ``events/durability.py::open_gate0_spine_writer`` guards its
+        cleanup with ``if "ledger" in locals()``, which is False precisely when
+        the constructor is what raised, so before this a failed open had no
+        reaper at all.
+
+        That left the handle to the garbage collector, i.e. to an
+        indeterminate moment decided by unrelated allocation -- the same defect
+        written up at length in ``kernel/effects.py::_initialize``: ``-wal`` and
+        ``-shm`` exist exactly while a connection is open, so anything that
+        stats those companions saw files that could vanish between an existence
+        check and a resolve. On Windows the leak is coarser still: the open
+        handle blocks a rename of the database file itself.
+
+        The failure is not hypothetical. The note in ``_apply_pragmas`` records
+        the first-ever ``journal_mode=WAL`` transition failing 14/40 runs under
+        four-thread contention -- raised from inside this constructor, on the
+        path a caller that builds one ledger per concurrent attempt takes.
+
+        Cleanup must never replace the diagnosis. ``close()`` already swallows
+        ``sqlite3.Error``; if it somehow raises anything else, that is recorded
+        as a note ON the original exception rather than raised over it or
+        dropped on the floor.
+        """
+        try:
+            self.close()
+        except BaseException as cleanup:  # pragma: no cover - close() swallows
+            original.add_note(
+                f"additionally failed to close the connection opened for "
+                f"{self.path}: {cleanup!r}")
 
     # -- setup ------------------------------------------------------------- #
     def _apply_pragmas(self) -> None:
