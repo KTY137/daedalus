@@ -1,0 +1,82 @@
+{
+  "base": "http://127.0.0.1:8765",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "shots": [
+    {
+      "themeId": "referenz",
+      "chrome": "bar",
+      "chat": "column",
+      "stage": "cards",
+      "nodes": 20,
+      "focus": "daedalus/chip_design/executor.py",
+      "counts": "19 direkt · 457 über zwei Ebenen",
+      "status": "daedalus_wt · C:\\Users\\Administrator\\Desktop\\projects\\daedalus\\.claude\\worktrees\\g1-ui-ikarus4 laufen · 7 beeinträchtigt · 3 fehlen · 3 ungeprüft · 3 unbekannt6 nicht bewiesen: bench.residency, bench.scheduled_task, bench.engine_crashes …Promotion gesperrt · 2 BlockerStatusdetails ausblenden1542 Dateien im Kern · 69 ausgeschlossen von 1611 gescanntKarte 1542 Knoten · 3851 Kanten · 50 führen herausImportgraph nicht verfügbarkein tree-sitter · kein lizardlive · 0 laufen · 0 in der Schlange",
+      "page": "karte",
+      "file": "karte-referenz.png"
+    },
+    {
+      "themeId": "referenz",
+      "chrome": "bar",
+      "chat": "column",
+      "pending": "0",
+      "status": "daedalus_wt · C:\\Users\\Administrator\\Desktop\\projects\\daedalus\\.claude\\worktrees\\g1-ui-ikarus4 laufen · 7 beeinträchtigt · 3 fehlen · 3 ungeprüft · 3 unbekannt6 nicht bewiesen: bench.residency, bench.scheduled_task, bench.engine_crashes …Promotion gesperrt · 2 BlockerStatusdetails ausblenden1542 Dateien im Kern · 69 ausgeschlossen von 1611 gescanntKarte 1542 Knoten · 3851 Kanten · 50 führen herausImportgraph nicht verfügbarkein tree-sitter · kein lizardlive · 0 laufen · 0 in der Schlange",
+      "page": "gespraech",
+      "nodes": 0,
+      "focus": "",
+      "counts": "",
+      "file": "gespraech-referenz.png"
+    },
+    {
+      "themeId": "leitstand",
+      "chrome": "bar",
+      "chat": "column",
+      "stage": "cards",
+      "nodes": 20,
+      "focus": "daedalus/chip_design/executor.py",
+      "counts": "19 direkt · 457 über zwei Ebenen",
+      "status": "daedalus_wt · C:\\Users\\Administrator\\Desktop\\projects\\daedalus\\.claude\\worktrees\\g1-ui-ikarus4 laufen · 7 beeinträchtigt · 3 fehlen · 3 ungeprüft · 3 unbekannt6 nicht bewiesen: bench.residency, bench.scheduled_task, bench.engine_crashes …Promotion gesperrt · 2 BlockerStatusdetails ausblenden1542 Dateien im Kern · 69 ausgeschlossen von 1611 gescanntKarte 1542 Knoten · 3851 Kanten · 50 führen herausImportgraph nicht verfügbarkein tree-sitter · kein lizardlive · 0 laufen · 0 in der Schlange",
+      "page": "karte",
+      "file": "karte-leitstand.png"
+    },
+    {
+      "themeId": "leitstand",
+      "chrome": "bar",
+      "chat": "column",
+      "pending": "0",
+      "status": "daedalus_wt · C:\\Users\\Administrator\\Desktop\\projects\\daedalus\\.claude\\worktrees\\g1-ui-ikarus4 laufen · 7 beeinträchtigt · 3 fehlen · 3 ungeprüft · 3 unbekannt6 nicht bewiesen: bench.residency, bench.scheduled_task, bench.engine_crashes …Promotion gesperrt · 2 BlockerStatusdetails ausblenden1542 Dateien im Kern · 69 ausgeschlossen von 1611 gescanntKarte 1542 Knoten · 3851 Kanten · 50 führen herausImportgraph nicht verfügbarkein tree-sitter · kein lizardlive · 0 laufen · 0 in der Schlange",
+      "page": "gespraech",
+      "nodes": 0,
+      "focus": "",
+      "counts": "",
+      "file": "gespraech-leitstand.png"
+    },
+    {
+      "themeId": "kammer",
+      "chrome": "bar",
+      "chat": "column",
+      "stage": "forest",
+      "nodes": 39,
+      "focus": "daedalus/chip_design/executor.py",
+      "counts": "19 direkt · 457 über zwei Ebenen",
+      "status": "daedalus_wt · C:\\Users\\Administrator\\Desktop\\projects\\daedalus\\.claude\\worktrees\\g1-ui-ikarus4 laufen · 7 beeinträchtigt · 3 fehlen · 3 ungeprüft · 3 unbekannt6 nicht bewiesen: bench.residency, bench.scheduled_task, bench.engine_crashes …Promotion gesperrt · 2 BlockerStatusdetails ausblenden1542 Dateien im Kern · 69 ausgeschlossen von 1611 gescanntKarte 1542 Knoten · 3851 Kanten · 50 führen herausImportgraph nicht verfügbarkein tree-sitter · kein lizardlive · 0 laufen · 0 in der Schlange",
+      "page": "karte",
+      "file": "karte-kammer.png"
+    },
+    {
+      "themeId": "kammer",
+      "chrome": "bar",
+      "chat": "column",
+      "pending": "0",
+      "status": "daedalus_wt · C:\\Users\\Administrator\\Desktop\\projects\\daedalus\\.claude\\worktrees\\g1-ui-ikarus4 laufen · 7 beeinträchtigt · 3 fehlen · 3 ungeprüft · 3 unbekannt6 nicht bewiesen: bench.residency, bench.scheduled_task, bench.engine_crashes …Promotion gesperrt · 2 BlockerStatusdetails ausblenden1542 Dateien im Kern · 69 ausgeschlossen von 1611 gescanntKarte 1542 Knoten · 3851 Kanten · 50 führen herausImportgraph nicht verfügbarkein tree-sitter · kein lizardlive · 0 laufen · 0 in der Schlange",
+      "page": "gespraech",
+      "nodes": 0,
+      "focus": "",
+      "counts": "",
+      "file": "gespraech-kammer.png"
+    }
+  ],
+  "consoleErrors": []
+}

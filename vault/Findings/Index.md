@@ -23,5 +23,6 @@ autoritativen Artefakt im Repo. Nie kopieren — `docs/` bleibt die Quelle.
 
 - [[Nested-Checkout-Instrumentenausfall-20260826]] — ein Checkout im Checkout schaltete drei Instrumente still ab (573->94, 3242 von 3622)
 - [[Vet-Review-20260826]] — vet.py hält unter Sondierung; MCP-Filesystem-Grant ist für das Gate unsichtbar (clear bei Wurzel C:/)
+- [[Ikarus-Agent-Surface-20260902]] — Ikarus zeigt, was der Kernel quittiert hat: Protokoll pro Antwort, Verlauf aus der Spine, /-Befehle (G1-UI-05)
 
 Neue Findings: Template [[../Templates/Finding|Finding]] nutzen.
