@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
+from daedalus.kernel.contracts.base import _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.provider_executable_targets import (
     ProviderExecutableTargetAuthority,
@@ -55,7 +56,6 @@ from daedalus.runtimes.provider_target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
     ProviderTargetVerificationError,
 )
-from daedalus.schemas import _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 from daedalus.spine.ledger import STATE_COMPLETED
 

@@ -20,11 +20,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from daedalus.kernel.contracts.base import _revision, _sha256
 from daedalus.runtimes.provider_target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionError,
     ProviderTargetReceiptRetentionAdmissionReceipt,
 )
-from daedalus.schemas import _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 _SCHEMA = "daedalus-provider-target-receipt-retention-recovery-decision/1"

@@ -15,6 +15,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
+from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.provider_invocation_authority import (
     ProviderInvocationObservationAuthority,
@@ -28,7 +29,6 @@ from daedalus.runtimes.provider_invocation_registry import (
     ProviderInvocationRegistryManifest,
 )
 from daedalus.runtimes.provider_observation import _normalize_keyring
-from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 

@@ -13,6 +13,7 @@ import hmac
 from typing import Any, Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
+from daedalus.kernel.contracts.base import _identifier
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.kernel.source_trees import (
     SourceTreeEntry,
@@ -43,7 +44,6 @@ from daedalus.runtimes.provider_target_verification_contracts import (
     VerifiedPythonTarget,
     _verification_signature,
 )
-from daedalus.schemas import _identifier
 
 
 def _target_parts(target: str) -> tuple[str, tuple[str, ...]]:

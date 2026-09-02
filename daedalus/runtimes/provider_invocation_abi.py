@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
 
+from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.provider_executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
@@ -31,7 +32,6 @@ from daedalus.runtimes.provider_invocation_authority import (
 )
 from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
 from daedalus.runtimes.provider_observation import _normalize_keyring
-from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 

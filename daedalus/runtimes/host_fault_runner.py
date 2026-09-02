@@ -21,12 +21,12 @@ from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 
+from daedalus.kernel.contracts.base import ContractProvenance
 from daedalus.runtimes.fault_matrix import (
     RuntimeFaultCatalog,
     RuntimeFaultObservation,
     RuntimeFaultScenario,
 )
-from daedalus.schemas import ContractProvenance
 from daedalus.spine.envelope import canonical_json, canonical_sha
 
 _SCHEMA = "daedalus-linux-host-fault-evidence/1"

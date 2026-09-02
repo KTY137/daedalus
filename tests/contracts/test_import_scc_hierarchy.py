@@ -90,7 +90,32 @@ CENSUS_MODULES = 433
 # time. That is also why this census was NOT an instrument that could have
 # caught the deferred facade import G1-HIER-12 removed -- it saw the edge all
 # along and had no opinion about when it ran.
-CENSUS_EDGES = 1624
+#
+# 1624 -> 1630 in G1-HIER-14, the same repoint for all 33 ``daedalus/runtimes``
+# modules that imported the facade. It added no module and deleted none, and
+# every one of the 33 had exactly ONE module-scope ``from daedalus.schemas``
+# statement, so each spends its single facade edge and buys one edge per owner
+# it now names. The +6 is the sum of (owners named - 1) and decomposes as five
+# files; the other 28 name exactly one owner and are worth 0 each:
+#
+#   profiles.py                       -1 facade  +3 owners  = +2
+#       .contracts.{base,resources,runtime}
+#   live_probe_drivers.py             -1 facade  +2 owners  = +1
+#   trust.py                          -1 facade  +2 owners  = +1
+#       both .contracts.{base,runtime}
+#   ..._retention_admission.py        -1 facade  +2 owners  = +1
+#   ..._retention_effect_terminal_evidence.py    +2 owners  = +1
+#       both .contracts.{base,policy}
+#
+# Twenty-eight of the 33 take only ``daedalus.kernel.contracts.base``, which is
+# why a 33-file change moves this total by 6 rather than by 33: ``base`` owns
+# the shared validators (``_sha256``, ``_identifier``, ``_revision``, ...) that
+# most of these modules were reaching through the facade to get.
+#
+# The five decomposed files were checked against the RESOLVED graph, not just
+# their import text, before the edit: none of them already named the owner it
+# was about to gain, so no line of the +6 is double-counted.
+CENSUS_EDGES = 1630
 
 
 def _module_name(path: str) -> str:

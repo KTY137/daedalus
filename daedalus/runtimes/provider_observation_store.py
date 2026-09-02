@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from daedalus.kernel.contracts.base import _identifier, _revision
 from daedalus.runtimes.provider_observation import (
     ProviderObservationAuthorityBindingError,
     ProviderObservationAuthorityStateError,
@@ -34,7 +35,6 @@ from daedalus.runtimes.provider_observation import (
     _secret_bytes,
     observation_keyring_digest,
 )
-from daedalus.schemas import _identifier, _revision
 from daedalus.spine.envelope import canonical_sha
 
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     _artifact_locator,
     _identifier,
     _repo_path,

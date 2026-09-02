@@ -21,6 +21,8 @@ from typing import Any, Iterator, Mapping
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.contracts.base import _repo_path, _revision, _sha256
+from daedalus.kernel.contracts.policy import PolicyDecision
 from daedalus.kernel.effect_replay import (
     EffectExecutionReplaySnapshot,
     EffectReplayProjectionError,
@@ -48,7 +50,6 @@ from daedalus.runtimes.provider_target_receipt_retention_preflight import (
     ProviderTargetReceiptRetentionPreflightReceipt,
     verify_provider_target_receipt_retention_preflight,
 )
-from daedalus.schemas import PolicyDecision, _repo_path, _revision, _sha256
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
 from daedalus.spine.ledger import SpineLedger

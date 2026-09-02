@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.runtimes.contracts.repository import RepositoryHeadRevisionReceipt
 from daedalus.runtimes.provider_executable_structure import (
     ProviderExecutableStructureReceipt,
@@ -33,7 +34,6 @@ from daedalus.runtimes.provider_target_receipt_retention_effect_terminal_evidenc
 from daedalus.runtimes.provider_target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
 )
-from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 _SCHEMA = "daedalus-provider-executable-pre-admission/1"

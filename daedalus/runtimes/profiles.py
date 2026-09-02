@@ -12,16 +12,9 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, ClassVar, Mapping, Sequence
 
-from daedalus.kernel.runtime_conformance import (
-    RuntimeConformanceError,
-    verify_current_conformance,
-)
-from daedalus.schemas import (
+from daedalus.kernel.contracts.base import (
     CanonicalContract,
     ContractProvenance,
-    RuntimeCapabilities,
-    RuntimeConformanceReceipt,
-    RuntimeManifest,
     _identifier,
     _non_empty,
     _require_provenance_inputs,
@@ -29,6 +22,12 @@ from daedalus.schemas import (
     _sha256,
     _sorted_strings,
     _utc_timestamp,
+)
+from daedalus.kernel.contracts.resources import RuntimeCapabilities
+from daedalus.kernel.contracts.runtime import RuntimeConformanceReceipt, RuntimeManifest
+from daedalus.kernel.runtime_conformance import (
+    RuntimeConformanceError,
+    verify_current_conformance,
 )
 from daedalus.spine.envelope import canonical_sha
 

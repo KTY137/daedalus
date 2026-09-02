@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
 
+from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.runtimes.provider_executable_object_registry import (
@@ -32,7 +33,6 @@ from daedalus.runtimes.provider_observation import (
     ProviderObservationAuthorityError,
     ProviderObservationBindingLedger,
 )
-from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 

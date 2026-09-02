@@ -20,7 +20,13 @@ from pathlib import Path
 from typing import Iterable
 
 from daedalus.kernel.contracts import RuntimeTrustPortError
-from daedalus.schemas import _identifier, _non_empty, _revision, _sha256, _utc_timestamp
+from daedalus.kernel.contracts.base import (
+    _identifier,
+    _non_empty,
+    _revision,
+    _sha256,
+    _utc_timestamp,
+)
 from daedalus.spine.envelope import canonical_sha
 
 from .profiles import RuntimeConformanceEnvelope, RuntimeProbeIdentity

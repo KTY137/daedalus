@@ -27,13 +27,13 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
+from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.runtimes.provider_executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
 from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
-from daedalus.schemas import _identifier, _revision, _sha256
 
 
 _SCHEMA = "daedalus-provider-executable-object-admission/2"

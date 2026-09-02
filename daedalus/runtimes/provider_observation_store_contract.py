@@ -24,10 +24,16 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from daedalus.kernel.contracts import EffectLease
+from daedalus.kernel.contracts.base import (
+    _identifier,
+    _repo_path,
+    _revision,
+    _sha256,
+    _utc_timestamp,
+)
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
 from daedalus.runtimes.provider_observation import ProviderObservationAuthority
 from daedalus.runtimes.provider_observation_store import ProviderObservationStoreTarget
-from daedalus.schemas import _identifier, _repo_path, _revision, _sha256, _utc_timestamp
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
 

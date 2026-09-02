@@ -45,6 +45,7 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from daedalus.kernel.contracts import EffectLeaseRequest
+from daedalus.kernel.contracts.policy import PolicyDecision
 from daedalus.kernel.effects import EffectLeaseLedger
 from daedalus.kernel.offload_lease import kill_switch_generation, lease_ledger_path
 from daedalus.kernel.runtime_effects import (
@@ -52,7 +53,6 @@ from daedalus.kernel.runtime_effects import (
     issue_runtime_bound_effect_lease,
 )
 from daedalus.runtimes.trust_store import RuntimeTrustLedger
-from daedalus.schemas import PolicyDecision
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
     EntrypointSpec,
