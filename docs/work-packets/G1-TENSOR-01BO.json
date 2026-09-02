@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BO",
+  "title": "Reuse validated coordinate labels for TensorView canonical ordering",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BN",
+  "campaign_issue": 239,
+  "base_revision": "3b8bd9f4493bce278b18192d8047a22e1fe57996",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView validates every entry coordinate label against a canonically sorted TensorAxis before sorting and retaining entries, but its canonical entry-order key converted every validated label back to its numeric axis position with bisect_left. Construction paid that conversion for every sort-key evaluation, and index_coordinate()/prefix select repeated the same label-position reconstruction during binary-search comparisons. The numeric position is required only by the public index_coordinate() result, not to preserve canonical ordering.",
+  "primary_claim": "TensorView now orders and bisects entries directly by the already-validated canonical coordinate tuples. Because each TensorAxis.labels sequence is canonical lexicographic order and every retained coordinate was validated against that axis, coordinate-label order is order-isomorphic to the former numeric label-position order. index_coordinate() converts labels to integer positions only after exact retained-entry equality is established; prefix select bisects the same canonical coordinate tuples directly.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_select_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BO.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 74,
+    "code_test_deletions": 36,
+    "production_additions": 35,
+    "production_deletions": 36,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the canonical coordinate representation already owned and validated by SparseTensorEntry/TensorView rather than rebuilding numeric label-position tuples inside entry-order comparisons or introducing an entry-key cache/index. Keep numeric projection only at the API boundary that actually returns integer coordinates.",
+  "acceptance": [
+    "construction sorts retained entries by the existing validated canonical coordinate tuple while preserving relation/masked/value/evidence tie-breakers",
+    "index_coordinate bisects retained entries without rereading axis labels during entry comparisons and projects to integer label positions only after exact retained-entry equality",
+    "prefix select validates its requested label once and bisects canonical coordinate tuples without repeatedly reconstructing numeric label positions",
+    "an adversarial 512-entry label-read probe caps node-label reads at 16, observes zero plane-label reads for the node-prefix selection, and keeps final index projection bounded",
+    "existing binary-entry-read, non-prefix filtering, unknown-axis/label and foreign-entry fail-closed regressions remain in the focused contract surface",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured latency/memory improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "d0edcf8bb055dd5a62ef3aab9a6a61829ca0c0f2",
+    "code_test_revision": "145e289c8766dd8e0a156615e02533608aa39018",
+    "production_blob": "f4fe9eff55a744f4ae8108d4c441e7af1411c046",
+    "focused_test_blob": "049ec997c2bf90f8751fa462ae6de534863a4c3c",
+    "fourfold_v2_run": 33659642975,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 145e289c8766dd8e0a156615e02533608aa39018",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 145e289c8766dd8e0a156615e02533608aa39018. The source diff and adversarial label-read probe establish reuse of validated canonical coordinate labels during entry ordering/bisection and defer numeric index projection to the index_coordinate return boundary. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BO commits; Fourfold/Forest authority, Tensor wire contracts and canonical semantic ordering remain unchanged, while TensorView would resume reconstructing numeric label positions inside entry-order comparisons.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
