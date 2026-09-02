@@ -225,16 +225,26 @@ def _alias_target(tree: ast.Module) -> str | None:
 #: ``__getattribute__`` intercepts even more.
 _DYNAMIC_ATTRIBUTE_HOOKS = frozenset({"__getattr__", "__getattribute__"})
 
-#: Attribute names the import machinery writes into a file-backed module's
+#: Attribute names the import machinery writes into EVERY file-backed module's
 #: ``__dict__`` before any user code can observe it. Reading one off a genuine
 #: module object therefore CANNOT reach a PEP 562 ``__getattr__`` -- module
 #: ``__getattr__`` is consulted only when normal ``__dict__`` lookup fails --
 #: so it is the one attribute load :func:`_installs_dynamic_module_protocol`
 #: can prove executes no user code. The real facade needs exactly this: its
 #: last statement is ``_module.__file__ = _owner.__file__``.
+#:
+#: MEMBERSHIP IS THE ARGUMENT, not the description that motivates it.
+#: ``__path__`` sat here for one round because "the import machinery writes
+#: it" is true -- of PACKAGES. MEASURED 2026-09-02: it is the one name of the
+#: seven absent from a plain module's ``__dict__`` and present on a package,
+#: so reading it off a non-package misses the dict and fires exactly the
+#: ``__getattr__`` this set exists to prove unreachable. The security review's
+#: fifth round ran arbitrary code through it, in both binding spellings.
+#: ``test_the_machinery_dunder_set_holds_its_own_argument`` now checks every
+#: member against a plain module rather than against a sentence.
 _IMPORT_MACHINERY_DUNDERS = frozenset({
     "__name__", "__file__", "__doc__", "__package__",
-    "__loader__", "__spec__", "__path__",
+    "__loader__", "__spec__",
 })
 
 
@@ -474,15 +484,27 @@ def _installs_dynamic_module_protocol(tree: ast.Module, root: Path) -> bool:
     def inert_store(node: ast.expr) -> bool:
         """Is storing into this target free of user code?
 
-        A bare name always is. An attribute store on a name is allowed because
-        the real facade ends with one -- see the residual note in the packet
-        doc, which records that such a store runs the facade's own
-        ``__setattr__`` when one is defined.
+        A bare name always is: binding a local runs nothing.
+
+        An attribute store is allowed ONLY on the module's own slot, because a
+        store runs the target's ``__setattr__``. The previous version allowed
+        it on any Name, which the security review's fifth round turned into a
+        working bypass in one line: ``EVIL.anything = 1`` has an inert value
+        and an attribute target on a Name, so the whole statement was called
+        inert while ``_E.__setattr__`` undid the retype. That was the same
+        r4/r5 attack with LOAD replaced by STORE, and -- worse -- it sat
+        OUTSIDE the residual bound this packet had documented, which scoped
+        the ``__setattr__`` risk to the retyped module's own facade class.
+
+        Restricting to the own slot is exactly what the real facade's last
+        statement (``_module.__file__ = _owner.__file__``) needs and nothing
+        more, so the documented bound and the code now describe the same
+        surface.
         """
         if isinstance(node, ast.Name):
             return True
         if isinstance(node, ast.Attribute):
-            return isinstance(node.value, ast.Name) or is_own_slot(node.value)
+            return value_of(node.value) is _SELF or is_own_slot(node.value)
         return False
 
     def statement_is_inert(node: ast.stmt) -> bool:

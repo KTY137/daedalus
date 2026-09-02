@@ -662,6 +662,75 @@ _ALIAS_FIXTURE = {
         "_m = sys.modules[__name__]\n"
         "_m.__class__ = _F\n"
         "_m.__file__ = _owner.__file__\n"),
+    # SECURITY REVIEW 2026-09-02, FIFTH round. Both holes sat exactly in the
+    # two places where round four's inertness whitelist was widened BY HAND,
+    # which is the whole lesson: the parts derived from a rule held, the parts
+    # written from judgement did not.
+    #
+    # s1: `inert_store` allowed an attribute store on ANY Name, not just the
+    # module's own slot -- so a store on an arbitrary imported object was
+    # "inert" while running that object's `__setattr__`. This is r4/r5 one
+    # keystroke further along: LOAD became STORE. It is OUTSIDE the bound the
+    # packet documented, which scoped the `__setattr__` risk to the retyped
+    # module's own facade class.
+    "h_setattr_evil.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _E:\n"
+        "    def __setattr__(self, name, value):\n"
+        '        sys.modules["pkg.store_undo_other"].__class__ = ModuleType\n'
+        "EVIL = _E()\n"),
+    "store_undo_other.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "from pkg.h_setattr_evil import EVIL\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "EVIL.anything = 1\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # s2/s3: `__path__` was in the machinery-dunder set but is NOT written into
+    # a NON-PACKAGE module's __dict__ -- MEASURED 2026-09-02, it is the only
+    # one of the seven that is absent on a plain module and present on a
+    # package. Reading it off a plain module therefore MISSES the __dict__ and
+    # fires a module-level PEP 562 __getattr__, which is arbitrary code. Both
+    # binding spellings reach it.
+    "h_path_getattr.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "def __getattr__(name):\n"
+        '    sys.modules["pkg.path_undo_from"].__class__ = ModuleType\n'
+        "    return 1\n"),
+    "h_path_getattr2.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "def __getattr__(name):\n"
+        '    sys.modules["pkg.path_undo_import_as"].__class__ = ModuleType\n'
+        "    return 1\n"),
+    "path_undo_from.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "from pkg import h_path_getattr\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "_y = h_path_getattr.__path__\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    "path_undo_import_as.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "import pkg.h_path_getattr2 as M\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "_y = M.__path__\n"
+        "def real_func():\n"
+        "    return 1\n"),
 }
 
 #: A namespace package (PEP 420): a directory with a ``.py`` file and no
@@ -965,6 +1034,55 @@ class AliasedModuleTests(unittest.TestCase):
         34 files that import through it are the control census. If this goes
         red, the packet's primary claim dies with it."""
         self.assertEqual(self.judge("retype_then_module_dunder", "anything"), [])
+
+    # -- SECURITY REVIEW 2026-09-02, FIFTH round --------------------------
+    # Both holes sat in the two clauses of round four's whitelist that were
+    # widened by hand rather than derived from the rule.
+
+    def test_a_store_on_another_object_after_a_retype_kills_opacity(self):
+        """s1: LOAD became STORE. ``EVIL.anything = 1`` has an inert VALUE and
+        an attribute target on a Name, so the old `inert_store` called the
+        whole statement inert while `_E.__setattr__` undid the retype. The
+        store must be on the module's OWN slot to prove anything."""
+        self.assertTrue(self.judge("store_undo_other", "INVENTED"))
+        self.assertEqual(self.judge("store_undo_other", "real_func"), [])
+
+    def test_reading_dunder_path_off_a_plain_module_kills_opacity(self):
+        """s2. MEASURED 2026-09-02: of the seven dunders the set carried,
+        ``__path__`` is the only one absent from a plain module's ``__dict__``
+        and present on a package -- so reading it off a non-package MISSES the
+        dict and fires a module-level PEP 562 ``__getattr__``. That breaks the
+        very argument the whitelist entry rests on."""
+        self.assertTrue(self.judge("path_undo_from", "INVENTED"))
+        self.assertEqual(self.judge("path_undo_from", "real_func"), [])
+
+    def test_dunder_path_is_refused_through_the_import_as_spelling_too(self):
+        """s3: ``import pkg.h as M`` binds a module just as
+        ``from pkg import h`` does, so both spellings must refuse."""
+        self.assertTrue(self.judge("path_undo_import_as", "INVENTED"))
+        self.assertEqual(self.judge("path_undo_import_as", "real_func"), [])
+
+    def test_the_machinery_dunder_set_holds_its_own_argument(self):
+        """The rule the set is derived from, pinned so it cannot drift again.
+
+        Every member must be present in a PLAIN file-backed module's
+        ``__dict__`` -- that is the entire reason reading one cannot reach a
+        PEP 562 ``__getattr__``. ``__path__`` satisfied the description
+        "import machinery writes it" while failing this test, which is how it
+        got in. Now the test, not the description, decides membership.
+        """
+        import types
+        from daedalus.lanes.checks import _IMPORT_MACHINERY_DUNDERS
+        probe = types.ModuleType("probe_plain_module")
+        probe.__file__ = "probe.py"
+        probe.__loader__ = None
+        probe.__spec__ = None
+        probe.__package__ = ""
+        missing = sorted(d for d in _IMPORT_MACHINERY_DUNDERS
+                         if d not in probe.__dict__)
+        self.assertEqual(missing, [], "a dunder absent from a plain module's "
+                                      "__dict__ reaches module __getattr__")
+        self.assertNotIn("__path__", _IMPORT_MACHINERY_DUNDERS)
 
 
 class RunChecksTests(unittest.TestCase):
