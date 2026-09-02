@@ -540,52 +540,95 @@ def test_native_runner_preserves_exact_argv_cwd_utf8_and_returncode(
     assert completed.stderr == "bad-utf8-�"
 
 
+# The deadline these two tests hand the runner has to outlast ONE thing that is
+# not the subject: the child interpreter's own start-up. Both assert that the
+# timeout preserved whatever the child had already written, so a child that has
+# not reached its first write yet produces an empty `stdout` and a red test that
+# says nothing about the runner.
+#
+# [MEASURED 2026-09-02, this box] a bare `timeout=0.1` is inside that start-up
+# window whenever the machine is busy: under a 16-worker `pytest -n 16` run both
+# tests failed on `assert "started" in ...stdout` / `assert ...stdout`, and both
+# passed serially in the same tree. Idle, `sys.executable -c` reaches its first
+# write in well under 100 ms -- which is exactly why the race was invisible for
+# as long as the suite only ever ran one test at a time.
+#
+# So the deadline ESCALATES instead of being raised outright. Idle, the first
+# attempt still runs at the original 0.1 s and nothing about the test changed.
+# Loaded, it retries at 0.5 s and 2.0 s. Raising the deadline to 2.0 s directly
+# was rejected on a measurement: the firehose child below buffers 24 MB at 0.1 s
+# but 336 MB at 2.0 s, and a fixed 2.0 s deadline would pay that on every run.
+#
+# What is NOT relaxed: each attempt must still raise `_NativeRunTimeout`, and
+# must still do it promptly (the children run for 30 s and forever respectively,
+# so a runner that ignored `timeout` fails the very first attempt on the
+# `pytest.raises` and never reaches the retry).
+_TIMEOUT_ESCALATION = (0.1, 0.5, 2.0)
+
+
+def _timed_out_holding_partial_output(run, argv: list[str], cwd: str):
+    """The runner's timeout verdict, retried only until the child had spoken.
+
+    Returns the `_NativeRunTimeout` whose `stdout` is non-empty. Fails if the
+    runner ever declines to time out, takes longer than its own deadline plus a
+    generous scheduling margin, or never captures anything at the longest
+    deadline -- that last case is the real defect this asserts against.
+    """
+    captured_value = None
+    for timeout in _TIMEOUT_ESCALATION:
+        started = time.monotonic()
+        with pytest.raises(_NativeRunTimeout) as captured:
+            run(
+                argv,
+                cwd=cwd,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+            )
+        assert time.monotonic() - started < timeout + 3
+        captured_value = captured.value
+        if captured_value.stdout:
+            return captured_value
+    assert captured_value is not None and captured_value.stdout, (
+        "the runner timed out at every deadline up to "
+        f"{_TIMEOUT_ESCALATION[-1]}s but never preserved the child's output"
+    )
+    return captured_value
+
+
 def test_native_runner_timeout_kills_and_reaps_child(tmp_path: Path) -> None:
     run = _sealed_native_run(tmp_path)
-    started = time.monotonic()
 
-    with pytest.raises(_NativeRunTimeout) as captured:
-        run(
-            [
-                sys.executable,
-                "-c",
-                "import time; print('started', flush=True); time.sleep(30)",
-            ],
-            cwd=str(tmp_path),
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
-            timeout=0.1,
-            check=False,
-        )
+    captured = _timed_out_holding_partial_output(
+        run,
+        [
+            sys.executable,
+            "-c",
+            "import time; print('started', flush=True); time.sleep(30)",
+        ],
+        str(tmp_path),
+    )
 
-    assert time.monotonic() - started < 3
-    assert "started" in captured.value.stdout
+    assert "started" in captured.stdout
 
 
 def test_native_runner_continuous_output_cannot_starve_timeout(tmp_path: Path) -> None:
     run = _sealed_native_run(tmp_path)
-    started = time.monotonic()
 
-    with pytest.raises(_NativeRunTimeout) as captured:
-        run(
-            [
-                sys.executable,
-                "-c",
-                "import os; chunk=b'x'*4096;\nwhile True: os.write(1, chunk)",
-            ],
-            cwd=str(tmp_path),
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
-            timeout=0.1,
-            check=False,
-        )
+    captured = _timed_out_holding_partial_output(
+        run,
+        [
+            sys.executable,
+            "-c",
+            "import os; chunk=b'x'*4096;\nwhile True: os.write(1, chunk)",
+        ],
+        str(tmp_path),
+    )
 
-    assert time.monotonic() - started < 3
-    assert captured.value.stdout
+    assert captured.stdout
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX fork/exec contract")

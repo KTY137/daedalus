@@ -52,6 +52,26 @@ test = [
     "hypothesis>=6.163",
     "jsonschema>=4.23",
     "pytest-asyncio>=0.23.5",
+    # pytest-xdist -- the suite is process-bound, not compute-bound: 368 of the
+    #                 612 files under tests/ spawn a subprocess, so a serial run
+    #                 spends most of its wall clock waiting on child processes
+    #                 while 15 of 16 hardware threads idle. [MEASURED 2026-09-02,
+    #                 AMD Ryzen 7 9800X3D, 8 cores / 16 threads, 10548 tests]
+    #                 `-q`                       -> 3030 s (50m25s), CPU avg 9.8%
+    #                 `-q -n auto --dist loadfile` -> 503 s (8m23s), CPU avg 58.4%
+    #                 -- 6.0x. Neither knob above `-n auto` helped: `-n 24` cost
+    #                 525 s and `--dist worksteal` 586 s (splitting a file across
+    #                 workers re-pays its module import on each one, and several
+    #                 files here carry 5-9 s of setup). `loadfile` is also what
+    #                 makes the parallel verdict equal the serial one.
+    #
+    #                 It is NOT wired into an `addopts` default: 77 of this
+    #                 repository's 109 workflows install a bare `pytest` without
+    #                 the `[test]` extra, and an unconditional `-n auto` would
+    #                 turn every one of them into `unrecognized arguments: -n`.
+    #                 So parallelism is an explicit flag (README.md "Tests"),
+    #                 and its absence costs time rather than correctness.
+    "pytest-xdist>=3.6",
 ]
 
 [project.scripts]

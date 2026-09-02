@@ -33,8 +33,23 @@ contracts around them. Measure them at the revision you are evaluating:
 python -m daedalus.cli health --deep
 python -m daedalus.cli map --check
 python tools/docs_reference_check.py
-python -m pytest tests/
+python -m pytest tests/ -n auto --dist loadfile
 ```
+
+`-n auto --dist loadfile` needs the `[test]` extra (it installs `pytest-xdist`)
+and is the intended way to run the whole suite: most of the wall clock is spent
+waiting on the child processes the tests spawn, so one worker per hardware
+thread turns a run measured in tens of minutes into one measured in minutes.
+Plain `python -m pytest tests/` still works and still means the same thing --
+without xdist the flags are simply rejected, never silently ignored. Keep
+`--dist loadfile` rather than the per-test default: it keeps each file's tests
+on one worker, which is what makes the parallel verdict equal the serial one.
+
+Two things a parallel run legitimately changes, both measured on 2026-09-02:
+each worker adds a `popen-gwN` component to `tmp_path`, which is enough to push
+`tests/test_chip_cli_canonical.py` over a 1000-character limit it already sits
+within ten characters of; and tests that race a wall-clock deadline against a
+child interpreter's start-up see that start-up take longer under load.
 
 Read [`docs/STATUS.md`](docs/STATUS.md) before trusting an old architecture
 snapshot or gate receipt. Historical measurements stay historical; they are not
