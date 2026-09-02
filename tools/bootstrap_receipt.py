@@ -523,6 +523,7 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
             # with the issuer's own reasons.
             from daedalus.kernel.offload_lease import (
                 WaveLeaseDenied, acquire_attempt_lease)
+            from daedalus.spine.picker import resolve_spine_db_path
 
             attempt = compose_task_attempt(task, **attempt_kwargs)
             head = base_revision or subprocess.run(
@@ -544,6 +545,11 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
                     "TaskAttempt isolated worktree via GitWorktreeManager; "
                     "candidate code never sees the primary checkout"),
                 worktree_root=attempt._manager.worktree_root,
+                # The outer composition supplies the repo-confined ledger path;
+                # the kernel neither owns nor discovers the spine projection.
+                # Same port, same resolver as the gate-1 ignition caller --
+                # deliberately NOT the process-global DAEDALUS_SPINE_DB.
+                intent_ledger_path_resolver=resolve_spine_db_path,
             )
             if isinstance(lease, WaveLeaseDenied):
                 res = None
