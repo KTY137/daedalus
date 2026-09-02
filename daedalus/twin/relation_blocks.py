@@ -8,6 +8,7 @@ future sparse backends.
 from __future__ import annotations
 
 import math
+from bisect import bisect_left
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
@@ -44,6 +45,14 @@ def _label(value: Any, name: str) -> str:
     if "\x00" in text:
         raise ValueError(f"{name} contains a NUL byte")
     return text
+
+
+def _label_position(labels: Sequence[str], label: str) -> int | None:
+    """Resolve one exact label from the already canonical sorted axis."""
+    position = bisect_left(labels, label)
+    if position == len(labels) or labels[position] != label:
+        return None
+    return position
 
 
 def _stored(value: Any, semiring_name: str) -> Any:
@@ -330,7 +339,6 @@ class TypedRelationBlock(Generic[T]):
             raise ValueError("subject and signature must use typed contract records")
         if not isinstance(row_axis, TypedAxis) or not isinstance(column_axis, TypedAxis):
             raise ValueError("row_axis and column_axis must be TypedAxis records")
-        rows, columns = row_axis.label_index, column_axis.label_index
         entries: dict[tuple[int, int], T] = {}
         for index, raw in enumerate(
             _sequence(coordinates, "block.coordinates", MAX_BLOCK_ENTRIES)
@@ -343,11 +351,13 @@ class TypedRelationBlock(Generic[T]):
                 raise ValueError(f"block.coordinates[{index}] must be (row, column, value)")
             row = _label(raw[0], f"block.coordinates[{index}].row")
             column = _label(raw[1], f"block.coordinates[{index}].column")
-            if row not in rows:
+            row_position = _label_position(row_axis.labels, row)
+            if row_position is None:
                 raise ValueError(f"unknown row label {row!r}")
-            if column not in columns:
+            column_position = _label_position(column_axis.labels, column)
+            if column_position is None:
                 raise ValueError(f"unknown column label {column!r}")
-            key = (rows[row], columns[column])
+            key = (row_position, column_position)
             value = reference.add(entries.get(key, reference.zero), raw[2])
             if value == reference.zero:
                 entries.pop(key, None)
@@ -405,18 +415,18 @@ class TypedRelationBlock(Generic[T]):
     def get(self, row_label: str, column_label: str, semiring: Semiring[T]) -> T:
         reference = self._require_semiring(semiring)
         row, column = _label(row_label, "row_label"), _label(column_label, "column_label")
-        rows, columns = self.row_axis.label_index, self.column_axis.label_index
-        if row not in rows:
+        row_position = _label_position(self.row_axis.labels, row)
+        if row_position is None:
             raise ValueError(f"unknown row label {row!r}")
-        if column not in columns:
+        column_position = _label_position(self.column_axis.labels, column)
+        if column_position is None:
             raise ValueError(f"unknown column label {column!r}")
-        target = columns[column]
-        start, stop = self.row_offsets[rows[row]], self.row_offsets[rows[row] + 1]
+        start, stop = self.row_offsets[row_position], self.row_offsets[row_position + 1]
         for position in range(start, stop):
             current = self.column_indices[position]
-            if current == target:
+            if current == column_position:
                 return self.values[position]
-            if current > target:
+            if current > column_position:
                 break
         return reference.zero
 
