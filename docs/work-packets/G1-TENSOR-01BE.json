@@ -1,0 +1,67 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BE",
+  "title": "Emit Hadamard CSR directly without rematerializing streamed intersections",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BD",
+  "campaign_issue": 239,
+  "base_revision": "ab3d5f8d1782b56c61623ba40091c669a36ba9a1",
+  "finding": "G1-TENSOR-01BD removed duplicate input maps from TypedRelationBlock.hadamard, but the streamed row-major intersections were still accumulated into a Python coordinate dictionary and then passed through _derived/_from_indexed, which sorted and rebuilt data that was already in canonical CSR order. This left a redundant full-result materialization and sort on the bounded reference path.",
+  "primary_claim": "The reference Hadamard contraction now appends non-zero intersections directly to canonical CSR offsets, column indices, and values while scanning the already-sorted rows. It preserves the same Fourfold subject, semiring, typed-axis, zero-elision, and operation-limit contracts and bypasses _from_indexed only for this naturally ordered result path.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_hadamard_streaming.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BE.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the canonical ordering guaranteed by CSR and the existing TypedRelationBlock constructor. Delete the transient result dictionary plus _derived/_from_indexed sort/reindex pass from Hadamard; do not add a second builder, planner, cache, alternate block type, iterator layer, or cost-model abstraction.",
+  "acceptance": [
+    "Hadamard emits canonical CSR row offsets and strictly increasing column indices directly, including an empty result row",
+    "Hadamard completes even when _from_indexed is forbidden after its operands are constructed",
+    "non-intersection scalar values remain unread and max_operations remains fail-closed",
+    "Fourfold subject, semiring, identical typed-axis, zero-elision, and persisted block validation remain unchanged",
+    "no OwnerApproval, promotion, gate transition, measured memory-speedup, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "code_test_revision": "f4aabe05c83b0c181e3dca9e5085caf7bd178e74",
+    "production_blob": "4ad6fc9095e51f05927dc9bd71d82e36cf2a4f3f",
+    "focused_test_blob": "8a11cb2691f01734ae9bb8b2597753e27b5fa468",
+    "fourfold_v2_run": 33593460923,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "contracts (3.10, 0): success",
+      "contracts (3.10, 123456): success",
+      "contracts (3.12, 0): success with bounded Tensor/Forest diagnostic",
+      "contracts (3.12, 123456): success",
+      "isolated-wheel: success",
+      "repository-collection: success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for the exact code/test revision above. Repository-wide evidence is collection-only, not a full-suite execution claim. Direct CSR emission is a structural materialization/sort reduction; no memory-speedup or benchmark superiority is inferred without measurement."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BE commits; Forest/Fourfold authority, persisted relation-block wire contracts, semiring semantics, and public product surfaces remain unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
