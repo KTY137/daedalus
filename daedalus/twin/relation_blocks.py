@@ -432,20 +432,19 @@ class TypedRelationBlock(Generic[T]):
         if self.column_axis != other.row_axis:
             raise ValueError("matrix composition requires an exactly shared typed middle axis")
         limit, operations = _operation_limit(max_operations), 0
-        right_rows = [
-            tuple(
-                (other.column_indices[position], other.values[position])
-                for position in range(other.row_offsets[row], other.row_offsets[row + 1])
-            )
-            for row in range(len(other.row_axis.labels))
-        ]
         result: dict[tuple[int, int], T] = {}
         for row in range(len(self.row_axis.labels)):
             for position in range(self.row_offsets[row], self.row_offsets[row + 1]):
-                for column, right_value in right_rows[self.column_indices[position]]:
+                middle = self.column_indices[position]
+                for right_position in range(
+                    other.row_offsets[middle],
+                    other.row_offsets[middle + 1],
+                ):
                     operations += 1
                     if operations > limit:
                         raise ValueError("reference contraction exceeds bounded operation limit")
+                    column = other.column_indices[right_position]
+                    right_value = other.values[right_position]
                     key = (row, column)
                     value = reference.add(
                         result.get(key, reference.zero),
