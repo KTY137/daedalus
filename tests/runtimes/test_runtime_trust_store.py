@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -398,3 +400,96 @@ def test_future_receipt_refuses_before_external_verification(tmp_path, monkeypat
 def test_integrity_key_is_external_and_must_be_strong(tmp_path) -> None:
     with pytest.raises(ValueError, match="at least 32 bytes"):
         RuntimeTrustLedger(tmp_path / "weak.sqlite3", integrity_key=b"weak")
+
+
+def _sqlite_is_open(db) -> tuple[bool, bool]:
+    """Return ``(companion_present, handle_open)`` for a SQLite database.
+
+    Two independent detectors, because this defect is not visible the same way
+    in every journal mode:
+
+    * ``-wal``/``-shm`` companions exist exactly while a connection is open;
+    * on Windows an open SQLite handle blocks renaming the database file.
+
+    The second is journal-mode independent, which matters because the sibling
+    stores carrying this same defect do not all enable WAL.
+    """
+
+    database = Path(db)
+    companion = Path(f"{database}-wal").exists() or Path(f"{database}-shm").exists()
+    moved = database.with_suffix(database.suffix + ".rename-probe")
+    try:
+        os.rename(database, moved)
+    except OSError:
+        return companion, True
+    os.rename(moved, database)
+    return companion, False
+
+
+def test_every_trust_ledger_connection_is_closed_and_writes_still_commit(
+    tmp_path, monkeypatch
+) -> None:
+    """Connection lifetime here is a fact of the code, not of collector timing.
+
+    All five of these methods used ``with self._connect() as connection``. For
+    sqlite3 that is a TRANSACTION scope, not a closing scope: it commits and
+    leaves the connection open. The leaked connection was unreachable garbage
+    held in a reference cycle, so it was finalized by the generational collector
+    at an unpredictable moment rather than by refcounting at method exit.
+    Anything that stats this store's WAL companions -- the retention-admission
+    topology scan does, resolving them strictly -- then sees a file that can
+    vanish between an existence check and a resolve.
+
+    MEASURED on the pre-fix tree: after ``__init__`` the ``-wal`` companion
+    existed and the database file was still locked; after ``gc.collect()`` both
+    were gone, while the ledger held no connection attribute.
+
+    This test must NOT call ``gc.collect()`` before asserting absence. A collect
+    finalizes the leaked connection itself and hides the defect. That is not
+    hypothetical: an earlier draft of this fix's sibling test did exactly that
+    and passed against an unfixed tree.
+
+    The second half proves the close cost no commit. These methods drive their
+    own transactions with ``BEGIN IMMEDIATE`` and reach an explicit ``COMMIT``
+    or ``ROLLBACK`` on every exit path, so a freshly opened ledger must still
+    see the admitted and quarantined rows.
+    """
+
+    database = tmp_path / "runtime-trust.sqlite3"
+
+    trust_ledger = ledger(database)
+    assert _sqlite_is_open(database) == (False, False), "_initialize leaked"
+
+    record, envelope, identity, receipt, manifest = admit(trust_ledger, monkeypatch)
+    assert _sqlite_is_open(database) == (False, False), "admit leaked"
+
+    trust_ledger.require_active(
+        runtime_id=manifest.runtime_id,
+        envelope_sha256=envelope.digest,
+        runtime_manifest_sha256=manifest.digest,
+        conformance_receipt_sha256=receipt.digest,
+        source_revision=manifest.source_revision,
+        now=NOW + timedelta(minutes=1),
+    )
+    assert _sqlite_is_open(database) == (False, False), "require_active leaked"
+
+    trust_ledger.records(manifest.runtime_id)
+    assert _sqlite_is_open(database) == (False, False), "records leaked"
+
+    # The admit COMMIT must have survived the explicit close, and must be
+    # visible to a connection this ledger instance never owned.
+    reopened = ledger(database)
+    assert [item.envelope_sha256 for item in reopened.records()] == [
+        record.envelope_sha256
+    ]
+
+    trust_ledger.quarantine(
+        runtime_id=manifest.runtime_id,
+        envelope_sha256=envelope.digest,
+        reason="leak-probe",
+        quarantined_at=NOW + timedelta(minutes=2),
+    )
+    assert _sqlite_is_open(database) == (False, False), "quarantine leaked"
+
+    persisted = ledger(database).records(manifest.runtime_id)
+    assert [item.reason for item in persisted] == ["leak-probe"]

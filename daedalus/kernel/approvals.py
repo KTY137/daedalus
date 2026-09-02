@@ -451,7 +451,19 @@ class ApprovalLedger:
         return connection
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        # ``with sqlite3.Connection`` is a TRANSACTION scope, not a closing
+        # scope: it commits, it does not close. The leaked connection was
+        # unreachable garbage held in a reference cycle, so its WAL companions
+        # (``-wal``/``-shm`` exist exactly while a connection is open) were
+        # retired by the generational collector at an unpredictable moment
+        # instead of at method exit. Measured on the pre-fix tree: after
+        # __init__ -wal=True and the file handle is still open; after
+        # gc.collect() both False. ``consume`` below already uses this
+        # try/finally idiom -- these three read paths were the stragglers.
+        # No commit is lost: ``_connect`` passes ``isolation_level=None``, so
+        # this DDL autocommits and the ``with`` commit was a no-op.
+        connection = self._connect()
+        try:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS owner_approval_consumptions_v2 (
@@ -494,6 +506,8 @@ class ApprovalLedger:
                     raise ApprovalStateError(
                         "legacy approval consumptions require explicit migration"
                     )
+        finally:
+            connection.close()
 
     def consume(
         self,
@@ -635,7 +649,9 @@ class ApprovalLedger:
 
         if not isinstance(receipt, ConsumedOwnerApproval):
             raise TypeError("verification requires a ConsumedOwnerApproval")
-        with self._connect() as connection:
+        # Explicit close; see ``_initialize``. Read-only, no commit to preserve.
+        connection = self._connect()
+        try:
             row = connection.execute(
                 """
                 SELECT approval_sha256, expectation_sha256, promotion_id,
@@ -646,6 +662,8 @@ class ApprovalLedger:
                 """,
                 (receipt.consumption_sha256,),
             ).fetchone()
+        finally:
+            connection.close()
         if row is None:
             raise ApprovalStateError("approval consumption is not persisted")
         try:
@@ -716,12 +734,16 @@ class ApprovalLedger:
 
     def consumed(self, approval_sha256: str) -> bool:
         digest = _sha256(approval_sha256, "approval_sha256")
-        with self._connect() as connection:
+        # Explicit close; see ``_initialize``. Read-only, no commit to preserve.
+        connection = self._connect()
+        try:
             row = connection.execute(
                 "SELECT 1 FROM owner_approval_consumptions_v2 "
                 "WHERE approval_sha256=?",
                 (digest,),
             ).fetchone()
+        finally:
+            connection.close()
         return row is not None
 
 

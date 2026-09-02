@@ -259,7 +259,21 @@ class RuntimeTrustLedger:
         return connection
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        # ``with sqlite3.Connection`` is a TRANSACTION scope, not a closing
+        # scope: it commits, it does not close. Leaving the connection open
+        # handed this store's WAL companions an indeterminate lifetime --
+        # ``-wal``/``-shm`` exist exactly while a connection is open, and the
+        # leaked connection was unreachable garbage held in a reference cycle,
+        # so it was finalized by the generational collector at an unpredictable
+        # moment rather than by refcounting at method exit. Anything that stats
+        # those companions then sees a file that can vanish between an
+        # existence check and a strict resolve. Measured on the pre-fix tree:
+        # after __init__ -wal=True/handle open; after gc.collect() both False.
+        # Nothing is lost by not committing here: ``_connect`` uses
+        # ``isolation_level=None``, so this DDL is already autocommitted and the
+        # ``with`` block's commit was a no-op.
+        connection = self._connect()
+        try:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS runtime_trust_records (
@@ -284,6 +298,8 @@ class RuntimeTrustLedger:
                 "CREATE INDEX IF NOT EXISTS runtime_trust_runtime_idx "
                 "ON runtime_trust_records(runtime_id, state)"
             )
+        finally:
+            connection.close()
 
     def _from_row(self, row: sqlite3.Row) -> RuntimeTrustRecord:
         try:
@@ -446,7 +462,15 @@ class RuntimeTrustLedger:
             state_changed_at=admitted_text,
             reason="",
         )
-        with self._connect() as connection:
+        # See ``_initialize`` for why the connection is closed explicitly. The
+        # commit is NOT lost: this method drives its transaction by hand with
+        # ``BEGIN IMMEDIATE`` and reaches an explicit ``COMMIT`` or ``ROLLBACK``
+        # on every exit path below, so the ``with`` block's implicit commit ran
+        # against an already-closed transaction and was a no-op. On a path that
+        # raises before that, ``with`` rolled back and ``close()`` also rolls
+        # back an open transaction -- verified by measurement.
+        connection = self._connect()
+        try:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT * FROM runtime_trust_records WHERE envelope_sha256=?",
@@ -480,6 +504,8 @@ class RuntimeTrustLedger:
                 self._replace(connection, rotated)
             self._insert(connection, record)
             connection.execute("COMMIT")
+        finally:
+            connection.close()
         return record
 
     def require_active(
@@ -504,7 +530,12 @@ class RuntimeTrustLedger:
         )
         revision = _revision(source_revision, "source_revision")
         instant = _as_utc(now, "now")
-        with self._connect() as connection:
+        # Explicit close; see ``_initialize``. The expiry write at the
+        # ``COMMIT`` below is committed by hand before this method raises
+        # ``RuntimeTrustExpired``, so it survives the exception exactly as it
+        # did under ``with``.
+        connection = self._connect()
+        try:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT * FROM runtime_trust_records "
@@ -553,6 +584,8 @@ class RuntimeTrustLedger:
                 )
             connection.execute("COMMIT")
             return record
+        finally:
+            connection.close()
 
     def quarantine(
         self,
@@ -568,7 +601,10 @@ class RuntimeTrustLedger:
         envelope_digest = _sha256(envelope_sha256, "envelope_sha256")
         why = _non_empty(reason, "reason", max_length=500)
         changed = _timestamp(_as_utc(quarantined_at, "quarantined_at"))
-        with self._connect() as connection:
+        # Explicit close; see ``_initialize``. Every exit path below commits or
+        # rolls back by hand, so no write depended on the ``with`` block.
+        connection = self._connect()
+        try:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT * FROM runtime_trust_records "
@@ -596,11 +632,16 @@ class RuntimeTrustLedger:
             self._replace(connection, updated)
             connection.execute("COMMIT")
             return updated
+        finally:
+            connection.close()
 
     def records(self, runtime_id: str | None = None) -> tuple[RuntimeTrustRecord, ...]:
         """Return a deterministic, authenticated audit projection."""
 
-        with self._connect() as connection:
+        # Explicit close; see ``_initialize``. Read-only, so there is no commit
+        # to preserve.
+        connection = self._connect()
+        try:
             if runtime_id is None:
                 rows = connection.execute(
                     "SELECT * FROM runtime_trust_records "
@@ -613,6 +654,8 @@ class RuntimeTrustLedger:
                     "ORDER BY observed_at, envelope_sha256",
                     (runtime,),
                 ).fetchall()
+        finally:
+            connection.close()
         return tuple(self._from_row(row) for row in rows)
 
 

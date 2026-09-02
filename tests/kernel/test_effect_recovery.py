@@ -3,6 +3,7 @@ from __future__ import annotations
 import concurrent.futures
 import dataclasses
 import importlib.util
+import os
 import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
@@ -264,6 +265,82 @@ def test_reconcile_is_terminal_exact_and_idempotent(tmp_path: Path) -> None:
     assert ledger.execution_state(execution.execution_id) == "COMPLETED"
     assert replay.execute is False
     assert replay.receipt == start
+
+
+def _sqlite_handle_open(db) -> bool:
+    """Whether any connection still holds this SQLite database open.
+
+    NOTE the detector. ``_persisted_terminal`` opens the lease store ``mode=ro``,
+    and a read-only connection cannot checkpoint or unlink the WAL on close, so
+    the ``-wal``/``-shm`` companions remain on disk afterwards either way. A
+    companion probe is therefore useless here; the observable difference is the
+    operating-system handle, which on Windows blocks renaming the database.
+    """
+
+    database = Path(db)
+    moved = database.with_suffix(database.suffix + ".rename-probe")
+    try:
+        os.rename(database, moved)
+    except OSError:
+        return True
+    os.rename(moved, database)
+    return False
+
+
+def test_persisted_terminal_replay_closes_its_read_only_connection(
+    tmp_path: Path,
+) -> None:
+    """The replay reader must not leave the lease store open for the collector.
+
+    ``_persisted_terminal`` used ``with sqlite3.connect(uri, uri=True)``. For
+    sqlite3 that is a TRANSACTION scope, not a closing scope: it commits and
+    leaves the connection open. The leaked connection was unreachable garbage
+    held in a reference cycle, so the lease database stayed open until the
+    generational collector ran, at an unpredictable moment.
+
+    That matters even though this reader is read-only. The lease store is a WAL
+    database whose ``-wal``/``-shm`` companions are stat'd by the provider
+    retention-admission topology scan, which selects them with ``exists()`` and
+    then resolves them with ``strict=True``; a companion whose lifetime is
+    decided by collector timing is exactly what made that scan raise
+    FileNotFoundError in one process and pass in the next.
+
+    MEASURED on the pre-fix tree: the handle was still open when this call
+    returned and was released only by ``gc.collect()``.
+
+    Deliberately no ``gc.collect()`` before the assertion.
+    """
+
+    ledger, _, execution, start = _started(tmp_path)
+    observation = _observation(execution, start)
+    database = Path(ledger.path)
+
+    reconcile_unknown_effect(
+        ledger,
+        execution=execution,
+        start_receipt=start,
+        observation=observation,
+        keyring={"observation-key": SECRET},
+        expected_provider_id=fixture._PROVIDER_ID,
+        expected_source_revision=REVISION,
+        reconciled_at=NOW + timedelta(seconds=2),
+    )
+    assert not _sqlite_handle_open(database), "the finishing write leaked"
+
+    # The second reconcile is the replay branch, and it is the one that reaches
+    # _persisted_terminal.
+    replayed = reconcile_unknown_effect(
+        ledger,
+        execution=execution,
+        start_receipt=start,
+        observation=observation,
+        keyring={"observation-key": SECRET},
+        expected_provider_id=fixture._PROVIDER_ID,
+        expected_source_revision=REVISION,
+        reconciled_at=NOW + timedelta(seconds=3),
+    )
+    assert replayed.reconciled is False
+    assert not _sqlite_handle_open(database), "_persisted_terminal leaked"
 
 
 def test_concurrent_reconciliation_has_one_commit_and_one_exact_replay(tmp_path: Path) -> None:

@@ -556,7 +556,22 @@ class ProviderObservationBindingLedger:
 
     def _initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
+        # ``with sqlite3.Connection`` is a TRANSACTION scope, not a closing
+        # scope: it commits, it does not close. The leaked connection was
+        # unreachable garbage held in a reference cycle, so the operating-system
+        # file handle survived until the generational collector ran, at an
+        # unpredictable moment. This store keeps the default rollback journal
+        # rather than WAL, so the leak leaves no ``-wal`` marker; measured on
+        # the pre-fix tree it showed up as the database file still being
+        # locked after __init__ and unlocked after gc.collect().
+        #
+        # Unlike the sibling stores, ``_connect`` here does NOT pass
+        # ``isolation_level=None``, so this connection is in the implicit
+        # transaction mode where a lost commit really can discard a write. The
+        # commit the ``with`` block performed is therefore preserved explicitly
+        # instead of being left to DDL autocommit semantics.
+        connection = self._connect()
+        try:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS provider_observation_bindings (
@@ -567,6 +582,9 @@ class ProviderObservationBindingLedger:
                 )
                 """
             )
+            connection.commit()
+        finally:
+            connection.close()
 
     def _record_hmac(self, signing_digest: str) -> str:
         return hmac.new(
@@ -833,12 +851,17 @@ class ProviderObservationBindingLedger:
             raise ProviderObservationAuthorityBindingError(
                 "execution_id is malformed"
             ) from exc
+        # Explicit close; see ``_initialize``. Read-only, so there is no commit
+        # to preserve. ``store`` above already uses this try/finally idiom.
         try:
-            with self._connect() as connection:
+            connection = self._connect()
+            try:
                 row = connection.execute(
                     "SELECT * FROM provider_observation_bindings WHERE execution_id=?",
                     (normalized_execution,),
                 ).fetchone()
+            finally:
+                connection.close()
         except sqlite3.Error as exc:
             raise ProviderObservationAuthorityStateError(
                 "provider observation binding SQLite read failed"
