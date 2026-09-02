@@ -312,6 +312,133 @@ _ALIAS_FIXTURE = {
         "def real_func():\n"
         "    return 1\n"
         "sys.modules[__name__].__class__ = object\n"),
+    # SECURITY REVIEW 2026-09-02, second round: five constructs that defeated
+    # the FIRST fix, all by exploiting that the retype detector was
+    # flow-insensitive and name-based while `_alias_target` got last-write-wins
+    # discipline. Every one of these was ACCEPTED by the flow-insensitive
+    # detector, and at runtime none of them serves a single forwarded name --
+    # the module type ends up plain `module` (or a hookless class, or the
+    # import crashes outright). Each must be judged LITERALLY.
+    #
+    # c1: the hook-bearing class is SHADOWED by a same-named hookless class
+    # before the retype; at runtime the module wears the hookless one.
+    "retype_hook_class_shadowed.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "class _F(ModuleType):\n"
+        "    pass\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # c2 / the working end-to-end exploit: the slot is read into `_m`, `_m` is
+    # REBOUND to a scratch module, and the scratch module is retyped. The dead
+    # first line is what fooled the name-based detector; the real module's type
+    # is never touched.
+    "retype_holder_rebound.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "_m = sys.modules[__name__]\n"
+        '_m = ModuleType("scratch")\n'
+        "_m.__class__ = _F\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # c3: the retype is written BEFORE the slot binding. At runtime this is a
+    # NameError at import -- the module never loads at all.
+    "retype_before_binding.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "_m.__class__ = _F\n"
+        "_m = sys.modules[__name__]\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # c4: chained targets, then the retyped NAME is rebound first.
+    "retype_tuple_rebound.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "_a = _b = sys.modules[__name__]\n"
+        '_a = ModuleType("scratch")\n'
+        "_a.__class__ = _F\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # c5: the retype happens and is then UNDONE; the surviving type is plain.
+    "retype_undone.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "_m = sys.modules[__name__]\n"
+        "_m.__class__ = _F\n"
+        "_m.__class__ = ModuleType\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # The complement: the retype reaches the module THROUGH a copied name, and
+    # survives. At runtime the module really is hooked, so opacity is correct.
+    "retype_via_copied_name.py": (
+        "import sys\n"
+        "from pkg import owner as _owner\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        return getattr(_owner, name)\n"
+        "_m = sys.modules[__name__]\n"
+        "_alias = _m\n"
+        "_alias.__class__ = _F\n"),
+    # And shadowing in the OTHER direction: hookless first, hook-bearing class
+    # of the same name is the one that survives and is installed. Truly opaque.
+    "retype_shadowed_to_hook.py": (
+        "import sys\n"
+        "from pkg import owner as _owner\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    pass\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        return getattr(_owner, name)\n"
+        "sys.modules[__name__].__class__ = _F\n"),
+    # c6, second review pass: the hook is DELETED inside the same class body.
+    # At runtime the class ends hookless; the retype installs a mute facade.
+    "retype_hook_deleted.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "    del __getattr__\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # An owner whose text the gate cannot parse: a UTF-8 BOM read as utf-8
+    # leaves U+FEFF in front of the source and ast.parse refuses it. The
+    # fail-open on importing such a file DIRECTLY is pre-existing (base
+    # behavior, measured, not this packet's to fix); what must not happen is a
+    # HOP inheriting it. The BOM is spelled explicitly so nobody's editor
+    # silently strips an invisible character out of the fixture.
+    "bom_owner.py": "\ufeffREAL_NAME = 1\n",
+    "alias_to_bom.py": (
+        "import sys as _sys\n"
+        "from pkg import bom_owner as _owner\n"
+        "_sys.modules[__name__] = _owner\n"),
+    # A self-alias spelled in a different CASE. On this case-insensitive
+    # filesystem `_module_path` resolves `pkg.Case_Self_Alias` to this very
+    # file under another spelling, so a naive unresolved-Path comparison does
+    # not see the cycle.
+    "case_self_alias.py": (
+        "import sys as _sys\n"
+        "from pkg import Case_Self_Alias as _owner\n"
+        "_sys.modules[__name__] = _owner\n"),
 }
 
 #: A namespace package (PEP 420): a directory with a ``.py`` file and no
@@ -458,6 +585,75 @@ class AliasedModuleTests(unittest.TestCase):
         """``__class__ = object`` does not even survive import. Nothing about
         it says a reader should stop reading."""
         self.assertTrue(self.judge("retype_to_object", "INVENTED"))
+
+    # -- SECURITY REVIEW 2026-09-02, second round -------------------------
+    # The retype detector must be flow-sensitive: opacity is granted only when
+    # the hook-bearing retype is the SURVIVING module-scope state, mirroring
+    # the last-write-wins discipline `_alias_target` already has. Each of the
+    # six constructs below was ACCEPTED by the flow-insensitive first fix and
+    # serves no forwarded name at runtime; each must refuse the invented name
+    # and (where the module loads at all) pass the real one.
+
+    def test_a_hook_class_shadowed_by_a_hookless_one_is_not_opaque(self):
+        self.assertTrue(self.judge("retype_hook_class_shadowed", "INVENTED"))
+        self.assertEqual(self.judge("retype_hook_class_shadowed", "real_func"), [])
+
+    def test_a_rebound_holder_does_not_retype_this_module(self):
+        """The working end-to-end exploit: the slot is read into a name, the
+        name is rebound to a scratch module, the scratch module is retyped.
+        The first line is dead and the real module's type is never touched."""
+        self.assertTrue(self.judge("retype_holder_rebound", "INVENTED"))
+        self.assertEqual(self.judge("retype_holder_rebound", "real_func"), [])
+
+    def test_a_retype_before_the_slot_binding_is_not_opaque(self):
+        """At runtime this module is a NameError at import -- it never loads.
+        A reader that calls it opaque asserts a fact about a module that does
+        not exist."""
+        self.assertTrue(self.judge("retype_before_binding", "INVENTED"))
+
+    def test_a_rebound_chained_target_does_not_retype_this_module(self):
+        self.assertTrue(self.judge("retype_tuple_rebound", "INVENTED"))
+        self.assertEqual(self.judge("retype_tuple_rebound", "real_func"), [])
+
+    def test_an_undone_retype_is_not_opaque(self):
+        """The surviving type is plain ``ModuleType``. Only the surviving
+        state counts, exactly as it does for the swap."""
+        self.assertTrue(self.judge("retype_undone", "INVENTED"))
+        self.assertEqual(self.judge("retype_undone", "real_func"), [])
+
+    def test_a_hook_deleted_in_the_class_body_is_not_a_hook(self):
+        """c6: ``def __getattr__`` then ``del __getattr__`` in the same class
+        body. The class the module ends up wearing has no hook."""
+        self.assertTrue(self.judge("retype_hook_deleted", "INVENTED"))
+        self.assertEqual(self.judge("retype_hook_deleted", "real_func"), [])
+
+    # -- and the states that really DO survive ----------------------------
+    def test_a_retype_through_a_copied_name_is_opaque(self):
+        """The flow-sensitive detector must not lose the true positive: the
+        slot reference copied through a second name still reaches the module,
+        and the hook really is installed at runtime."""
+        self.assertEqual(self.judge("retype_via_copied_name", "anything"), [])
+
+    def test_a_hook_class_that_shadows_a_hookless_one_is_opaque(self):
+        self.assertEqual(self.judge("retype_shadowed_to_hook", "anything"), [])
+
+    # -- an unreadable owner must not hand its fail-open to a hop ----------
+    def test_an_alias_to_an_unparsable_owner_refuses(self):
+        """A UTF-8 BOM read as utf-8 leaves U+FEFF in the text and
+        ``ast.parse`` refuses it, which makes the owner opaque when imported
+        DIRECTLY -- a pre-existing fail-open this packet inherits and records
+        rather than fixes. What a hop must not do is inherit it: an alias to
+        an unparsable owner is judged on what is provable about the ALIAS
+        file, which is its literal top level, which refuses."""
+        self.assertTrue(self.judge("alias_to_bom", "ANYTHING"))
+
+    def test_a_self_alias_in_a_different_case_refuses(self):
+        """`pkg.Case_Self_Alias` resolves to `case_self_alias.py` on a
+        case-insensitive filesystem, so an unresolved case-sensitive Path
+        comparison does not see the cycle. The comparison must be on
+        resolved, case-normalized paths -- and either way the terminal state
+        is a refusal, never an accept."""
+        self.assertTrue(self.judge("case_self_alias", "ANYTHING"))
 
 
 class RunChecksTests(unittest.TestCase):

@@ -80,7 +80,10 @@ In scope — the taught reader:
 - `daedalus/lanes/checks.py`. New: `_alias_target`,
   `_installs_dynamic_module_protocol`, `_ModuleScopeImports`,
   `_module_scope_imports`, `_is_own_sys_modules_slot`, `_MAX_ALIAS_HOPS`,
-  `_DYNAMIC_ATTRIBUTE_HOOKS`. Changed: `_exports` takes `root` and consults the
+  `_DYNAMIC_ATTRIBUTE_HOOKS`, `_same_file`. The retype detector is a
+  flow-sensitive, statement-ordered walk after the second security round; the
+  alias hop parses its owner before following and compares file identity, not
+  path spelling. Changed: `_exports` takes `root` and consults the
   two new rules; its one caller passes `root`; `Mapping` added to the existing
   `typing` import. No check was added to or removed from `BASELINE`, and
   `run_checks` keeps its three-parameter signature (pinned by
@@ -95,8 +98,10 @@ In scope — the guard that was measuring the compiler:
 
 In scope — instruments and census artifacts:
 
-- `tests/test_lanes_checks.py` (new `AliasedModuleTests`, 16 tests over a
-  scratch package carrying every shape the reader must tell apart)
+- `tests/test_lanes_checks.py` (new `AliasedModuleTests`, 26 tests over a
+  scratch package carrying every shape the reader must tell apart, including
+  the six second-round laundering constructs, the BOM'd-owner hop, and the
+  case-spelled self-alias)
 - `tests/test_deepseek_substitution_guard.py` (2 tests added beside the control
   they explain; the control itself is untouched)
 - `tests/contracts/test_import_scc_hierarchy.py` (census comment only; both
@@ -168,24 +173,40 @@ experiment alone:
 `<sys>.modules[__name__] = <name a module-scope import bound>` is read *through*
 to that owner. This is what an importer of the old locator actually receives.
 
-**R2, opaque.** A module that assigns `__class__` on its own
-`sys.modules[__name__]` object **to a class this same file defines with a
-`__getattr__` or `__getattribute__`** is unjudgeable, exactly as the eleven
-modules in this tree that define a module-level `def __getattr__` already are.
-Following `_AttemptFacade.__getattr__` through to `_owner` instead was
-rejected: it would require proving statically that the method forwards
-everything and synthesizes nothing, which is the one claim a reader of a class
-body cannot make.
+**R2, opaque.** A module whose **surviving module-scope state** is a
+`__class__` assignment on its own `sys.modules[__name__]` object, to a class
+this same file defines with a **surviving** `__getattr__` or
+`__getattribute__`, is unjudgeable — exactly as the eleven modules in this
+tree that define a module-level `def __getattr__` already are. Following
+`_AttemptFacade.__getattr__` through to `_owner` instead was rejected: it
+would require proving statically that the method forwards everything and
+synthesizes nothing, which is the one claim a reader of a class body cannot
+make.
 
-The hook requirement is not decoration; see the adversarial round under
-Evidence. Retyping alone is not a reason to stop reading, because a
-`ModuleType` subclass with no hook forwards nothing at all.
+Neither qualifier is decoration; each is a fix for a measured bypass and both
+adversarial rounds are under Evidence. The **hook** requirement exists because
+retyping alone is not a reason to stop reading — a `ModuleType` subclass with
+no hook forwards nothing at all (round one). The **surviving** requirement
+exists because the first fix was flow-insensitive and name-based while
+`_alias_target` modeled last-write-wins, and that one-line asymmetry inside
+this packet's own diff admitted six laundering constructs (round two, with a
+working end-to-end exploit through the real write gate). The detector now
+walks the module body once, in statement order, tracking what each name
+currently holds — the slot, a hook-bearing class, a hookless class, other —
+and grants opacity only for the state a module actually ends in. A statement
+shape the walk does not model kills the bindings it assigns, so every unknown
+biases toward reading the file literally, which refuses.
 
-Both rules fail toward **refusal**, never toward acceptance. If the alias owner
-cannot be opened — outside the tree, a namespace-package directory, the file
-itself, or past `_MAX_ALIAS_HOPS` — the file is not treated as an alias and is
-read literally. If the retyped-to class is not a hook-bearing class statement in
-the same file, the module is read literally.
+Both rules fail toward **refusal**, never toward acceptance. If the alias
+owner cannot be opened, **parsed**, or distinguished from the aliasing file
+itself — outside the tree, a namespace-package directory, unparsable text
+(e.g. a UTF-8 BOM), the same file under another spelling, or past
+`_MAX_ALIAS_HOPS` — the file is not treated as an alias and is read
+literally. The self-comparison is by OS file identity (`Path.samefile`), not
+path spelling, because a case-insensitive filesystem, 8.3 short names, and
+directory junctions all give one file several spellings. If the retyped-to
+class is not a surviving hook-bearing class statement in the same file, the
+module is read literally.
 
 R1 buys **precision**, not silence, and that distinction is the packet. A reader
 taught to follow aliases could as easily have been taught to stop judging those
@@ -199,11 +220,20 @@ REFUSED | from daedalus.spine.ledger import SpineLedgerManager    | ["'daedalus.
 REFUSED | from daedalus.spine.durability import verify_durability | ["'daedalus.spine.durability' does not define 'verify_durability'"]
 ```
 
-R2 is a real, bounded loss: `daedalus.spine.attempt` is no longer judged at all.
-The trade is stated plainly rather than hidden — before this packet the reader's
-judgement of that module was **100% wrong** (all 34 offenders, 24 distinct
-messages, every one naming a name the facade forwards), and silence is better
-than a gate that is always wrong about one module and cannot say so.
+R2 is a real loss, and its true bound must be stated honestly:
+`daedalus.spine.attempt` is no longer judged at all, and opacity is
+**transitively acquirable** — any freshly written module can buy the same
+silence, either by carrying a surviving hook-bearing retype of its own, or by
+R1-aliasing itself to any of the ~11 PEP 562 modules already in the tree.
+MEASURED: `from daedalus.kernel import TOTALLY_INVENTED_XYZ` is accepted at
+base too, because `daedalus/kernel/__init__.py` defines a module-level
+`__getattr__` — so the alias chain adds *indirection to* that pre-existing
+concession rather than new authority a writer lacked, but through-the-alias
+acceptance where the base reader refused is still introduced by this packet
+and is recorded as such. The trade remains right for the same reason as
+before: the reader's judgement of the one real facade module was **100%
+wrong** (all 34 offenders named a name the facade forwards), and silence is
+better than a gate that is always wrong and cannot say so.
 
 ### The hops the reader must not take
 
@@ -220,16 +250,27 @@ requires a REFUSAL for each:
 | `__class__` assigned inside a `def` | ditto |
 | alias target that names nothing in the tree | cannot be opened → not an alias |
 | alias target that is a namespace-package directory | cannot be opened → not an alias |
+| alias target that does not parse (UTF-8 BOM) | a hop must not inherit the pre-existing unreadable-file fail-open |
 | alias cycle A → B → A, and a self-alias | terminates, then not an alias |
+| a self-alias spelled in a different case | `samefile` identity, not path spelling |
 | a five-hop alias chain (budget is four) | past `_MAX_ALIAS_HOPS` → not an alias |
 | retype to a class with no attribute hook | forwards nothing → read literally |
 | retype to a class this file does not define | not resolvable → read literally |
+| hook class shadowed by a same-named hookless one | the surviving class has no hook |
+| slot holder rebound before the retype | the retype lands on a scratch object |
+| retype written before the slot binding | `NameError` at import; the module never loads |
+| chained slot targets with the retyped one rebound | ditto rebinding |
+| retype later undone | only the surviving state counts |
+| `def __getattr__` then `del __getattr__` in the class body | the surviving class body has no hook |
 
-and exactly one honest non-answer — opaque, no refusal, no crash:
+and the honest non-answers — opaque, no refusal, no crash — are exactly the
+states a module really ends in:
 
 | construct | |
 | --- | --- |
-| a module that installs a hook-bearing type on itself | R2, at parity with PEP 562 |
+| a surviving hook-bearing retype of the module's own object | R2, at parity with PEP 562 |
+| the same retype reached through a *copied* slot reference | the copy really reaches the module |
+| a hook class that shadows an earlier hookless one and is installed | the surviving class has the hook |
 
 A four-hop chain to a readable terminal resolves and judges normally; five does
 not. That boundary is measured, not assumed, and both sides are tested.
@@ -284,8 +325,9 @@ comparison still rejects a subclass that grew a `record_intent`, and rejects it
 | 1 | the control test passes | `tests/test_deepseek_substitution_guard.py` | 27 passed, 3 subtests (was 24 passed / 1 failed) |
 | 2 | offender count 134 → 0 | census script, 734 files, before and after | 134 → 0 |
 | 3 | the reader can still go red, real aliases | `test_an_invented_name_behind_a_module_alias_is_still_caught` | 3 subtests, all refuse |
-| 4 | the reader can still go red, fixture | `AliasedModuleTests` | 16 passed (`tests/test_lanes_checks.py`: 45) |
-| 4a | every adversarial bypass is closed | the 11 constructs the review built, re-run | all refuse; both real names still pass |
+| 4 | the reader can still go red, fixture | `AliasedModuleTests` | 26 passed (`tests/test_lanes_checks.py`: 55) |
+| 4a | every round-1 bypass is closed | the 11 constructs that review built, re-run | all refuse; both real names still pass |
+| 4b | every round-2 bypass is closed, RED first | 6 constructs + BOM hop: `8 failed` at `b8c44a55`, then all refuse | 55 passed |
 | 5 | the ledger-authority guard passes | `tests/test_spine_gate0_writer_factory.py` | 9 passed (was 7 passed / 1 failed) |
 | 6 | that guard can still go red | `test_the_opening_profile_check_can_still_go_red` | passed |
 | 7 | the alias contract is intact | `tests/kernel/test_event_hierarchy.py` | 9 passed |
@@ -309,15 +351,20 @@ false positives and the two red tests, and nothing else: no consumer imports
 `daedalus/lanes/checks.py`, whose only caller of `_exports` is
 `unresolved_first_party_imports` in the same file.
 
-The write-lane risk is worth stating precisely, because it is what the
-adversarial round was for. After the fixes there is exactly **one** construct
-for which the reader is more permissive than before: a module that installs a
-type defining `__getattr__` or `__getattribute__` on its own module object. A
-file could already buy the same silence with one module-level
-`def __getattr__`, which the gate has always honoured, so the new rule adds no
-surface a writer did not have. Every other unfollowable or unreadable case
-falls back to reading the file literally, which refuses — the opposite of the
-first version, and the reason the packet has an adversarial section.
+The write-lane risk is worth stating precisely, because both adversarial
+rounds existed to measure it — and the first version of this very paragraph
+claimed "exactly one construct got more permissive", which the security review
+proved **wrong by six**: the flow-insensitive first fix additionally accepted
+six retype-laundering constructs that this packet's second round then
+eliminated (see Evidence). After the flow-sensitive fix, the deliberate
+permissive surface is: a module whose surviving state installs a hook-bearing
+type on its own module object (directly or through a copied slot reference),
+and an R1 alias whose readable owner is itself opaque. A file could already
+buy the same silence with one module-level `def __getattr__`, which the gate
+has always honoured, so neither adds authority a writer lacked — but the
+claim of a single construct is retracted, not defended. Every unfollowable,
+unparsable, or non-surviving case falls back to reading the file literally,
+which refuses.
 
 ## Evidence, expected failures, and review
 
@@ -480,6 +527,65 @@ self cycles, and two findings that fail *closed* rather than open: an
 recognised, so such a module is read literally and refuses. That is a narrower
 detector than the runtime it models, not a hole, and it is left as it is.
 
+### Second adversarial round: the fix itself was broken, six ways
+
+An independent security review of the committed first fix returned CRITICAL —
+merge blocked, R2 only. R1 passed every probe, the option-(b) rejection held,
+and the `first_party_roots` gap measured CLEAR. The root cause, in the
+reviewer's words, was a one-line asymmetry inside this packet's own diff:
+`_alias_target` modeled last-write-wins, while
+`_installs_dynamic_module_protocol` collected "names that ever held the slot"
+and "class names that ever had a hook" in two unordered passes. Six
+constructs, plus a working end-to-end exploit written by the lane through the
+real write gate, all ACCEPTED by the first fix, all REFUSED at base, none
+serving a single forwarded name at runtime:
+
+1. hook class shadowed by a same-named hookless class — reopening round one's
+   own "most serious finding" with three lines;
+2. slot read into `_m`, `_m` rebound to a scratch module, scratch retyped
+   (the end-to-end exploit; the first line is dead);
+3. retype written *before* the slot binding — `NameError` at import, the
+   module never loads at all;
+4. `_a = _b = sys.modules[__name__]`, then `_a` rebound before the retype;
+5. retype then undone (`__class__ = _F; __class__ = ModuleType`);
+6. `def __getattr__` then `del __getattr__` in the same class body.
+
+All six were REPRODUCED here against `b8c44a55` before any fix (six
+`ALLOWED`), their runtime truth measured (five plain-typed modules, one
+import crash), then committed as fixtures whose tests were run RED first:
+
+```text
+8 failed, 18 passed, 29 deselected          # at b8c44a55, pre-fix
+55 passed                                    # after the flow-sensitive fix
+```
+
+The 8 RED include the six constructs, the BOM hop below, and the true-positive
+copied-name case the ordered walk had to *gain*. Discrimination note, per the
+review: these fixture tests also pass at base (base refuses everything), so
+the tests that discriminate the detector from a stone that always refuses are
+the three opaque-accepting complements
+(`retype_via_copied_name`, `retype_shadowed_to_hook`, `retype_ok`).
+
+The same review found one HIGH the first fix *introduced*: the recursive hop
+inherited `_exports`' pre-existing "unreadable file → opaque" fail-open, so a
+freshly written alias to a UTF-8-BOM'd owner was accepted where base refused.
+Fixed by parsing the owner before continuing the walk — an unparsable owner
+terminates the hop as *not an alias*, and the aliasing file is judged on its
+own literal top level. And one hardening: the self-alias comparison was an
+unresolved, case-sensitive Path equality on a case-insensitive filesystem;
+it is now OS file identity (`Path.samefile`), with the case-spelled self-alias
+pinned as a fixture (it refused even before the hardening, via the hop
+budget — the fix makes the refusal immediate instead of accidental).
+
+The reviewer also confirmed the detector errs in the SAFE direction for a
+lambda-valued `__getattr__` and an inherited hook: both genuinely opaque at
+runtime, both refused by the gate. Harmless, and left as is — a refusal
+costs a retry; an accept costs a laundered import.
+
+After the fix: all six constructs REFUSED through the real gate, the offender
+census still 0 of 734, the blast radius enumeration unchanged (3 + 1 files),
+and every round-1 probe still passing.
+
 ### Delegated measurement contaminated by my own edit
 
 The census sweep was dispatched to a read-only delegate against the same
@@ -493,18 +599,39 @@ moving measurement as a fact is why the second construct is documented at all.
 
 ### Residual risk
 
-- `daedalus/spine/attempt.py` is now unjudged by this gate. A lane writing a
-  file that imports an invented name *from that module* would not be refused
-  for it. Bounded: one module, and the alternative measured 100% false.
+- `daedalus/spine/attempt.py` is now unjudged by this gate, and opacity is
+  **transitively acquirable**: a freshly written module can carry a surviving
+  hook-bearing retype, or R1-alias itself to any of the ~11 PEP 562 modules
+  in the tree. MEASURED: `from daedalus.kernel import TOTALLY_INVENTED_XYZ`
+  is accepted at base — the chain adds indirection to a concession the gate
+  already made, not new authority, but through-the-alias acceptance where
+  base refused is introduced by this packet and is on the record.
+- **Pre-existing fail-open, recorded not fixed:** a file whose text does not
+  parse (e.g. a UTF-8 BOM read as utf-8) is opaque when imported directly —
+  base behavior, measured, at `_exports`' top-level `except` and the
+  `opaque` acceptance in `unresolved_first_party_imports`. This packet's hop
+  no longer inherits it (an alias to a BOM'd owner refuses, tested), but the
+  direct hole predates the packet and belongs to whoever owns a fix for it.
+- **Directory junctions, measured 2026-09-02, pre-existing, low:**
+  `cmd /c mklink /J` needs no privilege on this box, and a junction planted
+  inside the tree makes `_module_path` resolve `pkg.jlink.leaked` to a file
+  **physically outside `repo_root`** (`resolve()` confirmed the escape). The
+  gate then judges that outside file normally — a real name passes, an
+  invented one refuses — so the vector steers *which* file the reader trusts,
+  not whether judgment happens. Base `_module_path` behaves identically; a
+  writer able to plant junctions inside the checkout already has direct
+  write authority. Recorded per the security review's instruction.
 - The `if`-scoped swap refusal is a known, tested, deliberate false positive
   with no instance in the tree.
 - `_alias_target` does not require the alias owner to be under the check's
   `first_party_roots`; it requires only that `_module_path` resolve it under
-  `repo_root`. Dotted module names cannot contain `..`, so this is not a
-  traversal surface, but a filesystem symlink planted inside the tree was not
-  tested and is the one vector the adversarial round left open.
-- `daedalus/lanes/checks.py` is a write-lane refusal path, and the first
-  version of this change was measurably exploitable. It is not Jonas's file by
-  the ownership enumeration and it sits close to the fence: **this packet
-  should not be promoted without the safety owner's read**, notwithstanding
-  that the final reader refuses everything the adversarial round could build.
+  `repo_root`. The security review measured this gap CLEAR. The self-alias
+  identity check now uses `Path.samefile`, which sees through case
+  variations, 8.3 names, and junction spellings of the same file.
+- `daedalus/lanes/checks.py` is a write-lane refusal path, and BOTH earlier
+  versions of this change were measurably exploitable — the second by a
+  working end-to-end exploit through the real write gate. It is not Jonas's
+  file by the ownership enumeration and it sits close to the fence: **this
+  packet should not be promoted without the safety owner's read**,
+  notwithstanding that the final reader refuses every construct both
+  adversarial rounds could build.

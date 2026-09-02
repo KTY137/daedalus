@@ -226,6 +226,22 @@ def _alias_target(tree: ast.Module) -> str | None:
 _DYNAMIC_ATTRIBUTE_HOOKS = frozenset({"__getattr__", "__getattribute__"})
 
 
+def _same_file(a: Path, b: Path) -> bool:
+    """One file under two spellings?
+
+    ``Path.samefile`` compares OS file identity, which is what the question
+    actually is: on this case-insensitive filesystem ``Case_Self.py`` and
+    ``case_self.py`` are the same file, and 8.3 short names and directory
+    junctions produce still more spellings a string comparison cannot see.
+    When the OS cannot answer, the answer is "same" -- the caller then refuses
+    to treat the pair as an alias hop, which is the closed direction.
+    """
+    try:
+        return a.samefile(b)
+    except OSError:
+        return True
+
+
 def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
     """Does this file put a name-SYNTHESIZING type on its own module object?
 
@@ -274,40 +290,135 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
     would require proving statically that ``__getattr__`` forwards everything
     and synthesizes nothing, which is exactly the claim a reader of a class body
     cannot make.
+
+    FLOW-SENSITIVE, and that is the second correction. SECURITY REVIEW
+    2026-09-02 broke the first, name-based version of this function six ways --
+    a hook class shadowed by a same-named hookless one, the slot holder rebound
+    before the retype, the retype written before the slot binding, a chained
+    target rebound, a retype later undone, and a hook ``del``-eted in its own
+    class body. Every one was accepted as opaque while the runtime module ends
+    up plain (or never imports at all), because two unordered passes collected
+    "names that ever held the slot" and "names of classes that ever had a
+    hook". `_alias_target` already models last-write-wins for the swap; this
+    detector now walks the module body once, in statement order, tracking what
+    each name currently holds, and grants opacity only when a hook-bearing
+    retype of the module's own object is the SURVIVING state. A statement shape
+    the walk does not model kills the bindings it assigns, which biases every
+    unknown toward reading the file literally -- the refusing direction.
     """
-    dynamic_classes = {
-        node.name
-        for node in tree.body
-        if isinstance(node, ast.ClassDef)
-        and any(
-            isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and member.name in _DYNAMIC_ATTRIBUTE_HOOKS
-            for member in node.body
-        )
-    }
-    if not dynamic_classes:
-        return False
-    imports = _module_scope_imports(tree)
-    own: set[str] = set()
+    hooked = False
+    env: dict[str, object] = {}
+    _SELF, _SYS, _MODULES, _OTHER = "self", "sys", "modules", "other"
+
+    def is_own_slot(node: ast.expr) -> bool:
+        if not isinstance(node, ast.Subscript):
+            return False
+        key = node.slice
+        if not isinstance(key, ast.Name) or key.id != "__name__":
+            return False
+        table = node.value
+        if (isinstance(table, ast.Attribute) and table.attr == "modules"
+                and isinstance(table.value, ast.Name)
+                and env.get(table.value.id) is _SYS):
+            return True
+        return isinstance(table, ast.Name) and env.get(table.id) is _MODULES
+
+    def value_of(node: ast.expr) -> object:
+        if is_own_slot(node):
+            return _SELF
+        if isinstance(node, ast.Name):
+            return env.get(node.id, _OTHER)
+        return _OTHER
+
+    def class_has_surviving_hook(node: ast.ClassDef) -> bool:
+        # Last-write-wins inside the class body too (construct c6): a hook
+        # that is ``del``-eted, or overwritten by a non-``def`` binding this
+        # reader cannot judge, does not survive. Only a surviving ``def``
+        # counts, which errs toward refusal for every exotic spelling.
+        state = False
+        for member in node.body:
+            if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if member.name in _DYNAMIC_ATTRIBUTE_HOOKS:
+                    state = True
+            elif isinstance(member, ast.Delete):
+                for target in member.targets:
+                    if (isinstance(target, ast.Name)
+                            and target.id in _DYNAMIC_ATTRIBUTE_HOOKS):
+                        state = False
+            elif isinstance(member, ast.Assign):
+                for target in member.targets:
+                    if (isinstance(target, ast.Name)
+                            and target.id in _DYNAMIC_ATTRIBUTE_HOOKS):
+                        state = False
+            elif isinstance(member, ast.AnnAssign):
+                if (isinstance(member.target, ast.Name)
+                        and member.target.id in _DYNAMIC_ATTRIBUTE_HOOKS):
+                    state = False
+        return state
+
+    def kill_bound_names(node: ast.stmt) -> None:
+        # Fail-closed default for unmodelled statements: whatever names they
+        # bind (loop variables, walrus targets, ``with ... as`` names) lose
+        # any tracked meaning, so a stale ``self``/class binding can never
+        # survive a construct this walk did not understand.
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+                env[child.id] = _OTHER
+            elif isinstance(child, ast.NamedExpr) and isinstance(
+                    child.target, ast.Name):
+                env[child.target.id] = _OTHER
+
     for node in tree.body:
-        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Subscript):
-            continue
-        if _is_own_sys_modules_slot(node.value, imports):
-            own.update(t.id for t in node.targets if isinstance(t, ast.Name))
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        if not isinstance(node.value, ast.Name) or node.value.id not in dynamic_classes:
-            continue
-        for dest in node.targets:
-            if not isinstance(dest, ast.Attribute) or dest.attr != "__class__":
-                continue
-            holder = dest.value
-            if isinstance(holder, ast.Name) and holder.id in own:
-                return True
-            if _is_own_sys_modules_slot(holder, imports):
-                return True
-    return False
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "sys":
+                    env[alias.asname or "sys"] = _SYS
+                else:
+                    env[(alias.asname or alias.name).split(".")[0]] = _OTHER
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                bound = alias.asname or alias.name
+                if (not node.level and node.module == "sys"
+                        and alias.name == "modules"):
+                    env[bound] = _MODULES
+                else:
+                    env[bound] = _OTHER
+        elif isinstance(node, ast.ClassDef):
+            env[node.name] = ("class", class_has_surviving_hook(node))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            env[node.name] = _OTHER
+        elif isinstance(node, ast.Assign):
+            rhs = value_of(node.value)
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    env[target.id] = rhs
+                elif (isinstance(target, ast.Attribute)
+                        and target.attr == "__class__"
+                        and value_of(target.value) is _SELF):
+                    hooked = rhs == ("class", True)
+                else:
+                    kill_bound_names(target)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name):
+                env[node.target.id] = (
+                    value_of(node.value) if node.value is not None else _OTHER)
+        elif isinstance(node, ast.AugAssign):
+            if isinstance(node.target, ast.Name):
+                env[node.target.id] = _OTHER
+        elif isinstance(node, ast.Delete):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    env.pop(target.id, None)
+        elif isinstance(node, (ast.Expr, ast.Pass, ast.Assert)):
+            kill_bound_names(node)
+        else:
+            # ``if``/``try``/``for``/``while``/``with``: their retypes are not
+            # module-scope certainties and are not granted opacity (the same
+            # strictness the swap rule applies), but their bindings still kill.
+            kill_bound_names(node)
+    return hooked
 
 
 @dataclass(frozen=True)
@@ -384,20 +495,34 @@ def _exports(path: Path, root: Path,
     silence: an invented name is still refused for every module whose alias
     target is readable, which is all three of them in this tree.
 
-    When the owner CANNOT be opened -- outside the tree, a namespace-package
-    directory, the file itself, or past ``_MAX_ALIAS_HOPS`` -- the file is not
-    treated as an alias at all and is read literally, which in practice refuses.
-    That direction is deliberate and it is a correction. ADVERSARIAL REVIEW
-    2026-09-02 broke the version that answered ``opaque`` there, three ways, all
-    of them cheap: a three-line module aliasing itself; a five-file chain
-    ``a1 -> ... -> a5`` that exhausts the budget one hop before a perfectly
-    readable terminal; and an alias to a namespace-package directory, which this
-    repository really has two of (``tools`` and ``tests`` -- see
-    :func:`_module_path`). Each turned an honest "I cannot judge this owner"
-    into a blanket accept for every invented name behind it. A guard whose job
-    is to refuse must not fail open on the cases it cannot follow, and no module
-    in this tree needs it to: all three real aliases are one hop to a ``.py``
-    file.
+    When the owner CANNOT be opened or parsed -- outside the tree, a
+    namespace-package directory, the file itself, unparsable text, or past
+    ``_MAX_ALIAS_HOPS`` -- the file is not treated as an alias at all and is
+    read literally, which in practice refuses. That direction is deliberate
+    and it is a correction, twice over. ADVERSARIAL REVIEW 2026-09-02 broke
+    the version that answered ``opaque`` there, three ways, all of them cheap:
+    a three-line module aliasing itself; a five-file chain ``a1 -> ... -> a5``
+    that exhausts the budget one hop before a perfectly readable terminal; and
+    an alias to a namespace-package directory, which this repository really
+    has two of (``tools`` and ``tests`` -- see :func:`_module_path`). The
+    SECOND review round added the unparsable owner: a UTF-8 BOM read as utf-8
+    leaves U+FEFF in the text, ``ast.parse`` refuses it, and the plain
+    recursive call inherited the top-level "unreadable file -> opaque"
+    fail-open, so a freshly written alias to a BOM'd file was accepted where
+    the base reader refused it. That top-level fail-open is pre-existing and
+    stays; a HOP no longer inherits it -- the owner is parsed *before* the
+    walk continues, and a parse failure means the aliasing file is judged on
+    what is provable, which is its own literal top level. Each of these turned
+    an honest "I cannot judge this owner" into a blanket accept for every
+    invented name behind it. A guard whose job is to refuse must not fail open
+    on the cases it cannot follow, and no module in this tree needs it to: all
+    three real aliases are one hop to a parsable ``.py`` file.
+
+    The self-comparison is by FILE IDENTITY (``Path.samefile``), not by path
+    spelling: on this case-insensitive filesystem ``pkg.Case_Self`` and
+    ``pkg/case_self.py`` are one file under two spellings, and 8.3 short names
+    and directory junctions offer more. An identity check the OS cannot answer
+    counts as "same", which refuses to follow -- the closed direction.
     """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
@@ -405,11 +530,18 @@ def _exports(path: Path, root: Path,
         return frozenset(), True
     if _hops > 0 and (alias := _alias_target(tree)) is not None:
         owner = _module_path(root, alias)
-        if owner is not None and owner != path and owner.is_file():
-            return _exports(owner, root, _hops - 1)
-        # The file names an owner this reader cannot open: outside the tree, a
-        # namespace-package directory, itself, or past the hop budget. It is
-        # then NOT treated as an alias and is read literally below.
+        if (owner is not None and owner.is_file()
+                and not _same_file(owner, path)):
+            try:
+                owner_tree = ast.parse(
+                    owner.read_text(encoding="utf-8", errors="replace"))
+            except (OSError, SyntaxError, ValueError, RecursionError):
+                owner_tree = None
+            if owner_tree is not None:
+                return _exports(owner, root, _hops - 1)
+        # The file names an owner this reader cannot open, parse, or
+        # distinguish from itself. It is then NOT treated as an alias and is
+        # read literally below.
     if _installs_dynamic_module_protocol(tree):
         return frozenset(), True
     names: set[str] = set()
