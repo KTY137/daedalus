@@ -74,6 +74,15 @@ from ..kernel.attempt_execution import (
     AttemptWorkspacePort,
 )
 from ..kernel.contracts.evaluation import EvaluationPorts
+# MEASURED, not assumed: hoisting this out of ``_default_attempt`` costs zero
+# new modules -- ``daedalus.kernel.contracts.resources`` is already resident
+# after a bare ``import daedalus.spine.picker`` via the two ports above -- and
+# creates no cycle in either import order. The function-scope placement was
+# never cycle-avoidance; it was the facade being convenient at the call site.
+# Keeping it deferred would have satisfied the static rule while leaving the
+# cold-import instrument reporting a clean layer, which is the defect this
+# packet exists to remove.
+from ..kernel.contracts.resources import ResourceBudget
 
 __all__ = [
     "ATTEMPT_INTENT_KIND",
@@ -2877,7 +2886,6 @@ def _default_attempt(
     # by design.
     from datetime import datetime as _datetime, timezone as _timezone
 
-    from daedalus.schemas import ResourceBudget
     from daedalus.spine.receipts import mission_contract_for_candidate
 
     mission_id = None

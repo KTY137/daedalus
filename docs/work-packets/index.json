@@ -9,13 +9,13 @@
     "master_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
   },
   "counts": {
-    "assigned_artifacts": 274,
+    "assigned_artifacts": 275,
     "legacy_artifacts": 204,
-    "packet_artifacts": 276,
-    "packet_ids": 211,
-    "post_index_artifacts": 72,
+    "packet_artifacts": 277,
+    "packet_ids": 212,
+    "post_index_artifacts": 73,
     "registry_artifacts": 1,
-    "tracked_files": 277,
+    "tracked_files": 278,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2406,6 +2406,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-HIER-12_SPINE_CONTRACT_OWNER_IMPORTS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "4c370f2ad757da82eacb2b231d050d1baeb85212",
+        "classification": "ALIGNED",
+        "dependencies": "G1-HIER-01, G1-HIER-10, G1-HIER-11",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HIER-12",
+      "primary_artifact": "docs/work-packets/G1-HIER-12_SPINE_CONTRACT_OWNER_IMPORTS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IDE-10_OPENVSCODE_EXPERIMENT.md"
       ],
       "metadata": {
@@ -4012,6 +4028,20 @@
       "format": "markdown",
       "packet_id": "G1-HIER-11",
       "path": "docs/work-packets/G1-HIER-11_TWIN_CONTRACT_OWNER_IMPORTS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HIER-12",
+      "path": "docs/work-packets/G1-HIER-12_SPINE_CONTRACT_OWNER_IMPORTS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
