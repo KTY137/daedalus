@@ -45,6 +45,13 @@ class _ReadBoundLabels(tuple[str, ...]):
         return super().__getitem__(index)
 
 
+class _PrefixPredicateForbiddenCoordinates(tuple[tuple[str, str], ...]):
+    def __getitem__(self, index):  # type: ignore[no-untyped-def]
+        if isinstance(index, int) and index == 0:
+            raise AssertionError("selector rechecked a prefix already proven by bisect bounds")
+        return super().__getitem__(index)
+
+
 def _provenance() -> ContractProvenance:
     return ContractProvenance(
         origin="test.tensor.select",
@@ -101,6 +108,21 @@ def test_select_bisects_canonical_prefix_without_full_entry_scan() -> None:
         "knowledge",
     )
     assert probed_entries.reads <= 28
+
+
+def test_select_does_not_recheck_bisected_prefix_predicate() -> None:
+    tensor = _tensor()
+    expected = tensor.entries[-2:]
+    for entry in expected:
+        object.__setattr__(
+            entry,
+            "coordinates",
+            _PrefixPredicateForbiddenCoordinates(entry.coordinates),
+        )
+
+    selected = tensor.select(node="node-255")
+
+    assert selected == expected
 
 
 def test_select_and_index_reuse_validated_coordinate_label_order() -> None:
