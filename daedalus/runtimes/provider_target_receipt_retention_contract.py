@@ -24,11 +24,17 @@ from typing import Any, Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.contracts import EffectLease
+from daedalus.kernel.contracts.base import (
+    _identifier,
+    _repo_path,
+    _revision,
+    _sha256,
+    _utc_timestamp,
+)
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.provider_target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
 )
-from daedalus.schemas import _identifier, _repo_path, _revision, _sha256, _utc_timestamp
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
 

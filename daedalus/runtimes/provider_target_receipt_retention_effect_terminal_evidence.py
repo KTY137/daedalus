@@ -22,6 +22,8 @@ from typing import Any, Mapping
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.contracts.base import _revision, _sha256
+from daedalus.kernel.contracts.policy import PolicyDecision
 from daedalus.kernel.effect_replay import (
     EffectExecutionReplaySnapshot,
     EffectReplayProjectionError,
@@ -41,7 +43,6 @@ from daedalus.runtimes.provider_target_receipt_retention_completed_evidence impo
 from daedalus.runtimes.provider_target_receipt_retention_contract import (
     RETENTION_ENTRYPOINT,
 )
-from daedalus.schemas import PolicyDecision, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 _SCHEMA = "daedalus-provider-target-receipt-retention-effect-terminal-evidence/1"

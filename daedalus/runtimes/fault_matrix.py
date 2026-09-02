@@ -18,7 +18,7 @@ from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
-from daedalus.schemas import ContractProvenance
+from daedalus.kernel.contracts.base import ContractProvenance
 from daedalus.spine.envelope import canonical_sha
 
 _SCHEMA = "daedalus-runtime-fault-matrix/1"

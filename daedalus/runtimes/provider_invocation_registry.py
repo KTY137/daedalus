@@ -17,8 +17,8 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
+from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 

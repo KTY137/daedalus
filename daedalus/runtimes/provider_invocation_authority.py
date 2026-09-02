@@ -20,6 +20,7 @@ import hmac
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from daedalus.kernel.contracts.base import _identifier, _sha256
 from daedalus.runtimes.provider_invocation import (
     ProviderInvocationSubject,
     ProviderInvocationSubjectError,
@@ -30,7 +31,6 @@ from daedalus.runtimes.provider_observation import (
     _normalize_keyring,
     verify_provider_observation_authority,
 )
-from daedalus.schemas import _identifier, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 

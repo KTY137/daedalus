@@ -45,7 +45,7 @@ from daedalus.runtimes.provider_target_receipt_retention_contract import (
 from daedalus.runtimes.provider_target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
 )
-from daedalus.schemas import _repo_path, _sha256
+from daedalus.kernel.contracts.base import _repo_path, _sha256
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
 

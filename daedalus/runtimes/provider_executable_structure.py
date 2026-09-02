@@ -36,7 +36,7 @@ from daedalus.runtimes.provider_invocation_authority import (
 from daedalus.runtimes.provider_invocation_registry import (
     ProviderInvocationRegistryManifest,
 )
-from daedalus.schemas import _identifier, _revision, _sha256
+from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 
