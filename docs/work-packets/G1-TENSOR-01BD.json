@@ -1,0 +1,67 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BD",
+  "title": "Stream direct CSR Hadamard intersection without duplicate index maps",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BC",
+  "campaign_issue": 239,
+  "base_revision": "064c4226d7d951c28e1dfbc509b09d0727e55bc5",
+  "finding": "TypedRelationBlock.hadamard eagerly materialized both sparse operands into Python dictionaries, built a set intersection of all coordinate keys, and sorted that set before multiplying common entries. The canonical CSR rows are already strictly sorted, so those duplicate maps and the extra set/sort were unnecessary memory and work before the bounded reference contraction completed.",
+  "primary_claim": "The reference Hadamard contraction now intersects the existing sorted CSR rows with a direct two-pointer scan. It reads scalar values only for matching coordinates, preserves the existing exact semiring and operation-limit semantics, and removes the private indexed-entry helper made dead by the change.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py"
+    ],
+    "added": [
+      "tests/twin/test_hadamard_streaming.py",
+      "docs/work-packets/G1-TENSOR-01BD.json"
+    ],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Delete the transient left/right dictionaries, key-set intersection, sort, and now-unused _indexed_entries helper. Traverse the already-canonical CSR row slices directly; do not introduce a planner, cache, alternate sparse block type, iterator abstraction, or cost-model layer.",
+  "acceptance": [
+    "direct Hadamard does not read scalar values for non-intersection coordinates",
+    "direct Hadamard still refuses before multiplying when max_operations is exceeded",
+    "Boolean intersection output remains exact at the inclusive operation boundary",
+    "Fourfold subject, semiring, and identical typed-axis compatibility checks remain unchanged",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "code_test_revision": "784801b14c9913e2eaa058ab6b6af704e7278fda",
+    "production_blob": "bd779f49c4b76abc4f1ff7c24087575c3a0f37b9",
+    "focused_test_blob": "904b46c2f011933054e55022fdc0488391a16c6a",
+    "fourfold_v2_run": 33589665050,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "contracts (3.10, 0): success",
+      "contracts (3.10, 123456): success",
+      "contracts (3.12, 0): success with bounded Tensor/Forest diagnostic",
+      "contracts (3.12, 123456): success",
+      "isolated-wheel: success",
+      "repository-collection: success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for the exact code/test revision above. Repository-wide evidence is collection-only, not a full-suite execution claim. No memory-speedup or benchmark superiority claim is inferred from removal of transient structures."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BD commits; Forest/Fourfold authority, persisted relation-block identities, wire contracts, semiring semantics, and public product surfaces remain unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
