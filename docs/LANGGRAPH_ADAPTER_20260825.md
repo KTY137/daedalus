@@ -15,7 +15,7 @@ neither a new feature path nor a new state store.
 
 `daedalus.runbook.create_run` composes one pruned run brief in four steps:
 route the objective to a single agent, build the `AgentTask`, open a
-`RunState`, record the `task_created` event. `daedalus/langgraph_adapter.py`
+`RunState`, record the `task_created` event. `daedalus/orchestration/langgraph_adapter.py`
 expresses those same four steps as a three-node LangGraph graph over the *same*
 state keys, and `create_run` gained one parameter:
 
@@ -80,7 +80,7 @@ Absence of a switch is not a fence.
 
 ## 3. The replacement path
 
-Delete `daedalus/langgraph_adapter.py` and the `orchestration` extra in
+Delete `daedalus/orchestration/langgraph_adapter.py` and the `orchestration` extra in
 `pyproject.toml`; drop the `engine` parameter. Nothing else changes, because
 nothing else depends on it:
 

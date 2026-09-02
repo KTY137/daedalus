@@ -36,10 +36,10 @@ from pathlib import Path
 
 import pytest
 
-# The OWNER, not the flat ``daedalus.gui_catalogue`` facade. Three tests below
-# read ``Path(gc.__file__)`` and assert on the implementation's own source; the
-# facade's source is a re-export list and would satisfy none of them while
-# still going green. G1-FLAT-01.
+# The OWNER. Three tests below read ``Path(gc.__file__)`` and assert on the
+# implementation's own source; the flat ``daedalus.gui_catalogue`` facade that
+# G1-FLAT-01 left behind was a re-export list that would have satisfied none
+# of them while still going green. G1-FLAT-02 retired that facade.
 from daedalus.orchestration import gui_catalogue as gc
 from daedalus.council.vendors import PROMPT_DATA_NOTICE
 

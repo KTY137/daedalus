@@ -870,7 +870,7 @@ export function getDrafts(project?: string) {
   );
 }
 
-/** Full draft content — `daedalus/drafts.py` `save_draft()`'s stored shape.
+/** Full draft content — `daedalus/kairos/drafts.py` `save_draft()`'s stored shape.
  * `report` is the agent_report_v1 the offload run produced; there is no
  * separate computed unified diff on the backend, so `report` (summary,
  * files_changed, risks, todos, handoff) IS the proposal a reviewer reads

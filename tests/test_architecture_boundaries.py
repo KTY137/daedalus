@@ -136,12 +136,17 @@ def test_frozen_repository_baseline_is_exact_and_green() -> None:
     assert report.allowlisted == ()
     assert report.new == ()
     assert report.resolved == ()
-    # 24 since G1-FLAT-01 registered the three flat paths it turned into
-    # facades: ``daedalus.gui_catalogue``, ``daedalus.ikarus_runtime_events``
-    # and ``daedalus.langgraph_adapter``. It was 21 since G1-HIER-10 registered
-    # ``daedalus.schemas``. A moving census, not an invariant: re-measure it in
-    # the packet that adds or retires a shim.
-    assert report.shim_entry_count == 24
+    # 17 since G1-FLAT-02 retired seven pure re-export facades once their
+    # callers named the owners directly: the three G1-FLAT-01 flat paths
+    # (``daedalus.gui_catalogue``, ``daedalus.ikarus_runtime_events``,
+    # ``daedalus.langgraph_adapter``) and the four zero-caller Ikarus->Kairos
+    # rename shims (``daedalus.decompose``, ``daedalus.drafts``,
+    # ``daedalus.ikarus``, ``daedalus.mission_control``). It was 24 since
+    # G1-FLAT-01 registered the three flat paths it turned into facades, and
+    # 21 since G1-HIER-10 registered ``daedalus.schemas``. A moving census,
+    # not an invariant: re-measure it in the packet that adds or retires a
+    # shim.
+    assert report.shim_entry_count == 17
     assert report.passed is True
 
 

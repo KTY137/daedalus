@@ -12,7 +12,7 @@ import pytest
 
 from daedalus import budget
 from daedalus.council.vendors import CodexAdapter, RunResult
-from daedalus.langgraph_adapter import LangGraphUnavailable
+from daedalus.orchestration.langgraph_adapter import LangGraphUnavailable
 from daedalus.spine.killswitch import LoopHalted
 from experiments.opus_fleet_watchdog import core
 

@@ -1,8 +1,8 @@
 """GET /api/catalogue -- the GUI parts index, served read-only.
 
-``daedalus/gui_catalogue.py`` was reachable from nothing but its own test. This
-pins the one route that reads it, and pins the property that made the route
-safe to add in the first place: it is a PURE READ.
+``daedalus/orchestration/gui_catalogue.py`` was reachable from nothing but its
+own test. This pins the one route that reads it, and pins the property that
+made the route safe to add in the first place: it is a PURE READ.
 
 Why the purity assertion is not decoration: ``do_POST`` and ``do_PUT`` call
 ``effect_boundary.begin_effect`` with a registry row. ``do_GET`` has no row --

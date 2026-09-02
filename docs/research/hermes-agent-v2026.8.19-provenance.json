@@ -73,7 +73,7 @@
     },
     {
       "concept": "parallel tool callback correlation and loss-aware cancelled-plan projection",
-      "daedalus_target": "daedalus/ikarus_runtime_events.py",
+      "daedalus_target": "daedalus/orchestration/ikarus_runtime_events.py",
       "adaptation": "per-run in-memory projector with exact plan-entry-to-call-id binding; same-name tool calls never correlate by name; cancellation retains unfinished plan rows; terminal observations are SHA-256 digests only; no provider, event-store or scheduler authority"
     },
     {

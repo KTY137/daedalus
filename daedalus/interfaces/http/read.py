@@ -160,9 +160,10 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
     elif path == "/api/capabilities":
         self._send_json(hierarchy.capabilities())
     elif path == "/api/catalogue":
-        # GET /api/catalogue -> daedalus.gui_catalogue: the parts a GUI can
-        # be built from, as DATA. This is the one reader of that module
-        # outside its test; docs/GUI_CATALOGUE.md is the contract.
+        # GET /api/catalogue -> daedalus.orchestration.gui_catalogue: the
+        # parts a GUI can be built from, as DATA. This is the only reader of
+        # that module inside the package; tools/smoke_packaged_resources.py is
+        # the other caller. docs/GUI_CATALOGUE.md is the contract.
         #
         # PURE READ, deliberately. load_catalogue() only read_text()s
         # catalogue/gui/*.json, and ranking is the repo's existing BM25 via
@@ -198,7 +199,7 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
                 status=400,
             )
             return
-        from ... import gui_catalogue
+        from ...orchestration import gui_catalogue
 
         catalogue = gui_catalogue.load_catalogue()
         payload: dict[str, Any] = {"catalogue": catalogue.to_dict()}

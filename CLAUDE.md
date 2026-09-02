@@ -9,7 +9,7 @@ Owner-Anweisung 2026-09-01. Präzisiert die globale Regel in
 `~/.claude/CLAUDE.md` für Daedalus. Ändert **nicht** den Masterplan, die
 Amendment-Kette oder `AGENTS.md`.
 
-- **Stand heute (gemessen 2026-09-01):** `daedalus/langgraph_adapter.py` deckt
+- **Stand heute (gemessen 2026-09-01):** `daedalus/orchestration/langgraph_adapter.py` deckt
   genau *einen* Ablauf ab — die Komposition des Run-Briefs in
   `daedalus.runbook.create_run(..., engine="langgraph")`. Default bleibt
   `engine="stdlib"`. `tests/test_langgraph_adapter.py`: 35 passed. Vertrag,

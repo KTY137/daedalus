@@ -523,7 +523,7 @@ def fallback_provider(observation: ClaudeJsonWrapper | None) -> str | None:
 def _default_planner(
     projects: list[dict[str, str]], roles: list[str], *, capacity: int
 ) -> Mapping[str, Any]:
-    from daedalus.langgraph_adapter import plan_advisory_fleet
+    from daedalus.orchestration.langgraph_adapter import plan_advisory_fleet
 
     return plan_advisory_fleet(projects, roles, capacity=capacity)
 

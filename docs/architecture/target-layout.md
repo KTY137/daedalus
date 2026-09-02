@@ -232,7 +232,8 @@ By scope, `[MEASURED]`:
 The seven deferred import sites: `daedalus/build_exec.py:580`,
 `daedalus/chip_design/completion_publication.py:316`, `daedalus/core.py:382`,
 `daedalus/ignition/gate1.py:619`, `daedalus/ignition/gate1.py:657`,
-`daedalus/langgraph_adapter.py:161`, `daedalus/langgraph_adapter.py:187`.
+`daedalus/orchestration/langgraph_adapter.py:161`,
+`daedalus/orchestration/langgraph_adapter.py:187`.
 
 Repo-wide the facade has **129** distinct callers `[MEASURED]`, by area: 33
 `daedalus/` (regex form; 34 by AST), 94 `tests/`, 1 `scripts/`, 1 `runs/`. The
@@ -379,7 +380,8 @@ A related unresolved: **`kairos` versus `orchestration`.** Both exist as
 packages (11 and 10 files `[MEASURED]`), the boundary rules forbid them as two
 separate prefixes, and four flat-module shims declare `daedalus.kairos.*`
 destinations (`decompose`, `drafts`, `ikarus`, `mission_control`
-`[MEASURED]` from `shim-registry.json`). `kairos` appears **0 times** in
+`[MEASURED]` from `shim-registry.json` at `851ff43c`; all four retired
+2026-09-02, see §3.1). `kairos` appears **0 times** in
 `docs/IKARUS_ARIADNE_MASTER_PLAN.md` `[MEASURED: grep -cin]`, and the plan's §3
 permits exactly three public concepts, with existing components surviving "as
 internal modules". Whether `kairos` is a permanent internal package or a
@@ -402,6 +404,13 @@ are flat modules):
 | `orchestrate` | `cli_facade` | `kairos.orchestrate` |
 | `schemas` | `mixed_owner_contract_reexport_facade` | `kernel.contracts.canonical`, `orchestration.legacy_reports`, `runtimes.contracts.provider_report` |
 | `token_policy` | `module_reexport` | `runtimes.providers.token_policy` |
+
+Retired 2026-09-02 by G1-FLAT-02, after the measurement above: four of those
+nine rows -- `decompose`, `drafts`, `ikarus`, `mission_control` -- and the
+three G1-FLAT-01 facades `gui_catalogue`, `ikarus_runtime_events` and
+`langgraph_adapter` were deleted once every caller named the owner directly.
+The registry holds 17 entries at that packet. The `851ff43c` counts are left
+as written; re-measure rather than subtract.
 
 That is 9 of 76. **The other 67 flat modules have no declared destination in
 any tracked artifact** — not in the shim registry, not in the boundary
