@@ -439,6 +439,110 @@ _ALIAS_FIXTURE = {
         "import sys as _sys\n"
         "from pkg import Case_Self_Alias as _owner\n"
         "_sys.modules[__name__] = _owner\n"),
+    # SECURITY REVIEW 2026-09-02, THIRD round -- the reviewer's own constructs,
+    # verbatim in shape. Three root causes, all inside the flow-sensitive fix
+    # itself, all one level deeper than round two: the class-body hook scan was
+    # still flat; a class decorator can replace the class outright; and the
+    # `hooked` flag was the one piece of state no unmodelled statement reset.
+    # Every one of these was ACCEPTED at 3e212da8 and forwards nothing at
+    # runtime (n1/n4/n5/n6/n7 end as plain `module`, n2 wears a hookless class,
+    # n3 raises TypeError on any miss).
+    #
+    # n1: the decorator replaces the class with plain ModuleType; the BODY has
+    # a hook, the surviving CLASS does not.
+    "retype_decorated_class.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "def _strip(cls):\n"
+        "    return ModuleType\n"
+        "@_strip\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # n2: the hook is deleted inside a compound statement IN THE CLASS BODY --
+    # invisible to a flat scan of class members.
+    "retype_hook_del_under_if.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "    if 1:\n"
+        "        del __getattr__\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # n3: the hook is overwritten with None under the same shape; at runtime
+    # every attribute miss is a TypeError, not a forwarded name.
+    "retype_hook_none_under_if.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "    if 1:\n"
+        "        __getattr__ = None\n"
+        "sys.modules[__name__].__class__ = _F\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # n4/n5/n6: the retype is UNDONE inside a module-scope compound statement.
+    # Round two's walk killed name BINDINGS on unmodelled shapes but never the
+    # `hooked` flag itself -- the only output that matters.
+    "retype_undone_in_if.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "_m = sys.modules[__name__]\n"
+        "_m.__class__ = _F\n"
+        "if 1:\n"
+        "    _m.__class__ = ModuleType\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    "retype_undone_in_for.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "_m = sys.modules[__name__]\n"
+        "_m.__class__ = _F\n"
+        "for _ in range(1):\n"
+        "    _m.__class__ = ModuleType\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    "retype_undone_in_try.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "_m = sys.modules[__name__]\n"
+        "_m.__class__ = _F\n"
+        "try:\n"
+        "    _m.__class__ = ModuleType\n"
+        "finally:\n"
+        "    pass\n"
+        "def real_func():\n"
+        "    return 1\n"),
+    # n7 (found here, same third root cause): the undo reaches the module
+    # through a container subscript the walk cannot attribute to the slot.
+    "retype_undone_via_container.py": (
+        "import sys\n"
+        "from types import ModuleType\n"
+        "class _F(ModuleType):\n"
+        "    def __getattr__(self, name):\n"
+        "        raise AttributeError(name)\n"
+        "_m = sys.modules[__name__]\n"
+        "_m.__class__ = _F\n"
+        "_x = [_m]\n"
+        "_x[0].__class__ = ModuleType\n"
+        "def real_func():\n"
+        "    return 1\n"),
 }
 
 #: A namespace package (PEP 420): a directory with a ``.py`` file and no
@@ -654,6 +758,54 @@ class AliasedModuleTests(unittest.TestCase):
         resolved, case-normalized paths -- and either way the terminal state
         is a refusal, never an accept."""
         self.assertTrue(self.judge("case_self_alias", "ANYTHING"))
+
+    # -- SECURITY REVIEW 2026-09-02, THIRD round --------------------------
+    # Same lesson one level deeper, three times: the class-body scan must be
+    # as order- and scope-honest as the module walk; a decorator makes a
+    # class statically unknowable; and the opacity flag itself must die on
+    # any statement the walk does not model, not just the name bindings.
+
+    def test_a_decorated_hook_class_is_not_trusted(self):
+        """n1: the decorator replaces the class outright (here with plain
+        ``ModuleType``); recording the BODY's hook state asserts a fact about
+        a class object that never survives decoration."""
+        self.assertTrue(self.judge("retype_decorated_class", "INVENTED"))
+        self.assertEqual(self.judge("retype_decorated_class", "real_func"), [])
+
+    def test_a_hook_deleted_inside_an_if_in_the_class_body_is_seen(self):
+        """n2: round two fixed the flat scan at module scope and then wrote a
+        new flat scan inside ``class_has_surviving_hook``."""
+        self.assertTrue(self.judge("retype_hook_del_under_if", "INVENTED"))
+        self.assertEqual(self.judge("retype_hook_del_under_if", "real_func"), [])
+
+    def test_a_hook_overwritten_inside_an_if_in_the_class_body_is_seen(self):
+        """n3: same shape, ``__getattr__ = None``. At runtime every attribute
+        miss is a TypeError; nothing is forwarded."""
+        self.assertTrue(self.judge("retype_hook_none_under_if", "INVENTED"))
+
+    def test_an_undo_inside_an_if_kills_opacity(self):
+        """n4: eight lines. `kill_bound_names` reset the ENV on unmodelled
+        statements while `hooked` -- the only output that matters -- survived
+        every one of them."""
+        self.assertTrue(self.judge("retype_undone_in_if", "INVENTED"))
+        self.assertEqual(self.judge("retype_undone_in_if", "real_func"), [])
+
+    def test_an_undo_inside_a_for_kills_opacity(self):
+        self.assertTrue(self.judge("retype_undone_in_for", "INVENTED"))
+        self.assertEqual(self.judge("retype_undone_in_for", "real_func"), [])
+
+    def test_an_undo_inside_a_try_kills_opacity(self):
+        self.assertTrue(self.judge("retype_undone_in_try", "INVENTED"))
+        self.assertEqual(self.judge("retype_undone_in_try", "real_func"), [])
+
+    def test_an_undo_through_a_container_kills_opacity(self):
+        """n7, same root cause as n4-n6: a ``__class__`` store whose holder
+        the walk cannot attribute to the slot must still kill the flag --
+        an unattributable retype is exactly the kind of statement that may
+        have undone the one that was attributed."""
+        self.assertTrue(self.judge("retype_undone_via_container", "INVENTED"))
+        self.assertEqual(
+            self.judge("retype_undone_via_container", "real_func"), [])
 
 
 class RunChecksTests(unittest.TestCase):

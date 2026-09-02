@@ -302,9 +302,35 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
     hook". `_alias_target` already models last-write-wins for the swap; this
     detector now walks the module body once, in statement order, tracking what
     each name currently holds, and grants opacity only when a hook-bearing
-    retype of the module's own object is the SURVIVING state. A statement shape
-    the walk does not model kills the bindings it assigns, which biases every
-    unknown toward reading the file literally -- the refusing direction.
+    retype of the module's own object is the SURVIVING state.
+
+    THE THIRD ROUND (2026-09-02) broke the second fix five ways, three root
+    causes, and each fix below carries its construct:
+
+    * ``class_has_surviving_hook`` was itself still a flat scan -- the exact
+      defect the module walk had just shed -- so a hook ``del``-eted or
+      overwritten inside an ``if`` IN THE CLASS BODY was invisible. Any
+      compound statement in a class body now kills hook survival at its
+      position; only a hook whose survival is provable from flat statements
+      counts.
+    * ``decorator_list`` was ignored: a decorator can replace the class
+      outright (measured -- a decorator returning plain ``ModuleType`` left
+      the runtime module untyped while the reader trusted the body's hook).
+      A decorated class binds as unknown, never as a class.
+    * ``hooked`` was the one piece of state no unmodelled statement reset.
+      ``kill_bound_names`` conservatively killed name BINDINGS, so the
+      "unknowns bias to refuse" claim was true of the env and FALSE of the
+      only output that matters: an eight-line module that retypes itself and
+      undoes it inside ``if 1:`` stayed opaque. Every statement shape the
+      walk does not fully model -- compound statements, ``Expr``, ``Assert``,
+      non-Name deletion/annotation/augmentation targets, and any
+      ``__class__`` store whose holder cannot be attributed to the slot --
+      now resets ``hooked`` to False as well.
+
+    The bias is uniform now: anything unprovable costs the ACCEPT, never the
+    refusal. The real facade in ``daedalus/spine/attempt.py`` stays provable
+    because everything after its retype is a plain attribute assignment the
+    walk models exactly.
     """
     hooked = False
     env: dict[str, object] = {}
@@ -331,10 +357,12 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
         return _OTHER
 
     def class_has_surviving_hook(node: ast.ClassDef) -> bool:
-        # Last-write-wins inside the class body too (construct c6): a hook
-        # that is ``del``-eted, or overwritten by a non-``def`` binding this
-        # reader cannot judge, does not survive. Only a surviving ``def``
-        # counts, which errs toward refusal for every exotic spelling.
+        # Last-write-wins inside the class body too, and ORDER- and
+        # SCOPE-honest after round three: a compound statement (``if``,
+        # ``for``, ``try``, ...) in a class body can delete or overwrite the
+        # hook where a flat scan cannot see it, so it kills survival at its
+        # position. Only a hook whose survival is provable from the flat
+        # statements after the last unprovable one counts.
         state = False
         for member in node.body:
             if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -354,9 +382,13 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
                 if (isinstance(member.target, ast.Name)
                         and member.target.id in _DYNAMIC_ATTRIBUTE_HOOKS):
                     state = False
+            elif isinstance(member, (ast.Expr, ast.Pass)):
+                pass    # docstrings and no-ops cannot unbind a method
+            else:
+                state = False
         return state
 
-    def kill_bound_names(node: ast.stmt) -> None:
+    def kill_bound_names(node: ast.stmt | ast.expr) -> None:
         # Fail-closed default for unmodelled statements: whatever names they
         # bind (loop variables, walrus targets, ``with ... as`` names) lose
         # any tracked meaning, so a stale ``self``/class binding can never
@@ -369,6 +401,15 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
                 env[child.target.id] = _OTHER
 
     for node in tree.body:
+        # Any statement that CONTAINS a call may invoke an undo the walk
+        # cannot see, and it runs before the statement's own binding effect
+        # settles. The pre-dispatch reset makes the call cost the standing
+        # opacity while the dispatch below still decides what THIS statement
+        # proves -- so a retype whose RHS is a call proves nothing (its value
+        # is unknowable), while a clean retype after a call-bearing line
+        # still counts.
+        if hooked and any(isinstance(c, ast.Call) for c in ast.walk(node)):
+            hooked = False
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name == "sys":
@@ -386,8 +427,23 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
                 else:
                     env[bound] = _OTHER
         elif isinstance(node, ast.ClassDef):
-            env[node.name] = ("class", class_has_surviving_hook(node))
+            # A class BODY executes at import time and may contain the undo;
+            # the walk does not descend into it looking for one, so a class
+            # statement after a retype costs the standing opacity.
+            hooked = False
+            if node.decorator_list:
+                # A decorator may replace the class with anything at all;
+                # what the BODY says about hooks proves nothing about the
+                # object this name ends up bound to.
+                env[node.name] = _OTHER
+            else:
+                env[node.name] = ("class", class_has_surviving_hook(node))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # Defining a function runs nothing -- unless its decorators or
+            # parameter defaults execute at def time.
+            if (node.decorator_list or node.args.defaults
+                    or any(d is not None for d in node.args.kw_defaults)):
+                hooked = False
             env[node.name] = _OTHER
         elif isinstance(node, ast.Assign):
             rhs = value_of(node.value)
@@ -395,28 +451,47 @@ def _installs_dynamic_module_protocol(tree: ast.Module) -> bool:
                 if isinstance(target, ast.Name):
                     env[target.id] = rhs
                 elif (isinstance(target, ast.Attribute)
-                        and target.attr == "__class__"
-                        and value_of(target.value) is _SELF):
-                    hooked = rhs == ("class", True)
+                        and target.attr == "__class__"):
+                    if value_of(target.value) is _SELF:
+                        hooked = rhs == ("class", True)
+                    else:
+                        # A ``__class__`` store the walk cannot attribute to
+                        # the slot may still reach the module (e.g. through a
+                        # container). It cannot prove opacity and it may have
+                        # unproven it.
+                        hooked = False
+                        kill_bound_names(target)
                 else:
                     kill_bound_names(target)
         elif isinstance(node, ast.AnnAssign):
             if isinstance(node.target, ast.Name):
                 env[node.target.id] = (
                     value_of(node.value) if node.value is not None else _OTHER)
+            else:
+                hooked = False
+                kill_bound_names(node)
         elif isinstance(node, ast.AugAssign):
             if isinstance(node.target, ast.Name):
                 env[node.target.id] = _OTHER
+            else:
+                hooked = False
+                kill_bound_names(node)
         elif isinstance(node, ast.Delete):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     env.pop(target.id, None)
-        elif isinstance(node, (ast.Expr, ast.Pass, ast.Assert)):
-            kill_bound_names(node)
+                else:
+                    hooked = False
+                    kill_bound_names(target)
+        elif isinstance(node, ast.Pass):
+            pass        # fully modelled: does nothing, undoes nothing
         else:
-            # ``if``/``try``/``for``/``while``/``with``: their retypes are not
-            # module-scope certainties and are not granted opacity (the same
-            # strictness the swap rule applies), but their bindings still kill.
+            # Everything else -- ``if``/``try``/``for``/``while``/``with``,
+            # ``Expr``, ``Assert``, ``Match`` -- may contain or invoke an
+            # undo the walk cannot see. It kills the bindings it stores AND
+            # the opacity flag: after round three, no unmodelled statement
+            # leaves ``hooked`` standing.
+            hooked = False
             kill_bound_names(node)
     return hooked
 
