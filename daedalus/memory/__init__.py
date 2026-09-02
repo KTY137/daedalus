@@ -59,8 +59,19 @@ class MemoryEvent:
 def append_event(event: MemoryEvent) -> dict[str, Any]:
     MEMORY_DIR.mkdir(parents=True, exist_ok=True)
     record = event.to_record()
-    with EVENTS_PATH.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    # MEASURED 2026-09-02: the previous buffered ``open("a")`` write lost 4 of
+    # 120 records under six concurrent appenders -- silently, because
+    # overwritten bytes leave no malformed line for any reader to count. This
+    # is the AUTHORITATIVE journal every projection derives from, so it appends
+    # through the locked single-write path in ``journal_io``.
+    #
+    # A lock timeout RAISES rather than degrading to the old write: OSError was
+    # always possible here (full disk, permissions), so raising is inside this
+    # function's existing contract, and losing an authoritative event without
+    # saying so is the worse outcome by a wide margin.
+    from ..journal_io import append_lines
+
+    append_lines(EVENTS_PATH, [json.dumps(record, ensure_ascii=False)])
     refresh_todo_snapshot()
 
     # Opt-in: forward to the vector store for embedding-based search.

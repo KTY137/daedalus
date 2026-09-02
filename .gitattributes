@@ -408,3 +408,12 @@ daedalus/runtimes/providers/execution_policy.py -text
 daedalus/runtimes/providers/personas.py -text
 daedalus/runtimes/providers/reporting.py -text
 daedalus/runtimes/providers/token_policy.py -text
+
+# The append primitive, pulled into the closure by its consumers rather than
+# by the bundle: memory/__init__.py, metrics.py and progress.py are already
+# members and now import daedalus.journal_io, so it arrived here UNLISTED --
+# exactly the recurrence the D7 header above describes, and it was the guard
+# (tests/test_ignition_bundle_gitattributes.py), not review, that named it.
+# MEASURED 2026-09-02: 8 passed before the repoint, '1 of 206 ... no explicit
+# declaration: daedalus/journal_io.py' after it.
+daedalus/journal_io.py -text

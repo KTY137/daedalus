@@ -279,10 +279,21 @@ class ProgressLog:
         self._lock = threading.Lock()
 
     def append(self, event: ProgressEvent) -> ProgressEvent:
+        # ``self._lock`` is a threading lock: it orders this process's own
+        # writers against each other and against ``read_all`` below, and it
+        # does NOTHING across processes. That distinction was not academic --
+        # MEASURED 2026-09-02, six processes appending 20 events each kept 115,
+        # 118 and 119 of 120 in three runs, silently, with the lock held the
+        # whole time. A lock that looks like protection and is not one is worse
+        # than none, because nobody looks twice.
+        #
+        # The cross-process half lives in ``daedalus.journal_io.append_lines``:
+        # one payload, one os.write, under daedalus.atomic.ExclusiveFileLock.
+        # Both locks are kept; they answer different questions.
+        from .journal_io import append_lines
+
         with self._lock:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+            append_lines(self.path, [json.dumps(event.to_dict(), ensure_ascii=False)])
         return event
 
     def read_all(self) -> list[ProgressEvent]:
