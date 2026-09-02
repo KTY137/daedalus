@@ -65,3 +65,49 @@ def test_hadamard_streams_only_intersection_values_and_preserves_budget() -> Non
 
     with pytest.raises(ValueError, match="bounded operation limit"):
         left.hadamard(right, semiring, relation="bounded", max_operations=0)
+
+
+def test_hadamard_emits_canonical_csr_without_reindexing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = TypedAxis("rows", "code", ("a", "b", "c"))
+    columns = TypedAxis("columns", "type", ("T", "U", "V", "W"))
+    semiring = BooleanSemiring()
+    left = _block(
+        "left",
+        rows,
+        columns,
+        (
+            ("a", "T", True),
+            ("b", "U", True),
+            ("c", "T", True),
+            ("c", "W", True),
+        ),
+    )
+    right = _block(
+        "right",
+        rows,
+        columns,
+        (
+            ("a", "T", True),
+            ("b", "V", True),
+            ("c", "T", True),
+            ("c", "U", True),
+            ("c", "W", True),
+        ),
+    )
+
+    def explode(*args: object, **kwargs: object) -> object:
+        raise AssertionError("Hadamard rematerialized streamed intersections")
+
+    monkeypatch.setattr(TypedRelationBlock, "_from_indexed", classmethod(explode))
+
+    result = left.hadamard(right, semiring, relation="intersection")
+
+    assert result.row_offsets == (0, 1, 1, 3)
+    assert result.column_indices == (0, 0, 3)
+    assert tuple(result.iter_entries()) == (
+        ("a", "T", True),
+        ("c", "T", True),
+        ("c", "W", True),
+    )
