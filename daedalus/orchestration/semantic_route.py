@@ -63,8 +63,8 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from .providers.ollama import DEFAULT_HOST
-from .router import load_agents, route_task
+from ..providers.ollama import DEFAULT_HOST
+from ..router import load_agents, route_task
 
 logger = logging.getLogger(__name__)
 

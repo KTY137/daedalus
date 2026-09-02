@@ -886,7 +886,7 @@ function renderTaskStatusDoc(id, body) {
     if (snap.objective) lines.push(`Objective: ${snap.objective}`);
     lines.push(`Lane: ${snap.lane || "n/a"}  Project: ${snap.project || "n/a"}`);
     lines.push(`Observed: ${snap.observed_at || "n/a"} (${shortAge(snap.age_s)})`);
-    // conversation_dispatch is daedalus.conversation's OWN read of this
+    // conversation_dispatch is daedalus.orchestration.conversation's OWN read of this
     // dispatch's timeline, and it can lag behind -- e.g. still say
     // "dispatched" after the task is long finished -- because
     // record_dispatch_event is deliberately NOT called from web_api.py (see

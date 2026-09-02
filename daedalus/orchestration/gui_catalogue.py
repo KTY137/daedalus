@@ -62,7 +62,7 @@ There is no ranking arithmetic in this file.  A sixth scoring predicate beside
 BM25, DSS diffusion, cosine, ``bm25()`` and the fusion weights would be the
 exact defect ADR-002 names.  So:
 
-  * **lexical** is :func:`daedalus.context_plan.lexical_seed_scores` -- the
+  * **lexical** is :func:`daedalus.orchestration.context_plan.lexical_seed_scores` -- the
     repo's Okapi BM25 (k1=1.2, b=0.75), called on a *projection* of the
     catalogue into the ``{"modules": {...}}`` shape that function already
     accepts.  The projection is built by :func:`_search_key`, and what it does
@@ -74,10 +74,10 @@ exact defect ADR-002 names.  So:
     ``nomic-embed-text``, 768-dim, the same index machinery, the same identity
     anchor, the same drift refusal.  It is OPT-IN and defaults OFF, exactly as
     ``context_plan.plan_context(use_latent=False)`` defaults, and it degrades
-    through the same :func:`~daedalus.context_plan.latent_not_requested`
+    through the same :func:`~daedalus.orchestration.context_plan.latent_not_requested`
     sentinel so "nobody asked" stays distinguishable from "asked and found
     nothing".
-  * **fusion** is :func:`daedalus.context_plan.fuse_seed_scores` -- unchanged,
+  * **fusion** is :func:`daedalus.orchestration.context_plan.fuse_seed_scores` -- unchanged,
     including its ``effective_latent_weight`` honesty about a configured weight
     that carried no mass.
 
@@ -106,7 +106,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from ..context_plan import (
+from .context_plan import (
     LatentSeedResult,
     LexicalSeedResult,
     fuse_seed_scores,
@@ -116,7 +116,7 @@ from ..context_plan import (
 # Private, and imported deliberately. Max-normalisation is part of how the seed
 # halves are made comparable before fusion; a second copy here would be a second
 # answer to "what does a score of 1.0 mean", which is the whole objection.
-from ..context_plan import _normalise_max
+from .context_plan import _normalise_max
 # The repo's ONE untrusted-data notice. Imported, never re-typed: a second copy
 # is a second thing to forget to fix.
 from ..council.vendors import PROMPT_DATA_NOTICE

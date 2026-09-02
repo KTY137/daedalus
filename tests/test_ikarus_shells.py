@@ -16,7 +16,7 @@ from collections import namedtuple
 from unittest import mock
 
 from daedalus import health, ikarus_os
-from daedalus.ikarus_act import ActDecision, may_act
+from daedalus.orchestration.ikarus_act import ActDecision, may_act
 
 _Hand = namedtuple("HandState", "state detail host")
 _WORKING = _Hand("working", "answered", "http://127.0.0.1:11434")
@@ -362,7 +362,7 @@ class HandRefusesInWordsTest(_LocalOnlyProject, unittest.TestCase):
         self.assertNotIn("local executor is", res["assistant"])
 
     def test_turn_status_never_records_a_phantom_proposal(self):
-        from daedalus import conversation
+        from daedalus.orchestration import conversation
 
         self.assertEqual(
             ikarus_os._turn_status({"intent": "enqueue", "action": {"k": 1}}),

@@ -1,6 +1,6 @@
 """Suite-wide determinism for stage-1 routing and for operator declarations.
 
-The latent (embedding) route in ``daedalus/semantic_route.py`` is wired into
+The latent (embedding) route in ``daedalus/orchestration/semantic_route.py`` is wired into
 ``provider_router.route_and_select`` and is ON by default in production. That
 makes every test that routes depend on whether the box it runs on happens to
 have a working embedding backend -- and on what that backend's model thinks

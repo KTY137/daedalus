@@ -22,8 +22,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .env import load_env
-from .providers.ollama import DEFAULT_HOST, DEFAULT_MODEL
+from ..env import load_env
+from ..providers.ollama import DEFAULT_HOST, DEFAULT_MODEL
 
 
 @dataclass(frozen=True)
@@ -315,7 +315,7 @@ def _run_version(spec: RuntimeSpec) -> tuple[bool, str, str]:
 def _ollama_http_status() -> dict[str, Any]:
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
     want = os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-    from .providers.ollama import ollama_endpoint_admission, ollama_http_base_url
+    from ..providers.ollama import ollama_endpoint_admission, ollama_http_base_url
 
     allowed, lane, reason = ollama_endpoint_admission(host)
     if not allowed:

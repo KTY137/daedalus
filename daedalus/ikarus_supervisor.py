@@ -51,7 +51,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .build import BuildSession, BuildTask, Wave, mission_id_for_session
 from .limit_policy import ExecutionLimitPolicy
-from .ikarus_runtime_role import (
+from .orchestration.ikarus_runtime_role import (
     INPROCESS_RUNTIME_ID,
     RuntimeRoleRegistry,
     RuntimeRoleSnapshot,

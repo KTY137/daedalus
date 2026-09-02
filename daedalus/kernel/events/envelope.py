@@ -834,7 +834,7 @@ UNCONVERTED_PRODUCERS = {
         "NOT A RUN RECORD: a running spend total per PERIOD, deliberately not "
         "per-run -- correlating it to a trace would misrepresent what it is. "
         "daedalus/budget.py is now only its compatibility/effect facade.",
-    "daedalus/conversation.py":
+    "daedalus/orchestration/conversation.py":
         "NOT A RUN RECORD: it produces no records of its own any more. Every "
         "turn, dispatch and report is a typed intent on spine/ledger.py, which "
         "is already converted and stamps trace_id at record time -- so this "

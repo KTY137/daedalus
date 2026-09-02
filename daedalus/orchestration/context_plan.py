@@ -25,17 +25,17 @@ import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from .memory import VECTOR_DB_PATH
-from .memory.embeddings import (
+from ..memory import VECTOR_DB_PATH
+from ..memory.embeddings import (
     EMBED_MODEL,
     EmbeddingBackend,
     EventVectorStore,
     ProjectionFilter,
 )
-from .providers.ollama import DEFAULT_HOST
-from .structcore.dss import DSSConfig, DSSResult, semantic_super_sample
-from .structcore.forest import KnowledgeForest, build_knowledge_forest
-from .structcore.index import cached_index, resolution_context
+from ..providers.ollama import DEFAULT_HOST
+from ..structcore.dss import DSSConfig, DSSResult, semantic_super_sample
+from ..structcore.forest import KnowledgeForest, build_knowledge_forest
+from ..structcore.index import cached_index, resolution_context
 
 
 CONTEXT_PLAN_SCHEMA = "daedalus-context-plan/0"

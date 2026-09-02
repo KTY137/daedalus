@@ -240,7 +240,26 @@ CENSUS_MODULES = 430
 # import <module>`` resolves to two targets here. Net -6. Structure and digest
 # unchanged: none of the seven was in a cycle, and removing a leaf's only
 # out-edge opens no path.
-CENSUS_EDGES = 1635
+#
+# 1635 -> 1642 in G1-FLAT-03, which moved nineteen flat modules into
+# ``daedalus.orchestration`` and deleted none. MODULES is unchanged at 430:
+# a relocation renames a node, it does not add one. The +7 is a net of
+# thirteen, and every one of them is the same construct -- ``from <package>
+# import <module>``, which resolves to TWO targets in this graph, the package
+# and the module:
+#
+#   +10  callers that named the package gained ``-> daedalus.orchestration``:
+#        cli, desktop_runtime, file_bridge, health, ikarus_os, web_api,
+#        interfaces.http.effects, interfaces.http.sse, kairos.scheduler, and
+#        two moved modules importing a sibling that moved with them
+#    -3  cli, file_bridge and kairos.scheduler lost ``-> daedalus``: the root
+#        package was only ever named to reach a module that left
+#
+# Verified by diffing the resolved edge sets of HEAD and the working tree with
+# the rename table applied to HEAD, which left exactly those thirteen.
+# Structure and digest are UNCHANGED -- 12 components, max 14, same
+# CURRENT_COMPONENTS_SHA256 -- because none of the nineteen was in a cycle.
+CENSUS_EDGES = 1642
 
 
 def _module_name(path: str) -> str:
@@ -352,10 +371,16 @@ def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
         SPINE_PICKER,
     ):
         assert departed not in cyclic
-    assert "daedalus.conversation" not in frozenset().union(*component_sets)
-    assert "daedalus.health" not in graph["daedalus.conversation"]
+    # G1-FLAT-03 moved the module to ``daedalus.orchestration.conversation``.
+    # The three live assertions follow it; the historical component sets above
+    # keep the flat name, because that is what was in the cycle when they were
+    # measured. Renaming a node there would rewrite a past measurement.
+    assert "daedalus.orchestration.conversation" not in frozenset().union(
+        *component_sets
+    )
+    assert "daedalus.health" not in graph["daedalus.orchestration.conversation"]
     assert "daedalus.kernel.contracts.observations" in graph[
-        "daedalus.conversation"
+        "daedalus.orchestration.conversation"
     ]
 
 

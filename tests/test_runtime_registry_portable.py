@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus import runtime_registry
+from daedalus.orchestration import runtime_registry
 from daedalus.providers.ollama import ollama_http_base_url
 
 

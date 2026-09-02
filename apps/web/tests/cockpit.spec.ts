@@ -501,7 +501,7 @@ test.describe('cockpit', () => {
     /**
      * THE POINT. A row of one-shot answers looks identical to a conversation
      * until you reload. The backend has had a durable conversation store the
-     * whole time (daedalus/conversation.py); it simply had no caller.
+     * whole time (daedalus/orchestration/conversation.py); it simply had no caller.
      */
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('.talk-main')).toBeVisible({ timeout: 60_000 });

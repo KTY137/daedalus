@@ -18,7 +18,7 @@ from itertools import count
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-from .limit_policy import ExecutionLimitPolicy, load_from_env as load_limit_policy
+from ..limit_policy import ExecutionLimitPolicy, load_from_env as load_limit_policy
 
 
 _PROVIDER_ALIASES = {

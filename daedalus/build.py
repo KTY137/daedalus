@@ -12,7 +12,7 @@ invents no new ones:
 
   * :func:`daedalus.kairos.decompose.decompose`  -- feature -> scoped subtasks.
   * :func:`daedalus.router.route_task`    -- subtask -> owning agent.
-  * :func:`daedalus.categories.preset_for` -- owning agent -> {lane, tier}.
+  * :func:`daedalus.orchestration.categories.preset_for` -- owning agent -> {lane, tier}.
   * :class:`daedalus.kairos.scheduler.Ikarus`       -- wave sizing (``max_workers``) and
     the project's ``active_agents``.
 
@@ -59,7 +59,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .categories import preset_for
+from .orchestration.categories import preset_for
 from .kairos.decompose import decompose
 from .kairos.scheduler import KairosScheduler
 from .router import route_task

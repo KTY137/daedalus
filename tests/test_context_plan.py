@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from daedalus.context_plan import (
+from daedalus.orchestration.context_plan import (
     latent_memory_seed_scores,
     lexical_seed_scores,
     plan_context,

@@ -172,13 +172,13 @@ tests/gates/test_repository_head_revision_wire.py -text
 # the blast radius a wildcard measured to carry here.
 daedalus/__init__.py -text
 daedalus/adapters/events.py -text
-daedalus/agents_registry.py -text
+daedalus/orchestration/agents_registry.py -text
 daedalus/atomic.py -text
 daedalus/benchmark.py -text
 daedalus/bookkeeper.py -text
 daedalus/budget.py -text
 daedalus/build.py -text
-daedalus/categories.py -text
+daedalus/orchestration/categories.py -text
 daedalus/chip_design/contracts.py -text
 daedalus/chip_design/execution_plan.py -text
 daedalus/chip_design/executor.py -text
@@ -189,7 +189,7 @@ daedalus/chip_design/vivado_tcl.py -text
 daedalus/claude_bridge.py -text
 daedalus/claude_detect.py -text
 daedalus/config.py -text
-daedalus/context_plan.py -text
+daedalus/orchestration/context_plan.py -text
 daedalus/core.py -text
 daedalus/doctor.py -text
 daedalus/enforce.py -text
@@ -197,7 +197,7 @@ daedalus/eval/correctness.py -text
 daedalus/eval/harness.py -text
 daedalus/eval/mint.py -text
 daedalus/eval/tasks.py -text
-daedalus/fallback.py -text
+daedalus/orchestration/fallback.py -text
 daedalus/file_bridge.py -text
 daedalus/health.py -text
 daedalus/ignition/__init__.py -text
@@ -258,7 +258,7 @@ daedalus/runtimes/provider_observation.py -text
 daedalus/runtimes/trust.py -text
 daedalus/runtimes/trust_store.py -text
 daedalus/schemas.py -text
-daedalus/semantic_route.py -text
+daedalus/orchestration/semantic_route.py -text
 daedalus/sensitivity.py -text
 daedalus/spine/__init__.py -text
 daedalus/spine/attempt.py -text
@@ -304,7 +304,7 @@ daedalus/twin/contracts.py -text
 daedalus/twin/legacy_forest.py -text
 daedalus/twin/projection_verifier.py -text
 daedalus/twin/reference_compiler.py -text
-daedalus/verifier.py -text
+daedalus/orchestration/verifier.py -text
 daedalus/eval/__init__.py -text
 daedalus/eval/_text_integrity.py -text
 daedalus/eval/report.py -text
@@ -355,8 +355,8 @@ daedalus/text_integrity.py -text
 # closure for the first time. Exactly the arrival-unlisted case the paragraph
 # above predicts, caught by the guard test rather than by review.
 daedalus/build_exec.py -text
-daedalus/conversation.py -text
-daedalus/ikarus_runtime_role.py -text
+daedalus/orchestration/conversation.py -text
+daedalus/orchestration/ikarus_runtime_role.py -text
 daedalus/ikarus_supervisor.py -text
 daedalus/interfaces/bridge/__init__.py -text
 daedalus/interfaces/bridge/cli.py -text

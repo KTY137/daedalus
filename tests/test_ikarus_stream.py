@@ -203,14 +203,14 @@ class ClaudeStreamFrameTest(unittest.TestCase):
                 "delta": {"type": "text_delta", "text": " there"}}}) + "\n",
             json.dumps({"type": "result", "result": "Hi there"}) + "\n",
         ]
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.Popen", return_value=self._fake_proc(lines)):
             out = list(ikarus_os._claude_stream("hello"))
         self.assertEqual(out, ["Hi", " there"])
 
     def test_uses_stream_json_flags(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.Popen", return_value=self._fake_proc([])) as pop:
             list(ikarus_os._claude_stream("hello"))
@@ -221,7 +221,7 @@ class ClaudeStreamFrameTest(unittest.TestCase):
         self.assertIn("--verbose", args)  # required with stream-json in -p mode
 
     def test_missing_cli_yields_nothing(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value=None), \
              mock.patch.object(ikarus_os, "_provider_start") as provider_start, \
              mock.patch("subprocess.Popen") as popen:
@@ -230,7 +230,7 @@ class ClaudeStreamFrameTest(unittest.TestCase):
         popen.assert_not_called()
 
     def test_spawn_failure_yields_nothing(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.Popen", side_effect=OSError("no exec")):
             self.assertEqual(list(ikarus_os._claude_stream("hello")), [])

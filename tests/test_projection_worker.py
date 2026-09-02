@@ -343,7 +343,7 @@ def test_the_worker_writes_the_index_the_context_planner_actually_searches(
     would build a perfectly good index the shipped reader cannot see.
     """
 
-    from daedalus.context_plan import latent_memory_seed_scores
+    from daedalus.orchestration.context_plan import latent_memory_seed_scores
     from daedalus.structcore import build_index, build_knowledge_forest
 
     repo = tmp_path / "repo"

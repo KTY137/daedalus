@@ -22,7 +22,7 @@ Why it exists anyway
 The installed self-policy lets the local model write to ``docs/``, ``tests/``
 and ``README.md``. Two of those three have a machine-checkable gate: a test
 either passes or it doesn't. **Prose had none.** ``verify()``'s per-file
-dispatch (``daedalus/verifier.py``) branched on ``.py``, ``.json`` / ``.yaml``,
+dispatch (``daedalus/orchestration/verifier.py``) branched on ``.py``, ``.json`` / ``.yaml``,
 ``.js`` and ``.html`` and nothing else, so a ``.md`` write fell off the end of
 that chain and faced only the schema and did_work checks. It was accepted on the
 strength of "the report parsed and a file changed", which is exactly the "empty

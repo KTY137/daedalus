@@ -113,7 +113,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .kernel.contracts.observations import (
+from ..kernel.contracts.observations import (
     ABSENT,
     DEGRADED,
     OBSERVATION_STATES as OUTCOME_STATES,
@@ -121,8 +121,8 @@ from .kernel.contracts.observations import (
     UNKNOWN,
     WORKING,
 )
-from .spine.durability import open_gate0_spine_writer
-from .spine.ledger import (
+from ..spine.durability import open_gate0_spine_writer
+from ..spine.ledger import (
     DEFAULT_BUSY_TIMEOUT_MS,
     Intent,
     SpineLedger,

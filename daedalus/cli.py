@@ -278,7 +278,7 @@ def _context(argv: list[str]) -> None:
     import argparse
     import json
 
-    from .context_plan import plan_context
+    from .orchestration.context_plan import plan_context
     from .projects import load_project, resolve_repo_root
     from .structcore.churn import co_change_pairs
     from .structcore.index import cached_index
@@ -362,7 +362,7 @@ def _agents(argv: list[str]) -> None:
     override under .agentenv/agents/; otherwise the built-in global agents/."""
     import argparse
     import json
-    from . import agents_registry as reg
+    from .orchestration import agents_registry as reg
     from .projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
@@ -453,7 +453,7 @@ def _categories(argv: list[str]) -> None:
     otherwise the built-in global agents/categories.json."""
     import argparse
     import json
-    from . import categories as cats
+    from .orchestration import categories as cats
     from .projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(

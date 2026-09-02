@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import daedalus.conversation as conversation
+import daedalus.orchestration.conversation as conversation
 import daedalus.health as health
 import daedalus.kernel.contracts as contracts
 from daedalus.kernel.contracts import observations
@@ -53,17 +53,22 @@ def test_observation_values_are_defined_only_by_the_kernel_contract() -> None:
     assert canonical_names <= _assigned_names(
         ROOT / "daedalus" / "kernel" / "contracts" / "observations.py"
     )
-    for relative in ("health.py", "conversation.py"):
-        assert canonical_names.isdisjoint(
-            _assigned_names(ROOT / "daedalus" / relative)
-        )
+    # Named as whole paths rather than as leaves under one parent: G1-FLAT-03
+    # moved conversation.py into daedalus/orchestration/, and a loop that
+    # rebuilt the path from a shared parent went looking for a file that had
+    # moved instead of asserting on the one that exists.
+    for path in (
+        ROOT / "daedalus" / "health.py",
+        ROOT / "daedalus" / "orchestration" / "conversation.py",
+    ):
+        assert canonical_names.isdisjoint(_assigned_names(path))
 
 
 def test_cold_conversation_import_does_not_load_health_implementation() -> None:
     script = f"""
 import json, sys
 sys.path.insert(0, {str(ROOT)!r})
-import daedalus.conversation
+import daedalus.orchestration.conversation
 print(json.dumps({{
     'health_loaded': 'daedalus.health' in sys.modules,
     'contract_loaded': 'daedalus.kernel.contracts.observations' in sys.modules,

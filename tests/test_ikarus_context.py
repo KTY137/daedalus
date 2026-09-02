@@ -200,7 +200,7 @@ class BrainLaneContextTest(unittest.TestCase):
             m.stdout = "ok"
             return m
 
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             reply, mdl, ctx = ikarus_os._llm("claude", "explain widget.py", None, "low", "p")
@@ -240,7 +240,7 @@ class BrainLaneContextTest(unittest.TestCase):
             return m
 
         # "hello there" has no dotted token -> _project_context short-circuits.
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.run", side_effect=fake_run):
             reply, mdl, ctx = ikarus_os._llm("claude", "hello there", None, "low", "p")

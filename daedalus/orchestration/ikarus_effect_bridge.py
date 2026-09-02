@@ -20,10 +20,10 @@ from typing import Iterable
 
 from .ikarus_oneshot import OneShotRequest, OneShotRuntimeEvidenceBinding
 from .ikarus_tool_scope import IkarusToolScopeProjection
-from .kernel.contracts import EffectLeaseRequest
-from .kernel.effects import EffectExecutionRequest
-from .schemas import ContractProvenance, EffectScope
-from .spine.effect_boundary import Effect
+from ..kernel.contracts import EffectLeaseRequest
+from ..kernel.effects import EffectExecutionRequest
+from ..schemas import ContractProvenance, EffectScope
+from ..spine.effect_boundary import Effect
 
 
 class IkarusEffectBridgeRefused(RuntimeError):

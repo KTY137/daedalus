@@ -215,13 +215,13 @@ def test_link_target_deleted_blocks_but_relabelled_link_does_not():
 
 
 def test_bare_path_reference_deleted_blocks():
-    before = "The backstop is daedalus/verifier.py, which runs the gate.\n"
+    before = "The backstop is daedalus/orchestration/verifier.py, which runs the gate.\n"
     blocked = check_preservation(before, "The backstop is the gate.\n")
     assert blocked.ok is False
-    assert "daedalus/verifier.py" in _arts(blocked, LOST)
+    assert "daedalus/orchestration/verifier.py" in _arts(blocked, LOST)
 
     allowed = check_preservation(
-        before, "daedalus/verifier.py runs the gate and is the backstop.\n")
+        before, "daedalus/orchestration/verifier.py runs the gate and is the backstop.\n")
     assert allowed.findings == []
 
 
@@ -328,7 +328,7 @@ def test_as_dict_is_json_safe():
     ("README.md", True),
     ("docs/notes.MD", True),
     ("docs/guide.rst", True),
-    ("daedalus/verifier.py", False),
+    ("daedalus/orchestration/verifier.py", False),
     ("package.json", False),
 ])
 def test_is_prose_path(rel, expected):

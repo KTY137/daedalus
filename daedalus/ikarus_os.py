@@ -23,7 +23,7 @@ behind them but WHAT THEY ARE ALLOWED TO DO:
   ``deterministic``  status / distill / design. Computed here, locally. No
                      spend, no egress, no model.
   ``hand``           the tool-bearing shell. Reached only for work the SEPARATE
-                     capability predicate (:mod:`daedalus.ikarus_act`) cleared.
+                     capability predicate (:mod:`daedalus.orchestration.ikarus_act`) cleared.
                      Inside this module the Hand shell only ever PROPOSES a
                      confirm-gated task -- the executor itself runs later,
                      asynchronously, via the canonical file bridge. Nothing
@@ -92,11 +92,12 @@ from itertools import count
 from pathlib import Path
 from typing import Sequence
 
-from . import core, ikarus_act
-from .ikarus_act import ActDecision
+from . import core
+from .orchestration import ikarus_act
+from .orchestration.ikarus_act import ActDecision
 from .projects import resolve_repo_root
 from .providers._openai_compat import chat_completion
-from .llm_client import IkarusLLMClient
+from .orchestration.llm_client import IkarusLLMClient
 from .limit_policy import ExecutionLimitPolicy
 
 SYSTEM = (
@@ -202,7 +203,7 @@ def classify(message: str) -> str:
     This answers the same question with the same substring table it always has,
     and its answer is deliberately NOT a capability decision. The capability
     question ("may this message reach a tool-bearing executor") is answered by
-    :func:`daedalus.ikarus_act.may_act`, which is a different function with a
+    :func:`daedalus.orchestration.ikarus_act.may_act`, which is a different function with a
     different return type, a different error budget and its own test suite.
     See that module's docstring for why the two must never be merged, and for
     the worked divergences (e.g. "fix the clone detector" lands here in
@@ -244,7 +245,7 @@ def ask(project: str, message: str, provider: str | None = None,
 
     ``conversation_id`` is OPT-IN and purely additive: omitted (the default),
     this is byte-for-byte the old stateless call. Passed, the turn is appended
-    durably via :mod:`daedalus.conversation` (a conversation has an id; turns
+    durably via :mod:`daedalus.orchestration.conversation` (a conversation has an id; turns
     survive a restart) AFTER the reply is computed, so a store hiccup can never
     turn a good reply into a failed one — see :func:`_persist_turn`, which
     records its own failure on the envelope instead of raising.
@@ -328,7 +329,7 @@ def _prior_turn(conversation_id: str | None):
     if not conversation_id:
         return None
     try:
-        from . import conversation
+        from .orchestration import conversation
 
         return conversation.default_store().last_turn(conversation_id)
     except Exception:
@@ -420,7 +421,7 @@ def _ask_inner(project: str, message: str, provider: str | None = None,
 
 
 # --------------------------------------------------------------------------- #
-# Durable conversation state (opt-in) -- see daedalus/conversation.py, which   #
+# Durable conversation state (opt-in) -- see daedalus/orchestration/conversation.py, which   #
 # owns no store: every turn is a ``conversation.turn`` intent on the single     #
 # canonical event spine (daedalus/spine/ledger.py).                            #
 # --------------------------------------------------------------------------- #
@@ -428,7 +429,7 @@ def _turn_status(envelope: dict):
     """Map a chat envelope's ``intent`` to conversation.py's closed turn-status
     vocabulary. A separate, tiny function so the mapping is one place and is
     unit-testable without a real store."""
-    from . import conversation
+    from .orchestration import conversation
 
     intent = envelope.get("intent")
     if intent == "error":
@@ -455,7 +456,7 @@ def _persist_turn(conversation_id: str, project: str, message: str,
     for durable state has a right to know it didn't get it this turn.
     """
     try:
-        from . import conversation
+        from .orchestration import conversation
 
         turn = conversation.default_store().append_turn(
             conversation_id,
@@ -826,7 +827,7 @@ def _act_offer(project: str, message: str, act: ActDecision) -> dict:
 
 
 def _design(project: str, message: str) -> dict:
-    from . import ikarus_chat
+    from .orchestration import ikarus_chat
 
     res = ikarus_chat.chat(project, message, apply=False)
     res["intent"] = "design"
@@ -863,7 +864,7 @@ def _conversation_context(
     if not conversation_id:
         return ""
     try:
-        from . import conversation
+        from .orchestration import conversation
 
         policy = limit_policy or ExecutionLimitPolicy()
         block = conversation.recent_turns_context(
@@ -1156,7 +1157,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
             message, mdl, effort, context, timeout_s=timeout_s,
             limit_policy=captured_policy), mdl, ctx
     if p in _CODEX:
-        from .runtime_registry import resolve_runtime_command
+        from .orchestration.runtime_registry import resolve_runtime_command
 
         if not resolve_runtime_command("codex_cli"):
             return _unconfigured_reply(
@@ -1547,7 +1548,7 @@ def _ollama_cli(message: str, model: str, effort: str | None,
                 context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
     """Use the installed Ollama CLI as a real transport, not an HTTP alias."""
     from .providers.ollama import DEFAULT_HOST
-    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from .orchestration.runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("ollama_cli")
     if not path:
@@ -1639,7 +1640,7 @@ def _neutral_cwd() -> str:
 
 def _claude(message: str, effort: str | None = None, model: str | None = None,
             context: str = "", *, timeout_s: float | None = 150.0) -> str | None:
-    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from .orchestration.runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("claude_code_cli")
     if not path:
@@ -1707,7 +1708,7 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
     their reason -- a CLI that never drains stdin deadlocks the writer outside
     every timeout, and a file handle reaches EOF immediately, which is the
     property the old ``stdin=DEVNULL`` was there to provide."""
-    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from .orchestration.runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("codex_cli")
     if not path:
@@ -2122,7 +2123,7 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     process dies or emits no deltas the generator simply ends, and the caller
     falls back to the blocking path.
     """
-    from .runtime_registry import resolve_runtime_command, runtime_subprocess_env
+    from .orchestration.runtime_registry import resolve_runtime_command, runtime_subprocess_env
 
     path = resolve_runtime_command("claude_code_cli")
     if not path:

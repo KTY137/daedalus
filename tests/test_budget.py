@@ -927,7 +927,7 @@ _NOT_BILLABLE = {
         "the interposer implementation; it classifies and wraps calls but "
         "does not itself select or invoke a vendor",
     "daedalus/doctor.py": "`codex --version` / `login status`: no tokens generated",
-    "daedalus/runtime_registry.py": "`<binary> --version` probe only",
+    "daedalus/orchestration/runtime_registry.py": "`<binary> --version` probe only",
     "daedalus/claude_detect.py": "detects the CLI, never invokes it",
     "daedalus/accelerators.py": "nvidia-smi and a local /api/tags probe",
     "daedalus/core.py": "dispatches to the sites below; spawns nothing itself",

@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .router import load_agents
+from ..router import load_agents
 
 MODEL_TIERS = ("opus", "sonnet", "haiku")
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")

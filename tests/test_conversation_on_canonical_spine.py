@@ -1,6 +1,6 @@
 """The chat seam has no store of its own -- and the old one cannot come back.
 
-``daedalus/conversation.py`` used to open ``runs/ikarus/conversations.sqlite3``
+``daedalus/orchestration/conversation.py`` used to open ``runs/ikarus/conversations.sqlite3``
 and its own module docstring called itself "a fourth append-only log". Invariant
 1 allows one canonical event spine, so the turns moved onto
 ``daedalus/spine/ledger.py`` as three typed intent kinds and the module became a
@@ -33,7 +33,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import conversation as conv
+from daedalus.orchestration import conversation as conv
 from daedalus.spine import ledger as spine_ledger
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -445,7 +445,7 @@ def test_the_facade_opens_no_database_of_its_own():
     """A facade that connected to SQLite itself would be a store wearing a
     facade's docstring, and the durability profile it applied would be its own
     rather than the canonical ledger's."""
-    text = (ROOT / "daedalus" / "conversation.py").read_text(encoding="utf-8")
+    text = (ROOT / "daedalus" / "orchestration" / "conversation.py").read_text(encoding="utf-8")
     assert "sqlite3.connect(" not in text
     assert "CREATE TABLE" not in text, (
         "the chat seam declares a table -- the canonical spine owns the schema")

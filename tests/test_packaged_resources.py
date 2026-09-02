@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import agents_registry, categories, config, router
+from daedalus import config, router
+from daedalus.orchestration import agents_registry, categories
 
 # The OWNER: the catalogue test below fakes ``gui_catalogue.__file__`` to a
 # site-packages path, and ``load_catalogue`` resolves the packaged data from

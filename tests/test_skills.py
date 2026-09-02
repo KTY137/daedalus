@@ -1022,7 +1022,7 @@ class NotWired(unittest.TestCase):
         """
         root = Path(skills.__file__).resolve().parents[1]
         watched = ["daedalus/router.py", "daedalus/provider_router.py",
-                   "daedalus/semantic_route.py", "daedalus/spine/picker.py",
+                   "daedalus/orchestration/semantic_route.py", "daedalus/spine/picker.py",
                    "daedalus/offload.py", "daedalus/orchestrate.py",
                    "daedalus/sensitivity.py", "daedalus/budget.py"]
         for rel in watched:

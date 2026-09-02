@@ -19,7 +19,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from daedalus import file_bridge, memory, metrics, verifier
+from daedalus import file_bridge, memory, metrics
+from daedalus.orchestration import verifier
 from daedalus.providers.base import Provider, ProviderCapabilities
 from daedalus.sensitivity import (
     DEFAULT_POLICY,
@@ -179,7 +180,7 @@ class VerifierHardeningTests(unittest.TestCase):
 
     def test_test_command_wiring_success(self):
         fake = SimpleNamespace(returncode=0, stdout="2 passed", stderr="")
-        with patch("daedalus.verifier.subprocess.run", return_value=fake) as run:
+        with patch("daedalus.orchestration.verifier.subprocess.run", return_value=fake) as run:
             res = verifier.verify(_report(), "/repo",
                                   test_command="pytest -q tests", test_cwd="/elsewhere")
         run.assert_called_once()
@@ -193,7 +194,7 @@ class VerifierHardeningTests(unittest.TestCase):
 
     def test_test_command_failure_and_default_cwd(self):
         fake = SimpleNamespace(returncode=1, stdout="1 failed", stderr="boom")
-        with patch("daedalus.verifier.subprocess.run", return_value=fake) as run:
+        with patch("daedalus.orchestration.verifier.subprocess.run", return_value=fake) as run:
             res = verifier.verify(_report(), "/repo", test_command="pytest -q")
         self.assertEqual(run.call_args.kwargs["cwd"], "/repo")  # falls back to repo_root
         self.assertFalse(res.ok)

@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from daedalus.ikarus_runtime_role import (  # noqa: E402
+from daedalus.orchestration.ikarus_runtime_role import (  # noqa: E402
     FIXTURE_EXECUTION_MODE,
     SOURCE_ONLY_EXECUTION_MODE,
     RuntimeRoleBinding,
@@ -981,7 +981,7 @@ def test_invalid_supervisor_timeout_refuses_before_state(
 def test_port_has_no_provider_import_process_spawn_or_vendor_branch():
     root = Path(__file__).resolve().parents[1]
     paths = (
-        root / "daedalus" / "ikarus_runtime_role.py",
+        root / "daedalus" / "orchestration" / "ikarus_runtime_role.py",
         root / "daedalus" / "ikarus_supervisor.py",
     )
     vendor_tokens = {"claude", "codex", "hermes"}

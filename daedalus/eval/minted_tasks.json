@@ -473,7 +473,7 @@
       "repo": "C:/Users/nukei/Desktop/agent_env",
       "skipped_out_of_scope": [],
       "skipped_secret_floor": [],
-      "target": "daedalus/verifier.py",
+      "target": "daedalus/orchestration/verifier.py",
       "tier": "quarantine"
     },
     {

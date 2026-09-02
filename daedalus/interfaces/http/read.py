@@ -6,17 +6,10 @@ from typing import Any, Callable, Pattern
 from urllib.parse import unquote
 
 from ...kairos import drafts
-from ... import (
-    accelerators,
-    control_plane,
-    conversation_requests,
-    core,
-    editor_context,
-    hierarchy,
-    runtime_registry,
-)
+from ... import accelerators, core
+from ...orchestration import control_plane, conversation_requests, editor_context, hierarchy, runtime_registry
 from ...bootstrap_prompt import claude_bootstrap_prompt
-from ...context_plan import plan_context
+from ...orchestration.context_plan import plan_context
 from ...env import env_status
 from ...structcore.churn import co_change_pairs
 from ...structcore.report import structure_summary

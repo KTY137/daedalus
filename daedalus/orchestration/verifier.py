@@ -19,9 +19,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .limit_policy import ExecutionLimitPolicy
-from .preservation import check_preservation, is_prose_path
-from .runtimes.contracts.provider_report import validate_report
+from ..limit_policy import ExecutionLimitPolicy
+from ..preservation import check_preservation, is_prose_path
+from ..runtimes.contracts.provider_report import validate_report
 
 # How long the project suite may run before we kill it. This is a RUNAWAY
 # guard, not a performance budget: its job is to stop a wedged test process
@@ -319,7 +319,7 @@ def _prose_check(repo_root: str, rel: str,
     lost_code = [f for f in blocking if f.kind == "code"]
     if lost_code and len(lost_code) == len(blocking):
         try:
-            from .spine.docrefs import scan, verify_fixes
+            from ..spine.docrefs import scan, verify_fixes
 
             before_report = scan(repo_root, overrides={key: before})
             targets = [

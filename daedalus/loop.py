@@ -1051,7 +1051,7 @@ class LoopDriver:
         AND and worktree isolation are all still the existing ones.
         """
         from .build import BuildSession, BuildTask, Wave, assign_builder
-        from .categories import preset_for
+        from .orchestration.categories import preset_for
         from .kairos.scheduler import KairosScheduler
         from .router import route_task
 

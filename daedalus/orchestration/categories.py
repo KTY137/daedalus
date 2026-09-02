@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import Any
 
 from .agents_registry import MODEL_TIERS
-from .resources import read_builtin_text
-from .router import ROOT, load_agents
+from ..resources import read_builtin_text
+from ..router import ROOT, load_agents
 
 CATEGORIES_PATH = ROOT / "agents" / "categories.json"
 LANES = ("local_only", "local", "auto", "claude", "codex")

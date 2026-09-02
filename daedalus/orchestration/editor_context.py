@@ -22,10 +22,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterable
 
-from .kernel.artifacts import ArtifactIdentityError, store_canonical_json
-from .projects import load_project, resolve_repo_root
-from .sensitivity import load_policy, secret_floor_rule, slice_egress_rule
-from .spine.envelope import canonical_sha
+from ..kernel.artifacts import ArtifactIdentityError, store_canonical_json
+from ..projects import load_project, resolve_repo_root
+from ..sensitivity import load_policy, secret_floor_rule, slice_egress_rule
+from ..spine.envelope import canonical_sha
 
 
 SCHEMA = "daedalus-editor-context/1"

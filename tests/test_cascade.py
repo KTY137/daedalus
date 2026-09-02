@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from daedalus import metrics, semantic_route, verifier
+from daedalus import metrics
+from daedalus.orchestration import semantic_route, verifier
 from daedalus.offload import _offload_impl
 from daedalus.provider_router import route_and_select
 from daedalus.projects import load_project

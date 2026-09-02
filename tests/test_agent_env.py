@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from daedalus.claude_bridge import _blocked_report_from_wrapper, _extract_json, build_prompt
 from daedalus.file_bridge import _read_request
-from daedalus.fallback import fallback_decision
+from daedalus.orchestration.fallback import fallback_decision
 from daedalus.memory import MemoryEvent
 from daedalus.kairos.orchestrate import _infer_paths
 from daedalus.kairos.scheduler import KairosScheduler

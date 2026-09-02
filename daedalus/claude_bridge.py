@@ -15,7 +15,7 @@ import json
 import subprocess
 from typing import TYPE_CHECKING, Any
 
-from .fallback import fallback_decision
+from .orchestration.fallback import fallback_decision
 from .limit_policy import ExecutionLimitPolicy, LimitPolicyError
 from .router import route_task
 from .runtimes.contracts.provider_report import REPORT_KEYS, validate_report

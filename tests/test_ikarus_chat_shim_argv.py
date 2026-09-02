@@ -158,7 +158,7 @@ class _ShimCase(unittest.TestCase):
 
     def resolved(self):
         """Point the chat path's runtime resolver at the stub."""
-        return patch("daedalus.runtime_registry.resolve_runtime_command",
+        return patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                      return_value=str(self.shim.path))
 
 

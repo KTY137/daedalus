@@ -48,7 +48,7 @@ $env:OLLAMA_MODEL = "qwen3-coder"     # or "devstral", "qwen2.5-coder:14b"
 ```
 
 Re-benchmark tool-use reliability before trusting a new model on `write` mode;
-the verifier gate (`daedalus/verifier.py`) is your backstop either way.
+the verifier gate (`daedalus/orchestration/verifier.py`) is your backstop either way.
 
 ## Running the bench
 
@@ -114,7 +114,7 @@ $env:OLLAMA_MODEL = "qwen3-coder"     # or "devstral", "qwen2.5-coder:14b"
 ```
 
 Re-benchmark tool-use reliability before trusting a new model on `write` mode;
-the verifier gate (`daedalus/verifier.py`) is your backstop either way.
+the verifier gate (`daedalus/orchestration/verifier.py`) is your backstop either way.
 
 ## Running the bench
 
@@ -173,7 +173,7 @@ Switching is just an env var — no code change:
 $env:OLLAMA_MODEL = "qwen3-coder"     # or "devstral", "qwen2.5-coder:14b"
 ```
 
-Re-benchmark tool-use reliability before trusting a new model on `write` mode; the verifier gate (`daedalus/verifier.py`) is your backstop either way.
+Re-benchmark tool-use reliability before trusting a new model on `write` mode; the verifier gate (`daedalus/orchestration/verifier.py`) is your backstop either way.
 
 ## Running the bench
 
@@ -234,7 +234,7 @@ Switching is as simple as changing an environment variable — no code change re
 $env:OLLAMA_MODEL = "qwen3-coder"     # or "devstral", "qwen2.5-coder:14b"
 ```
 
-Re-benchmark tool-use reliability before trusting a new model in `write` mode; the verifier gate (`daedalus/verifier.py`) is your backstop either way.
+Re-benchmark tool-use reliability before trusting a new model in `write` mode; the verifier gate (`daedalus/orchestration/verifier.py`) is your backstop either way.
 
 ## Running the Bench
 

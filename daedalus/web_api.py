@@ -19,20 +19,10 @@ from .interfaces.http import server as http_server
 from .interfaces.http import sse as http_sse
 
 from .kairos import drafts
-from . import (
-    accelerators,
-    agents_registry,
-    categories,
-    control_plane,
-    conversation_requests,
-    core,
-    editor_context,
-    hierarchy,
-    ikarus_chat,
-    runtime_registry,
-)
+from . import accelerators, core
+from .orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, ikarus_chat, runtime_registry
 from .bootstrap_prompt import claude_bootstrap_prompt
-from .context_plan import plan_context
+from .orchestration.context_plan import plan_context
 from .env import env_status, load_env
 from .projects import (
     ProjectRegistrationError,
@@ -804,7 +794,7 @@ def _task_artifacts(task_id: str) -> dict[str, Any]:
 # conversation + progress seam                                                #
 # --------------------------------------------------------------------------- #
 # Both sibling modules landed while the section above was being written.
-# ``daedalus/conversation.py`` gives the Ikarus assistant seam (ask/ask_stream)
+# ``daedalus/orchestration/conversation.py`` gives the Ikarus assistant seam (ask/ask_stream)
 # a durable multi-turn identity: a conversation_id, an append-only turn log,
 # and dispatch attribution (a turn caused work; that work is a caller-supplied
 # ref, e.g. a file-bridge task id, that a later report can be found under).
@@ -860,7 +850,7 @@ def _conversation_view(conversation_id: str, limit: int = LOOP_MAX_LIMIT) -> dic
     conversation has never had a turn appended -- ``append_turn`` is what
     creates the row; there is no separate "create conversation" write to be
     missing."""
-    from . import conversation as conv
+    from .orchestration import conversation as conv
 
     store = conv.default_store()
     if not store.conversation_exists(conversation_id):
@@ -899,7 +889,7 @@ def _conversation_list_view(project: str, limit: int = 20) -> list[dict[str, Any
     field clipped by the same bound the turn view uses. Read-only; minting a
     conversation stays on the POST route and creation stays on the first
     turn."""
-    from . import conversation as conv
+    from .orchestration import conversation as conv
 
     rows = conv.default_store().list_conversations(project, limit=limit)
     for row in rows:
@@ -920,7 +910,7 @@ def _dispatch_status_view(task_id: str) -> dict[str, Any] | None:
     (``task``, from :func:`_task_snapshot`) always reflects the file bus
     directly, whether or not a conversation link exists and even while a
     conversation projection retry is pending."""
-    from . import conversation as conv
+    from .orchestration import conversation as conv
 
     try:
         status = conv.default_store().dispatch_status(task_id)

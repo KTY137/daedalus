@@ -8,19 +8,8 @@ from typing import Any, Callable
 from urllib.parse import unquote
 
 from ...kairos import drafts
-from ... import (
-    agents_registry,
-    categories,
-    control_plane,
-    conversation_requests,
-    core,
-    editor_context,
-    file_bridge,
-    hierarchy,
-    ikarus_chat,
-    ikarus_os,
-    runtime_registry,
-)
+from ... import core, file_bridge, ikarus_os
+from ...orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, ikarus_chat, runtime_registry
 from ...projects import (
     ProjectRegistrationError,
     ProjectRegistryUnavailable,
@@ -285,7 +274,7 @@ def handle_post(handler: Any, *, ports: EffectPorts) -> None:
         # the already-published task did not happen.
         if task_id and conversation_id:
             try:
-                from ... import conversation as conv
+                from ...orchestration import conversation as conv
 
                 link = conv.default_store().link_dispatch(
                     str(conversation_id), task_id,
@@ -335,12 +324,12 @@ def handle_post(handler: Any, *, ports: EffectPorts) -> None:
         self._send_json(result)
         return
     if path == "/api/conversations":
-        # Mint only -- see daedalus.conversation.new_conversation_id: pure
+        # Mint only -- see daedalus.orchestration.conversation.new_conversation_id: pure
         # id generation, no store write. The row is created lazily by the
         # FIRST append_turn (via POST /api/ikarus/ask's conversation_id),
         # so this never leaves a conversation-shaped id with no turns
         # behind it that GET /api/conversations/<id> would 404 on forever.
-        from ... import conversation as conv
+        from ...orchestration import conversation as conv
 
         self._send_json(core.envelope(None, conversation_id=conv.new_conversation_id()))
         return

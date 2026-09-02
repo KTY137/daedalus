@@ -46,7 +46,7 @@ SIGNALS REFUSED, ON PURPOSE
   SELF-REPORTS about what it did. This is the exact fake-offload failure
   named in this project's own history (a model narrated an edit it never
   made, and a harness read the narration as a finished report) -- see
-  ``daedalus/verifier.py``'s comment on that same field. No function in this
+  ``daedalus/orchestration/verifier.py``'s comment on that same field. No function in this
   file reads it, and :func:`daedalus.progress.record_disk_change` refuses a
   ``basis`` that is not a mechanical diff even if a caller tried to smuggle
   one through.

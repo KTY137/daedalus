@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from daedalus import conversation as conv
+from daedalus.orchestration import conversation as conv
 
 
 @pytest.fixture()

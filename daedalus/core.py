@@ -908,7 +908,7 @@ def get_dashboard(project: str | None = None) -> dict[str, Any]:
 
 
 def get_categories(project: str | None = None) -> dict[str, Any]:
-    from . import categories as cats
+    from .orchestration import categories as cats
 
     pdata, load_warning = _safe_load_project(project)
     repo_root = pdata.get("repo_root") if pdata else None

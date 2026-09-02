@@ -21,7 +21,7 @@ from typing import Any
 from urllib.parse import urlencode, urlsplit
 
 from . import budget as budget_kernel
-from . import runtime_registry
+from .orchestration import runtime_registry
 from .interfaces.desktop import configuration as desktop_configuration
 from .interfaces.desktop import http as desktop_http
 from .interfaces.desktop import lifecycle as desktop_lifecycle

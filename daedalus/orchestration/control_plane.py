@@ -10,15 +10,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from . import core
-from .claude_detect import detect_claude_crew
-from .projects import (
+from .. import core
+from ..claude_detect import detect_claude_crew
+from ..projects import (
     ProjectRegistryUnavailable,
     ProjectRowUpdateError,
     load_project,
     rewrite_project_team,
 )
-from .router import load_agents
+from ..router import load_agents
 
 AUTONOMY_MODES = ("manual", "semi_auto", "autonomous")
 _MODE_RANK = {mode: i for i, mode in enumerate(AUTONOMY_MODES)}
