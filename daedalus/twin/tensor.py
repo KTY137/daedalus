@@ -92,9 +92,25 @@ class TensorAxis:
     def __post_init__(self) -> None:
         object.__setattr__(self, "name", _identifier(self.name, "axis.name"))
         raw_labels = _bounded_sequence(self.labels, "axis.labels", MAX_AXIS_LABELS)
-        labels = _sorted_strings(raw_labels, "axis.labels")
-        if any("\x00" in label for label in labels):
-            raise ValueError("axis.labels must not contain NUL bytes")
+        labels = None
+        if type(raw_labels) is tuple:
+            previous_label: str | None = None
+            for index, raw_label in enumerate(raw_labels):
+                label = _non_empty(raw_label, f"axis.labels[{index}]", max_length=1000)
+                if "\x00" in label:
+                    raise ValueError("axis.labels must not contain NUL bytes")
+                if previous_label is not None:
+                    if label == previous_label:
+                        raise ValueError("axis.labels must not contain duplicates")
+                    if label < previous_label:
+                        break
+                previous_label = label
+            else:
+                labels = raw_labels
+        if labels is None:
+            labels = _sorted_strings(raw_labels, "axis.labels")
+            if any("\x00" in label for label in labels):
+                raise ValueError("axis.labels must not contain NUL bytes")
         object.__setattr__(self, "labels", labels)
 
     @classmethod
