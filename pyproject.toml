@@ -49,6 +49,13 @@ orchestration = ["langgraph>=1.2,<2"]
 #                  evolution tests instead of silently skipping coroutines.
 test = [
     "pytest>=8",
+    # Opt-in only: gate_discrimination runs coverage-guided mutation analysis
+    # under --coverage-guided and skips it otherwise (coverage_state
+    # "not_requested"). Declared here because it was installable from NOWHERE
+    # in this project -- no extra named it and uv.lock had no entry -- so the
+    # stronger form of the gate could not be run at all, and
+    # tools/gate_host_preflight.py failed every host for its absence.
+    "coverage>=7",
     "hypothesis>=6.163",
     "jsonschema>=4.23",
     "pytest-asyncio>=0.23.5",
