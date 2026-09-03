@@ -84,11 +84,14 @@ def boolean_relation_block_from_fourfold(
         plane=signature.source_plane,
         labels=source_plane.node_ids,
     )
-    column_axis = TypedAxis(
-        name=f"{signature.target_plane}-nodes",
-        plane=signature.target_plane,
-        labels=target_plane.node_ids,
-    )
+    if signature.source_plane == signature.target_plane:
+        column_axis = row_axis
+    else:
+        column_axis = TypedAxis(
+            name=f"{signature.target_plane}-nodes",
+            plane=signature.target_plane,
+            labels=target_plane.node_ids,
+        )
     coordinates: list[tuple[str, str, bool]] = []
 
     def append(source: str, target: str) -> None:
