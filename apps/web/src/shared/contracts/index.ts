@@ -86,6 +86,29 @@ export interface HierarchyPayload extends ApiEnvelope {
   health: Record<string, unknown>;
   capabilities: Array<Record<string, unknown>>;
   policy_flags: Record<string, unknown>;
+  /** The lanes `save_team` will accept, from `daedalus.core.KNOWN_LANES`.
+   *  Sent by the backend rather than hardcoded here: a frontend that keeps its
+   *  own copy eventually offers one the validator refuses, and the user learns
+   *  that from a 400. */
+  lanes?: string[];
+  /** Upper bound `save_team` enforces on `max_workers`. */
+  max_workers_ceiling?: number;
+}
+
+/** What `PUT /api/projects/<name>/team` answers with. `ignored_fields` names
+ *  the keys the backend dropped — it drops unknown keys rather than failing,
+ *  which is what keeps a patch inside the team subtree, but a dropped field
+ *  and a saved one look identical from this side of the wire. */
+export interface TeamPayload extends ApiEnvelope {
+  team: {
+    max_workers: number;
+    default_lane: string;
+    active_agents: string[];
+    squads: Record<string, string[]>;
+    model_assignments: Record<string, string>;
+    semi_auto: Record<string, boolean>;
+  };
+  ignored_fields: string[];
 }
 
 /** The five health states, and there are five on purpose. Nothing may collapse
