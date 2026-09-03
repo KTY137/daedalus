@@ -641,7 +641,11 @@ the documented way is NOT FIT by the repository's own instrument.
 
 Worse, the two instruments disagree about whether it is required:
 
-- `tools/gate_host_preflight.py:49` — `REQUIRED_MODULES = ("pytest", "coverage")`,
+- `tools/gate_host_preflight.py:49` — a required-modules tuple naming `pytest`
+  and `coverage` (written here without the assignment form on purpose: the
+  switch scanner reads `NAME` followed by `=` in prose as an operator
+  declaring an environment variable, and quoting the real line manufactured a
+  phantom `REQUIRED_MODULES` switch in this gate's own doc-drift list),
   justified as *"a gate run on this host would not measure what the receipt
   would claim it measured"*;
 - `tools/gate_discrimination.py:752` — `_coverage_probe` returns `None` when
@@ -700,6 +704,52 @@ measured; that recommendation was wrong.
 Neither is applied here. `pyproject.toml` and `uv.lock` move together, and this
 lane was frozen on git for an owner-authorised history rewrite when the finding
 landed. Recorded rather than half-done.
+
+## 9. What was deliberately not fixed
+
+Three `ENGINE DISAGREEMENT` rows survive on this branch, and the decision not to
+close them is the point.
+
+All three are the same shape: `tools/` modules importing siblings by bare name
+after `sys.path.insert(0, TOOLS_DIR)`, where `TOOLS_DIR` is literally
+`Path(__file__).resolve().parent`.
+
+```text
+tools/gate_discrimination.py -> tools/system_check.py
+tools/self_test.py           -> tools/system_check.py
+tools/system_check.py        -> tools/self_test.py
+```
+
+The edges are real at runtime — the `sys.path` insert is two lines above the
+import. structcore resolves them because §5 made `tools` a declared center root.
+The reachability walk does not, and **should not**: a sibling rule keyed on
+`sys.path` mutation would add edges on an inference about runtime path state,
+and `reach.py`'s governing rule is that a false *reachable* is worse than a
+false island because it is silent. The gate's own design agrees — these are
+"reported, never merged", and a visible disagreement between two engines is the
+intended outcome rather than a defect to be resolved by making one of them
+guess.
+
+So they are **accepted, dated and reasoned** rather than banked into a snapshot:
+each carries the explanation above and expires 2026-11-30. The tool refused a
+119-day horizon on the way — *"an acceptance nobody has to retype is a
+permanent one wearing a date"* — which is the correct instinct and worth
+recording as one of the few places today where an instrument was stricter than
+the person using it.
+
+**One row in this document was a defect this document caused.** §8.3 quoted the
+preflight's required-modules line verbatim, in the assignment form, and the
+switch scanner reads `NAME` followed by `=` in prose as an operator declaring an
+environment variable. The survey therefore manufactured a phantom
+`REQUIRED_MODULES` switch into the very doc-drift list it was reporting on. It
+is rephrased, and `doc_drift` returns to 30. The comment above `_DOC_ENV_FORMS`
+warns about exactly this — "without this filter every SCREAMING_CASE doc
+filename becomes a phantom switch" — and the filter works; prose that writes the
+operator form is not a false positive, it is a declaration.
+
+Gate state on this branch: **OK**, `dark_switches=0`, `doc_drift=30`,
+`islands=60`, `unreached=91`, three accepted disagreements carrying their reason
+`[MEASURED 2026-09-03]`.
 
 ---
 
