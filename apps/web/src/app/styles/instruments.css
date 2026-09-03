@@ -364,3 +364,9 @@
   50% { opacity: 0.45; }
 }
 
+
+/* The reason there is no percentage, kept on screen. This was briefly a
+   `title` attribute, which is mouse-only — so the backend's own sentence,
+   the honest half, was unreachable by keyboard and inconsistently exposed to
+   screen readers. */
+.work-no-fraction { color: var(--ink3); }

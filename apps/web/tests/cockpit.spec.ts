@@ -542,12 +542,53 @@ test.describe('cockpit', () => {
       .filter((t) => !reachableNames.map((n) => n.trim()).includes(t));
     expect(extra, `the brain picker offered runtimes that are not reachable: ${extra.join(', ')}`).toHaveLength(0);
 
-    // All four autonomy levels, and the dangerous one says what it does.
+    /*
+     * TWO autonomy levels, and neither of them writes.
+     *
+     * This assertion demanded four until 2026-09-03 and had been red since
+     * 151b8d18 removed `entwürfe` and `alles` on 2026-08-31 — the two levels
+     * that APPLIED a draft with no click, `alles` explicitly "ohne Klick und
+     * ohne Obergrenze". A stale red assertion is worse than no assertion: it
+     * was demanding the interface offer back the exact control the removal
+     * took away.
+     *
+     * What is pinned now is the removal itself. `vorschläge` dispatches a
+     * TASK unasked; the draft that task produces still waits for a person,
+     * which is the boundary the master plan calls sealed promotion. If a
+     * level that applies a draft is ever added back, this goes red.
+     */
     const levels = await panel.locator('.autonomy button b').allInnerTexts();
-    expect(levels.map((l) => l.trim())).toEqual(['Aus', 'Vorschläge', 'Entwürfe mit Grenzen', 'Alles']);
-    await panel.locator('.autonomy button', { hasText: 'Alles' }).click();
-    await expect(panel.locator('.settings-hint.bad', { hasText: /ohne Klick in dein Repository/ })).toBeVisible();
+    expect(levels.map((l) => l.trim())).toEqual(['Aus', 'Vorschläge']);
+
+    // The permissive level says what it does NOT do. A level that promised
+    // automatic dispatch without naming the handoff would read as auto-apply.
+    await panel.locator('.autonomy button', { hasText: 'Vorschläge' }).click();
+    await expect(
+      panel.locator('.autonomy button.on'),
+      'the most permissive level does not say the draft still waits for a person'
+    ).toContainText(/wartet weiter auf deine explizite Übergabe/);
+
+    /*
+     * And neither removed level is back under any wording.
+     *
+     * This was briefly a regex over the notes looking for phrases like "ohne
+     * Klick in dein Repository". It could not fail: neither removed level ever
+     * used that phrasing (`alles` said "ohne Rückfrage in dein Repository
+     * geschrieben", `entwürfe` said "werden auch angewandt — aber nur unter
+     * Grenzen"), so restoring both levels verbatim left the filter at zero
+     * matches and the assertion green. An assertion whose message is a safety
+     * claim and whose body cannot go red is worse than no assertion.
+     *
+     * The labels are what the removal actually removed, so the labels are what
+     * is checked — verified by restoring `alles` and watching this go red.
+     */
+    const labels = (await panel.locator('.autonomy button b').allInnerTexts()).map((t) => t.trim());
+    for (const gone of ['Alles', 'Entwürfe mit Grenzen']) {
+      expect(labels, `the removed auto-apply level "${gone}" is offered again`).not.toContain(gone);
+    }
+
     await panel.locator('.autonomy button', { hasText: 'Aus' }).first().click();
+    await expect(panel.locator('.autonomy button.on b')).toHaveText('Aus');
   });
 
   test('the composer is live, or it is not there', async ({ page }) => {

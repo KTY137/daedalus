@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { promotionChip } from '@/features/system/promotion';
 import type { HealthPayload } from '@/shared/api';
 import type { GovernancePayload, StructurePayload, TopologyPayload } from '@/shared/contracts';
 
@@ -40,6 +41,8 @@ export interface StatusLineProps {
   queued?: number;
   streamLive?: boolean;
   onOpenHealth?: () => void;
+  /** why promotion is refused, in the system's own sentence */
+  onOpenPromotion?: () => void;
 }
 
 function healthWord(health: HealthPayload | undefined, error: string | undefined): { text: string; tone: string } {
@@ -67,7 +70,8 @@ export function StatusLine({
   inFlight,
   queued,
   streamLive,
-  onOpenHealth
+  onOpenHealth,
+  onOpenPromotion
 }: StatusLineProps) {
   const [compact, setCompact] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -81,11 +85,16 @@ export function StatusLine({
   }, []);
 
   const h = healthWord(health, healthError);
+  /*
+   * `promotion_allowed` and `state` answer DIFFERENT questions, and this chip
+   * used to render only the first. See `features/system/promotion.ts` for the
+   * shape that produced a green "Promotion offen" while a gate was absent.
+   */
+  const promo = promotionChip(governance);
   const s = structure?.structure;
   const graph = s?.graph;
   const ignored = s?.ignored;
   const topo = topology?.topology;
-  const promotionTone = !governance ? 'pending' : governance.promotion_allowed ? 'ok' : 'warn';
 
   return (
     <div className="statusline" role="status" aria-label="Systemzustand">
@@ -100,7 +109,12 @@ export function StatusLine({
         <span className="status-sep" aria-hidden="true" />
 
         <span className="status-group">
-          <button type="button" className={`status-item link ${h.tone}`} onClick={onOpenHealth}>
+          <button
+            type="button"
+            className={`status-item link ${h.tone}`}
+            aria-label={`Zustand öffnen: ${h.text}`}
+            onClick={onOpenHealth}
+          >
             <span className={`dot ${h.tone}`} aria-hidden="true" />
             {h.text}
           </button>
@@ -112,13 +126,18 @@ export function StatusLine({
             </span>
           ) : null}
 
-          <span className={`status-item ${promotionTone}`}>
-            {governance
-              ? governance.promotion_allowed
-                ? 'Promotion offen'
-                : `Promotion gesperrt${governance.blockers?.length ? ` · ${governance.blockers.length} Blocker` : ''}`
-              : 'Promotion unbekannt'}
-          </span>
+          {/* The count was the whole message, and the reason — a sentence the
+              backend writes, plus the gate that refused and the revision it
+              was judged at — was never on screen. */}
+          <button
+            type="button"
+            className={`status-item link ${promo.tone}`}
+            aria-label={`Promotion öffnen: ${promo.text}`}
+            onClick={onOpenPromotion}
+          >
+            <span className={`dot ${promo.tone}`} aria-hidden="true" />
+            {promo.text}
+          </button>
         </span>
       </div>
 

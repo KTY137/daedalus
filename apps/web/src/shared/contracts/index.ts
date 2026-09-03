@@ -105,6 +105,19 @@ export interface GovernanceGate {
   write_allow?: string[];
   controls?: Array<{ name: string; status: string; effect: string }>;
   detail?: Record<string, unknown> | null;
+  /*
+   * Gate-specific fields, measured against `daedalus/core.py` on 2026-09-03:
+   *   discrimination     receipt_path, kill_rate_floor
+   *   write_confinement  write_allow, high_risk_paths
+   *   operability_drill  receipt_path, controls
+   * They were consumed through a local `as GovernanceGate & {...}` cast, which
+   * meant this contract — the single agreement between the two sides — described
+   * a payload smaller than the one being read, and `tsc` could not catch a
+   * rename on either side.
+   */
+  receipt_path?: string;
+  kill_rate_floor?: number;
+  high_risk_paths?: string[];
 }
 
 /** "May this system promote anything right now, and why not?"

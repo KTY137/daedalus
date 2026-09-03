@@ -83,8 +83,9 @@ test.describe('health surface', () => {
     await stub(page);
     await openCockpit(page);
 
-    // The chip carries the counts, as it always did.
-    const chip = page.locator('.status-item.link');
+    // Two chips now open two surfaces, so each is addressed by the label
+    // that says which one it is.
+    const chip = page.getByRole('button', { name: /^Zustand öffnen/ });
     await expect(chip).toContainText('1 beeinträchtigt');
     await chip.click();
 
@@ -113,7 +114,7 @@ test.describe('health surface', () => {
   test('every fact carries the provenance stamp the backend attached', async ({ page }) => {
     await stub(page);
     await openCockpit(page);
-    await page.locator('.status-item.link').click();
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
     const panel = page.getByRole('dialog', { name: 'Zustand' });
 
     await panel.getByRole('button', { name: /ollama\.endpoint/ }).click();
@@ -135,7 +136,7 @@ test.describe('health surface', () => {
   test('showing all includes the working ones, and the filter says which way it is', async ({ page }) => {
     await stub(page);
     await openCockpit(page);
-    await page.locator('.status-item.link').click();
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
     const panel = page.getByRole('dialog', { name: 'Zustand' });
 
     await panel.getByRole('button', { name: 'Alle zeigen' }).click();
@@ -149,7 +150,7 @@ test.describe('health surface', () => {
     await openCockpit(page);
 
     // The chip already refuses to collapse the failure into a state.
-    const chip = page.locator('.status-item.link');
+    const chip = page.getByRole('button', { name: /^Zustand öffnen/ });
     await expect(chip).toContainText('Zustand ungelesen');
     await chip.click();
 
@@ -163,7 +164,7 @@ test.describe('health surface', () => {
   test('Escape closes it', async ({ page }) => {
     await stub(page);
     await openCockpit(page);
-    await page.locator('.status-item.link').click();
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
     await expect(page.getByRole('dialog', { name: 'Zustand' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: 'Zustand' })).toBeHidden();

@@ -101,6 +101,60 @@
 .health-fact-meta code { font-family: var(--font-mono); }
 .health-foot { margin: 0; padding: var(--u2) var(--u4) var(--u3); border-top: var(--border) solid var(--line2); font-size: var(--fs-xs); color: var(--ink3); }
 
+/* ---- promotion: the same panel grammar, different rows ---- */
+.gate-verdict {
+  margin: 0;
+  padding: 0 var(--u4) var(--u2);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.gate-verdict.bad { color: var(--bad); }
+.gate-verdict.ok { color: var(--ok); }
+.gate-blockers { list-style: none; margin: 0; padding: 0 var(--u4) var(--u2); display: grid; gap: var(--u1); }
+.gate-blockers li {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--u2);
+  border-left: 2px solid var(--bad);
+  font-size: var(--fs-xs);
+  color: var(--ink2);
+}
+.gate-row { border-left: 2px solid var(--line); }
+.gate-row.ok { border-left-color: var(--ok); }
+.gate-row.bad { border-left-color: var(--bad); }
+.gate-row.warn { border-left-color: var(--warn); }
+.gate-row > button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--u1) var(--u2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.gate-row > button:hover { background: var(--surface2); }
+.gate-row > button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.gate-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--u2); }
+.gate-name { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink); }
+.gate-state { font-size: var(--fs-xs); color: var(--ink2); }
+/* The question the gate asks — the line that makes an id like
+   `write_confinement` mean something. */
+.gate-question { font-size: var(--fs-xs); color: var(--ink3); font-style: italic; }
+.gate-headline { font-size: var(--fs-xs); color: var(--ink2); line-height: 1.45; overflow-wrap: anywhere; }
+.gate-why { color: var(--ink3); line-height: 1.45; overflow-wrap: anywhere; }
+.gate-detail { display: grid; gap: var(--u1); padding: 0 var(--u2) var(--u2); }
+.gate-detail .work-detail-list { padding-left: var(--u2); }
+.gate-controls { list-style: none; margin: 0; padding: 0 0 0 var(--u2); display: grid; gap: 2px; font-size: var(--fs-xs); color: var(--ink3); }
+.gate-controls li { display: flex; flex-wrap: wrap; gap: var(--u1) var(--u2); }
+.gate-control-name { font-family: var(--font-mono); color: var(--ink2); }
+.gate-control-effect { color: var(--ink3); }
+
 /* --------------------------------------------------------------- hotlist */
 
 .hotlist { padding: var(--u2) var(--u3); }
@@ -190,3 +244,33 @@
 .list-empty { padding: var(--u3); color: var(--ink2); }
 .palette-foot { font-size: var(--fs-xs); color: var(--ink3); border-top: var(--border) solid var(--line2); padding-top: var(--u2); }
 
+
+/* The two governance answers, side by side and never merged: the promotion
+   flag comes from the discrimination gate alone, the aggregate from all of
+   them. A reader who sees only the first cannot tell an open promotion from
+   a safe one. */
+.gate-aggregate {
+  margin: 0;
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+}
+.gate-aggregate .ok { color: var(--ok); }
+.gate-aggregate .warn { color: var(--warn); }
+.gate-aggregate .bad { color: var(--bad); }
+
+/* The backend's own caveats. On this machine: "the current revision could not
+   be read, so every revision-tied claim below is reported as unknown" — the
+   sentence that makes the verdict beneath it checkable. */
+.gate-warnings {
+  margin: 0;
+  padding: var(--u2);
+  list-style: none;
+  display: grid;
+  gap: var(--u1);
+  border: var(--border) solid color-mix(in srgb, var(--warn) 45%, var(--line2));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 7%, var(--surface));
+  color: var(--ink2);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}

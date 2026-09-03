@@ -354,10 +354,18 @@ test.describe('work rail', () => {
 
     const timeline = page.locator('.timeline');
     await expect(timeline).toBeVisible();
-    // The backend answers with a SENTENCE about how far along this is, and
-    // the surface draws the sentence. A percentage here would be a picture of
-    // a measurement nobody made.
-    await expect(timeline).toContainText('no honest denominator');
+    /*
+     * There is no percentage, the refusal is stated, and the backend's own
+     * explanation is ON SCREEN next to it.
+     *
+     * This briefly asserted the sentence was present as a `title` attribute.
+     * That passed while the sentence was unreachable: `title` on a bare span
+     * is mouse-only, so a keyboard user could never read the honest half, and
+     * screen-reader exposure of `title` is inconsistent. Asserting the
+     * attribute exists is not asserting anyone can read it.
+     */
+    await expect(timeline).toContainText('ohne Prozentangabe');
+    await expect(timeline.locator('.work-no-fraction')).toContainText('honest denominator');
     await expect(page.locator('.timeline progress, .timeline [role="progressbar"]')).toHaveCount(0);
     // Tri-state verdicts: `null` is a recorded absence, never a success.
     await expect(timeline).toContainText('Erfolg nicht gemeldet');
@@ -377,6 +385,114 @@ test.describe('work rail', () => {
     await expect(steps.nth(2)).toContainText('offload');
     // The evidence basis the log demands for a disk claim is shown, not hidden.
     await expect(steps.nth(2)).toContainText('git_status');
+  });
+
+  test('a failed run does not paint its last step green', async ({ page }) => {
+    // progress.py has no `failed` kind: a failure is `done` with
+    // `succeeded: false`. Colouring the word rather than the verdict told the
+    // reader a failed run had finished well.
+    await stub(page, {
+      task: {
+        ...runningTask,
+        state: 'done',
+        progress: {
+          ...progress,
+          terminal: true,
+          succeeded: false,
+          latest_kind: 'done',
+          narrative: [
+            ...progress.narrative,
+            { unit_id: 'req_open', kind: 'done', ts: '2026-09-03T10:00:00+00:00', source: 'watcher', detail: { succeeded: false, reason: 'gate refused' }, batch_id: null }
+          ],
+          events_seen: 4
+        }
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+    await page.getByRole('button', { name: '4 Schritte zeigen' }).click();
+
+    const last = page.locator('.step').last();
+    await expect(last).toContainText('abgeschlossen');
+    await expect(last).toHaveClass(/\bbad\b/);
+    await expect(last).not.toHaveClass(/\bok\b/);
+    await expect(page.locator('.timeline')).toContainText('Erfolg nein');
+  });
+
+  test('a terminal step with no verdict is neither green nor red', async ({ page }) => {
+    await stub(page, {
+      task: {
+        ...runningTask,
+        state: 'done',
+        progress: {
+          ...progress,
+          terminal: true,
+          succeeded: null,
+          narrative: [{ unit_id: 'req_open', kind: 'done', ts: '2026-09-03T10:00:00+00:00', source: 'watcher', detail: {}, batch_id: null }],
+          events_seen: 1
+        }
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+    await page.getByRole('button', { name: '1 Schritt zeigen' }).click();
+
+    const step = page.locator('.step').first();
+    await expect(step).toHaveClass(/\bwarn\b/);
+    await expect(page.locator('.timeline')).toContainText('Erfolg nicht gemeldet');
+  });
+
+  test('every recorded event kind has a German word', async ({ page }) => {
+    // The ten kinds of daedalus/progress.py EVENT_KINDS. An earlier map
+    // invented `failed`/`cancelled` and omitted four real ones, which then
+    // rendered as raw English identifiers in a German cockpit.
+    const kinds = ['queued', 'claimed', 'heartbeat', 'generating', 'tool_ran', 'gate_verdict', 'disk_changed', 'no_change', 'patch_produced', 'done'];
+    await stub(page, {
+      task: {
+        ...runningTask,
+        progress: {
+          ...progress,
+          events_seen: kinds.length,
+          narrative: kinds.map((kind, i) => ({
+            unit_id: 'req_open', kind, ts: `2026-09-03T09:0${i}:00+00:00`, source: 'offload', detail: {}, batch_id: null
+          }))
+        }
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+    await page.getByRole('button', { name: '10 Schritte zeigen' }).click();
+
+    // Not one kind falls through to the verbatim identifier rendering.
+    await expect(page.locator('.step-kind.mono')).toHaveCount(0);
+    await expect(page.locator('.timeline')).toContainText('Patch erzeugt');
+    await expect(page.locator('.timeline')).toContainText('Werkzeug gelaufen');
+    await expect(page.locator('.timeline')).toContainText('Gate-Urteil');
+  });
+
+  test('a step with more detail than fits says how much it left out', async ({ page }) => {
+    await stub(page, {
+      task: {
+        ...runningTask,
+        progress: {
+          ...progress,
+          events_seen: 1,
+          narrative: [{
+            unit_id: 'req_open', kind: 'done', ts: '2026-09-03T10:00:00+00:00', source: 'watcher',
+            detail: { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 }, batch_id: null
+          }]
+        }
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+    await page.getByRole('button', { name: '1 Schritt zeigen' }).click();
+
+    await expect(page.locator('.step')).toContainText('und 2 weitere');
   });
 
   test('a unit with nothing recorded says so instead of drawing an empty run', async ({ page }) => {

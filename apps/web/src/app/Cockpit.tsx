@@ -30,6 +30,7 @@ import { Conversation } from '@/features/conversation/Conversation';
 import { ThreadList } from '@/features/conversation/ThreadList';
 import { WorkRail } from '@/features/mission/WorkRail';
 import { HealthPanel } from '@/features/system/HealthPanel';
+import { PromotionPanel } from '@/features/system/PromotionPanel';
 import { EMPTY_LIVE, markDisconnected, markSeen, reduceLiveEvent } from '@/features/mission/live';
 import type { OpenDispatch } from '@/features/conversation/model';
 import { Settings } from '@/features/settings/Settings';
@@ -109,6 +110,8 @@ export function Cockpit() {
   /** The health surface. Its chip in the status line used to be a button that
    *  closed the theme studio — an affordance that did nothing. */
   const [healthOpen, setHealthOpen] = useState(false);
+  /** Why promotion is refused, in the system's own sentence. */
+  const [promotionOpen, setPromotionOpen] = useState(false);
   /** which runtime answers; '' means "let the backend route" */
   const [brain, setBrain] = useState<string>(() => {
     try {
@@ -456,9 +459,10 @@ export function Cockpit() {
         setStudioOpen(false);
         setSettingsOpen(false);
         setHealthOpen(false);
+        setPromotionOpen(false);
         return;
       }
-      if (chord || e.altKey || paletteOpen || settingsOpen || studioOpen || healthOpen || isTypingTarget(e.target)) return;
+      if (chord || e.altKey || paletteOpen || settingsOpen || studioOpen || healthOpen || promotionOpen || isTypingTarget(e.target)) return;
       if (e.key === '1') goto('map');
       else if (e.key === '2') goto('chat');
       else if (e.key === '3') goto('ide');
@@ -466,7 +470,7 @@ export function Cockpit() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [goto, healthOpen, loadStructure, paletteOpen, project, settingsOpen, studioOpen]);
+  }, [goto, healthOpen, loadStructure, paletteOpen, project, promotionOpen, settingsOpen, studioOpen]);
 
   const onBudget = useCallback(
     (hidden1: number, hidden2: number, ids: string[]) => setBudget({ hidden1, hidden2, ids }),
@@ -788,6 +792,7 @@ export function Cockpit() {
           queued={live.queued}
           streamLive={streamLive}
           onOpenHealth={() => setHealthOpen(true)}
+          onOpenPromotion={() => setPromotionOpen(true)}
         />
       </footer>
 
@@ -879,6 +884,10 @@ export function Cockpit() {
 
       <AnimatePresence>
         <HealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} health={health} error={healthError} />
+      </AnimatePresence>
+
+      <AnimatePresence>
+        <PromotionPanel open={promotionOpen} onClose={() => setPromotionOpen(false)} governance={governance} />
       </AnimatePresence>
 
       <ThemeStudio open={studioOpen} onClose={() => setStudioOpen(false)} />

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { HealthFact, HealthPayload, HealthSubsystem } from '@/shared/api';
 import { scrimVariants, surfaceVariants, useReducedMotionPref } from '@/shared/ui/motion';
+import { useDialogFocus } from '@/shared/ui/useDialogFocus';
 
 /**
  * ZUSTAND — the health surface, opened.
@@ -35,10 +36,23 @@ const STATE_WORD: Record<HealthSubsystem['state'], string> = {
 /** Attention first: what is broken, then what is unproven, then what holds. */
 const ORDER: HealthSubsystem['state'][] = ['degraded', 'absent', 'unknown', 'present', 'working'];
 
+/** Where a state the interface does not recognise sorts: with the unproven,
+ *  never after the healthy ones. `indexOf` returns -1 for an unknown word,
+ *  which would have sorted it FIRST and silently. */
+function rank(state: HealthSubsystem['state']): number {
+  const at = ORDER.indexOf(state);
+  return at === -1 ? ORDER.indexOf('unknown') : at;
+}
+
+/**
+ * Only `working` earns the healthy colour. A state word this interface does
+ * not recognise is drawn as unproven, because the failure direction that
+ * matters here is unknown-read-as-healthy, not the other way round.
+ */
 function tone(state: HealthSubsystem['state']): string {
   if (state === 'degraded' || state === 'absent') return 'bad';
-  if (state === 'unknown' || state === 'present') return 'warn';
-  return 'ok';
+  if (state === 'working') return 'ok';
+  return 'warn';
 }
 
 function age(seconds: number | null): string {
@@ -67,7 +81,7 @@ function Fact({ fact }: { fact: HealthFact }) {
     <li className="health-fact">
       <span className="health-fact-label">{fact.label}</span>
       <span className="health-fact-value">{valueText(fact.value)}</span>
-      <span className={`health-prov ${fact.provenance.toLowerCase()}`}>{fact.provenance}</span>
+      <span className={`health-prov ${String(fact.provenance || '').toLowerCase()}`}>{fact.provenance || 'OHNE STEMPEL'}</span>
       {(fact.source || when) && (
         <span className="health-fact-meta">
           {fact.source ? <code>{fact.source}</code> : null}
@@ -124,11 +138,20 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
   const reduced = useReducedMotionPref();
   const [onlyProblems, setOnlyProblems] = useState(true);
   const snapshot = health?.health;
+  /**
+   * Focus enters the dialog, is TRAPPED inside it, and returns to the opener
+   * on close. The trap is the part that was missing: moving focus alone still
+   * let Tab walk onto the theme controls behind the scrim, while
+   * `aria-modal="true"` told assistive technology they were hidden.
+   */
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(open, surfaceRef, closeRef);
 
   const rows = useMemo(() => {
     const all = snapshot?.subsystems || [];
     const shown = onlyProblems ? all.filter((s) => s.state !== 'working') : all;
-    return [...shown].sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
+    return [...shown].sort((a, b) => rank(a.state) - rank(b.state));
   }, [onlyProblems, snapshot]);
 
   if (!open) return null;
@@ -145,9 +168,11 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
       variants={scrimVariants(reduced)}
     >
       <motion.div
+        ref={surfaceRef}
         className="palette health-panel"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Zustand"
         initial="closed"
         animate="open"
@@ -159,7 +184,7 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
           <button type="button" className="health-filter" onClick={() => setOnlyProblems((v) => !v)}>
             {onlyProblems ? 'Alle zeigen' : 'Nur Auffälliges'}
           </button>
-          <button type="button" className="health-close" onClick={onClose} aria-label="Schließen">
+          <button ref={closeRef} type="button" className="health-close" onClick={onClose} aria-label="Schließen">
             Schließen
           </button>
         </div>
@@ -191,7 +216,8 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
               </ul>
             )}
             <p className="health-foot">
-              {snapshot.subsystems?.length || 0} Prüfungen · gelesen {snapshot.generated_at || 'unbekannt'}
+              {snapshot.subsystems?.length || 0} {snapshot.subsystems?.length === 1 ? 'Prüfung' : 'Prüfungen'} · gelesen{' '}
+              {snapshot.generated_at || 'unbekannt'}
               {hidden > 0 ? ` · ${hidden} laufende ausgeblendet` : ''}
             </p>
           </>
