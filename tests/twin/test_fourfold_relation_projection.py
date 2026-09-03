@@ -53,7 +53,7 @@ def _forest(
                     relation="clone_exact",
                     members=("src/a.py", "src/b.py"),
                     evidence=("fixture.clone",),
-                )
+                ),
             )
             if with_hyperedge
             else ()
