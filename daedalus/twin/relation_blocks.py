@@ -285,8 +285,12 @@ class TypedRelationBlock(Generic[T]):
         )
         _reference_semiring(self.semiring_name)
 
-        offsets = tuple(_sequence(self.row_offsets, "block.row_offsets", MAX_BLOCK_AXIS_LABELS + 1))
-        columns = tuple(_sequence(self.column_indices, "block.column_indices", MAX_BLOCK_ENTRIES))
+        offsets = _sequence(self.row_offsets, "block.row_offsets", MAX_BLOCK_AXIS_LABELS + 1)
+        if type(offsets) is not tuple:
+            offsets = tuple(offsets)
+        columns = _sequence(self.column_indices, "block.column_indices", MAX_BLOCK_ENTRIES)
+        if type(columns) is not tuple:
+            columns = tuple(columns)
         values = tuple(
             _stored(item, self.semiring_name)
             for item in _sequence(self.values, "block.values", MAX_BLOCK_ENTRIES)
