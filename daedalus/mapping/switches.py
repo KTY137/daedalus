@@ -51,10 +51,20 @@ _SKIP_DIRS = frozenset({
 # switches and marking them dark would bury the ones that are.
 _PLATFORM_ENV = frozenset({
     "APPDATA", "COMSPEC", "HOME", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA",
-    "PATH", "PATHEXT", "PROGRAMFILES", "PYTHONPATH", "SYSTEMROOT", "TEMP",
-    "TMP", "TMPDIR", "USERNAME", "USERPROFILE", "VIRTUAL_ENV",
+    "PATH", "PATHEXT", "PROCESSOR_IDENTIFIER", "PROGRAMFILES", "PYTHONPATH",
+    "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "USER", "USERDOMAIN", "USERNAME",
+    "USERPROFILE", "VIRTUAL_ENV",
     "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
 })
+# ``USER``, ``USERDOMAIN`` and ``PROCESSOR_IDENTIFIER`` joined the set on
+# 2026-09-03. It already held ``USERNAME`` and ``USERPROFILE``; these are the
+# same category of account-and-host identity and were simply not encountered
+# when the set was written, so the gate reported three OS variables as
+# undocumented Daedalus switches -- the exact burying the comment above says
+# this set exists to prevent. Documenting them instead would have traded a
+# ``code-only`` row for a ``doc-only`` one: a name in the strict operator form
+# that no Daedalus module owns reads as "docs tell an operator to set it; no
+# module reads it". The scope boundary is the right lever, stated once here.
 
 _SECRET_TOKENS = frozenset({"KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "APIKEY"})
 _URL_TOKENS = frozenset({"HOST", "URL", "ENDPOINT", "BASE"})
@@ -1090,7 +1100,13 @@ def analyse(repo_root: str | Path) -> SwitchReport:
     # never reads from the environment are dropped before drift is computed.
     for name in sorted(const_names - set(by_name)):
         documented.pop(name, None)
-    _augment_documented(documented, mentioned, set(by_name))
+    # SAME notion of "read" that ``_drift`` uses, platform names excluded. When
+    # these two disagreed, a bare doc mention of an OS variable put it into
+    # ``documented`` while ``_drift`` kept it out of ``read``, and the
+    # difference surfaced as a phantom "documented, but no code reads it any
+    # more" row for a name the code demonstrably reads.
+    _augment_documented(documented, mentioned,
+                        {n for n in by_name if n not in _PLATFORM_ENV})
 
     switches = tuple(
         _reconcile(name, by_name[name], name in documented)
