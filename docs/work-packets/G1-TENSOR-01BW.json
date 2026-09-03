@@ -1,0 +1,77 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BW",
+  "title": "Bisect retained TensorView entries by unique semantic claim key",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BV",
+  "campaign_issue": 239,
+  "base_revision": "cbd2e5cb1ef97b77621b97628d8291300a367964",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView.index_coordinate() located a retained entry by bisecting with the complete _entry_order tuple. TensorView construction already forbids duplicate coordinate/relation claims, so coordinates plus relation are a unique semantic claim key. Reading masked, value and evidence_sha256s during every binary-search comparison was therefore redundant payload work before the existing exact retained-entry equality check.",
+  "primary_claim": "TensorView.index_coordinate() now bisects the canonical retained entry tuple using SparseTensorEntry.semantic_key, which is the already-existing coordinates/relation claim key. It still performs exact entry equality after locating the claim, so an entry with the same semantic claim but changed scalar, mask or evidence payload remains rejected as not retained.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_select_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BW.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 54,
+    "code_test_deletions": 4,
+    "production_additions": 7,
+    "production_deletions": 3,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the existing SparseTensorEntry.semantic_key and the uniqueness invariant already enforced during TensorView construction rather than adding a secondary lookup index, cache, registry or alternate tensor representation. Preserve the exact retained-entry equality check as the payload/evidence boundary after binary search.",
+  "acceptance": [
+    "retained entry lookup is located by the already-unique coordinate/relation semantic claim",
+    "binary search does not require non-semantic scalar, mask or evidence payload reads for every comparison",
+    "exact entry equality remains required after semantic-key lookup",
+    "same-claim entries with altered payload remain fail-closed as not retained",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "7b2f14618fab1497e0cfb6c0922792206e3f52f1",
+    "code_test_revision": "a35a4d070c8b7fe0f6a7a03cbe3e99f17ea1d3da",
+    "production_blob": "f57c049b97426bbf4715963c7003f685ba300c2b",
+    "focused_test_blob": "300f3dbf354bcf62f7d636756fc3725777874a06",
+    "fourfold_v2_run": 33702192397,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision a35a4d070c8b7fe0f6a7a03cbe3e99f17ea1d3da",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision a35a4d070c8b7fe0f6a7a03cbe3e99f17ea1d3da. The focused _IndexPayloadReadBoundEntry regression enables a payload-read probe only after canonical TensorView construction, then requires index_coordinate() over 256 entries to return coordinate index (255,) while keeping reads of value, masked and evidence_sha256s within a small exact-retention budget. The former _entry_order bisect would consume those payload fields during binary-search comparisons; the new semantic-key bisect does not. Exact equality after lookup remains unchanged. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BW commits; Fourfold/Forest authority, Tensor wire contracts, semantic-key uniqueness, status/provenance identity and public product surfaces remain unchanged, while index_coordinate() returns to bisecting the complete _entry_order payload.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
