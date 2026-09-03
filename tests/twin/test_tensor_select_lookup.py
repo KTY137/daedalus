@@ -52,9 +52,25 @@ class _PrefixPredicateForbiddenCoordinates(tuple[tuple[str, str], ...]):
         return super().__getitem__(index)
 
 
+_AXIS_NAME_READS: dict[int, int] = {}
 _COORDINATE_READS: dict[int, int] = {}
 _INDEX_PAYLOAD_READS = 0
 _INDEX_PAYLOAD_PROBE = False
+
+
+class _AxisNameReadBound(TensorAxis):
+    def __getattribute__(self, name: str):  # type: ignore[no-untyped-def]
+        if name == "name":
+            axis_id = id(self)
+            reads = _AXIS_NAME_READS.get(axis_id)
+            if reads is not None:
+                reads += 1
+                _AXIS_NAME_READS[axis_id] = reads
+                if reads > 1:
+                    raise AssertionError(
+                        "canonical TensorView construction reread validated axis names for duplicate validation"
+                    )
+        return super().__getattribute__(name)
 
 
 class _CoordinateReadBoundEntry(SparseTensorEntry):
@@ -154,6 +170,30 @@ def _full_prefix_tensor() -> TensorView:
         ),
         provenance=_provenance(),
     )
+
+
+def test_canonical_axis_validation_reads_each_validated_name_once() -> None:
+    axes = tuple(_AxisNameReadBound(f"axis-{index:02d}", ("x",)) for index in range(8))
+    for axis in axes:
+        _AXIS_NAME_READS[id(axis)] = 0
+
+    try:
+        tensor = TensorView(
+            repository_id="KTY137/daedalus",
+            source_revision=REVISION,
+            source_forest_sha256=FOREST,
+            source_fourfold_sha256=FOURFOLD,
+            status="complete",
+            axes=axes,
+            entries=(),
+            provenance=_provenance(),
+        )
+
+        assert tensor.axes is axes
+        assert max(_AXIS_NAME_READS[id(axis)] for axis in axes) == 1
+    finally:
+        for axis in axes:
+            _AXIS_NAME_READS.pop(id(axis), None)
 
 
 def test_canonical_entry_validation_reuses_validated_coordinates_for_semantic_key() -> None:
