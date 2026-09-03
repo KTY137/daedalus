@@ -60,6 +60,27 @@ def test_typed_axis_reuses_canonical_tuple_and_sorts_only_fallback() -> None:
         TypedAxis("code", "code", ("src/a.py", "src/a.py"))
 
 
+def test_typed_relation_block_reuses_exact_canonical_index_tuples() -> None:
+    row_axis = TypedAxis("code", "code", ("src/a.py", "src/b.py"))
+    column_axis = TypedAxis("type", "type", ("Adapter", "Widget"))
+    offsets = (0, 1, 2)
+    columns = (0, 1)
+
+    block = TypedRelationBlock(
+        _subject(),
+        RelationSignature("code", "declares", "type"),
+        row_axis,
+        column_axis,
+        "boolean",
+        offsets,
+        columns,
+        (True, True),
+    )
+
+    assert block.row_offsets is offsets
+    assert block.column_indices is columns
+
+
 def test_coordinate_build_and_get_use_only_canonical_axis_labels() -> None:
     row_axis = TypedAxis("code", "code", ("src/z.py", "src/a.py", "src/m.py"))
     column_axis = TypedAxis("type", "type", ("Widget", "Adapter", "Service"))
