@@ -52,6 +52,24 @@ class _PrefixPredicateForbiddenCoordinates(tuple[tuple[str, str], ...]):
         return super().__getitem__(index)
 
 
+_COORDINATE_READS: dict[int, int] = {}
+
+
+class _CoordinateReadBoundEntry(SparseTensorEntry):
+    def __getattribute__(self, name: str):  # type: ignore[no-untyped-def]
+        if name == "coordinates":
+            entry_id = id(self)
+            reads = _COORDINATE_READS.get(entry_id)
+            if reads is not None:
+                reads += 1
+                _COORDINATE_READS[entry_id] = reads
+                if reads > 2:
+                    raise AssertionError(
+                        "canonical TensorView construction re-walked entries for duplicate validation"
+                    )
+        return super().__getattribute__(name)
+
+
 def _provenance() -> ContractProvenance:
     return ContractProvenance(
         origin="test.tensor.select",
@@ -108,6 +126,67 @@ def _full_prefix_tensor() -> TensorView:
         ),
         provenance=_provenance(),
     )
+
+
+def test_canonical_entry_validation_does_not_rewalk_duplicate_claims() -> None:
+    labels = tuple(f"node-{index:03d}" for index in range(128))
+    entries = tuple(
+        _CoordinateReadBoundEntry(
+            coordinates=(("node", node),),
+            relation="membership",
+            evidence_sha256s=("d" * 64,),
+        )
+        for node in labels
+    )
+    for entry in entries:
+        _COORDINATE_READS[id(entry)] = 0
+
+    try:
+        tensor = TensorView(
+            repository_id="KTY137/daedalus",
+            source_revision=REVISION,
+            source_forest_sha256=FOREST,
+            source_fourfold_sha256=FOURFOLD,
+            status="complete",
+            axes=(TensorAxis("node", labels),),
+            entries=entries,
+            provenance=_provenance(),
+        )
+
+        assert tensor.entries is entries
+        assert max(_COORDINATE_READS[id(entry)] for entry in entries) == 2
+    finally:
+        for entry in entries:
+            _COORDINATE_READS.pop(id(entry), None)
+
+
+def test_canonical_entry_validation_still_rejects_duplicate_claims() -> None:
+    entries = (
+        SparseTensorEntry(
+            coordinates=(("node", "node-000"),),
+            relation="membership",
+            value=1.0,
+            evidence_sha256s=("d" * 64,),
+        ),
+        SparseTensorEntry(
+            coordinates=(("node", "node-000"),),
+            relation="membership",
+            value=2.0,
+            evidence_sha256s=("e" * 64,),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="must not repeat a coordinate/relation claim"):
+        TensorView(
+            repository_id="KTY137/daedalus",
+            source_revision=REVISION,
+            source_forest_sha256=FOREST,
+            source_fourfold_sha256=FOURFOLD,
+            status="complete",
+            axes=(TensorAxis("node", ("node-000",)),),
+            entries=entries,
+            provenance=_provenance(),
+        )
 
 
 def test_select_reuses_entries_for_unfiltered_query() -> None:
