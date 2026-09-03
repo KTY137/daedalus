@@ -30,14 +30,14 @@ from daedalus.spine.envelope import canonical_sha
 
 
 if TYPE_CHECKING:
-    from daedalus.runtimes.provider_executable_pre_admission import (
+    from daedalus.runtimes.provider.executable_pre_admission import (
         ProviderExecutablePreAdmissionReceipt,
     )
-    from daedalus.runtimes.provider_invocation_abi import ProviderInvocationABIContract
-    from daedalus.runtimes.provider_invocation_authority import (
+    from daedalus.runtimes.provider.invocation_abi import ProviderInvocationABIContract
+    from daedalus.runtimes.provider.invocation_authority import (
         ProviderInvocationObservationAuthority,
     )
-    from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
+    from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
 
 
 _MAX_AUTHORITY_TTL = timedelta(hours=24)
@@ -631,7 +631,7 @@ class ProviderObservationBindingLedger:
 
         # Local import keeps the lower-level observation module free of an
         # import-time cycle while the ledger remains the sole secret holder.
-        from daedalus.runtimes.provider_invocation_abi import (
+        from daedalus.runtimes.provider.invocation_abi import (
             verify_provider_invocation_abi_contract,
         )
 

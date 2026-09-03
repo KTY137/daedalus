@@ -60,7 +60,7 @@ def test_independent_review_requires_non_authorizing_claims() -> None:
 
 def test_independent_review_covers_each_effectful_anchor() -> None:
     target = (
-        ROOT / "daedalus/runtimes/provider_target_receipt_ledger.py"
+        ROOT / "daedalus/runtimes/provider/target_receipt_ledger.py"
     ).read_text(encoding="utf-8")
     inventory_source = inspect.getsource(inventory)
     for anchor in (

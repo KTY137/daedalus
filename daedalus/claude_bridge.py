@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from .kernel.effects import EffectExecutionRequest
     from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
     from .runtimes.contracts.claude import ClaudeWorkspaceGrant
-    from .runtimes.provider_observation import (
+    from .runtimes.provider.observation import (
         ProviderObservationAuthority,
         ProviderObservationBindingLedger,
     )

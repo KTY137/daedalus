@@ -8,11 +8,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.runtimes.provider_invocation_abi import (
+from daedalus.runtimes.provider.invocation import ProviderInvocationSubject
+from daedalus.runtimes.provider.invocation_abi import (
     ProviderInvocationABIBindingError,
     ProviderInvocationABIContract,
     ProviderInvocationABIShapeError,
@@ -20,13 +20,13 @@ from daedalus.runtimes.provider_invocation_abi import (
     issue_provider_invocation_abi_contract,
     verify_provider_invocation_abi_contract,
 )
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_authority import (
     issue_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_payload import (
+from daedalus.runtimes.provider.invocation_payload import (
     build_provider_invocation_payload,
 )
-from daedalus.runtimes.provider_observation import issue_provider_observation_authority
+from daedalus.runtimes.provider.observation import issue_provider_observation_authority
 from daedalus.spine.envelope import canonical_sha
 
 

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthorityBindingError,
     ProviderObservationAuthoritySignatureError,
     ProviderObservationAuthorityStateError,

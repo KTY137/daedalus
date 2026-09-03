@@ -60,15 +60,20 @@ UNMIGRATED_REASONS = {
     "run_runtime_terminal_binding_mutations.py": "unbounded-timeout",
 }
 
+# Three digests moved in G1-PKG-01 and only because the ``module`` field of
+# each job now reads daedalus/runtimes/provider/<name>.py. The projection is
+# over the jobs payload, so a path is part of it; the mutations, their find/
+# replace text, the job and mutation counts and the tests each job runs are
+# byte-identical. Re-derived from the spec files, not re-typed.
 EXPECTED_JOB_PROJECTIONS = {
     "provider-invocation-identity.json":
-        ("b709e27751433f8262df16508df268e7975725b0694ffbeb6f7f30dba109983a", 1, 9),
+        ("18ff2bf0fcef5fdb3d0c0ea4415accc8a7f08085a206e3fd4fdfa29a0e2023a3", 1, 9),
     "provider-observation-authority.json":
-        ("5261950b12594c03199b2221a2b2e2b6ff35cfc8382650caa37fbf5040b3cea2", 3, 8),
+        ("9ecefee330763b3c5d961235efc3a377314fa3a968baf039d3f4de891d2be627", 3, 8),
     "provider-observation-persistence-inventory.json":
         ("58d380f8a3c1592447f263e85fc4cc8887bf299c4ece1c4d1963bba754e426bc", 1, 6),
     "provider-target-verification.json":
-        ("b89e4dd3fd0ea1a816321c33a1a6138a126d0f8ce8551f9ff07c20f965b7f0b0", 2, 11),
+        ("7b3b7c9b8de16921da03d20f179f7dac462e1afb6abe890067783957da98e60c", 2, 11),
     "runtime-effect-replay-projection.json":
         ("5280552f98df8ee7559f5f9be0989ab1b24ff7295426de8a01ce9e5e672e0f95", 1, 6),
 }

@@ -18,22 +18,22 @@ from typing import Any, Mapping
 
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_invocation_abi import (
+from daedalus.runtimes.provider.invocation_abi import (
     ProviderInvocationABIContract,
     ProviderInvocationABIError,
 )
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
 )
-from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
-from daedalus.runtimes.provider_observation import ProviderObservationBindingLedger
-from daedalus.runtimes.provider_runtime_executable_binding import (
+from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider.observation import ProviderObservationBindingLedger
+from daedalus.runtimes.provider.runtime_executable_binding import (
     ProviderRuntimeExecutableBindingError,
     ProviderRuntimeExecutableBindingReceipt,
     bind_provider_runtime_executable,

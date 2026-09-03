@@ -77,7 +77,11 @@ CURRENT_CROSS_DOMAIN_COMPONENT = (
     CURRENT_CROSS_DOMAIN_COMPONENT - {"daedalus.ikarus_supervisor"}
 ) | {"daedalus.orchestration.ikarus_supervisor"}
 CURRENT_COMPONENTS_SHA256 = (
-    "dec12f217f49c172c75760c45cfb405efb3bd1934cc269d3642e0daeadee9c01"
+    # Moved in G1-PKG-01: the 14-module component IS the provider family, so
+    # renaming its members renames them inside the component. Count and
+    # maximum are unchanged at 12 and 14, and the membership is asserted
+    # below rather than left to the digest.
+    "12daf63beabb64b877abb0a2843df6c535fafc48aa5920033bb693f6153bb2f1"
 )
 # Moving census, not an architecture invariant: any packet that legitimately
 # splits or adds a leaf module changes these two totals without touching the
@@ -125,7 +129,14 @@ CURRENT_COMPONENTS_SHA256 = (
 # The console entrypoint was relocated and renamed, not added, so it costs
 # nothing here. dctx was moved into daedalus.twin and moved back inside this
 # same packet -- see the message -- so it is where it started.
-CENSUS_MODULES = 431
+# 431 -> 432 in G1-PKG-01, and the +1 is the ``daedalus.runtimes.provider``
+# package root. Twenty-five modules moved INTO it and were renamed at the
+# same time -- the shared ``provider_`` prefix is dropped because the package
+# now carries it -- but a rename adds no node. Edges are unchanged at 1642:
+# every one of the 25 kept exactly the targets it had, and no caller gained
+# or lost a package edge, because nothing imported them as
+# ``from daedalus.runtimes import provider_x``.
+CENSUS_MODULES = 432
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file

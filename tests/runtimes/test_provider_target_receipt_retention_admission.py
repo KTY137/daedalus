@@ -10,7 +10,7 @@ from typing import Callable
 
 import pytest
 
-import daedalus.runtimes.provider_target_receipt_retention_admission as admission_module
+import daedalus.runtimes.provider.target_receipt_retention_admission as admission_module
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effect_replay import EffectExecutionReplaySnapshot
@@ -22,18 +22,18 @@ from daedalus.kernel.effects import (
     LeasedEffectStartReceipt,
 )
 from daedalus.kernel.source_trees import SourceTreeStore
-from daedalus.runtimes.provider_target_receipt_ledger import ProviderTargetReceiptLedger
-from daedalus.runtimes.provider_target_receipt_retention_admission import (
+from daedalus.runtimes.provider.target_receipt_ledger import ProviderTargetReceiptLedger
+from daedalus.runtimes.provider.target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionBindingError,
     ProviderTargetReceiptRetentionAdmissionReceipt,
     ProviderTargetReceiptRetentionAdmissionShapeError,
     verify_provider_target_receipt_retention_admission,
 )
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_ENTRYPOINT,
     RETENTION_GUARD_CONTRACT,
 )
-from daedalus.runtimes.provider_target_receipt_retention_preflight import (
+from daedalus.runtimes.provider.target_receipt_retention_preflight import (
     ProviderTargetReceiptRetentionPreflightBindingError,
     ProviderTargetReceiptRetentionPreflightReceipt,
 )

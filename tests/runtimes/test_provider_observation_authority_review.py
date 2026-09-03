@@ -4,7 +4,7 @@ import ast
 import inspect
 
 import daedalus.runtimes.broker as broker
-import daedalus.runtimes.provider_observation as provider_observation
+import daedalus.runtimes.provider.observation as provider_observation
 import daedalus.runtimes.recovery as recovery
 
 

@@ -88,7 +88,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-provider-store-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_observation_store import (
+          from daedalus.runtimes.provider.observation_store import (
               PreprovisionedProviderObservationBindingLedger,
               ProviderObservationStoreTarget,
               initialize_provider_observation_binding_store,

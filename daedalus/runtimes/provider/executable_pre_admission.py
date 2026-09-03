@@ -19,19 +19,19 @@ from typing import Any, Mapping
 
 from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.runtimes.contracts.repository import RepositoryHeadRevisionReceipt
-from daedalus.runtimes.provider_executable_structure import (
+from daedalus.runtimes.provider.executable_structure import (
     ProviderExecutableStructureReceipt,
 )
-from daedalus.runtimes.provider_invocation_resolution import (
+from daedalus.runtimes.provider.invocation_resolution import (
     ProviderInvocationResolutionReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_completed_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_completed_evidence import (
     ProviderTargetReceiptRetentionCompletedEvidenceReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_effect_terminal_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_effect_terminal_evidence import (
     ProviderTargetReceiptRetentionEffectTerminalEvidenceReceipt,
 )
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
 )
 from daedalus.spine.envelope import canonical_sha

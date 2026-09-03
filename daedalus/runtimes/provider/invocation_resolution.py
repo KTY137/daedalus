@@ -26,12 +26,12 @@ from daedalus.kernel.contracts.base import (
     _utc_timestamp,
 )
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationAuthorityError,
     ProviderInvocationObservationAuthority,
     verify_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_registry import (
+from daedalus.runtimes.provider.invocation_registry import (
     ProviderAdapterDescriptor,
     ProviderInvocationRegistryError,
     ProviderInvocationRegistryManifest,

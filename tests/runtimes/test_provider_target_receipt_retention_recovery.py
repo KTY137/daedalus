@@ -4,13 +4,13 @@ import copy
 
 import pytest
 
-from daedalus.runtimes.provider_target_receipt_retention_admission import (
+from daedalus.runtimes.provider.target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_GUARD_CONTRACT,
 )
-from daedalus.runtimes.provider_target_receipt_retention_recovery import (
+from daedalus.runtimes.provider.target_receipt_retention_recovery import (
     ProviderTargetReceiptRetentionRecoveryBindingError,
     ProviderTargetReceiptRetentionRecoveryDecision,
     ProviderTargetReceiptRetentionRecoveryShapeError,

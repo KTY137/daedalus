@@ -4,13 +4,13 @@ import ast
 from pathlib import Path
 
 import daedalus.runtimes.broker as broker
-import daedalus.runtimes.provider_executable_object_registry as executable_registry
+import daedalus.runtimes.provider.executable_object_registry as executable_registry
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = ROOT / "daedalus"
 BROKER = PACKAGE_ROOT / "runtimes" / "broker.py"
-REGISTRY = PACKAGE_ROOT / "runtimes" / "provider_executable_object_registry.py"
+REGISTRY = PACKAGE_ROOT / "runtimes" / "provider" / "executable_object_registry.py"
 TEST_DOUBLE = ROOT / "tests" / "runtimes" / "runtime_provider_test_double.py"
 
 

@@ -14,7 +14,7 @@ from daedalus.runtimes.broker import (
 from runtime_provider_test_double import (
     run_runtime_provider_test_double as run_runtime_provider,
 )
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthority,
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,

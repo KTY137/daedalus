@@ -19,12 +19,12 @@ from typing import Any, Mapping
 
 from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationAuthorityError,
     ProviderInvocationObservationAuthority,
     verify_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_registry import (
+from daedalus.runtimes.provider.invocation_registry import (
     ProviderInvocationRegistryError,
     ProviderInvocationRegistryManifest,
 )

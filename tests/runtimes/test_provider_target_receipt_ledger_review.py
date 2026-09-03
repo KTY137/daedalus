@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.runtimes.provider_target_receipt_ledger as ledger
+import daedalus.runtimes.provider.target_receipt_ledger as ledger
 
 
 def _function(name: str) -> ast.FunctionDef:

@@ -88,7 +88,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-invocation-registry-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_invocation_registry import (
+          from daedalus.runtimes.provider.invocation_registry import (
               ProviderAdapterDescriptor,
               ProviderInvocationRegistryManifest,
               build_provider_invocation_registry_manifest,

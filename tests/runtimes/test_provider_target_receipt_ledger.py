@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from daedalus.kernel.source_trees import SourceTreeStore, SourceTreeStoreError
-from daedalus.runtimes.provider_target_receipt_ledger import (
+from daedalus.runtimes.provider.target_receipt_ledger import (
     ProviderTargetReceiptLedger,
     ProviderTargetReceiptRetentionBindingError,
     ProviderTargetReceiptRetentionStateError,

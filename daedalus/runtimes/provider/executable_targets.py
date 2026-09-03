@@ -17,18 +17,18 @@ from typing import Any, Iterable, Mapping
 
 from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
 )
-from daedalus.runtimes.provider_invocation_identity import (
+from daedalus.runtimes.provider.invocation_identity import (
     ProviderInvocationIdentityError,
     ProviderInvocationIdentityProjection,
     project_provider_invocation_identity,
 )
-from daedalus.runtimes.provider_invocation_registry import (
+from daedalus.runtimes.provider.invocation_registry import (
     ProviderInvocationRegistryManifest,
 )
-from daedalus.runtimes.provider_observation import _normalize_keyring
+from daedalus.runtimes.provider.observation import _normalize_keyring
 from daedalus.spine.envelope import canonical_sha
 
 

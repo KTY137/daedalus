@@ -19,7 +19,7 @@ from daedalus.spine.envelope import canonical_json
 
 
 _SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
-_SOURCE_PATH = "daedalus/runtimes/provider_observation.py"
+_SOURCE_PATH = "daedalus/runtimes/provider/observation.py"
 _MAX_SOURCE_BYTES = 2 * 1024 * 1024
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "daedalus/runtimes/provider_runtime_invocation_binding.py"
+SOURCE = ROOT / "daedalus/runtimes/provider/runtime_invocation_binding.py"
 
 
 def _tree() -> ast.AST:

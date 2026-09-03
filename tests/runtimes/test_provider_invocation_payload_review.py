@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 
-MODULE = Path("daedalus/runtimes/provider_invocation_payload.py")
+MODULE = Path("daedalus/runtimes/provider/invocation_payload.py")
 
 
 def test_payload_boundary_remains_non_executing_and_non_authorizing() -> None:

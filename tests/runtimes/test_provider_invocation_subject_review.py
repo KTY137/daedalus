@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.runtimes.provider_invocation as provider_invocation
+import daedalus.runtimes.provider.invocation as provider_invocation
 
 
 def test_invocation_subject_module_is_non_executing_identity_only() -> None:

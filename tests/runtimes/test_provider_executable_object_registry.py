@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectAdmissionReceipt,
     ProviderExecutableObjectRegistry,
     ProviderExecutableObjectRegistryBindingError,
@@ -20,7 +20,7 @@ from daedalus.runtimes.provider_executable_object_registry import (
     _NativeRunTimeout,
     _native_posix_fork_exec_abi,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
 from daedalus.spine.envelope import canonical_sha

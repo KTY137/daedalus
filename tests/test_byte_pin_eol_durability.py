@@ -34,8 +34,8 @@ GITATTRIBUTES = ROOT / ".gitattributes"
 # matching cannot make this file pass by finding nothing.
 KNOWN_SUBJECTS = {
     "daedalus/kairos/_gated_writes_legacy.py.src",
-    "daedalus/runtimes/provider_target_receipt_ledger.py",
-    "daedalus/runtimes/provider_observation.py",
+    "daedalus/runtimes/provider/target_receipt_ledger.py",
+    "daedalus/runtimes/provider/observation.py",
     "daedalus/runtimes/live_probe_drivers.py",
     "tests/fixtures/container_oom_fault_executor.py",
     "tests/fixtures/effect_ledger_contention_fault_executor.py",

@@ -36,11 +36,11 @@ from daedalus.kernel.effects import (
     EffectTerminalReceipt,
     LeasedEffectStartReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_completed_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_completed_evidence import (
     ProviderTargetReceiptRetentionCompletedEvidenceError,
     ProviderTargetReceiptRetentionCompletedEvidenceReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_ENTRYPOINT,
 )
 from daedalus.spine.envelope import canonical_sha

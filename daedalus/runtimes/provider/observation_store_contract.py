@@ -32,8 +32,8 @@ from daedalus.kernel.contracts.base import (
     _utc_timestamp,
 )
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
-from daedalus.runtimes.provider_observation import ProviderObservationAuthority
-from daedalus.runtimes.provider_observation_store import ProviderObservationStoreTarget
+from daedalus.runtimes.provider.observation import ProviderObservationAuthority
+from daedalus.runtimes.provider.observation_store import ProviderObservationStoreTarget
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
 
