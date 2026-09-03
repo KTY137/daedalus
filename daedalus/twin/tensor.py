@@ -141,17 +141,6 @@ class SparseTensorEntry:
         return cls(**_record_payload(cls, payload, "sparse tensor entry"))
 
 
-def _entry_order(entry: SparseTensorEntry) -> tuple[Any, ...]:
-    """Order by the already-validated canonical coordinate labels."""
-    return (
-        entry.coordinates,
-        entry.relation,
-        entry.masked,
-        entry.value,
-        entry.evidence_sha256s,
-    )
-
-
 @dataclass(frozen=True)
 class TensorView(CanonicalContract):
     """Immutable derived view; completeness describes the projection only."""
@@ -200,7 +189,7 @@ class TensorView(CanonicalContract):
         raw_entries = _bounded_sequence(self.entries, "tensor.entries", MAX_TENSOR_ENTRIES)
         entries = raw_entries if type(raw_entries) is tuple else tuple(raw_entries)
         entries_are_canonical = True
-        previous_order: tuple[Any, ...] | None = None
+        previous_semantic_key: tuple[Any, ...] | None = None
         for entry in entries:
             if not isinstance(entry, SparseTensorEntry):
                 raise ValueError("tensor.entries must contain SparseTensorEntry records")
@@ -214,25 +203,20 @@ class TensorView(CanonicalContract):
                     raise ValueError("every sparse entry must bind exactly the TensorView axes")
                 if _sorted_label_index(axis.labels, label) is None:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis_name!r}")
-            order = _entry_order(entry)
-            if previous_order is not None:
-                if order < previous_order:
+            semantic_key = entry.semantic_key
+            if previous_semantic_key is not None:
+                if semantic_key < previous_semantic_key:
                     entries_are_canonical = False
-                elif entries_are_canonical and previous_order[0] == order[0] and previous_order[1] == order[1]:
+                elif entries_are_canonical and semantic_key == previous_semantic_key:
                     raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
-            previous_order = order
+            previous_semantic_key = semantic_key
 
         if entries_are_canonical:
             ordered_entries = entries
         else:
-            ordered_entries = tuple(sorted(entries, key=_entry_order))
+            ordered_entries = tuple(sorted(entries, key=lambda entry: entry.semantic_key))
             for index in range(1, len(ordered_entries)):
-                previous = ordered_entries[index - 1]
-                current = ordered_entries[index]
-                if (
-                    previous.coordinates == current.coordinates
-                    and previous.relation == current.relation
-                ):
+                if ordered_entries[index - 1].semantic_key == ordered_entries[index].semantic_key:
                     raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
         object.__setattr__(self, "entries", ordered_entries)
         reason = self.reason
