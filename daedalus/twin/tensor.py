@@ -19,7 +19,6 @@ from ..schemas import (
     _require_provenance_inputs,
     _revision,
     _sha256,
-    _sorted_strings,
 )
 
 TENSOR_STATUSES = frozenset({"complete", "partial", "absent"})
@@ -149,23 +148,26 @@ class SparseTensorEntry:
             "entry.evidence_sha256s",
             MAX_ENTRY_EVIDENCE_DIGESTS,
         )
-        evidence = None
-        if type(raw_evidence) is tuple:
-            previous_digest: str | None = None
-            for index, raw_digest in enumerate(raw_evidence):
-                digest = _sha256(raw_digest, f"entry.evidence_sha256s[{index}]")
-                if previous_digest is not None:
-                    if digest == previous_digest:
-                        raise ValueError("entry.evidence_sha256s must not contain duplicates")
-                    if digest < previous_digest:
-                        break
-                previous_digest = digest
-            else:
-                evidence = raw_evidence
+        evidence = None if type(raw_evidence) is tuple else []
+        previous_digest: str | None = None
+        for index, raw_digest in enumerate(raw_evidence):
+            digest = _sha256(raw_digest, f"entry.evidence_sha256s[{index}]")
+            if evidence is None and previous_digest is not None:
+                if digest < previous_digest:
+                    evidence = [raw_evidence[position] for position in range(index)]
+                elif digest == previous_digest:
+                    raise ValueError("entry.evidence_sha256s must not contain duplicates")
+            if evidence is not None:
+                evidence.append(digest)
+            previous_digest = digest
         if evidence is None:
-            evidence = _sorted_strings(
-                raw_evidence, "entry.evidence_sha256s", digests=True
-            )
+            evidence = raw_evidence
+        else:
+            evidence.sort()
+            for index in range(1, len(evidence)):
+                if evidence[index - 1] == evidence[index]:
+                    raise ValueError("entry.evidence_sha256s must not contain duplicates")
+            evidence = tuple(evidence)
         if not evidence:
             raise ValueError("entry must retain evidence digests")
         object.__setattr__(self, "evidence_sha256s", evidence)
