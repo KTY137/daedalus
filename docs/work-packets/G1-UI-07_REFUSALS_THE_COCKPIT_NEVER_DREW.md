@@ -7,7 +7,9 @@
 - Active gate: 1
 - Classification: ALIGNED
 - Owner: repository owner
-- Base revision: 5b58f8c3a3125d5199a6c0c9cd10f5cc7512140b
+- Base revision: fb2ab6cf0180f23f61cabf46f6dafa7213b6c73c
+  (repointed 2026-09-03 from `5b58f8c3a3125d5199a6c0c9cd10f5cc7512140b` via
+  `docs/recovery/purge-20260903/sha-map.tsv`; the old SHA no longer exists)
 - Dependencies: G1-UI-06 (work rail, live stream, status line chips) in the same
   branch; no backend dependency — both routes already exist and are unchanged
 - Promotion authority: repository owner; no automatic merge, promotion, release,
@@ -217,7 +219,7 @@ Run from `apps/web` against the live server at `127.0.0.1:8765`:
 
 Before this packet the browser suite ran 73 passed / 1 skipped / **1 failed**.
 That failure was not a bug: `cockpit.spec.ts` demanded four autonomy levels and
-had been red since `151b8d18` (2026-08-31) removed the two that applied a draft
+had been red since `d9655df2` (2026-08-31, pre-rewrite `151b8d18`) removed the two that applied a draft
 with no click. A stale red assertion is worse than none — it was demanding the
 interface offer back the exact control the removal took away. It now pins the
 removal instead, verified by restoring `alles` and watching it go red.
@@ -261,7 +263,8 @@ Two process notes, because both affect how the evidence reads:
   tree: 0 failed. Reviewing a tree that is still being written to is a mistake
   in how the review was scheduled, not a defect in either party's work.
 - The reviewer independently **confirmed** the claim about the stale autonomy
-  assertion by reading `151b8d18` themselves rather than taking it on trust.
+  assertion by reading `d9655df2` (pre-rewrite `151b8d18`) themselves rather
+than taking it on trust.
 
 | # | Severity | Finding | Resolution |
 |---|---|---|---|
@@ -289,7 +292,7 @@ and keyboard paths for both panels, and the unknown-state colour/sort rule.
 
 The promotion surface had been reviewed; the compute section had not, and was
 committed on the strength of my own tests. That is exactly the arrangement that
-let the promotion blocker through, so a second reviewer got `ed5e0096` alone,
+let the promotion blocker through, so a second reviewer got `12737546` alone (pre-rewrite `ed5e0096`),
 on a quiet tree, with one explicit request: **find a mutation none of my tests
 catch.** They found two, plus a factual error in the commit message.
 
@@ -374,12 +377,23 @@ restoring the `fehlt` label, and dropping the capability note.
   nothing remote is configured on this machine.
 - The effectful-GET defect in `read.py` is reported and unfixed, and is an
   owner decision.
-- **Pin durability under the pending history rewrite.** The owner has approved
-  a full-history rewrite. The `Base revision` in this packet's metadata will
-  name a commit that no longer exists; it is to be repointed from the
-  old->new commit map that rewrite publishes, not silently left dangling and
-  not rewritten in lockstep (which would chase its own tail). The
-  `Effect-registry digest` above is **unaffected** — it is a content digest of
-  the registry, not a commit SHA. That contrast is the durable lesson: a
-  content digest of a thing survives history surgery, a pointer to a commit
-  does not.
+- **Pin durability under the history rewrite — DONE, and it proved the point.**
+  The rewrite landed on 2026-09-03. Both pins in this packet's metadata were
+  re-measured afterwards, and they behaved in exactly opposite ways:
+
+  | Pin | Before | After | Survived? |
+  | --- | --- | --- | --- |
+  | Base revision (a pointer to a commit) | `5b58f8c3…` | `fb2ab6cf…` | no — the old SHA resolves to nothing |
+  | Effect-registry digest (a digest of content) | `615372b0…` | `615372b0…` | yes — byte-identical |
+
+  Repointed from `docs/recovery/purge-20260903/sha-map.tsv` (1088 pairs)
+  rather than by guessing; the translation was verified by resolving the new
+  SHA and confirming it is the same commit by subject. The digest was
+  re-measured with `registry_sha256()`, not copied.
+
+  **The lesson is the contrast, not the repair.** A content digest of a thing
+  survives history surgery because it never depended on history; a pointer to
+  a commit does not. Where a packet can pin what something IS rather than
+  where it sat, it should — and a SHA that can only be resolved through a
+  lookup table is weaker evidence than one git can resolve, which the recovery
+  record says plainly rather than presenting the map as costless.
