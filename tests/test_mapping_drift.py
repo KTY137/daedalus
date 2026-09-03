@@ -318,13 +318,23 @@ def test_this_repository_counts_every_unreached_module(based):
     tree the three lists together must equal reach's own unreached set. When
     this was written the gate said islands=7 and the honest total was 10 --
     three real shims (decompose.py, drafts.py, mission_control.py) that nothing
-    reaches and nothing tests."""
+    reaches and nothing tests.
+
+    SCOPED TO PROJECT CODE since G1-MAP-02 (2026-09-03). The gate withholds
+    ``shell`` rows -- the periphery ``.daedalusignore`` declares -- from every
+    metric, so the set it must agree with is reach's unreached set restricted
+    the same way. The property is unchanged; only the population it ranges over
+    is, and it now ranges over exactly what the gate claims to be about. Left
+    unrestricted it compared the gate's project census against a total that
+    included 148 rows of gitignored Tauri build output.
+    """
     root = Path(__file__).resolve().parents[1]
     from daedalus.mapping import reach as reach_mod
     rep = reach_mod.analyse(root)
     state = drift.scan(root, reach_report=rep).state
     honest = sorted(m.module for m in rep.modules
-                    if m.classification in drift.UNREACHED_CLASSES)
+                    if m.classification in drift.UNREACHED_CLASSES
+                    and not m.shell)
     assert sorted(state["islands"] + state["unknown"] + state["shims"]) == honest
     assert state["counts"]["unreached"] == len(honest)
     assert state["counts"]["unreached"] > state["counts"]["islands"], (

@@ -684,8 +684,18 @@ def build(repo_root, *, index=None, reports=None, annotations=None,
     islands: list[str] = []
     shims: list[str] = []
     unknown: list[str] = []
+    shell_withheld = 0
     for facts in sorted(reach_report.modules, key=lambda m: m.module):
         if facts.classification == "test":
+            continue
+        # The periphery ``.daedalusignore`` declares is withheld here for the
+        # same reason the drift gate withholds it, and it matters more here:
+        # the self-improvement picker reads this file's two highest bands to
+        # choose what gets worked on next. Before this, 181 of the islands it
+        # ranked were run artifacts and gitignored Tauri build output -- work
+        # proposed against files that are not this project's code.
+        if facts.shell:
+            shell_withheld += 1
             continue
         rel = facts.module
         ann = annotations.get("module:" + rel, {})
@@ -752,6 +762,9 @@ def build(repo_root, *, index=None, reports=None, annotations=None,
             "unknown": len(unknown),
             # The count that cannot be lowered by deleting a test.
             "unreached": len(set(islands) | set(shims) | set(unknown)),
+            # Declared periphery this census declined to rank. Stated so a
+            # narrowed inventory and a genuinely smaller one stay distinct.
+            "shell_withheld": shell_withheld,
             "stale": len(stale_features),
             "packaging_gaps": len(packaging["on_disk_but_unlisted"]),
             "narrative_features": len(narrative_features),

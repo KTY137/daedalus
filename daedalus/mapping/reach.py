@@ -98,6 +98,7 @@ from typing import Iterable, Mapping, Sequence
 # structcore owns Python dotted-name resolution (relative imports, submodule
 # vs. attribute disambiguation). Reusing it means this map and the structural
 # index cannot disagree about what an import statement points at.
+from ..structcore.ignore import ProjectScope, load_ignore_rules
 from ..structcore.parse import resolve_python_imports
 
 __all__ = [
@@ -185,6 +186,14 @@ class ModuleFacts:
     has_main_guard: bool = False
     dynamic_imports: tuple[str, ...] = ()
     evidence: tuple[str, ...] = ()
+    #: Outside the declared center, or matched by an ignore rule -- the SHELL
+    #: zone of :class:`daedalus.structcore.ignore.ProjectScope`. Orthogonal to
+    #: ``classification``: a shell module is still an island or reachable or a
+    #: shim, and both answers are wanted. "Where does it live" is what a metric
+    #: consumer filters on; "can anything get to it" is what this engine
+    #: measures. Marked, never dropped -- see the module docstring on why the
+    #: walk must still resolve edges that point into the periphery.
+    shell: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -194,7 +203,7 @@ class ModuleFacts:
             "imported_by": list(self.imported_by), "tested_by": list(self.tested_by),
             "is_shim": self.is_shim, "has_main_guard": self.has_main_guard,
             "dynamic_imports": list(self.dynamic_imports),
-            "evidence": list(self.evidence),
+            "evidence": list(self.evidence), "shell": self.shell,
         }
 
 
@@ -209,6 +218,11 @@ class ReachReport:
 
     root: str
     schema: str = SCHEMA
+    #: The declared project scope this run used -- center roots, ignore
+    #: patterns and their fingerprint. Recorded for the same reason the drift
+    #: gate records its ignore configuration: a run that treats part of the
+    #: tree as periphery must never be indistinguishable from one that did not.
+    scope: Mapping[str, object] = field(default_factory=dict)
     entry_points: tuple[EntryPoint, ...] = ()
     modules: tuple[ModuleFacts, ...] = ()
     counts: Mapping[str, int] = field(default_factory=dict)
@@ -257,6 +271,7 @@ class ReachReport:
         return {
             "schema": self.schema,
             "root": self.root,
+            "scope": dict(self.scope),
             "counts": dict(self.counts),
             "entry_counts": dict(self.entry_counts),
             "entry_points": [e.to_dict() for e in self.entry_points],
@@ -924,6 +939,21 @@ def analyse(repo_root, index: Mapping | None = None) -> ReachReport:
     not a discovery, and a finding may not quietly promote a module.
     """
     root = Path(repo_root).resolve()
+    # THE TRACKED FILE ONLY -- deliberately not ``project_scope``, which folds
+    # in ``DAEDALUS_IGNORE`` and ``DAEDALUS_CENTER``. The drift gate pins the
+    # rule that no environment variable may hide a module from it
+    # (tests/test_mapping_drift.py::
+    # test_the_gate_does_not_read_the_tree_through_the_ignore_configuration),
+    # and that rule is right: a scope that an env var can widen is a gate
+    # anyone can silence without a diff. ``.daedalusignore`` is committed and
+    # shows up in review, so it may say what is periphery; the environment may
+    # not.
+    #
+    # The scope narrows nothing here either way. It only decides which rows are
+    # periphery, so a metric consumer can withhold them while every edge that
+    # points into a vendored tree still resolves. Narrowing the walk instead
+    # would turn those true edges into missing ones.
+    scope = ProjectScope(center=(), ignore=load_ignore_rules(root))
     rels = _iter_py(root)
     known_rels = set(rels)
 
@@ -1093,6 +1123,7 @@ def analyse(repo_root, index: Mapping | None = None) -> ReachReport:
             is_shim=src.is_shim,
             has_main_guard=src.has_main_guard,
             dynamic_imports=tuple(sorted(src.dynamic)),
+            shell=scope.is_shell(rel),
         )
         if rel in tests:
             facts.append(ModuleFacts(classification="test",
@@ -1167,6 +1198,7 @@ def analyse(repo_root, index: Mapping | None = None) -> ReachReport:
 
     return ReachReport(
         root=root.as_posix(),
+        scope={**scope.describe(), "fingerprint": scope.fingerprint},
         entry_points=tuple(entries),
         modules=tuple(facts),
         counts=counts,

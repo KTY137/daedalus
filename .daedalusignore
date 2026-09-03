@@ -11,3 +11,18 @@ docs/recovery/
 references/
 structcore-rs/target/
 .claude/worktrees/
+
+# Tauri sidecar build output: a verbatim copy of the whole package, produced by
+# the desktop build and gitignored (apps/web/src-tauri/.gitignore). It is not
+# a second source of truth, but the reachability walk sees it and reported 148
+# duplicate island rows from it on 2026-09-03. reach.py already hardcodes
+# `build` for the same reason -- a stale wheel-build copy doubling every count;
+# this is the same failure with a path the hardcoded list does not cover, which
+# is why it is declared here instead of growing that list again.
+apps/web/src-tauri/backend/
+
+# The evaluator's fixture corpus: a small fake project the eval RUNS ON, not
+# code the product ships. Being unreachable from an entry point is its correct
+# state -- wiring it would be the bug -- so it is periphery by declaration
+# rather than an island the gate re-reports every run.
+daedalus/eval/fixtures/

@@ -611,7 +611,19 @@ def scan(repo_root, *, index=None, reach_report=None,
     if switch_report is None:
         switch_report = switches_mod.analyse(root)
 
-    facts = reach_report.modules
+    # SHELL ROWS ARE WITHHELD FROM EVERY METRIC, which is the contract
+    # ``daedalus.structcore.ignore.ProjectScope`` already states for the zone:
+    # indexed and resolvable, so an edge pointing into a vendored tree stays
+    # true, but never ranked as this project's drift. Before this filter the
+    # gate emitted 1348 rows of which 1241 were run artifacts, gitignored Tauri
+    # build output and the Obsidian vault -- the 87 rows actually about
+    # ``daedalus/`` were unreadable underneath them [MEASURED 2026-09-03].
+    #
+    # Withheld, not hidden: the count is reported below, so a run narrowed by a
+    # scope change can never look like a run that simply found less.
+    all_facts = reach_report.modules
+    facts = [m for m in all_facts if not m.shell]
+    shell_withheld = len(all_facts) - len(facts)
     modules = sorted(m.module for m in facts if m.classification != "test")
     islands = sorted(m.module for m in facts
                      if m.classification in ISLAND_CLASSES)
@@ -628,7 +640,18 @@ def scan(repo_root, *, index=None, reach_report=None,
     # Two engines disagreeing about the import graph. reach REPORTS these and
     # refuses to merge them (see reach.analyse); the gate is where a
     # disagreement that persists across a commit becomes somebody's problem.
-    index_extra_edges = sorted(reach_report.index_extra_edges)
+    # Same withholding, applied to the edge list: an edge is this project's
+    # disagreement only when project code is on one end of it. Every one of the
+    # four rows this gate emitted on 2026-09-03 was a Tauri build copy
+    # disagreeing with itself, which no one can act on.
+    shell_modules = frozenset(m.module for m in all_facts if m.shell)
+
+    def _project_edge(edge: str) -> bool:
+        return not any(part.strip() in shell_modules
+                       for part in edge.split("->", 1))
+
+    index_extra_edges = sorted(
+        e for e in reach_report.index_extra_edges if _project_edge(e))
 
     docs = DocIndex.build(root)
     dark: dict[str, str] = {}
@@ -677,6 +700,9 @@ def scan(repo_root, *, index=None, reach_report=None,
             "doc_drift": len(doc_drift),
             "unparsable": len(unparsable),
             "index_extra_edges": len(index_extra_edges),
+            # Periphery rows this run declined to rank. Reported so "the gate
+            # went quiet" and "the gate was narrowed" stay distinguishable.
+            "shell_withheld": shell_withheld,
         },
         "ignore": ignore_config(root),
         "modules": modules,

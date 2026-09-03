@@ -134,9 +134,9 @@ correctly cautious. **F** = unreachable by design. **L** = genuinely loose.
 | `daedalus/orchestration/missions/service.py` | defines `run_mission`; `__module__` verified at runtime |
 | `daedalus/orchestration/missions/one_shot.py` | imported by `missions/service.py:22` |
 | `daedalus/orchestration/missions/supervisor_projection.py` | imported by `missions/service.py:22` |
-| `daedalus/orchestration/ikarus_oneshot.py` | imported by `missions/one_shot.py:20` |
-| `daedalus/orchestration/ikarus_effect_bridge.py` | imported by `missions/one_shot.py:15` |
-| `daedalus/orchestration/ikarus_tool_scope.py` | imported by `ikarus_effect_bridge.py:22` |
+| `daedalus/orchestration/ikarus/oneshot.py` | imported by `missions/one_shot.py:20` |
+| `daedalus/orchestration/ikarus/effect_bridge.py` | imported by `missions/one_shot.py:15` |
+| `daedalus/orchestration/ikarus/tool_scope.py` | imported by `ikarus_effect_bridge.py:22` |
 
 These need **no integration work**. They need the map fixed.
 
@@ -255,6 +255,106 @@ A note on ordering that the measurement, not preference, produced: fixing the
 instrument is not overhead before the real work. At this revision a quarter of
 the accusations are false, and three of the four largest clusters would have
 been approached with a wrong prior about what already calls them.
+
+---
+
+## 5. G1-MAP-02 — the gate could not be read at all
+
+§4.4 left three things undone. Closing the first two turned up a larger
+problem: `daedalus map --check` **failed**, and 91% of what it said was not
+about this project `[MEASURED 2026-09-03]`.
+
+| origin of drift row | rows |
+| --- | --- |
+| `runs/` — run artifacts | 1082 |
+| `apps/web/src-tauri/backend/_internal/` — gitignored Tauri build output | 148 |
+| `vault/` — the Obsidian knowledge vault | 11 |
+| **`daedalus/` — the actual signal** | **87** |
+| other | 20 |
+| | **1348** |
+
+### 5.1 A declared scope with no reader
+
+This is a known regression, stated in the gate's own prose
+(`daedalus/mapping/drift.py`): *"`DAEDALUS_IGNORE` and `.daedalusignore` narrow
+the structural index. Since the gate now reads the tree through `reach`, which
+walks the filesystem itself, they cannot narrow what the gate sees."* The
+declaration was already correct — `.daedalusignore` ignores `runs/` and
+`vault/` — and the engine that took over the walking never asked.
+
+The fix follows the doctrine already written in
+`daedalus/structcore/ignore.py:ProjectScope`: a file outside the project is
+**shell** — *"still indexed and still resolvable as an import target, so edges
+pointing at it stay true, but withheld from every metric"*. So `reach` keeps
+walking everything and only marks the periphery; `drift` and `inventory` do the
+withholding. The walk is deliberately **not** narrowed: dropping files would
+make an import into a vendored tree resolve to nothing, turning a true edge into
+a missing one — the silent direction of error.
+
+### 5.2 An existing test refuted the first implementation
+
+The first cut marked shell from `project_scope()`, which folds in
+`DAEDALUS_IGNORE` and `DAEDALUS_CENTER`. A pre-existing test —
+`test_the_gate_does_not_read_the_tree_through_the_ignore_configuration` —
+failed, and it was right: a scope an environment variable can widen is a gate
+anyone can silence without leaving a diff. Marking now reads the committed
+`.daedalusignore` **only**. Pinned by
+`tests/test_mapping_scope.py::test_the_environment_cannot_make_a_module_periphery`.
+
+### 5.3 Result
+
+| | before | after |
+| --- | --- | --- |
+| `daedalus map --check` | **FAILED**, 1348 rows | **OK**, no drift |
+| islands | 181 | 60 |
+| shims | 11 | 4 |
+| unknown | 61 | 27 |
+| modules ranked | 1155 | 672 |
+| periphery withheld | — | 493 (reported, not hidden) |
+
+Two further leaks were closed on the way: `index_extra_edges` bypassed the
+filter, so all four `ENGINE DISAGREEMENT` rows were a Tauri build copy
+disagreeing with itself (now 1, and real); and `daedalus/eval/fixtures/` — §4.4's
+by-design fixture class — is now declared periphery in `.daedalusignore` rather
+than special-cased in code, which is what retired the six `NEW ISLAND` rows.
+
+`docs/architecture-state.json` is internally consistent again (672 modules,
+672 rows) — the off-by-one class that
+`docs/GATE0_INTEGRATION_GAPS_20260825.md` §0 recorded as invalidating every
+snapshot-derived number.
+
+### 5.4 The picker was ranking work against files that are not this project
+
+`docs/FEATURE_INVENTORY.json` feeds the self-improvement picker's two highest
+bands. It reported 181 islands; 121 of them were run artifacts and gitignored
+build output. The inventory now applies the same withholding, and was
+regenerated: 60 islands, 483 withheld.
+
+Regenerating it surfaced separate rot: **25 hand-written annotations no longer
+matched any module**, orphaned by the recent flatten/package packets, which
+moved the code and left its rationale behind. 22 were remapped to their verified
+successors (each resolved against the tree and, where ambiguous, against the
+rename in Git history — `daedalus/cli.py -> interfaces/cli/entry.py` at `R095`,
+`daedalus/token_policy.py` deleted at `b35be0d7` after its owner appeared at
+`704ebb79`). Three were dropped: `ikarus.py`, `mission_control.py` and
+`decompose.py` were re-export facades whose own note read *"keep until callers
+migrate"*, and `ef4629b0` retired them once every caller named its owner. A
+collision guard refused the whole write until `decompose.py` was resolved that
+way rather than overwriting the real `kairos/decompose.py` annotation.
+
+### 5.5 Still not done
+
+- **The `center:` directive in `.daedalusignore` is inert.** Nothing parses it.
+  `project_scope` takes its center from an explicit argument or
+  `DAEDALUS_CENTER`; `_parse_line` turns the line into an ignore pattern that
+  matches nothing. This repo declares `center: daedalus, tools, apps/web/src`
+  with a comment describing a precedence that was never implemented. Fixing it
+  changes structcore's metric and naming semantics repo-wide, so it is its own
+  packet. Pinned as a strict `xfail` in `tests/test_mapping_scope.py` so it
+  cannot be forgotten.
+- The remaining readable gate findings are now worth acting on: `NEW UNKNOWN`
+  (2), `ENGINE DISAGREEMENT` (1), `NEW DARK SWITCH` (3), `DOC DRIFT` (16),
+  `TEST ONLY` (22).
 
 ---
 
