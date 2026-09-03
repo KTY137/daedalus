@@ -116,6 +116,13 @@ relation digests and Forest identity. Direct Forest, preindexed Forest,
 Fourfold construction basis and must return the same result subject before any
 cost numbers are emitted. Those measurements remain diagnostic-only.
 
+The schema-v5 diagnostic uses the Boolean CSR blocks' existing shared row axis
+and `row_offsets` for the row-support query instead of rebuilding source sets by
+iterating every stored entry. A focused regression makes `iter_entries()` fail
+on this probe path. This is a measurement-harness correction that reuses the
+existing CSR representation; it does not add a query index, cache, public API,
+or backend.
+
 ### Contraction IR
 
 `daedalus/twin/contractions.py` implements three operations:
@@ -151,6 +158,8 @@ The packet includes executable checks for:
   Boolean relations;
 - result identity across direct Forest, preindexed Forest, generic `TensorView`,
   and strict Fourfold Boolean CSR diagnostic arms on the same complete fixture;
+- direct use of the existing CSR shared-row support for the bounded Boolean
+  relation probe, without an `iter_entries()` rescan;
 - explicit refusal for retained hyperedges and undirected same-plane edges;
 - revision and semiring isolation;
 - boundary-map and component identities/associativity;
@@ -172,9 +181,11 @@ This packet does **not** add:
 - weighted, natural-count, tropical-cost or evidence-DAG projection from Forest
   payloads whose scalar meaning has not been specified.
 
-The strict relation adapter is now present in the bounded cost probe. The next
-useful work is to treat the repeated fixed-budget measurements as falsification
-evidence for the existing representations: optimize only an identified existing
-hot path, or contain/prune the kernel if it cannot simplify evidence composition
-or multi-relation query execution. Do not add a backend merely because one could
-be added, and do not infer comparative superiority from diagnostic timings.
+The corrected row-support probe changes the bounded CSR observation but does
+not reverse the architecture decision: on its exact hosted run, the CSR arm
+remained slower than direct Forest and preindexed Forest for this simple query,
+while being cheaper than the generic `TensorView` arm. The next useful work is
+therefore a concrete composition/evidence task where the existing relation
+blocks simplify semantics or execution; otherwise contain/prune the kernel.
+Do not add a backend merely because one could be added, and do not infer
+comparative superiority from diagnostic timings.
