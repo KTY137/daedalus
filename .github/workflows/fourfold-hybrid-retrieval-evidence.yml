@@ -1,0 +1,91 @@
+name: Fourfold Hybrid Retrieval Evidence
+
+on:
+  push:
+    branches:
+      - exp/fourfold-hybrid-retrieval-kernel-01
+  workflow_dispatch:
+
+concurrency:
+  group: fourfold-hybrid-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+        hash-seed: ["0", "123456"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package and pytest
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pytest
+      - name: Run Fourfold, kernel and hybrid contract tests
+        env:
+          PYTHONHASHSEED: ${{ matrix.hash-seed }}
+        run: python -m pytest -q tests/twin tests/test_kernel_contracts.py
+      - name: Import exact hybrid surface
+        run: |
+          python - <<'PY'
+          from daedalus.twin.hybrid_retrieval import FourfoldHybridRetriever
+          from daedalus.twin.relation_compiler import compile_relation_blocks
+          print(FourfoldHybridRetriever.__name__)
+          print(compile_relation_blocks.__name__)
+          PY
+
+  repository-collection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install complete test surface
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[test,polyglot,root]" pytest
+      - name: Collect complete repository suite
+        env:
+          PYTHONHASHSEED: "0"
+        run: python -m pytest --collect-only -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+      - name: Install and import wheel in isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/daedalus-hybrid-wheel
+          /tmp/daedalus-hybrid-wheel/bin/python -m pip install dist/*.whl
+          cd /tmp
+          PYTHONPATH= /tmp/daedalus-hybrid-wheel/bin/python - <<'PY'
+          import daedalus.twin
+          import daedalus.twin.contractions
+          import daedalus.twin.hybrid_retrieval
+          import daedalus.twin.relation_blocks
+          import daedalus.twin.relation_compiler
+          import daedalus.twin.semiring
+          print(daedalus.twin.FOURFOLD_PLANES)
+          PY
