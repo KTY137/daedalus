@@ -6,7 +6,7 @@ import pytest
 
 from daedalus.gates.report import GateReport
 from daedalus.gates.report_v3 import GateReportV3
-from daedalus.gates.repository_write_evidence import (
+from daedalus.gates.repository.write_evidence import (
     RepositoryWriteArtifactEvidence,
     RepositoryWriteArtifactEvidenceError,
 )

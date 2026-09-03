@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = Path("daedalus/gates/repository_head_revision.py")
+MODULE = Path("daedalus/gates/repository/head_revision.py")
 TESTS = ("tests/gates/test_repository_head_revision.py",)
 
 MUTATIONS = (

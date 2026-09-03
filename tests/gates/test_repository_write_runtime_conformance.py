@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.gates.repository_write_runtime_conformance as runtime_replay
+import daedalus.gates.repository.write_runtime_conformance as runtime_replay
 from daedalus.gates.guard_implementation_manifest import (
     GuardImplementationRecord,
     issue_guard_implementation_manifest,
 )
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     EvidenceBinding,
     EvidenceKind,
     GuardDisposition,
@@ -22,15 +22,15 @@ from daedalus.gates.repository_write_classification import (
     TargetDisposition,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     evidence_subject_sha256,
     materialize_repository_write_evidence,
 )
-from daedalus.gates.repository_write_evidence_origin import (
+from daedalus.gates.repository.write_evidence_origin import (
     issue_repository_write_evidence_origin_attestation,
 )
-from daedalus.gates.repository_write_inventory_v2 import RepositoryWriteSurface
-from daedalus.gates.repository_write_runtime_conformance import (
+from daedalus.gates.repository.write_inventory_v2 import RepositoryWriteSurface
+from daedalus.gates.repository.write_runtime_conformance import (
     RepositoryWriteRuntimeConformanceBindingError,
     RepositoryWriteRuntimeConformanceError,
     RuntimeConformanceSubject,

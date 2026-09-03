@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from daedalus.gates.repository_tree import (
+from daedalus.gates.repository.tree import (
     RepositorySourceSnapshot,
     RepositoryTreePathError,
     RepositoryTreeRaceError,

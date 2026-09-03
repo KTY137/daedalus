@@ -5,7 +5,7 @@ on:
     branches:
       - g0/repository-write-classification-contract-linear
     paths:
-      - "daedalus/gates/repository_write_evidence_materialization.py"
+      - "daedalus/gates/repository/write_evidence_materialization.py"
       - "tests/gates/test_repository_write_evidence_materialization*.py"
       - "scripts/run_repository_write_evidence_materialization_mutations.py"
       - "configs/schemas/repository-write-evidence-materialization.schema.json"
@@ -96,7 +96,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-evidence-materialization-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_evidence_materialization import (
+          from daedalus.gates.repository.write_evidence_materialization import (
               RepositoryWriteEvidenceMaterializationError,
               RepositoryWriteEvidenceMaterializationReport,
               evidence_subject_sha256,

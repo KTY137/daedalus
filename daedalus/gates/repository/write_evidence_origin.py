@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Mapping, Sequence
 
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     MaterializedEvidenceRecord,
     RepositoryWriteEvidenceMaterializationReport,
 )

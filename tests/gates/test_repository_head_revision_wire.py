@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates.repository_head_revision import (
+from daedalus.gates.repository.head_revision import (
     RepositoryHeadRevisionBindingError,
     RepositoryHeadRevisionReceipt,
     RepositoryHeadRevisionShapeError,

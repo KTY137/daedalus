@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from daedalus.gates.repository_head_revision import RepositoryHeadRevisionReceipt
+from daedalus.gates.repository.head_revision import RepositoryHeadRevisionReceipt
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionBindingError,

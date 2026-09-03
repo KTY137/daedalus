@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus/gates/repository_write_runtime_conformance.py"
+TARGET = ROOT / "daedalus/gates/repository/write_runtime_conformance.py"
 TEST_FILE = "tests/gates/test_repository_write_runtime_conformance.py"
 ADMISSION_FILE = "tests/gates/test_repository_write_non_runtime_conformity_admission.py"
 MUTATIONS = {

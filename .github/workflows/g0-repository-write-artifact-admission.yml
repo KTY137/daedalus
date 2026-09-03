@@ -110,7 +110,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-artifact-admission-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_artifact_admission import (
+          from daedalus.gates.repository.write_artifact_admission import (
               AdmittedRepositoryWriteArtifact,
               RepositoryWriteArtifactAdmissionError,
               RepositoryWriteArtifactAdmissionReceipt,

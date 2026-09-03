@@ -85,7 +85,7 @@ def test_chip_cli_composes_gate_verifier_before_eda_execution() -> None:
         alias.name
         for node in ast.walk(tree)
         if isinstance(node, ast.ImportFrom)
-        and node.module == "daedalus.gates.repository_head_revision"
+        and node.module == "daedalus.gates.repository.head_revision"
         for alias in node.names
     ]
     assert "verify_repository_head_revision" in gate_imports

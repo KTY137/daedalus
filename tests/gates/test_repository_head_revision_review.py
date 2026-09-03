@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 
-MODULE = Path("daedalus/gates/repository_head_revision.py")
+MODULE = Path("daedalus/gates/repository/head_revision.py")
 CONTRACT = Path("daedalus/runtimes/contracts/repository.py")
 
 

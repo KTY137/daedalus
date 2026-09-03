@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 from typing import Sequence
 
-from daedalus.gates.repository_tree import (
+from daedalus.gates.repository.tree import (
     RepositorySourceSnapshot,
     RepositoryTreeReadError,
     read_repository_source,

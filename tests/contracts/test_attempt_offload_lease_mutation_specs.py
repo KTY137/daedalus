@@ -66,8 +66,12 @@ EXPECTED_MUTANT_TEST_FILES = (
     "tests/gates/test_repository_write_non_runtime_conformity_admission.py",
     "tests/gates/test_repository_write_effect_lease_non_runtime.py",
 )
+# Moved in G1-PKG-02 and only because the job's ``module`` field now reads
+# daedalus/gates/repository/write_effect_lease.py. The digest covers the
+# jobs payload, so a path is part of it; the thirteen mutations, their
+# find/replace text and the tests they select are byte-identical.
 EXPECTED_JOB_DIGEST = (
-    "64aff892dc073fe77165ddddeaf8ac1cc084c18218b76761abf1eebded47badf"
+    "6a75525ad803d63cd5bea78ccd0120a05ce821cd3afbf6c7ae8fe9c88cadd8e0"
 )
 FORBIDDEN_IMPORTS = {"os", "shutil", "subprocess", "tempfile"}
 FORBIDDEN_CALLS = {
@@ -172,7 +176,7 @@ class AttemptOffloadLeaseMutationSpecTests(unittest.TestCase):
         job = spec.jobs[0]
         self.assertEqual(
             job.module,
-            "daedalus/gates/repository_write_effect_lease.py",
+            "daedalus/gates/repository/write_effect_lease.py",
         )
         self.assertEqual(job.tests, EXPECTED_BASELINE)
         self.assertEqual(job.mutant_test_files, EXPECTED_MUTANT_TEST_FILES)

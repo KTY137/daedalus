@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-executable-structure-receipt-r2-linear
     paths:
-      - "daedalus/gates/repository_head_revision.py"
+      - "daedalus/gates/repository/head_revision.py"
       - "configs/schemas/repository-head-revision-receipt.schema.json"
       - "tests/gates/test_repository_head_revision*.py"
       - "scripts/run_repository_head_revision_mutations.py"
@@ -103,7 +103,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-repository-head-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_head_revision import (
+          from daedalus.gates.repository.head_revision import (
               RepositoryHeadRevisionReceipt,
               verify_repository_head_revision,
               verify_repository_head_revision_receipt,

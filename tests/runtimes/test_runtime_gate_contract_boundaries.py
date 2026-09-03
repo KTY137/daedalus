@@ -15,7 +15,7 @@ from daedalus.gates.python_target_structure import (
     PythonTargetStructure as GatePythonTargetStructure,
     PythonTargetStructureError as GatePythonTargetStructureError,
 )
-from daedalus.gates.repository_head_revision import (
+from daedalus.gates.repository.head_revision import (
     RepositoryHeadRevisionBindingError as GateRepositoryHeadBindingError,
     RepositoryHeadRevisionError as GateRepositoryHeadError,
     RepositoryHeadRevisionRaceError as GateRepositoryHeadRaceError,

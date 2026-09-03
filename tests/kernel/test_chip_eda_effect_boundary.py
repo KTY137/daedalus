@@ -15,7 +15,7 @@ from daedalus.chip_design.lease_ports import validate_eda_execution_plan
 from daedalus.chip_design.publication_verifier import (
     verify_chip_eda_publication_graph,
 )
-from daedalus.gates.repository_head_revision import (
+from daedalus.gates.repository.head_revision import (
     RepositoryHeadRevisionBindingError,
     verify_repository_head_revision,
 )

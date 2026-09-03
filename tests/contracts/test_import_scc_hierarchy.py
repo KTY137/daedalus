@@ -81,7 +81,10 @@ CURRENT_COMPONENTS_SHA256 = (
     # renaming its members renames them inside the component. Count and
     # maximum are unchanged at 12 and 14, and the membership is asserted
     # below rather than left to the digest.
-    "12daf63beabb64b877abb0a2843df6c535fafc48aa5920033bb693f6153bb2f1"
+    # Moved again in G1-PKG-02: the 7-module gates component IS the
+    # repository_write_* family, so renaming its members renames them inside
+    # the component. Count 12 and maximum 14 are unchanged.
+    "119512b93c2617c2d375cbbd4b5b0f75ad1ec8912d9b7895b3a755258e63aac2"
 )
 # Moving census, not an architecture invariant: any packet that legitimately
 # splits or adds a leaf module changes these two totals without touching the
@@ -136,7 +139,13 @@ CURRENT_COMPONENTS_SHA256 = (
 # every one of the 25 kept exactly the targets it had, and no caller gained
 # or lost a package edge, because nothing imported them as
 # ``from daedalus.runtimes import provider_x``.
-CENSUS_MODULES = 432
+# 432 -> 433 in G1-PKG-02, the ``daedalus.gates.repository`` package root.
+# Sixteen modules moved into it and lost the ``repository_`` prefix the
+# package now carries; seven of the sixteen are one strongly connected
+# component, which is why the family was a package spelled with underscores.
+# Edges unchanged at 1642, for the same reason as G1-PKG-01: every module
+# kept its targets and no caller reached them through the parent package.
+CENSUS_MODULES = 433
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file

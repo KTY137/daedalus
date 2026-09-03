@@ -13,12 +13,12 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from daedalus.gates.repository_write_inventory import (
+from daedalus.gates.repository.write_inventory import (
     RepositoryWriteInventory,
     RepositoryWriteInventoryError,
     scan_repository_write_surfaces,
 )
-from daedalus.gates.repository_write_stdlib_delta import (
+from daedalus.gates.repository.write_stdlib_delta import (
     RepositoryWriteStdlibDelta,
     RepositoryWriteStdlibDeltaError,
     scan_repository_write_stdlib_delta,

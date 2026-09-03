@@ -15,7 +15,7 @@ from daedalus.gates.report_v3 import (
     build_gate0_report_v3,
     load_gate_report_v3,
 )
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2Error,
 )
 

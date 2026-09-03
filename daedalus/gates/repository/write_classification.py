@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterable, Mapping
 
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2,
     RepositoryWriteSurface,
 )
@@ -516,27 +516,27 @@ NON_RUNTIME_AUTHORIZATION_CLASS = "NonRuntimeEffectAuthorization"
 # the verifier that returns it ran in this process.
 _STAGE_REPORT_TYPES: dict[AuthenticationStage, tuple[str, str]] = {
     AuthenticationStage.MATERIALIZATION: (
-        "daedalus.gates.repository_write_evidence_materialization",
+        "daedalus.gates.repository.write_evidence_materialization",
         "RepositoryWriteEvidenceMaterializationReport",
     ),
     AuthenticationStage.ORIGIN: (
-        "daedalus.gates.repository_write_evidence_origin",
+        "daedalus.gates.repository.write_evidence_origin",
         "RepositoryWriteEvidenceOriginReport",
     ),
     AuthenticationStage.ANCHOR: (
-        "daedalus.gates.repository_write_source_anchor_semantics",
+        "daedalus.gates.repository.write_source_anchor_semantics",
         "RepositoryWriteSourceAnchorSemanticsReport",
     ),
     AuthenticationStage.GUARD: (
-        "daedalus.gates.repository_write_guard_structure",
+        "daedalus.gates.repository.write_guard_structure",
         "RepositoryWriteGuardStructureReport",
     ),
     AuthenticationStage.CONFORMITY: (
-        "daedalus.gates.repository_write_runtime_conformance",
+        "daedalus.gates.repository.write_runtime_conformance",
         "RepositoryWriteRuntimeConformanceReport",
     ),
     AuthenticationStage.LEASE: (
-        "daedalus.gates.repository_write_effect_lease",
+        "daedalus.gates.repository.write_effect_lease",
         "RepositoryWriteEffectLeaseReport",
     ),
 }
@@ -548,27 +548,27 @@ _STAGE_REPORT_TYPES: dict[AuthenticationStage, tuple[str, str]] = {
 # composition a finished report instead.
 _STAGE_VERIFIERS: dict[AuthenticationStage, tuple[str, str]] = {
     AuthenticationStage.MATERIALIZATION: (
-        "daedalus.gates.repository_write_evidence_materialization",
+        "daedalus.gates.repository.write_evidence_materialization",
         "materialize_repository_write_evidence",
     ),
     AuthenticationStage.ORIGIN: (
-        "daedalus.gates.repository_write_evidence_origin",
+        "daedalus.gates.repository.write_evidence_origin",
         "verify_repository_write_evidence_origin",
     ),
     AuthenticationStage.ANCHOR: (
-        "daedalus.gates.repository_write_source_anchor_semantics",
+        "daedalus.gates.repository.write_source_anchor_semantics",
         "verify_repository_write_source_anchor_semantics",
     ),
     AuthenticationStage.GUARD: (
-        "daedalus.gates.repository_write_guard_structure",
+        "daedalus.gates.repository.write_guard_structure",
         "verify_repository_write_guard_structure",
     ),
     AuthenticationStage.CONFORMITY: (
-        "daedalus.gates.repository_write_runtime_conformance",
+        "daedalus.gates.repository.write_runtime_conformance",
         "verify_repository_write_runtime_conformance",
     ),
     AuthenticationStage.LEASE: (
-        "daedalus.gates.repository_write_effect_lease",
+        "daedalus.gates.repository.write_effect_lease",
         "verify_repository_write_effect_leases",
     ),
 }
@@ -924,7 +924,7 @@ class NonRuntimeConformityAdmission:
         # Imported here, not at module scope: the Effect-Lease module sits
         # downstream of this one and importing it at the top would close a
         # cycle.  The check is still that module's, not a copy of it.
-        from daedalus.gates.repository_write_effect_lease import (
+        from daedalus.gates.repository.write_effect_lease import (
             replay_non_runtime_effect_subject,
         )
 

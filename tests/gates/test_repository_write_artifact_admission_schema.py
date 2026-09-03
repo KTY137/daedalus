@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates.repository_write_artifact_admission import (
+from daedalus.gates.repository.write_artifact_admission import (
     RepositoryWriteArtifactAdmissionError,
     RepositoryWriteArtifactAdmissionReceipt,
 )

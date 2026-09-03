@@ -910,7 +910,7 @@ def scan_repository_write_surfaces(
     except ValueError as exc:
         # The container's identity invariants are the scanner's own contract.
         # A bare ValueError here escapes every declared fail-closed handler in
-        # daedalus/gates/repository_write_inventory_v2.py and
+        # daedalus/gates/repository/write_inventory_v2.py and
         # daedalus/gates/report_v3.py, which turns one ambiguous callsite into
         # a report with no counters at all.  Convert to the declared error and
         # name the ambiguity so the refusal is actionable evidence.
