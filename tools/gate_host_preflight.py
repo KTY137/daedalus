@@ -46,13 +46,32 @@ PY = sys.executable
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 #: The gate is a pytest run, and pytest is not optional for it.
-REQUIRED_MODULES = ("pytest", "coverage")
+REQUIRED_MODULES = ("pytest",)
 
-#: structcore degrades cleanly without these -- unit-level clone detection and
-#: real cyclomatic complexity light up when they are present and are simply
-#: absent when they are not. They are listed so a duration difference between
-#: two machines has a visible cause rather than being a mystery.
-OPTIONAL_MODULES = ("tree_sitter_language_pack", "lizard")
+#: Present-or-absent with a visible consequence, never a refusal.
+#:
+#: structcore degrades cleanly without the first two -- unit-level clone
+#: detection and real cyclomatic complexity light up when they are there and
+#: are simply absent when they are not. They are listed so a duration
+#: difference between two machines has a visible cause rather than being a
+#: mystery.
+#:
+#: ``coverage`` moved here from REQUIRED on 2026-09-03. It was failing every
+#: host, and for a capability the gate does not use by default:
+#: ``gate_discrimination.run`` takes ``coverage_guided: bool = False`` and
+#: exposes it as an opt-in ``--coverage-guided`` flag, so without that flag
+#: ``coverage_state`` is "not_requested" and the module is never imported. The
+#: committed receipt in runs/spine/gate_discrimination.json was produced that
+#: way. The justification for refusing a host -- "a gate run here would not
+#: measure what the receipt would claim it measured" -- is exactly what does
+#: NOT apply: the receipt carries ``coverage_guided`` and ``coverage_state``,
+#: so a run without coverage says so instead of claiming the stronger
+#: measurement. It is also installable from nowhere in this project: no extra
+#: in pyproject.toml declares it and uv.lock has no entry, so REQUIRED made
+#: every environment built the documented way unfit. Optional, not
+#: irrelevant -- coverage-guided discrimination IS stronger evidence, which is
+#: why it stays listed and reported.
+OPTIONAL_MODULES = ("tree_sitter_language_pack", "lizard", "coverage")
 
 #: Python this repo is developed and measured on. A different MINOR version is
 #: not automatically wrong, but it is a difference a receipt must carry: the
