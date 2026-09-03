@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CE",
+  "title": "Reuse exact canonical TypedAxis label tuples",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CD",
+  "campaign_issue": 239,
+  "base_revision": "a37eefb62b512174e20d492cc88e87c759334b49",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "After G1-TENSOR-01CD removed the redundant TypedAxis label-index mapping, TypedAxis.labels became the sole canonical label identity/order for relation-block axes. TypedAxis construction still unconditionally materialized a sorted list and then a fresh tuple even when the caller supplied an exact immutable tuple that was already validated in canonical strict order. This duplicated the container and sorting work on the canonical path.",
+  "primary_claim": "TypedAxis now validates an exact tuple in one ordered pass and retains that same tuple by object identity when it is already strictly canonical. Non-tuple or non-canonical input still falls back to the existing deterministic sort path, and duplicate labels still fail closed. Relation signatures, CSR canonicalization, semiring behavior, Fourfold subject identity, wire serialization and digest semantics are unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_axis_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CE.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 24,
+    "code_test_deletions": 10,
+    "production_additions": 18,
+    "production_deletions": 9,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the one canonical immutable labels tuple instead of adding a cache, label-index object or second axis representation. Keep the deterministic sort fallback only for inputs that actually require canonicalization. This reduces canonical-path materialization and sorting rather than optimizing for source-line count.",
+  "acceptance": [
+    "an exact already sorted unique tuple of 256 TypedAxis labels is retained by object identity after validation",
+    "non-canonical TypedAxis labels are still sorted deterministically",
+    "duplicate labels still fail closed without a hash-set duplicate detector",
+    "relation-block coordinate construction and point lookup continue to use canonical sorted labels",
+    "the Fourfold-v2 workflow executes successfully on exact code/test revision 862c5853c18bc182c2dc2dfa41d7e2be1e1355af",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build and install execute successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "c4b66ebc8202969d7fc435fb88b3da55df57e8aa",
+    "code_test_revision": "862c5853c18bc182c2dc2dfa41d7e2be1e1355af",
+    "production_blob": "9de4ddf5a7db31930e660ddfb8c816dfb749d777",
+    "focused_test_blob": "75ad8967408dc0bbc8c21ff59f0de23e25377f8b",
+    "fourfold_v2_run": 33736937685,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 862c5853c18bc182c2dc2dfa41d7e2be1e1355af",
+      "all four Python 3.10/3.12 contract matrix jobs completed success with real hosted-runner steps",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success with build and isolated install steps",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 862c5853c18bc182c2dc2dfa41d7e2be1e1355af. The executed tests/twin surface includes test_typed_axis_reuses_canonical_tuple_and_sorts_only_fallback, which requires exact canonical tuple retention while preserving deterministic fallback sorting and duplicate refusal. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01CE commits to restore unconditional TypedAxis label materialization/sorting. Fourfold authority, relation-block wire contracts, canonical label order and sparse block behavior are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
