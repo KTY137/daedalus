@@ -1,0 +1,118 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CM",
+  "title": "Add strict Fourfold Boolean CSR arm to bounded relation cost probe",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CL",
+  "campaign_issue": 239,
+  "base_revision": "a2d7d54e84cc277f4a81fd75db86644b11451c9a",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "The kernel contract explicitly named the next bounded step: put the existing strict Forest/Fourfold Boolean relation adapter beside direct Forest, preindexed Forest, and TensorView in the relation cost probe. The previous relation probe used a legacy partial Fourfold fixture, so it could not exercise the strict adapter, which correctly requires complete endpoint planes.",
+  "primary_claim": "The existing bounded relation probe now constructs one mechanically complete Code/Knowledge Fourfold fixture and compares four regenerable views of the same relation subject: direct Forest, preindexed Forest, TensorView, and strict Fourfold Boolean CSR. All four arms must produce the same result before diagnostic costs are emitted. No production representation, backend, store, registry, authority, or promotion surface was added.",
+  "scope": {
+    "changed": [
+      "tests/twin/test_tensor_forest_cost_probe.py",
+      "docs/FOURFOLD_TENSOR_KERNEL_CONTRACT.md"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CM.json"
+    ],
+    "production_code_changes": 0,
+    "test_commit": "239cee119999a6e9bb2625e67d8855ad6187f751",
+    "test_blob": "71238cc9ac17fa68d30b0b11f6b5cd13112554e9",
+    "test_additions": 122,
+    "test_deletions": 13,
+    "contract_alignment_commit": "a803cd3070d1610d651ffa35c87e73eacdbadbcf",
+    "contract_blob": "74c8b3b7b10ca040c4ae152541f3bfccc8ed3a6e",
+    "new_graph_schema": false,
+    "new_relation_block_type": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the already implemented strict relation adapter and the existing cost-probe harness instead of introducing another benchmark framework, relation index, backend, graph view, or Tensor type. The only new helper is a test fixture that upgrades the exact endpoint planes to mechanically complete status while preserving Forest identity and retained relation digests.",
+  "acceptance": [
+    "the four relation arms return the same deterministic result subject before any cost report is emitted",
+    "the strict CSR arm binds its ProjectionSubject to the exact complete Fourfold snapshot digest",
+    "the complete fixture preserves the exact Forest identity and marks only the Code and Knowledge endpoint planes complete for this workload",
+    "all Python 3.10/3.12 and hash-seed 0/123456 Fourfold/kernel contract jobs execute successfully on the exact test revision",
+    "the designated Python 3.12/hash-seed-0 bounded Tensor/Forest diagnostic executes successfully and emits the fourfold_boolean_csr arm",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no benchmark superiority, OwnerApproval, promotion, merge, Ready-for-Review transition, or Gate transition is inferred"
+  ],
+  "verification": {
+    "exact_test_revision": "239cee119999a6e9bb2625e67d8855ad6187f751",
+    "fourfold_v2_run": 33788285172,
+    "fourfold_v2_conclusion": "success",
+    "focused_python_3_10_hashseed_0": "207 passed, 2 skipped in 3.87s",
+    "focused_python_3_12_hashseed_0": "207 passed, 2 skipped in 4.29s",
+    "observed_jobs": [
+      "Fourfold-v2 completed success on exact revision 239cee119999a6e9bb2625e67d8855ad6187f751",
+      "all four Python 3.10/3.12 and hash-seed 0/123456 contract jobs completed success",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests completed success",
+      "designated Python 3.12/hash-seed-0 Emit bounded Tensor/Forest diagnostic cost probes completed success",
+      "isolated-wheel completed success with build and isolated-install steps",
+      "repository-collection completed success (collection only)"
+    ],
+    "diagnostic_relation_probe": {
+      "schema": "daedalus-tensor-forest-relation-cost-probe/4",
+      "authority": "diagnostic-only",
+      "claim": "none",
+      "subject_count": 512,
+      "node_count": 1024,
+      "edge_count": 768,
+      "repeats": 5,
+      "query_iterations_per_repeat": 10,
+      "result_count": 256,
+      "result_sha256": "e89b50ef66e4156831682ce77877ded4323b13964ee0132adb2a4c4607126046",
+      "construction_basis": "forest+complete-fourfold",
+      "medians_ns": {
+        "forest_direct": {"construction": 448963173, "query": 214312},
+        "forest_preindexed": {"construction": 451805300, "query": 35910},
+        "forest_plus_tensor": {"construction": 675769397, "query": 2479872},
+        "fourfold_boolean_csr": {"construction": 641852530, "query": 2000232}
+      },
+      "peak_bytes_medians": {
+        "forest_direct": {"construction": 1703415, "query": 80288},
+        "forest_preindexed": {"construction": 1703365, "query": 12744},
+        "forest_plus_tensor": {"construction": 1714970, "query": 58640},
+        "fourfold_boolean_csr": {"construction": 1754630, "query": 54256}
+      },
+      "interpretation": "Single hosted-run diagnostic evidence only. The strict CSR arm is cheaper than TensorView on this specific construction/query workload but remains far slower in query latency than the preindexed Forest arm. This is negative/falsification evidence against treating the current CSR projection as an automatic performance win and is not a benchmark superiority claim."
+    },
+    "claim": "Hosted CI is claimed only for exact test revision 239cee119999a6e9bb2625e67d8855ad6187f751. The docs/evidence commits after that revision are not used to extend the green-CI claim. Repository-wide evidence is collection-only, not full-suite execution. Diagnostic timings are retained as one-hosted-run falsification evidence and do not establish comparative superiority."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "new_adversarial_regression_required": true,
+    "adversarial_regression": "The probe asserts exact result equality across all four arms and separately asserts that the CSR block binds the mechanically complete Fourfold digest. Existing strict adapter tests continue to refuse partial endpoint planes, wrong Forest identity, retained hyperedges, and undirected retained edges.",
+    "independent_owner_review_completed": false
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_record": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "main_observed_before_record": "e31213aff40ab322dcead6d50ae19007f3f9b6b1",
+    "ui_line_observed_before_record": "worktree-g1-ui-ikarus@215d1d7b1999a22b0469d1f97bff1c01e33a7846",
+    "visible_remote_refs_observed_before_record": 18,
+    "topology_note": "Only the existing tensor-kernel branch was advanced by this packet. Existing additional packet/rescue/evidence refs remain untouched; none was deleted or archived merely to reduce the visible count. archive/legacy-20260830 remains a frozen evidence/history anchor."
+  },
+  "rollback": "Revert test commit 239cee119999a6e9bb2625e67d8855ad6187f751 and the following documentation/evidence commits to restore the previous three-arm diagnostic. Forest, FourfoldSnapshot, TensorView, TypedRelationBlock, relation projection, and promotion authority are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "ready_for_review_transition": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
