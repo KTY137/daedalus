@@ -238,18 +238,18 @@ one primary acceptance claim.
    rows in §1 stop being reported as loose, the 33 L rows still are, and
    `docs/FEATURE_INVENTORY.json` is re-baselined. This packet must land first —
    every later packet is aimed by its output, and the picker is reading it.
-2. **G1-WIRE-L3 — the artifact-admission chain.** Smallest genuinely-loose
-   cluster with the heaviest existing evidence, so the wiring is the only new
-   risk. Give it its production consumer or record the decision that it stays a
-   contract library and retire the accusation deliberately.
-3. **G1-WIRE-L2 — `twin/extractors/`.** Highest plan value (§5, the central
-   prior). Needs a design decision, not just a wire: who owns extraction, and
-   at which revision boundary.
-4. **G1-WIRE-L1 — kernel promotion/authorization.** Touches invariant 5 and the
-   sealed promotion path, so it needs the full adversarial matrix of §10 step 6.
-   Do not start it on an unreviewed parent.
+2. ~~**G1-WIRE-L3 — the artifact-admission chain.**~~ **WITHDRAWN — see §6.**
+   `G0-GR-24` owns it and states that it "does not discharge any canonical
+   repository-write finding". Wiring it would discharge one.
+3. ~~**G1-WIRE-L2 — `twin/extractors/`.**~~ **WITHDRAWN — see §4.1.** Not loose:
+   reached from `scripts/fourfold_repo_probe.py`.
+4. ~~**G1-WIRE-L1 — kernel promotion/authorization.**~~ **WITHDRAWN — see §6.**
+   Every module in it is owned by a packet that declines to wire it.
 
-L4–L7 are unranked until G1-MAP-01 confirms them.
+**All three wiring packets are withdrawn.** §6 records why, and what the real
+bottleneck is instead. The ranking above is kept rather than deleted because the
+reasoning that produced it was wrong in a way worth being able to re-read: it
+mistook a correctly-executed bounded packet for neglected work, twice.
 
 A note on ordering that the measurement, not preference, produced: fixing the
 instrument is not overhead before the real work. At this revision a quarter of
@@ -355,6 +355,90 @@ way rather than overwriting the real `kairos/decompose.py` annotation.
 - The remaining readable gate findings are now worth acting on: `NEW UNKNOWN`
   (2), `ENGINE DISAGREEMENT` (1), `NEW DARK SWITCH` (3), `DOC DRIFT` (16),
   `TEST ONLY` (22).
+
+---
+
+## 6. The answer to the original question: almost nothing here is loose by accident
+
+With the map finally true (§4, §5), the honest loose list under `daedalus/` is
+**33 modules**, periphery excluded `[MEASURED 2026-09-03]`. This section asks the
+question the survey should have asked first: *why* is each one unconsumed?
+
+Every one of the 33 was checked against `docs/work-packets/`, `docs/adrs/` and
+the architecture narrative. The result:
+
+| | count |
+| --- | --- |
+| owned by a named Work Packet that **explicitly declines to wire it** | 31 |
+| documented as a precondition for later-gate work | 1 |
+| named by an open, Gate-wide obligation carried in other packets | 1 |
+| **genuinely orphaned, explicable by nothing** | **0** |
+
+### 6.1 They say so themselves
+
+These are not inferences. The packets state the boundary in their own prose:
+
+- `G0-GR-24` (artifact admission, 4 modules): *"Admission is not origin
+  authentication or release authority... It does not update the evidence index,
+  replace the legacy release contract, or issue `Gate0ReleaseReceipt`. **It does
+  not discharge any canonical repository-write finding.** Issue #194 remains
+  open."*
+- `G0-RTC-06Z` (provider observation store, 2 modules): *"**It does not register
+  those entrypoints**, verify or begin an Effect Lease, open SQLite, initialize
+  a store, bind a row, migrate the broker, recover an execution, merge, promote
+  or change a Gate state."*
+- `G1-RUNTIME-02` (runtime authorization issuer): *"This slice does not migrate
+  provider registries, open inventory-only rows, alter persistence, add a
+  runtime... merge, promote, or close Gate 1."*
+- `daedalus/kairos/shadow_shell.py` is an Ariadne precondition recorded in
+  `docs/adrs/015-ariadne-preconditions.md` — later-gate by the plan's own order.
+- `daedalus/kernel/promotion_fingerprint.py` was the one module no packet names.
+  It is not orphaned either: it is the tool for *Gate-wide Primary-Checkout
+  mutation exclusion*, which `G0-GR-24` lists under **"remain separate dependent
+  work"** and `G0-PRM-19` lists among its builder tests. Its own creating commit
+  says it plainly — *"main asked for a checkout fingerprint that nothing on main
+  could produce"*.
+
+### 6.2 What that means for "integrate the loose parts"
+
+Most of this must **not** be integrated, and not by me. Wiring `G0-GR-24`'s
+admission chain would discharge a finding the packet says it does not discharge;
+wiring `G0-RTC-06Z` would register entrypoints it says it does not register.
+Master plan §10 forbids starting a dependent build phase on an unreviewed
+parent, and §13 lists *"dependent feature packets built on an unreviewed or red
+parent packet"* as a forbidden direction. A lane that "tidied up the islands"
+would be breaking the build discipline, not repairing it.
+
+The incoherence is real, but it is not the shape it looks like from the census.
+Daedalus lands **bounded, tested, deliberately unconsumed contract boundaries**,
+and the packets that would consume them are blocked on a small, named set:
+
+| blocker | named in | kind |
+| --- | --- | --- |
+| issue #194 (repository-write findings) | `G0-GR-24` | open issue |
+| issue #189 (provider-observation persistence paths) | `G0-GR-24`, `G0-RTC-06R` | open issue |
+| Docker sandbox evidence | `G0-GR-24`, `G0-RTC-06R` | **open owner position** — master plan Revision 8 records "Docker host procurement stays an open owner position" |
+| complete fault injection | `G0-GR-24`, Revision 8 | evidence obligation |
+| Gate-wide Primary-Checkout mutation exclusion | `G0-GR-24`, `G0-PRM-19` | open obligation |
+| live runtime receipts | Revision 8 | evidence obligation |
+
+So the bottleneck is not code anyone can write. Four of the six are evidence or
+infrastructure obligations, and one is an owner decision the plan itself records
+as open. The count of unconsumed boundaries is the *cost* of that blockage, and
+it grows with every additive packet that lands while the blockers stand.
+
+### 6.3 The one thing this survey got wrong twice
+
+§3 ranked `G1-WIRE-L3` (the admission chain) as the best next work, on the
+grounds that it was "the sharpest illustration of the incoherence" — four
+modules, eleven test files, four CI workflows, no consumer. That reading was
+wrong for the second time in this document: the first time because the survey
+had not read `scripts/` (§4.1), and this time because it had not read the
+packet. The evidence density that made it look like neglected work is what a
+correctly-executed bounded packet looks like from the outside.
+
+`G1-WIRE-L3` and `G1-WIRE-L1` are withdrawn. Neither is available as ordinary
+work; both are downstream of the table above.
 
 ---
 
