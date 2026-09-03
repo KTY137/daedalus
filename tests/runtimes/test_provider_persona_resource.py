@@ -91,5 +91,5 @@ def test_legacy_module_is_only_a_runtime_reexport() -> None:
 
 def test_structure_packet_keeps_effect_registry_exact() -> None:
     assert registry_sha256() == (
-        "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
+        "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
     )

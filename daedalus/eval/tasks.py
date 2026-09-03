@@ -256,7 +256,7 @@ TASKS: list[dict] = [
         "label_provenance": "hand_reachable",
         "tier": "primary",
         "repo": "agent_env",
-        "target": "daedalus/orchestration/ikarus_os.py::_distill",
+        "target": "daedalus/orchestration/ikarus/shell.py::_distill",
         "must_include": ["semantic_slice", "resolve_repo_root", "cached_index"],
         "question": "When the user names a file, what does _distill call to "
                     "produce the token-saving figure?",

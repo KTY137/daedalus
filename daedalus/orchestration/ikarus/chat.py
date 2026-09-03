@@ -10,9 +10,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .. import core
-from . import agents_registry, control_plane, hierarchy
-from ..foundation.projects import resolve_repo_root
+from ... import core
+from .. import agents_registry, control_plane, hierarchy
+from ...foundation.projects import resolve_repo_root
 
 
 BLUEPRINTS: list[dict[str, Any]] = [

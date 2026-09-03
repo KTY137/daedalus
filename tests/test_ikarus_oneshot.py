@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.orchestration.ikarus_oneshot import (
+from daedalus.orchestration.ikarus.oneshot import (
     OneShotContractError,
     OneShotRequest,
     OneShotRuntimeRefused,
     bind_oneshot_runtime_evidence,
 )
-from daedalus.orchestration.ikarus_runtime_role import (
+from daedalus.orchestration.ikarus.runtime_role import (
     SOURCE_ONLY_EXECUTION_MODE,
     RuntimeRoleBinding,
     RuntimeRoleRegistry,
@@ -248,7 +248,7 @@ def test_tool_capability_is_evidence_only_and_unmetered_cost_refuses(tmp_path):
 
 
 def test_module_is_projection_only_not_a_hidden_provider_or_session_runtime():
-    path = Path(__file__).resolve().parents[1] / "daedalus" / "orchestration" / "ikarus_oneshot.py"
+    path = Path(__file__).resolve().parents[1] / "daedalus" / "orchestration" / "ikarus" / "oneshot.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     imports = {
         alias.name.split(".")[0]

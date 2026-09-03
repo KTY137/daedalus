@@ -189,7 +189,7 @@ pale surface is nearly invisible in `leitstand` and loud in `kammer`.
    yet is drawn as an identifier rather than typeset as a name. The real fix is
    a shorter probe or a cached answer, on the backend.
 2. **The deterministic route's canned answer says "Pick a model in the header"**
-   (`daedalus/orchestration/ikarus_os.py`). There is no model picker in the header any more —
+   (`daedalus/orchestration/ikarus/shell.py`). There is no model picker in the header any more —
    it is on the composer's rail. Backend copy, not mine.
 3. **`/api/context/plan` is lexical over identifiers.** Measured: `picker
    attempt lease` → 22 seeds in 244ms; `wo wird der Kontextplan gebaut` → 0

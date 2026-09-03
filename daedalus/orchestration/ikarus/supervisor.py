@@ -49,26 +49,26 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Mapping, Sequence
 
-from ..build import BuildSession, BuildTask, Wave, mission_id_for_session
-from ..limit_policy import ExecutionLimitPolicy
-from .ikarus_runtime_role import (
+from ...build import BuildSession, BuildTask, Wave, mission_id_for_session
+from ...limit_policy import ExecutionLimitPolicy
+from .runtime_role import (
     INPROCESS_RUNTIME_ID,
     RuntimeRoleRegistry,
     RuntimeRoleSnapshot,
 )
-from ..schemas import (
+from ...schemas import (
     MissionContract,
     ResourceBudget,
     derive_work_item_id,
     work_item_identity_sha256,
 )
-from ..spine.attempt import (
+from ...spine.attempt import (
     GateResult,
     RunnerContext,
     TaskSpec,
     TaskSpecInvalid,
 )
-from ..spine.receipts import mission_contract_for_build_session
+from ...spine.receipts import mission_contract_for_build_session
 
 LEDGER_SCHEMA = "daedalus-ikarus-state-ledger/2"
 
@@ -472,7 +472,7 @@ def plan_mission(
     tasks = [
         BuildTask(
             objective=item.objective,
-            agent="daedalus.orchestration.ikarus_supervisor",
+            agent="daedalus.orchestration.ikarus.supervisor",
             category="renovation",
             lane="deterministic",
             tier="none",
@@ -883,7 +883,7 @@ class MissionSupervisor:
                         "mission_id": mission_id,
                         "work_item_id": task_plan.work_item_id,
                         "role": item.role,
-                        "operator": "daedalus.orchestration.ikarus_supervisor",
+                        "operator": "daedalus.orchestration.ikarus.supervisor",
                         **runtime_metadata,
                     }),
                 )

@@ -10,7 +10,8 @@ from unittest import mock
 
 from daedalus import file_bridge
 from daedalus.interfaces.http import web_api
-from daedalus.orchestration import control_plane, conversation as conversation_mod, hierarchy, ikarus_chat, runtime_registry
+from daedalus.orchestration import control_plane, conversation as conversation_mod, hierarchy, runtime_registry
+from daedalus.orchestration.ikarus import chat as ikarus_chat
 from daedalus.interfaces.http.bootstrap_prompt import claude_bootstrap_prompt
 from daedalus.foundation.env import env_status, load_env
 from daedalus.interfaces.http.web_api import _json_safe

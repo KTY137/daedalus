@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.orchestration.ikarus_oneshot import OneShotRequest, bind_oneshot_runtime_evidence
-from daedalus.orchestration.ikarus_runtime_role import (
+from daedalus.orchestration.ikarus.oneshot import OneShotRequest, bind_oneshot_runtime_evidence
+from daedalus.orchestration.ikarus.runtime_role import (
     SOURCE_ONLY_EXECUTION_MODE,
     RuntimeRoleBinding,
     RuntimeRoleRegistry,
 )
-from daedalus.orchestration.ikarus_tool_scope import (
+from daedalus.orchestration.ikarus.tool_scope import (
     IkarusToolScopeRefused,
     project_oneshot_tool_scope,
 )
@@ -308,7 +308,7 @@ def test_duplicate_tool_request_refuses(tmp_path):
 
 
 def test_module_is_projection_only_and_has_no_effect_or_plugin_discovery_authority():
-    path = Path(__file__).resolve().parents[1] / "daedalus" / "orchestration" / "ikarus_tool_scope.py"
+    path = Path(__file__).resolve().parents[1] / "daedalus" / "orchestration" / "ikarus" / "tool_scope.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     imports = {
         alias.name.split(".")[0]

@@ -21,7 +21,8 @@ from . import sse as http_sse
 from ...kairos import drafts
 from ... import core
 from ...foundation import accelerators
-from ...orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, ikarus_chat, runtime_registry
+from ...orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, runtime_registry
+from ...orchestration.ikarus import chat as ikarus_chat
 from .bootstrap_prompt import claude_bootstrap_prompt
 from ...orchestration.context_plan import plan_context
 from ...foundation.env import env_status, load_env
@@ -36,7 +37,7 @@ from ...foundation.projects import (
 )
 from ...file_bridge import stream_state
 from ... import file_bridge
-from ...orchestration import ikarus_os
+from ...orchestration.ikarus import shell as ikarus_os
 from ...structcore.index import cached_index
 from ...structcore.churn import co_change_pairs
 from ...structcore.report import structure_summary
