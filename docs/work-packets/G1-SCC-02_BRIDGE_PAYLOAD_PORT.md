@@ -2,7 +2,7 @@
 
 Packet ID: `G1-SCC-02`
 Artifact role: `primary`
-Status: planned; not started
+Status: planned; BLOCKED on a scope decision found while starting it
 Classification: `ALIGNED`
 Active gate: Gate 1 - Renovation and owner-directed Genesis
 Owner: `repository owner`
@@ -81,6 +81,57 @@ Ten modules can compose the port without reinstating the cycle, measured:
 `interfaces.http.web_api`, `kairos.orchestrate`, `orchestration.ikarus.shell`,
 `progress_sources`, `status`. `core` is among them because `file_bridge -> core`
 was `core`'s own way back in.
+
+## Blocking finding, 2026-09-03: the entry point forces the edge
+
+Found by starting the build, which is what step 2 of the chain is for.
+The design above cuts the edge at `_process_request_claimed`, and that part
+holds. It is not enough.
+
+`daedalus/file_bridge.py:1068` defines `main()`, the `python -m
+daedalus.file_bridge` entry, and it composes the CLI ports for `watch`,
+`once`, `enqueue` and `mark-read`. Once `process_request` requires a payload
+port, `main` is the module that must supply it -- so `file_bridge` imports
+`core` again, in the composition instead of the dispatch, and the component
+survives. Routing the supply through any intermediary does not help: `core`
+reaches `file_bridge`, so `file_bridge -> X -> core` restores the cycle
+transitively. The census walks every scope, so a lazy import inside `main`
+or inside `if __name__ == "__main__":` counts exactly the same.
+
+The edge is therefore cuttable only if `daedalus.file_bridge:main` stops
+being a payload-dispatching entry in that module. That is a REGISTERED CLI
+door (`cli.file_bridge`), so relocating it moves `registry_sha256` -- which
+acceptance row 4 forbids -- and it changes a documented command that two
+live documents and one test assert verbatim:
+
+* `daedalus/interfaces/cli/enforce.py:48`
+* `daedalus/interfaces/http/bootstrap_prompt.py:41`
+* `tests/test_bridge_enqueue_guard.py`, which asserts the string appears in
+  the message a user is shown when the watcher is not running.
+
+### The decision this needs
+
+**Option A -- relocate the door.** Move `main` to
+`daedalus/interfaces/cli/bridge.py`, repoint the registry target and anchor,
+re-pin `registry_sha256` in the 29 files that hold it, and change the
+documented restart command to `python -m daedalus.interfaces.cli.bridge
+watch`. Wins the cut. Costs a user-facing command that appears in an error
+message people act on, and widens this packet from one edge to one door.
+
+**Option B -- accept the component.** Leave the entry where it is and record
+that the cross-domain cycle is held by a composition root that lives inside
+it. `target-layout.md` section 3 already says a cycle among flat modules
+that no protected layer touches is a smell, not a violation. Costs nothing
+and wins nothing.
+
+**Option C -- split the entry.** Keep `python -m daedalus.file_bridge` for
+the subcommands that need no payload processor (`enqueue`, `status`,
+`mark-read`) and move only `watch` and `once`. Two commands where there was
+one, which is the parallel-path shape plan section 13 warns about.
+
+Acceptance row 4 is written for the design as first specified. Whichever
+option is taken, that row must be rewritten first, not quietly reinterpreted
+when the digest moves.
 
 ## Scope
 
