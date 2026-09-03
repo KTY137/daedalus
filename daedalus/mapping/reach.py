@@ -298,6 +298,14 @@ class _Src:
 
     rel: str
     dotted: str
+    #: What a RELATIVE import is anchored to. For an ordinary module that is the
+    #: same as ``dotted``; for a package ``__init__`` it keeps the ``__init__``
+    #: suffix, because the resolver computes the current package by dropping
+    #: ``level`` trailing components and ``from . import x`` inside
+    #: ``daedalus/wiki/__init__.py`` means ``daedalus.wiki.x``, not
+    #: ``daedalus.x``. Splitting the two is what let ``dotted`` become the
+    #: importable name without breaking every relative import in a package root.
+    anchor: str = ""
     tree: ast.AST | None = None
     records: list[tuple] = field(default_factory=list)
     # qualified function name -> raw import records inside it
@@ -313,6 +321,11 @@ class _Src:
     literals: set[str] = field(default_factory=set)
     dynamic: set[str] = field(default_factory=set)
     dyn_targets: set[str] = field(default_factory=set)
+    #: Strings from module-level table literals, offered only when ``dynamic``
+    #: is non-empty. Resolved against the module census in ``analyse``: a
+    #: candidate becomes an edge when it names a module that EXISTS, either
+    #: absolutely or as a submodule of this package. Anything else is dropped.
+    dyn_candidates: set[str] = field(default_factory=set)
     # imports that exist in the text but are not proof anything runs them:
     # (record, why). Kept out of ``records``/``func_records`` entirely.
     weak: list[tuple[tuple, str]] = field(default_factory=list)
@@ -322,7 +335,20 @@ class _Src:
 
 
 def _py_dotted(rel: str) -> str:
-    return rel[:-3].replace("/", ".")
+    """Importable dotted name for a source path.
+
+    ``__init__`` is STRIPPED, because nothing imports a package under that name.
+    ``daedalus/resources/__init__.py`` binds to ``daedalus.resources``, which is
+    what ``from daedalus.resources import schema_text`` resolves to. Registering
+    it as ``daedalus.resources.__init__`` left the package row with zero
+    importers, and the engine called a module with a 138-line body and five
+    production callers an orphan -- the single ``orphan`` row under ``daedalus/``
+    was that false one.
+    """
+    dotted = rel[:-3].replace("/", ".")
+    if dotted.endswith(".__init__"):
+        return dotted[: -len(".__init__")]
+    return dotted
 
 
 def _iter_py(root: Path) -> list[str]:
@@ -408,6 +434,14 @@ def _dispatch_chains(fn: ast.AST) -> list[list[tuple[str, ast.If]]]:
 
 _DEAD_BRANCH = "inside a branch that can never run (`if False:`)"
 _SUPPRESSED = "inside a `try:` whose ImportError is swallowed"
+
+# The kinds of weak evidence a target can carry. They are reported separately
+# because they mean different things to a reader: GUARDED says somebody wrote
+# the import and then guarded it out, which is a decision; FACADE says a lazy
+# table can load the module on attribute access, which is a capability nobody
+# was shown to use. Collapsing them lost the distinction and misnamed the cause.
+_WEAK_GUARDED = "guarded"
+_WEAK_FACADE = "facade"
 
 _IMPORT_ERRORS = ("ImportError", "ModuleNotFoundError")
 
@@ -586,7 +620,9 @@ def _shim_body(body: Sequence[ast.stmt]) -> bool:
 
 
 def _scan(rel: str, text: str) -> _Src:
-    src = _Src(rel=rel, dotted=_py_dotted(rel))
+    dotted = _py_dotted(rel)
+    anchor = f"{dotted}.__init__" if rel.endswith("/__init__.py") else dotted
+    src = _Src(rel=rel, dotted=dotted, anchor=anchor)
     try:
         tree = ast.parse(text)
     except (SyntaxError, ValueError):
@@ -615,6 +651,11 @@ def _scan(rel: str, text: str) -> _Src:
             src.has_main_guard = True
 
     _scan_dynamic(tree, src)
+    # A table is only offered where the module has a call this walk could
+    # not read. No hole, no candidates -- otherwise any module holding a
+    # dotted string in a list would gain edges it never traverses.
+    if src.dynamic:
+        src.dyn_candidates |= _table_strings(tree)
     return src
 
 
@@ -672,23 +713,112 @@ def _is_forever(node: ast.AST) -> bool:
 _DOTTED_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$")
 
 
+def _static_join(node: ast.AST, own_dotted: str) -> str | None:
+    """An f-string whose value a reader can compute, or None.
+
+    Only two part shapes count: a literal, and ``__name__``. A package that
+    resolves its own submodule with ``import_module(f"{__name__}.missions")``
+    is naming a LITERAL target in every way that matters -- the engine simply
+    could not read it. ``daedalus/orchestration/__init__.py`` does exactly that
+    for the flagship mission path, and the whole subsystem below it was reported
+    as islands because the edge died at the f-string.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if not isinstance(node, ast.JoinedStr):
+        return None
+    out: list[str] = []
+    for part in node.values:
+        if isinstance(part, ast.Constant) and isinstance(part.value, str):
+            out.append(part.value)
+        elif (isinstance(part, ast.FormattedValue)
+              and isinstance(part.value, ast.Name)
+              and part.value.id == "__name__"
+              and part.conversion in (-1, None)
+              and part.format_spec is None):
+            out.append(own_dotted)
+        else:
+            return None
+    return "".join(out)
+
+
+def _table_strings(tree: ast.AST) -> set[str]:
+    """String constants inside module-level TABLE literals.
+
+    A container literal assigned at module scope is the lazy-facade idiom:
+    ``_EXPORTS = {"AgentTask": ("daedalus.orchestration.legacy_reports", ...)}``
+    and ``_LAZY_MODULES = frozenset({"attempt_clock", ...})`` are name-to-module
+    tables a static reader can follow today. Prose, error messages and format
+    strings are NOT collected, because only container literals are walked.
+
+    These become edges only where the module also has an unreadable
+    ``import_module`` call and only where the string names a module that exists
+    -- see ``analyse``. Collecting them is not the same as believing them.
+    """
+    out: set[str] = set()
+
+    def harvest(node: ast.AST) -> None:
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+                out.add(sub.value)
+
+    for node in ast.walk(tree):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+            value = node.value
+        else:
+            continue
+        if not any(isinstance(t, ast.Name) for t in targets):
+            continue
+        if isinstance(value, (ast.Dict, ast.Set, ast.List, ast.Tuple)):
+            harvest(value)
+        elif (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+              and value.func.id in ("frozenset", "set", "dict", "tuple", "list")):
+            harvest(value)
+    return out
+
+
+def _dynamic_aliases(tree: ast.AST) -> set[str]:
+    """Local names bound to ``importlib.import_module``.
+
+    ``from importlib import import_module as _import_module`` is the spelling
+    both lazy facades in this repo use, and matching the bare name only meant
+    the detector saw no dynamic call in either -- so neither their holes nor
+    their literal tables were ever considered. The alias is read rather than
+    guessed: only an import FROM importlib binds a name here.
+    """
+    out = {"__import__", "import_module"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            for alias in node.names:
+                if alias.name == "import_module":
+                    out.add(alias.asname or alias.name)
+    return out
+
+
 def _scan_dynamic(tree: ast.AST, src: _Src) -> None:
     """importlib / __import__ sites.
 
     A literal argument is a REAL edge and is treated as one. A non-literal one
     is a hole in the static picture; it is recorded so the report can say a
     module is ``unknown`` instead of accusing it of being an island."""
+    aliases = _dynamic_aliases(tree)
     for n in ast.walk(tree):
         if not isinstance(n, ast.Call):
             continue
         fn = n.func
         is_dyn = ((isinstance(fn, ast.Attribute) and fn.attr == "import_module")
-                  or (isinstance(fn, ast.Name) and fn.id in ("__import__", "import_module")))
+                  or (isinstance(fn, ast.Name) and fn.id in aliases))
         if not is_dyn:
             continue
         arg = n.args[0] if n.args else None
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-            src.dyn_targets.add(arg.value)
+        computed = _static_join(arg, src.dotted) if arg is not None else None
+        if computed is not None:
+            src.dyn_targets.add(computed)
         else:
             src.dynamic.add(f"{src.rel}:{getattr(n, 'lineno', 0)}")
 
@@ -825,25 +955,51 @@ def analyse(repo_root, index: Mapping | None = None) -> ReachReport:
     # ---- graph -----------------------------------------------------------
     explicit: dict[str, set[str]] = {rel: set() for rel in rels}
     for rel, src in sources.items():
-        explicit[rel] |= _resolve(src.records, tops, known, src.dotted,
+        explicit[rel] |= _resolve(src.records, tops, known, src.anchor,
                                   rel_by_dotted, rel)
         for dotted in sorted(src.dyn_targets):
             tgt = rel_by_dotted.get(dotted)
             if tgt and tgt != rel:
                 explicit[rel].add(tgt)
 
+
     # ---- weak edges ------------------------------------------------------
     # Resolved exactly like real ones, then kept OUT of ``edges``. They exist
     # only to answer "why is this module here at all", so an unreached module
     # somebody clearly intended to load is ``unknown`` rather than an island.
     weak_reasons: dict[str, set[str]] = {}
+    # Which KIND of weak evidence a target carries, so the ``unknown`` reason can
+    # name the one that is actually there. Before this was tracked, every weak
+    # row rendered the sentence written for guarded imports, and the fourteen
+    # kernel rows whose only evidence is a facade table were reported as having
+    # "a dead branch or a swallowed ImportError" -- neither of which exists on
+    # those paths. A reason naming a cause that is not in the code is the same
+    # class of false accusation this module refuses to make about reachability.
+    weak_kinds: dict[str, set[str]] = {}
     weak_edges: list[str] = []
     for rel, src in sorted(sources.items()):
         for rec, why in src.weak:
-            for tgt in sorted(_resolve([rec], tops, known, src.dotted,
+            for tgt in sorted(_resolve([rec], tops, known, src.anchor,
                                        rel_by_dotted, rel)):
                 weak_reasons.setdefault(tgt, set()).add(f"{rel}: imported {why}")
+                weak_kinds.setdefault(tgt, set()).add(_WEAK_GUARDED)
                 weak_edges.append(f"{rel} -> {tgt} ({why})")
+        # A literal facade table is WEAK evidence, deliberately. The table is a
+        # dispatch table -- ``daedalus/kernel/__init__.py`` loads
+        # ``f"{__name__}.{owner}"`` for any name in ``_LAZY_MODULES`` -- so the
+        # name proves the module CAN be loaded through the facade, not that
+        # anything asks for it. Promoting these to real edges made 19 modules
+        # ``reachable`` on the strength of an attribute nobody may ever touch,
+        # which is the silent error this file says is worse than a false island.
+        # As weak evidence they still stop the island accusation: the honest
+        # class is ``unknown``, the same one their facade already carries.
+        for cand in sorted(src.dyn_candidates):
+            tgt = rel_by_dotted.get(cand) or rel_by_dotted.get(f"{src.dotted}.{cand}")
+            if tgt and tgt != rel:
+                weak_reasons.setdefault(tgt, set()).add(
+                    f"{rel}: named in a lazy-facade table, loaded on attribute access")
+                weak_kinds.setdefault(tgt, set()).add(_WEAK_FACADE)
+                weak_edges.append(f"{rel} -> {tgt} (lazy-facade table)")
 
     # ---- the structural index's opinion, RECORDED and not merged -----------
     # ``explicit`` is deliberately not touched here. structcore has no branch
@@ -962,12 +1118,30 @@ def analyse(repo_root, index: Mapping | None = None) -> ReachReport:
             reason = ("named by a string literal; a dynamic dispatch may "
                       "reach it, which a static walk cannot prove either way")
             if weak:
-                # Stated FIRST because it is the stronger finding: somebody
-                # wrote the import and then guarded it out. That is a decision,
-                # not an ambiguity, and calling it "reachable" would be a lie.
-                reason = ("imported only where the import is not evidence that "
-                          "anything runs it (a dead branch or a swallowed "
-                          "ImportError); reachability is not established")
+                # Stated FIRST because it is the stronger finding, and stated
+                # by KIND because the kinds are not the same finding. Naming a
+                # guard that is not in the code sends a reader hunting for it
+                # and hides the real answer.
+                kinds = weak_kinds.get(rel, set())
+                if kinds == {_WEAK_FACADE}:
+                    # A capability, not a decision: the table proves the facade
+                    # CAN load this module by name. Nothing here shows a caller
+                    # asking for that name, which is why it is not an edge.
+                    reason = ("named only in a lazy-facade table; the facade "
+                              "can load it on attribute access, which is not "
+                              "proof that any caller asks for that name")
+                elif _WEAK_FACADE in kinds:
+                    reason = ("imported only behind a guard (a dead branch or "
+                              "a swallowed ImportError) and named in a "
+                              "lazy-facade table; reachability is not "
+                              "established")
+                else:
+                    # Somebody wrote the import and then guarded it out. That is
+                    # a decision, and calling it "reachable" would be a lie.
+                    reason = ("imported only where the import is not evidence "
+                              "that anything runs it (a dead branch or a "
+                              "swallowed ImportError); reachability is not "
+                              "established")
             facts.append(ModuleFacts(
                 classification="unknown", evidence=weak + ev, reason=reason,
                 **base))
@@ -1083,7 +1257,7 @@ def _discover_entries(root: Path, sources: Mapping[str, _Src], rels: list[str],
         out: set[str] = set()
         for qual in sorted(_func_closure(src, func)):
             out |= _resolve(src.func_records.get(qual, ()), tops, known,
-                            src.dotted, rel_by_dotted, src.rel)
+                            src.anchor, rel_by_dotted, src.rel)
         return out
 
     # 1. console scripts.
@@ -1122,7 +1296,7 @@ def _discover_entries(root: Path, sources: Mapping[str, _Src], rels: list[str],
             pkg = rel[:-len("/__main__.py")].replace("/", ".")
             src = sources.get(rel)
             add("module_main", f"python -m {pkg}", rel, "",
-                sorted(_resolve(src.records, tops, known, src.dotted,
+                sorted(_resolve(src.records, tops, known, src.anchor,
                                 rel_by_dotted, rel)) if src else ())
 
     # 3. __main__ guards
@@ -1131,7 +1305,7 @@ def _discover_entries(root: Path, sources: Mapping[str, _Src], rels: list[str],
         if not src or not src.has_main_guard or _is_test(rel):
             continue
         add("main_guard", src.dotted, rel, "",
-            _resolve(src.records, tops, known, src.dotted, rel_by_dotted, rel))
+            _resolve(src.records, tops, known, src.anchor, rel_by_dotted, rel))
 
     # 4/5/6: dispatch chains and poll loops, but ONLY inside modules that are
     # already entry points. A dispatch chain in a module nothing can run is not
@@ -1150,7 +1324,7 @@ def _discover_entries(root: Path, sources: Mapping[str, _Src], rels: list[str],
                     recs = val
                 else:
                     refs = val
-            tgts = _resolve(recs, tops, known, src.dotted, rel_by_dotted, rel)
+            tgts = _resolve(recs, tops, known, src.anchor, rel_by_dotted, rel)
             # names referenced in the branch that are bound to a module, and
             # module-local helpers the branch calls (the ``_spawn(rest)`` case)
             for ref in refs:
@@ -1191,5 +1365,5 @@ def _named_module_targets(src: _Src, refs: Iterable[str], tops: set[str],
     out: set[str] = set()
     for ref in refs:
         for rec in bound.get(ref, ()):
-            out |= _resolve([rec], tops, known, src.dotted, rel_by_dotted, self_rel)
+            out |= _resolve([rec], tops, known, src.anchor, rel_by_dotted, self_rel)
     return out
