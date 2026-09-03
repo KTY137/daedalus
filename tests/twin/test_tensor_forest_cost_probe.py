@@ -314,9 +314,15 @@ def _relation_block_query(
     ],
 ) -> tuple[str, ...]:
     _, _, imports, documents = subject
-    importing = {source for source, _, _ in imports.iter_entries()}
-    documented = {source for source, _, _ in documents.iter_entries()}
-    return tuple(sorted(importing & documented))
+    if imports.row_axis != documents.row_axis:
+        raise AssertionError("CSR comparison requires an exactly shared source axis")
+    labels = imports.row_axis.labels
+    return tuple(
+        labels[row]
+        for row in range(len(labels))
+        if imports.row_offsets[row] < imports.row_offsets[row + 1]
+        and documents.row_offsets[row] < documents.row_offsets[row + 1]
+    )
 
 
 def _measure(
@@ -531,10 +537,11 @@ def relation_probe(
         raise AssertionError("comparison arm changed the direct cross-plane Forest query subject")
 
     return {
-        "schema": "daedalus-tensor-forest-relation-cost-probe/4",
+        "schema": "daedalus-tensor-forest-relation-cost-probe/5",
         "authority": "diagnostic-only",
         "claim": "none",
         "construction_basis": "forest+complete-fourfold",
+        "fourfold_boolean_csr_query_basis": "shared-row-axis-occupancy",
         "source_forest_sha256": reference_forest.content_sha256,
         "source_fourfold_sha256": reference_fourfold.digest,
         "workload": "documented-import-sources",
@@ -599,8 +606,9 @@ def test_probe_binds_tensor_to_real_fourfold_snapshot_identity() -> None:
 def test_relation_probe_matches_cross_plane_multi_relation_forest_subject() -> None:
     result = relation_probe(size=64, repeats=1, query_iterations=2)
 
-    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/4"
+    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/5"
     assert result["construction_basis"] == "forest+complete-fourfold"
+    assert result["fourfold_boolean_csr_query_basis"] == "shared-row-axis-occupancy"
     assert len(result["source_forest_sha256"]) == 64
     assert len(result["source_fourfold_sha256"]) == 64
     assert result["workload"] == "documented-import-sources"
@@ -625,6 +633,32 @@ def test_relation_cost_probe_reports_equal_budget_arms_without_speed_claim() -> 
     }
     for metrics in result["arms"].values():
         assert all(type(value) is int and value >= 0 for value in metrics.values())
+
+
+def test_relation_block_query_uses_csr_row_occupancy(monkeypatch: pytest.MonkeyPatch) -> None:
+    forest = _relation_forest(8)
+    fourfold = _complete_relation_fourfold(forest)
+    imports = boolean_relation_block_from_fourfold(
+        forest,
+        fourfold,
+        RelationSignature("code", "imports", "code"),
+    )
+    documents = boolean_relation_block_from_fourfold(
+        forest,
+        fourfold,
+        RelationSignature("code", "documents", "knowledge"),
+    )
+
+    def fail_iter_entries(_self: TypedRelationBlock[bool]) -> None:
+        raise AssertionError("relation probe must not rescan CSR entries")
+
+    monkeypatch.setattr(TypedRelationBlock, "iter_entries", fail_iter_entries)
+    assert _relation_block_query((forest, fourfold, imports, documents)) == (
+        "src/module_00000.py",
+        "src/module_00002.py",
+        "src/module_00004.py",
+        "src/module_00006.py",
+    )
 
 
 def test_relation_probe_binds_csr_arm_to_complete_fourfold_snapshot() -> None:
