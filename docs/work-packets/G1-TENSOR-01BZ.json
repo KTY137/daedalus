@@ -1,0 +1,79 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BZ",
+  "title": "Reuse exact canonical SparseTensorEntry coordinate tuples",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BY",
+  "campaign_issue": 239,
+  "base_revision": "34e4b717b9f29fa53e7252f2a3ddd1bd95422ff0",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "SparseTensorEntry coordinate construction validated every bounded coordinate pair, then always materialized a list, sorted it, and returned a newly allocated tuple even when the caller had already supplied an exact immutable tuple-of-tuples in strict canonical axis order.",
+  "primary_claim": "SparseTensorEntry coordinate canonicalization now returns an exact already-canonical tuple-of-tuples by identity after the existing validation/order pass. Inputs whose structure or axis order does not prove canonical reuse enter the existing materialize-and-sort fallback, and duplicate axis names remain fail-closed.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_construction_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BZ.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 27,
+    "code_test_deletions": 2,
+    "production_additions": 15,
+    "production_deletions": 2,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse exact immutable canonical caller data inside the existing _coordinate path rather than add a coordinate cache, helper index, parallel representation, or alternate Tensor abstraction. Keep one bounded validation pass and retain the existing sorting fallback only when canonical reuse cannot be proven.",
+  "acceptance": [
+    "an exact canonical tuple-of-tuples is retained by object identity after SparseTensorEntry construction",
+    "every retained coordinate pair is still validated for axis identifier, label bounds and NUL refusal before reuse",
+    "non-canonical coordinate order still canonicalizes deterministically through the existing sort fallback",
+    "duplicate axis names remain fail-closed",
+    "oversized and unsized coordinate inputs retain the existing bounded refusal behavior",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "bda11d466b60382255d8071ebaac417cff4cc4b5",
+    "code_test_revision": "436e232663bda9653555dcf5c6757087c0c5c94f",
+    "production_blob": "6d233c264a6e4aa3fbf96ae1c5e5535887636a32",
+    "focused_test_blob": "703710e95b37312f8fdb9064fdc469c3cb278d80",
+    "fourfold_v2_run": 33713732558,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 436e232663bda9653555dcf5c6757087c0c5c94f",
+      "all Python 3.10/3.12 contract matrix jobs completed success on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 436e232663bda9653555dcf5c6757087c0c5c94f. The Fourfold-v2 contract step explicitly executes pytest over tests/twin, so the focused identity regression in test_tensor_construction_bounds.py is part of the executed suite. That regression requires a prevalidated exact canonical coordinate tuple to survive SparseTensorEntry construction by identity. Existing construction-bound coverage continues to exercise unsorted canonicalization, duplicate-axis refusal, oversized refusal and unsized-iterable refusal. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BZ commits; Fourfold/Forest authority, Tensor wire contracts, semantic claim ordering, status/provenance identity and public product surfaces remain unchanged, while SparseTensorEntry coordinate construction returns to always materializing and sorting a fresh coordinate tuple.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
