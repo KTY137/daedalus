@@ -277,8 +277,12 @@ class TensorView(CanonicalContract):
     def index_coordinate(self, entry: SparseTensorEntry) -> tuple[int, ...]:
         if not isinstance(entry, SparseTensorEntry):
             raise ValueError("entry is not retained by this TensorView")
-        order = _entry_order(entry)
-        position = bisect_left(self.entries, order, key=_entry_order)
+        semantic_key = entry.semantic_key
+        position = bisect_left(
+            self.entries,
+            semantic_key,
+            key=lambda candidate: candidate.semantic_key,
+        )
         if position == len(self.entries) or self.entries[position] != entry:
             raise ValueError("entry is not retained by this TensorView")
 
