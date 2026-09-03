@@ -7,6 +7,7 @@ import {
   updateAgentAutonomy,
   type SystemCapabilityPorts
 } from './api';
+import { GATE_WORD, fallbackText, gateTone, safetyGates, staleText } from './safety';
 import './system-capabilities.css';
 
 export interface SystemCapabilitiesProps {
@@ -203,6 +204,42 @@ export function SystemCapabilities({
                   Projekt {snapshot.dashboard.data.selected_project || snapshot.dashboard.data.project || project}
                   {' · '}Verdikt {snapshot.dashboard.data.governance?.verdict || 'nicht gemeldet'}
                 </p>
+                {/* THE SAFETY GATES. core.py runs both probes and calls
+                    either failure SAFETY; this card had the answers in hand
+                    and showed a JSON blob, so a failed gate was visible only
+                    to someone who expanded it and knew the key. */}
+                <ul className="safety-gates">
+                  {safetyGates(snapshot.dashboard.data.quality).map((gate) => (
+                    <li key={gate.question} className={gateTone(gate.reading)}>
+                      <span className="safety-question">{gate.question}</span>
+                      <span className={`safety-verdict ${gateTone(gate.reading)}`}>
+                        {GATE_WORD[gate.reading]}
+                      </span>
+                      {gate.reading !== 'verified' && (
+                        <span className="safety-consequence">{gate.consequence}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="system-small">
+                  Hängengebliebene Watcher:{' '}
+                  <span className={staleText(snapshot.dashboard.data.quality).tone}>
+                    {staleText(snapshot.dashboard.data.quality).text}
+                  </span>
+                  {fallbackText(snapshot.dashboard.data.quality) && (
+                    <> · Fallback-Rate {fallbackText(snapshot.dashboard.data.quality)}</>
+                  )}
+                  {snapshot.dashboard.data.quality?.fallback_alarm && (
+                    <span className="bad"> · Fallback-Alarm aktiv</span>
+                  )}
+                </p>
+                {/* core.py writes this only when a watcher is stale, so it is
+                    rendered only when it says something. */}
+                {snapshot.dashboard.data.quality?.recommendation && (
+                  <p className="system-error" role="status">
+                    {snapshot.dashboard.data.quality.recommendation}
+                  </p>
+                )}
                 <RawContract label="Dashboard" value={snapshot.dashboard.data} />
               </>
             )}

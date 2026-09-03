@@ -96,3 +96,24 @@
 }
 .trust-chip.warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line2)); color: var(--warn); }
 .trust-chip.bad { border-color: color-mix(in srgb, var(--bad) 55%, var(--line2)); color: var(--bad); }
+
+/* THE SAFETY GATES. core.py runs both probes and escalates either failure as
+   SAFETY; a gate that did not verify is red, and one nobody reported is amber
+   — never green, because a gate nobody checked is not a gate that held. */
+.safety-gates { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--u1); }
+.safety-gates li {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--u2);
+  border-left: var(--border) solid var(--line2);
+  font-size: var(--fs-xs);
+}
+.safety-gates li.ok { border-left-color: var(--ok); }
+.safety-gates li.warn { border-left-color: var(--warn); }
+.safety-gates li.bad { border-left-color: var(--bad); }
+.safety-question { color: var(--ink2); }
+.safety-verdict { color: var(--ink); font-weight: var(--datum-weight); }
+.safety-verdict.ok { color: var(--ok); }
+.safety-verdict.warn { color: var(--warn); }
+.safety-verdict.bad { color: var(--bad); }
+.safety-consequence { color: var(--ink3); line-height: 1.45; }

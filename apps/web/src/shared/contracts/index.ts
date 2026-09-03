@@ -142,6 +142,33 @@ export interface DashboardPayload extends ApiEnvelope {
   metrics?: Record<string, unknown>;
   routing?: Record<string, unknown>;
   governance?: GovernancePayload;
+  /**
+   * THE SAFETY GATES, and they are probes that actually ran.
+   *
+   * `daedalus/core.py` builds this by executing two checks and escalates
+   * either failure as SAFETY: "local_only fail-closed guard did not verify
+   * -- investigate before queueing" and "empty-report schema gate did not
+   * verify". Undeclared until 2026-09-03, so unreachable through the typed
+   * path: the card that had it in hand rendered a raw JSON dump instead.
+   *
+   * Every member is optional because an older server sends none of them, and
+   * a gate nobody reported is not a gate that held.
+   */
+  quality?: {
+    local_only_never_claude?: boolean;
+    schema_non_empty_summary?: boolean;
+    empty_reports_fail?: boolean;
+    stale_watchers?: number;
+    fallback_alarm?: boolean;
+    fallback_rate?: number;
+    recommendation?: string;
+  };
+  /** Live bridge watchers, with their pids and whether each has gone stale. */
+  watcher?: {
+    running?: boolean;
+    watchers?: Array<{ pid: number; command: string; stale: boolean }>;
+    stale_count?: number;
+  };
 }
 
 export interface AgentProfile {

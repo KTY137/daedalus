@@ -39,6 +39,32 @@ async function fulfillJson(route: Route, body: Record<string, unknown>) {
   await route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(body) });
 }
 
+/**
+ * The dashboard's `quality` block for the next stub. Mutable so one test can
+ * make a safety probe fail without a second stub helper; reset per test.
+ */
+let dashboardQuality: Record<string, unknown> = {
+  local_only_never_claude: true,
+  schema_non_empty_summary: true,
+  empty_reports_fail: true,
+  stale_watchers: 0,
+  fallback_alarm: false,
+  fallback_rate: 0.0,
+  recommendation: ''
+};
+
+test.beforeEach(() => {
+  dashboardQuality = {
+    local_only_never_claude: true,
+    schema_non_empty_summary: true,
+    empty_reports_fail: true,
+    stale_watchers: 0,
+    fallback_alarm: false,
+    fallback_rate: 0.0,
+    recommendation: ''
+  };
+});
+
 async function stubCockpit(page: Page, providerFails = false) {
   const calls: string[] = [];
   const autonomyBodies: Record<string, unknown>[] = [];
@@ -70,6 +96,9 @@ async function stubCockpit(page: Page, providerFails = false) {
   await page.route('**/api/dashboard**', (route) => fulfillJson(route, envelope({
     selected_project: project.name,
     queue: { pending: [], reports: [] },
+    // The live `quality` block, measured 2026-09-03. core.py builds it by
+    // RUNNING two probes and escalates either failure as SAFETY.
+    quality: dashboardQuality,
     governance: envelope({ promotion_allowed: false, verdict: 'BLOCKED_BY_GATE', state: 'present', head: null, gates: [], blockers: [] })
   })));
   await page.route('**/api/projects/*/control-plane', async (route) => {
@@ -167,4 +196,76 @@ test('agent autonomy still PUTs the existing project contract and preserves sibl
   await expect.poll(() => fixture.autonomyBodies.length).toBe(1);
   expect(fixture.autonomyBodies[0]).toEqual({ agents: { alpha: 'autonomous', sibling: 'semi_auto' } });
   await expect(page.getByLabel('Projekt-Autonomie für Alpha')).toHaveValue('autonomous');
+});
+
+test('the safety gates are named, not buried in a JSON dump', async ({ page }) => {
+  /*
+   * core.py runs both probes and escalates either failure in its own words:
+   * "SAFETY: local_only fail-closed guard did not verify -- investigate
+   * before queueing". The card had the answers in hand and rendered the
+   * project name, the governance verdict, and a raw contract blob, so a
+   * failed gate was visible only to someone who expanded it and knew the key.
+   */
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  const gates = system.locator('.safety-gates li');
+  await expect(gates).toHaveCount(2);
+  await expect(gates.first()).toContainText('local_only');
+  await expect(gates.first().locator('.safety-verdict')).toContainText('geprüft und gehalten');
+  await expect(gates.first()).toHaveClass(/\bok\b/);
+  // Zero is stated as zero rather than omitted.
+  await expect(system.getByText(/Hängengebliebene Watcher:/)).toBeVisible();
+});
+
+test('a safety probe that did not verify is red and says what it means', async ({ page }) => {
+  dashboardQuality = { ...dashboardQuality, local_only_never_claude: false };
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  const gate = system.locator('.safety-gates li', { hasText: 'local_only' });
+  await expect(gate).toHaveClass(/\bbad\b/);
+  await expect(gate.locator('.safety-verdict')).toContainText('NICHT verifiziert');
+  // core.py's own escalation reaches the reader.
+  await expect(gate).toContainText('vor dem Einreihen');
+});
+
+test('a server that reports no gates is never drawn as having passed them', async ({ page }) => {
+  // An older backend sends no `quality` block at all. Silence is not a pass.
+  dashboardQuality = {};
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  const gates = system.locator('.safety-gates li');
+  await expect(gates).toHaveCount(2);
+  await expect(gates.first().locator('.safety-verdict')).toContainText('nicht gemeldet');
+  await expect(gates.first()).not.toHaveClass(/\bok\b/);
+  // Unproven, not a measured failure.
+  await expect(gates.first()).toHaveClass(/\bwarn\b/);
+  // And an uncounted stale-watcher figure is not rendered as zero.
+  await expect(system.getByText(/Hängengebliebene Watcher: nicht gemeldet/)).toBeVisible();
+  // Nor is an unreported fallback rate rendered as 0 %. "No fallbacks
+  // happened" and "nobody counted" are different, and 0 is the reassuring
+  // one — a mutation that defaulted it slipped past this suite until the
+  // assertion below was added.
+  await expect(system.getByText(/Fallback-Rate/)).toHaveCount(0);
+});
+
+test('a stale watcher carries the recommendation core.py wrote for it', async ({ page }) => {
+  // core.py sets `recommendation` only when a watcher is stale, and routing
+  // then recommends local_only "to avoid fallback ambiguity".
+  dashboardQuality = {
+    ...dashboardQuality,
+    stale_watchers: 1,
+    recommendation: 'Use local_only until Claude quota recovers.'
+  };
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  await expect(system.getByText(/Hängengebliebene Watcher: 1 hängengeblieben/)).toBeVisible();
+  await expect(system.getByText('Use local_only until Claude quota recovers.')).toBeVisible();
 });
