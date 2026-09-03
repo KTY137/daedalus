@@ -1,0 +1,110 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CR",
+  "title": "Add strict Fourfold Boolean CSR to held-out multi-hop falsification",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CQ",
+  "campaign_issue": 239,
+  "base_revision": "c86ecfe3bc6c8d77d6c7d92d89f4de03543765dd",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "The existing held-out imported-type/document-consistency probe compared direct Forest, four independent relation indices, and TensorView, while the strict Fourfold Boolean CSR oracle was exercised only by the simpler relation probe. That left no held-out falsification evidence for actual typed CSR matmul/hadamard composition across the same multi-hop Fourfold subject.",
+  "primary_claim": "A diagnostic-only held-out CSR arm now projects four already-authoritative relation families through boolean_relation_block_from_fourfold, composes imports→declares and documents→mentions_type with the existing Boolean semiring oracle, intersects the resulting code→type paths with the existing Hadamard operation, and checks exact equality against the existing Forest, preindexed-Forest, and TensorView answers. The CSR query path is pinned not to call iter_entries. No production contract, semantic plane, graph authority, tensor type, index, store, registry, scheduler, backend, promotion authority, or public surface is added.",
+  "scope": {
+    "added": [
+      "tests/twin/test_tensor_heldout_csr_probe.py",
+      "docs/work-packets/G1-TENSOR-01CR.json"
+    ],
+    "changed": [
+      ".github/workflows/fourfold-v2.yml"
+    ],
+    "diagnostic_commit": "e1068421aece6b3f9a196dbf09c40b2c7426aa55",
+    "exact_code_test_revision": "f3f35debac56b81c4b3d6acb483abea860086e30",
+    "test_blob": "7a57ec72b6ab4a9dd99071bae70d4a10e611b15e",
+    "workflow_blob": "f61101ef3be5f426d464091c85c7fa355867a5de",
+    "production_additions": 0,
+    "production_deletions": 0,
+    "test_additions": 358,
+    "workflow_additions": 8,
+    "new_graph_schema": false,
+    "new_tensor_type": false,
+    "new_query_index": false,
+    "new_cache": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false,
+    "contract_semantics_changed": false
+  },
+  "gardener_decision": "Extend falsification coverage around the existing strict CSR oracle rather than adding another query engine or backend. Reuse the existing held-out generator, Forest/preindexed/Tensor queries, measurement helper, workload hashes, and break-even helper through one diagnostic module; use the existing relation projection, TypedRelationBlock matmul/hadamard, and BooleanSemiring as the only CSR implementation under test.",
+  "acceptance": [
+    "the held-out single-result and query-suite answers are identical across direct Forest, preindexed Forest, TensorView, and strict Fourfold Boolean CSR",
+    "the CSR arm binds the exact Forest identity and uses complete code/type/knowledge fixture planes while preserving verified Fourfold bindings",
+    "the CSR query path does not fall back to TypedRelationBlock.iter_entries",
+    "subject size remains bounded",
+    "the Fourfold-v2 workflow completes successfully on the exact code/test/workflow revision",
+    "all matrix contract jobs and the designated bounded diagnostic step complete successfully",
+    "the isolated wheel job completes successfully",
+    "repository-collection remains collection-only rather than a full-suite execution claim",
+    "no benchmark superiority, OwnerApproval, promotion, merge, Ready-for-Review transition, or Gate transition is inferred"
+  ],
+  "verification": {
+    "exact_code_test_revision": "f3f35debac56b81c4b3d6acb483abea860086e30",
+    "fourfold_v2_run": 33816096295,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold/kernel contract matrix completed successfully",
+      "contracts (3.12, 0) completed successfully and the bounded Tensor/Forest diagnostic step, including the new held-out CSR probe, completed successfully",
+      "isolated-wheel completed successfully",
+      "repository-collection completed successfully and remains collect-only evidence"
+    ],
+    "diagnostic_configuration": {
+      "heldout_csr_subjects": 256,
+      "repeats": 2,
+      "query_iterations_per_repeat": 10,
+      "arms": [
+        "forest_direct",
+        "forest_preindexed",
+        "forest_plus_tensor",
+        "fourfold_boolean_csr"
+      ],
+      "authority": "diagnostic-only",
+      "claim": "none"
+    },
+    "benchmark_measurement_added": true,
+    "claim": "Hosted green CI is claimed only for exact revision f3f35debac56b81c4b3d6acb483abea860086e30. The diagnostic reports authority=diagnostic-only and claim=none. This packet records no latency, memory, Tensor-vs-Forest, CrewAI, AlphaEvolve, or other comparative superiority claim because durable stdout metrics were not separately captured into this evidence record. Evidence/documentation commits after the tested revision do not extend the green-CI claim unless independently executed."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "focused_regressions": [
+      "test_heldout_csr_probe_preserves_exact_subject_without_speed_claim",
+      "test_heldout_csr_fixture_preserves_forest_identity_and_complete_endpoint_planes",
+      "test_heldout_csr_query_does_not_fall_back_to_entry_iteration",
+      "test_heldout_csr_probe_bounds_subject_size"
+    ],
+    "independent_owner_review_completed": false
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_record": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "main_observed_before_record": "e31213aff40ab322dcead6d50ae19007f3f9b6b1",
+    "visible_remote_refs_observed_before_record": 18,
+    "topology_note": "Only the existing canonical tensor-kernel line was advanced. Existing extra packet/rescue/evidence refs were left untouched rather than deleted or archived merely to reduce the visible branch count. archive/legacy-20260830 remains a frozen evidence/history anchor and received no active work."
+  },
+  "rollback": "Revert workflow commit f3f35debac56b81c4b3d6acb483abea860086e30 and diagnostic commit e1068421aece6b3f9a196dbf09c40b2c7426aa55 to remove the held-out CSR falsification arm. Production Fourfold, Forest, Tensor and relation-block semantics are unchanged by this packet.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "ready_for_review_transition": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
