@@ -159,6 +159,13 @@ confusing verification run.
   agents that checked were right to correct the router.
 - **A test that passes because the fixture is inert is worse than no test.** Assert that the
   thing you are guarding against could actually have happened.
+- **Crosstalk.** Parallel sessions announce themselves in GitHub Discussions —
+  `crew-channel` plus one thread per branch. SessionStart injects the last few
+  lines, so "I did not know another session held that file" stops being
+  available as an excuse. Say something back with
+  `python -m daedalus.hooks.crosstalk say "..."` when you take a file another
+  session may want. The channel **informs; it never blocks**: it is a display
+  surface, not a trust boundary, and it is off unless `DAEDALUS_CROSSTALK=on`.
 - **Additive endpoints only.** `/api/dashboard` shape is frozen by `tests/test_ui_contract.py`.
 - **BYOK.** The platform never holds a paid API key.
 

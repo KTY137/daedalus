@@ -1742,10 +1742,32 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         notes=(
             "Claude Code hooks dispatcher (python -m daedalus.hooks <event>): "
             "writes runs/hooks/ state and ledger, spawns git for tree facts, "
-            "probes Serena's loopback dashboard port. Starts centrally; a "
-            "boundary refusal prints to stderr and exits 0 (hook protocol)."
+            "probes Serena's loopback dashboard port, and -- only when "
+            "DAEDALUS_CROSSTALK=on -- spawns gh to reach github.com for the "
+            "Discussions crosstalk (2026-09-03: the egress is no longer "
+            "loopback-only, and this note says so rather than letting the "
+            "old justification stand). Starts centrally; a boundary refusal "
+            "prints to stderr and exits 0 (hook protocol)."
         ),
         migration="complete for the daedalus.hooks entrypoint (2026-08-23)",
+    ),
+    EntrypointSpec(
+        id="daedalus.hooks.crosstalk",
+        surface=Surface.CLI,
+        target="daedalus.hooks.crosstalk:main",
+        effects=(Effect.NETWORK_EGRESS, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.hooks.crosstalk:main", "begin_effect"),),
+        notes=(
+            'python -m daedalus.hooks.crosstalk say "...": posts one '
+            "model-written line into the branch's GitHub Discussions via gh. "
+            "No token is handled here -- gh holds the credential, which is why "
+            "this row declares no SECRETS effect. Off unless "
+            "DAEDALUS_CROSSTALK=on; refuses a non-private repository without "
+            "DAEDALUS_CROSSTALK_PUBLIC=1; exits 0 on every failure."
+        ),
+        migration="complete for the daedalus.hooks.crosstalk entrypoint (2026-09-03)",
     ),
     EntrypointSpec(
         id="tools.watchdog",
