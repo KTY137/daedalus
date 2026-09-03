@@ -94,6 +94,13 @@ def test_tensor_view_does_not_expose_parallel_axis_mapping_view() -> None:
     assert tuple(axis.name for axis in tensor.axes) == ("node", "plane")
 
 
+def test_sparse_entry_does_not_expose_parallel_coordinate_mapping_view() -> None:
+    item = entry("src/a.py", "code")
+
+    assert not hasattr(item, "coordinate_map")
+    assert item.coordinates == (("node", "src/a.py"), ("plane", "code"))
+
+
 def test_entry_validation_and_sorting_share_canonical_label_index() -> None:
     tensor = TensorView(
         repository_id="KTY137/daedalus",
@@ -113,7 +120,7 @@ def test_entry_validation_and_sorting_share_canonical_label_index() -> None:
         provenance=provenance(),
     )
 
-    assert tuple(item.coordinate_map["node"] for item in tensor.entries) == (
+    assert tuple(item.coordinates[0][1] for item in tensor.entries) == (
         "src/a.py",
         "src/b.py",
         "src/c.py",
@@ -130,7 +137,7 @@ def test_sparse_entries_have_named_coordinates_and_deterministic_integer_project
     selected = tensor.select(node="src/a.py")
 
     assert len(selected) == 1
-    assert selected[0].coordinate_map == {"node": "src/a.py", "plane": "code"}
+    assert selected[0].coordinates == (("node", "src/a.py"), ("plane", "code"))
     assert tensor.index_coordinate(selected[0]) == (0, 0)
     assert tensor.select(plane="knowledge") == (tensor.entries[1],)
     assert tensor.select(node="src/a.py", plane="code") == (tensor.entries[0],)
