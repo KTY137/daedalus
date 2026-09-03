@@ -57,7 +57,8 @@ class SecretFloorUnitTest(unittest.TestCase):
 
     def test_ordinary_source_is_not_a_secret(self):
         # B1: the bare word "token" must NOT be a secret signal.
-        for p in ("daedalus/token_policy.py", "daedalus/token_monitor.py",
+        for p in ("daedalus/runtimes/providers/token_policy.py",
+                  "daedalus/interfaces/cli/token_monitor.py",
                   "daedalus/structcore/tokens.py", "daedalus/structcore/index.py"):
             self.assertIsNone(secret_floor_rule(p), p)
 

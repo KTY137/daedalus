@@ -21,7 +21,7 @@ from typing import Any
 from urllib.parse import urlencode, urlsplit
 
 from . import budget as budget_kernel
-from . import runtime_registry
+from .orchestration import runtime_registry
 from .interfaces.desktop import configuration as desktop_configuration
 from .interfaces.desktop import http as desktop_http
 from .interfaces.desktop import lifecycle as desktop_lifecycle
@@ -35,7 +35,7 @@ from .limit_policy import (
     MODE_CUSTOM,
     store_in_env as store_limit_policy_in_env,
 )
-from .projects import ProjectRegistryUnavailable, resolve_registered_project_root
+from .foundation.projects import ProjectRegistryUnavailable, resolve_registered_project_root
 from .spine.cancel import ManagedProcess
 
 CONFIG_REL = Path("config/connections.json")

@@ -126,7 +126,7 @@ async function ensureWebServer(context) {
   try {
     webServerProcess = cp.spawn(
       python(),
-      ["-m", "daedalus.cli", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
+      ["-m", "daedalus.interfaces.cli.entry", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
       { cwd: root, windowsHide: true, detached: false, stdio: ["ignore", "ignore", "pipe"] }
     );
   } catch (err) {
@@ -178,7 +178,7 @@ async function ensureWebServerForCommand(context) {
 
 // ---------------------------------------------------------------------------
 // Task lifecycle client: GET /api/queue/<id> [/artifacts | /events]. Additive
-// endpoints landed 2026-07-29 in daedalus/web_api.py's "task lifecycle"
+// endpoints landed 2026-07-29 in daedalus/interfaces/http/web_api.py's "task lifecycle"
 // section -- read that section's docstring for the full vocabulary
 // (queued/running/done/failed/quarantined/unknown) and why `applied` is
 // tri-state. Every helper here degrades exactly like probeWebServer() /
@@ -262,7 +262,7 @@ function shortAge(ageS) {
 }
 
 // THE property that matters more than anything else rendered by this file:
-// `applied` is TRUE / FALSE / null-with-a-reason (daedalus/web_api.py
+// `applied` is TRUE / FALSE / null-with-a-reason (daedalus/interfaces/http/web_api.py
 // `_derive_applied` never guesses true). null must never be rendered as
 // either of the other two, and the reason string travels with it always.
 function appliedWord(snap) {
@@ -316,7 +316,7 @@ function stateThemeIcon(snap) {
 
 // SSE client for GET /api/queue/<id>/events. Node has no built-in
 // EventSource, so this parses the same "event: X\ndata: {...}\n\n" framing
-// daedalus/web_api.py's _handle_task_events emits by hand. ONE-SHOT, exactly
+// daedalus/interfaces/http/web_api.py's _handle_task_events emits by hand. ONE-SHOT, exactly
 // like the server contract: reading stops after 'final', after a non-2xx
 // response (an old server without this endpoint answers 404 JSON, not SSE --
 // checked explicitly below rather than fed into the frame parser), or on a
@@ -493,13 +493,13 @@ async function envStatus(context) {
   }).filter(Boolean);
   const ollama = await execTool("ollama", ["--version"], root, 5000);
   let doctor = "";
-  try { doctor = await runPython(context, ["-m", "daedalus.cli", "doctor"], { timeout: 15000 }); } catch (err) { doctor = String(err.message || err); }
+  try { doctor = await runPython(context, ["-m", "daedalus.interfaces.cli.entry", "doctor"], { timeout: 15000 }); } catch (err) { doctor = String(err.message || err); }
   return { root, extensions, ollamaCli: { ok: ollama.ok, detail: ollama.stdout || ollama.stderr || ollama.error }, doctor };
 }
 
 async function dashboardState(context, projectName) {
   const picked = projectName || cfg().get("defaultProject") || (projects(context)[0] && projects(context)[0].name);
-  const args = ["-m", "daedalus.cli", "dashboard", "--json"];
+  const args = ["-m", "daedalus.interfaces.cli.entry", "dashboard", "--json"];
   if (picked) args.push("--project", picked);
   const state = await runJson(context, args, { timeout: 30000 });
   state.env = await envStatus(context);
@@ -516,7 +516,7 @@ async function enforceProject(context, projectName) {
   if (!projectName) return Promise.reject(new Error("No project selected"));
   const ok = await confirmAction("Enforce Daedalus harness?", `Project: ${projectName}\nThis rewrites AGENTS.md / CLAUDE.md and writes enforcement state.`);
   if (!ok) return null;
-  return runPython(context, ["-m", "daedalus.cli", "enforce", "--project", projectName], { timeout: 30000 });
+  return runPython(context, ["-m", "daedalus.interfaces.cli.entry", "enforce", "--project", projectName], { timeout: 30000 });
 }
 
 async function pickProject(context, item) {
@@ -745,7 +745,7 @@ async function reviewDiff(context, projectName) {
   if (!project) return null;
   const ok = await confirmAction("Queue local-only diff review?", `Project: ${project}\nLane: local_only`);
   if (!ok) return null;
-  const out = await runPython(context, ["-m", "daedalus.cli", "review-diff", "--project", project, "--lane", "local_only", "--json"]);
+  const out = await runPython(context, ["-m", "daedalus.interfaces.cli.entry", "review-diff", "--project", project, "--lane", "local_only", "--json"]);
   vscode.window.showInformationMessage(`Local-only review queued for ${project}`);
   queueProvider.refresh();
   return out;
@@ -769,7 +769,7 @@ async function spawnIkarus(context, item) {
   if (!mode) return;
   const ok = await confirmAction("Spawn Ikarus?", `Project: ${project}\nMode: ${mode.label}\nObjective: ${objective}`);
   if (!ok) return;
-  const args = ["-m", "daedalus.cli", "spawn", objective, "--project", project];
+  const args = ["-m", "daedalus.interfaces.cli.entry", "spawn", objective, "--project", project];
   if (mode.label === "Live dispatch") args.push("--live");
   terminal(context, `Ikarus: ${project}`, args);
 }
@@ -886,7 +886,7 @@ function renderTaskStatusDoc(id, body) {
     if (snap.objective) lines.push(`Objective: ${snap.objective}`);
     lines.push(`Lane: ${snap.lane || "n/a"}  Project: ${snap.project || "n/a"}`);
     lines.push(`Observed: ${snap.observed_at || "n/a"} (${shortAge(snap.age_s)})`);
-    // conversation_dispatch is daedalus.conversation's OWN read of this
+    // conversation_dispatch is daedalus.orchestration.conversation's OWN read of this
     // dispatch's timeline, and it can lag behind -- e.g. still say
     // "dispatched" after the task is long finished -- because
     // record_dispatch_event is deliberately NOT called from web_api.py (see
@@ -947,7 +947,7 @@ async function showTaskArtifacts(context, item) {
     return;
   }
   if (art.available === false) {
-    // NOT an error -- see daedalus/web_api.py: available:false while a run is
+    // NOT an error -- see daedalus/interfaces/http/web_api.py: available:false while a run is
     // still in flight is the honest, expected answer, not a failure. Shown
     // as information, never as a warning or error.
     vscode.window.showInformationMessage(`Task '${id}': artifacts not available yet -- ${art.reason || "the run has not finished"}.`);
@@ -1325,7 +1325,7 @@ function legacyDashboardHtmlSource(n) {
     </section>
     <section class="block">
       <h2>New Agent</h2>
-      <div class="desc">Registers a new agent role via <code>daedalus.cli agents add</code>. Agents are local-only by default; enable "external ok" only for roles cleared to reach hosted providers.</div>
+      <div class="desc">Registers a new agent role via <code>daedalus.interfaces.cli.entry agents add</code>. Agents are local-only by default; enable "external ok" only for roles cleared to reach hosted providers.</div>
       <div class="panel">
         <div class="field-row">
           <div class="field"><label for="naName">Name</label><input id="naName" type="text" placeholder="e.g. scribe"></div>

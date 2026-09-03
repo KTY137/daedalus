@@ -18,18 +18,18 @@ from daedalus.gates.repository_head_revision import (
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.contracts import EffectLease
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_ENTRYPOINT,
     build_provider_target_receipt_retention_operation_subject,
     issue_provider_target_receipt_retention_operation_authority,
 )
-from daedalus.runtimes.provider_target_receipt_retention_preflight import (
+from daedalus.runtimes.provider.target_receipt_retention_preflight import (
     ProviderTargetReceiptRetentionPreflightBindingError,
     ProviderTargetReceiptRetentionPreflightReceipt,
     ProviderTargetReceiptRetentionPreflightShapeError,
     verify_provider_target_receipt_retention_preflight,
 )
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
     VerifiedPythonTarget,
 )
@@ -58,14 +58,20 @@ def _repository(tmp_path: Path) -> Path:
     root = tmp_path / "repository"
     (root / ".git").mkdir(parents=True)
     _write_head(root, REVISION)
+    # The synthetic repository must MIRROR the module's real path, not just
+    # its filename: the inventory records a repository-relative path, and the
+    # preflight resolves it against this root. Rebuilding the target from
+    # source.name flattened daedalus/runtimes/provider/x.py to
+    # daedalus/runtimes/x.py, so every bind failed on a file that was there
+    # under a different name. Derived from relative_to now, so the next
+    # relocation moves the fixture with the module.
+    repository = Path(__file__).resolve().parents[2]
     source = (
-        Path(__file__).resolve().parents[2]
-        / "daedalus"
-        / "runtimes"
-        / "provider_target_receipt_ledger.py"
+        repository / "daedalus" / "runtimes" / "provider"
+        / "target_receipt_ledger.py"
     )
-    target = root / "daedalus" / "runtimes" / source.name
-    target.parent.mkdir(parents=True)
+    target = root / source.relative_to(repository)
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(source.read_bytes())
     return root
 
@@ -350,7 +356,7 @@ def test_head_change_during_inventory_rebuild_refuses(
 def test_current_source_byte_drift_refuses(tmp_path: Path) -> None:
     root = _repository(tmp_path)
     receipt, execution, lease, inventory, _, authority, head_receipt = _subjects(root)
-    source = root / "daedalus" / "runtimes" / "provider_target_receipt_ledger.py"
+    source = root / "daedalus" / "runtimes" / "provider" / "target_receipt_ledger.py"
     source.write_bytes(source.read_bytes() + b"\n# adversarial byte drift\n")
 
     with pytest.raises(

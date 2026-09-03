@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from daedalus import skills as skills_mod
+from daedalus.foundation import skills as skills_mod
 from daedalus.tools import vet
 
 # DEFERRED, from Odysseus' static review of the checkpoint port (2026-08-22).

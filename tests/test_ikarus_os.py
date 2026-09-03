@@ -7,7 +7,7 @@ provider, so the deterministic path answers. Verifies ENQUEUE only *proposes*
 import unittest
 from unittest import mock
 
-from daedalus import ikarus_os
+from daedalus.orchestration import ikarus_os
 
 
 class ClassifyTest(unittest.TestCase):

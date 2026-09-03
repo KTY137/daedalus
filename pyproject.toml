@@ -75,7 +75,7 @@ test = [
 ]
 
 [project.scripts]
-daedalus = "daedalus.cli:main"
+daedalus = "daedalus.interfaces.cli.entry:main"
 daedalus-chip = "daedalus.chip_design.cli:main"
 
 [tool.setuptools.packages.find]

@@ -3,8 +3,8 @@
 MEASURED 2026-07-30, and the reason this file exists. Ten write-capable DeepSeek
 agents ran against an isolated worktree. Five modules came back modified, and
 THREE of them had been destroyed: the module file contained the contents meant
-for a different file. ``daedalus/shift.py`` held the test module written for it,
-``daedalus/arch_memory.py`` the same, and ``daedalus/eval/mutate.py`` held the
+for a different file. ``daedalus/interfaces/cli/shift.py`` held the test module written for it,
+``daedalus/interfaces/cli/arch_memory.py`` the same, and ``daedalus/eval/mutate.py`` held the
 contents of ``daedalus/eval/preserve.py``. Every one reported ``status: done``.
 
 The mechanism was a prompt, not a model defect. A change request naming two
@@ -96,14 +96,14 @@ def _make_state(tmp):
 
 class TheMeasuredFailure(unittest.TestCase):
     def test_a_module_replaced_by_its_own_test_module_is_refused(self):
-        reason = _substitution_reason("daedalus/shift.py", MODULE, TEST_MODULE_FOR_IT)
+        reason = _substitution_reason("daedalus/interfaces/cli/shift.py", MODULE, TEST_MODULE_FOR_IT)
         self.assertTrue(reason, "the exact failure observed in the lab must be caught")
         self.assertIn("substitution", reason)
 
     def test_the_refusal_names_what_disappeared(self):
         """A refusal that does not say WHAT was lost cannot be triaged: the
         operator has to re-derive the diff to find out whether it mattered."""
-        reason = _substitution_reason("daedalus/shift.py", MODULE, TEST_MODULE_FOR_IT)
+        reason = _substitution_reason("daedalus/interfaces/cli/shift.py", MODULE, TEST_MODULE_FOR_IT)
         self.assertIn("Shift", reason)
 
     def test_the_size_guard_would_not_have_caught_it(self):
@@ -120,15 +120,15 @@ class OrdinaryEditsSurvive(unittest.TestCase):
 
     def test_adding_a_function_is_not_a_substitution(self):
         edited = MODULE + "\n\ndef save(mem, root='.'):\n    return root\n"
-        self.assertEqual(_substitution_reason("daedalus/shift.py", MODULE, edited), "")
+        self.assertEqual(_substitution_reason("daedalus/interfaces/cli/shift.py", MODULE, edited), "")
 
     def test_renaming_one_of_several_is_not_a_substitution(self):
         edited = MODULE.replace("def render(", "def render_delta(")
-        self.assertEqual(_substitution_reason("daedalus/shift.py", MODULE, edited), "")
+        self.assertEqual(_substitution_reason("daedalus/interfaces/cli/shift.py", MODULE, edited), "")
 
     def test_rewriting_bodies_wholesale_is_not_a_substitution(self):
         edited = MODULE.replace("return path", "raise NotImplementedError")
-        self.assertEqual(_substitution_reason("daedalus/shift.py", MODULE, edited), "")
+        self.assertEqual(_substitution_reason("daedalus/interfaces/cli/shift.py", MODULE, edited), "")
 
     def test_a_small_file_is_never_judged(self):
         """Below a few definitions the survival ratio is noise: losing one of
@@ -152,7 +152,7 @@ class RefusesToJudgeWhatItCannotRead(unittest.TestCase):
     def test_an_unparsable_rewrite_is_refused(self):
         """The original parsed and the replacement does not. Whatever that is,
         landing it breaks the import for every consumer of the module."""
-        reason = _substitution_reason("daedalus/shift.py", MODULE, "def (:::")
+        reason = _substitution_reason("daedalus/interfaces/cli/shift.py", MODULE, "def (:::")
         self.assertIn("does not parse", reason)
 
 
@@ -161,7 +161,7 @@ class InventedImports(unittest.TestCase):
 
     Twenty agents wrote test modules against source files they had been given,
     and three of seven imported things that do not exist: ``daedalus.linting``
-    (it is ``daedalus.gui.lint``), ``ShiftManager`` from ``daedalus.shift``
+    (it is ``daedalus.gui.lint``), ``ShiftManager`` from ``daedalus.interfaces.cli.shift``
     (the class is ``Shift``), and ``daedalus.wiki_vault`` (it is
     ``daedalus.wiki.vault``). All valid Python, so a syntax gate passes them.
     All reported ``status: done``. Not one of the 26 tests written that night
@@ -179,14 +179,14 @@ class InventedImports(unittest.TestCase):
 
     def test_an_invented_name_in_a_real_module_is_caught(self):
         bad = _unresolved_first_party_imports(
-            "from daedalus.shift import ShiftManager\n", self.root)
+            "from daedalus.interfaces.cli.shift import ShiftManager\n", self.root)
         self.assertTrue(bad)
         self.assertIn("ShiftManager", bad[0])
 
     def test_a_real_import_is_left_alone(self):
         self.assertEqual(
             _unresolved_first_party_imports(
-                "from daedalus.shift import Shift\n", self.root), [])
+                "from daedalus.interfaces.cli.shift import Shift\n", self.root), [])
 
     def test_importing_a_submodule_by_name_is_valid(self):
         """`from daedalus import shift` binds a SUBMODULE and is never named in

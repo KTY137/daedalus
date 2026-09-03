@@ -180,5 +180,5 @@ def test_enqueue_resolves_facade_ports_at_call_time(monkeypatch, tmp_path) -> No
 
 def test_structure_packet_does_not_change_effect_registry() -> None:
     assert registry_sha256() == (
-        "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+        "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
     )

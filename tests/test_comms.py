@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from daedalus.config import TOOL_INSTRUCTION_TEMPLATES, init_repo
-from daedalus.enforce import BEGIN, END, enforce_repo
+from daedalus.interfaces.cli.enforce import BEGIN, END, enforce_repo
 from daedalus.interfaces.bridge.queue import read_request as _read_request
 from daedalus import core
 from daedalus.kairos import control as mission_control
@@ -170,7 +170,7 @@ class VsCodeExtensionTests(unittest.TestCase):
         ):
             self.assertIn(f'registerCommand("{command}"', src)
         self.assertIn('"daedalus.file_bridge"', src)
-        self.assertIn('"daedalus.cli"', src)
+        self.assertIn('"daedalus.interfaces.cli.entry"', src)
 
     def test_extension_dashboard_supports_team_and_environment_controls(self):
         src = EXTENSION_MAIN.read_text(encoding="utf-8")

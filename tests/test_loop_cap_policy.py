@@ -11,7 +11,7 @@ from daedalus.limit_policy import (
     MODE_CUSTOM,
     MODE_UNBOUNDED_EXECUTION,
 )
-from daedalus.loop import LoopBounds, LoopDriver, LoopLedger, LoopMisconfigured, _Spend
+from daedalus.orchestration.loop import LoopBounds, LoopDriver, LoopLedger, LoopMisconfigured, _Spend
 
 
 class _Switch:

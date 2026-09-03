@@ -1,6 +1,6 @@
 """Suite-wide determinism for stage-1 routing and for operator declarations.
 
-The latent (embedding) route in ``daedalus/semantic_route.py`` is wired into
+The latent (embedding) route in ``daedalus/orchestration/semantic_route.py`` is wired into
 ``provider_router.route_and_select`` and is ON by default in production. That
 makes every test that routes depend on whether the box it runs on happens to
 have a working embedding backend -- and on what that backend's model thinks
@@ -28,7 +28,7 @@ THE SAME ARGUMENT, FOR DECLARATIONS THAT MOVE A VERDICT
 ``DAEDALUS_TRUSTED_HOSTS`` and ``DAEDALUS_SUBSCRIPTION_VENDORS`` are operator
 declarations: the first decides whether a host is inside the egress fence, the
 second whether a vendor's calls cost dollars. Both legitimately live in a
-developer's ``.env``, and ``daedalus.cli.main`` loads that file into
+developer's ``.env``, and ``daedalus.interfaces.cli.entry.main`` loads that file into
 ``os.environ`` for real -- permanently, on purpose, because the guard it
 configures must see it.
 

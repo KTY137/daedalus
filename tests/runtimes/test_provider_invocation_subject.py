@@ -4,7 +4,7 @@ import dataclasses
 
 import pytest
 
-from daedalus.runtimes.provider_invocation import (
+from daedalus.runtimes.provider.invocation import (
     ProviderInvocationSubject,
     ProviderInvocationSubjectError,
 )

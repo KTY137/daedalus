@@ -122,7 +122,7 @@ _REWRITE_SYSTEM = (
     # MEASURED 2026-07-30. A change request naming two files ("add tests for
     # shift.py in tests/test_shift.py") is sent once PER FILE, and the model
     # answered the REQUEST rather than the FILE: asked to rewrite
-    # daedalus/shift.py it returned the test module, destroying the real one.
+    # daedalus/interfaces/cli/shift.py it returned the test module, destroying the real one.
     # Three of five multi-file writes failed this way, each reporting success.
     # The output must be bound to the file that was sent, not to whichever file
     # the prose happens to mention.

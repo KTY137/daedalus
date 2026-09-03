@@ -8,31 +8,31 @@ from typing import Any
 
 import pytest
 
-import daedalus.runtimes.provider_executable_structure as subject
+import daedalus.runtimes.provider.executable_structure as subject
 from daedalus.gates.python_target_structure import resolve_python_target_structure
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_executable_structure import (
+from daedalus.runtimes.provider.executable_structure import (
     ProviderExecutableStructureBindingError,
     ProviderExecutableStructureReceipt,
     ProviderExecutableStructureShapeError,
     verify_provider_executable_structure,
     verify_provider_executable_structure_receipt,
 )
-from daedalus.runtimes.provider_executable_targets import (
+from daedalus.runtimes.provider.executable_targets import (
     ProviderExecutableTargetDescriptor,
     build_provider_executable_target_manifest,
     issue_provider_executable_target_authority,
     project_provider_executable_targets,
 )
-from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation import ProviderInvocationSubject
+from daedalus.runtimes.provider.invocation_authority import (
     issue_provider_invocation_observation_authority,
 )
-from daedalus.runtimes.provider_invocation_registry import (
+from daedalus.runtimes.provider.invocation_registry import (
     ProviderAdapterDescriptor,
     build_provider_invocation_registry_manifest,
 )
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     issue_provider_observation_authority,
 )
 

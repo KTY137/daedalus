@@ -10,18 +10,18 @@ from pathlib import Path
 import pytest
 
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthority,
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
 )
-from daedalus.runtimes.provider_runtime_executable_binding import (
+from daedalus.runtimes.provider.runtime_executable_binding import (
     ProviderRuntimeExecutableBindingMismatch,
     ProviderRuntimeExecutableBindingReceipt,
     ProviderRuntimeExecutableBindingShapeError,

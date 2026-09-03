@@ -136,7 +136,8 @@ class SecretFloorPrecisionTests(unittest.TestCase):
 
     def test_engine_token_files_are_not_floored_by_path(self):
         # The bootstrap depends on these staying distillable.
-        for p in ("daedalus/token_policy.py", "daedalus/structcore/tokens.py"):
+        for p in ("daedalus/runtimes/providers/token_policy.py",
+                  "daedalus/structcore/tokens.py"):
             self.assertIsNone(secret_floor_rule(p, "x = 1\n"), p)
 
 
@@ -249,7 +250,9 @@ class SelfDistillabilityTests(unittest.TestCase):
         self._assert_source_not_floored("sensitivity.py")
 
     def test_token_machinery_source_not_floored(self):
-        for rel in ("token_policy.py", "token_monitor.py", "structcore/tokens.py"):
+        for rel in ("runtimes/providers/token_policy.py",
+                    "interfaces/cli/token_monitor.py",
+                    "structcore/tokens.py"):
             self._assert_source_not_floored(rel)
 
     def test_clones_source_not_floored(self):

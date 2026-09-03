@@ -2846,7 +2846,7 @@ def _default_attempt(
     does, and for the same reason: the spine may not import
     ``daedalus.offload`` (the ``spine-no-outer-layers`` rule of
     ``docs/architecture/import-boundaries.json`` names it explicitly), so the
-    workload is composed by ``daedalus.cli`` and handed down. This door
+    workload is composed by ``daedalus.interfaces.cli.entry`` and handed down. This door
     already refused without its ports, so requiring one more changes no
     reachable behaviour: ``python -m daedalus.spine.picker`` could not run a
     live attempt before this packet either.

@@ -5,7 +5,9 @@ import json
 import time
 from typing import Any, Callable, Collection, Pattern
 
-from ... import conversation_requests, core, ikarus_os
+from ... import core
+from ...orchestration import ikarus_os
+from ...orchestration import conversation_requests
 
 SsePort = Callable[..., Any]
 ClockPort = Callable[[], float]
@@ -173,7 +175,7 @@ def handle_ikarus_stream(handler: Any, qs: dict[str, list[str]]) -> None:
     plain unwired stream rather than take the chat down:
 
       ``conversation_id`` (query param) is passed straight through to
-      ``ikarus_os.ask_stream`` -- see daedalus/conversation.py. Omitted,
+      ``ikarus_os.ask_stream`` -- see daedalus/orchestration/conversation.py. Omitted,
       this endpoint is byte-for-byte what it was before that module
       landed.
 

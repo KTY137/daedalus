@@ -21,7 +21,7 @@ from daedalus.schemas import MissionContract
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE = ROOT / "daedalus" / "orchestration" / "missions" / "service.py"
 CORE = ROOT / "daedalus" / "core.py"
-CLI = ROOT / "daedalus" / "cli.py"
+CLI = ROOT / "daedalus" / "interfaces" / "cli" / "entry.py"
 BUILD_EXEC = ROOT / "daedalus" / "build_exec.py"
 HTTP_EFFECTS = ROOT / "daedalus" / "interfaces" / "http" / "effects.py"
 FILE_BRIDGE = ROOT / "daedalus" / "file_bridge.py"

@@ -844,7 +844,7 @@ def not_substituted(attempt: WriteAttempt, policy: CheckPolicy) -> str:
     """Why this "rewrite" looks like the WRONG FILE, or "" if it looks fine.
 
     MEASURED 2026-07-30, and the reason this exists. A change request naming two
-    files is sent once per file; asked to rewrite ``daedalus/shift.py`` the model
+    files is sent once per file; asked to rewrite ``daedalus/interfaces/cli/shift.py`` the model
     returned the contents of ``tests/test_shift.py``. The module was destroyed
     and the run reported ``status: done``. Three of five multi-file writes failed
     exactly this way.
@@ -895,7 +895,7 @@ def unresolved_first_party_imports(
     MEASURED 2026-07-30. Twenty agents wrote test modules against source files
     they were given, and three of seven imported things that do not exist:
     ``daedalus.linting`` (it is ``daedalus.gui.lint``), ``ShiftManager`` from
-    ``daedalus.shift`` (the class is ``Shift``), and ``daedalus.wiki_vault``
+    ``daedalus.interfaces.cli.shift`` (the class is ``Shift``), and ``daedalus.wiki_vault``
     (it is ``daedalus.wiki.vault``). All three are valid Python, so a syntax
     gate passes them, and all three reported ``status: done``.
 

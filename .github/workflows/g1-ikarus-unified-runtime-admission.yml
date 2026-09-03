@@ -12,15 +12,15 @@ on:
       - g1/ikarus-effect-bridge-06
       - main
     paths:
-      - "daedalus/ikarus_effect_bridge.py"
-      - "daedalus/ikarus_oneshot.py"
-      - "daedalus/ikarus_tool_scope.py"
-      - "daedalus/runtimes/provider_executable_pre_admission.py"
-      - "daedalus/runtimes/provider_executable_object_registry.py"
-      - "daedalus/runtimes/provider_runtime_executable_binding.py"
-      - "daedalus/runtimes/provider_invocation_payload.py"
-      - "daedalus/runtimes/provider_invocation_abi.py"
-      - "daedalus/runtimes/provider_runtime_invocation_binding.py"
+      - "daedalus/orchestration/ikarus_effect_bridge.py"
+      - "daedalus/orchestration/ikarus_oneshot.py"
+      - "daedalus/orchestration/ikarus_tool_scope.py"
+      - "daedalus/runtimes/provider/executable_pre_admission.py"
+      - "daedalus/runtimes/provider/executable_object_registry.py"
+      - "daedalus/runtimes/provider/runtime_executable_binding.py"
+      - "daedalus/runtimes/provider/invocation_payload.py"
+      - "daedalus/runtimes/provider/invocation_abi.py"
+      - "daedalus/runtimes/provider/runtime_invocation_binding.py"
       - "daedalus/runtimes/broker.py"
       - "daedalus/providers/claude_cli.py"
       - "daedalus/claude_bridge.py"
@@ -91,15 +91,15 @@ jobs:
       - run: python -m pip install -e . pytest
       - run: >-
           python -m py_compile
-          daedalus/ikarus_effect_bridge.py
-          daedalus/ikarus_oneshot.py
-          daedalus/ikarus_tool_scope.py
-          daedalus/runtimes/provider_executable_pre_admission.py
-          daedalus/runtimes/provider_executable_object_registry.py
-          daedalus/runtimes/provider_runtime_executable_binding.py
-          daedalus/runtimes/provider_invocation_payload.py
-          daedalus/runtimes/provider_invocation_abi.py
-          daedalus/runtimes/provider_runtime_invocation_binding.py
+          daedalus/orchestration/ikarus_effect_bridge.py
+          daedalus/orchestration/ikarus_oneshot.py
+          daedalus/orchestration/ikarus_tool_scope.py
+          daedalus/runtimes/provider/executable_pre_admission.py
+          daedalus/runtimes/provider/executable_object_registry.py
+          daedalus/runtimes/provider/runtime_executable_binding.py
+          daedalus/runtimes/provider/invocation_payload.py
+          daedalus/runtimes/provider/invocation_abi.py
+          daedalus/runtimes/provider/runtime_invocation_binding.py
           daedalus/runtimes/broker.py
           daedalus/providers/claude_cli.py
           daedalus/claude_bridge.py

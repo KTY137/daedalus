@@ -203,7 +203,7 @@ def m_bus_always_verifies(sb: Sandbox) -> None:
 
 def m_break_cli_dispatch(sb: Sandbox) -> None:
     """Break the single entry point's verb listing."""
-    _patch(sb.repo / "daedalus" / "cli.py",
+    _patch(sb.repo / "daedalus" / "interfaces" / "cli" / "entry.py",
            "def main(",
            "def main(argv=None):  # SEEDED DEFECT\n"
            "    return 0\n\n\n"
@@ -218,7 +218,7 @@ def m_context_drops_its_receipt(sb: Sandbox) -> None:
     # cleanly to the wrong class and changed nothing the check reads. A
     # mutation that lands somewhere real but irrelevant looks exactly like a
     # check that cannot detect anything.
-    _patch(sb.repo / "daedalus" / "context_plan.py",
+    _patch(sb.repo / "daedalus" / "orchestration" / "context_plan.py",
            '            "dss": self.dss.to_dict(),',
            '            "dss": {_k: _v for _k, _v in self.dss.to_dict().items()\n'
            "                    if _k != 'receipt'},  # SEEDED DEFECT")

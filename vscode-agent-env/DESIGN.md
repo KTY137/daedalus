@@ -299,7 +299,7 @@ is genuinely native VS Code surface rather than a window onto the React app.
 ### Why this exists
 
 `bindDashboardWebview()` owns exactly one fact the React app cannot know about itself: whether
-the local `daedalus.cli web` process it depends on is actually reachable. Before this section
+the local `daedalus.interfaces.cli.entry web` process it depends on is actually reachable. Before this section
 existed, that fact collapsed to two outcomes — the iframe (success) or a blank panel plus a
 generic, often-swallowed VS Code error toast (every failure, indistinguishable from each other).
 "Cannot find daedalus root", "python isn't on PATH", "the process started and then crashed", and
@@ -361,11 +361,11 @@ extension *can* add natively:
 ### What this section deliberately does not cover
 
 Per-turn / per-step progress (plan issued → tool call → file edit → verified) is not rendered
-natively here. `daedalus/ikarus_os.py::ask` / `ask_stream` is single-turn and stateless as of this
+natively here. `daedalus/orchestration/ikarus_os.py::ask` / `ask_stream` is single-turn and stateless as of this
 writing (no conversation/session id in the request shape) and the existing SSE surface
 (`/api/events`: `hello|report|heartbeat|queue`) is task-level, not step-level. Conversation state
 and a richer progress-event model were, at the time of this writing, being built concurrently by
-other agents against `daedalus/web_api.py` — an assumed seam, not one this extension currently
+other agents against `daedalus/interfaces/http/web_api.py` — an assumed seam, not one this extension currently
 renders. The honest thing this section can say is what already exists and is wired end-to-end
 today: chat happens in `apps/web`; queued work is visible via the existing real file-bus queue
 (pending/reports/processed, already surfaced through `daedalus dashboard --json`); the extension

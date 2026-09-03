@@ -8,18 +8,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from daedalus import (
-    control_plane,
-    conversation as conversation_mod,
-    file_bridge,
-    hierarchy,
-    ikarus_chat,
-    runtime_registry,
-    web_api,
-)
-from daedalus.bootstrap_prompt import claude_bootstrap_prompt
-from daedalus.env import env_status, load_env
-from daedalus.web_api import _json_safe
+from daedalus import file_bridge
+from daedalus.interfaces.http import web_api
+from daedalus.orchestration import control_plane, conversation as conversation_mod, hierarchy, ikarus_chat, runtime_registry
+from daedalus.interfaces.http.bootstrap_prompt import claude_bootstrap_prompt
+from daedalus.foundation.env import env_status, load_env
+from daedalus.interfaces.http.web_api import _json_safe
 
 
 class HostCapabilitiesContractTest(unittest.TestCase):
@@ -96,7 +90,7 @@ class ControlPlaneContractTest(unittest.TestCase):
         # live on another machine. Exercise the surface contract against this
         # checkout instead of making AGENTS.md existence depend on that host.
         with mock.patch(
-            "daedalus.control_plane._repo_root",
+            "daedalus.orchestration.control_plane._repo_root",
             return_value=Path(__file__).resolve().parents[1],
         ):
             payload = control_plane.unified_profiles("project_tct")
@@ -397,7 +391,7 @@ class InspectorEditRoundTripTest(unittest.TestCase):
     the shipped template/global file."""
 
     def test_agent_role_patch_persists_per_repo_and_spares_template(self) -> None:
-        from daedalus import agents_registry
+        from daedalus.orchestration import agents_registry
 
         template = Path("templates/agents/generalist-dev.json")
         before = template.read_bytes()
@@ -415,7 +409,7 @@ class InspectorEditRoundTripTest(unittest.TestCase):
         self.assertEqual(template.read_bytes(), before, "template must never be mutated")
 
     def test_category_patch_persists_per_repo_and_spares_global(self) -> None:
-        from daedalus import categories
+        from daedalus.orchestration import categories
 
         global_file = Path("agents/categories.json")
         before = global_file.read_bytes()
@@ -436,7 +430,7 @@ class BootstrapPromptTest(unittest.TestCase):
     def test_claude_bootstrap_prompt_mentions_harness_and_project(self) -> None:
         payload = claude_bootstrap_prompt("project_tct")
         self.assertIn("project_tct", payload["prompt"])
-        self.assertIn("daedalus.cli spawn", payload["prompt"])
+        self.assertIn("daedalus.interfaces.cli.entry spawn", payload["prompt"])
         self.assertIn("Ollama", payload["prompt"])
         self.assertIn("outbox", payload["prompt"])
 
@@ -448,7 +442,7 @@ class LatentSearchRouteTest(unittest.TestCase):
 
     @staticmethod
     def _get(path: str) -> dict:
-        from daedalus.web_api import DaedalusHandler
+        from daedalus.interfaces.http.web_api import DaedalusHandler
 
         handler = object.__new__(DaedalusHandler)
         handler.path = path

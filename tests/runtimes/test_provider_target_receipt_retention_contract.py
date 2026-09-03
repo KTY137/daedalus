@@ -8,7 +8,7 @@ import pytest
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.contracts import EffectLease
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_ENTRYPOINT,
     RETENTION_GUARD_CONTRACT,
     ProviderTargetReceiptRetentionContractBindingError,
@@ -21,7 +21,7 @@ from daedalus.runtimes.provider_target_receipt_retention_contract import (
     issue_provider_target_receipt_retention_operation_authority,
     verify_provider_target_receipt_retention_operation_authority,
 )
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
     VerifiedPythonTarget,
 )

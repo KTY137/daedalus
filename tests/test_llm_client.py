@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from daedalus.llm_client import IkarusLLMClient, LLMRequest, LLMResponse, LLMUnavailable
+from daedalus.orchestration.llm_client import IkarusLLMClient, LLMRequest, LLMResponse, LLMUnavailable
 from daedalus.limit_policy import ExecutionLimitPolicy, MODE_UNBOUNDED_EXECUTION
 
 

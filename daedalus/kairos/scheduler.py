@@ -158,7 +158,7 @@ class KairosScheduler:
         # Extra pool workers Ikarus can spin up for fan-out beyond the role shadows.
         self._bench = cycle(roster("ollama"))
         if self.policy is None and self.project:
-            from ..projects import load_project
+            from ..foundation.projects import load_project
             from ..sensitivity import load_policy
             project_data = load_project(self.project)
             self.policy = load_policy(project_data)
@@ -463,7 +463,7 @@ class KairosScheduler:
         at runtime. Ikarus owns the crew roster, so creating/editing roles is
         his job -- routing (``router.load_agents``) picks up the change with no
         restart. Returns a summary; raises ValueError on an invalid spec."""
-        from .. import agents_registry as reg
+        from ..orchestration import agents_registry as reg
         name = spec.get("name")
         if name and reg.get_role(name, repo_root) is not None:
             patch = {k: v for k, v in spec.items() if k != "name"}
@@ -477,7 +477,7 @@ class KairosScheduler:
 
 
 def _demo_tasks() -> list[dict]:
-    from ..benchmark import TASKS
+    from ..orchestration.benchmark import TASKS
     return [{"objective": t.objective, "paths": t.paths} for t in TASKS]
 
 

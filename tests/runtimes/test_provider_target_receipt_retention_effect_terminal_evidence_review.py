@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.runtimes.provider_target_receipt_retention_effect_terminal_evidence as module
+import daedalus.runtimes.provider.target_receipt_retention_effect_terminal_evidence as module
 
 
 def _source() -> str:

@@ -14,7 +14,7 @@ from daedalus.spine import picker
 
 ROOT = Path(__file__).resolve().parents[2]
 PICKER = ROOT / "daedalus" / "spine" / "picker.py"
-CLI = ROOT / "daedalus" / "cli.py"
+CLI = ROOT / "daedalus" / "interfaces" / "cli" / "entry.py"
 
 
 def _imports(path: Path) -> set[str]:
@@ -145,5 +145,5 @@ def test_cli_composes_ports_at_the_registered_picker_door() -> None:
     ]
     assert len(improve) == 1
     source = CLI.read_text(encoding="utf-8")
-    assert "from .spine.picker import main as m" in source
+    assert "from ...spine.picker import main as m" in source
     assert "evaluation_ports=picker_evaluation_ports()" in source

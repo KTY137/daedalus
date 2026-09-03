@@ -37,23 +37,23 @@ from ..runtimes.contracts.claude import (
     ClaudeProviderWorkspaceMismatch,
     ClaudeWorkspaceGrant,
 )
-from ..runtimes.provider_executable_object_registry import (
+from ..runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectRegistry,
 )
-from ..runtimes.provider_executable_pre_admission import (
+from ..runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from ..runtimes.provider_invocation_abi import ProviderInvocationABIContract
-from ..runtimes.provider_invocation_authority import (
+from ..runtimes.provider.invocation_abi import ProviderInvocationABIContract
+from ..runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
 )
-from ..runtimes.provider_invocation_payload import ProviderInvocationPayload
-from ..runtimes.provider_observation import (
+from ..runtimes.provider.invocation_payload import ProviderInvocationPayload
+from ..runtimes.provider.observation import (
     ProviderObservationBindingLedger,
 )
 from ..spine.effect_boundary import Effect
 from ..spine.envelope import canonical_sha
-from ..token_policy import trim_paths
+from ..runtimes.providers.token_policy import trim_paths
 from ._report import bounded_execution_limit_policy
 from .base import Provider, ProviderCapabilities
 

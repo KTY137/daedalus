@@ -80,7 +80,7 @@ def _rows(surfaces):
 def test_a_registered_door_does_not_clear_the_write_surfaces_behind_it() -> None:
     """Door reachability is not a coverage channel, and must not become one silently.
 
-    ``daedalus/cli.py`` is the target module of a registered entrypoint that
+    ``daedalus/interfaces/cli/entry.py`` is the target module of a registered entrypoint that
     already declares ``FILESYSTEM_WRITE`` and ``REPOSITORY_MUTATION``.  Its
     write surfaces are still blockers, and every other module reached only
     through that door is blocking on its own callsites.  If someone later
@@ -91,7 +91,7 @@ def test_a_registered_door_does_not_clear_the_write_surfaces_behind_it() -> None
     door_modules = {
         spec.target.split(":")[0] for spec in ENTRYPOINTS if spec.target
     }
-    assert "daedalus.cli" in door_modules
+    assert "daedalus.interfaces.cli.entry" in door_modules
 
     inventory = _repository_inventory()
     assert inventory.surfaces, "the scanner must find production write surfaces"

@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "daedalus" / "desktop_runtime.py"
 OWNER = ROOT / "daedalus" / "interfaces" / "desktop" / "settings.py"
 PACKET_PATH = "docs/work-packets/G1-IFACE-DESKTOP-03_SETTINGS_OWNER.md"
-REGISTRY_SHA256 = "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+REGISTRY_SHA256 = "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
 SETTINGS_LITERAL_COUNT = 145
 SETTINGS_LITERAL_SHA256 = (
     "9cd1426a7902482cd2fc8593eb0c42b69a7a986b72c8de1e97994a704e64251d"

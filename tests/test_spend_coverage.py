@@ -6,7 +6,7 @@ file asks the two questions that one cannot:
 1. **Does the guard exist in the process that spends?** The ceiling is not a
    syscall hook. It is three monkeypatched Python functions
    (``subprocess.run``, ``subprocess.Popen``, ``urllib.request.urlopen``)
-   installed by exactly one call, in exactly one function -- ``daedalus.cli
+   installed by exactly one call, in exactly one function -- ``daedalus.interfaces.cli.entry
    :main``. Any OTHER way to start a Python process that spends money is
    entirely outside the ceiling. MEASURED 2026-07-29: five in-repo entry points
    are, plus the out-of-repo ``~/.claude/skills/room/room.py``.
@@ -248,7 +248,7 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
 # MEASURED 2026-07-29 by running each under a `sitecustomize` probe that reports
 # whether subprocess.run/Popen/urlopen are wrapped in the live process:
 #
-#     python -m daedalus.cli ...      -> run=True  Popen=True  urlopen=True
+#     python -m daedalus.interfaces.cli.entry ...      -> run=True  Popen=True  urlopen=True
 #     python runs/council/room.py     -> run=False Popen=False urlopen=False
 #     python runs/council/summarize.py-> run=False Popen=False urlopen=False
 #     python runs/council/room_server.py -> False/False/False
@@ -294,7 +294,7 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
 #                                   holding a seeded-defect fixture; its real
 #                                   spawns are git and pytest
 #     tools/system_check.py         NOT BILLABLE (INSPECTED 2026-07-29): spawns
-#                                   `python -m daedalus.cli web` and
+#                                   `python -m daedalus.interfaces.cli.entry web` and
 #                                   `daedalus.file_bridge watch`; the `claude`
 #                                   token is a room SPEAKER NAME passed to
 #                                   `room.py say`, which only appends
@@ -494,7 +494,7 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
         if re.search(r"^\s*(?:\w+\.)?install_process_guard\(\)", text, re.M):
             installers.add(path.relative_to(ROOT).as_posix())
     assert installers == {
-        "daedalus/cli.py",
+        "daedalus/interfaces/cli/entry.py",
         "tools/operability_drill.py",
         # Widened 2026-07-29 from two sites to seven. The audit that created
         # this test found the ceiling installed in exactly ONE function and
@@ -522,7 +522,7 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
         # missing ceiling would cost the most, because it is the only one that
         # spends REPEATEDLY by design. Its bounds (iterations, wall-clock,
         # spend) are its own; the process guard is the floor under all three.
-        "daedalus/loop.py",
+        "daedalus/orchestration/loop.py",
         # WIDENED 2026-08-18 by the Gate-0 central-wiring migration: the
         # contract module itself now calls install_process_guard() inside
         # process_guard_boundary_decision(), the canonical way an entrypoint

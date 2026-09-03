@@ -9,7 +9,7 @@ MODULE = (
     ROOT
     / "daedalus"
     / "runtimes"
-    / "provider_target_receipt_retention_admission.py"
+    / "provider" / "target_receipt_retention_admission.py"
 )
 
 

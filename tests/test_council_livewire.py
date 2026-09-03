@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import cli
+from daedalus.interfaces.cli import entry
 from daedalus.council import session as S
 from daedalus.council import vendors as V
 
@@ -222,7 +222,7 @@ def no_convene(monkeypatch):
 def test_cli_refuses_a_bare_council_invocation(no_convene, capsys):
     """`daedalus council "q"` used to call four vendors. Now it refuses."""
     with pytest.raises(SystemExit) as excinfo:
-        cli._council(["is this patch safe?"])
+        entry._council(["is this patch safe?"])
     assert excinfo.value.code != 0
     err = capsys.readouterr().err
     assert "--live" in err and "--dry-run" in err
@@ -231,7 +231,7 @@ def test_cli_refuses_a_bare_council_invocation(no_convene, capsys):
 def test_cli_refuses_live_and_dry_run_together(no_convene, capsys):
     """Ambiguous intent about spending money is refused, not resolved."""
     with pytest.raises(SystemExit) as excinfo:
-        cli._council(["is this patch safe?", "--live", "--dry-run"])
+        entry._council(["is this patch safe?", "--live", "--dry-run"])
     assert excinfo.value.code != 0
     assert "contradict" in capsys.readouterr().err
 
@@ -246,7 +246,7 @@ def test_cli_live_flag_authorises_the_spend(monkeypatch, capsys):
 
     monkeypatch.setattr(S, "default_participants", lambda *a, **kw: (_OfflineAdapter(),))
     monkeypatch.setattr(S, "convene", lambda *a, **kw: seen.update(kw) or _Rec())
-    cli._council(["is this patch safe?", "--live"])
+    entry._council(["is this patch safe?", "--live"])
     assert seen.get("live") is True
     assert "rendered" in capsys.readouterr().out
 
@@ -256,7 +256,7 @@ def test_cli_dry_run_names_the_seats_live_would_call(monkeypatch, capsys):
     monkeypatch.setattr(V, "available_vendors", lambda **kw: ())
     monkeypatch.setattr(S, "convene", lambda *a, **kw: pytest.fail(
         "--dry-run called convene"))
-    cli._council(["is this patch safe?", "--dry-run", "--vendors", "anthropic,openai"])
+    entry._council(["is this patch safe?", "--dry-run", "--vendors", "anthropic,openai"])
     out = capsys.readouterr().out
     assert "DRY RUN -- no model was called" in out
     assert "2 real" in out

@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import daedalus.token_policy as legacy_tokens
 from daedalus import sensitivity
 from daedalus.kernel.policy.limits import ExecutionLimitPolicy
 from daedalus.providers import _report as legacy_report
@@ -16,7 +15,6 @@ from daedalus.spine.effect_boundary import registry_sha256
 
 ROOT = Path(__file__).resolve().parents[2]
 LEGACY_REPORT = ROOT / "daedalus" / "providers" / "_report.py"
-LEGACY_TOKENS = ROOT / "daedalus" / "token_policy.py"
 OWNERS = (
     ROOT / "daedalus" / "runtimes" / "providers" / "budget_admission.py",
     ROOT / "daedalus" / "runtimes" / "providers" / "context.py",
@@ -66,25 +64,13 @@ def test_legacy_report_helpers_are_exact_runtime_objects() -> None:
         assert getattr(legacy_report, name) is getattr(owner, name)
 
 
-def test_legacy_token_policy_is_an_exact_reexport_facade() -> None:
-    for name in (
-        "ExecutionLimitPolicy",
-        "load_limit_policy",
-        "trim_paths",
-        "trim_text",
-    ):
-        assert getattr(legacy_tokens, name) is getattr(token_policy, name)
-    for name in (
-        "CHEAP_MODEL",
-        "DEFAULT_MODEL",
-        "HIGH_RISK_MODEL",
-        "MAX_PATHS_PER_REQUEST",
-        "MAX_SUMMARY_CHARS",
-        "MAX_TODO_CHARS",
-        "STATIC_PROMPT_PREFIX",
-    ):
-        assert getattr(legacy_tokens, name) == getattr(token_policy, name)
-    assert _definitions(LEGACY_TOKENS) == set()
+# ``test_legacy_token_policy_is_an_exact_reexport_facade`` lived here until
+# G1-FLAT-06 deleted ``daedalus/token_policy.py``. It asserted object
+# identity between the flat facade and this owner, and that the facade
+# defined nothing of its own. With no facade there is nothing to hold
+# identical, and re-pointing both halves at the owner would have left a test
+# asserting that a module is itself. The owner-side contracts below are
+# unchanged and are what actually protected the behaviour.
 
 
 def test_legacy_report_module_retains_only_context_port_wrappers() -> None:
@@ -172,5 +158,5 @@ def test_context_facade_injects_current_ports_per_call(monkeypatch) -> None:
 
 def test_structure_packet_keeps_effect_registry_exact() -> None:
     assert registry_sha256() == (
-        "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+        "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
     )

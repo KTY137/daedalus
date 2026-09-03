@@ -30,7 +30,7 @@ named probe red):
   (measured: ``registry.guard_anchor_missing`` blocker, and the refused turn
   becomes one real connect attempt to 10.0.0.9);
 * delete ``begin_effect`` from ``ask`` -> ``test_ask_door_is_anchored`` goes red
-  (measured: ``daedalus.ikarus_os:ask no longer calls begin_effect``);
+  (measured: ``daedalus.orchestration.ikarus_os:ask no longer calls begin_effect``);
 * move the ``begin_effect`` call below the classification in ``ask`` ->
   ``test_the_door_is_the_first_statement_of_each_entrypoint`` goes red;
 * add a new function that calls ``urlopen``/``subprocess`` without routing
@@ -61,7 +61,7 @@ from daedalus.spine.effect_boundary import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT / "daedalus" / "ikarus_os.py"
+MODULE = ROOT / "daedalus" / "orchestration" / "ikarus_os.py"
 
 #: Every function in this module that reaches a socket or spawns a vendor.
 #: Frozen on purpose: a NEW sink that is not in this set fails the structural
@@ -197,10 +197,10 @@ def _calls(node: ast.AST) -> set[str]:
 @pytest.mark.parametrize(
     "entrypoint_id,target,contracts",
     [
-        ("ikarus_os.ask", "daedalus.ikarus_os:ask", ("budget.process_guard",)),
-        ("ikarus_os.ask_stream", "daedalus.ikarus_os:ask_stream",
+        ("ikarus_os.ask", "daedalus.orchestration.ikarus_os:ask", ("budget.process_guard",)),
+        ("ikarus_os.ask_stream", "daedalus.orchestration.ikarus_os:ask_stream",
          ("budget.process_guard",)),
-        ("ikarus_os.provider_call", "daedalus.ikarus_os:_provider_start",
+        ("ikarus_os.provider_call", "daedalus.orchestration.ikarus_os:_provider_start",
          ("budget.process_guard", "provider.egress_policy")),
     ],
 )
@@ -224,7 +224,7 @@ def test_secrets_is_in_the_effect_vocabulary():
 
 def test_ask_door_is_anchored():
     anchors = REGISTRY_BY_ID["ikarus_os.ask"].anchors
-    assert ("daedalus.ikarus_os:ask", "begin_effect") in {
+    assert ("daedalus.orchestration.ikarus_os:ask", "begin_effect") in {
         (a.target, a.call) for a in anchors
     }
 
@@ -233,8 +233,8 @@ def test_ask_stream_pins_both_the_delegation_and_the_start():
     """The tap only persists the final turn; the INNER generator is what picks
     a provider, so the boundary lives there and both hops are anchored."""
     pairs = {(a.target, a.call) for a in REGISTRY_BY_ID["ikarus_os.ask_stream"].anchors}
-    assert ("daedalus.ikarus_os:ask_stream", "_ask_stream_inner") in pairs
-    assert ("daedalus.ikarus_os:_ask_stream_inner", "begin_effect") in pairs
+    assert ("daedalus.orchestration.ikarus_os:ask_stream", "_ask_stream_inner") in pairs
+    assert ("daedalus.orchestration.ikarus_os:_ask_stream_inner", "begin_effect") in pairs
 
 
 def test_every_provider_sink_is_anchored_to_the_transport_start():
@@ -243,8 +243,8 @@ def test_every_provider_sink_is_anchored_to_the_transport_start():
         for a in REGISTRY_BY_ID["ikarus_os.provider_call"].anchors
     }
     for name in SINK_FUNCTIONS:
-        assert (f"daedalus.ikarus_os:{name}", "_provider_start") in pairs, name
-    assert ("daedalus.ikarus_os:_provider_start", "begin_effect") in pairs
+        assert (f"daedalus.orchestration.ikarus_os:{name}", "_provider_start") in pairs, name
+    assert ("daedalus.orchestration.ikarus_os:_provider_start", "begin_effect") in pairs
 
 
 def test_the_three_rows_add_no_conformance_blocker():
@@ -297,7 +297,7 @@ def test_disallowed_ollama_host_refuses_before_any_socket(
     127.0.0.1 or to a box across a tailnet with no code change.  This is the
     case that used to leave silently.
     """
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     connects, spawns = no_effects
     monkeypatch.setenv("OLLAMA_HOST", "http://10.0.0.9:11434")
@@ -313,7 +313,7 @@ def test_disallowed_ollama_host_refuses_before_any_socket(
 def test_the_refusal_receipt_names_the_host_and_the_contract(
     sealed, no_effects, monkeypatch
 ):
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     monkeypatch.setenv("OLLAMA_HOST", "http://10.0.0.9:11434")
     envelope = ikarus_os.ask("agent_env", "hallo", provider="ollama")
@@ -338,7 +338,7 @@ def test_operator_consent_for_that_exact_endpoint_admits_it(sealed, monkeypatch)
     Same decision function the embedding backend uses, so consent and refusal
     cannot drift apart between the two lanes.
     """
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     monkeypatch.setenv("DAEDALUS_OLLAMA_REMOTE_OK", "http://10.0.0.9:11434")
     receipt = ikarus_os._provider_start(
@@ -349,7 +349,7 @@ def test_operator_consent_for_that_exact_endpoint_admits_it(sealed, monkeypatch)
 
 def test_loopback_ollama_is_admitted_and_costs_no_effects(sealed):
     """The ordinary path is unchanged: a local endpoint is physics, not policy."""
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     receipt = ikarus_os._provider_start(
         "ollama", endpoint="http://127.0.0.1:11434", model="qwen2.5-coder:7b")
@@ -369,7 +369,7 @@ def test_exhausted_ceiling_refuses_deepseek_before_socket_or_spawn(
     the socket, so the money is counted once.  What the pre-flight adds is that
     the verdict arrives before the connection and with a name on it.
     """
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     connects, spawns = no_effects
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test-not-a-real-key")
@@ -389,7 +389,7 @@ def test_exhausted_ceiling_refuses_deepseek_before_socket_or_spawn(
 
 def test_explicit_uncapped_mode_admits_paid_preflight_above_configured_amount(
         sealed, monkeypatch):
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     monkeypatch.setenv("DAEDALUS_BUDGET_USD", "0.01")
     monkeypatch.setenv("DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED", "false")
@@ -403,7 +403,7 @@ def test_explicit_uncapped_mode_admits_paid_preflight_above_configured_amount(
 
 def test_uncapped_paid_preflight_still_refuses_at_the_call_cap(
         sealed, monkeypatch):
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     monkeypatch.setenv("DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED", "false")
     monkeypatch.setenv("DAEDALUS_BUDGET_MAX_CALLS", "1")
@@ -419,7 +419,7 @@ def test_uncapped_paid_preflight_still_refuses_at_the_call_cap(
 
 def test_disabled_billable_call_axis_admits_but_keeps_recorded_count(
         sealed, monkeypatch):
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
     from daedalus.limit_policy import ExecutionLimitPolicy, LimitAxes, MODE_CUSTOM
 
     policy = ExecutionLimitPolicy(
@@ -442,7 +442,7 @@ def test_disabled_billable_call_axis_admits_but_keeps_recorded_count(
 
 def test_an_unreadable_ledger_denies_rather_than_passes(sealed, monkeypatch):
     """FAIL CLOSED.  Absence of a readable budget is not absence of a cap."""
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     ledger_path = Path(sealed.ledger().path)
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
@@ -458,7 +458,7 @@ def test_an_unreadable_ledger_denies_rather_than_passes(sealed, monkeypatch):
 def test_ask_stream_refuses_at_the_same_door_without_a_single_delta(
     sealed, no_effects, monkeypatch
 ):
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
 
     connects, _spawns = no_effects
     monkeypatch.setenv("OLLAMA_HOST", "http://10.0.0.9:11434")
@@ -484,7 +484,7 @@ def test_audit_trace_puts_the_boundary_before_every_spawn_and_socket(
     inert closure over a flag: it appends only while this test is running and
     costs a boolean check for the rest of the session.
     """
-    import daedalus.ikarus_os as ikarus_os
+    import daedalus.orchestration.ikarus_os as ikarus_os
     from daedalus.spine import effect_boundary
 
     trace: list[str] = []
@@ -547,7 +547,7 @@ def test_every_effect_sink_is_reachable_only_through_the_doors():
         name for name, node in functions.items() if _calls(node) & sink_calls
     }
     assert discovered == SINK_FUNCTIONS, (
-        "the set of effect sinks in daedalus/ikarus_os.py changed: "
+        "the set of effect sinks in daedalus/orchestration/ikarus_os.py changed: "
         f"new={sorted(discovered - SINK_FUNCTIONS)} "
         f"gone={sorted(SINK_FUNCTIONS - discovered)}"
     )

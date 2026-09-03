@@ -68,8 +68,20 @@ CURRENT_CROSS_DOMAIN_COMPONENT = PRE_OFFLOAD_PORT_CROSS_DOMAIN_COMPONENT - {
     "daedalus.spine.bootstrap",
     SPINE_PICKER,
 }
+# G1-FLAT-04 moved ``ikarus_supervisor`` into ``daedalus.orchestration``.
+# It did NOT leave the cycle and this line does not claim it did: the member
+# is RENAMED, one in for one out, so the component's size is unchanged at 13.
+# Relocating a module cannot dissolve a cycle it is in -- only cutting an edge
+# can, which is what G1-SCC-CUT1 did and what the note above describes.
+CURRENT_CROSS_DOMAIN_COMPONENT = (
+    CURRENT_CROSS_DOMAIN_COMPONENT - {"daedalus.ikarus_supervisor"}
+) | {"daedalus.orchestration.ikarus_supervisor"}
 CURRENT_COMPONENTS_SHA256 = (
-    "8679914e123c7b29c498d862868de0272ee479ee24db8abe61e22fd8926e0728"
+    # Moved in G1-PKG-01: the 14-module component IS the provider family, so
+    # renaming its members renames them inside the component. Count and
+    # maximum are unchanged at 12 and 14, and the membership is asserted
+    # below rather than left to the digest.
+    "12daf63beabb64b877abb0a2843df6c535fafc48aa5920033bb693f6153bb2f1"
 )
 # Moving census, not an architecture invariant: any packet that legitimately
 # splits or adds a leaf module changes these two totals without touching the
@@ -108,7 +120,23 @@ CURRENT_COMPONENTS_SHA256 = (
 # langgraph_adapter) and the four zero-caller Ikarus->Kairos rename shims
 # (decompose, drafts, ikarus, mission_control) are gone. Their owners were
 # already counted and are unchanged.
-CENSUS_MODULES = 430
+# 430 -> 432 in G1-FLAT-04, and both are package roots this packet created:
+# ``daedalus.foundation`` for the leaf utilities and ``daedalus.interfaces.cli``
+# for the console entrypoints. No implementation module was added or deleted;
+# the eleven relocations are renames.
+# 432 -> 431 in G1-FLAT-06, the only DELETION in this series since
+# G1-FLAT-02: ``daedalus/token_policy.py`` is gone, its registry row with it.
+# The console entrypoint was relocated and renamed, not added, so it costs
+# nothing here. dctx was moved into daedalus.twin and moved back inside this
+# same packet -- see the message -- so it is where it started.
+# 431 -> 432 in G1-PKG-01, and the +1 is the ``daedalus.runtimes.provider``
+# package root. Twenty-five modules moved INTO it and were renamed at the
+# same time -- the shared ``provider_`` prefix is dropped because the package
+# now carries it -- but a rename adds no node. Edges are unchanged at 1642:
+# every one of the 25 kept exactly the targets it had, and no caller gained
+# or lost a package edge, because nothing imported them as
+# ``from daedalus.runtimes import provider_x``.
+CENSUS_MODULES = 432
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -240,7 +268,71 @@ CENSUS_MODULES = 430
 # import <module>`` resolves to two targets here. Net -6. Structure and digest
 # unchanged: none of the seven was in a cycle, and removing a leaf's only
 # out-edge opens no path.
-CENSUS_EDGES = 1635
+#
+# 1635 -> 1642 in G1-FLAT-03, which moved nineteen flat modules into
+# ``daedalus.orchestration`` and deleted none. MODULES is unchanged at 430:
+# a relocation renames a node, it does not add one. The +7 is a net of
+# thirteen, and every one of them is the same construct -- ``from <package>
+# import <module>``, which resolves to TWO targets in this graph, the package
+# and the module:
+#
+#   +10  callers that named the package gained ``-> daedalus.orchestration``:
+#        cli, desktop_runtime, file_bridge, health, ikarus_os, web_api,
+#        interfaces.http.effects, interfaces.http.sse, kairos.scheduler, and
+#        two moved modules importing a sibling that moved with them
+#    -3  cli, file_bridge and kairos.scheduler lost ``-> daedalus``: the root
+#        package was only ever named to reach a module that left
+#
+# Verified by diffing the resolved edge sets of HEAD and the working tree with
+# the rename table applied to HEAD, which left exactly those thirteen.
+# Structure and digest are UNCHANGED -- 12 components, max 14, same
+# CURRENT_COMPONENTS_SHA256 -- because none of the nineteen was in a cycle.
+#
+# 1642 -> 1644 in G1-FLAT-04. The +2 is a net of four, and every one is the
+# same ``from <package> import <module>`` two-target construct as last time:
+#
+#   +3  interfaces.http.read, web_api and tools.inventory gained
+#       ``-> daedalus.foundation``
+#    -1  tools.inventory lost ``-> daedalus``: it named the root package only
+#        to reach ``skills``, which left
+#
+# The eleven new package edges the moved modules THEMSELVES spend are already
+# counted -- each was importing the same owners before, from one level up.
+# The digest below DID move this time, and only because
+# ``ikarus_supervisor`` is a member of the 13-module cross-domain component:
+# renaming a member renames it inside the component too. Count and maximum
+# are unchanged at 12 and 14, and the membership assertion is restated
+# explicitly above rather than left to the digest.
+#
+# 1644 -> 1643 in G1-FLAT-05, which moved eleven REGISTERED effect doors.
+# MODULES is unchanged at 432; no package root was needed, both destinations
+# already existed. The -1 is a net of five, and once again every one of them
+# is the ``from <package> import <module>`` two-target construct:
+#
+#   +2  hooks.events and interfaces.cli.shift_ticker gained
+#       ``-> daedalus.interfaces.cli``, having followed ``shift`` there
+#   -3  the same two, plus orchestration.conversation_requests, lost
+#       ``-> daedalus``: each named the root package only to reach a module
+#       that left, and none of them names it for anything else
+#
+# Structure and digest are unchanged: loop and ikarus_os are large and
+# heavily imported but sit in no cycle, so renaming them moves no component.
+#
+# 1643 -> 1642 in G1-FLAT-06. The -1 is a net of five and is entirely the
+# token_policy deletion: the facade's own edge to its owner disappears with
+# the file (-1), and its two production callers -- kairos.orchestrate and
+# providers.claude_cli -- swap one target for another (-2, +2). The
+# entrypoint relocation spends nothing: every caller named it by a path that
+# resolves to exactly one target before and after.
+#
+# Those two callers are the reason this packet added
+# tests/contracts/test_no_dangling_daedalus_imports.py. They imported the
+# facade as ``from ..token_policy import ...``, which the regex audit before
+# the delete could not match, and which THIS census cannot report either:
+# _tracked_module_graph drops targets it cannot resolve, so a dangling import
+# produces no edge and no movement. The new contract resolves instead of
+# matching.
+CENSUS_EDGES = 1642
 
 
 def _module_name(path: str) -> str:
@@ -352,10 +444,16 @@ def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
         SPINE_PICKER,
     ):
         assert departed not in cyclic
-    assert "daedalus.conversation" not in frozenset().union(*component_sets)
-    assert "daedalus.health" not in graph["daedalus.conversation"]
+    # G1-FLAT-03 moved the module to ``daedalus.orchestration.conversation``.
+    # The three live assertions follow it; the historical component sets above
+    # keep the flat name, because that is what was in the cycle when they were
+    # measured. Renaming a node there would rewrite a past measurement.
+    assert "daedalus.orchestration.conversation" not in frozenset().union(
+        *component_sets
+    )
+    assert "daedalus.health" not in graph["daedalus.orchestration.conversation"]
     assert "daedalus.kernel.contracts.observations" in graph[
-        "daedalus.conversation"
+        "daedalus.orchestration.conversation"
     ]
 
 

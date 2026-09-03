@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 
-MODULE = Path("daedalus/runtimes/provider_executable_structure.py")
+MODULE = Path("daedalus/runtimes/provider/executable_structure.py")
 
 
 def _tree() -> ast.Module:
@@ -142,7 +142,7 @@ def test_review_rebuilds_receipt_instead_of_trusting_retained_fields() -> None:
 def test_review_module_is_responsibility_local_and_additive() -> None:
     source = MODULE.read_text(encoding="utf-8")
 
-    assert "from daedalus.runtimes.provider_executable_targets" in source
+    assert "from daedalus.runtimes.provider.executable_targets" in source
     assert "from daedalus.runtimes.contracts.ports" in source
     assert "from daedalus.runtimes.contracts.python_targets" in source
     assert "from daedalus.gates.python_target_structure" not in source

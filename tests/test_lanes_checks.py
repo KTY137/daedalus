@@ -69,7 +69,7 @@ class TestShift(unittest.TestCase):
 '''
 
 
-def _attempt(rel="daedalus/shift.py", proposed=MODULE, original="",
+def _attempt(rel="daedalus/interfaces/cli/shift.py", proposed=MODULE, original="",
             repo_root=".", creating=False):
     return WriteAttempt(rel=rel, proposed=proposed, repo_root=repo_root,
                         original=original, creating=creating)
@@ -147,7 +147,7 @@ class ParsesTests(unittest.TestCase):
 
 
 class NotSubstitutedTests(unittest.TestCase):
-    """MEASURED 2026-07-30: asked to rewrite daedalus/shift.py, the model
+    """MEASURED 2026-07-30: asked to rewrite daedalus/interfaces/cli/shift.py, the model
     returned tests/test_shift.py -- a complete, valid, normally-sized file that
     was simply the wrong one. This is the guard that caught it on replay."""
 

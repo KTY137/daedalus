@@ -427,7 +427,7 @@ _OWNED_ELSEWHERE: frozenset[str] = frozenset({
     "daedalus/council/canary.py",
     # Not an egress lane: an inline table behind a plaintext-HTTP WARNING. Same
     # question, same drift risk, lower blast radius.
-    "daedalus/accelerators.py",
+    "daedalus/foundation/accelerators.py",
 })
 
 

@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.runtimes.provider_invocation_resolution as resolution_module
+import daedalus.runtimes.provider.invocation_resolution as resolution_module
 
 
 SOURCE_PATH = Path(inspect.getsourcefile(resolution_module) or "")

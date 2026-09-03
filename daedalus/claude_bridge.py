@@ -15,7 +15,7 @@ import json
 import subprocess
 from typing import TYPE_CHECKING, Any
 
-from .fallback import fallback_decision
+from .orchestration.fallback import fallback_decision
 from .limit_policy import ExecutionLimitPolicy, LimitPolicyError
 from .router import route_task
 from .runtimes.contracts.provider_report import REPORT_KEYS, validate_report
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from .kernel.effects import EffectExecutionRequest
     from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
     from .runtimes.contracts.claude import ClaudeWorkspaceGrant
-    from .runtimes.provider_observation import (
+    from .runtimes.provider.observation import (
         ProviderObservationAuthority,
         ProviderObservationBindingLedger,
     )

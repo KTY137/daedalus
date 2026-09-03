@@ -11,8 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = Path(
-    "daedalus/runtimes/"
-    "provider_target_receipt_retention_effect_terminal_evidence.py"
+    "daedalus/runtimes/provider/"
+    "target_receipt_retention_effect_terminal_evidence.py"
 )
 TESTS = (
     "tests/runtimes/"

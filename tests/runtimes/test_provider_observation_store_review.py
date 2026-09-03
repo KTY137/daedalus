@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.runtimes.provider_observation_store as store_module
+import daedalus.runtimes.provider.observation_store as store_module
 
 
 SOURCE_PATH = Path(inspect.getsourcefile(store_module) or "")

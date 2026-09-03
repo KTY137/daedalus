@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-from daedalus.runtimes import provider_target_receipt_retention_contract as contract
+from daedalus.runtimes.provider import target_receipt_retention_contract as contract
 
 
 def _unwrapped(text: str) -> str:

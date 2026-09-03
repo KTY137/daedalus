@@ -20,7 +20,7 @@ from typing import Any, Sequence
 import daedalus.kernel.effects as effects_module
 import daedalus.kernel.runtime_effects as runtime_effects_module
 import daedalus.runtimes.broker as broker_module
-import daedalus.runtimes.provider_observation as provider_observation_module
+import daedalus.runtimes.provider.observation as provider_observation_module
 import daedalus.runtimes.trust_store as trust_store_module
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseLedger
@@ -32,7 +32,7 @@ from daedalus.runtimes.broker import (
     RuntimeProviderTrustFenceError,
 )
 from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
 )

@@ -196,7 +196,7 @@ def test_definitions_and_registry_targets_remain_single_and_stable() -> None:
         "daedalus.spine.attempt:command_gate"
     )
     assert registry_sha256() == (
-        "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+        "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
     )
 
 

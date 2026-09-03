@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 
-MODULE = Path("daedalus/runtimes/provider_invocation_abi.py")
+MODULE = Path("daedalus/runtimes/provider/invocation_abi.py")
 
 
 def _tree() -> ast.AST:

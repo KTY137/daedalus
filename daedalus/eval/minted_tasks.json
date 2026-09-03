@@ -122,7 +122,7 @@
         "tests/test_ikarus_context.py",
         "tests/test_structcore_slice.py"
       ],
-      "target": "daedalus/ikarus_os.py",
+      "target": "daedalus/orchestration/ikarus_os.py",
       "tier": "quarantine"
     },
     {
@@ -473,7 +473,7 @@
       "repo": "C:/Users/nukei/Desktop/agent_env",
       "skipped_out_of_scope": [],
       "skipped_secret_floor": [],
-      "target": "daedalus/verifier.py",
+      "target": "daedalus/orchestration/verifier.py",
       "tier": "quarantine"
     },
     {

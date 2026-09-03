@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.runtimes.provider_invocation_registry as registry_module
+import daedalus.runtimes.provider.invocation_registry as registry_module
 
 
 SOURCE_PATH = Path(inspect.getsourcefile(registry_module) or "")

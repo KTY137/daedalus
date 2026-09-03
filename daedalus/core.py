@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from . import metrics
-from .claude_detect import detect_claude_crew
-from .projects import PROJECT_DIR, list_projects, load_project, resolve_repo_root
+from .foundation.claude_detect import detect_claude_crew
+from .foundation.projects import PROJECT_DIR, list_projects, load_project, resolve_repo_root
 from .providers import provider_health as _provider_health
 from .router import load_agents
 from .status import collect_status
@@ -908,7 +908,7 @@ def get_dashboard(project: str | None = None) -> dict[str, Any]:
 
 
 def get_categories(project: str | None = None) -> dict[str, Any]:
-    from . import categories as cats
+    from .orchestration import categories as cats
 
     pdata, load_warning = _safe_load_project(project)
     repo_root = pdata.get("repo_root") if pdata else None
@@ -965,7 +965,7 @@ def plan_ikarus(project: str, objective: str) -> dict[str, Any]:
 
 
 def enforce_harness(project: str) -> dict[str, Any]:
-    from .enforce import enforce_repo
+    from .interfaces.cli.enforce import enforce_repo
 
     repo_root = resolve_repo_root(None, project)
     result = enforce_repo(repo_root, project)
@@ -1241,7 +1241,7 @@ def _try_ikarus(
 
     try:
         from .build_exec import EffectBounds, WaveExecutor
-        from .ikarus_supervisor import MissionSupervisor
+        from .orchestration.ikarus_supervisor import MissionSupervisor
         from .orchestration import run_mission
 
         session = _one_task_session(payload, assignment)

@@ -67,7 +67,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from daedalus.env import load_env  # noqa: E402
+from daedalus.foundation.env import load_env  # noqa: E402
 from daedalus.lanes.fanout import FanoutTask, fan_out  # noqa: E402
 
 FUNNELS = Path("funnels")

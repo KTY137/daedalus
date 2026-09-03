@@ -8,15 +8,15 @@ from typing import Any
 
 import pytest
 
-from daedalus import web_api
+from daedalus.interfaces.http import web_api
 from daedalus.interfaces.http import sse
 from daedalus.spine.effect_boundary import registry_sha256
 
 
 ROOT = Path(__file__).resolve().parents[2]
-FACADE = ROOT / "daedalus" / "web_api.py"
+FACADE = ROOT / "daedalus" / "interfaces" / "http" / "web_api.py"
 OWNER = ROOT / "daedalus" / "interfaces" / "http" / "sse.py"
-REGISTRY_SHA256 = "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+REGISTRY_SHA256 = "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
 
 
 class _Wire:

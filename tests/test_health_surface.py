@@ -480,7 +480,7 @@ class ProbesReportBadNews(unittest.TestCase):
 
     def test_a_wired_module_is_not_an_island(self):
         with mock.patch.object(health, "CAPABILITY_MODULES",
-                               ("daedalus.semantic_route",)):
+                               ("daedalus.orchestration.semantic_route",)):
             rep = health._p_islands(Ctx())
         self.assertEqual(rep.state, WORKING)
 
@@ -511,7 +511,7 @@ class ProbesReportBadNews(unittest.TestCase):
 
     def test_a_router_that_raises_when_called_is_degraded(self):
         """'unwired AND broken if wired' -- the second half."""
-        import daedalus.semantic_route as sr
+        import daedalus.orchestration.semantic_route as sr
         with mock.patch.object(health, "production_importers",
                                return_value=["daedalus/provider_router.py"]), \
              mock.patch.object(sr, "semantic_route_explained",
@@ -522,7 +522,7 @@ class ProbesReportBadNews(unittest.TestCase):
 
     def test_a_keyword_fallback_is_degraded_not_working(self):
         """A route that silently fell back is not a latent route working."""
-        import daedalus.semantic_route as sr
+        import daedalus.orchestration.semantic_route as sr
 
         class _R:
             mechanism = sr.FALLBACK

@@ -8,8 +8,9 @@ DivergenceTest, which pins the cases where the two answers legitimately differ.
 """
 import unittest
 
-from daedalus import ikarus_act, ikarus_os
-from daedalus.ikarus_act import may_act
+from daedalus.orchestration import ikarus_os
+from daedalus.orchestration import ikarus_act
+from daedalus.orchestration.ikarus_act import may_act
 
 
 def _turn_with_offer(objective, reason="r", signal="s"):

@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> None:
     # operator-owned trust lists and provider secrets remain part of the same
     # process environment. Desktop connection settings intentionally override
     # only their managed OLLAMA_* transport/model values afterwards.
-    from daedalus.env import load_env
+    from daedalus.foundation.env import load_env
 
     load_env(runtime / ".env")
 
@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # One control plane only: extend the existing authenticated/loopback server
     # instead of starting a second settings/service server beside it.
-    from daedalus import web_api
+    from daedalus.interfaces.http import web_api
 
     install_web_integration(web_api, manager)
     manager.bootstrap()

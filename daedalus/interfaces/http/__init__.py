@@ -1,6 +1,6 @@
 """HTTP compatibility surface for the Daedalus web API.
 
-The registered effect targets intentionally remain in :mod:`daedalus.web_api`.
+The registered effect targets intentionally remain in :mod:`daedalus.interfaces.http.web_api`.
 This package exposes those exact objects lazily while implementation modules
 below it own route parsing, read projections, mutations, SSE delivery, and
 host-bind admission.
@@ -33,7 +33,7 @@ def __getattr__(name: str) -> Any:
 
     if name not in _COMPAT_EXPORTS:
         raise AttributeError(name)
-    legacy = import_module("daedalus.web_api")
+    legacy = import_module("daedalus.interfaces.http.web_api")
     return getattr(legacy, name)
 
 

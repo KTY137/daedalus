@@ -1351,7 +1351,7 @@ Diese Struktur ist ein Zielbild, keine Aufforderung zu einem Massenrename. Neue 
 | `daedalus.storage` | als CAS-Basis behalten und härten |
 | `daedalus.spine.attempt` | kanonischer Attempt-Pfad |
 | `daedalus.spine.effect_boundary` | zur echten Lease erweitern |
-| `daedalus.loop` | als Orchestration-Consumer migrieren |
+| `daedalus.orchestration.loop` | als Orchestration-Consumer migrieren |
 | `daedalus.kairos.evolution` | zunächst Legacy-Adapter, später durch `evolution/` ersetzen |
 | `daedalus.offload` | direkte Writes entfernen, auf Attempts routen |
 | `daedalus.kairos.gated_writes` | ausschließlich mit OwnerApproval |

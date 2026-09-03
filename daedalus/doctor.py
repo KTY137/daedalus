@@ -125,7 +125,7 @@ def _print_watcher_heartbeat() -> None:
         print("[--] bridge watcher heartbeat   none recorded (watcher not running, "
               "or started before heartbeats landed)")
         print(f"     -> if it should be running:  {hb['restart']}")
-        print("     (cross-check running processes:  python -m daedalus.cli "
+        print("     (cross-check running processes:  python -m daedalus.interfaces.cli.entry "
               "watcher status --project <project>)")
 
 

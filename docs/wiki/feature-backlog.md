@@ -79,7 +79,7 @@ over the union, and a separately evaluated algorithm.
   inside `__main__` blocks, published on `generate.last_filtered`.
 - **Semantics-preserving generator — partial.** The other half of the cold
   start: rename a local, reorder independent statements, reformat. Good patches
-  by construction, exactly as mutants are bad ones. `daedalus/preservation.py`
+  by construction, exactly as mutants are bad ones. `daedalus/foundation/preservation.py`
   (15.3k) exists on branch `experiment/deepseek-lab`, unmerged and under
   adversarial review. Without it a new project has no specificity arm.
 - **Intent plus delta, never delta alone.** A fix that deletes a check and a
@@ -136,7 +136,7 @@ The transition from declared to measured is observable rather than asserted.
   has the first.
 - **Temporary vs static agents** — resolved: agents hold no state, knowledge
   does. See [[Agents hold no state]].
-- **Shift / working window** — built: `daedalus/shift.py` + prompt hook +
+- **Shift / working window** — built: `daedalus/interfaces/cli/shift.py` + prompt hook +
   ticker. The same object an autonomous Ikarus loop reads to decide whether to
   continue.
 

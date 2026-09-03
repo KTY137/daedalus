@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.runtimes.provider_executable_targets as module
+import daedalus.runtimes.provider.executable_targets as module
 
 
 def _tree() -> ast.Module:

@@ -50,7 +50,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from daedalus import dotenv                                    # noqa: E402
+from daedalus.foundation import dotenv                                    # noqa: E402
 from daedalus.lanes.fanout import FanoutTask, fan_out           # noqa: E402
 from daedalus.sensitivity import Policy                         # noqa: E402
 import hashlib                                                  # noqa: E402

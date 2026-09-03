@@ -9,14 +9,14 @@ from typing import Iterable
 
 import pytest
 
-from daedalus import web_api
+from daedalus.interfaces.http import web_api
 from daedalus.interfaces import http
 from daedalus.interfaces.http.router import parse_request_target
 from daedalus.spine.effect_boundary import ENTRYPOINTS, registry_sha256
 
 
 ROOT = Path(__file__).resolve().parents[2]
-FACADE = ROOT / "daedalus" / "web_api.py"
+FACADE = ROOT / "daedalus" / "interfaces" / "http" / "web_api.py"
 HTTP_ROOT = ROOT / "daedalus" / "interfaces" / "http"
 IMPLEMENTATIONS = {
     "read": HTTP_ROOT / "read.py",
@@ -24,7 +24,7 @@ IMPLEMENTATIONS = {
     "sse": HTTP_ROOT / "sse.py",
     "router": HTTP_ROOT / "router.py",
 }
-REGISTRY_SHA256 = "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+REGISTRY_SHA256 = "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
 WIRE_LITERAL_CONTRACTS = {
     "read": (
         ("handle_get",),
@@ -138,13 +138,13 @@ def test_registered_http_targets_and_digest_are_unchanged() -> None:
     rows = {
         row.id: row
         for row in ENTRYPOINTS
-        if row.target.startswith("daedalus.web_api")
+        if row.target.startswith("daedalus.interfaces.http.web_api")
     }
     assert {key: row.target for key, row in rows.items()} == {
-        "web.server": "daedalus.web_api:run",
-        "web.mutations": "daedalus.web_api:DaedalusHandler.do_POST",
-        "cli.web_api": "daedalus.web_api:main",
-        "web.mutations_put": "daedalus.web_api:DaedalusHandler.do_PUT",
+        "web.server": "daedalus.interfaces.http.web_api:run",
+        "web.mutations": "daedalus.interfaces.http.web_api:DaedalusHandler.do_POST",
+        "cli.web_api": "daedalus.interfaces.http.web_api:main",
+        "web.mutations_put": "daedalus.interfaces.http.web_api:DaedalusHandler.do_PUT",
     }
 
 
@@ -218,10 +218,10 @@ def test_implementation_layers_do_not_mint_http_or_effect_authority() -> None:
         assert not definitions & banned_definitions, label
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
-                assert node.module != "daedalus.web_api", label
+                assert node.module != "daedalus.interfaces.http.web_api", label
             elif isinstance(node, ast.Import):
                 assert all(
-                    alias.name != "daedalus.web_api" for alias in node.names
+                    alias.name != "daedalus.interfaces.http.web_api" for alias in node.names
                 ), label
             elif isinstance(node, ast.Call):
                 name = (
@@ -284,7 +284,7 @@ def test_only_documented_runtime_string_import_points_back_to_facade() -> None:
         and node.args
         and isinstance(node.args[0], ast.Constant)
     ]
-    assert imports == ["daedalus.web_api"]
+    assert imports == ["daedalus.interfaces.http.web_api"]
 
 
 def test_router_preserves_raw_segment_boundaries_and_query_shape() -> None:

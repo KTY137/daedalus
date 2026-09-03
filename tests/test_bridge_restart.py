@@ -41,9 +41,9 @@ from pathlib import Path
 import pytest
 
 from daedalus import file_bridge as fb
-from daedalus import conversation as conversation_mod
+from daedalus.orchestration import conversation as conversation_mod
 from daedalus import memory as memory_mod
-from daedalus import web_api
+from daedalus.interfaces.http import web_api
 
 
 class _Bridge:
@@ -503,7 +503,7 @@ def test_leased_provider_completion_survives_crash_before_bridge_report(
             assert journal_after_crash["state"] == "in_flight"
             assert journal_after_crash["effect_identity"] == dispatches[0]
             assert projection_dirs == [fb._mission_projection_dir(req.stem)]
-            from daedalus.ikarus_supervisor import verify_state_ledger
+            from daedalus.orchestration.ikarus_supervisor import verify_state_ledger
 
             projected_after_crash = verify_state_ledger(
                 projection_dirs[0] / "ledger"
@@ -647,7 +647,8 @@ def test_configure_crash_retries_a_convergent_local_upsert_not_a_provider(
     the same normalized file content.  This is safe convergence, not a claim
     that every bridge strategy owns a canonical leased exactly-once effect.
     """
-    from daedalus import agents_registry, core
+    from daedalus import core
+    from daedalus.orchestration import agents_registry
 
     repo = tmp_path / "configure-project"
     repo.mkdir()

@@ -46,7 +46,7 @@ from typing import Any
 from . import health
 from .file_bridge import INBOX, OUTBOX
 from .memory import TODO_PATH, load_events
-from .projects import resolve_repo_root
+from .foundation.projects import resolve_repo_root
 
 
 ROOT = Path(__file__).resolve().parents[1]

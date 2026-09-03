@@ -31,7 +31,7 @@ EXPECTED_JOB_DIGEST = (
     "7d84b2853fddaeee9fed16ec0f7ce5e3befe6da625a847102255eb8cba9cef48"
 )
 EXPECTED_REGISTRY_DIGEST = (
-    "ac0202783602124e761d762dacc84f1c567513eeb12d7f3f48fa70f1396211ec"
+    "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
 )
 REMAINING_UNMIGRATED = {
     "run_attempt_durability_admission_mutations.py": (

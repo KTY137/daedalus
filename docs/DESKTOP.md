@@ -10,7 +10,7 @@ contracts, effect boundary and canonical spine.
 ```text
 Tauri process
   ├─ owns one frozen Python child
-  │    └─ daedalus.web_api on 127.0.0.1:8765
+  │    └─ daedalus.interfaces.http.web_api on 127.0.0.1:8765
   │         ├─ existing /api/* Trust/Orchestration path
   │         └─ existing apps/web/dist cockpit
   └─ WebView -> http://127.0.0.1:8765

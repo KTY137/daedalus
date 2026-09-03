@@ -6,13 +6,13 @@ Nothing in this file is a second source of truth. Every function here either
 :class:`~daedalus.progress.ProgressEvent` records, or (b) performs a
 READ-ONLY poll of a store this repo already keeps durably. This module never
 edits, wraps the internals of, or monkeypatches the modules it reads --
-:mod:`daedalus.ikarus_os`, :mod:`daedalus.offload`, :mod:`daedalus.spine.attempt`
+:mod:`daedalus.orchestration.ikarus_os`, :mod:`daedalus.offload`, :mod:`daedalus.spine.attempt`
 and :mod:`daedalus.spine.ledger` are all owned elsewhere and are used here
 exactly as their own public functions already behave.
 
 SIGNALS USED, AND WHY EACH IS TRUSTED
 --------------------------------------------------------------------------
-* ``daedalus.ikarus_os.ask_stream`` / ``_claude_stream``: every non-empty
+* ``daedalus.orchestration.ikarus_os.ask_stream`` / ``_claude_stream``: every non-empty
   "delta" is a byte physically read from a live child process's stdout (see
   ``_claude_stream``'s ``for line in proc.stdout:`` loop) -- it cannot be
   produced by a hung or dead process. Trusted for GENERATING.
@@ -46,7 +46,7 @@ SIGNALS REFUSED, ON PURPOSE
   SELF-REPORTS about what it did. This is the exact fake-offload failure
   named in this project's own history (a model narrated an edit it never
   made, and a harness read the narration as a finished report) -- see
-  ``daedalus/verifier.py``'s comment on that same field. No function in this
+  ``daedalus/orchestration/verifier.py``'s comment on that same field. No function in this
   file reads it, and :func:`daedalus.progress.record_disk_change` refuses a
   ``basis`` that is not a mechanical diff even if a caller tried to smuggle
   one through.
@@ -85,12 +85,12 @@ __all__ = [
 
 
 # --------------------------------------------------------------------------- #
-# 1 -- the chat stream: daedalus.ikarus_os.ask_stream / _claude_stream         #
+# 1 -- the chat stream: daedalus.orchestration.ikarus_os.ask_stream / _claude_stream         #
 # --------------------------------------------------------------------------- #
 def watch_stream(unit_id: str, event_payload_iter: Iterable[tuple[str, Any]], *,
                  source: str = "ikarus_os.ask_stream",
                  log: "P.ProgressLog | None" = None) -> Iterator[tuple[str, Any]]:
-    """Wrap the ``(event, payload)`` iterator :func:`daedalus.ikarus_os.ask_stream`
+    """Wrap the ``(event, payload)`` iterator :func:`daedalus.orchestration.ikarus_os.ask_stream`
     yields. A transparent tee: every item is yielded UNCHANGED, in the same
     order, with recording as a side effect only -- a caller drops this around
     an existing ``for event, payload in ask_stream(...):`` loop with no other
@@ -115,7 +115,7 @@ def watch_stream(unit_id: str, event_payload_iter: Iterable[tuple[str, Any]], *,
                              that may ride inside the envelope's ``action``
                              field is a PROPOSAL gated on a confirmation that
                              has not happened yet (see
-                             ``daedalus.ikarus_os._enqueue``) -- a caller that
+                             ``daedalus.orchestration.ikarus_os._enqueue``) -- a caller that
                              later confirms it should open a SEPARATE unit
                              for that effect and record its own
                              DISK_CHANGED/NO_CHANGE there.

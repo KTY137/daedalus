@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULE = ROOT / "daedalus" / "runtimes" / "provider_target_receipt_retention_preflight.py"
+MODULE = ROOT / "daedalus" / "runtimes" / "provider" / "target_receipt_retention_preflight.py"
 
 
 def _tree() -> ast.Module:
@@ -47,7 +47,7 @@ def test_preflight_has_no_writer_process_network_or_provider_authority() -> None
         "urllib",
         "requests",
         "httpx",
-        "daedalus.runtimes.provider_target_receipt_ledger",
+        "daedalus.runtimes.provider.target_receipt_ledger",
         "daedalus.kernel.effect_lease_ledger",
     }
     assert imported_modules.isdisjoint(forbidden_imports)

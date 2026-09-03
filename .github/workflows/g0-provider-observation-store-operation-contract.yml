@@ -88,7 +88,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-store-contract-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_observation_store_contract import (
+          from daedalus.runtimes.provider.observation_store_contract import (
               ProviderObservationStoreOperationAuthority,
               ProviderObservationStoreOperationSubject,
               authorize_provider_observation_store_operation,

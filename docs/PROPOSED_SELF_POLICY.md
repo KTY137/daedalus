@@ -15,7 +15,7 @@
 > this policy — a candidate could have rewritten the policy loader.
 >
 > ```text
-> WRITABLE  daedalus/core.py      WRITABLE  daedalus/cli.py
+> WRITABLE  daedalus/core.py      WRITABLE  daedalus/interfaces/cli/entry.py
 > WRITABLE  daedalus/offload.py   WRITABLE  daedalus/health.py
 > WRITABLE  daedalus/router.py    WRITABLE  daedalus/config.py  <-- loads this file
 > WRITABLE  daedalus/providers/ollama.py    WRITABLE  pyproject.toml
@@ -89,7 +89,7 @@ and a candidate patch is inert bytes a human applies. The decision is narrower:
     // accident.
     "high_risk_paths": [
       "daedalus/sensitivity.py",     // the egress fence and the secret floor
-      "daedalus/enforce.py",
+      "daedalus/interfaces/cli/enforce.py",
       "daedalus/budget.py",          // the spend ceiling
       "daedalus/spine/",             // attempt, containment, killswitch, ledger
       "daedalus/kairos/worktree.py", // the guarded deletes
@@ -125,7 +125,7 @@ worktree whose gate runs under kernel-enforced containment.
 ```
 mkdir .agentenv
 # write the JSON block above to .agentenv/agentenv.json, with repo_root fixed
-python -m daedalus.cli doctor          # confirm the policy resolves
+python -m daedalus.interfaces.cli.entry doctor          # confirm the policy resolves
 ```
 
 To undo: delete the file. There is no other state.

@@ -142,7 +142,7 @@ export function getControlPlane(project: string) {
   return request<ControlPlanePayload>(`/api/projects/${encodeURIComponent(project)}/control-plane`);
 }
 
-/** Per-provider BYOK readiness, from `daedalus/env.py` `env_status()`.
+/** Per-provider BYOK readiness, from `daedalus/foundation/env.py` `env_status()`.
  * `configured` is the invariant that matters — `ollama` needs no key so it is
  * always `true`; `deepseek`/`anthropic_api`/`openai_api` reflect whether their
  * env key is actually set (never the key's value). */

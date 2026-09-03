@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import editor_context, projects
+from daedalus.foundation import projects
+from daedalus.orchestration import editor_context
 
 
 def _git(root: Path, *args: str) -> str:

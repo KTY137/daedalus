@@ -13,7 +13,7 @@ neither a new feature path nor a new state store.
 
 ## What was built
 
-`daedalus.runbook.create_run` composes one pruned run brief in four steps:
+`daedalus.orchestration.runbook.create_run` composes one pruned run brief in four steps:
 route the objective to a single agent, build the `AgentTask`, open a
 `RunState`, record the `task_created` event. `daedalus/orchestration/langgraph_adapter.py`
 expresses those same four steps as a three-node LangGraph graph over the *same*
@@ -139,6 +139,6 @@ after the failing node raised — is not understood and no claim is built on it.
 ```powershell
 pip install -e ".[orchestration]"
 python -m pytest tests/test_langgraph_adapter.py -q
-python -m daedalus.runbook "add a docstring" --paths daedalus/router.py --engine langgraph
-python -m daedalus.runbook "add a docstring" --paths daedalus/router.py   # stdlib, same brief
+python -m daedalus.orchestration.runbook "add a docstring" --paths daedalus/router.py --engine langgraph
+python -m daedalus.orchestration.runbook "add a docstring" --paths daedalus/router.py   # stdlib, same brief
 ```

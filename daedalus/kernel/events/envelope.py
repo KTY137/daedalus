@@ -111,7 +111,7 @@ CONVERTED
 module                                     format           local id        how the trace is carried
 =========================================  ===============  ==============  ===================================
 daedalus/kernel/events/ledger.py           SQLite           intent_id       ``intents.trace_id`` column (v2)
-daedalus/loop.py                           JSON doc         run_id          ``trace_id`` + per-attempt copy
+daedalus/orchestration/loop.py                           JSON doc         run_id          ``trace_id`` + per-attempt copy
 daedalus/file_bridge.py                    composition root request key     owns runs/ paths + atomic writer;
                                                                             serialises nothing itself now
 daedalus/interfaces/bridge/queue.py        JSON per file    request key     ``trace_id`` stamped into request
@@ -144,7 +144,7 @@ daedalus/build.py                      JSON/run    slug + created      LOW. ``Bu
 daedalus/progress.py                   JSONL       unit_id + batch_id  LOW. Six thin ``record_*`` helpers over
                                                                        one ``append``; stamp the append and all
                                                                        six inherit it. Best cost/benefit left.
-daedalus/runbook.py                    JSON/run    run_id              LOW. ``runs/<run_id>.json``. Its
+daedalus/orchestration/runbook.py                    JSON/run    run_id              LOW. ``runs/<run_id>.json``. Its
                                                                        ``run_id`` is literally one of the six
                                                                        colliding schemes this module exists to
                                                                        reconcile.
@@ -624,7 +624,7 @@ def gen_ai_attributes(meta: Mapping[str, Any] | None = None,
 CONVERTED_PRODUCERS = {
     "daedalus/spine/ledger.py":
         "intents.trace_id column (schema v2) + Intent.to_statement()",
-    "daedalus/loop.py":
+    "daedalus/orchestration/loop.py":
         "LoopLedger.trace_id + per-attempt trace_ids, schema daedalus.loop.ledger/2",
     "daedalus/file_bridge.py":
         "trace_id in the outbox request, propagated into the inbox report. "
@@ -673,13 +673,13 @@ UNCONVERTED_PRODUCERS = {
     #    distinction matters: these are corpus-level reports about the tree,
     #    reproducible from the tree alone, and NOT records of something that
     #    happened during a run. A trace id would correlate them to nothing. ---#
-    "daedalus/shift.py":
+    "daedalus/interfaces/cli/shift.py":
         "OPERATOR STATE, NOT A RUN RECORD. runs/shift.json, one declared working "
         "window with checkpoints. It is the operator's intent for a session, not "
         "a record of an effect, so there is no run for a trace id to name. Written "
         "atomically and appended under a lock because a ticker, a prompt hook and "
         "the agent all touch it concurrently.",
-    "daedalus/arch_memory.py":
+    "daedalus/interfaces/cli/arch_memory.py":
         "DERIVED SUMMARY, NOT A RUN RECORD. runs/arch_memory.json plus a "
         "runs/arch_memory.shown cursor. Regenerated from the tree on commit; "
         "reproducible from a revision with no run involved, so the honest "
@@ -742,7 +742,7 @@ UNCONVERTED_PRODUCERS = {
     # hypothetical -- it happened while this row was being written, and the
     # drift detector caught it, which is the row's own thesis demonstrated on
     # the row itself. Describe the shapes; do not quote them.
-    "daedalus/ikarus_os.py":
+    "daedalus/orchestration/ikarus_os.py":
         "NOT A RUN RECORD, AND NOT A PRODUCER AT ALL -- a SCAN FALSE POSITIVE, "
         "declared so the next reader does not repeat the diagnosis. MEASURED "
         "2026-09-02 at eb5228ac: the three co-located predicates hit in three "
@@ -778,7 +778,7 @@ UNCONVERTED_PRODUCERS = {
         "RUN RECORD. JSONL, unit_id+batch_id. LOW: six record_* helpers over "
         "one append(); stamp the append and all six inherit it. Best "
         "cost/benefit left.",
-    "daedalus/runbook.py":
+    "daedalus/orchestration/runbook.py":
         "RUN RECORD. runs/<run_id>.json. LOW. Its run_id is literally one of "
         "the six colliding id schemes this module exists to reconcile.",
     "daedalus/memory/__init__.py":
@@ -810,7 +810,7 @@ UNCONVERTED_PRODUCERS = {
     "daedalus/providers/codex_cli.py":
         "NOT A RUN RECORD: runs/last_codex_report.json, same latest-only "
         "mirror as claude_bridge.",
-    "daedalus/token_monitor.py":
+    "daedalus/interfaces/cli/token_monitor.py":
         "NOT A RUN RECORD: memory/token_status.local.json is current "
         "checkpoint state, overwritten in place.",
     "daedalus/config.py":
@@ -834,7 +834,7 @@ UNCONVERTED_PRODUCERS = {
         "NOT A RUN RECORD: a running spend total per PERIOD, deliberately not "
         "per-run -- correlating it to a trace would misrepresent what it is. "
         "daedalus/budget.py is now only its compatibility/effect facade.",
-    "daedalus/conversation.py":
+    "daedalus/orchestration/conversation.py":
         "NOT A RUN RECORD: it produces no records of its own any more. Every "
         "turn, dispatch and report is a typed intent on spine/ledger.py, which "
         "is already converted and stamps trace_id at record time -- so this "

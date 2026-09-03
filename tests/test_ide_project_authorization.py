@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import atomic, projects
+from daedalus import atomic
+from daedalus.foundation import projects
 
 
 @pytest.fixture

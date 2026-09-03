@@ -10,14 +10,14 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.runtimes.provider_observation_store as store_module
+import daedalus.runtimes.provider.observation_store as store_module
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthorityBindingError,
     ProviderObservationAuthorityStateError,
     issue_provider_observation_authority,
 )
-from daedalus.runtimes.provider_observation_store import (
+from daedalus.runtimes.provider.observation_store import (
     SCHEMA_SHA256,
     PreprovisionedProviderObservationBindingLedger,
     ProviderObservationStoreError,

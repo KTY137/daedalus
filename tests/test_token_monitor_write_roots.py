@@ -1,10 +1,10 @@
-"""What `python -m daedalus.token_monitor` starts with, and what it writes.
+"""What `python -m daedalus.interfaces.cli.token_monitor` starts with, and what it writes.
 
 Two claims, one instrument.
 
 1. THE TAIL STARTS AT THE BOUNDARY. The module has a second door: the
    ``if __name__ == "__main__"`` tail is reachable without passing
-   ``daedalus.cli:main``'s dispatch, so adding the ``daedalus tokens``
+   ``daedalus.interfaces.cli.entry:main``'s dispatch, so adding the ``daedalus tokens``
    subcommand did not close it -- it added a door beside it. The boundary
    therefore lives at the top of ``main()``, where both doors pass it, and this
    proves it from the tail's side. Same argument and same shape as
@@ -70,7 +70,7 @@ os.environ["DAEDALUS_SPINE_DB"] = str(TMP / "spine" / "spine.sqlite3")
 
 import daedalus.budget as budget
 import daedalus.memory as memory
-import daedalus.token_monitor as tm
+import daedalus.interfaces.cli.token_monitor as tm
 import daedalus.spine.effect_boundary as boundary
 from daedalus.spine.ledger import SpineLedger
 
@@ -187,7 +187,7 @@ def traced_run(tmp_path_factory):
 def test_the_module_tail_starts_at_the_canonical_boundary(traced_run):
     kinds = [kind for kind, _ in traced_run["events"]]
     assert "boundary" in kinds, (
-        "`python -m daedalus.token_monitor` reached its work without a "
+        "`python -m daedalus.interfaces.cli.token_monitor` reached its work without a "
         "canonical effect start; the module tail is a second console door and "
         "the registry row claims it is guarded"
     )
@@ -291,7 +291,7 @@ def test_the_spend_numbers_cannot_reach_the_checkpoint_decision():
     reviewer will see, rather than one more argument threaded quietly through.
     """
     module = ast.parse(
-        (ROOT / "daedalus" / "token_monitor.py").read_text(encoding="utf-8")
+        (ROOT / "daedalus" / "interfaces" / "cli" / "token_monitor.py").read_text(encoding="utf-8")
     )
     functions = {
         node.name: node

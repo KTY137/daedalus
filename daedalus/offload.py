@@ -29,7 +29,7 @@ from . import metrics
 from .kairos.scheduler import FREE_LANES
 from .limit_policy import ExecutionLimitPolicy
 from .provider_router import route_and_select
-from .verifier import (DEFAULT_TEST_TIMEOUT_S, VerifyResult,
+from .orchestration.verifier import (DEFAULT_TEST_TIMEOUT_S, VerifyResult,
                        prose_before_images, verify)
 
 _ALL = {"claude_cli": True, "ollama": True, "deepseek": True, "codex_cli": True}

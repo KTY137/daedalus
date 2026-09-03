@@ -10,7 +10,7 @@ import json
 import unittest
 from unittest import mock
 
-from daedalus import ikarus_os
+from daedalus.orchestration import ikarus_os
 from daedalus.providers import ollama as ollama_mod
 from daedalus.providers._openai_compat import ProviderHTTPError, chat_stream
 
@@ -203,14 +203,14 @@ class ClaudeStreamFrameTest(unittest.TestCase):
                 "delta": {"type": "text_delta", "text": " there"}}}) + "\n",
             json.dumps({"type": "result", "result": "Hi there"}) + "\n",
         ]
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.Popen", return_value=self._fake_proc(lines)):
             out = list(ikarus_os._claude_stream("hello"))
         self.assertEqual(out, ["Hi", " there"])
 
     def test_uses_stream_json_flags(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.Popen", return_value=self._fake_proc([])) as pop:
             list(ikarus_os._claude_stream("hello"))
@@ -221,7 +221,7 @@ class ClaudeStreamFrameTest(unittest.TestCase):
         self.assertIn("--verbose", args)  # required with stream-json in -p mode
 
     def test_missing_cli_yields_nothing(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value=None), \
              mock.patch.object(ikarus_os, "_provider_start") as provider_start, \
              mock.patch("subprocess.Popen") as popen:
@@ -230,7 +230,7 @@ class ClaudeStreamFrameTest(unittest.TestCase):
         popen.assert_not_called()
 
     def test_spawn_failure_yields_nothing(self):
-        with mock.patch("daedalus.runtime_registry.resolve_runtime_command",
+        with mock.patch("daedalus.orchestration.runtime_registry.resolve_runtime_command",
                         return_value="claude"), \
              mock.patch("subprocess.Popen", side_effect=OSError("no exec")):
             self.assertEqual(list(ikarus_os._claude_stream("hello")), [])
@@ -251,14 +251,14 @@ class NonStreamingUnchangedTest(unittest.TestCase):
     def test_blocking_ollama_path_also_pins_residency(self):
         """The pin is a side effect only: same reply, but the next turn stays warm."""
         with mock.patch("daedalus.providers.ollama.warm_model_async") as warm, \
-             mock.patch("daedalus.ikarus_os.chat_completion", return_value="  hi  "):
+             mock.patch("daedalus.orchestration.ikarus_os.chat_completion", return_value="  hi  "):
             out = ikarus_os._ollama("hello", "m7", "low")
         self.assertEqual(out, "hi")  # unchanged: still stripped text
         warm.assert_called_once()
 
     def test_blocking_ollama_still_returns_none_on_failure(self):
         with mock.patch("daedalus.providers.ollama.warm_model_async"), \
-             mock.patch("daedalus.ikarus_os.chat_completion",
+             mock.patch("daedalus.orchestration.ikarus_os.chat_completion",
                         side_effect=RuntimeError("dead")):
             self.assertIsNone(ikarus_os._ollama("hello", "m7", "low"))
 

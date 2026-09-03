@@ -6,7 +6,7 @@ on:
       - g0/runtime-post-provider-unknown-linear
     paths:
       - "daedalus/runtimes/broker.py"
-      - "daedalus/runtimes/provider_observation.py"
+      - "daedalus/runtimes/provider/observation.py"
       - "daedalus/runtimes/recovery.py"
       - "tests/runtimes/test_provider_observation_authority*.py"
       - "tests/runtimes/test_runtime_provider_post_invoke_unknown.py"
@@ -110,7 +110,7 @@ jobs:
         run: |
           /tmp/daedalus-provider-observation-wheel/bin/python - <<'PY'
           from daedalus.runtimes.broker import run_runtime_provider
-          from daedalus.runtimes.provider_observation import (
+          from daedalus.runtimes.provider.observation import (
               ProviderObservationAuthority,
               ProviderObservationBindingLedger,
               issue_provider_observation_authority,

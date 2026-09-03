@@ -35,7 +35,7 @@ from pathlib import Path
 import pytest
 
 from daedalus import file_bridge
-from daedalus.loop import LoopBounds, LoopLedger, LoopReport, render
+from daedalus.orchestration.loop import LoopBounds, LoopLedger, LoopReport, render
 from daedalus.spine import envelope
 from daedalus.spine.ledger import SpineLedger
 
@@ -422,7 +422,7 @@ def test_the_loop_cli_prints_a_greppable_trace_id():
     Runs the real CLI in a real subprocess; --dry-run attempts nothing and
     spends nothing."""
     proc = subprocess.run(
-        [sys.executable, "-m", "daedalus.loop", "--dry-run",
+        [sys.executable, "-m", "daedalus.orchestration.loop", "--dry-run",
          "--max-iterations", "1", "--json"],
         capture_output=True, text=True, cwd=str(ROOT), timeout=300)
     assert proc.returncode in (0, 3), proc.stderr[-2000:]

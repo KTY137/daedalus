@@ -41,7 +41,7 @@ merge, or automatic evaluation-to-policy feedback.
 
 `daedalus/eval/_text_integrity.py` is the sole owner of generated-text assertion
 guards. Its historical `safe_ascii_field` name delegates to the neutral
-presentation boundary in `daedalus/text_integrity.py`, so Loop and Eval do not
+presentation boundary in `daedalus/foundation/text_integrity.py`, so Loop and Eval do not
 mint competing terminal policies. `daedalus/eval/tier2.py` imports the guards
 directly and remains the sole owner of live-model execution, validation,
 receipts, and Tier-2 rendering. Historical `harness` and `report` names are

@@ -4,7 +4,7 @@
   "packet_id": "G1-MUT-02A",
   "jobs": [
     {
-      "module": "daedalus/runtimes/provider_invocation_identity.py",
+      "module": "daedalus/runtimes/provider/invocation_identity.py",
       "tests": [
         "tests/runtimes/test_provider_invocation_identity.py",
         "tests/runtimes/test_provider_invocation_identity_review.py"

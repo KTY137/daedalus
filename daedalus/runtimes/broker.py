@@ -49,25 +49,25 @@ from daedalus.kernel.effects import (
     LeasedEffectStartReceipt,
 )
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectRegistry,
     ProviderExecutableObjectRegistryError,
     ProviderSealedOutputEvidenceError,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_invocation_abi import ProviderInvocationABIContract
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_abi import ProviderInvocationABIContract
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
 )
-from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthority,
     ProviderObservationAuthorityError,
     ProviderObservationBindingLedger,
 )
-from daedalus.runtimes.provider_runtime_invocation_binding import (
+from daedalus.runtimes.provider.runtime_invocation_binding import (
     ProviderRuntimeInvocationBindingError,
     bind_provider_runtime_invocation,
 )

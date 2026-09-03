@@ -35,7 +35,7 @@ def _target_repo(tmp_path: Path) -> Path:
 def test_enforce_refuses_fail_closed_without_the_contract(
     tmp_path, monkeypatch, contracts_disabled
 ):
-    from daedalus.enforce import main
+    from daedalus.interfaces.cli.enforce import main
 
     root = _target_repo(tmp_path)
     monkeypatch.setattr("sys.argv", ["enforce", "--repo-root", str(root)])
@@ -47,7 +47,7 @@ def test_enforce_refuses_fail_closed_without_the_contract(
 
 
 def test_enforce_runs_on_the_valid_chain(tmp_path, monkeypatch, capsys):
-    from daedalus.enforce import main
+    from daedalus.interfaces.cli.enforce import main
 
     root = _target_repo(tmp_path)
     monkeypatch.setattr("sys.argv", ["enforce", "--repo-root", str(root)])
@@ -73,7 +73,7 @@ def test_gui_lint_refuses_fail_closed_without_the_contract(
 def test_runbook_refuses_fail_closed_without_the_contract(
     tmp_path, monkeypatch, contracts_disabled
 ):
-    from daedalus import runbook
+    from daedalus.orchestration import runbook
 
     monkeypatch.setattr(runbook, "RUN_DIR", tmp_path / "runs")
     monkeypatch.setattr(
@@ -87,7 +87,7 @@ def test_runbook_refuses_fail_closed_without_the_contract(
 def test_selftest_refuses_fail_closed_before_any_live_round_trip(
     monkeypatch, contracts_disabled
 ):
-    from daedalus import selftest
+    from daedalus.interfaces.cli import selftest
 
     def _exploded(*_a, **_kw):  # pragma: no cover - must never run
         raise AssertionError("run() must not start after a refused boundary")
@@ -111,14 +111,14 @@ def test_ignition_refuses_before_any_run(tmp_path, monkeypatch, contracts_disabl
 
 
 def test_shift_status_stays_fail_open_read_only(contracts_disabled, capsys):
-    from daedalus.shift import main
+    from daedalus.interfaces.cli.shift import main
 
     assert main(["status"]) == 0
     assert capsys.readouterr().out.strip(), "status inspection must keep working"
 
 
 def test_shift_state_writes_refuse_fail_closed(contracts_disabled):
-    from daedalus.shift import main
+    from daedalus.interfaces.cli.shift import main
 
     with pytest.raises(EffectStartRefused):
         main(["note", "probe"])
@@ -155,7 +155,7 @@ def test_structcore_slice_write_refuses_fail_closed(
 def test_token_monitor_refuses_fail_closed_without_the_contract(
     tmp_path, monkeypatch, contracts_disabled
 ):
-    from daedalus.token_monitor import main
+    from daedalus.interfaces.cli.token_monitor import main
 
     root = _target_repo(tmp_path)
     monkeypatch.setattr(
@@ -168,7 +168,7 @@ def test_token_monitor_refuses_fail_closed_without_the_contract(
 def test_arch_memory_show_stays_fail_open_but_build_refuses(
     tmp_path, monkeypatch, contracts_disabled, capsys
 ):
-    from daedalus.arch_memory import main
+    from daedalus.interfaces.cli.arch_memory import main
 
     root = _target_repo(tmp_path)
     assert main([str(root), "--show"]) == 0
@@ -177,7 +177,7 @@ def test_arch_memory_show_stays_fail_open_but_build_refuses(
 
 
 def test_bookkeeper_update_refuses_fail_closed(contracts_disabled):
-    from daedalus.bookkeeper import main
+    from daedalus.interfaces.cli.bookkeeper import main
 
     with pytest.raises(EffectStartRefused):
         main(["update"])
@@ -607,7 +607,7 @@ def test_runs_council_dead_letter_replay_refuses_but_list_stays_fail_open(
 def test_web_api_main_refuses_fail_closed_before_binding(
     monkeypatch, contracts_disabled
 ):
-    from daedalus import web_api
+    from daedalus.interfaces.http import web_api
 
     def _exploded(*_a, **_kw):  # pragma: no cover - must never run
         raise AssertionError("run() must not bind after a refused boundary")
@@ -639,7 +639,7 @@ def test_worktree_reap_refuses_fail_closed(tmp_path, contracts_disabled):
 def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypatch):
     """The family decision is the executed contract, not an assertion."""
     import daedalus.budget as budget
-    from daedalus.enforce import main
+    from daedalus.interfaces.cli.enforce import main
 
     root = _target_repo(tmp_path)
     monkeypatch.setattr("sys.argv", ["enforce", "--repo-root", str(root)])
