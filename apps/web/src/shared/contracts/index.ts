@@ -259,6 +259,25 @@ export interface RuntimeRow {
   command_path: string;
   version: string;
   endpoint?: string;
+  /*
+   * CAPABILITY AND TRUST, sent since this endpoint shipped and undeclared
+   * until 2026-09-03 -- so unreachable through the typed path, and the
+   * reachability list showed none of it. Same failure shape as `asked` on
+   * the health payload.
+   *
+   * `trusted_with_ip` is "approved to receive proprietary/sensitive source"
+   * (daedalus/runtimes/providers/contracts.py) and is ENFORCED at the egress
+   * gate, not advisory. Optional here because a row that omits it has not
+   * been approved, and `undefined` must not read as `true`.
+   */
+  local?: boolean;
+  trusted_with_ip?: boolean;
+  can_write?: boolean;
+  agentic?: boolean;
+  /** the executable this runtime shells out to, when it is a CLI */
+  command?: string;
+  /** the environment variable holding its key, when it is an API */
+  env_key?: string;
   models: string[];
   selected_model: string;
   model_present: boolean;

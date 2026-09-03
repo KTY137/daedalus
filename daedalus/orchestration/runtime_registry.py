@@ -63,7 +63,19 @@ RUNTIMES: tuple[RuntimeSpec, ...] = (
         label="Codex CLI",
         mode="cli",
         command="codex",
-        trusted_with_ip=True,
+        # FALSE, matching the provider that actually enforces it.
+        # `daedalus/providers/codex_cli.py` declares
+        # ``trusted_with_ip=False,   # NEVER receives denylisted/sensitive
+        # content`` and is egress-gated on that basis, and
+        # `orchestration/ikarus_os.py` builds Codex's brain context with
+        # ``lane="untrusted"`` for the same reason.
+        #
+        # This row said True. Nothing in the kernel read it -- the only
+        # consumer is /api/runtimes/status -- so the disagreement was
+        # invisible while the endpoint published the PERMISSIVE value of the
+        # two. `tests/runtimes/test_trust_flags_agree.py` now makes the two
+        # registries agree by construction.
+        trusted_with_ip=False,
         can_write=True,
         agentic=True,
         notes="Codex participates through AGENTS.md and the Daedalus file bus when CLI auth is available.",

@@ -5,6 +5,7 @@ import type { RuntimeRow } from '@/shared/contracts';
 import { drawerVariants, useReducedMotionPref } from '@/shared/ui/motion';
 import { SystemCapabilities } from '@/features/system/SystemCapabilities';
 import { ComputeSection } from '@/features/system/ComputeSection';
+import { trustNotes } from './runtimetrust';
 import {
   AUTONOMY_LEVELS,
   readAutonomyLog,
@@ -1189,6 +1190,22 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                     <button type="button" onClick={() => void runTest(r.id)} disabled={testing === r.id}>
                       {testing === r.id ? '…' : 'Testen'}
                     </button>
+                  </div>
+                  {/* WHERE YOUR SOURCE GOES IF YOU PICK THIS ONE.
+                      Six capability and trust flags have been sent by this
+                      endpoint since it shipped and were undeclared in the
+                      contract until 2026-09-03, so nothing could read them.
+                      `trusted_with_ip` is enforced at the egress gate, not
+                      advisory: a picker that offers runtimes without saying
+                      which the gate treats as untrusted asks the operator to
+                      choose where their code goes while withholding the one
+                      fact that makes the choice meaningful. */}
+                  <div className="reach-trust">
+                    {trustNotes(r).map((note) => (
+                      <span key={note.text} className={`trust-chip ${note.tone}`} title={note.why}>
+                        {note.text}
+                      </span>
+                    ))}
                   </div>
                   {(r.last_error || testResult[r.id] || r.selected_model) && (
                     <div className="reach-detail">

@@ -80,3 +80,19 @@
   .system-providers li { grid-template-columns: 1fr; }
   .system-providers small { grid-column: 1; }
 }
+
+/* WHERE YOUR SOURCE GOES. `trusted_with_ip` is enforced at the egress gate,
+   so a runtime the gate treats as untrusted is drawn as the finding it is —
+   not as neutral metadata beside a green reachability dot. */
+.reach-trust { display: flex; flex-wrap: wrap; gap: var(--u1); margin-top: 4px; }
+.trust-chip {
+  padding: 2px var(--u1);
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  color: var(--ink3);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.trust-chip.warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line2)); color: var(--warn); }
+.trust-chip.bad { border-color: color-mix(in srgb, var(--bad) 55%, var(--line2)); color: var(--bad); }
