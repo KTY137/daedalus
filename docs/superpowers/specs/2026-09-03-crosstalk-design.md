@@ -74,9 +74,12 @@ die Mechanik, der CLI trägt die Sprache.
 
 Antworten, die der Owner im Browser schreibt, erreichen eine *laufende* Session
 sonst erst bei ihrem nächsten Start. Der bestehende Turn-Handler liest deshalb
-mit — aber gecacht: Re-Fetch höchstens alle `CROSSTALK_POLL_TTL_S` (Default 300)
-aus `runs/crosstalk/cache.json`, sonst aus dem Cache. Ein GitHub-Call statt
-einem pro Turn. Kein neuer Hook, kein zusätzlicher Eintrag in `settings.json`.
+mit — aber gecacht: Re-Fetch höchstens alle `POLL_TTL_S` (Default 300), sonst
+aus dem Cache. Ein GitHub-Call statt einem pro Turn. Kein neuer Hook, kein
+zusätzlicher Eintrag in `settings.json`.
+
+Der Cache liegt im vorhandenen Session-State (`runs/hooks/state-<sid>.json`),
+**nicht** in einer eigenen Datei — siehe Nachtrag am Ende.
 
 ## Threads
 
@@ -84,8 +87,10 @@ einem pro Turn. Kein neuer Hook, kein zusätzlicher Eintrag in `settings.json`.
 - Pro Branch: Titel = Branchname, z. B. `packet/g1-map-01`, on-demand angelegt.
 - Kategorie: eine Discussion-Kategorie des Repos, konfiguriert über
   `DAEDALUS_CROSSTALK_CATEGORY` (Default `General`).
-- Zuordnung Branch → Discussion-ID wird in `runs/crosstalk/threads.json`
-  gecacht, damit nicht jeder Sessionstart eine Suchanfrage kostet.
+- Zuordnung Branch → Discussion-ID: eine einzige Repo-Abfrage pro Prozess
+  liefert Repository-ID, Sichtbarkeit, Kategorien und die letzten 50
+  Discussions auf einmal; ein Hook ist ein Prozess. Ein Cache auf Platte wäre
+  Zustand ohne Nutzen — siehe Nachtrag am Ende.
 
 Ein detached HEAD bekommt keinen eigenen Thread; er postet nur in
 `crew-channel`, mit dem short sha statt eines Branchnamens.
@@ -157,8 +162,8 @@ soll.
 **Public-Repo-Sperre.** Ist das Repo öffentlich, verweigert der Poster, außer
 `DAEDALUS_CROSSTALK_PUBLIC=1`. Die Sichtbarkeit von `KTY137/daedalus` ist zum
 Zeitpunkt dieser Spec **nicht gemessen** (kein `gh`-Login) — die Sperre steht
-statt einer Annahme. Die Sichtbarkeit wird bei der ersten erfolgreichen
-Verbindung abgefragt und in `runs/crosstalk/threads.json` gecacht.
+statt einer Annahme. Die Sichtbarkeit kommt aus derselben Repo-Abfrage und gilt
+für die Lebensdauer des Prozesses.
 
 **Fail-open, ausnahmslos.** Timeout, Rate-Limit, fehlendes Login, fehlendes
 `gh`, deaktivierte Discussions → eine sichtbare Notiz im injizierten Text
@@ -259,8 +264,9 @@ werden nicht angefasst.
 `DAEDALUS_CROSSTALK` nicht setzen — der Pfad ist dann tot. Vollständig:
 `SessionEnd`-Eintrag aus `.claude/settings.json` entfernen, `crosstalk.py` und
 den Test löschen, die drei Handler-Erweiterungen zurücknehmen, `notes` in
-`effect_boundary.py` zurücksetzen. Keine Migration, kein persistenter Zustand
-außerhalb von `runs/crosstalk/`.
+`effect_boundary.py` zurücksetzen. Keine Migration; der einzige persistente
+Zustand sind vier Schlüssel im vorhandenen Session-State, die mit ihrer Datei
+verschwinden.
 
 ## Bewusst nicht in diesem Design
 
@@ -269,5 +275,38 @@ außerhalb von `runs/crosstalk/`.
   Thread-Inhalt aufsetzen, ohne diesen Entwurf zu ändern.
 - Kein Posten pro Turn (Rate-Limit, Kosten, Unlesbarkeit).
 - Kein lokaler Spiegel des Threads als Wahrheit — GitHub ist hier die Anzeige,
-  `runs/crosstalk/cache.json` ist reiner Cache und darf jederzeit gelöscht
-  werden.
+  der Poll-Cache ist reiner Cache und darf jederzeit gelöscht werden.
+
+## Nachtrag 2026-09-03 — was die Umsetzung anders gemacht hat
+
+Diese Spec ist vor der Implementierung geschrieben worden. Vier Dinge sind
+anders geworden; sie stehen hier, statt dass die Spec sich stillschweigend
+selbst korrigiert.
+
+**1. Kein `runs/crosstalk/`.** Die Spec sah `threads.json` und `cache.json`
+vor. Beide sind überflüssig: eine einzige GraphQL-Abfrage liefert
+Repository-ID, Sichtbarkeit, Kategorien und die letzten 50 Discussions
+gemeinsam, und ein Hook ist ein einzelner Prozess — es gibt nichts zwischen
+zwei Abfragen zu cachen. Der Poll-Cache lebt in `runs/hooks/state-<sid>.json`,
+das bereits gesperrt und atomar geschrieben wird. Ein zweiter Zustandsspeicher
+neben einem vorhandenen wäre genau das, was `AGENTS.md` „prefer wiring over a
+new subsystem" verbietet.
+
+**2. Die Redaktion greift nur auf pfadförmige Token.** Die Spec sagte
+„Pfade, die auf das Secrets-Muster passen, werden gezählt". Umgesetzt wurde
+zunächst *jedes* Token — und ein Commit-Betreff „fix(auth): rotate the token"
+ließ damit die ganze ERGEBNIS-Zeile verschwinden, mit der Begründung
+„secret-verdächtiger Pfad", der nie ein Pfad war. `PATH_SHAPED` ist das Gatter,
+das Prosa in Ruhe lässt; eine echte Pfad**liste** geht weiter ungefiltert durch
+`redact_paths`.
+
+**3. `gh_graphql` nimmt einen `argv_prefix`.** Ohne ihn ist die einzige real
+laufende Naht — Argv-Aufbau, `-f`/`-F`-Wahl, Exit-Code-Abbildung, JSON-Parsing
+— nicht testbar, weil jeder Test die Funktion als Ganzes fälscht. Default
+bleibt `("gh",)`; die Tests fahren gegen ein Stub-Executable.
+
+**4. Ein `status`-Verb.** Der Kanal ist per Default aus und hat sechs
+verschiedene Arten zu schweigen. Ohne `crosstalk status` ist „ausgeschaltet"
+von „kein gh-Login" von „Discussions nicht aktiviert" nur durch Starten einer
+Session zu unterscheiden — ein schlechtes Instrument für etwas, das man gerade
+einrichtet.

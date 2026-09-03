@@ -264,15 +264,21 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
         # re-read those answers would not reach a running session until its
         # next start. One GitHub call per POLL_TTL_S, not one per turn.
         if state.get("crosstalk_announced"):
-            fresh = with_deadline(
+            # `poll` returns the state fragment instead of writing it: it runs
+            # under a deadline, and an overrunning call is abandoned rather
+            # than cancelled, so it must not touch the dict `update_state` is
+            # about to serialise.
+            fresh, updates = with_deadline(
                 lambda: crosstalk.poll(
                     tree_facts(root).branch, crosstalk.Channel(root), state, time.time()
                 ),
                 crosstalk.TURN_BUDGET_S,
-                [],
+                ([], {}),
             )
+            state.update(updates)
+            mine = f"`{crosstalk.short_sid(sid)}`"
             shown = state.get("crosstalk_shown") or []
-            unseen = [line for line in fresh if line not in shown]
+            unseen = [l for l in fresh if l not in shown and mine not in l]
             if unseen:
                 state["crosstalk_shown"] = fresh
                 collected["crosstalk"] = ["CROSSTALK neu:"] + unseen[-3:]
