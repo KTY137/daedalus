@@ -1,0 +1,93 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CP",
+  "title": "Reuse canonical Fourfold PlaneSnapshot node-id tuples",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CO",
+  "campaign_issue": 239,
+  "base_revision": "081f6275e416c0c6db61399ac09acde605882bcd",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "PlaneSnapshot._sorted_node_ids always materialized a validation tuple, a duplicate-detection set, a sorted sequence, and a second tuple. The existing Forest-to-Fourfold adapter already supplies sorted immutable node-id tuples, so canonical Fourfold construction repeatedly paid this container/sort overhead even when no normalization was needed.",
+  "primary_claim": "Fourfold plane node IDs are still validated exactly once and canonicalized deterministically, but an exact already-sorted unique tuple is now retained by object identity. Unsorted inputs are sorted after validation, and both adjacent and non-adjacent duplicates remain fail-closed. No Fourfold ontology, plane membership rule, Forest authority, relation semantics, or promotion authority changed.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/contracts.py"
+    ],
+    "added": [
+      "tests/twin/test_fourfold_node_id_canonicalization.py",
+      "docs/work-packets/G1-TENSOR-01CP.json"
+    ],
+    "production_commit": "cb6310b77dce28503be71247d56a8ffa5eb4529f",
+    "exact_code_test_revision": "af56c1352dc38f32508e0af6739d817b4d1429b0",
+    "production_blob": "f1e3f20d62bb06643c2c925808821f70fb3fb873",
+    "test_blob": "bd8132b7740170a620601b80dec2e98614385ae3",
+    "production_additions": 24,
+    "production_deletions": 7,
+    "test_additions": 38,
+    "test_deletions": 0,
+    "new_graph_schema": false,
+    "new_tensor_type": false,
+    "new_query_index": false,
+    "new_cache": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false,
+    "contract_semantics_changed": false
+  },
+  "gardener_decision": "Remove redundant canonical-tuple rematerialization instead of adding a cache or parallel canonicalizer. Keep one bounded traversal for node validation/order detection, return an exact canonical tuple unchanged, and use the same local buffer for the sort fallback when input order actually requires repair.",
+  "acceptance": [
+    "an exact sorted unique PlaneSnapshot.node_ids tuple is retained by object identity",
+    "unsorted node IDs are still deterministically sorted",
+    "non-adjacent duplicates in an unsorted tuple are still rejected",
+    "existing Fourfold and kernel contract tests continue to execute successfully",
+    "the Fourfold-v2 workflow completes successfully on the exact code/test revision",
+    "all four Python 3.10/3.12 and hash-seed 0/123456 contract jobs complete successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 bounded Tensor/Forest diagnostic completes successfully",
+    "the isolated wheel build/install completes successfully",
+    "repository-collection remains collection-only evidence rather than a full-suite execution claim",
+    "no benchmark superiority, OwnerApproval, promotion, merge, Ready-for-Review transition, or Gate transition is inferred"
+  ],
+  "verification": {
+    "exact_code_test_revision": "af56c1352dc38f32508e0af6739d817b4d1429b0",
+    "fourfold_v2_run": 33805891236,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "all four contracts jobs for Python 3.10/3.12 and hash seeds 0/123456 completed successfully",
+      "contracts (3.12, 0) completed successfully with both Run Fourfold and kernel contract tests and Emit bounded Tensor/Forest diagnostic cost probes successful",
+      "isolated-wheel completed successfully with wheel build and isolated installation",
+      "repository-collection completed successfully and remains collect-only evidence"
+    ],
+    "benchmark_measurement_added": false,
+    "claim": "Hosted green CI is claimed only for exact code/test revision af56c1352dc38f32508e0af6739d817b4d1429b0. This packet makes no latency, memory, Tensor-vs-Forest, CrewAI, AlphaEvolve, or other comparative benchmark claim. Evidence/documentation commits after the tested revision do not extend the green-CI claim unless independently executed."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "focused_regression": "test_plane_snapshot_reuses_exact_canonical_node_id_tuple pins object identity for canonical tuples; test_plane_snapshot_sorts_unsorted_nodes_and_rejects_nonadjacent_duplicate pins deterministic fallback sorting and fail-closed duplicate detection.",
+    "independent_owner_review_completed": false
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_record": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "main_observed_before_record": "e31213aff40ab322dcead6d50ae19007f3f9b6b1",
+    "visible_remote_refs_observed_before_record": 18,
+    "topology_note": "Only the existing canonical tensor-kernel line was advanced. Existing extra packet/rescue/evidence refs were left untouched rather than deleted or archived merely to reduce the visible branch count. archive/legacy-20260830 remains a frozen evidence/history anchor and received no active work."
+  },
+  "rollback": "Revert test commit af56c1352dc38f32508e0af6739d817b4d1429b0 and production commit cb6310b77dce28503be71247d56a8ffa5eb4529f to restore the previous node-id canonicalization path. Fourfold ontology, Forest authority, Tensor relation semantics, and promotion authority are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "ready_for_review_transition": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
