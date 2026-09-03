@@ -56,7 +56,8 @@ def _sorted_label_index(labels: Sequence[str], label: str) -> int | None:
 
 def _coordinate(values: Sequence[Sequence[Any]]) -> tuple[tuple[str, str], ...]:
     values = _bounded_sequence(values, "entry.coordinates", MAX_TENSOR_AXES)
-    out: list[tuple[str, str]] = []
+    out = None if type(values) is tuple else []
+    previous_axis: str | None = None
     for index, raw in enumerate(values):
         if isinstance(raw, (str, bytes, Mapping)) or not isinstance(raw, Sequence) or len(raw) != 2:
             raise ValueError(f"entry.coordinates[{index}] must be an (axis, label) pair")
@@ -64,7 +65,19 @@ def _coordinate(values: Sequence[Sequence[Any]]) -> tuple[tuple[str, str], ...]:
         label = _non_empty(raw[1], f"entry.coordinates[{index}].label", max_length=1000)
         if "\x00" in label:
             raise ValueError("entry coordinate labels must not contain NUL bytes")
-        out.append((axis, label))
+        pair = (axis, label)
+        if out is None:
+            if type(raw) is not tuple or (
+                previous_axis is not None and axis < previous_axis
+            ):
+                out = [values[position] for position in range(index)]
+            elif previous_axis is not None and axis == previous_axis:
+                raise ValueError("entry.coordinates must name every axis at most once")
+        if out is not None:
+            out.append(pair)
+        previous_axis = axis
+    if out is None:
+        return values  # type: ignore[return-value]
     out.sort()
     for index in range(1, len(out)):
         if out[index - 1][0] == out[index][0]:
