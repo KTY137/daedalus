@@ -108,6 +108,14 @@ relation through the existing reference kernel. A legacy partial Fourfold
 snapshot is required to refuse rather than silently turning unknown edges into
 sparse zeroes.
 
+The bounded relation cost probe now also exercises this strict adapter as a
+fourth diagnostic arm. Its test fixture mechanically marks only the Code and
+Knowledge endpoint planes complete while preserving their exact nodes, retained
+relation digests and Forest identity. Direct Forest, preindexed Forest,
+`TensorView`, and strict Boolean CSR arms are built from the same complete
+Fourfold construction basis and must return the same result subject before any
+cost numbers are emitted. Those measurements remain diagnostic-only.
+
 ### Contraction IR
 
 `daedalus/twin/contractions.py` implements three operations:
@@ -141,6 +149,8 @@ The packet includes executable checks for:
 - strict Forest/Fourfold identity and completeness before relation projection;
 - direct-Forest equivalence for admitted same-plane and verified cross-plane
   Boolean relations;
+- result identity across direct Forest, preindexed Forest, generic `TensorView`,
+  and strict Fourfold Boolean CSR diagnostic arms on the same complete fixture;
 - explicit refusal for retained hyperedges and undirected same-plane edges;
 - revision and semiring isolation;
 - boundary-map and component identities/associativity;
@@ -162,9 +172,9 @@ This packet does **not** add:
 - weighted, natural-count, tropical-cost or evidence-DAG projection from Forest
   payloads whose scalar meaning has not been specified.
 
-The next useful packet is to add this strict relation adapter as a fourth arm in
-the existing bounded Forest/preindexed/Tensor cost probe using a fixture whose
-endpoint planes are mechanically known complete. Performance remains diagnostic
-until repeated equal-budget measurements justify a claim. The kernel should be
-removed if it merely renames graph fields and cannot simplify evidence
-composition or multi-relation query execution.
+The strict relation adapter is now present in the bounded cost probe. The next
+useful work is to treat the repeated fixed-budget measurements as falsification
+evidence for the existing representations: optimize only an identified existing
+hot path, or contain/prune the kernel if it cannot simplify evidence composition
+or multi-relation query execution. Do not add a backend merely because one could
+be added, and do not infer comparative superiority from diagnostic timings.
