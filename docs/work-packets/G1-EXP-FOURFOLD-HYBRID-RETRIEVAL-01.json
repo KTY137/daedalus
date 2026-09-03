@@ -1,0 +1,70 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01",
+  "title": "Compile logical Fourfold retrieval onto BM25 and typed relation indices",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "base_revision": "056ad01c0bfad3982f116010317a20996bd9709c",
+  "branch": "exp/fourfold-hybrid-retrieval-01",
+  "primary_claim": "The Fourfold/Tensor layer should express typed multi-relation query semantics and compile onto ordinary physical indices; BM25 supplies lexical seeds rather than being replaced by a flattened tensor score.",
+  "scope": {
+    "adds": [
+      "experiments/fourfold_hybrid_retrieval/__init__.py",
+      "experiments/fourfold_hybrid_retrieval/relations.py",
+      "experiments/fourfold_hybrid_retrieval/planner.py",
+      "experiments/fourfold_hybrid_retrieval/retrieval.py",
+      "experiments/fourfold_hybrid_retrieval/README.md",
+      "tests/twin/test_fourfold_hybrid_retrieval_experiment.py",
+      "docs/work-packets/G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01.json"
+    ],
+    "changes_production_runtime": false,
+    "changes_authoritative_forest_or_fourfold": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler_or_evaluator": false,
+    "adds_embedding_backend": false,
+    "adds_semantic_plane": false,
+    "automatic_promotion": false
+  },
+  "design": {
+    "authority": "KnowledgeForest and FourfoldSnapshot remain authoritative",
+    "logical_layer": "RelationStep + PathExpression + ContractionPlan",
+    "physical_layer": "deterministic forward/reverse adjacency indices over TypedRelationBlock",
+    "seed_layer": "existing pure-stdlib s07 BM25 plus exact identity token matches",
+    "fusion": "deterministic reciprocal-rank fusion",
+    "output_authority": "unverified-retrieval-proposal"
+  },
+  "acceptance": [
+    "compiler refuses a FourfoldSnapshot whose source_forest_sha256 differs",
+    "compiler preserves multiple targets for one source without dictionary overwrite",
+    "every block binds repository, revision, Forest digest and Fourfold digest",
+    "logical multi-hop intersection returns only targets reached by every branch",
+    "physical planner names adjacency lookup, sparse hash join and set combination",
+    "evidence digests survive every relation hop and appear in result receipts",
+    "BM25 supplies start-plane seeds and direct target-plane candidates",
+    "graph expansion can rerank a structurally supported target above a lexical decoy",
+    "all outputs remain proposal-only and cannot promote or mutate authority"
+  ],
+  "verification": {
+    "requested": [
+      "python -m py_compile experiments/fourfold_hybrid_retrieval/*.py tests/twin/test_fourfold_hybrid_retrieval_experiment.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin/test_fourfold_hybrid_retrieval_experiment.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin"
+    ],
+    "author_side_smoke": "API-compatible local stubs: py_compile succeeded; focused tests 5 passed. This is not exact-head repository evidence."
+  },
+  "kill_or_redesign": [
+    "hybrid does not improve evidence recall or agent task success over BM25 plus four indices",
+    "gain disappears when graph paths are permuted or evidence is removed",
+    "gain is explained entirely by more retrieved context",
+    "construction or update cost has no repeated-query break-even",
+    "a simpler deterministic relation-index query produces equivalent outputs and costs"
+  ],
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "promotion_receipt_minted": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false,
+    "merge_requested": false
+  },
+  "rollback": "Delete the isolated experiment package, focused test and this Work Packet; no production contract or persistent state is changed."
+}
