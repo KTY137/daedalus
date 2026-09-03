@@ -54,6 +54,14 @@ def test_axis_label_limit_refuses_before_sort_or_element_access() -> None:
     assert labels.accessed is False
 
 
+def test_axis_canonicalization_reuses_exact_canonical_label_tuple() -> None:
+    canonical_labels = tuple(f"label-{index:03d}" for index in range(256))
+
+    axis = TensorAxis("node", canonical_labels)
+
+    assert axis.labels is canonical_labels
+
+
 def test_coordinate_limit_refuses_before_coordinate_parsing() -> None:
     coordinates = ExplodingSequence(MAX_TENSOR_AXES + 1)
 
