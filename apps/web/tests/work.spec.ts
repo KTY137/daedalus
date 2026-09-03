@@ -202,6 +202,85 @@ test.describe('work rail', () => {
     await expect(detail).not.toContainText('Übergabe: bestätigt');
   });
 
+  test('the activity log reads on demand and says whose history it is', async ({ page }) => {
+    let reads = 0;
+    await stub(page);
+    await page.route('**/api/loop/attempts**', async (route) => {
+      reads += 1;
+      await route.fulfill({
+        json: {
+          ok: true, generated_at: '', project: null, warnings: [],
+          attempts: {
+            intents: [
+              {
+                intent_id: 12, kind: 'attempt', state: 'closed', created_ts: '2026-09-03T05:00:00+00:00',
+                resolved_ts: '2026-09-03T05:02:00+00:00', effect_key: 'k', task_id: 'req_a', instruction: 'Parser härten',
+                source: 'picker', score: 0.8, reason: 'heat', outcome: 'applied', gates_passed: true,
+                changed_paths: 3, error: null
+              },
+              {
+                intent_id: 11, kind: 'attempt', state: 'failed', created_ts: '2026-09-03T04:00:00+00:00',
+                resolved_ts: null, effect_key: 'k', task_id: 'req_b', instruction: 'Tests nachziehen',
+                source: '', score: null, reason: '', outcome: null, gates_passed: false,
+                changed_paths: 0, error: 'pytest exited 1'
+              }
+            ],
+            limit: 8, kind: '', task_id: null,
+            ledger: { path: 'runs/spine.sqlite3', exists: true, read_only: true, error: null, note: null },
+            degraded_sources: [], incomplete: true, attempt_intent_kind: 'attempt', dropped_for_size: 2
+          }
+        }
+      });
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+
+    // Closed until asked: the ledger read is bounded but not free.
+    expect(reads).toBe(0);
+    await page.getByRole('button', { name: 'Zuletzt versucht' }).click();
+
+    const log = page.locator('.work-log');
+    await expect(log).toContainText('Parser härten');
+    await expect(log).toContainText('Tests nachziehen');
+    await expect(log).toContainText('Gates bestanden');
+    await expect(log).toContainText('Gates nicht bestanden');
+    await expect(log).toContainText('pytest exited 1');
+    // An attempt with no verdict says so rather than reading as a success.
+    await expect(log).toContainText('ohne Ergebnis');
+    // The endpoint is not project-scoped, and the surface says so.
+    await expect(log).toContainText('nicht nur in diesem Projekt');
+    // Everything the endpoint reported about its own reading is printed.
+    await expect(log).toContainText('nur lesbar');
+    await expect(log).toContainText('unvollständig');
+    await expect(log).toContainText('2 Zeilen wegen Größe weggelassen');
+    await expect.poll(() => reads).toBe(1);
+  });
+
+  test('a ledger that could not be read is never drawn as an empty history', async ({ page }) => {
+    await stub(page);
+    await page.route('**/api/loop/attempts**', (route) =>
+      route.fulfill({
+        json: {
+          ok: true, generated_at: '', project: null, warnings: [],
+          attempts: {
+            intents: [], limit: 8, kind: '', task_id: null,
+            ledger: { path: 'runs/spine.sqlite3', exists: true, read_only: false, error: 'database is locked', note: null },
+            degraded_sources: ['spine'], incomplete: true, attempt_intent_kind: 'attempt'
+          }
+        }
+      })
+    );
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: 'Zuletzt versucht' }).click();
+
+    const log = page.locator('.work-log');
+    await expect(log).toContainText('Ledger nicht lesbar: database is locked');
+    await expect(log).toContainText('Beeinträchtigt: spine');
+    // "could not look" must never render as "nothing happened".
+    await expect(log.locator('.work-detail-note.bad')).toBeVisible();
+  });
+
   test('a dispatch the bus does not know is a fact, not an error', async ({ page }) => {
     await stub(page, {
       task: {

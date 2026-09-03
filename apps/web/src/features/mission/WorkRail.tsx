@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { getTask, getTaskArtifacts, type DraftRow, type TaskArtifacts, type TaskDetail } from '@/shared/api';
 import type { OpenDispatch } from '@/features/conversation/model';
 import { relativeTime, taskStateLabel } from '@/features/conversation/model';
+import { ActivityLog } from './ActivityLog';
 
 /**
  * ARBEIT — what waits on you, what is running, what just happened.
@@ -322,6 +323,7 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
         ) : (
           <p className="work-none">Noch kein Bericht auf diesem Bus.</p>
         )}
+        <ActivityLog />
       </Section>
     </div>
   );

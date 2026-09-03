@@ -192,6 +192,27 @@
 .work-detail-list code { font-family: var(--font-mono); color: var(--ink2); overflow-wrap: anywhere; }
 .work-detail-more { color: var(--ink3); }
 
+/* The activity log is closed until asked: the ledger read is bounded but not
+   free, and a rail that paid for it on every glance would be a dashboard. */
+.work-log { display: grid; gap: var(--u1); }
+.work-log-toggle {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 var(--u1);
+  border: 0;
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.work-log-toggle:hover,
+.work-log-toggle:focus-visible { color: var(--accent); text-decoration-color: var(--accent); outline: none; }
+
 /* The rail tab says how many things wait, the same way the view switch does. */
 .rail-badge {
   display: inline-block;
