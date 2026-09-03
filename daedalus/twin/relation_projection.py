@@ -138,7 +138,7 @@ def boolean_relation_block_from_fourfold(
         signature=signature,
         row_axis=row_axis,
         column_axis=column_axis,
-        coordinates=tuple(coordinates),
+        coordinates=coordinates,
         semiring=BooleanSemiring(),
     )
 
