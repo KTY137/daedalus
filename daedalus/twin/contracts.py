@@ -45,13 +45,30 @@ def _node_id(value: Any, name: str) -> str:
 def _sorted_node_ids(values: Sequence[Any], name: str) -> tuple[str, ...]:
     if isinstance(values, (str, bytes)):
         raise ValueError(f"{name} must be a sequence, not a string")
-    converted = tuple(
-        _node_id(value, f"{name}[{index}]")
-        for index, value in enumerate(values)
-    )
-    if len(set(converted)) != len(converted):
-        raise ValueError(f"{name} must not contain duplicates")
-    return tuple(sorted(converted))
+
+    converted: list[str] = []
+    in_order = True
+    previous: str | None = None
+    for index, value in enumerate(values):
+        node_id = _node_id(value, f"{name}[{index}]")
+        if previous is not None:
+            if node_id == previous:
+                raise ValueError(f"{name} must not contain duplicates")
+            if node_id < previous:
+                in_order = False
+        converted.append(node_id)
+        previous = node_id
+
+    if in_order:
+        if type(values) is tuple:
+            return values
+        return tuple(converted)
+
+    converted.sort()
+    for index in range(1, len(converted)):
+        if converted[index - 1] == converted[index]:
+            raise ValueError(f"{name} must not contain duplicates")
+    return tuple(converted)
 
 
 @dataclass(frozen=True)
