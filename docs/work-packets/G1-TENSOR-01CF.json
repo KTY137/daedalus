@@ -1,0 +1,80 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CF",
+  "title": "Reuse exact canonical CSR index tuples",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CE",
+  "campaign_issue": 239,
+  "base_revision": "3c8c4a200bb1c269f78dead876cd6491570025c6",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TypedRelationBlock already treats row_offsets and column_indices as validated immutable canonical CSR index tuples. Construction nevertheless wrapped both bounded sequences in tuple(...) unconditionally, so an exact tuple supplied by canonical relation-block builders was copied into a second equal tuple before the existing CSR validation pass. Values are intentionally excluded from this optimization because _stored(...) remains the canonical semiring scalar validation/normalization boundary.",
+  "primary_claim": "TypedRelationBlock now reuses exact tuple row_offsets and column_indices by object identity while retaining the existing bounded-sequence and CSR validation. Non-tuple sequence input is still normalized to tuple form. Values still pass through _stored(...) exactly as before. Fourfold subject identity, typed planes, relation signatures, semiring semantics, CSR ordering, lookup/composition behavior, wire serialization and digest semantics are unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_axis_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CF.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 29,
+    "code_test_deletions": 4,
+    "production_additions": 7,
+    "production_deletions": 3,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the already canonical immutable CSR index containers rather than add a cache, index wrapper, adapter, second tensor representation or other parallel abstraction. Keep conversion only for inputs that actually require tuple normalization. This removes redundant canonical-path allocation rather than optimizing for source-line count.",
+  "acceptance": [
+    "exact canonical row_offsets and column_indices tuples are retained by object identity after TypedRelationBlock validation",
+    "non-tuple bounded sequences are still normalized to immutable tuples",
+    "existing CSR integer, bounds, monotonicity, common-entry-count and strict per-row ordering checks remain fail closed",
+    "semiring values continue through the existing _stored normalization boundary",
+    "the Fourfold-v2 workflow executes successfully on exact code/test revision 3b18f8b8df11626a6570a4f51b96df0ae704b1d2",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build and install execute successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "42b8b9ee70fe59cb2a281ff7999ab6fbebe9dae6",
+    "code_test_revision": "3b18f8b8df11626a6570a4f51b96df0ae704b1d2",
+    "production_blob": "b7318f5812cca97cb72170a1380122ae22182c6a",
+    "focused_test_blob": "74bf3438988aec37dfaa9a9c3fc5a8033a4b9b45",
+    "fourfold_v2_run": 33742435037,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 3b18f8b8df11626a6570a4f51b96df0ae704b1d2",
+      "all four Python 3.10/3.12 contract matrix jobs completed success",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success with build and isolated install steps",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 3b18f8b8df11626a6570a4f51b96df0ae704b1d2. The executed tests/twin surface includes test_typed_relation_block_reuses_exact_canonical_index_tuples, which requires exact canonical CSR tuple retention. The workflow also executes the existing Fourfold/kernel contract surface and designated bounded Tensor/Forest diagnostics. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor": "057f96cb12d2dd1fea6e505acb4c89d620abc378",
+    "ui_line_preserved": "worktree-g1-ui-ikarus@fba3bcd905c683dfd8f5a59bee1038674323bb43"
+  },
+  "rollback": "Revert the G1-TENSOR-01CF code/test commits to restore unconditional tuple copying of CSR indices. Fourfold authority, relation-block validation, wire contracts, semiring normalization and sparse behavior are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
