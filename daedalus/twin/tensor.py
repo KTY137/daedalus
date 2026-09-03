@@ -267,10 +267,6 @@ class TensorView(CanonicalContract):
     def shape(self) -> tuple[int, ...]:
         return tuple(len(axis.labels) for axis in self.axes)
 
-    @property
-    def axis_map(self) -> Mapping[str, TensorAxis]:
-        return MappingProxyType({axis.name: axis for axis in self.axes})
-
     def index_coordinate(self, entry: SparseTensorEntry) -> tuple[int, ...]:
         if not isinstance(entry, SparseTensorEntry):
             raise ValueError("entry is not retained by this TensorView")
