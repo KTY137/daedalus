@@ -215,23 +215,25 @@ class TensorView(CanonicalContract):
                 if _sorted_label_index(axis.labels, label) is None:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis_name!r}")
             order = _entry_order(entry)
-            if previous_order is not None and order < previous_order:
-                entries_are_canonical = False
+            if previous_order is not None:
+                if order < previous_order:
+                    entries_are_canonical = False
+                elif entries_are_canonical and previous_order[0] == order[0] and previous_order[1] == order[1]:
+                    raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
             previous_order = order
 
-        ordered_entries = (
-            entries
-            if entries_are_canonical
-            else tuple(sorted(entries, key=_entry_order))
-        )
-        for index in range(1, len(ordered_entries)):
-            previous = ordered_entries[index - 1]
-            current = ordered_entries[index]
-            if (
-                previous.coordinates == current.coordinates
-                and previous.relation == current.relation
-            ):
-                raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
+        if entries_are_canonical:
+            ordered_entries = entries
+        else:
+            ordered_entries = tuple(sorted(entries, key=_entry_order))
+            for index in range(1, len(ordered_entries)):
+                previous = ordered_entries[index - 1]
+                current = ordered_entries[index]
+                if (
+                    previous.coordinates == current.coordinates
+                    and previous.relation == current.relation
+                ):
+                    raise ValueError("tensor.entries must not repeat a coordinate/relation claim")
         object.__setattr__(self, "entries", ordered_entries)
         reason = self.reason
         if not isinstance(reason, str):
