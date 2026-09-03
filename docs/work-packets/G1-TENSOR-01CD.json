@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CD",
+  "title": "Prune the redundant TypedAxis label-index mapping surface",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CC",
+  "campaign_issue": 239,
+  "base_revision": "dfdfa54718aa20eae3e4b5b2985c95f48a7047ca",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TypedAxis already retains validated labels as one canonical sorted immutable tuple. Earlier bounded relation-block work moved coordinate construction and point lookup to _label_position()/bisect_left, leaving label_index as an unused compatibility property that rebuilt the complete axis as a dict plus MappingProxyType whenever accessed. A PR-wide branch-diff audit found no live runtime consumer of TypedAxis.label_index.",
+  "primary_claim": "TypedAxis now exposes only the canonical labels tuple for label identity and order; the unused full label-to-index mapping surface and MappingProxyType dependency are removed. TypedRelationBlock construction and point lookup continue to resolve exact labels against the retained sorted tuple with binary search. Fourfold subject identity, typed plane signatures, CSR canonicalization, semiring behavior, operation bounds, wire serialization and digest identity remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_axis_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CD.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 5,
+    "code_test_deletions": 13,
+    "production_additions": 1,
+    "production_deletions": 6,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Delete the dead full-axis mapping representation now that all relation-block lookup paths use the canonical sorted label tuple directly. Do not preserve an unused compatibility wrapper, add a cache, or introduce another axis/index abstraction.",
+  "acceptance": [
+    "TypedAxis no longer exposes label_index",
+    "coordinate construction and point lookup still resolve through canonical sorted labels",
+    "unknown row and column labels still fail closed",
+    "canonical CSR ordering and point lookup behavior remain unchanged",
+    "the Fourfold-v2 workflow executes successfully on exact code/test revision e0e79d5ca3e50da5840e246ab65838a60c6ba8c0",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build and install execute successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "1d90752366c45db58b2203835bae56187a39e4b0",
+    "code_test_revision": "e0e79d5ca3e50da5840e246ab65838a60c6ba8c0",
+    "production_blob": "10d20e0c269f35aec9aff34f5ff04c055871d27b",
+    "focused_test_blob": "ec4c1a564b17cf273a5466ba5a275c6d02efc6d8",
+    "fourfold_v2_run": 33731752478,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision e0e79d5ca3e50da5840e246ab65838a60c6ba8c0",
+      "the Python 3.10/3.12 contract matrix completed under the successful workflow",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision e0e79d5ca3e50da5840e246ab65838a60c6ba8c0. The executed tests/twin surface includes test_coordinate_build_and_get_use_only_canonical_axis_labels, which requires the redundant mapping surface to be absent while valid relation-block construction/get and unknown-label refusal remain intact. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01CD commits to restore the unused TypedAxis.label_index property. Fourfold authority, relation-block wire contracts, canonical labels, lookup semantics and sparse block behavior are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
