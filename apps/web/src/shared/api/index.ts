@@ -550,6 +550,52 @@ export function observeConversationTurn(
  * every branch, including `found: false`, so an unknown id is a fact rather
  * than an error.
  */
+/**
+ * One recorded step in a unit of work.
+ *
+ * `daedalus/progress.py` refuses to append an event that names no source:
+ * "an unattributed fact is exactly how a self-report gets laundered into
+ * evidence". The attribution is therefore never optional and is always drawn.
+ */
+export interface ProgressEvent {
+  unit_id: string;
+  kind: string;
+  ts: string;
+  source: string;
+  detail?: Record<string, unknown>;
+  batch_id?: string | null;
+}
+
+/**
+ * What is known about one unit of work, as of `observed_at`.
+ *
+ * `_task_snapshot` has carried this on every bus row it could build one for,
+ * and the cockpit typed it as an opaque record and dropped it. Note
+ * `fraction_hint`: the backend deliberately answers with a SENTENCE rather
+ * than a percentage, because a single unit has no honest denominator. It is
+ * rendered as the sentence it is; nothing here turns it into a bar.
+ */
+export interface UnitProgress {
+  unit_id: string;
+  observed_at: string;
+  found: boolean;
+  events_seen: number;
+  kinds_seen: string[];
+  latest_kind: string | null;
+  latest_source: string | null;
+  latest_ts: string | null;
+  age_s: number | null;
+  claimed_ts: string | null;
+  claimed_age_s: number | null;
+  terminal: boolean;
+  succeeded: boolean | null;
+  applied: boolean | null;
+  stalled: boolean;
+  fraction_hint: string;
+  facts?: Array<{ label: string; value: unknown; provenance: string; source: string | null; age_s: number | null }>;
+  narrative?: ProgressEvent[];
+}
+
 export interface TaskDetail {
   id: string;
   found: boolean;
@@ -570,7 +616,8 @@ export interface TaskDetail {
   applied_reason?: string | null;
   busy_for_s?: number | null;
   stalled?: boolean;
-  progress?: Record<string, unknown> | null;
+  /** The recorded timeline of this unit, when the bus could build one. */
+  progress?: UnitProgress | null;
 }
 
 export function getTask(id: string) {

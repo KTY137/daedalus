@@ -69,6 +69,33 @@ const runningTask = {
   progress: null
 };
 
+/** `UnitProgress.to_dict()` — note `fraction_hint` is a sentence, and both
+ *  verdicts are tri-state with `null` meaning "no verdict recorded". */
+const progress = {
+  unit_id: 'req_open',
+  observed_at: '2026-09-03T10:00:00+00:00',
+  found: true,
+  events_seen: 3,
+  kinds_seen: ['queued', 'claimed', 'disk_changed'],
+  latest_kind: 'disk_changed',
+  latest_source: 'offload',
+  latest_ts: '2026-09-03T09:59:00+00:00',
+  age_s: 60,
+  claimed_ts: '2026-09-03T09:55:00+00:00',
+  claimed_age_s: 300,
+  terminal: false,
+  succeeded: null,
+  applied: null,
+  stalled: false,
+  fraction_hint: 'one unit has no honest denominator; use batch_snapshot() for a real N-of-M fraction',
+  facts: [],
+  narrative: [
+    { unit_id: 'req_open', kind: 'queued', ts: '2026-09-03T09:54:00+00:00', source: 'web_api', detail: { lane: 'local_only' }, batch_id: null },
+    { unit_id: 'req_open', kind: 'claimed', ts: '2026-09-03T09:55:00+00:00', source: 'watcher', detail: {}, batch_id: null },
+    { unit_id: 'req_open', kind: 'disk_changed', ts: '2026-09-03T09:59:00+00:00', source: 'offload', detail: { basis: 'git_status', paths: 2 }, batch_id: null }
+  ]
+};
+
 async function openCockpit(page: Page) {
   const response = await page.goto('/?view=chat', { waitUntil: 'domcontentloaded' });
   expect(response).not.toBeNull();
@@ -317,6 +344,58 @@ test.describe('work rail', () => {
     await expect(note).toContainText('archive has since been cleared');
     // Not an infrastructure failure: the row must not be painted as one.
     await expect(page.locator('.work-detail-note.bad')).toHaveCount(0);
+  });
+
+  test('the recorded timeline is drawn, with the source of every step', async ({ page }) => {
+    await stub(page, { task: { ...runningTask, progress } });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+
+    const timeline = page.locator('.timeline');
+    await expect(timeline).toBeVisible();
+    // The backend answers with a SENTENCE about how far along this is, and
+    // the surface draws the sentence. A percentage here would be a picture of
+    // a measurement nobody made.
+    await expect(timeline).toContainText('no honest denominator');
+    await expect(page.locator('.timeline progress, .timeline [role="progressbar"]')).toHaveCount(0);
+    // Tri-state verdicts: `null` is a recorded absence, never a success.
+    await expect(timeline).toContainText('Erfolg nicht gemeldet');
+    await expect(timeline).toContainText('Übernommen nicht gemeldet');
+    await expect(timeline).toContainText('angenommen vor 300 s');
+
+    // Steps are closed until asked, then every one carries its source —
+    // progress.py refuses to record an event without one.
+    await expect(page.locator('.step')).toHaveCount(0);
+    await timeline.getByRole('button', { name: '3 Schritte zeigen' }).click();
+    const steps = page.locator('.step');
+    await expect(steps).toHaveCount(3);
+    await expect(steps.nth(0)).toContainText('eingereiht');
+    await expect(steps.nth(0)).toContainText('web_api');
+    await expect(steps.nth(1)).toContainText('watcher');
+    await expect(steps.nth(2)).toContainText('Dateien geändert');
+    await expect(steps.nth(2)).toContainText('offload');
+    // The evidence basis the log demands for a disk claim is shown, not hidden.
+    await expect(steps.nth(2)).toContainText('git_status');
+  });
+
+  test('a unit with nothing recorded says so instead of drawing an empty run', async ({ page }) => {
+    await stub(page, {
+      task: {
+        ...runningTask,
+        progress: {
+          ...progress, found: false, events_seen: 0, kinds_seen: [], latest_kind: null,
+          latest_source: null, latest_ts: null, age_s: null, claimed_ts: null, claimed_age_s: null,
+          narrative: [], fraction_hint: 'no events recorded for this unit_id'
+        }
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+
+    await expect(page.locator('.work-detail')).toContainText('no events recorded for this unit_id');
+    await expect(page.locator('.step')).toHaveCount(0);
   });
 
   test('an unscoped draft pile is never counted under this project\'s name', async ({ page }) => {

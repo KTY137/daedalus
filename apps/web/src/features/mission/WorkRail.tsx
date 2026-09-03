@@ -3,6 +3,7 @@ import { ApiError, getTask, getTaskArtifacts, type DraftRow, type TaskArtifacts,
 import type { OpenDispatch } from '@/features/conversation/model';
 import { relativeTime, taskStateLabel } from '@/features/conversation/model';
 import { ActivityLog } from './ActivityLog';
+import { Timeline } from './Timeline';
 import type { LiveState } from './live';
 
 /**
@@ -183,6 +184,9 @@ function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
               </span>
               {state.task.summary && <p className="work-detail-summary">{state.task.summary}</p>}
               {state.task.error && <p className="work-detail-note bad">Fehler: {state.task.error}</p>}
+              {/* The recorded timeline of the run, when the bus could build
+                  one. It rode along with every snapshot and was dropped. */}
+              {state.task.progress && <Timeline progress={state.task.progress} />}
               {state.artifacts && !state.artifacts.available && (
                 <p className="work-detail-note">
                   Noch kein Ergebnis: {state.artifacts.reason || 'der Lauf ist nicht abgeschlossen'}
