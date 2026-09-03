@@ -1,0 +1,106 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CK",
+  "title": "Wire strict Forest/Fourfold Boolean relations into the existing sparse reference kernel",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CJ",
+  "campaign_issue": 239,
+  "base_revision": "040a2d3006af97fb3558ee75468a0bc59bd615fd",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "The Fourfold/Tensor contract document explicitly identified a measured adapter from selected Forest/Fourfold relations into the existing TypedRelationBlock kernel as the next useful packet. Until this packet, executable relation-block tests constructed coordinates manually, so the reference kernel was not wired to one exact authoritative Forest/Fourfold subject. Adding another graph schema, relation registry, cache, store, or tensor representation would duplicate authority rather than close this seam.",
+  "primary_claim": "A narrow Boolean-only adapter now projects one exact Forest/Fourfold subject into the existing TypedRelationBlock oracle without inventing a second relation schema. It requires the exact Forest digest bound by Fourfold, requires complete endpoint planes, uses verified Fourfold bindings for cross-plane relations, uses only directed ForestEdge payloads whose canonical digests are retained by the same-plane Fourfold plane, and refuses retained hyperedges or undirected edges rather than flattening semantics. The adapter grants no trust, approval, promotion, or execution authority.",
+  "scope": {
+    "changed": [
+      "docs/FOURFOLD_TENSOR_KERNEL_CONTRACT.md"
+    ],
+    "added": [
+      "daedalus/twin/relation_projection.py",
+      "tests/twin/test_fourfold_relation_projection.py",
+      "docs/work-packets/G1-TENSOR-01CK.json"
+    ],
+    "code_doc_test_commits_before_record": 4,
+    "code_doc_test_additions": 407,
+    "code_doc_test_deletions": 6,
+    "production_additions": 146,
+    "production_deletions": 0,
+    "new_graph_schema": false,
+    "new_relation_block_type": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Wire the existing Forest, FourfoldSnapshot, RelationSignature, TypedAxis, TypedRelationBlock, and BooleanSemiring surfaces instead of adding another representation. Refuse semantic flattening where the existing contracts cannot preserve completeness, hyperedge shape, direction, or scalar meaning. This replaces ad-hoc manual coordinate construction for an authoritative subject with one bounded seam while deliberately deferring weights, counts, costs, evidence algebra, stores, indices, and backends.",
+  "acceptance": [
+    "a complete exact Fourfold subject projects retained directed same-plane Forest edges into a Boolean TypedRelationBlock matching the direct Forest relation subject",
+    "verified cross-plane Fourfold bindings project into a Boolean TypedRelationBlock matching the corresponding direct evidence-backed Forest relation subject",
+    "the admitted same-plane imports block composes with the admitted cross-plane documents block through the existing Boolean reference kernel",
+    "a legacy partial Fourfold endpoint plane refuses rather than converting unknown relation absence into sparse zero",
+    "a Forest whose content digest does not equal FourfoldSnapshot.source_forest_sha256 refuses",
+    "a retained ForestHyperedge refuses rather than being pairwise flattened",
+    "a retained undirected ForestEdge refuses rather than receiving an invented orientation",
+    "an unretained relation on complete endpoint planes yields an exact empty Boolean block",
+    "the Fourfold-v2 workflow executes successfully on exact code/test revision 5c3fd551147e66a22f047e4fae88559f324346e5",
+    "the designated Python 3.12/hash-seed-0 Fourfold/kernel contracts and bounded Tensor/Forest diagnostic execute successfully",
+    "the isolated wheel build and install execute successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "428f781368dc7006953b2254aff6becef1a9c704",
+    "documentation_revision": "2585cf27a02e5d1dd01aab16df1ce74d416112c4",
+    "initial_test_revision": "023843467de85d1d2f279a0345521cb2f829fe36",
+    "code_test_revision": "5c3fd551147e66a22f047e4fae88559f324346e5",
+    "production_blob": "69f6ff40d2d73d634a8597fbd9583420c406c15e",
+    "documentation_blob": "f88659b59ed1c40bbce52d25722426772a9c5547",
+    "focused_test_blob": "582251ee52b6c6ceb8c1a9a95e9c26bc7150f617",
+    "red_run": {
+      "run": 33776535071,
+      "revision": "023843467de85d1d2f279a0345521cb2f829fe36",
+      "conclusion": "failure",
+      "observed_failure": "The new retained-hyperedge test fixture accidentally supplied one ForestHyperedge object instead of a one-element hyperedge tuple; Python 3.10/hash-seed-0 reported 1 failed, 205 passed, 2 skipped. The product adapter was not changed by this correction."
+    },
+    "fourfold_v2_run": 33776832966,
+    "fourfold_v2_conclusion": "success",
+    "focused_python_3_10_hashseed_0": "206 passed, 2 skipped in 3.20s",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 5c3fd551147e66a22f047e4fae88559f324346e5",
+      "all Python 3.10/3.12 and hash-seed 0/123456 contract jobs completed success",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success with real build and isolated-install steps",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 5c3fd551147e66a22f047e4fae88559f324346e5. Python 3.10/hash-seed-0 reported 206 passed and 2 skipped for tests/twin plus tests/test_kernel_contracts.py. The designated Python 3.12/hash-seed-0 Fourfold/kernel contract and bounded Tensor/Forest diagnostic steps also completed successfully. The earlier failed run is preserved as red evidence and was caused by a malformed one-element hyperedge test fixture, which was corrected in the focused test only. No measured wall-clock latency, peak-memory, Tensor-vs-Forest, CrewAI, AlphaEvolve, or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "adversarial_regressions_added": true,
+    "independent_owner_review_completed": false,
+    "note": "The PR remains Draft and unmerged; this packet records builder/hosted-CI evidence only and does not substitute for independent review or an owner decision."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_close": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_observation_note": "archive/legacy-20260830 was already at this ref and this packet did not write, merge, cherry-pick, rename, delete, or force-move the archive ref.",
+    "ui_line_preserved_observed_before_close": "worktree-g1-ui-ikarus@005495b81ac88142026cda6452cbad43c7bb6c5d",
+    "visible_remote_refs_observed_before_close": 17,
+    "topology_note": "No existing ref was deleted, archived, renamed, or force-moved merely to reduce branch count. Existing extra refs remain intact pending separate evidence classification and selective reintegration where justified."
+  },
+  "rollback": "Revert commits 428f781368dc7006953b2254aff6becef1a9c704, 2585cf27a02e5d1dd01aab16df1ce74d416112c4, 023843467de85d1d2f279a0345521cb2f829fe36, and 5c3fd551147e66a22f047e4fae88559f324346e5 to remove the strict relation adapter, its contract documentation, and focused regressions. Forest, FourfoldSnapshot, TensorView, relation-block semantics, and promotion authority remain otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
