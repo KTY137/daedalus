@@ -192,15 +192,18 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "282 tracked files" in message
+    assert "283 tracked files" in message
+    # +1 across the board in G1-SCC-02, which adds one planned primary packet
+    # document and nothing else. A moving census, not an invariant:
+    # re-measure it in the packet that adds or retires an artifact.
     assert payload["counts"] == {
-        "assigned_artifacts": 279,
+        "assigned_artifacts": 280,
         "legacy_artifacts": 204,
-        "packet_artifacts": 281,
-        "packet_ids": 216,
-        "post_index_artifacts": 77,
+        "packet_artifacts": 282,
+        "packet_ids": 217,
+        "post_index_artifacts": 78,
         "registry_artifacts": 1,
-        "tracked_files": 282,
+        "tracked_files": 283,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -325,6 +328,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-UI-05",
         "G1-WEB-01",
         "G1-WP-INDEX-01",
+        "G1-SCC-02",
     }
     post_index_packets = {
         packet_id: packet
