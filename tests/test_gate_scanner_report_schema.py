@@ -23,7 +23,7 @@ import pytest
 
 from daedalus.gates import report_v3
 from daedalus.gates.report_v3 import GateReportV3
-from daedalus.gates import repository_write_inventory as inventory
+from daedalus.gates.repository import write_inventory as inventory
 
 
 ROOT = Path(__file__).resolve().parents[1]

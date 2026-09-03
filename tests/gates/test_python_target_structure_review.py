@@ -145,7 +145,7 @@ def test_result_cannot_launder_structure_into_behavior() -> None:
 
 def test_module_uses_shared_repository_tree_boundary() -> None:
     source = TARGET.read_text(encoding="utf-8")
-    assert "from daedalus.gates.repository_tree import" in source
+    assert "from daedalus.gates.repository.tree import" in source
     assert "read_repository_source" in source
     for forbidden in (
         "os.open",

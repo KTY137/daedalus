@@ -5,7 +5,7 @@
   "mutant_timeout_policy": "legacy-timeout-exit-1",
   "jobs": [
     {
-      "module": "daedalus/gates/repository_write_effect_lease.py",
+      "module": "daedalus/gates/repository/write_effect_lease.py",
       "tests": [
         "tests/gates/test_repository_write_effect_lease.py",
         "tests/gates/test_repository_write_effect_lease_review.py"

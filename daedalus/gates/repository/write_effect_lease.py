@@ -16,23 +16,23 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from daedalus.gates.guard_implementation_manifest import GuardImplementationManifest
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     EvidenceBinding,
     EvidenceKind,
     GuardDisposition,
     RepositoryWriteClassificationReport,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     MaterializedEvidenceRecord,
     RepositoryWriteEvidenceMaterializationReport,
     evidence_subject_sha256,
     materialize_repository_write_evidence,
 )
-from daedalus.gates.repository_write_evidence_origin import (
+from daedalus.gates.repository.write_evidence_origin import (
     RepositoryWriteEvidenceOriginAttestation,
 )
-from daedalus.gates.repository_write_runtime_conformance import (
+from daedalus.gates.repository.write_runtime_conformance import (
     RepositoryWriteRuntimeConformanceReport,
     RuntimeConformanceReplayRecord,
     RuntimeConformanceSubject,

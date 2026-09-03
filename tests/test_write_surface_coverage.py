@@ -24,12 +24,12 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates import repository_write_inventory as base_inventory
-from daedalus.gates.repository_write_inventory import scan_repository_write_surfaces
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository import write_inventory as base_inventory
+from daedalus.gates.repository.write_inventory import scan_repository_write_surfaces
+from daedalus.gates.repository.write_inventory_v2 import (
     scan_repository_write_surfaces_v2,
 )
-from daedalus.gates.repository_write_stdlib_delta import (
+from daedalus.gates.repository.write_stdlib_delta import (
     scan_repository_write_stdlib_delta,
 )
 from daedalus.spine.effect_boundary import ENTRYPOINTS

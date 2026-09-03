@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from typing import Mapping
 
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     EvidenceBinding,
     EvidenceKind,
     RepositoryWriteClassificationReport,

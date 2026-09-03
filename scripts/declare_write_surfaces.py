@@ -121,7 +121,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from daedalus.gates.repository_write_classification import (  # noqa: E402
+from daedalus.gates.repository.write_classification import (  # noqa: E402
     CLASSIFICATION_INPUT_SCHEMA,
     EvidenceBinding,
     EvidenceKind,
@@ -134,11 +134,11 @@ from daedalus.gates.repository_write_classification import (  # noqa: E402
     surface_binding_sha256,
     surface_classification_verdict,
 )
-from daedalus.gates.repository_write_evidence_materialization import (  # noqa: E402
+from daedalus.gates.repository.write_evidence_materialization import (  # noqa: E402
     evidence_subject_sha256,
     materialize_repository_write_evidence,
 )
-from daedalus.gates.repository_write_inventory_v2 import (  # noqa: E402
+from daedalus.gates.repository.write_inventory_v2 import (  # noqa: E402
     RepositoryWriteSurface,
     scan_repository_write_surfaces_v2,
 )
@@ -811,7 +811,7 @@ def authenticated_doors(
     map below only because that check passed for it.
     """
 
-    from daedalus.gates.repository_write_effect_lease import (
+    from daedalus.gates.repository.write_effect_lease import (
         EffectLeaseReplaySubject,
         RepositoryWriteEffectLeaseError,
         replay_non_runtime_effect_subject,
@@ -1488,7 +1488,7 @@ def in_process_census(
     censuses are comparable; it is not a second classifier.
     """
 
-    from daedalus.gates.repository_write_classification import (
+    from daedalus.gates.repository.write_classification import (
         NON_BLOCKING_SURFACE_VERDICT,
         UNCLASSIFIED_SURFACE_VERDICT,
     )
@@ -1533,14 +1533,14 @@ def authenticate_in_process(
 
     from datetime import datetime, timedelta, timezone
 
-    from daedalus.gates.repository_write_classification import (
+    from daedalus.gates.repository.write_classification import (
         RepositoryWriteAuthenticationInputs,
         authenticate_repository_write_surfaces,
     )
-    from daedalus.gates.repository_write_evidence_materialization import (
+    from daedalus.gates.repository.write_evidence_materialization import (
         materialize_repository_write_evidence,
     )
-    from daedalus.gates.repository_write_evidence_origin import (
+    from daedalus.gates.repository.write_evidence_origin import (
         issue_repository_write_evidence_origin_attestation,
     )
 

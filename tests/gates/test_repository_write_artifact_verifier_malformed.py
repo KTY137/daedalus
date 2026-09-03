@@ -4,11 +4,11 @@ import json
 
 import pytest
 
-from daedalus.gates.repository_write_artifact_verifier import (
+from daedalus.gates.repository.write_artifact_verifier import (
     RepositoryWriteArtifactVerificationError,
     _strict_inventory_from_bytes,
 )
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2,
     RepositoryWriteSurface,
 )

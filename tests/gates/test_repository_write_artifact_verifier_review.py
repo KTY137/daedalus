@@ -4,7 +4,7 @@ import ast
 import dataclasses
 import inspect
 
-import daedalus.gates.repository_write_artifact_verifier as verifier
+import daedalus.gates.repository.write_artifact_verifier as verifier
 
 
 def _source_without_docstrings(module) -> str:

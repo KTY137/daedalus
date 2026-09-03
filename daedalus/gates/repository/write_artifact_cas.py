@@ -32,7 +32,7 @@ from daedalus.schemas import (
 )
 from daedalus.spine.envelope import canonical_sha
 
-from .repository_write_evidence import RepositoryWriteArtifactEvidence
+from .write_evidence import RepositoryWriteArtifactEvidence
 
 
 _MAX_ARTIFACT_BYTES = 16 * 1024 * 1024

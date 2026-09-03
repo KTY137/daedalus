@@ -24,7 +24,7 @@ from daedalus.schemas import (
 )
 from daedalus.spine.envelope import canonical_sha
 
-from .report_v3 import GateReportV3
+from ..report_v3 import GateReportV3
 
 
 _CONTRACT_TYPE = "daedalus-repository-write-artifact-evidence/1"

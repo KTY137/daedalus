@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-import daedalus.gates.repository_write_source_anchor_semantics as source_anchor_semantics
-from daedalus.gates.repository_write_classification import (
+import daedalus.gates.repository.write_source_anchor_semantics as source_anchor_semantics
+from daedalus.gates.repository.write_classification import (
     EvidenceBinding,
     EvidenceKind,
     GuardDisposition,
@@ -17,16 +17,16 @@ from daedalus.gates.repository_write_classification import (
     TargetDisposition,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     evidence_subject_sha256,
     materialize_repository_write_evidence,
 )
-from daedalus.gates.repository_write_evidence_origin import (
+from daedalus.gates.repository.write_evidence_origin import (
     RepositoryWriteEvidenceOriginSignatureError,
     issue_repository_write_evidence_origin_attestation,
 )
-from daedalus.gates.repository_write_inventory_v2 import RepositoryWriteSurface
-from daedalus.gates.repository_write_source_anchor_semantics import (
+from daedalus.gates.repository.write_inventory_v2 import RepositoryWriteSurface
+from daedalus.gates.repository.write_source_anchor_semantics import (
     RepositoryWriteSourceAnchorBindingError,
     RepositoryWriteSourceAnchorSemanticsError,
     RepositoryWriteSourceAnchorTreeError,

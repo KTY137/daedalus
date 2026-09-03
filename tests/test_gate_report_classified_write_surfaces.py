@@ -21,7 +21,7 @@ from daedalus.gates.report_v3 import (
     _repository_write_evidence,
     build_gate0_report_v3,
 )
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     CLASSIFICATION_SCHEMA,
     EvidenceBinding,
     EvidenceKind,
@@ -31,7 +31,7 @@ from daedalus.gates.repository_write_classification import (
     surface_binding_sha256,
     surface_classification_verdict,
 )
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteSurface,
     scan_repository_write_surfaces_v2,
 )

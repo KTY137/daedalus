@@ -49,7 +49,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     GuardDisposition,
     TargetDisposition,
 )
@@ -354,7 +354,7 @@ def test_the_offload_door_lease_dominates_its_bench_write():
     admitted both would be admitting by file membership again.
     """
 
-    from daedalus.gates.repository_write_inventory_v2 import (
+    from daedalus.gates.repository.write_inventory_v2 import (
         scan_repository_write_surfaces_v2,
     )
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus/gates/repository_write_artifact_admission.py"
+TARGET = ROOT / "daedalus/gates/repository/write_artifact_admission.py"
 TESTS = (
     "tests/gates/test_repository_write_artifact_admission.py",
     "tests/gates/test_repository_write_artifact_admission_adversarial.py",

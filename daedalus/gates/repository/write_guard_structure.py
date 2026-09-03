@@ -37,23 +37,23 @@ from daedalus.gates.python_target_structure import (
     PythonTargetStructure,
     resolve_python_target_structure,
 )
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     EvidenceBinding,
     EvidenceKind,
     GuardDisposition,
     RepositoryWriteClassificationReport,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     MaterializedEvidenceRecord,
     RepositoryWriteEvidenceMaterializationReport,
     evidence_subject_sha256,
     materialize_repository_write_evidence,
 )
-from daedalus.gates.repository_write_evidence_origin import (
+from daedalus.gates.repository.write_evidence_origin import (
     RepositoryWriteEvidenceOriginAttestation,
 )
-from daedalus.gates.repository_write_source_anchor_semantics import (
+from daedalus.gates.repository.write_source_anchor_semantics import (
     RepositoryWriteSourceAnchorSemanticsReport,
     verify_repository_write_source_anchor_semantics,
 )

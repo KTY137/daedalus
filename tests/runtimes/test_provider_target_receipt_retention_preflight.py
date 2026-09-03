@@ -11,7 +11,7 @@ from daedalus.gates.provider_target_receipt_retention_inventory import (
     ProviderTargetReceiptRetentionSurface,
     scan_provider_target_receipt_retention,
 )
-from daedalus.gates.repository_head_revision import (
+from daedalus.gates.repository.head_revision import (
     verify_repository_head_revision,
     verify_repository_head_revision_receipt,
 )

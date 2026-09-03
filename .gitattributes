@@ -108,7 +108,7 @@ runs/watchdog/mission-20260823/suite-run2-head-at-start.txt -text
 scripts/run_repository_head_revision_mutations.py -text
 configs/schemas/repository-head-revision-receipt.schema.json -text
 daedalus/resources/schemas/repository-head-revision-receipt.schema.json -text
-daedalus/gates/repository_head_revision.py -text
+daedalus/gates/repository/head_revision.py -text
 tests/gates/test_repository_head_revision.py -text
 tests/gates/test_repository_head_revision_review.py -text
 tests/gates/test_repository_head_revision_schema.py -text
@@ -311,7 +311,7 @@ daedalus/eval/report.py -text
 daedalus/eval/tier2.py -text
 daedalus/gates/provider_target_receipt_retention_inventory.py -text
 daedalus/gates/python_target_structure.py -text
-daedalus/gates/repository_tree.py -text
+daedalus/gates/repository/tree.py -text
 daedalus/kernel/artifacts.py -text
 daedalus/kernel/source_trees.py -text
 daedalus/runtimes/provider/executable_object_registry.py -text

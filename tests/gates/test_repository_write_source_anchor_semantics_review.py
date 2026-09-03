@@ -6,7 +6,7 @@ from pathlib import Path
 
 TARGET = (
     Path(__file__).resolve().parents[2]
-    / "daedalus/gates/repository_write_source_anchor_semantics.py"
+    / "daedalus/gates/repository/write_source_anchor_semantics.py"
 )
 
 

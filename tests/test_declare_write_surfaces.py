@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from daedalus.gates.report_v3 import _classify_repository_write_surfaces
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     EvidenceKind,
     GuardDisposition,
     RepositoryWriteClassificationError,
@@ -37,7 +37,7 @@ from daedalus.gates.repository_write_classification import (
     project_classification_input,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     scan_repository_write_surfaces_v2,
 )
 
@@ -379,10 +379,10 @@ def test_a_document_bound_to_another_inventory_digest_is_refused(
 def test_the_minted_evidence_materializes_against_its_own_bytes(
     fixture_root, door
 ):
-    from daedalus.gates.repository_write_evidence_materialization import (
+    from daedalus.gates.repository.write_evidence_materialization import (
         materialize_repository_write_evidence,
     )
-    from daedalus.gates.repository_write_classification import (
+    from daedalus.gates.repository.write_classification import (
         project_repository_write_classifications,
     )
 

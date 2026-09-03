@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus/gates/repository_write_source_anchor_semantics.py"
+TARGET = ROOT / "daedalus/gates/repository/write_source_anchor_semantics.py"
 TEST_FILE = "tests/gates/test_repository_write_source_anchor_semantics.py"
 MUTATIONS = {
     "forge-complete-semantics": (

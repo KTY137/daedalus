@@ -23,18 +23,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     EvidenceBinding,
     EvidenceKind,
     RepositoryWriteClassificationReport,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     MaterializedEvidenceRecord,
     RepositoryWriteEvidenceMaterializationReport,
     materialize_repository_write_evidence,
 )
-from daedalus.gates.repository_write_evidence_origin import (
+from daedalus.gates.repository.write_evidence_origin import (
     RepositoryWriteEvidenceOriginAttestation,
     RepositoryWriteEvidenceOriginReport,
     verify_repository_write_evidence_origin,
