@@ -274,3 +274,26 @@
   font-size: var(--fs-xs);
   line-height: 1.45;
 }
+
+/* WHICH health read this was. The endpoint keeps the expensive probes off by
+   default and reports that "rather than letting `present` read as `working`";
+   the panel had been dropping the report. */
+.health-mode { margin: 0; color: var(--ink3); font-size: var(--fs-xs); }
+.health-mode.warn { color: var(--warn); }
+
+/* A filtered board is an excerpt, not the system's health — and `?only=git`
+   returns one all-green subsystem, which reads as "everything is fine". */
+.health-scope {
+  margin: 0;
+  padding: var(--u2);
+  border: var(--border) solid color-mix(in srgb, var(--bad) 50%, var(--line2));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bad) 7%, var(--surface));
+  color: var(--bad);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+/* What each probe cost, and what the board cost in total. */
+.health-cost { color: var(--ink3); font-family: var(--font-mono); font-size: var(--fs-xs); }
+.health-total { color: var(--ink3); }

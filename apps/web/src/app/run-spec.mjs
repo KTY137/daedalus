@@ -202,6 +202,7 @@ const conversationOutfile = path.join(workdir, 'conversation.js');
 const missionOutfile = path.join(workdir, 'mission.js');
 const acceleratorOutfile = path.join(workdir, 'accelerators.js');
 const outcomeOutfile = path.join(workdir, 'outcome.js');
+const healthReadOutfile = path.join(workdir, 'healthread.js');
 
 try {
   await build({
@@ -211,7 +212,8 @@ try {
       conversation: path.join(here, '..', 'features', 'conversation', 'conversation.spec.ts'),
       mission: path.join(here, '..', 'features', 'mission', 'mission.spec.ts'),
       accelerators: path.join(here, '..', 'features', 'system', 'accelerators.spec.ts'),
-      outcome: path.join(here, '..', 'features', 'mission', 'outcome.spec.ts')
+      outcome: path.join(here, '..', 'features', 'mission', 'outcome.spec.ts'),
+      healthread: path.join(here, '..', 'features', 'system', 'healthread.spec.ts')
     },
     bundle: true,
     absWorkingDir: repoRoot,
@@ -233,6 +235,7 @@ try {
   const { runMissionSpec } = await import(pathToFileURL(missionOutfile).href);
   const { runAcceleratorSpec } = await import(pathToFileURL(acceleratorOutfile).href);
   const { runOutcomeSpec } = await import(pathToFileURL(outcomeOutfile).href);
+  const { runHealthReadSpec } = await import(pathToFileURL(healthReadOutfile).href);
   const results = [
     ...runSurfaceSpec(),
     ...(await runSystemCapabilitiesSpec()),
@@ -240,6 +243,7 @@ try {
     ...runMissionSpec(),
     ...runAcceleratorSpec(),
     ...runOutcomeSpec(),
+    ...runHealthReadSpec(),
     ...(await architectureSpec())
   ];
   let failed = 0;

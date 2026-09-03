@@ -336,11 +336,20 @@ export interface HealthSnapshot {
   verdict: 0 | 1 | 2;
   not_proven: string[];
   subsystems: HealthSubsystem[];
+  /**
+   * WHICH READ THIS WAS. `read.py` sets it so "the response says which were
+   * skipped rather than letting `present` read as `working`".
+   *
+   * It was typed on `HealthPayload` -- the envelope -- while the backend
+   * writes it here, inside the snapshot. Through the typed path
+   * `payload.asked` was therefore always `undefined`, which is why nothing
+   * ever rendered it. Measured against the live endpoint 2026-09-03.
+   */
+  asked?: { deep: boolean; probe_remote: boolean; only: string | null };
 }
 
 export interface HealthPayload extends ApiEnvelope {
   health: HealthSnapshot;
-  asked?: { deep: boolean; probe_remote: boolean; only: string | null };
 }
 
 /**

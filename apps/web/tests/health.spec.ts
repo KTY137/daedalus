@@ -21,7 +21,7 @@ const health = {
   counts: { working: 2, present: 0, degraded: 1, absent: 1, unknown: 0 },
   verdict: 1,
   not_proven: ['bench.residency'],
-  asked: {},
+  asked: { deep: false, probe_remote: false, only: null },
   subsystems: [
     {
       name: 'git.worktree', asks: 'which tree is every other answer about?', state: 'working',
@@ -78,6 +78,102 @@ async function stub(page: Page, options: { health?: unknown; fail?: boolean } = 
 }
 
 test.describe('health surface', () => {
+  test('a scoped board never passes for the health of the system', async ({ page }) => {
+    /*
+     * THE HAZARD, and it is not hypothetical. Measured 2026-09-03:
+     *
+     *   GET /api/health?only=git
+     *   -> 1 subsystem, counts {working:1, present:0, degraded:0, absent:0, unknown:0}
+     *
+     * A perfect green board. The panel's own footer would read "1 Prüfung",
+     * its filter line "Nichts Auffälliges", and nothing said that nineteen
+     * checks had not run.
+     */
+    await stub(page, {
+      health: {
+        ...health,
+        counts: { working: 1, present: 0, degraded: 0, absent: 0, unknown: 0 },
+        not_proven: [],
+        asked: { deep: false, probe_remote: false, only: 'git' },
+        subsystems: [health.subsystems[0]]
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+
+    const scope = panel.locator('.health-scope');
+    await expect(scope).toBeVisible();
+    await expect(scope).toContainText('git');
+    await expect(scope, 'a filtered board did not refuse to be read as the whole')
+      .toContainText('nicht der Zustand des Systems');
+    // It is an alert, not a footnote: a green board is the reassuring case.
+    await expect(scope).toHaveAttribute('role', 'alert');
+  });
+
+  test('an unfiltered board carries no scope warning', async ({ page }) => {
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+
+    await expect(panel.locator('.health-list')).toBeVisible();
+    await expect(panel.locator('.health-scope')).toHaveCount(0);
+  });
+
+  test('the board says which read it was', async ({ page }) => {
+    /*
+     * read.py keeps `deep` and `probe_remote` off by default -- the first
+     * calls the latent route (~7s cold), the second embeds against another
+     * host -- and says so "rather than letting `present` read as `working`".
+     * The cockpit dropped that report: `asked` was typed on the envelope while
+     * the backend writes it inside `health`, so the field was unreachable.
+     */
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+
+    const mode = panel.locator('.health-mode');
+    await expect(mode).toContainText('flach');
+    await expect(mode).toContainText('nicht angestoßen');
+    // A shallow read is drawn as unproven, not as neutral chrome.
+    await expect(mode).toHaveClass(/\bwarn\b/);
+  });
+
+  test('a full read is not flagged as shallow', async ({ page }) => {
+    await stub(page, {
+      health: { ...health, asked: { deep: true, probe_remote: true, only: null } }
+    });
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+
+    const mode = panel.locator('.health-mode');
+    await expect(mode).toContainText('tief');
+    await expect(mode).toContainText('entfernte Hosts geprüft');
+    await expect(mode).not.toHaveClass(/\bwarn\b/);
+  });
+
+  test('what each probe cost is on screen, and what the board cost', async ({ page }) => {
+    // Measured: four of twenty subsystems account for ~8.2s of a ~10.6s read.
+    // The panel gave no way to see which, so the wait was unexplained.
+    await stub(page);
+    await openCockpit(page);
+    await page.getByRole('button', { name: /^Zustand öffnen/ }).click();
+    const panel = page.getByRole('dialog', { name: 'Zustand' });
+    await panel.getByRole('button', { name: 'Alle zeigen' }).click();
+
+    // The expensive row names its own cost.
+    await expect(panel.locator('.health-row', { hasText: 'ollama.endpoint' })
+      .locator('.health-cost')).toContainText('2,00 s');
+    // A free probe says free rather than hiding.
+    await expect(panel.locator('.health-row', { hasText: 'git.worktree' })
+      .locator('.health-cost')).toContainText('0,10 s');
+    // And the board total, summed from the rows: 0.1 + 2 + 0.2 + 0.3.
+    await expect(panel.locator('.health-total')).toContainText('2,60 s');
+  });
+
   test('the chip opens the surface and names what the counts only counted', async ({ page }) => {
     const seen = collect(page);
     await stub(page);

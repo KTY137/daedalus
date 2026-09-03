@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { HealthFact, HealthPayload, HealthSubsystem } from '@/shared/api';
 import { scrimVariants, surfaceVariants, useReducedMotionPref } from '@/shared/ui/motion';
+import { costText, readMode, scopeNote, shallow, totalCost } from './healthread';
 import { useDialogFocus } from '@/shared/ui/useDialogFocus';
 
 /**
@@ -109,6 +110,11 @@ function Subsystem({ subsystem }: { subsystem: HealthSubsystem }) {
             mean something. */}
         <span className="health-asks">{subsystem.asks}</span>
         <span className="health-headline">{subsystem.headline || 'Ohne Schlagzeile'}</span>
+        {/* What this probe cost. Four of the twenty account for most of a
+            ~10.6s read, and the panel gave no way to see which. */}
+        {costText(subsystem.seconds) && (
+          <span className="health-cost">{costText(subsystem.seconds)}</span>
+        )}
       </button>
       {subsystem.remedy && <p className="health-remedy">{subsystem.remedy}</p>}
       {open && (
@@ -198,6 +204,21 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
 
         {snapshot && (
           <>
+            {/* THE SCOPED-READ WARNING, first, because a filtered board can
+                look like a healthy system. `?only=git` returns one subsystem
+                with an all-green count, and the footer would read
+                "1 Prüfung · Nichts Auffälliges". */}
+            {scopeNote(snapshot.asked, snapshot.subsystems?.length || 0) && (
+              <p className="health-scope bad" role="alert">
+                {scopeNote(snapshot.asked, snapshot.subsystems?.length || 0)}
+              </p>
+            )}
+            {/* Which read this was. The endpoint keeps the expensive probes off
+                by default so a browser tab cannot start them by accident, and
+                reports that "rather than letting `present` read as `working`". */}
+            <p className={`health-mode ${shallow(snapshot.asked) ? 'warn' : ''}`}>
+              Umfang: {readMode(snapshot.asked)}
+            </p>
             {snapshot.not_proven?.length > 0 && (
               <p className="health-remedy">
                 Nicht bewiesen: {snapshot.not_proven.join(', ')}. Das ist nicht dasselbe wie fehlgeschlagen — diese
@@ -219,6 +240,13 @@ export function HealthPanel({ open, onClose, health, error }: HealthPanelProps) 
               {snapshot.subsystems?.length || 0} {snapshot.subsystems?.length === 1 ? 'Prüfung' : 'Prüfungen'} · gelesen{' '}
               {snapshot.generated_at || 'unbekannt'}
               {hidden > 0 ? ` · ${hidden} laufende ausgeblendet` : ''}
+              {/* Why the panel took as long as it did, summed from the rows
+                  themselves rather than timed by the browser. */}
+              {totalCost(snapshot.subsystems || []) > 0 && (
+                <span className="health-total">
+                  {' · '}{costText(totalCost(snapshot.subsystems || []))} gemessen
+                </span>
+              )}
             </p>
           </>
         )}
