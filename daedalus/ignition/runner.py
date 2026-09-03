@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -136,21 +139,36 @@ def materialize_voltage_rename(source_root: str | Path, candidate_root: str | Pa
     return candidate
 
 
-#: The probe body, which runs in a CHILD interpreter. It prints one JSON object
-#: and nothing else, so the parent never has to guess where the measurement
-#: starts. ``sys.argv[1]`` is the candidate's ``src``: under ``-c`` the argument
-#: vector is ``['-c', <first extra arg>]``.
+# --------------------------------------------------------------------------- #
+# the behavior probe                                                           #
+# --------------------------------------------------------------------------- #
+#: The probe body, which runs in a CHILD interpreter.
+#:
+#: THE RESULT DOES NOT TRAVEL ON STDOUT, and that is the whole protocol. A
+#: candidate that printed the expected JSON at import time and called
+#: ``os._exit(0)`` used to produce a passing verdict with no ``parse_event`` and
+#: no ``Event`` class in existence (adversarial review of 3b531d44, case A).
+#: So the answer goes to a file the parent names, carrying a NONCE the parent
+#: generated, and the nonce arrives on STDIN -- consumed before the candidate is
+#: imported, because ``sys.argv`` is readable by candidate module-level code and
+#: stdin, once read, is not.
 _BEHAVIOR_PROBE = """\
 import json, sys
-sys.path.insert(0, sys.argv[1])
+
+_nonce = sys.stdin.readline().strip()
+_src, _out = sys.argv[1], sys.argv[2]
+
+sys.path.insert(0, _src)
 import ignition_app
+
 event = ignition_app.parse_event({"id": "1", "bias_voltage": "125.0"})
-json.dump({
-    "type": type(event).__name__,
-    "id": event.id,
-    "bias_voltage": event.bias_voltage,
-    "has_old_voltage_attribute": hasattr(event, "voltage"),
-}, sys.stdout)
+with open(_out, "w", encoding="utf-8") as handle:
+    json.dump({"nonce": _nonce, "result": {
+        "type": type(event).__name__,
+        "id": event.id,
+        "bias_voltage": event.bias_voltage,
+        "has_old_voltage_attribute": hasattr(event, "voltage"),
+    }}, handle)
 """
 
 #: A candidate that has not answered in this long is a refusal. Generous on
@@ -158,87 +176,199 @@ json.dump({
 #: slow box would read as a broken candidate.
 BEHAVIOR_PROBE_TIMEOUT_S = 120.0
 
+#: The only environment variables the probe child inherits. Everything else --
+#: including ``PYTHONPATH`` and any provider credential in this process -- is
+#: dropped. ``-I`` alone was NOT enough: it makes the INTERPRETER ignore
+#: ``PYTHON*``, but ``os.environ`` still carried them, and two lines of
+#: candidate code put ``PYTHONPATH`` back on ``sys.path`` (adversarial review of
+#: 3b531d44, case H). This is exposure reduction, not a boundary.
+_PROBE_ENV_KEYS = frozenset({
+    "SYSTEMROOT", "WINDIR", "PATH", "PATHEXT", "COMSPEC", "NUMBER_OF_PROCESSORS",
+    "PROCESSOR_ARCHITECTURE", "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL",
+})
+
+#: What the probe must answer with. A dict that is missing a key, or carries the
+#: wrong type, is a refusal rather than a measurement: ``run_voltage_ignition``
+#: indexes these directly, and an empty object used to escape as a bare
+#: ``KeyError`` instead of the ``IgnitionError`` the refusal contract promises.
+_BEHAVIOR_RESULT_TYPES: dict[str, type | tuple[type, ...]] = {
+    "type": str,
+    "id": str,
+    "bias_voltage": (int, float),
+    "has_old_voltage_attribute": bool,
+}
+
+
+def _probe_env() -> dict[str, str]:
+    return {
+        key: value for key, value in os.environ.items()
+        if key.upper() in _PROBE_ENV_KEYS
+    }
+
+
+def _validated_behavior(payload: object, *, nonce: str) -> dict[str, object]:
+    """The probe's answer, or a refusal naming exactly what was wrong."""
+
+    if not isinstance(payload, dict):
+        raise IgnitionError(
+            f"the candidate behavior probe returned {type(payload).__name__}, "
+            "not an object"
+        )
+    if payload.get("nonce") != nonce:
+        # The parent generated this nonce and handed it over on stdin before the
+        # candidate was imported. An answer that cannot repeat it was not
+        # written by the probe.
+        raise IgnitionError(
+            "the candidate behavior result did not carry the probe's nonce; it "
+            "was not written by the evaluator's own probe"
+        )
+    result = payload.get("result")
+    if not isinstance(result, dict):
+        raise IgnitionError(
+            "the candidate behavior result carried no result object"
+        )
+    for key, expected in _BEHAVIOR_RESULT_TYPES.items():
+        if key not in result:
+            raise IgnitionError(
+                f"the candidate behavior result is missing {key!r}"
+            )
+        value = result[key]
+        # bool is a subclass of int, so a `bias_voltage` of True would otherwise
+        # satisfy the numeric check and reach the 125.0 comparison as 1.
+        if key == "bias_voltage" and isinstance(value, bool):
+            raise IgnitionError(
+                "the candidate behavior result gave bias_voltage as a bool"
+            )
+        if not isinstance(value, expected):
+            names = (expected,) if isinstance(expected, type) else expected
+            raise IgnitionError(
+                f"the candidate behavior result gave {key!r} as "
+                f"{type(value).__name__}, expected "
+                + "/".join(item.__name__ for item in names)
+            )
+    return dict(result)
+
 
 def _behavior(candidate: Path) -> Mapping[str, object]:
     """Measure the candidate's runtime behavior WITHOUT importing it here.
 
-    THE PROCESS BOUNDARY IS THE POINT. Until 2026-09-03 this function did
-    ``sys.path.insert(0, source)`` and ``importlib.import_module`` -- so the
+    THE PROCESS BOUNDARY. Until 2026-09-03 this function did
+    ``sys.path.insert(0, source)`` and ``importlib.import_module``, so the
     candidate's module-level code ran inside the interpreter that holds the
     ``python.attempt`` EffectLease, assembles the EvidencePacket, decides
-    ``behavior_ok`` and writes the receipt. Master plan invariant 3 says
-    candidate execution "cannot modify its evaluator, policy, evidence, budget
-    ledger, or promotion mechanism", ``AGENTS.md`` lists "candidate access to
-    its evaluator" as a release-blocking defect, and
-    ``G1_ACTIVATION_CHECKLIST.md`` §2.3 named this exact line on 2026-08-17.
-    ``tests/ignition/test_behavior_probe_isolation.py`` pins the fix by having
-    the candidate record ``os.getpid()`` at import: against the old
-    implementation that pid IS this process's.
+    ``behavior_ok`` and writes the receipt. Master plan invariant 3 forbids
+    that, ``AGENTS.md`` calls candidate access to its evaluator
+    release-blocking, and ``G1_ACTIVATION_CHECKLIST.md`` §2.3 named this exact
+    line on 2026-08-17. ``tests/ignition/test_behavior_probe_isolation.py``
+    pins it by having the candidate record ``os.getpid()`` at import: against
+    the old implementation that pid IS this process's.
 
-    ``-I`` (isolated) is deliberate and does two things worth naming: it drops
-    the script directory and ``PYTHONPATH`` from ``sys.path``, so the candidate
-    cannot import the evaluator's own package through an inherited environment,
-    and it ignores ``PYTHON*`` variables generally. It does NOT remove
-    ``site-packages``; a candidate can still import whatever this interpreter
-    has installed. That is a bound, not a sandbox, and it is stated rather
-    than implied.
+    THE ANSWER IS NOT THE CANDIDATE'S TO WRITE. The result travels through a
+    parent-named file carrying a parent-generated nonce delivered on stdin, not
+    through stdout. Printing the expected JSON and calling ``os._exit(0)`` used
+    to forge a passing verdict from a candidate with no ``parse_event`` at all.
 
-    WHAT THIS IS NOT. ``daedalus.spine.containment.spawn_contained`` is the
-    capability-bounded mechanism in this repository, and it is not used here:
-    it is win32-only (``platform_supported()`` is ``os.name == "nt"``) and
-    never falls back, so it would make this slice refuse on every other
-    platform, and with ``log=None`` the contained child has no stdio at all --
-    there would be no way to read the measurement back. So the result declares
-    ``"isolation": "subprocess"`` and claims process isolation only.
+    WHAT THIS IS NOT, stated because the first version of this docstring got it
+    wrong and an adversarial review refuted it:
 
-    SECOND HONEST LIMIT: ``subprocess.run(timeout=...)`` kills the direct child
-    on expiry, not its descendants. A candidate that spawns a grandchild at
-    import would leave it behind. The gate path already solves this with
-    :mod:`daedalus.spine.cancel`; wiring it here is deferred work, named in
-    ``docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md`` §8, not
-    silently assumed away.
+    * ``-I`` does NOT stop the candidate from importing this evaluator. This
+      interpreter's ``site-packages`` carries an editable install of
+      ``daedalus``, so the child can import ``daedalus.ignition.checks``, and it
+      resolves to the operator's live checkout. The measured child had
+      ``os.access(..., W_OK)`` and a successful ``open(..., "r+")`` on it. What
+      ``-I`` and :data:`_PROBE_ENV_KEYS` together DO remove is the inherited
+      ``PYTHONPATH`` route and the rest of this process's environment,
+      including any credential in it.
+    * this is process isolation at the operator's own privilege level, not
+      capability-bounded containment.
+      ``daedalus.spine.containment.spawn_contained`` is that mechanism, and it
+      is not used here: it is win32-only, never falls back, and with
+      ``log=None`` gives the child no stdio to answer through. Closing the
+      write capability above needs it (or OS permissions), and that is deferred
+      work, not something this function may claim.
+    * a candidate that walks the probe's own stack frames can still read the
+      nonce and forge the answer. Defeating that needs the evaluator to observe
+      the candidate from OUTSIDE the interpreter; the nonce closes the cheap
+      forgery, not the determined one.
+
+    So the result declares ``"isolation": "subprocess"`` and nothing stronger.
+
+    BOUNDED WALL TIME, which the first version also got wrong. The result and
+    the diagnostics go to FILES and stdout is discarded, so no descendant holds
+    a pipe this process must drain: a grandchild used to hold the parent 12.6x
+    past its own declared timeout while the refusal still reported the short
+    bound. An orphaned grandchild can still outlive the probe -- that is named
+    in ``docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md``, not
+    assumed away.
     """
 
     source = str(Path(candidate).resolve() / "src")
-    try:
-        completed = subprocess.run(
-            [sys.executable, "-I", "-c", _BEHAVIOR_PROBE, source],
-            capture_output=True,
-            text=True,
-            timeout=BEHAVIOR_PROBE_TIMEOUT_S,
-        )
-    except subprocess.TimeoutExpired:
-        raise IgnitionError(
-            "the candidate behavior probe did not answer within "
-            f"{BEHAVIOR_PROBE_TIMEOUT_S:g}s"
-        ) from None
-    except OSError as exc:
-        raise IgnitionError(
-            "the candidate behavior probe could not be started "
-            f"({type(exc).__name__}: {exc})"
-        ) from exc
+    nonce = uuid.uuid4().hex
+    # ``ignore_cleanup_errors`` because an orphaned grandchild still holds the
+    # stderr handle it inherited, and win32 refuses to unlink an open file --
+    # measured, as a PermissionError out of the timeout test. Leaking a small
+    # temp directory beats raising over cleanup and destroying the refusal the
+    # caller actually needs.
+    with tempfile.TemporaryDirectory(
+        prefix="daedalus-behavior-", ignore_cleanup_errors=True
+    ) as scratch:
+        result_path = Path(scratch) / "result.json"
+        stderr_path = Path(scratch) / "stderr.log"
+        try:
+            with stderr_path.open("wb") as stderr_sink:
+                completed = subprocess.run(
+                    [sys.executable, "-I", "-c", _BEHAVIOR_PROBE,
+                     source, str(result_path)],
+                    input=(nonce + "\n").encode("ascii"),
+                    # NOT PIPE: a descendant that inherits a pipe keeps this
+                    # process in communicate() long after the timeout fired.
+                    stdout=subprocess.DEVNULL,
+                    stderr=stderr_sink,
+                    env=_probe_env(),
+                    timeout=BEHAVIOR_PROBE_TIMEOUT_S,
+                )
+        except subprocess.TimeoutExpired:
+            raise IgnitionError(
+                "the candidate behavior probe did not answer within "
+                f"{BEHAVIOR_PROBE_TIMEOUT_S:g}s"
+            ) from None
+        except OSError as exc:
+            raise IgnitionError(
+                "the candidate behavior probe could not be started "
+                f"({type(exc).__name__}: {exc})"
+            ) from exc
 
-    if completed.returncode != 0:
-        # The child's traceback is the diagnosis -- a candidate that still
-        # carries the retired symbol fails here with its own KeyError, which is
-        # exactly what a reader of a red receipt needs to see.
-        raise IgnitionError(
-            f"the candidate behavior probe failed (rc={completed.returncode}): "
-            + (completed.stderr or "").strip()[-2000:]
-        )
-    try:
-        observed = json.loads(completed.stdout)
-    except ValueError as exc:
-        raise IgnitionError(
-            f"the candidate behavior probe did not return JSON ({exc}): "
-            f"{(completed.stdout or '')[:400]!r}"
-        ) from exc
-    if not isinstance(observed, dict):
-        raise IgnitionError(
-            "the candidate behavior probe returned "
-            f"{type(observed).__name__}, not an object"
-        )
+        try:
+            stderr_tail = stderr_path.read_text(
+                encoding="utf-8", errors="replace").strip()[-2000:]
+        except OSError:                                      # pragma: no cover
+            stderr_tail = ""
 
+        if completed.returncode != 0:
+            # The child's traceback is the diagnosis -- a candidate that still
+            # carries the retired symbol fails here with its own KeyError,
+            # which is exactly what a reader of a red receipt needs to see.
+            raise IgnitionError(
+                f"the candidate behavior probe failed (rc={completed.returncode}): "
+                + stderr_tail
+            )
+        try:
+            raw = result_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            # rc==0 with no result file means the candidate ended the process
+            # before the probe could answer.
+            raise IgnitionError(
+                "the candidate behavior probe exited 0 without writing a "
+                f"result ({type(exc).__name__}): " + stderr_tail
+            ) from exc
+        try:
+            payload = json.loads(raw)
+        except ValueError as exc:
+            raise IgnitionError(
+                f"the candidate behavior result is not JSON ({exc}): {raw[:400]!r}"
+            ) from exc
+
+    observed = _validated_behavior(payload, nonce=nonce)
     # NOT a pid, NOT a duration, NOT a path. `gate1` digests this mapping into
     # the `ignition-behavior` evidence item and the receipt compares two runs'
     # check reports, so a field that moved per run would make every Gate-1 run
