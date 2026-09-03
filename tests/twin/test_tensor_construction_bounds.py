@@ -89,6 +89,18 @@ def test_coordinate_canonicalization_avoids_transient_duplicate_axis_set() -> No
         )
 
 
+def test_coordinate_canonicalization_reuses_exact_canonical_tuple() -> None:
+    canonical_coordinates = (("alpha", "a"), ("omega", "z"))
+
+    entry = SparseTensorEntry(
+        coordinates=canonical_coordinates,
+        relation="membership",
+        evidence_sha256s=("d" * 64,),
+    )
+
+    assert entry.coordinates is canonical_coordinates
+
+
 def test_axis_count_limit_refuses_before_copying_records() -> None:
     axes = ExplodingSequence(MAX_TENSOR_AXES + 1)
 
