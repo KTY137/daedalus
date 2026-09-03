@@ -464,6 +464,100 @@ work; both are downstream of the table above.
 
 ---
 
+## 7. The same defect, in the other instrument
+
+§0 found the reachability engine blind to an indirection this codebase uses
+everywhere. The switch inventory turned out to have the identical problem, and
+it was hiding something worse than an island.
+
+`daedalus/mapping/switches.py` resolves `os.environ.get(SOME_CONST)`. It could
+not resolve the shape the most important switches actually use — a helper that
+takes the variable name as a parameter:
+
+```python
+ENV_CEILING = "DAEDALUS_BUDGET_USD"
+
+def _env_float(name, default):
+    raw = os.environ.get(name)      # a PARAMETER; no literal is ever here
+    ...
+
+return _env_float(ENV_CEILING, DEFAULT_CEILING_USD)
+```
+
+So the gate reported `DAEDALUS_BUDGET_USD` and `DAEDALUS_BUDGET_MAX_CALLS` as
+**"documented, but no code reads it any more"** — both sitting in
+`.env.example` under *"Spend ceiling for one activation period"*. That is the
+`$5.00` period ceiling of master plan §4.1 and Revisions 9 and 10, read at
+`daedalus/kernel/policy/ledger.py:657`. The instrument was telling an operator
+that the monetary ceiling is dead configuration `[MEASURED 2026-09-03]`.
+
+A function is now an env-reader when it hands one of its **own** parameters to
+`os.environ` — structural, never by name, so a formatter that accepts something
+called `name` is not one. The first argument at each call site goes through the
+existing constant resolver, which already follows imports; that is what recovers
+`DAEDALUS_BUDGET_MAX_CALLS` from `pricing.py`. The read is attributed to the
+call site, because that is where the variable is chosen. An unresolvable
+argument stays a dynamic read: this widens what can be *proven*, never what is
+guessed.
+
+**Seeing further immediately found three switches never reported at all**, and
+one is the point: `DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED` turns the period USD
+ceiling **off**, and it was invisible to the inventory whose job is listing
+switches. A switch that disables the monetary ceiling should not be able to hide
+from that list. The other two are the embedding wall-clock ceilings in
+`semantic_route`.
+
+Two further findings on the way, both the same "two answers to one question"
+shape as §5.2:
+
+- `_PLATFORM_ENV` — whose comment says OS variables must not "bury the ones
+  that are" Daedalus switches — held `USERNAME` and `USERPROFILE` but not
+  `USER`, `USERDOMAIN` or `PROCESSOR_IDENTIFIER`. Documenting them instead of
+  excluding them merely flips a `code-only` row into a `doc-only` one, because
+  no Daedalus module owns the name.
+- `_augment_documented` was passed every read name while `_drift` filtered
+  `_PLATFORM_ENV` out, so the two disagreed about what "read" means and a bare
+  doc mention of an OS variable became a phantom *"documented, but no code reads
+  it any more"*.
+
+### 7.1 Result
+
+| | before | after |
+| --- | --- | --- |
+| doc drift, total | 47 | 30 |
+| read but undocumented (`code-only`) | 14 | **0** |
+| name mismatches | 1 | **0** |
+| dark switches | 5 | **0** |
+
+`docs/ENV_SWITCHES.md` documents every remaining `DAEDALUS_*` lever from its
+call site. The 30 that survive are all `doc-only` and all in `docs/` —
+amendment proposals, work packets, recovery kits and plans naming variables no
+code reads. **None is operator-facing** `[MEASURED]`: nothing in `README.md`,
+`.env.example` or the desktop/go-live pages names a switch that does not exist.
+Editing the historical records to close the rest would be rewriting evidence,
+which §16 forbids, so that number is expected to stay non-zero.
+
+### 7.2 What the day actually found
+
+Five distinct blind spots in the two instruments that decide what Daedalus
+knows about itself, all the same shape — a scanner that cannot read an
+indirection the codebase uses everywhere — and each one producing a confident,
+false, actionable-looking statement:
+
+1. a lazy `__getattr__` façade → the flagship mission path reported as islands;
+2. a package `__init__` bound to a name no import writes → a module with five
+   callers called an orphan;
+3. an aliased `import_module` → both façade tables invisible;
+4. a declared project scope nobody read → 91% of the drift gate's output was
+   other people's trees, and the picker ranked work against them;
+5. an env-reader helper → the spend ceiling reported as dead configuration.
+
+None of these was a missing feature. Every one was a measurement that read as
+authoritative and was wrong, in a repository whose entire discipline is that
+claims carry evidence. That is the coherence problem — not the module count.
+
+---
+
 `Iron Plan: ALIGNED`
 `Iron Gate: 1`
 `Evidence: daedalus.mapping.reach.analyse at 8eaa5adf (census, 52 flagged rows);
