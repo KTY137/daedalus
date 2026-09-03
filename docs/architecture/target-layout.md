@@ -368,6 +368,20 @@ them.**
 
 ## 3. UNRESOLVED - the cross-domain SCC, now 13 members
 
+> **Superseded in part, 2026-09-03.** This section's central finding --
+> that every candidate composer is reachable from inside the component, so
+> injecting a port anywhere reinstates the cycle -- was true when measured
+> and is not true now. Forty-eight modules have been relocated since. All
+> twenty external callers are now outside the component's transitive reach,
+> and ONE deferred import holds the component together:
+> `daedalus/file_bridge.py:766`. Removing it dissolves the component and
+> leaves two small single-domain cycles. Measured, simulated over all
+> twenty-four internal edges, and written up in
+> [scc-cut-reconnaissance-20260903.md](scc-cut-reconnaissance-20260903.md).
+> The analysis below is left as written: it was correct about the tree it
+> measured, and it is why the relocations were worth doing.
+
+
 > **Updated 2026-09-02 after G1-SCC-01 (merged 22cff7bf).** The section below
 > was written when the component had 18 members, and every word of its
 > argument still holds; what changed is the membership.
