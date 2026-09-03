@@ -204,7 +204,7 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
         "daedalus/doctor.py",
         "daedalus/file_bridge.py",
         "daedalus/health.py",
-        "daedalus/orchestration/ikarus_supervisor.py",
+        "daedalus/orchestration/ikarus/supervisor.py",
         "daedalus/kairos/gated_writes.py",
         "daedalus/kairos/scheduler.py",
         "daedalus/offload.py",

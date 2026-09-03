@@ -1241,7 +1241,7 @@ def _try_ikarus(
 
     try:
         from .build_exec import EffectBounds, WaveExecutor
-        from .orchestration.ikarus_supervisor import MissionSupervisor
+        from .orchestration.ikarus.supervisor import MissionSupervisor
         from .orchestration import run_mission
 
         session = _one_task_session(payload, assignment)

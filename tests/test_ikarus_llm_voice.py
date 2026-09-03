@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 
-from daedalus.orchestration import ikarus_os
+from daedalus.orchestration.ikarus import shell as ikarus_os
 from daedalus.limit_policy import ExecutionLimitPolicy
 from daedalus.orchestration.llm_client import LLMSelection
 

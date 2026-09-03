@@ -15,7 +15,10 @@ from daedalus.spine.effect_boundary import REGISTRY_BY_ID, registry_sha256
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE_NAMES = ("WORKING", "PRESENT", "DEGRADED", "ABSENT", "UNKNOWN")
-REGISTRY_SHA256 = "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
+# Moved 2026-09-03: the registry gained the ``daedalus.hooks.crosstalk`` row
+# (network_egress + process_spawn) and ``daedalus.hooks`` had its notes
+# corrected, because its declared egress is no longer loopback-only.
+REGISTRY_SHA256 = "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
 
 
 def _assigned_names(path: Path) -> set[str]:

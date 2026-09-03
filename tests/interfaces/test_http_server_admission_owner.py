@@ -99,5 +99,5 @@ def test_cold_owner_import_does_not_load_facade_or_runtime_effect_layers() -> No
 
 def test_http_admission_move_keeps_effect_registry_digest() -> None:
     assert registry_sha256() == (
-        "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
+        "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
     )

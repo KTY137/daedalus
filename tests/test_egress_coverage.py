@@ -202,7 +202,7 @@ KNOWN_UNFLOORED_EGRESS = {
 # the CLI's response file after the vendor process has produced it, not input
 # placed into the prompt.
 KNOWN_NON_EGRESS_COLOCATIONS = {
-    "daedalus/orchestration/ikarus_os.py":
+    "daedalus/orchestration/ikarus/shell.py":
         "_claude_stream reads the vendor's response message file; prompt input "
         "is assembled separately and the bytes flow vendor -> disk -> caller",
 }

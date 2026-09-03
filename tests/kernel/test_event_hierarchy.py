@@ -202,5 +202,5 @@ def test_kernel_events_has_no_forbidden_dependency_edge() -> None:
 
 def test_effect_registry_digest_is_unchanged_by_structure_packet() -> None:
     assert registry_sha256() == (
-        "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
+        "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
     )

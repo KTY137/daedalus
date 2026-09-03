@@ -9,9 +9,9 @@ on:
       - main
       - g1/ikarus-oneshot-04
     paths:
-      - "daedalus/orchestration/ikarus_oneshot.py"
-      - "daedalus/orchestration/ikarus_tool_scope.py"
-      - "daedalus/orchestration/ikarus_runtime_role.py"
+      - "daedalus/orchestration/ikarus/oneshot.py"
+      - "daedalus/orchestration/ikarus/tool_scope.py"
+      - "daedalus/orchestration/ikarus/runtime_role.py"
       - "daedalus/kernel/runtime_conformance.py"
       - "daedalus/schemas.py"
       - "tests/test_ikarus_oneshot.py"
@@ -53,9 +53,9 @@ jobs:
       - run: python -m pip install -e . pytest
       - run: >-
           python -m py_compile
-          daedalus/orchestration/ikarus_oneshot.py
-          daedalus/orchestration/ikarus_tool_scope.py
-          daedalus/orchestration/ikarus_runtime_role.py
+          daedalus/orchestration/ikarus/oneshot.py
+          daedalus/orchestration/ikarus/tool_scope.py
+          daedalus/orchestration/ikarus/runtime_role.py
           daedalus/kernel/runtime_conformance.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py

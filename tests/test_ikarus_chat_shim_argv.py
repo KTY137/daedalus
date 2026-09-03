@@ -19,7 +19,7 @@ WHAT THE BRIEF EXPECTED, AND WHAT WAS ACTUALLY MEASURED
 -------------------------------------------------------
 The packet was opened on the theory that ``args.append(prompt)`` shipped the
 user's chat MESSAGE into the relay, single-line and straight in. Measured on
-this box, that is NOT reachable: :func:`daedalus.orchestration.ikarus_os._claude_prompt`
+this box, that is NOT reachable: :func:`daedalus.orchestration.ikarus.shell._claude_prompt`
 returns ``f"{SYSTEM}...\\n\\nUser: {message}"``, so the message is never on line
 one, and ``cmd.exe`` truncates the argument at the first newline. Pre-fix the
 child received the SYSTEM paragraph and nothing else.
@@ -59,8 +59,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from daedalus.orchestration import ikarus_os
-from daedalus.orchestration.ikarus_os import ProviderStartRefused
+from daedalus.orchestration.ikarus import shell as ikarus_os
+from daedalus.orchestration.ikarus.shell import ProviderStartRefused
 
 # Records exactly what the child was given, then plays the CLI well enough for
 # _codex to finish: writes the --output-last-message file it was pointed at.
@@ -394,7 +394,7 @@ class GuardWiringTests(unittest.TestCase):
         import daedalus.providers.codex_cli as provider
 
         source = Path(ikarus_os.__file__).read_text(encoding="utf-8")
-        self.assertIn("from ..providers.codex_cli import cmd_shim_refusal", source)
+        self.assertIn("from ...providers.codex_cli import cmd_shim_refusal", source)
         # ...and no local re-definition of the character set or the check.
         self.assertNotIn("CMD_SHIM_METACHARACTERS: str", source)
         self.assertNotIn("def cmd_shim_refusal", source)

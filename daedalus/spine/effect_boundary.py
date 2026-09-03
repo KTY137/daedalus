@@ -2015,7 +2015,7 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
     EntrypointSpec(
         id="ikarus_os.ask",
         surface=Surface.PYTHON,
-        target="daedalus.orchestration.ikarus_os:ask",
+        target="daedalus.orchestration.ikarus.shell:ask",
         effects=(
             Effect.NETWORK_EGRESS,
             Effect.PROCESS_SPAWN,
@@ -2024,7 +2024,7 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
         ),
         guard_contracts=("budget.process_guard",),
         wiring=Wiring.CENTRAL,
-        anchors=(GuardAnchor("daedalus.orchestration.ikarus_os:ask", "begin_effect"),),
+        anchors=(GuardAnchor("daedalus.orchestration.ikarus.shell:ask", "begin_effect"),),
         notes=(
             "The blocking chat door. The boundary is the FIRST statement of "
             "ask(), above intent classification and above provider selection, "
@@ -2045,7 +2045,7 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
     EntrypointSpec(
         id="ikarus_os.ask_stream",
         surface=Surface.PYTHON,
-        target="daedalus.orchestration.ikarus_os:ask_stream",
+        target="daedalus.orchestration.ikarus.shell:ask_stream",
         effects=(
             Effect.NETWORK_EGRESS,
             Effect.PROCESS_SPAWN,
@@ -2055,8 +2055,8 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("budget.process_guard",),
         wiring=Wiring.CENTRAL,
         anchors=(
-            GuardAnchor("daedalus.orchestration.ikarus_os:ask_stream", "_ask_stream_inner"),
-            GuardAnchor("daedalus.orchestration.ikarus_os:_ask_stream_inner", "begin_effect"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:ask_stream", "_ask_stream_inner"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_ask_stream_inner", "begin_effect"),
         ),
         notes=(
             "The streaming twin, same effects and same door discipline. "
@@ -2072,7 +2072,7 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
     EntrypointSpec(
         id="ikarus_os.provider_call",
         surface=Surface.PYTHON,
-        target="daedalus.orchestration.ikarus_os:_provider_start",
+        target="daedalus.orchestration.ikarus.shell:_provider_start",
         effects=(
             Effect.NETWORK_EGRESS,
             Effect.PROCESS_SPAWN,
@@ -2082,17 +2082,17 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("budget.process_guard", "provider.egress_policy"),
         wiring=Wiring.CENTRAL,
         anchors=(
-            GuardAnchor("daedalus.orchestration.ikarus_os:_provider_start", "begin_effect"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_provider_start", "begin_effect"),
             # One anchor per sink so deleting the admission from any single
             # transport is a conformance blocker, not a silent regression.
-            GuardAnchor("daedalus.orchestration.ikarus_os:_ollama", "_provider_start"),
-            GuardAnchor("daedalus.orchestration.ikarus_os:_ollama_cli", "_provider_start"),
-            GuardAnchor("daedalus.orchestration.ikarus_os:_deepseek", "_provider_start"),
-            GuardAnchor("daedalus.orchestration.ikarus_os:_claude", "_provider_start"),
-            GuardAnchor("daedalus.orchestration.ikarus_os:_codex", "_provider_start"),
-            GuardAnchor("daedalus.orchestration.ikarus_os:_ollama_stream", "_provider_start"),
-            GuardAnchor("daedalus.orchestration.ikarus_os:_deepseek_stream", "_provider_start"),
-            GuardAnchor("daedalus.orchestration.ikarus_os:_claude_stream", "_provider_start"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_ollama", "_provider_start"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_ollama_cli", "_provider_start"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_deepseek", "_provider_start"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_claude", "_provider_start"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_codex", "_provider_start"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_ollama_stream", "_provider_start"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_deepseek_stream", "_provider_start"),
+            GuardAnchor("daedalus.orchestration.ikarus.shell:_claude_stream", "_provider_start"),
         ),
         notes=(
             "ONE transport start, taken inside each of the eight sink "

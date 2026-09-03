@@ -155,7 +155,7 @@ Floored: `daedalus/council/vendors.py`, `daedalus/providers/codex_cli.py`,
   planner selects a `.env`, it ships verbatim. Open because the fix is a design
   decision: dropping a selected file silently would change what the two A/B
   arms are comparing.
-- **`daedalus/orchestration/ikarus_os.py` — inspected, not egress.** `_claude_stream` reads
+- **`daedalus/orchestration/ikarus/shell.py` — inspected, not egress.** `_claude_stream` reads
   the vendor's *response* file; prompt input is assembled separately. Bytes
   flow vendor -> disk -> caller.
 - **Out-of-repo witness.** `~/.claude/skills/room/room.py` exists here (26 990

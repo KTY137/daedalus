@@ -361,7 +361,7 @@ extension *can* add natively:
 ### What this section deliberately does not cover
 
 Per-turn / per-step progress (plan issued → tool call → file edit → verified) is not rendered
-natively here. `daedalus/orchestration/ikarus_os.py::ask` / `ask_stream` is single-turn and stateless as of this
+natively here. `daedalus/orchestration/ikarus/shell.py::ask` / `ask_stream` is single-turn and stateless as of this
 writing (no conversation/session id in the request shape) and the existing SSE surface
 (`/api/events`: `hello|report|heartbeat|queue`) is task-level, not step-level. Conversation state
 and a richer progress-event model were, at the time of this writing, being built concurrently by

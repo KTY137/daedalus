@@ -67,7 +67,7 @@ class RuntimeRoleBinding:
     """One structural ``(role, runtime_id)`` binding.
 
     The record is deliberately DATA ONLY. Executable factories remain on the
-    pre-existing :class:`daedalus.orchestration.ikarus_supervisor.RoleHarness` seam and are
+    pre-existing :class:`daedalus.orchestration.ikarus.supervisor.RoleHarness` seam and are
     looked up by :attr:`harness_key`, which contains this binding's full
     digest. Exact executable bytes and a conformance receipt must join the
     canonical runtime authority before any non-fixture mode can be introduced.

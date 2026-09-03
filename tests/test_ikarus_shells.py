@@ -16,8 +16,8 @@ from collections import namedtuple
 from unittest import mock
 
 from daedalus import health
-from daedalus.orchestration import ikarus_os
-from daedalus.orchestration.ikarus_act import ActDecision, may_act
+from daedalus.orchestration.ikarus import shell as ikarus_os
+from daedalus.orchestration.ikarus.act import ActDecision, may_act
 
 _Hand = namedtuple("HandState", "state detail host")
 _WORKING = _Hand("working", "answered", "http://127.0.0.1:11434")

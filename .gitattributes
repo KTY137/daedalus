@@ -356,8 +356,8 @@ daedalus/foundation/text_integrity.py -text
 # above predicts, caught by the guard test rather than by review.
 daedalus/build_exec.py -text
 daedalus/orchestration/conversation.py -text
-daedalus/orchestration/ikarus_runtime_role.py -text
-daedalus/orchestration/ikarus_supervisor.py -text
+daedalus/orchestration/ikarus/runtime_role.py -text
+daedalus/orchestration/ikarus/supervisor.py -text
 daedalus/interfaces/bridge/__init__.py -text
 daedalus/interfaces/bridge/cli.py -text
 daedalus/interfaces/bridge/conversation.py -text

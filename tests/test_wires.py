@@ -35,7 +35,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus.orchestration import ikarus_os
+from daedalus.orchestration.ikarus import shell as ikarus_os
 
 
 def _fake_codex_run(reply_text: str):
