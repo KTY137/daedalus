@@ -307,3 +307,39 @@ document describes is now pinned as an explicit measured gap
 test, so it stays visible without blocking the suite. The retained legacy block
 was NOT deleted: the comment above it records a deliberate decision, and a
 test-repair packet does not overrule that.
+
+## Addendum 2: is this defect class anywhere else? Measured — no.
+
+A test satisfied by code that cannot run is worth looking for repo-wide, so it
+was looked for. Two passes, both at `e8e83eed`:
+
+**Pass 1, from the test side.** 612 assertions across 93 test files assert a
+substring against a whole source file they read. Only 7 of those could be
+resolved to a concrete Python target by a static path resolver — most tests
+build their paths in shapes the resolver does not evaluate — and none of the 7
+was satisfied only by a comment. **That is low coverage, not a clean bill**, and
+it is recorded as such rather than quoted as "612 checked".
+
+**Pass 2, from the source side, which IS decisive.** The carrier of this defect
+is retained-but-disabled code, and there is very little of it. Ten tracked
+sources hold a disabled block of 40+ lines:
+
+| lines | file |
+|---|---|
+| 852 | `vscode-agent-env/extension.js` — the one this document is about |
+| 235 | `tests/contracts/test_import_scc_hierarchy.py` — the census commentary |
+| 65 | `daedalus/interfaces/http/web_api.py` |
+| 64 | `tests/test_spend_coverage.py` |
+| 54 | `daedalus/spine/effect_boundary.py` |
+| 48 | `daedalus/sensitivity.py`, `daedalus/structcore/index.py` |
+| 47 | `daedalus/spine/picker.py` |
+| 44 | `apps/web/src/shared/ui/motion/tokens.ts` |
+| 42 | `daedalus/health.py` |
+
+Every Python entry was read: they are prose — design rationale in this
+repository's house style, not commented-out code. The heuristic flagged them
+because `= ` and `def ` occur in English sentences about code.
+
+**Conclusion.** The class exists in exactly one place in the tree, and it is
+fixed. No guard was added: a repo-wide check for a one-instance problem is
+ceremony, and the honest record of having looked is this table.
