@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BY",
+  "title": "Reuse validated coordinates for canonical semantic-key checks",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BX",
+  "campaign_issue": 239,
+  "base_revision": "9dc94d3b99f43de483767d8e086ad8b6e2a3e6a2",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView construction already loads each SparseTensorEntry.coordinates tuple to validate exact axis binding and declared labels. Canonical-order validation then called SparseTensorEntry.semantic_key, which reread the same coordinates tuple solely to pair it with relation for the adjacent semantic-claim comparison.",
+  "primary_claim": "TensorView canonical construction now reuses the coordinates tuple already loaded and validated in the current entry pass when forming the semantic claim key. Canonical retained entries therefore require one coordinates attribute read per entry instead of two while preserving the existing coordinate/relation uniqueness and ordering semantics.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_select_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BY.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 5,
+    "code_test_deletions": 5,
+    "production_additions": 1,
+    "production_deletions": 1,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the already validated local coordinates binding in the existing entry-validation pass rather than introducing a cache, helper key object, parallel index or second Tensor representation. Keep SparseTensorEntry.semantic_key as the external reusable semantic-key surface for paths that do not already hold validated coordinates.",
+  "acceptance": [
+    "canonical TensorView construction reads each retained entry coordinates attribute once during the validation/order pass",
+    "the semantic ordering key remains exactly (coordinates, relation)",
+    "canonical entry tuples remain retained by identity",
+    "duplicate coordinate/relation claims remain fail-closed",
+    "non-canonical fallback ordering remains based on SparseTensorEntry.semantic_key",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "981797b73d4512c2f50e4b4948571ec343186dea",
+    "code_test_revision": "f98b43efff5ce2dd6e0fc6cff27deddb2384d50c",
+    "production_blob": "4a4aedb56386608ccd93f4a051a59f28616153ef",
+    "focused_test_blob": "9d6fb08beb34a1acc10761df6db25029caf8a1cb",
+    "fourfold_v2_run": 33710164136,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision f98b43efff5ce2dd6e0fc6cff27deddb2384d50c",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision f98b43efff5ce2dd6e0fc6cff27deddb2384d50c. The focused _CoordinateReadBoundEntry regression activates after valid SparseTensorEntry construction, presents 128 already-canonical entries, allows exactly one coordinates attribute read per entry during TensorView construction, and requires the original immutable entry tuple to be retained by identity. The previous semantic_key call would perform a second coordinates read and fail the probe; the local validated-coordinate key succeeds. Existing duplicate-claim coverage retains the fail-closed uniqueness boundary. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BY commits; Fourfold/Forest authority, Tensor wire contracts, semantic-key uniqueness, status/provenance identity and public product surfaces remain unchanged, while canonical TensorView construction returns to rereading coordinates through SparseTensorEntry.semantic_key.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
