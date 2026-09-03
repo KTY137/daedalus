@@ -2,6 +2,14 @@ import { useCallback, useRef, useState } from 'react';
 import { ApiError, getTask, getTaskArtifacts, type DraftRow, type TaskArtifacts, type TaskDetail } from '@/shared/api';
 import type { OpenDispatch } from '@/features/conversation/model';
 import { relativeTime, taskStateLabel } from '@/features/conversation/model';
+import {
+  APPLIED_WORD,
+  appliedReading,
+  appliedTone,
+  isTerminalState,
+  laneReading,
+  providerReading
+} from './outcome';
 import { ActivityLog } from './ActivityLog';
 import { Timeline } from './Timeline';
 import type { LiveState } from './live';
@@ -167,23 +175,21 @@ function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
             </p>
           ) : (
             <>
-              <span className="work-row-meta">
-                <span>
-                  Zustand <b>{taskStateLabel(state.task)}</b>
-                </span>
-                {(state.task.requested_lane || state.task.lane) && (
-                  <span>
-                    Lane <code>{state.task.requested_lane || state.task.lane}</code>
-                  </span>
-                )}
-                {state.task.actual_providers && state.task.actual_providers.length > 0 && (
-                  <span>über {state.task.actual_providers.join(', ')}</span>
-                )}
-                {typeof state.task.age_s === 'number' && <span>{Math.round(state.task.age_s)} s alt</span>}
-                <span>Quelle {state.task.source}</span>
-              </span>
+              <TaskMeta task={state.task} />
               {state.task.summary && <p className="work-detail-summary">{state.task.summary}</p>}
               {state.task.error && <p className="work-detail-note bad">Fehler: {state.task.error}</p>}
+              {/* DID IT LAND, AND IF NOBODY KNOWS, WHY NOT.
+                  `_derive_applied` returns null rather than true when it cannot
+                  tell, and writes a sentence saying which signal it read or
+                  which was missing. That sentence was rendered only for a task
+                  the bus could not find — never for one it found, where it is
+                  the actual explanation. See ./outcome.ts. */}
+              <p className={`work-applied ${appliedTone(appliedReading(state.task.applied))}`}>
+                <span>Ergebnis <b>{APPLIED_WORD[appliedReading(state.task.applied)]}</b></span>
+                {state.task.applied_reason && (
+                  <span className="work-applied-why">{state.task.applied_reason}</span>
+                )}
+              </p>
               {/* The recorded timeline of the run, when the bus could build
                   one. It rode along with every snapshot and was dropped. */}
               {state.task.progress && <Timeline progress={state.task.progress} />}
@@ -206,6 +212,52 @@ function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * The one-line facts about a run: its state, the lane it asked for AND the one
+ * it got, who actually ran it, how old the reading is, and where the reading
+ * came from. Extracted so each derivation is computed once rather than three
+ * times behind non-null assertions.
+ */
+function TaskMeta({ task }: { task: TaskDetail }) {
+  const lane = laneReading(task);
+  const providers = providerReading(task.actual_providers, isTerminalState(task.state));
+  return (
+    // Its own class as well as the shared one: `.work-row-meta` is used by the
+    // timeline and by every dispatch row, so it cannot address THIS line.
+    <span className="work-row-meta work-task-meta">
+      <span>
+        Zustand <b>{taskStateLabel(task)}</b>
+      </span>
+      {/* The lane, and the lane that ACTUALLY ran when they differ. This used
+          to render `requested_lane || lane` — one value, which hides a
+          divergence. `local_only` exists precisely to keep work off external
+          providers, so a divergence there is a containment question, not a
+          detail. */}
+      {lane && (
+        <span>
+          Lane <code>{lane.requested}</code>
+          {lane.diverged && (
+            <>
+              {' → gelaufen auf '}
+              <code className="work-lane-diverged">{lane.actual}</code>
+            </>
+          )}
+        </span>
+      )}
+      {/* Who ran it — including "nobody", which an empty list used to render as
+          silence. On a FINISHED task that is a fact; on an unfinished one it
+          means only "not yet", so it stays silent. */}
+      {providers && (
+        <span className={providers.none ? 'work-no-provider' : undefined}>
+          {providers.none ? providers.text : `über ${providers.text}`}
+        </span>
+      )}
+      {typeof task.age_s === 'number' && <span>{Math.round(task.age_s)} s alt</span>}
+      <span>Quelle {task.source}</span>
+    </span>
   );
 }
 

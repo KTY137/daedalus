@@ -495,6 +495,102 @@ test.describe('work rail', () => {
     await expect(page.locator('.step')).toContainText('und 2 weitere');
   });
 
+  test('a run says whether it landed, and why nobody can tell', async ({ page }) => {
+    /*
+     * VERBATIM from the first real dispatch this cockpit ever ran
+     * (2026-09-03). `_derive_applied` returns null rather than true when it
+     * cannot tell, and writes the sentence saying why. The detail view drew
+     * that sentence only for a task the bus could NOT find -- so for a task it
+     * found, the reader saw an unproven outcome with no explanation.
+     */
+    await stub(page, {
+      task: {
+        ...runningTask,
+        state: 'failed',
+        bridge_status: 'failed',
+        actual_providers: [],
+        summary: 'local_only requested, but the trusted local bench did not accept the task; external fallback is prohibited',
+        error: 'local_only requested, but the trusted local bench did not accept the task; external fallback is prohibited',
+        applied: null,
+        applied_reason: 'bridge_status=failed, but the on-disk outcome is unproven because no write/rollback evidence was retained'
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+
+    const applied = page.locator('.work-applied');
+    // null is not "no": the word must not read as a measured denial.
+    await expect(applied).toContainText('nicht nachweisbar');
+    await expect(applied).not.toContainText('nicht \u00fcbernommen');
+    await expect(applied).not.toHaveClass(/\bok\b/);
+    // And the backend's own sentence explaining WHY nobody can tell.
+    await expect(applied.locator('.work-applied-why')).toContainText(
+      'no write/rollback evidence was retained'
+    );
+  });
+
+  test('a finished run with no provider says nobody accepted it', async ({ page }) => {
+    // `actual_providers: []` used to render as nothing at all. On a FINISHED
+    // task that is a fact, and on this real dispatch it is the crux: the error
+    // says the local bench refused the work.
+    await stub(page, {
+      task: { ...runningTask, state: 'failed', bridge_status: 'failed', actual_providers: [] }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+
+    await expect(page.locator('.work-no-provider')).toContainText('kein Provider hat den Auftrag angenommen');
+  });
+
+  test('a run still in flight does not claim nobody took it', async ({ page }) => {
+    // The same empty list on an UNFINISHED task means only "not yet". An
+    // absence that is merely early is not evidence.
+    await stub(page, { task: { ...runningTask, state: 'running', actual_providers: [] } });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+
+    await expect(page.locator('.work-task-meta')).toBeVisible();
+    await expect(page.locator('.work-no-provider')).toHaveCount(0);
+  });
+
+  test('a lane that ran somewhere other than requested is never collapsed', async ({ page }) => {
+    /*
+     * The meta line rendered `requested_lane || lane` -- ONE value, so a
+     * divergence was invisible. `local_only` exists to keep work off external
+     * providers, which makes this a containment question rather than a detail.
+     */
+    await stub(page, {
+      task: {
+        ...runningTask, state: 'done', bridge_status: 'done',
+        requested_lane: 'local_only', lane: 'anthropic_api',
+        actual_providers: ['anthropic_api']
+      }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+
+    const meta = page.locator('.work-task-meta');
+    await expect(meta).toContainText('local_only');
+    await expect(meta).toContainText('gelaufen auf');
+    await expect(meta.locator('.work-lane-diverged')).toContainText('anthropic_api');
+  });
+
+  test('a lane that ran where it was asked to is stated once', async ({ page }) => {
+    await stub(page, {
+      task: { ...runningTask, requested_lane: 'local_only', lane: 'local_only' }
+    });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /req_open/ }).click();
+
+    await expect(page.locator('.work-task-meta')).toContainText('local_only');
+    await expect(page.locator('.work-lane-diverged')).toHaveCount(0);
+  });
+
   test('a unit with nothing recorded says so instead of drawing an empty run', async ({ page }) => {
     await stub(page, {
       task: {

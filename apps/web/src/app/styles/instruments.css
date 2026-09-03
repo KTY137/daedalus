@@ -370,3 +370,21 @@
    the honest half, was unreachable by keyboard and inconsistently exposed to
    screen readers. */
 .work-no-fraction { color: var(--ink3); }
+
+/* Did the work land, and — when nobody can say — the backend's sentence
+   explaining why not. `_derive_applied` returns null rather than true when it
+   cannot tell; "nicht nachweisbar" is that null, and it is never green. */
+.work-applied { display: grid; gap: 4px; margin: var(--u1) 0 0; font-size: var(--fs-xs); }
+.work-applied b { color: var(--ink); }
+.work-applied.ok b { color: var(--ok); }
+.work-applied.warn b { color: var(--warn); }
+.work-applied-why { color: var(--ink3); line-height: 1.45; }
+
+/* A lane that ran somewhere other than where it was requested. `local_only`
+   exists to keep work off external providers, so this is a containment
+   question rather than a detail, and it is coloured like one. */
+.work-lane-diverged { color: var(--bad); }
+
+/* "No provider accepted this" — a fact on a finished task, previously drawn
+   as nothing at all. */
+.work-no-provider { color: var(--warn); }
