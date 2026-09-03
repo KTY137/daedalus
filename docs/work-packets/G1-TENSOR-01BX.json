@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BX",
+  "title": "Canonicalize TensorView entries by unique semantic claim key",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BW",
+  "campaign_issue": 239,
+  "base_revision": "8c19d1c6eea8ecae76b05c9c5efc8fd462c86451",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView construction already forbids duplicate coordinate/relation claims, making SparseTensorEntry.semantic_key unique among retained entries. Canonical-order validation and the non-canonical sort fallback still used the larger _entry_order tuple, rereading masked, value and evidence_sha256s even though those trailing payload fields can only affect ordering when two entries share the same semantic claim, which is invalid.",
+  "primary_claim": "TensorView construction now validates canonical order and sorts non-canonical retained entries by the existing unique SparseTensorEntry.semantic_key. The redundant _entry_order helper and payload-dependent canonicalization path were removed. Duplicate coordinate/relation claims remain fail-closed before retention.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_select_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BX.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 50,
+    "code_test_deletions": 24,
+    "production_additions": 8,
+    "production_deletions": 24,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Extend the same semantic-key uniqueness invariant used by G1-TENSOR-01BW to TensorView construction instead of retaining a second full-payload ordering abstraction. Remove _entry_order rather than adding a cache, index, planner or alternate Tensor representation.",
+  "acceptance": [
+    "canonical-order validation uses only the unique coordinate/relation semantic claim",
+    "the non-canonical sort fallback uses only the same semantic claim key",
+    "TensorView construction does not require scalar, mask or evidence payload reads merely to establish entry order",
+    "duplicate coordinate/relation claims remain fail-closed",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "fd9a770be02ec5b036aa41571233d4180fa11487",
+    "code_test_revision": "16e54806b2fd0531acc7b910c4de2935477b9603",
+    "production_blob": "e9a1d214e8ef601ca6b27ddf24e0cfe598c15a4b",
+    "focused_test_blob": "3fbd479f0d3bbc86fdbc6afee6c159f2ce9a1679",
+    "fourfold_v2_run": 33706744068,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 16e54806b2fd0531acc7b910c4de2935477b9603",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 16e54806b2fd0531acc7b910c4de2935477b9603. The focused _CanonicalOrderPayloadForbiddenEntry regression enables payload-read refusal after valid entry construction, presents 128 entries in reverse semantic order, and requires TensorView to canonicalize them without reading value, masked or evidence_sha256s for ordering. The former _entry_order path would fail that probe; the semantic-key path succeeds. Existing duplicate-claim tests retain the fail-closed uniqueness boundary. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BX commits; Fourfold/Forest authority, Tensor wire contracts, semantic-key uniqueness, status/provenance identity and public product surfaces remain unchanged, while TensorView construction returns to full-payload _entry_order canonicalization.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
