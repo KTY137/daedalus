@@ -469,7 +469,7 @@ def docs_drift(root: Path) -> list[Drift]:
     live_names = {Path(p).name for p in git(root, "ls-files").splitlines()}
     for gone in deleted:
         name = Path(gone).name
-        # the bare name counts only when no live file carries it (daedalus/cli.py
+        # the bare name counts only when no live file carries it (daedalus/interfaces/cli/entry.py
         # must not make every "cli.py" a mention of the deleted agent_env/cli.py)
         needles = (gone,) if name in live_names else (gone, name)
         for doc, text in texts.items():
@@ -502,7 +502,7 @@ Rules:
 - For `deleted_file_mentioned`: append ` (replaced by daedalus/hooks/, 2026-08-23)` when the file was one of daedalus/shift_hook.py, arch_hook.py, crew_hook.py, .claude/hooks/serena-first.py, .claude/hooks/docs-drift-reminder.py; otherwise append ` (removed <YYYY-MM-DD>)` using `git log --diff-filter=D -1 --format=%cs -- <path>`. Never rewrite prose.
 - For `dead_link`: point the link at the file's new location if `git log --all --diff-filter=R` or a `find` shows one; otherwise mark it `(archived: <path>)`.
 - For `arch_memory_stale`: run `python -m daedalus.interfaces.cli.arch_memory` (writes an untracked file; do not commit it).
-- For `architecture_state_stale`: run `python -m daedalus.cli map`, then include docs/architecture-state.json, docs/architecture-map.html, docs/FEATURE_INVENTORY.json in the commit.
+- For `architecture_state_stale`: run `python -m daedalus.interfaces.cli.entry map`, then include docs/architecture-state.json, docs/architecture-map.html, docs/FEATURE_INVENTORY.json in the commit.
 - Any number you touch gets a provenance stamp: MEASURED / INHERITED / ASSUMED.
 - Never touch: docs/IKARUS_ARIADNE_MASTER_PLAN*.md, AGENTS.md, CLAUDE.md, .claude/, tools/, .agentenv/, .github/, daedalus/, tests/, runs/watchdog/, docs/missions/, vault/.
 - COMMIT WITH A PATHSPEC ONLY, never the index (other lanes stage in this tree): write the message to runs/watchdog/docs-commitmsg.txt, then `git commit -F runs/watchdog/docs-commitmsg.txt -- <the files you changed>`. Message ends with exactly `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`. Never `git add -A`, never `--no-verify`, never `git push`.

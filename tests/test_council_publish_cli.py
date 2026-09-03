@@ -16,7 +16,7 @@ and the secret floor inside it guarded a path nobody could take.
 
 WHAT THESE TESTS PIN
 --------------------
-Every test drives ``daedalus.cli.main`` with a real argv. None of them imports
+Every test drives ``daedalus.interfaces.cli.entry.main`` with a real argv. None of them imports
 ``publish_to_pr`` and calls it: a guard verified only through its own function
 is not verified, and proving the function works was never the open question --
 proving something REACHES it was. Delete the CLI flags and every test in this
@@ -38,7 +38,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from daedalus import cli
+from daedalus.interfaces.cli import entry
 from daedalus.council import publish as cp
 
 # One roster record, two vendors that spoke, one that did not. The degraded
@@ -97,7 +97,7 @@ class _CliCase(unittest.TestCase):
         with patch.object(sys, "argv", ["daedalus", *argv]):
             try:
                 with redirect_stdout(buf):
-                    cli.main()
+                    entry.main()
             except SystemExit as exc:
                 code = exc.code if isinstance(exc.code, int) else 1
         return buf.getvalue(), code

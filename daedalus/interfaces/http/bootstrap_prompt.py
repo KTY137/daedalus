@@ -34,8 +34,8 @@ Your role:
 Useful commands:
 ```powershell
 cd "{HARNESS_ROOT}"
-python -m daedalus.cli dashboard --project {project} --json
-python -m daedalus.cli spawn "<objective>" --project {project}
+python -m daedalus.interfaces.cli.entry dashboard --project {project} --json
+python -m daedalus.interfaces.cli.entry spawn "<objective>" --project {project}
 python -m daedalus.file_bridge enqueue "<task>" --project {project} --lane local_only --source claude
 python -m daedalus.file_bridge enqueue "<task>" --project {project} --lane auto --source claude
 python -m daedalus.file_bridge watch --project {project}

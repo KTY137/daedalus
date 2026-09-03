@@ -2,7 +2,7 @@
 
 The codex round-2 security seat named the exact opening: ``daedalus/orchestration/loop.py``
 ends with ``if __name__ == "__main__": raise SystemExit(main())``, which is
-reachable directly and never passes through ``daedalus.cli:main``'s dispatch --
+reachable directly and never passes through ``daedalus.interfaces.cli.entry:main``'s dispatch --
 the place where every other console entrypoint installs the process-wide spend
 guard.  ``loop.main`` did install it by hand, which is the right effect and the
 wrong evidence: nothing mechanically required the line to still be there, so

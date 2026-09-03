@@ -8,7 +8,7 @@ native controls.
 
 - **Chat with Ikarus** (`Daedalus: Chat with Ikarus` / the Activity Bar "Ikarus" panel) opens
   the Agent OS cockpit, which is chat-first. The extension iframes the local
-  cockpit (`apps/web/`, served by `daedalus.cli web`); it is a window onto that
+  cockpit (`apps/web/`, served by `daedalus.interfaces.cli.entry web`); it is a window onto that
   app, not a second implementation. If the local backend is not reachable, the
   panel says so plainly (checking / unknown / degraded / absent, with Retry).
 - **Ask Ikarus About This File** (editor right-click) captures an explicit

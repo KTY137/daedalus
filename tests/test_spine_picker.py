@@ -437,7 +437,7 @@ class FakeArtifact:
     diff = ("--- a/daedalus/tested_island.py\n"
             "+++ b/daedalus/tested_island.py\n"
             "@@ -1 +1,2 @@\n"
-            "+from daedalus.cli import wire_me\n")
+            "+from daedalus.interfaces.cli.entry import wire_me\n")
 
 
 class FakeResult:
@@ -463,7 +463,7 @@ def test_review_packet_contains_the_diff_and_the_gate_verdict():
     packet = review_packet(candidate, FakeResult())
 
     # the diff, verbatim
-    assert "+from daedalus.cli import wire_me" in packet
+    assert "+from daedalus.interfaces.cli.entry import wire_me" in packet
     assert "--- a/daedalus/tested_island.py" in packet
     assert FakeArtifact.diff_sha256 in packet
     assert "daedalus/tested_island.py" in packet
@@ -607,7 +607,7 @@ def test_once_attempts_exactly_one_candidate_and_prints_the_packet(
     expected = build_queue(tmp_path, limit=None).top
     assert calls[0].task_id == expected.task_id
     assert "HUMAN REVIEW PACKET" in out
-    assert "+from daedalus.cli import wire_me" in out
+    assert "+from daedalus.interfaces.cli.entry import wire_me" in out
     assert "GATE: FAIL" in out
     # A failed gate is a real outcome, but it must not exit 0.
     assert code == picker.EXIT_FAILED
@@ -747,8 +747,12 @@ def test_there_is_no_apply_path_in_this_module():
 
 def test_daedalus_cli_dispatches_improve():
     from pathlib import Path as _Path
-    cli_source = _Path(picker.__file__).resolve().parents[1] / "cli.py"
+    # From the repository, not from picker.__file__: the console entrypoint
+    # moved to daedalus/interfaces/cli/entry.py and a path rebuilt from a
+    # sibling module followed the sibling instead of the entrypoint.
+    cli_source = (_Path(__file__).resolve().parents[1]
+                  / "daedalus" / "interfaces" / "cli" / "entry.py")
     text = cli_source.read_text(encoding="utf-8")
     assert 'elif cmd == "improve":' in text
-    assert "from .spine.picker import main" in text
+    assert "from ...spine.picker import main" in text
     assert "daedalus improve" in text          # documented in the usage banner

@@ -37,7 +37,7 @@
       "detail": "Local web API + Agent OS webapp on http://127.0.0.1:8765 (secrets stay server-side)",
       "type": "process",
       "command": "python",
-      "args": ["-m", "daedalus.cli", "web", "--host", "127.0.0.1", "--port", "8765"],
+      "args": ["-m", "daedalus.interfaces.cli.entry", "web", "--host", "127.0.0.1", "--port", "8765"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -67,7 +67,7 @@
       "detail": "Is the bench ready? (Ollama / model / claude CLI)",
       "type": "process",
       "command": "python",
-      "args": ["-m", "daedalus.cli", "doctor"],
+      "args": ["-m", "daedalus.interfaces.cli.entry", "doctor"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -78,7 +78,7 @@
       "detail": "Local bridge status for a registered project",
       "type": "process",
       "command": "python",
-      "args": ["-m", "daedalus.cli", "status", "--project", "${input:project}"],
+      "args": ["-m", "daedalus.interfaces.cli.entry", "status", "--project", "${input:project}"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -89,7 +89,7 @@
       "detail": "Show registered projects from projects/*.json",
       "type": "process",
       "command": "python",
-      "args": ["-m", "daedalus.cli", "projects"],
+      "args": ["-m", "daedalus.interfaces.cli.entry", "projects"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -171,7 +171,7 @@
       "detail": "Projected token/cost picture; no live calls",
       "type": "process",
       "command": "python",
-      "args": ["-m", "daedalus.cli", "benchmark"],
+      "args": ["-m", "daedalus.interfaces.cli.entry", "benchmark"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -184,7 +184,7 @@
       "command": "python",
       "args": [
         "-m",
-        "daedalus.cli",
+        "daedalus.interfaces.cli.entry",
         "spawn",
         "${input:objective}",
         "--project",

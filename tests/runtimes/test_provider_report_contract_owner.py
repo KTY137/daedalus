@@ -93,5 +93,5 @@ def test_old_pickle_globals_resolve_to_runtime_owner() -> None:
 
 def test_structure_packet_keeps_effect_registry_exact() -> None:
     assert registry_sha256() == (
-        "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
+        "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
     )

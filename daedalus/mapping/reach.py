@@ -25,7 +25,7 @@ WHAT AN ENTRY POINT IS (discovered, never hardcoded)
   http         the same shape, where the literals are URL paths
   bus          a poll loop (``while True``) inside an entry module
 
-The CLI case is the one a naive scan gets wrong. ``daedalus/cli.py`` dispatches
+The CLI case is the one a naive scan gets wrong. ``daedalus/interfaces/cli/entry.py`` dispatches
 with a flat if/elif chain whose branches import LAZILY, inside the branch body::
 
     elif cmd == "offload":

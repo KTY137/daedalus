@@ -19,7 +19,7 @@ truth-keeping only. Work in the foreground; never arm a monitor and wait.
 ## Sweep checklist (do what applies, skip what is already true)
 1. Generated artifacts: if `python -m daedalus.interfaces.cli.arch_memory` reports stale,
    run it. If docs/architecture-state.json does not name the current HEAD,
-   run `python -m daedalus.cli map` and stage docs/architecture-state.json,
+   run `python -m daedalus.interfaces.cli.entry map` and stage docs/architecture-state.json,
    docs/architecture-map.html, docs/FEATURE_INVENTORY.json.
 2. Dead links: in the top-level docs/*.md and README.md, find relative links
    or paths that no longer exist (e.g. after archive moves into

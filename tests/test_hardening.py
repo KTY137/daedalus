@@ -32,7 +32,11 @@ from daedalus.sensitivity import (
     path_write_blocked,
 )
 from daedalus.interfaces.cli.token_monitor import read_usage_samples, summarize_usage
-from daedalus.token_policy import MAX_PATHS_PER_REQUEST, trim_paths, trim_text
+from daedalus.runtimes.providers.token_policy import (
+    MAX_PATHS_PER_REQUEST,
+    trim_paths,
+    trim_text,
+)
 
 
 def _report(files_changed=None, status="done"):

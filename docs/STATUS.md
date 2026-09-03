@@ -84,7 +84,7 @@ name `daedalus.spine.promotion_approval` no longer exists.
 `docs/architecture-state.json` has moved onto `main` since the last revision of
 this page — it is now stamped `repo_state.branch = "main"`, `head = 94eb3515`,
 `dirty = true`, a handful of commits behind HEAD. Being behind is the least
-interesting thing wrong with it. `python -m daedalus.cli map --check` exits
+interesting thing wrong with it. `python -m daedalus.interfaces.cli.entry map --check` exits
 non-zero and names three separate defects [MEASURED 2026-08-25 at `2de997ef`]:
 
 1. **It is self-inconsistent.** `counts.modules` says 520 while its own

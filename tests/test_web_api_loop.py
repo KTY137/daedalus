@@ -794,7 +794,7 @@ class LocalOnlySurfaceTest(LoopApiTestCase):
 class NonLoopbackBindIsRefusedTest(unittest.TestCase):
     """`daedalus web --host <not this machine>` must not start a server.
 
-    THE HOLE THIS CLOSES, measured: ``daedalus/cli.py`` passes its remaining
+    THE HOLE THIS CLOSES, measured: ``daedalus/interfaces/cli/entry.py`` passes its remaining
     argv straight into ``web_api.main``, ``--host`` was an ordinary argparse
     string, and this module contains no authentication of any kind. So
     ``daedalus web --host 0.0.0.0`` served every endpoint to every interface
@@ -880,7 +880,7 @@ class NonLoopbackBindIsRefusedTest(unittest.TestCase):
         port = _free_port()
         try:
             proc = subprocess.run(
-                [sys.executable, "-m", "daedalus.cli", "web",
+                [sys.executable, "-m", "daedalus.interfaces.cli.entry", "web",
                  "--host", "0.0.0.0", "--port", str(port)],
                 cwd=str(REPO_ROOT),
                 capture_output=True, encoding="utf-8", errors="replace",

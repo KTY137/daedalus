@@ -203,7 +203,7 @@ def m_bus_always_verifies(sb: Sandbox) -> None:
 
 def m_break_cli_dispatch(sb: Sandbox) -> None:
     """Break the single entry point's verb listing."""
-    _patch(sb.repo / "daedalus" / "cli.py",
+    _patch(sb.repo / "daedalus" / "interfaces" / "cli" / "entry.py",
            "def main(",
            "def main(argv=None):  # SEEDED DEFECT\n"
            "    return 0\n\n\n"

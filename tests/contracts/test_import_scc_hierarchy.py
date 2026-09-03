@@ -120,7 +120,12 @@ CURRENT_COMPONENTS_SHA256 = (
 # ``daedalus.foundation`` for the leaf utilities and ``daedalus.interfaces.cli``
 # for the console entrypoints. No implementation module was added or deleted;
 # the eleven relocations are renames.
-CENSUS_MODULES = 432
+# 432 -> 431 in G1-FLAT-06, the only DELETION in this series since
+# G1-FLAT-02: ``daedalus/token_policy.py`` is gone, its registry row with it.
+# The console entrypoint was relocated and renamed, not added, so it costs
+# nothing here. dctx was moved into daedalus.twin and moved back inside this
+# same packet -- see the message -- so it is where it started.
+CENSUS_MODULES = 431
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -301,7 +306,22 @@ CENSUS_MODULES = 432
 #
 # Structure and digest are unchanged: loop and ikarus_os are large and
 # heavily imported but sit in no cycle, so renaming them moves no component.
-CENSUS_EDGES = 1643
+#
+# 1643 -> 1642 in G1-FLAT-06. The -1 is a net of five and is entirely the
+# token_policy deletion: the facade's own edge to its owner disappears with
+# the file (-1), and its two production callers -- kairos.orchestrate and
+# providers.claude_cli -- swap one target for another (-2, +2). The
+# entrypoint relocation spends nothing: every caller named it by a path that
+# resolves to exactly one target before and after.
+#
+# Those two callers are the reason this packet added
+# tests/contracts/test_no_dangling_daedalus_imports.py. They imported the
+# facade as ``from ..token_policy import ...``, which the regex audit before
+# the delete could not match, and which THIS census cannot report either:
+# _tracked_module_graph drops targets it cannot resolve, so a dangling import
+# produces no edge and no movement. The new contract resolves instead of
+# matching.
+CENSUS_EDGES = 1642
 
 
 def _module_name(path: str) -> str:

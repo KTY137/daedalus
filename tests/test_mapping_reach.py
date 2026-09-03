@@ -505,7 +505,7 @@ def test_analyse_runs_on_this_repository():
     rep = analyse(root)
     assert rep.counts["entry"] > 0
     assert rep.counts["reachable"] > rep.counts["island"]
-    assert rep.get("daedalus/cli.py").classification == "entry"
+    assert rep.get("daedalus/interfaces/cli/entry.py").classification == "entry"
     offload = rep.get("daedalus/offload.py")
     assert offload.classification in ("entry", "reachable")
     # web_api's route table must be visible, or the HTTP surface is dark

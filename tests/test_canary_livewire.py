@@ -6,7 +6,7 @@ task ... with a checkable answer", and ``--dry-run`` was the ONLY brake -- an
 OPT-OUT, which protects exactly the operator who already knew to type it.
 
 MEASURED BEFORE THE FIX (spawn sentinel, 2026-07-28): a bare
-``cli._canary(["--vendors", "anthropic,openai,google", "--quick"])`` launched
+``entry._canary(["--vendors", "anthropic,openai,google", "--quick"])`` launched
 
     C:\\Users\\nukei\\.local\\bin\\claude.exe -p --output-format ...
     C:\\Users\\nukei\\AppData\\Roaming\\npm\\codex.cmd --ask-for-approval never ...
@@ -34,7 +34,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus import cli
+from daedalus.interfaces.cli import entry
 from daedalus.council import canary as C
 from daedalus.council import session as S
 from daedalus.council import vendors as V
@@ -169,7 +169,7 @@ def test_refusal_happens_before_anything_is_written(tmp_path, spawn_sentinel, no
     """
     history = tmp_path / "history.jsonl"
     with pytest.raises(SystemExit):
-        cli._canary(["--vendors", "anthropic,openai", "--history", str(history)])
+        entry._canary(["--vendors", "anthropic,openai", "--history", str(history)])
     assert not history.exists()
     assert spawn_sentinel == []
 
@@ -269,7 +269,7 @@ def no_run(monkeypatch):
 def test_cli_refuses_a_bare_canary_invocation(no_run, capsys):
     """`daedalus canary` used to spawn claude and codex. Now it refuses."""
     with pytest.raises(SystemExit) as excinfo:
-        cli._canary([])
+        entry._canary([])
     assert excinfo.value.code != 0
     err = capsys.readouterr().err
     assert "--live" in err and "--dry-run" in err
@@ -282,7 +282,7 @@ def test_cli_refuses_a_bare_invocation_that_carries_other_flags(no_run, capsys):
     still calls every lane for real, once each.
     """
     with pytest.raises(SystemExit) as excinfo:
-        cli._canary(["--quick", "--vendors", "anthropic"])
+        entry._canary(["--quick", "--vendors", "anthropic"])
     assert excinfo.value.code != 0
     assert "--live" in capsys.readouterr().err
 
@@ -294,7 +294,7 @@ def test_cli_refuses_live_and_dry_run_together(no_run, capsys):
     would remember it the other way round.
     """
     with pytest.raises(SystemExit) as excinfo:
-        cli._canary(["--live", "--dry-run"])
+        entry._canary(["--live", "--dry-run"])
     assert excinfo.value.code != 0
     assert "contradict" in capsys.readouterr().err
 
@@ -316,7 +316,7 @@ def test_cli_live_flag_authorises_the_spend(monkeypatch, capsys):
     monkeypatch.setattr(cn, "render_table", lambda run: "rendered")
     monkeypatch.setattr(cn, "run_canary",
                         lambda *a, **kw: seen.update(kw) or _Run())
-    assert cli._canary(["--live", "--vendors", "anthropic"]) == 0
+    assert entry._canary(["--live", "--vendors", "anthropic"]) == 0
     assert seen.get("live") is True
     assert "rendered" in capsys.readouterr().out
 
@@ -341,7 +341,7 @@ def test_the_library_gate_still_holds_if_the_cli_gate_is_neutered(
                         lambda self, message: None)
     history = tmp_path / "history.jsonl"
     with pytest.raises(C.LiveCanaryRefused):
-        cli._canary(["--vendors", "anthropic,openai", "--quick",
+        entry._canary(["--vendors", "anthropic,openai", "--quick",
                      "--history", str(history)])
     assert spawn_sentinel == [], (
         f"the CLI authorised a spend the operator never asked for: {spawn_sentinel}")
@@ -350,7 +350,7 @@ def test_the_library_gate_still_holds_if_the_cli_gate_is_neutered(
 
 def test_cli_dry_run_names_the_lanes_live_would_call(capsys):
     """The plan must state the price before the operator types --live."""
-    assert cli._canary(["--dry-run", "--quick",
+    assert entry._canary(["--dry-run", "--quick",
                         "--vendors", "anthropic,openai"]) == 0
     out = capsys.readouterr().out
     assert "DRY RUN -- no model was called" in out
@@ -361,7 +361,7 @@ def test_cli_dry_run_names_the_lanes_live_would_call(capsys):
 def test_cli_dry_run_calls_nothing(spawn_sentinel, no_socket, tmp_path):
     """`--dry-run` is still a dry run: it names lanes, it does not probe them."""
     history = tmp_path / "history.jsonl"
-    assert cli._canary(["--dry-run", "--vendors", "anthropic,openai,google,local",
+    assert entry._canary(["--dry-run", "--vendors", "anthropic,openai,google,local",
                         "--history", str(history)]) == 0
     assert spawn_sentinel == []
     assert not history.exists()

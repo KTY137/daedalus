@@ -430,7 +430,7 @@ class BootstrapPromptTest(unittest.TestCase):
     def test_claude_bootstrap_prompt_mentions_harness_and_project(self) -> None:
         payload = claude_bootstrap_prompt("project_tct")
         self.assertIn("project_tct", payload["prompt"])
-        self.assertIn("daedalus.cli spawn", payload["prompt"])
+        self.assertIn("daedalus.interfaces.cli.entry spawn", payload["prompt"])
         self.assertIn("Ollama", payload["prompt"])
         self.assertIn("outbox", payload["prompt"])
 

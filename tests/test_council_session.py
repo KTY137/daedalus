@@ -643,7 +643,7 @@ def test_dry_run_plan_calls_no_vendor(tmp_path):
 
 
 def test_cli_dry_run_calls_no_vendor_and_says_it_is_advisory(monkeypatch, capsys):
-    from daedalus import cli
+    from daedalus.interfaces.cli import entry
     from daedalus.council import session as cs
     from daedalus.council import vendors as cv
 
@@ -657,7 +657,7 @@ def test_cli_dry_run_calls_no_vendor_and_says_it_is_advisory(monkeypatch, capsys
                               available=False, reason="not_authenticated",
                               endpoint="ssh:bench", lane="untrusted"),
     ))
-    cli._council(["is this safe?", "--dry-run"])
+    entry._council(["is this safe?", "--dry-run"])
     out = capsys.readouterr().out
     assert "DRY RUN -- no model was called" in out
     assert "ADVISORY" in out
@@ -666,7 +666,7 @@ def test_cli_dry_run_calls_no_vendor_and_says_it_is_advisory(monkeypatch, capsys
 
 
 def test_diff_path_extraction_feeds_the_path_channel():
-    from daedalus.cli import _diff_paths
+    from daedalus.interfaces.cli.entry import _diff_paths
 
     diff = (
         "diff --git a/config/.env b/config/.env\n"

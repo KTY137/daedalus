@@ -197,7 +197,7 @@ def _drain(proc: subprocess.Popen) -> str:
 # is the sentence that actually helps -- "the CLI wrapper is broken, the server
 # is fine" versus "something about the web did not work".
 SERVER_ENTRIES = (
-    ("daedalus web (the documented entry point)", ["-m", "daedalus.cli", "web"]),
+    ("daedalus web (the documented entry point)", ["-m", "daedalus.interfaces.cli.entry", "web"]),
     ("python -m daedalus.interfaces.http.web_api (diagnostic fallback)", ["-m", "daedalus.interfaces.http.web_api"]),
 )
 

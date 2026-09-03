@@ -182,7 +182,7 @@ def refresh_sources(repo_root: str | Path,
     snapshot = root / "docs" / "architecture-state.json"
     before = _recorded_head(snapshot)
     try:
-        code, detail = _run([sys.executable, "-m", "daedalus.cli", "map"])
+        code, detail = _run([sys.executable, "-m", "daedalus.interfaces.cli.entry", "map"])
     except Exception as e:                       # noqa: BLE001 - reported, not raised
         code, detail = 1, f"{type(e).__name__}: {e}"
     after = _recorded_head(snapshot)

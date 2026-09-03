@@ -89,7 +89,7 @@ class RegistryMustNotShadowTheRepoTests(unittest.TestCase):
     def test_naming_a_project_grants_no_extra_path(self):
         """The invariant, stated directly: no path may become writable purely
         because a project was named."""
-        for rel in SELF_PROTECTING + ("daedalus/core.py", "daedalus/cli.py",
+        for rel in SELF_PROTECTING + ("daedalus/core.py", "daedalus/interfaces/cli/entry.py",
                                       "pyproject.toml"):
             with self.subTest(path=rel):
                 self.assertTrue(path_write_blocked(rel, self.bare), f"setup: {rel}")

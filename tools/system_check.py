@@ -180,7 +180,7 @@ class Sandbox:
     def cli(self, *args, **kw):
         kw.setdefault("cwd", self.repo)
         kw["env"] = {**self.env, **(kw.get("env") or {})}
-        return run([PY, "-m", "daedalus.cli", *args], **kw)
+        return run([PY, "-m", "daedalus.interfaces.cli.entry", *args], **kw)
 
     def py(self, *args, **kw):
         kw.setdefault("cwd", self.repo)
@@ -393,7 +393,7 @@ def _picker_evidence(sb: Sandbox) -> Result:
     #
     # Regeneration FAILING is reported rather than swallowed -- if `map` cannot
     # run, an empty queue afterwards says nothing about the picker.
-    gen_rc, gen_out = sb.py("-m", "daedalus.cli", "map", timeout=1800)
+    gen_rc, gen_out = sb.py("-m", "daedalus.interfaces.cli.entry", "map", timeout=1800)
     if gen_rc != 0:
         return Result("picker.ranks_with_evidence", UNAVAILABLE,
                       f"the sources could not be regenerated (rc={gen_rc}), so "
@@ -661,7 +661,7 @@ def _web(sb: Sandbox) -> Result:
     proc = None
     try:
         proc = subprocess.Popen(
-            [PY, "-m", "daedalus.cli", "web", "--port", str(port)],
+            [PY, "-m", "daedalus.interfaces.cli.entry", "web", "--port", str(port)],
             cwd=str(sb.repo), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             encoding="utf-8", errors="replace", env={**os.environ, **env})
         import urllib.error
