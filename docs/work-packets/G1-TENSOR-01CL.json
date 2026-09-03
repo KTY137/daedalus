@@ -1,0 +1,89 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CL",
+  "title": "Prune redundant relation-coordinate tuple materialization",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CK",
+  "campaign_issue": 239,
+  "base_revision": "6292fdaed082eac5026f023889a03a8584403df2",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "G1-TENSOR-01CK introduced a bounded local list of Forest/Fourfold relation coordinates, then copied that complete list into a tuple immediately before calling TypedRelationBlock.from_coordinates. The existing constructor already accepts and bounds any Sequence and performs the authoritative label/scalar validation itself, so the tuple conversion duplicated container materialization without adding a contract boundary.",
+  "primary_claim": "The strict Forest/Fourfold Boolean projection now hands its already bounded local coordinate list directly to the existing TypedRelationBlock.from_coordinates constructor. This removes one full coordinate-container copy while preserving the same authoritative constructor, bounds, canonical CSR result, completeness checks, retained-edge checks, hyperedge/undirected refusal, and Fourfold revision binding.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_projection.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CL.json"
+    ],
+    "production_commits_before_record": 1,
+    "production_additions": 1,
+    "production_deletions": 1,
+    "new_test_file": false,
+    "new_graph_schema": false,
+    "new_relation_block_type": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Delete the redundant list-to-tuple materialization instead of introducing a second coordinate builder, iterator adapter, cache, index, or projection type. The bounded local list remains private to the adapter and TypedRelationBlock.from_coordinates remains the sole normalization and CSR-construction path.",
+  "acceptance": [
+    "the existing strict Fourfold/Forest relation-projection contract surface executes successfully on the exact production revision",
+    "same-plane directed retained Forest edges still project through the existing Boolean TypedRelationBlock constructor",
+    "cross-plane verified Fourfold bindings still project and compose through the existing Boolean reference kernel",
+    "legacy partial endpoints, wrong Forest identity, retained hyperedges, and retained undirected edges remain fail-closed",
+    "all Python 3.10/3.12 and hash-seed 0/123456 Fourfold/kernel contract jobs execute successfully",
+    "the designated Python 3.12/hash-seed-0 bounded Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no measured latency/memory improvement, benchmark superiority, OwnerApproval, promotion, merge, or Gate transition is inferred"
+  ],
+  "verification": {
+    "production_revision": "c6b2d41069d5f8415f81c13133cbd081c64b1af5",
+    "production_blob": "ecd4f3e475c16eb64871f407ef8a7df6d6602343",
+    "fourfold_v2_run": 33782564728,
+    "fourfold_v2_conclusion": "success",
+    "focused_python_3_10_hashseed_0": "206 passed, 2 skipped in 3.29s",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact production revision c6b2d41069d5f8415f81c13133cbd081c64b1af5",
+      "all four Python 3.10/3.12 and hash-seed 0/123456 contract jobs completed success",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success with build and isolated-install steps",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact production revision c6b2d41069d5f8415f81c13133cbd081c64b1af5. Python 3.10/hash-seed-0 reported 206 passed and 2 skipped for tests/twin plus tests/test_kernel_contracts.py. The designated Python 3.12/hash-seed-0 Fourfold/kernel contract and bounded Tensor/Forest diagnostic steps also completed successfully. No measured wall-clock latency, peak-memory, Tensor-vs-Forest, CrewAI, AlphaEvolve, or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "new_adversarial_regression_required": false,
+    "review_note": "This is a one-line container-materialization prune with no semantic branch; the existing adapter regressions execute the exact changed call path and remain the focused behavior surface.",
+    "independent_owner_review_completed": false
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_record": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "main_observed_before_record": "e31213aff40ab322dcead6d50ae19007f3f9b6b1",
+    "ui_line_observed_before_record": "worktree-g1-ui-ikarus@215d1d7b1999a22b0469d1f97bff1c01e33a7846",
+    "visible_remote_refs_observed_before_record": 18,
+    "topology_note": "No existing ref was created, deleted, archived, renamed, or force-moved by this packet. Existing additional refs, including rescue/evidence lines, remain untouched pending separate containment classification; archive/legacy-20260830 remains a frozen evidence/history anchor."
+  },
+  "rollback": "Revert production commit c6b2d41069d5f8415f81c13133cbd081c64b1af5 to restore the redundant tuple(coordinates) copy. Forest, FourfoldSnapshot, TypedRelationBlock semantics, relation projection authority, and promotion authority are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "ready_for_review_transition": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
