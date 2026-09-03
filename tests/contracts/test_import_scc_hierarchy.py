@@ -145,7 +145,8 @@ CURRENT_COMPONENTS_SHA256 = (
 # component, which is why the family was a package spelled with underscores.
 # Edges unchanged at 1642, for the same reason as G1-PKG-01: every module
 # kept its targets and no caller reached them through the parent package.
-CENSUS_MODULES = 433
+# 433 -> 432 in G1-FLAT-07, which deleted daedalus/providers/hermes_agent.py.
+CENSUS_MODULES = 432
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -341,7 +342,12 @@ CENSUS_MODULES = 433
 # _tracked_module_graph drops targets it cannot resolve, so a dangling import
 # produces no edge and no movement. The new contract resolves instead of
 # matching.
-CENSUS_EDGES = 1642
+#
+# 1642 -> 1640 in G1-FLAT-07. The facade spent exactly two edges -- one to
+# daedalus.integrations.hermes.configuration and one to
+# daedalus.integrations.hermes.kernel_provider -- and re-exported five names
+# from them. Nothing imported it, so nothing gained an edge in return.
+CENSUS_EDGES = 1640
 
 
 def _module_name(path: str) -> str:
