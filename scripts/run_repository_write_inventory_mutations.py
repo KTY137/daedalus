@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "daedalus" / "gates" / "repository_write_inventory.py"
+SOURCE = ROOT / "daedalus" / "gates" / "repository" / "write_inventory.py"
 TESTS = (
     "tests/gates/test_repository_write_inventory.py",
     "tests/gates/test_repository_write_inventory_cli.py",

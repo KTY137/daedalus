@@ -17,8 +17,11 @@ from tools import index_work_packets as subject
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = ROOT / subject.SCHEMA_PATH
 INDEX_PATH = ROOT / subject.INDEX_PATH
+# Moved 2026-09-03: the registry gained the ``daedalus.hooks.crosstalk`` row
+# (network_egress + process_spawn) and ``daedalus.hooks`` had its notes
+# corrected, because its declared egress is no longer loopback-only.
 FROZEN_EFFECT_REGISTRY_SHA256 = (
-    "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
+    "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
 )
 
 
@@ -189,19 +192,20 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "284 tracked files" in message
+    assert "285 tracked files" in message
+    # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
+    # or retires an artifact. Both sides of the 2026-09-03 merge bumped these
+    # by one for different packets -- G1-UI-07 here and G1-SCC-02 on main --
+    # so the merged values were arithmetic neither side could do alone and
+    # were re-derived with `python -m tools.index_work_packets --render`.
     assert payload["counts"] == {
-        # +1 across every packet-derived count, and the legacy baseline
-        # unchanged, because G1-UI-07 added exactly one tracked artifact.
-        # A packet that moved a legacy artifact would show here as
-        # legacy_artifacts falling, which is the thing this pins.
-        "assigned_artifacts": 281,
+        "assigned_artifacts": 282,
         "legacy_artifacts": 204,
-        "packet_artifacts": 283,
-        "packet_ids": 218,
-        "post_index_artifacts": 79,
+        "packet_artifacts": 284,
+        "packet_ids": 219,
+        "post_index_artifacts": 80,
         "registry_artifacts": 1,
-        "tracked_files": 284,
+        "tracked_files": 285,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -328,6 +332,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-UI-07",
         "G1-WEB-01",
         "G1-WP-INDEX-01",
+        "G1-SCC-02",
     }
     post_index_packets = {
         packet_id: packet

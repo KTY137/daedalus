@@ -122,15 +122,6 @@
       "removal_criteria": "A dedicated target-migration packet preserves the Effect Registry digest and authenticated invoke/output source locators, while source, runtime-string, wheel, documentation, executable-object, and pickle audits show no remaining legacy contract import."
     },
     {
-      "import_path": "daedalus.providers.hermes_agent",
-      "owner": "integrations-hermes",
-      "targets": [
-        "daedalus.integrations.hermes.kernel_provider"
-      ],
-      "kind": "provider_facade",
-      "removal_criteria": "Hermes receives a separately reviewed production-admission packet or all source, wheel, and runtime-string callers migrate to the isolated integration path."
-    },
-    {
       "import_path": "daedalus.providers.personas",
       "owner": "runtimes-providers",
       "targets": [

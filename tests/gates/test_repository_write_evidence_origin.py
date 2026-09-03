@@ -6,12 +6,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from daedalus.gates.repository_write_classification import EvidenceKind
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_classification import EvidenceKind
+from daedalus.gates.repository.write_evidence_materialization import (
     MaterializedEvidenceRecord,
     RepositoryWriteEvidenceMaterializationReport,
 )
-from daedalus.gates.repository_write_evidence_origin import (
+from daedalus.gates.repository.write_evidence_origin import (
     RepositoryWriteEvidenceOriginAttestation,
     RepositoryWriteEvidenceOriginBindingError,
     RepositoryWriteEvidenceOriginError,

@@ -8,11 +8,13 @@ import datetime
 import time
 from pathlib import Path
 
+from . import crosstalk
 from ._common import (
     HookResult,
     _Lock,
     clip_block,
     hooks_dir,
+    load_state,
     trim_lines,
     update_state,
     with_deadline,
@@ -92,6 +94,26 @@ def session_start(payload: dict, root: Path, sid: str) -> HookResult:
         lines.append(f"DOCS: last mnemosyne sweep at {sweep_sha}{tail}")
     lines.append(LEGEND)
 
+    # Crosstalk. The ANNOUNCEMENT is posted once per session; `compact` fires
+    # SessionStart too, and a session that re-announced on every compaction
+    # would bury the thread it is trying to make readable. The READ-BACK
+    # happens on every start, compaction included -- that is precisely when
+    # the context it replaces has just been thrown away.
+    announced = bool(load_state(root, sid).get("crosstalk_announced"))
+    lines += with_deadline(
+        lambda: crosstalk.announce(
+            root,
+            sid,
+            facts.branch,
+            facts.head,
+            crosstalk.now_iso(),
+            crosstalk.Channel(root),
+            do_post=not announced,
+        ),
+        crosstalk.CROSSTALK_BUDGET_S,
+        ["crosstalk: Zeitbudget ueberschritten"],
+    )
+
     base_fp = source_fingerprint(root)
 
     def mutate(state: dict) -> None:
@@ -99,6 +121,9 @@ def session_start(payload: dict, root: Path, sid: str) -> HookResult:
         state["targets_shown"] = False
         state.setdefault("agents", {})
         state["started"] = payload.get("source") or payload.get("start_reason") or "startup"
+        state["crosstalk_announced"] = True
+        state.setdefault("crosstalk_head", facts.head)
+        state.setdefault("crosstalk_started", time.time())
 
     update_state(root, sid, mutate)
     text, dropped = trim_lines(lines)
@@ -235,7 +260,28 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
                 collected["watchdog"] = "WATCHDOG: " + "; ".join(wd_ids) + " (runs/watchdog/HEALTH.md)"
             elif isinstance(previous_wd_ids, list) and bool(previous_wd_ids):
                 collected["watchdog"] = "WATCHDOG: all clear"
-        
+        # Crosstalk, cached: the owner answers in the browser, and without a
+        # re-read those answers would not reach a running session until its
+        # next start. One GitHub call per POLL_TTL_S, not one per turn.
+        if state.get("crosstalk_announced"):
+            # `poll` returns the state fragment instead of writing it: it runs
+            # under a deadline, and an overrunning call is abandoned rather
+            # than cancelled, so it must not touch the dict `update_state` is
+            # about to serialise.
+            fresh, updates = with_deadline(
+                lambda: crosstalk.poll(
+                    tree_facts(root).branch, crosstalk.Channel(root), state, time.time()
+                ),
+                crosstalk.TURN_BUDGET_S,
+                ([], {}),
+            )
+            state.update(updates)
+            mine = f"`{crosstalk.short_sid(sid)}`"
+            shown = state.get("crosstalk_shown") or []
+            unseen = [l for l in fresh if l not in shown and mine not in l]
+            if unseen:
+                state["crosstalk_shown"] = fresh
+                collected["crosstalk"] = ["CROSSTALK neu:"] + unseen[-3:]
 
     update_state(root, sid, mutate)
     # PRIORITY ORDER, and deliberately not narrative order. `trim_lines` drops
@@ -251,11 +297,44 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
         lines.append(collected["changed"])
     if collected.get("config"):
         lines.append(collected["config"])
+    lines += collected.get("crosstalk", [])
     lines += collected.get("crew", [])
     if delta:
         lines.append(delta)
     text, dropped = trim_lines(lines)
     return HookResult(text=text, note=f"trimmed:{dropped}" if dropped else "")
+
+
+# --------------------------------------------------------------------------
+# SessionEnd
+# --------------------------------------------------------------------------
+
+
+def session_end(payload: dict, root: Path, sid: str) -> HookResult:
+    """SessionEnd: post the result to the threads this session announced in.
+
+    A session that never announced stays silent. An ERGEBNIS with no
+    ANMELDUNG in front of it reads like a session that appeared out of
+    nowhere, and the thread is meant to be readable by a human.
+    """
+    state = load_state(root, sid)
+    if not state.get("crosstalk_announced"):
+        return HookResult(note="crosstalk:no-announce")
+    facts = tree_facts(root)
+    with_deadline(
+        lambda: crosstalk.report(
+            root,
+            sid,
+            facts.branch,
+            facts.head,
+            crosstalk.now_iso(),
+            state,
+            crosstalk.Channel(root),
+        ),
+        crosstalk.CROSSTALK_BUDGET_S,
+        None,
+    )
+    return HookResult(note="crosstalk:reported:" + str(payload.get("reason") or "?")[:24])
 
 
 # --------------------------------------------------------------------------

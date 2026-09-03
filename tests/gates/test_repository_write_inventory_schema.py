@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import daedalus.gates.repository_write_inventory as inventory
+import daedalus.gates.repository.write_inventory as inventory
 from daedalus.spine.ledger import ROOT
 
 

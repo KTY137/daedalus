@@ -14,7 +14,7 @@ from typing import Mapping, Sequence
 
 from daedalus.build import BuildSession
 from daedalus.build_exec import BuildRunReport, EffectBounds, WaveExecutor
-from daedalus.orchestration.ikarus_supervisor import MissionSupervisor
+from daedalus.orchestration.ikarus.supervisor import MissionSupervisor
 from daedalus.schemas import MissionContract, ResourceBudget
 from daedalus.spine.receipts import mission_contract_for_build_session
 

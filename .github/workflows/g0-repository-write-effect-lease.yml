@@ -5,7 +5,7 @@ on:
     branches:
       - g0/runtime-effect-replay-linear
     paths:
-      - "daedalus/gates/repository_write_effect_lease.py"
+      - "daedalus/gates/repository/write_effect_lease.py"
       - "tests/gates/test_repository_write_effect_lease*.py"
       - "scripts/run_repository_write_effect_lease_mutations.py"
       - "configs/schemas/repository-write-effect-lease.schema.json"
@@ -116,7 +116,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-effect-replay-wheel/bin/python - <<'PY'
-          from daedalus.gates.repository_write_effect_lease import (
+          from daedalus.gates.repository.write_effect_lease import (
               EffectLeaseReplayRecord,
               EffectLeaseReplaySubject,
               RepositoryWriteEffectLeaseBindingError,

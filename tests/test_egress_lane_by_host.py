@@ -134,7 +134,7 @@ def test_ikarus_chat_context_follows_the_resolved_host_too(monkeypatch):
     Same class as the offload wire, different door -- which is why the fix is a
     shared predicate rather than a patch at one call site.
     """
-    from daedalus.orchestration.ikarus_os import _local_lane
+    from daedalus.orchestration.ikarus.shell import _local_lane
 
     monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
     assert _local_lane() == "trusted"
@@ -152,7 +152,7 @@ def test_no_local_branch_still_names_its_lane_literally():
     import re
     from pathlib import Path
 
-    import daedalus.orchestration.ikarus_os as mod
+    import daedalus.orchestration.ikarus.shell as mod
 
     source = Path(mod.__file__).read_text(encoding="utf-8")
     for match in re.finditer(r'OLLAMA_MODEL.*?\n(.*?)\n', source):

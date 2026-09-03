@@ -7,6 +7,7 @@ import { SystemCapabilities } from '@/features/system/SystemCapabilities';
 import { ComputeSection } from '@/features/system/ComputeSection';
 import { CatalogueSection } from '@/features/system/CatalogueSection';
 import { trustNotes } from './runtimetrust';
+import { TeamSettings } from './Team';
 import {
   AUTONOMY_LEVELS,
   readAutonomyLog,
@@ -674,6 +675,8 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
             ))}
           </div>
         </section>
+
+        <TeamSettings project={project} enabled={open} />
 
         <SystemCapabilities project={project} enabled={open} />
 

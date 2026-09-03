@@ -30,8 +30,8 @@ were written, because a chronicle that edits its own past measurements
 stops being evidence. Re-run the commands in section 1.1 rather than
 subtracting from them by hand.
 
-Four packets landed on 2026-09-02 and -03. The flat top level went
-**76 -> 28** `[MEASURED: git ls-files -- ':(glob)daedalus/*.py' | grep -v
+Six packets landed on 2026-09-02 and -03. The flat top level went
+**76 -> 26** `[MEASURED: git ls-files -- ':(glob)daedalus/*.py' | grep -v
 __init__ | wc -l]`.
 
 | packet | what it did | flat before -> after |
@@ -40,19 +40,47 @@ __init__ | wc -l]`.
 | G1-FLAT-03 | nineteen modules with a dossier destination, no effect-registry row and no cycle membership, into `orchestration` | 69 -> 50 |
 | G1-FLAT-04 | created `foundation/` and `interfaces/cli/`; eleven modules, including one cycle member | 50 -> 39 |
 | G1-FLAT-05 | eleven REGISTERED effect doors, and `daedalus.interfaces` added to the kernel, spine and twin fences | 39 -> 28 |
+| G1-FLAT-06 | `token_policy` deleted, `cli.py` renamed to `interfaces/cli/entry.py`, `dctx` refused by the boundary contract | 28 -> 26 |
+| G1-PKG-01 | 25 `provider_` modules become `runtimes/provider/` | 26 |
+| G1-PKG-02 | 16 `repository_` modules become `gates/repository/` | 26 |
 
 ### 0.1 The packages now `[MEASURED 2026-09-03]`
 
 ```text
-runtimes      64      interfaces    31      integrations  14
+runtimes      65      interfaces    32      integrations  14
 kernel        50      structcore    24      twin          13
 orchestration 37      eval          19      kairos        11
-gates         35      spine         15      providers     11
+gates         36      spine         15      providers     11
                       chip_design   15      foundation     9
 ```
 
-`interfaces/` now has four subpackages rather than three: `bridge` (7),
-`cli` (7), `desktop` (5) and `http` (7), plus its own `__init__`.
+Counting the files a package holds is the wrong question once a package has
+subpackages. The number that says whether a directory is navigable is how
+many files sit at its OWN top level, and two packets moved it:
+
+| package | top level before | after | subpackages |
+| --- | --- | --- | --- |
+| `runtimes` | 43 | 18 | `admission`, `contracts`, `execution`, `provider`, `providers` |
+| `gates` | 35 | 19 | `repository` |
+| `interfaces` | 1 | 1 | `bridge`, `cli`, `desktop`, `http` |
+| `orchestration` | 30 | 30 | `execution`, `missions` |
+
+G1-PKG-01 made `runtimes/provider/` out of 25 modules sharing the
+`provider_` prefix; G1-PKG-02 made `gates/repository/` out of 16 sharing
+`repository_`. Neither grouping was chosen: 14 of the first and 7 of the
+second are strongly connected import components, so each family already
+behaved as a unit and only the directory disagreed. The prefix is dropped
+because the package carries it.
+
+`orchestration` is unchanged at 30 and is now the largest flat directory in
+the tree. Its obvious family is the nine `ikarus_*` modules, and the obvious
+move is blocked by a real hazard rather than by taste: dropping the prefix
+inside a package named `ikarus` produces `os.py`, which shadows the standard
+library for any process whose working directory lands beside it -- the
+defect `daedalus/interfaces/http/` already has and which is recorded in
+G1-FLAT-06. Keeping the prefix produces `ikarus/ikarus_os.py`. Neither is
+good, and choosing between a stutter and a shadow is a naming decision, not
+a mechanical one.
 
 ### 0.2 The 28 that are still flat, and why `[MEASURED 2026-09-03]`
 
@@ -339,6 +367,20 @@ them.**
 ---
 
 ## 3. UNRESOLVED - the cross-domain SCC, now 13 members
+
+> **Superseded in part, 2026-09-03.** This section's central finding --
+> that every candidate composer is reachable from inside the component, so
+> injecting a port anywhere reinstates the cycle -- was true when measured
+> and is not true now. Forty-eight modules have been relocated since. All
+> twenty external callers are now outside the component's transitive reach,
+> and ONE deferred import holds the component together:
+> `daedalus/file_bridge.py:766`. Removing it dissolves the component and
+> leaves two small single-domain cycles. Measured, simulated over all
+> twenty-four internal edges, and written up in
+> [scc-cut-reconnaissance-20260903.md](scc-cut-reconnaissance-20260903.md).
+> The analysis below is left as written: it was correct about the tree it
+> measured, and it is why the relocations were worth doing.
+
 
 > **Updated 2026-09-02 after G1-SCC-01 (merged 22cff7bf).** The section below
 > was written when the component had 18 members, and every word of its

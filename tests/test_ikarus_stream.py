@@ -10,7 +10,7 @@ import json
 import unittest
 from unittest import mock
 
-from daedalus.orchestration import ikarus_os
+from daedalus.orchestration.ikarus import shell as ikarus_os
 from daedalus.providers import ollama as ollama_mod
 from daedalus.providers._openai_compat import ProviderHTTPError, chat_stream
 
@@ -251,14 +251,14 @@ class NonStreamingUnchangedTest(unittest.TestCase):
     def test_blocking_ollama_path_also_pins_residency(self):
         """The pin is a side effect only: same reply, but the next turn stays warm."""
         with mock.patch("daedalus.providers.ollama.warm_model_async") as warm, \
-             mock.patch("daedalus.orchestration.ikarus_os.chat_completion", return_value="  hi  "):
+             mock.patch("daedalus.orchestration.ikarus.shell.chat_completion", return_value="  hi  "):
             out = ikarus_os._ollama("hello", "m7", "low")
         self.assertEqual(out, "hi")  # unchanged: still stripped text
         warm.assert_called_once()
 
     def test_blocking_ollama_still_returns_none_on_failure(self):
         with mock.patch("daedalus.providers.ollama.warm_model_async"), \
-             mock.patch("daedalus.orchestration.ikarus_os.chat_completion",
+             mock.patch("daedalus.orchestration.ikarus.shell.chat_completion",
                         side_effect=RuntimeError("dead")):
             self.assertIsNone(ikarus_os._ollama("hello", "m7", "low"))
 

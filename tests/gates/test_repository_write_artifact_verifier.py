@@ -7,15 +7,15 @@ import json
 import pytest
 
 from daedalus.gates.report_v3 import GateReportV3
-from daedalus.gates.repository_write_artifact_verifier import (
+from daedalus.gates.repository.write_artifact_verifier import (
     RepositoryWriteArtifactVerificationError,
     RepositoryWriteArtifactVerificationReceipt,
     verify_repository_write_artifact,
 )
-from daedalus.gates.repository_write_evidence import (
+from daedalus.gates.repository.write_evidence import (
     RepositoryWriteArtifactEvidence,
 )
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2,
     RepositoryWriteSurface,
 )

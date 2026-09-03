@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.orchestration.ikarus_runtime_events import (
+from daedalus.orchestration.ikarus.runtime_events import (
     RUNTIME_EVENT_PROJECTION_SCHEMA,
     RuntimeEventProjectionError,
     RuntimeEventProjector,
@@ -221,7 +221,7 @@ def test_terminal_observation_requires_lowercase_sha256(bad_digest: str) -> None
 
 
 def test_module_stays_projection_only() -> None:
-    source = Path("daedalus/orchestration/ikarus_runtime_events.py").read_text(
+    source = Path("daedalus/orchestration/ikarus/runtime_events.py").read_text(
         encoding="utf-8"
     )
     tree = ast.parse(source)

@@ -742,7 +742,7 @@ UNCONVERTED_PRODUCERS = {
     # hypothetical -- it happened while this row was being written, and the
     # drift detector caught it, which is the row's own thesis demonstrated on
     # the row itself. Describe the shapes; do not quote them.
-    "daedalus/orchestration/ikarus_os.py":
+    "daedalus/orchestration/ikarus/shell.py":
         "NOT A RUN RECORD, AND NOT A PRODUCER AT ALL -- a SCAN FALSE POSITIVE, "
         "declared so the next reader does not repeat the diagnosis. MEASURED "
         "2026-09-02 at eb5228ac: the three co-located predicates hit in three "

@@ -75,13 +75,16 @@ CURRENT_CROSS_DOMAIN_COMPONENT = PRE_OFFLOAD_PORT_CROSS_DOMAIN_COMPONENT - {
 # can, which is what G1-SCC-CUT1 did and what the note above describes.
 CURRENT_CROSS_DOMAIN_COMPONENT = (
     CURRENT_CROSS_DOMAIN_COMPONENT - {"daedalus.ikarus_supervisor"}
-) | {"daedalus.orchestration.ikarus_supervisor"}
+) | {"daedalus.orchestration.ikarus.supervisor"}
 CURRENT_COMPONENTS_SHA256 = (
     # Moved in G1-PKG-01: the 14-module component IS the provider family, so
     # renaming its members renames them inside the component. Count and
     # maximum are unchanged at 12 and 14, and the membership is asserted
     # below rather than left to the digest.
-    "12daf63beabb64b877abb0a2843df6c535fafc48aa5920033bb693f6153bb2f1"
+    # Moved again in G1-PKG-02: the 7-module gates component IS the
+    # repository_write_* family, so renaming its members renames them inside
+    # the component. Count 12 and maximum 14 are unchanged.
+    "25111f36f9b86fde24835e6fc79b767f34ea63a8a96109b7dcb8d25b935b50bb"
 )
 # Moving census, not an architecture invariant: any packet that legitimately
 # splits or adds a leaf module changes these two totals without touching the
@@ -136,7 +139,26 @@ CURRENT_COMPONENTS_SHA256 = (
 # every one of the 25 kept exactly the targets it had, and no caller gained
 # or lost a package edge, because nothing imported them as
 # ``from daedalus.runtimes import provider_x``.
-CENSUS_MODULES = 432
+# 432 -> 433 in G1-PKG-02, the ``daedalus.gates.repository`` package root.
+# Sixteen modules moved into it and lost the ``repository_`` prefix the
+# package now carries; seven of the sixteen are one strongly connected
+# component, which is why the family was a package spelled with underscores.
+# Edges unchanged at 1642, for the same reason as G1-PKG-01: every module
+# kept its targets and no caller reached them through the parent package.
+# 433 -> 432 in G1-FLAT-07, which deleted daedalus/providers/hermes_agent.py.
+# 432 -> 433 for daedalus/hooks/crosstalk.py, the GitHub Discussions channel
+# between parallel sessions. It reaches ``daedalus.budget`` and
+# ``daedalus.spine.effect_boundary`` from inside ``main`` for the effect
+# boundary -- the same shape ``daedalus/hooks/__main__.py`` already uses, and
+# this census counts a function-scope import like any other, so those two are
+# real edges here whatever their runtime timing.
+# 433 -> 434 in G1-IKARUS-PKG, the ``daedalus.orchestration.ikarus`` package
+# root. Nine modules moved into it and lost the ``ikarus_`` prefix the package
+# now carries. One kept a name instead of losing it: ``ikarus_os`` became
+# ``shell``, not ``os``, because a module named os.py shadows the standard
+# library for any process whose cwd lands beside it -- the defect
+# daedalus/interfaces/http/ already has.
+CENSUS_MODULES = 434
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -332,7 +354,31 @@ CENSUS_MODULES = 432
 # _tracked_module_graph drops targets it cannot resolve, so a dangling import
 # produces no edge and no movement. The new contract resolves instead of
 # matching.
-CENSUS_EDGES = 1642
+#
+# 1642 -> 1640 in G1-FLAT-07. The facade spent exactly two edges -- one to
+# daedalus.integrations.hermes.configuration and one to
+# daedalus.integrations.hermes.kernel_provider -- and re-exported five names
+# from them. Nothing imported it, so nothing gained an edge in return.
+# 1640 -> 1645 with daedalus/hooks/crosstalk.py, measured edge by edge against
+# b9321abd rather than reasoned about:
+#   crosstalk -> daedalus.hooks._common            (git helper, own package)
+#   crosstalk -> daedalus.budget                   } the effect boundary,
+#   crosstalk -> daedalus.spine.effect_boundary    } imported inside ``main``
+#   events    -> daedalus.hooks.crosstalk          (the handlers call it)
+#   events    -> daedalus.hooks                    (the package edge that
+#                ``from . import crosstalk`` costs on top of the module edge)
+# The fifth was not predicted: four were, and the diff produced one more. It
+# creates no cycle -- daedalus/hooks/__init__.py imports none of these -- and
+# the SCC assertions below stayed green across the change.
+#
+# 1645 -> 1650 in G1-IKARUS-PKG. All five are the same construct and none is
+# lost in return: five callers that reach a module through
+# ``from ...orchestration.ikarus import X`` gained an edge to the PACKAGE as
+# well as the module, and each still names ``daedalus.orchestration`` for
+# something else, so nothing dropped. The five: interfaces.http.effects,
+# interfaces.http.sse, interfaces.http.web_api,
+# orchestration.conversation_requests, and ikarus.shell reaching a sibling.
+CENSUS_EDGES = 1650
 
 
 def _module_name(path: str) -> str:

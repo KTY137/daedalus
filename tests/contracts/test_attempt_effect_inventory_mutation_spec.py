@@ -30,8 +30,11 @@ EXPECTED_MUTATIONS = (
 EXPECTED_JOB_DIGEST = (
     "7d84b2853fddaeee9fed16ec0f7ce5e3befe6da625a847102255eb8cba9cef48"
 )
+# Moved 2026-09-03: the registry gained the ``daedalus.hooks.crosstalk`` row
+# (network_egress + process_spawn) and ``daedalus.hooks`` had its notes
+# corrected, because its declared egress is no longer loopback-only.
 EXPECTED_REGISTRY_DIGEST = (
-    "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
+    "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
 )
 REMAINING_UNMIGRATED = {
     "run_attempt_durability_admission_mutations.py": (

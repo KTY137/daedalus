@@ -27,29 +27,46 @@ PORTED_BLOBS = {
 # new blob is recorded here with the commit that changed it and why. Drift
 # that nobody wrote down is what this review is for.
 POST_PORT_REVISIONS = {
+    "scripts/run_repository_head_revision_mutations.py": (
+        "55fe646c308309b51fea4412468ffe7e7773f267",
+        "G1-PKG-02: the repository_ family became the daedalus.gates.repository package, so this file's import of the gate module went one level deeper. Import statements only, no behaviour.",
+    ),
     "daedalus/gates/repository_head_revision.py": (
-        "22dd0e5751a98dee42779185a2032dcd9a2f9a2d",
+        "3a2a52d29ce9cb3288a34fa74cc1265457d1bbff",
         "G1-HIER-05: the receipt and error objects moved unchanged to the "
         "neutral runtime-contract layer; this module remains the process-free "
-        "gate producer and exact compatibility export.",
+        "gate producer and exact compatibility export. G1-PKG-02: the file "
+        "itself moved to daedalus/gates/repository/head_revision.py with the "
+        "rest of the repository_ family and its own imports went one level "
+        "deeper; import statements only, no behaviour.",
     ),
     "tests/gates/test_repository_head_revision.py": (
-        "c78ddcd7355bbc6701bb4f6f797c9dfd3d89f6fb",
+        "b294f3ca993936eff054603bb705177394a9b5f9",
         "05eb06f: Path.write_text opens in text mode, so these hand-built git "
         "plumbing fixtures were written with CRLF on Windows and the strict "
         "single-line reader rightly refused them; the writes now pin "
         "newline='\\n'. Fixtures only, no production behaviour.",
     ),
     "tests/gates/test_repository_head_revision_wire.py": (
-        "7ef1ff7091605376a67e79064be1a2d516f620a0",
+        "9e01d7f9744471d0bd7cf9596f22856196371924",
         "05eb06f: the same newline pinning in the three wire fixtures. "
         "Fixtures only, no production behaviour.",
     ),
     "tests/gates/test_repository_head_revision_review.py": (
-        "c0145add958d40d7debb55b39533243101a904bf",
+        "01e2b1d9e6106ffa5294d2d87dabc471bd8a38ca",
         "G1-HIER-05: the independent review now follows the exact exported "
         "receipt object to its neutral canonical contract owner.",
     ),
+}
+
+#: Where a ported file lives NOW, when that is no longer where it was
+#: ported to. The transfer record above keeps the original path because the
+#: work packet does, and this test asserts the two agree; only the READ
+#: follows the file. A relocation must therefore be written down twice --
+#: here and as a POST_PORT_REVISIONS blob -- which is the point.
+RELOCATIONS = {
+    "daedalus/gates/repository_head_revision.py":
+        "daedalus/gates/repository/head_revision.py",
 }
 
 CURRENT_BLOBS = {
@@ -65,7 +82,9 @@ def _git_blob_sha1(payload: bytes) -> str:
 
 def test_integration_ports_exact_reviewed_blobs() -> None:
     observed = {
-        path: _git_blob_sha1((REPOSITORY_ROOT / path).read_bytes())
+        path: _git_blob_sha1(
+            (REPOSITORY_ROOT / RELOCATIONS.get(path, path)).read_bytes()
+        )
         for path in PORTED_BLOBS
     }
     assert observed == CURRENT_BLOBS
@@ -94,7 +113,7 @@ def test_packet_records_transfer_as_provenance_not_execution_evidence() -> None:
 
 
 def test_ported_verifier_has_no_direct_process_network_or_write_surface() -> None:
-    source_path = REPOSITORY_ROOT / "daedalus/gates/repository_head_revision.py"
+    source_path = REPOSITORY_ROOT / "daedalus/gates/repository/head_revision.py"
     tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
 
     imported_roots: set[str] = set()

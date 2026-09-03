@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     RepositoryWriteClassificationError,
     parse_inventory_v2,
     project_classification_input,

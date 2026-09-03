@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from daedalus.gates.repository_head_revision import (
+from daedalus.gates.repository.head_revision import (
     RepositoryHeadRevisionReceipt,
     RepositoryHeadRevisionError,
     verify_repository_head_revision,

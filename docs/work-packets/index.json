@@ -9,13 +9,13 @@
     "master_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
   },
   "counts": {
-    "assigned_artifacts": 281,
+    "assigned_artifacts": 282,
     "legacy_artifacts": 204,
-    "packet_artifacts": 283,
-    "packet_ids": 218,
-    "post_index_artifacts": 79,
+    "packet_artifacts": 284,
+    "packet_ids": 219,
+    "post_index_artifacts": 80,
     "registry_artifacts": 1,
-    "tracked_files": 284,
+    "tracked_files": 285,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -3591,6 +3591,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-SCC-02_BRIDGE_PAYLOAD_PORT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "032f2b05831ce9b969040e2fd44957237727325f",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-SCC-RECON` (the measurement this packet acts on) \u2014 green",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-SCC-02",
+      "primary_artifact": "docs/work-packets/G1-SCC-02_BRIDGE_PAYLOAD_PORT.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-TAURI-CI-AUTH-271.json"
       ],
       "metadata": {
@@ -4747,6 +4763,20 @@
       "format": "markdown",
       "packet_id": "G1-RUNTIME-PROVIDER-06",
       "path": "docs/work-packets/G1-RUNTIME-PROVIDER-06_CATALOGUE_OWNER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-SCC-02",
+      "path": "docs/work-packets/G1-SCC-02_BRIDGE_PAYLOAD_PORT.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

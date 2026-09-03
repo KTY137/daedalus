@@ -24,12 +24,24 @@ IMPLEMENTATIONS = {
     "sse": HTTP_ROOT / "sse.py",
     "router": HTTP_ROOT / "router.py",
 }
-REGISTRY_SHA256 = "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
+REGISTRY_SHA256 = "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
 WIRE_LITERAL_CONTRACTS = {
+    # "read" moved 542 -> 563 in eb9dee78, which added GET /api/conversations,
+    # and the pin was not re-measured when g1-ui-05 merged (ec9a11d8). It has
+    # been red on main ever since.
+    #
+    # The guard's claim is that a refactor cannot silently CHANGE the wire, so
+    # the number was not simply overwritten. Diffing the literal multiset of
+    # handle_get between e2f5e347 and this revision: 0 removed, 21 added, and
+    # every one of the 21 belongs to the new endpoint -- '/api/conversations',
+    # 'project', 'project is required', 'the conversation store failed: ',
+    # 400 x2, 500, 0, 20, and the ok/error/False shapes the handler already
+    # uses elsewhere. Purely additive. The invariant held; only the census was
+    # stale.
     "read": (
         ("handle_get",),
-        542,
-        "20e596b71d368f4f06127cbc6847763922f8b8a3d2915d10a983368158085f5e",
+        563,
+        "4a00427a4e2338d7a5d60791619effea086c321bc581658b1e4923be03300aa2",
     ),
     "effects": (
         ("handle_put", "handle_post"),

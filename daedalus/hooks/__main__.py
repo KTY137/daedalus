@@ -1,7 +1,8 @@
 """The one hook entrypoint: ``python -m daedalus.hooks <event>``.
 
-``<event>`` is one of ``session``, ``turn``, ``pre_tool``, ``post_tool``,
-``subagent_start``, ``subagent_stop``, ``config_change``, ``pre_compact``. The
+``<event>`` is one of ``session``, ``session_end``, ``turn``, ``pre_tool``,
+``post_tool``, ``subagent_start``, ``subagent_stop``, ``config_change``,
+``pre_compact``. The
 harness payload arrives on stdin as JSON; the answer goes to stdout (plain text
 for the context-carrying events, a JSON object for the tool/subagent events).
 Exit code is always 0: a hook that raises would cost the turn, and nothing here
@@ -42,6 +43,7 @@ from daedalus.hooks._common import (  # noqa: E402
 
 HANDLERS = {
     "session": events.session_start,
+    "session_end": events.session_end,
     "turn": events.user_prompt,
     "pre_tool": tools.pre_tool,
     "post_tool": tools.post_tool,

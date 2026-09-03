@@ -12,13 +12,13 @@ import pytest
 import daedalus.orchestration.missions.service as mission_service
 from daedalus.build import BuildSession, BuildTask, Wave
 from daedalus.build_exec import BuildRunReport, EffectBounds, WaveExecutor, WaveResult
-from daedalus.orchestration.ikarus_effect_bridge import (
+from daedalus.orchestration.ikarus.effect_bridge import (
     IkarusEffectBridgeRefused,
     build_oneshot_effect_execution_request,
     build_oneshot_effect_lease_request,
 )
-from daedalus.orchestration.ikarus_oneshot import OneShotRuntimeRefused
-from daedalus.orchestration.ikarus_supervisor import (
+from daedalus.orchestration.ikarus.oneshot import OneShotRuntimeRefused
+from daedalus.orchestration.ikarus.supervisor import (
     MissionSupervisor,
     SupervisorRefused,
     verify_state_ledger,

@@ -9,7 +9,7 @@ from unittest import mock
 import pytest
 
 from daedalus.interfaces.cli import token_monitor
-from daedalus.orchestration import ikarus_os
+from daedalus.orchestration.ikarus import shell as ikarus_os
 from daedalus.limit_policy import (
     ExecutionLimitPolicy,
     MODE_UNBOUNDED_EXECUTION,

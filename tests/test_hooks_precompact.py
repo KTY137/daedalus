@@ -70,6 +70,7 @@ def test_every_project_hook_is_an_exact_registered_dispatch() -> None:
     dispatcher = 'python "${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py"'
     expected = {
         "SessionStart": [f"{dispatcher} session"],
+        "SessionEnd": [f"{dispatcher} session_end"],
         "UserPromptSubmit": [f"{dispatcher} turn"],
         "PreToolUse": [f"{dispatcher} pre_tool"],
         "PostToolUse": [f"{dispatcher} post_tool"],

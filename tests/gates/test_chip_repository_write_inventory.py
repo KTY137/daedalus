@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     scan_repository_write_surfaces_v2,
 )
 from scripts.declare_write_surfaces import (

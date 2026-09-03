@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import daedalus.gates.repository_tree as repository_tree
-from daedalus.gates.repository_tree import (
+import daedalus.gates.repository.tree as repository_tree
+from daedalus.gates.repository.tree import (
     RepositorySourceSnapshot,
     RepositoryTreePathError,
     RepositoryTreeRaceError,

@@ -14,7 +14,7 @@ import pathlib
 
 import pytest
 
-from daedalus.gates.repository_write_classification import (
+from daedalus.gates.repository.write_classification import (
     EvidenceBinding,
     EvidenceKind,
     GuardDisposition,
@@ -25,14 +25,14 @@ from daedalus.gates.repository_write_classification import (
     issue_non_runtime_conformity_binding,
     surface_binding_sha256,
 )
-from daedalus.gates.repository_write_effect_lease import (
+from daedalus.gates.repository.write_effect_lease import (
     EffectLeaseReplaySubject,
     RepositoryWriteEffectLeaseBindingError,
 )
-from daedalus.gates.repository_write_evidence_materialization import (
+from daedalus.gates.repository.write_evidence_materialization import (
     materialize_repository_write_evidence,
 )
-from daedalus.gates.repository_write_runtime_conformance import (
+from daedalus.gates.repository.write_runtime_conformance import (
     RepositoryWriteRuntimeConformanceReport,
 )
 from daedalus.spine.envelope import canonical_json

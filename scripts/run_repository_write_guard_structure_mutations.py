@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus/gates/repository_write_guard_structure.py"
+TARGET = ROOT / "daedalus/gates/repository/write_guard_structure.py"
 TEST_FILE = "tests/gates/test_repository_write_guard_structure.py"
 MUTATIONS = {
     "forge-guard-semantics": (

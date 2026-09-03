@@ -476,3 +476,49 @@
 .autolog-what { color: var(--ink); }
 .autolog-detail { color: var(--ink2); word-break: break-word; }
 .autolog-level { color: var(--ink3); }
+
+/* ------------------------------------------------------------------ team */
+
+.team-card {
+  display: grid;
+  gap: var(--u2);
+  padding: var(--u3);
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+.team-card > .settings-hint { margin: 0; }
+.team-field { display: flex; align-items: center; justify-content: space-between; gap: var(--u2); }
+.team-field > span { color: var(--ink2); font-size: var(--fs-sm); }
+.team-field input,
+.team-field select {
+  min-height: 44px;
+  min-width: 10ch;
+  padding: 0 var(--u1);
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+.team-agents { display: flex; flex-wrap: wrap; gap: var(--u1); }
+.team-agents button {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink3);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.team-agents button.on { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+.team-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  border-top: var(--border) solid var(--line2);
+  padding-top: var(--u2);
+}

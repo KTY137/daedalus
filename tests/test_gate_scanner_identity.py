@@ -19,15 +19,15 @@ from pathlib import Path
 import pytest
 
 from daedalus.gates import report_v3
-from daedalus.gates.repository_write_inventory import (
+from daedalus.gates.repository.write_inventory import (
     RepositoryWriteInventoryError,
     scan_repository_write_surfaces,
 )
-from daedalus.gates.repository_write_inventory_v2 import (
+from daedalus.gates.repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2Error,
     scan_repository_write_surfaces_v2,
 )
-from daedalus.gates.repository_write_stdlib_delta import (
+from daedalus.gates.repository.write_stdlib_delta import (
     scan_repository_write_stdlib_delta,
 )
 

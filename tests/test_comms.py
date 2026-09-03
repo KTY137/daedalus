@@ -29,6 +29,28 @@ EXTENSION_DIR = ROOT / "vscode-agent-env"
 EXTENSION_PACKAGE = EXTENSION_DIR / "package.json"
 EXTENSION_MAIN = EXTENSION_DIR / "extension.js"
 
+#: ``extension.js`` keeps the retired inline dashboard as inactive source
+#: history, wrapped in a block comment that says so. Any assertion made
+#: against the raw file text can therefore be satisfied by a COMMENT.
+#:
+#: [MEASURED 2026-09-03] the block is 853 of the file's 2106 lines -- 40%.
+#: Of the ten needles the old team-controls test asserted, six lived only
+#: inside it; of the nine the mission-control test asserted, seven did. The
+#: second test was GREEN while two thirds of it read a comment, which is the
+#: standing rule "a test that passes because the fixture is inert is worse
+#: than no test" in its purest form.
+LEGACY_BLOCK_OPEN = "/*\nfunction legacyDashboardHtmlSource"
+
+
+def _split_extension_source() -> tuple[str, str]:
+    """(live source, retired-history source) for ``extension.js``."""
+    src = EXTENSION_MAIN.read_text(encoding="utf-8")
+    start = src.find(LEGACY_BLOCK_OPEN)
+    if start < 0:
+        return src, ""
+    end = src.index("*/", start) + 2
+    return src[:start] + src[end:], src[start:end]
+
 
 class InitRepoToolInstructionTests(unittest.TestCase):
     def test_init_repo_copies_tool_instruction_files(self):
@@ -172,36 +194,73 @@ class VsCodeExtensionTests(unittest.TestCase):
         self.assertIn('"daedalus.file_bridge"', src)
         self.assertIn('"daedalus.interfaces.cli.entry"', src)
 
-    def test_extension_dashboard_supports_team_and_environment_controls(self):
-        src = EXTENSION_MAIN.read_text(encoding="utf-8")
+    def test_extension_dashboard_surface_is_the_live_cockpit(self):
+        """What the extension actually contributes today.
+
+        This replaces two tests that asserted needles against the raw file
+        text. Six of one test's ten needles and seven of the other's nine
+        existed only inside the retired dashboard's comment block, so they
+        described a surface the adapter cannot render. Every needle here is
+        checked against the LIVE half of the file, and the split is asserted
+        below so the distinction cannot rot.
+        """
+        live, _ = _split_extension_source()
         for needle in (
-            "max_workers",
-            "active_agents",
-            "default_lane",
-            "Claude extension",
-            "Codex/OpenAI extension",
-            "Ollama",
             "daedalusDashboard",
             "daedalusDashboardView",
-            "Enforce Harness",
             "enforceProject",
+            "agentOsHtml",
+            "webUrl",
+            "<iframe",
+            "retryBackend",
         ):
-            self.assertIn(needle, src)
+            self.assertIn(needle, live, f"{needle} is not in the live extension source")
 
-    def test_extension_dashboard_has_mission_control_tabs_and_handlers(self):
-        src = EXTENSION_MAIN.read_text(encoding="utf-8")
-        for needle in (
-            "Overview",
-            "Queue Timeline",
-            "Agent Squads",
-            "Model Resources",
-            "Quality Gates",
-            "Command Deck",
-            "review-diff",
-            "copy",
-            "openLatest",
-        ):
-            self.assertIn(needle, src)
+    def test_the_retired_inline_dashboard_stays_inert(self):
+        """Retained history must stay history.
+
+        The block is deliberately kept -- the comment above it says so -- and
+        this test does not argue with that. It pins the two properties that
+        make keeping it honest: it is inside a block comment, and nothing
+        calls it. If either stops holding, an 853-line template is live again
+        and the tests above would start passing for the wrong reason.
+        """
+        live, dead = _split_extension_source()
+        self.assertTrue(dead, "the retired dashboard block was not found where expected")
+        self.assertTrue(dead.startswith("/*") and dead.endswith("*/"))
+        self.assertNotIn("legacyDashboardHtmlSource", live)
+        # Needles that exist ONLY as retired history. Naming them here is the
+        # point: they are not evidence of a capability.
+        for needle in ("Queue Timeline", "Agent Squads", "Command Deck", "Enforce Harness"):
+            self.assertIn(needle, dead)
+            self.assertNotIn(needle, live)
+
+    def test_team_controls_live_in_the_cockpit_not_the_extension(self):
+        """Where the team editor is, now that the owner decided to rebuild it.
+
+        This was written earlier the same day as a pinned GAP: the backend
+        write path existed (PUT /api/projects/<name>/team ->
+        ``hierarchy.save_team``) and ``daedalus/core.py`` read
+        ``active_agents`` to route work, but no surface called it. The owner
+        chose rebuild over retire, and it landed in the React cockpit --
+        ``apps/web/src/features/settings/Team.tsx``.
+
+        So the assertion stays but its meaning changes: the extension is NOT
+        where the editor belongs, and a needle reappearing there would mean
+        someone revived the retired inline dashboard rather than extending the
+        cockpit. The second half is the half that now carries the capability
+        claim. See runs/analysis/g1-failure-diag/test_comms.md.
+        """
+        live, _ = _split_extension_source()
+        for needle in ("max_workers", "active_agents", "default_lane"):
+            self.assertNotIn(needle, live)
+        cockpit = ROOT / "apps" / "web" / "src" / "features" / "settings"
+        model = (cockpit / "teamModel.ts").read_text(encoding="utf-8")
+        component = (cockpit / "Team.tsx").read_text(encoding="utf-8")
+        self.assertIn("max_workers", model)
+        self.assertIn("default_lane", model)
+        self.assertIn("active_agents", model)
+        self.assertIn("updateTeam", component)
 
     def test_extension_uses_backend_json_contracts(self):
         src = EXTENSION_MAIN.read_text(encoding="utf-8")

@@ -247,3 +247,99 @@ Two independent, separable fixes:
   `web_api`/`control_plane` backend at all — `daedalus/core.py:100` shows `active_agents`
   is *read* into the dashboard payload, but a write path was not traced in this
   read-only session.
+
+## Addendum 2026-09-03, a later session — both open questions measured
+
+Answers to the two items above, so the owner decision is not made on a guess.
+Measured at `1865a753`; this addendum is appended, nothing above it was edited.
+
+**The write path EXISTS.** `daedalus/interfaces/http/effects.py:52-53`:
+
+```python
+if len(parts) == 4 and parts[:2] == ["api", "projects"] and parts[3] == "team":
+    self._send_json(hierarchy.save_team(parts[2], body))
+```
+
+`PUT /api/projects/<name>/team` reaches `hierarchy.save_team`, and it sits in
+the *effects* handler, so it is already on the policy-guarded side of the seam.
+The read side is live too: `daedalus/core.py:100` normalises `active_agents`,
+`core.py:302/327` uses it to pick agents, and `build.py:526-539` uses
+`max_workers`/`active_agents` for wave sizing and routing. [MEASURED]
+
+**No surface calls it.** `apps/web/src/**` contains zero occurrences of
+`max_workers`, `active_agents`, `default_lane`, or `projects/<n>/team`
+(ripgrep, case-insensitive, whole subtree). The live extension has none either
+— the strings survive only inside the commented-out `legacyDashboardHtmlSource`
+block. [MEASURED]
+
+**What that changes.** This diagnosis framed the fix as "rebuild a
+team/environment-controls surface ... wired through the existing backend
+contract *if one exists*". It does exist, complete, on both read and write
+sides. So the product fork is not "build a feature" versus "drop a feature" —
+it is "add a form to the cockpit that calls an endpoint already written" versus
+"delete a backend capability nobody can reach". That is a materially cheaper
+rebuild than this document assumed, and the owner should be asked in those
+terms.
+
+**Owner decision, same day: REBUILD.** Asked in the terms above, the owner
+chose to rebuild rather than retire. It landed in the React cockpit as
+`apps/web/src/features/settings/Team.tsx` (packet `g1-team-controls`), sourcing
+its lane choices and worker ceiling from the hierarchy payload rather than
+hardcoding them.
+
+Making the endpoint reachable turned up a second thing this diagnosis had no
+reason to look for: `save_team` key-filtered but validated no VALUES, and two
+of the three fields are read in ways that turn a bad write into damage rather
+than a bad setting. `int(team.get("max_workers", 3) or 3)` in `core.team_config`
+raises on a stored `"abc"`, so every read path for that project fails and the
+UI cannot undo it because the undo path reads first; `active_agents` is read as
+`[str(a) for a in value]`, so a stored string becomes one agent per character.
+Every field is validated now, and rejections come back as HTTP 400 with the
+field and the reason.
+
+**Test staleness: done, separately.** `tests/test_comms.py` no longer asserts
+capabilities against the comment block (packet `g1-ext-honest-tests`, merged as
+`e1ad6493`). Needle-by-needle measurement of the two old tests: 3 live / 6
+comment / 1 nowhere, and 2 live / 7 comment / 0 nowhere respectively — so the
+GREEN one was reading a comment for seven of its nine assertions. The gap this
+document describes is now pinned as an explicit measured gap
+(`test_team_controls_are_absent_from_the_live_extension`) rather than a red
+test, so it stays visible without blocking the suite. The retained legacy block
+was NOT deleted: the comment above it records a deliberate decision, and a
+test-repair packet does not overrule that.
+
+## Addendum 2: is this defect class anywhere else? Measured — no.
+
+A test satisfied by code that cannot run is worth looking for repo-wide, so it
+was looked for. Two passes, both at `e8e83eed`:
+
+**Pass 1, from the test side.** 612 assertions across 93 test files assert a
+substring against a whole source file they read. Only 7 of those could be
+resolved to a concrete Python target by a static path resolver — most tests
+build their paths in shapes the resolver does not evaluate — and none of the 7
+was satisfied only by a comment. **That is low coverage, not a clean bill**, and
+it is recorded as such rather than quoted as "612 checked".
+
+**Pass 2, from the source side, which IS decisive.** The carrier of this defect
+is retained-but-disabled code, and there is very little of it. Ten tracked
+sources hold a disabled block of 40+ lines:
+
+| lines | file |
+|---|---|
+| 852 | `vscode-agent-env/extension.js` — the one this document is about |
+| 235 | `tests/contracts/test_import_scc_hierarchy.py` — the census commentary |
+| 65 | `daedalus/interfaces/http/web_api.py` |
+| 64 | `tests/test_spend_coverage.py` |
+| 54 | `daedalus/spine/effect_boundary.py` |
+| 48 | `daedalus/sensitivity.py`, `daedalus/structcore/index.py` |
+| 47 | `daedalus/spine/picker.py` |
+| 44 | `apps/web/src/shared/ui/motion/tokens.ts` |
+| 42 | `daedalus/health.py` |
+
+Every Python entry was read: they are prose — design rationale in this
+repository's house style, not commented-out code. The heuristic flagged them
+because `= ` and `def ` occur in English sentences about code.
+
+**Conclusion.** The class exists in exactly one place in the tree, and it is
+fixed. No guard was added: a repo-wide check for a one-instance problem is
+ceremony, and the honest record of having looked is this table.

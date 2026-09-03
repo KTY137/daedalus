@@ -48,7 +48,7 @@ from daedalus.schemas import RuntimeConformanceReceipt
 from daedalus.spine.envelope import canonical_json
 
 from .report import GateReport, build_gate0_report
-from .repository_write_classification import (
+from .repository.write_classification import (
     CLASSIFICATION_SCHEMA,
     NON_BLOCKING_SURFACE_VERDICT,
     STAGE_VERDICT_NOT_APPLICABLE,
@@ -60,7 +60,7 @@ from .repository_write_classification import (
     project_repository_write_classifications,
     surface_classification_verdict,
 )
-from .repository_write_inventory_v2 import (
+from .repository.write_inventory_v2 import (
     RepositoryWriteInventoryV2,
     RepositoryWriteInventoryV2Error,
     scan_repository_write_surfaces_v2,

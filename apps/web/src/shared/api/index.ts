@@ -1,4 +1,4 @@
-import type { ApiEnvelope, BootstrapPayload, ContextPlanPayload, ControlPlanePayload, DashboardPayload, DesktopStatusPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRegistration, ProjectRegistrationPayload, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TopologyPayload } from '../contracts';
+import type { ApiEnvelope, BootstrapPayload, ContextPlanPayload, ControlPlanePayload, DashboardPayload, DesktopStatusPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRegistration, ProjectRegistrationPayload, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TeamPayload, TopologyPayload } from '../contracts';
 
 /**
  * Why a request failed, kept SEPARATE from the message.
@@ -1110,6 +1110,23 @@ export function streamIkarus(
 
 export function updateAutonomy(project: string, patch: Record<string, unknown>) {
   return request<ControlPlanePayload>(`/api/projects/${encodeURIComponent(project)}/autonomy`, {
+    method: 'PUT',
+    body: JSON.stringify(patch)
+  });
+}
+
+/**
+ * Patch a project's team config: how many workers, which lane, which agents.
+ *
+ * These three values already steer the system — `core.py` picks agents from
+ * `active_agents`, `build.py` sizes waves from `max_workers`, and
+ * `routing_summary` honours `default_lane`. The endpoint has existed since the
+ * API-first refactor; until now nothing called it, so the values could be read
+ * but never changed. `save_team` validates every field and answers HTTP 400
+ * with the reason, so a rejection is worth showing verbatim.
+ */
+export function updateTeam(project: string, patch: Record<string, unknown>) {
+  return request<TeamPayload>(`/api/projects/${encodeURIComponent(project)}/team`, {
     method: 'PUT',
     body: JSON.stringify(patch)
   });

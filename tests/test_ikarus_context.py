@@ -20,7 +20,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus.orchestration import ikarus_os
+from daedalus.orchestration.ikarus import shell as ikarus_os
 
 
 FAKE_PEM = (
@@ -222,7 +222,7 @@ class BrainLaneContextTest(unittest.TestCase):
             return
 
         with mock.patch("daedalus.providers.ollama.warm_model_async", side_effect=fake_warm), \
-             mock.patch("daedalus.orchestration.ikarus_os.chat_completion", side_effect=fake_chat):
+             mock.patch("daedalus.orchestration.ikarus.shell.chat_completion", side_effect=fake_chat):
             reply, mdl, ctx = ikarus_os._llm("ollama", "explain widget.py", None, "low", "p")
 
         self.assertEqual(reply, "ok")

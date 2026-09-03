@@ -149,7 +149,11 @@ def test_frozen_repository_baseline_is_exact_and_green() -> None:
     # 16 since G1-FLAT-06 deleted ``daedalus.token_policy``, whose removal
     # criteria were met once its two production callers named the owner
     # directly. A moving census, not an invariant.
-    assert report.shim_entry_count == 16
+    # 15 since G1-FLAT-07 retired ``daedalus.providers.hermes_agent``. Its
+    # criteria offered two branches and the second was met: every caller
+    # already uses the isolated daedalus.integrations.hermes path, and an AST
+    # audit over every tracked file finds no importer of the facade at all.
+    assert report.shim_entry_count == 15
     assert report.passed is True
 
 
