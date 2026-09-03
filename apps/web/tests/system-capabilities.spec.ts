@@ -39,7 +39,29 @@ async function fulfillJson(route: Route, body: Record<string, unknown>) {
   await route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(body) });
 }
 
-async function stubCockpit(page: Page, providerFails = false) {
+/** The loop queue the cockpit is handed. Injected, never live: a spec whose
+ *  subject is "does this render" must not also depend on the picker having
+ *  found work today. That reasoning is inherited verbatim from the loop.spec.ts
+ *  that G1-UI-02 deleted. */
+function queueBody(overrides: Record<string, unknown> = {}) {
+  return {
+    candidates: [],
+    n_candidates: 0,
+    limit: 10,
+    sources: {},
+    notes: [],
+    degraded_sources: ['inventory'],
+    incomplete: true,
+    opt_in_sources_available: false,
+    ...overrides
+  };
+}
+
+async function stubCockpit(
+  page: Page,
+  providerFails = false,
+  queue: Record<string, unknown> = queueBody()
+) {
   const calls: string[] = [];
   const autonomyBodies: Record<string, unknown>[] = [];
   page.on('request', (request) => {
@@ -96,9 +118,7 @@ async function stubCockpit(page: Page, providerFails = false) {
       can_write: false, agentic: true, requires_key: false, env_keys: [], implemented: true,
       configured: true, available: false, last_error: 'CLI did not answer'
     }] })));
-  await page.route('**/api/loop/queue**', (route) => fulfillJson(route, envelope({
-    queue: { candidates: [], n_candidates: 0, limit: 10, sources: {}, notes: [], degraded_sources: ['inventory'], incomplete: true, opt_in_sources_available: false }
-  })));
+  await page.route('**/api/loop/queue**', (route) => fulfillJson(route, envelope({ queue })));
   await page.route('**/api/loop/attempts**', (route) => fulfillJson(route, envelope({
     attempts: { intents: [], limit: 20, kind: '', task_id: null, ledger: { path: '', exists: false, read_only: true, error: null, note: null }, degraded_sources: [], incomplete: false, attempt_intent_kind: '' }
   })));
@@ -167,4 +187,68 @@ test('agent autonomy still PUTs the existing project contract and preserves sibl
   await expect.poll(() => fixture.autonomyBodies.length).toBe(1);
   expect(fixture.autonomyBodies[0]).toEqual({ agents: { alpha: 'autonomous', sibling: 'semi_auto' } });
   await expect(page.getByLabel('Projekt-Autonomie für Alpha')).toHaveValue('autonomous');
+});
+
+/**
+ * THE SURFACE LAYER — @loopui, restored.
+ *
+ * `tools/gui_check.py` runs two suites: everything except `@loopui`, and
+ * `@loopui` alone, because "the cockpit renders no loop view" and "it renders
+ * it wrong" are different findings with different owners. The two specs that
+ * carried the tag lived in apps/web/tests/loop.spec.ts and were deleted with
+ * the Classic app in e133e09b (G1-UI-02). Nothing replaced them, so the
+ * `@loopui` suite has matched zero specs ever since and gui_check.py has
+ * failed on every run — an alarm that was routed around rather than answered.
+ *
+ * Their own docstring said what should have happened: "If the cockpit renders
+ * no loop surface, the @loopui specs go RED and name it." It does render one,
+ * so these pass — but they are written against TODAY'S surface, and one claim
+ * is deliberately weaker than the original: the deleted spec asserted a human
+ * could see each candidate's REASON in a ranked list. Today the count and the
+ * unread sources are on the card and the per-candidate reason is only reachable
+ * by expanding the raw contract. That is a real reduction in the surface, and
+ * it is named here rather than quietly asserted away.
+ */
+
+test('@loopui a human can SEE the ranked candidates, with the reason they were ranked', async ({ page }) => {
+  await stubCockpit(page, false, queueBody({
+    n_candidates: 2,
+    degraded_sources: [],
+    incomplete: false,
+    candidates: [
+      { task_id: 'T-1', source: 'inventory', score: 0.91, reason: 'highest fan-in, no tests', instruction: '', evidence: {} },
+      { task_id: 'T-2', source: 'clones', score: 0.44, reason: 'duplicated block', instruction: '', evidence: {} }
+    ]
+  }));
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  await expect(system.getByText(/2 Kandidaten/)).toBeVisible();
+  await expect(system.getByText(/vollständig gelesen/)).toBeVisible();
+
+  // The reason is one click away, not on the card. See the note above.
+  await system.getByText('Loop Queue: vollständiger Antwortvertrag').click();
+  await expect(system.getByText(/highest fan-in, no tests/)).toBeVisible();
+  await expect(system.getByText(/duplicated block/)).toBeVisible();
+});
+
+test('@loopui a degraded loop source renders as a WARNING, never as "no work"', async ({ page }) => {
+  // Zero candidates AND an unread source: the case where a quiet surface would
+  // be a lie. "0 Kandidaten" alone reads as "nothing to do"; the cockpit has to
+  // say which source it could not read.
+  await stubCockpit(page, false, queueBody({
+    n_candidates: 0,
+    candidates: [],
+    degraded_sources: ['inventory', 'clones'],
+    incomplete: true
+  }));
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  await expect(system.getByText(/0 Kandidaten/)).toBeVisible();
+  await expect(system.getByText(/unvollständig/)).toBeVisible();
+  const unread = system.getByText(/Nicht gelesen: inventory, clones/);
+  await expect(unread).toBeVisible();
+  // Not merely present: styled as an error, so it cannot read as a footnote.
+  await expect(unread).toHaveClass(/system-error/);
 });

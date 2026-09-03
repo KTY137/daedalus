@@ -4,6 +4,7 @@ import { getEnvStatus, getRuntimeStatus, testRuntime, type EnvStatusPayload } fr
 import type { RuntimeRow } from '@/shared/contracts';
 import { drawerVariants, useReducedMotionPref } from '@/shared/ui/motion';
 import { SystemCapabilities } from '@/features/system/SystemCapabilities';
+import { TeamSettings } from './Team';
 import {
   AUTONOMY_LEVELS,
   readAutonomyLog,
@@ -671,6 +672,8 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
             ))}
           </div>
         </section>
+
+        <TeamSettings project={project} enabled={open} />
 
         <SystemCapabilities project={project} enabled={open} />
 

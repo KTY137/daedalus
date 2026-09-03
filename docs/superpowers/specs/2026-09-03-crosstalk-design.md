@@ -160,10 +160,14 @@ publizieren, sind genau die Überraschung, die ein Egress-Schalter verhindern
 soll.
 
 **Public-Repo-Sperre.** Ist das Repo öffentlich, verweigert der Poster, außer
-`DAEDALUS_CROSSTALK_PUBLIC=1`. Die Sichtbarkeit von `KTY137/daedalus` ist zum
-Zeitpunkt dieser Spec **nicht gemessen** (kein `gh`-Login) — die Sperre steht
-statt einer Annahme. Die Sichtbarkeit kommt aus derselben Repo-Abfrage und gilt
-für die Lebensdauer des Prozesses.
+`DAEDALUS_CROSSTALK_PUBLIC=1`. Die Sichtbarkeit kommt aus derselben Repo-Abfrage
+und gilt für die Lebensdauer des Prozesses.
+
+[MEASURED 2026-09-03, ohne `gh`] `KTY137/daedalus` ist **privat**: die
+unauthentifizierte GitHub-API antwortet auf `GET /repos/KTY137/daedalus` mit
+404, und das Repository existiert nachweislich — es wurde am selben Tag
+dorthin gepusht. Die Sperre würde also nicht auslösen; sie bleibt trotzdem,
+weil Sichtbarkeit sich per Klick ändert und der Kanal das dann bemerken muss.
 
 **Fail-open, ausnahmslos.** Timeout, Rate-Limit, fehlendes Login, fehlendes
 `gh`, deaktivierte Discussions → eine sichtbare Notiz im injizierten Text

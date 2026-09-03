@@ -184,3 +184,22 @@ runs/analysis/**/tmp/
 runs/analysis/**/_scratch/
 runs/analysis/**/*.txt
 memory/events.local.jsonl.lock
+
+# Semgrep Guardian session state, untracked on 2026-09-03. The Guardian keeps a
+# live OAuth access_token and refresh_token in this file, and it was TRACKED
+# until that date -- a loaded gun that had not gone off.
+#
+# What was actually committed (b574717e, d6114b83, pre-rewrite SHAs) was the
+# 140-byte pre-login form: serial, a pseudonymous anonymous_user_id, auth_method
+# and an expiry. No token ever reached a commit -- measured blob by blob, not
+# inferred from the working copy. That distinction is the point of this comment:
+# the working copy of the same path DOES hold a full JWT, and reading it instead
+# of the committed blob is exactly how a false credential-leak alarm gets raised.
+#
+# It is ignored anyway, and the reason is the trap rather than the past: the
+# Guardian rewrites this file on every token refresh, so it is PERMANENTLY dirty,
+# and with eight worktrees running, one broad `git add` would have committed a
+# live credential. Twice it committed the harmless form. The .lock siblings are
+# empty markers, ignored with it so the path stops being tracked at all.
+.semgrep/
+**/.semgrep/

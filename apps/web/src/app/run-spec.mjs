@@ -199,13 +199,15 @@ const workdir = await mkdtemp(path.join(cacheRoot, 'daedalus-app-spec-'));
 const surfaceOutfile = path.join(workdir, 'surface.js');
 const systemOutfile = path.join(workdir, 'system.js');
 const conversationOutfile = path.join(workdir, 'conversation.js');
+const teamOutfile = path.join(workdir, 'team.js');
 
 try {
   await build({
     entryPoints: {
       surface: path.join(here, 'surface.spec.ts'),
       system: path.join(here, '..', 'features', 'system', 'system.spec.ts'),
-      conversation: path.join(here, '..', 'features', 'conversation', 'conversation.spec.ts')
+      conversation: path.join(here, '..', 'features', 'conversation', 'conversation.spec.ts'),
+      team: path.join(here, '..', 'features', 'settings', 'team.spec.ts')
     },
     bundle: true,
     absWorkingDir: repoRoot,
@@ -224,10 +226,12 @@ try {
   const { runSurfaceSpec } = await import(pathToFileURL(surfaceOutfile).href);
   const { runSystemCapabilitiesSpec } = await import(pathToFileURL(systemOutfile).href);
   const { runConversationSpec } = await import(pathToFileURL(conversationOutfile).href);
+  const { runTeamSettingsSpec } = await import(pathToFileURL(teamOutfile).href);
   const results = [
     ...runSurfaceSpec(),
     ...(await runSystemCapabilitiesSpec()),
     ...runConversationSpec(),
+    ...runTeamSettingsSpec(),
     ...(await architectureSpec())
   ];
   let failed = 0;

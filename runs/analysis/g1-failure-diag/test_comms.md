@@ -281,6 +281,22 @@ it is "add a form to the cockpit that calls an endpoint already written" versus
 rebuild than this document assumed, and the owner should be asked in those
 terms.
 
+**Owner decision, same day: REBUILD.** Asked in the terms above, the owner
+chose to rebuild rather than retire. It landed in the React cockpit as
+`apps/web/src/features/settings/Team.tsx` (packet `g1-team-controls`), sourcing
+its lane choices and worker ceiling from the hierarchy payload rather than
+hardcoding them.
+
+Making the endpoint reachable turned up a second thing this diagnosis had no
+reason to look for: `save_team` key-filtered but validated no VALUES, and two
+of the three fields are read in ways that turn a bad write into damage rather
+than a bad setting. `int(team.get("max_workers", 3) or 3)` in `core.team_config`
+raises on a stored `"abc"`, so every read path for that project fails and the
+UI cannot undo it because the undo path reads first; `active_agents` is read as
+`[str(a) for a in value]`, so a stored string becomes one agent per character.
+Every field is validated now, and rejections come back as HTTP 400 with the
+field and the reason.
+
 **Test staleness: done, separately.** `tests/test_comms.py` no longer asserts
 capabilities against the comment block (packet `g1-ext-honest-tests`, merged as
 `e1ad6493`). Needle-by-needle measurement of the two old tests: 3 live / 6
@@ -291,3 +307,39 @@ document describes is now pinned as an explicit measured gap
 test, so it stays visible without blocking the suite. The retained legacy block
 was NOT deleted: the comment above it records a deliberate decision, and a
 test-repair packet does not overrule that.
+
+## Addendum 2: is this defect class anywhere else? Measured — no.
+
+A test satisfied by code that cannot run is worth looking for repo-wide, so it
+was looked for. Two passes, both at `e8e83eed`:
+
+**Pass 1, from the test side.** 612 assertions across 93 test files assert a
+substring against a whole source file they read. Only 7 of those could be
+resolved to a concrete Python target by a static path resolver — most tests
+build their paths in shapes the resolver does not evaluate — and none of the 7
+was satisfied only by a comment. **That is low coverage, not a clean bill**, and
+it is recorded as such rather than quoted as "612 checked".
+
+**Pass 2, from the source side, which IS decisive.** The carrier of this defect
+is retained-but-disabled code, and there is very little of it. Ten tracked
+sources hold a disabled block of 40+ lines:
+
+| lines | file |
+|---|---|
+| 852 | `vscode-agent-env/extension.js` — the one this document is about |
+| 235 | `tests/contracts/test_import_scc_hierarchy.py` — the census commentary |
+| 65 | `daedalus/interfaces/http/web_api.py` |
+| 64 | `tests/test_spend_coverage.py` |
+| 54 | `daedalus/spine/effect_boundary.py` |
+| 48 | `daedalus/sensitivity.py`, `daedalus/structcore/index.py` |
+| 47 | `daedalus/spine/picker.py` |
+| 44 | `apps/web/src/shared/ui/motion/tokens.ts` |
+| 42 | `daedalus/health.py` |
+
+Every Python entry was read: they are prose — design rationale in this
+repository's house style, not commented-out code. The heuristic flagged them
+because `= ` and `def ` occur in English sentences about code.
+
+**Conclusion.** The class exists in exactly one place in the tree, and it is
+fixed. No guard was added: a repo-wide check for a one-instance problem is
+ceremony, and the honest record of having looked is this table.

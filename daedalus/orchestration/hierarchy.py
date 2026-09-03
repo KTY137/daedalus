@@ -160,22 +160,131 @@ def hierarchy(project: str) -> dict[str, Any]:
         health=health,
         capabilities=CAPABILITIES,
         policy_flags=_policy_flags(project_data),
+        # The team editor's choices come from the backend that validates them.
+        # A frontend that hardcodes its own lane list will eventually offer one
+        # save_team refuses, and the user finds out via a 400.
+        lanes=list(core.KNOWN_LANES),
+        max_workers_ceiling=MAX_WORKERS_CEILING,
     )
 
 
+#: A worker ceiling, not a limit anyone asked for: it exists so a typo cannot
+#: persist a fan-out that the scheduler will then honour. Raise it deliberately.
+MAX_WORKERS_CEILING = 64
+
+
+def _require(condition: object, message: str) -> None:
+    if not condition:
+        raise ProjectRowUpdateError(message)
+
+
+def _valid_max_workers(value: Any) -> int:
+    # bool is an int in Python, and `True` workers is not a fan-out.
+    _require(isinstance(value, int) and not isinstance(value, bool), "max_workers must be an integer")
+    _require(1 <= value <= MAX_WORKERS_CEILING, f"max_workers must be between 1 and {MAX_WORKERS_CEILING}")
+    return int(value)
+
+
+def _valid_default_lane(value: Any) -> str:
+    _require(isinstance(value, str), "default_lane must be a string")
+    _require(
+        value in core.KNOWN_LANES,
+        f"default_lane must be one of: {', '.join(core.KNOWN_LANES)}",
+    )
+    return value
+
+
+def _valid_name_list(value: Any, field: str) -> list[str]:
+    _require(isinstance(value, list), f"{field} must be a list")
+    names: list[str] = []
+    for item in value:
+        _require(
+            isinstance(item, str) and item.strip(),
+            f"{field} entries must be non-empty strings",
+        )
+        names.append(item.strip())
+    return names
+
+
+def _valid_squads(value: Any) -> dict[str, list[str]]:
+    _require(isinstance(value, dict), "squads must be an object")
+    return {
+        _valid_key(name, "squad names"): _valid_name_list(members, f"squad '{name}'")
+        for name, members in value.items()
+    }
+
+
+def _valid_key(name: Any, field: str) -> str:
+    _require(isinstance(name, str) and name.strip(), f"{field} must be non-empty strings")
+    return name.strip()
+
+
+def _valid_model_assignments(value: Any) -> dict[str, str]:
+    _require(isinstance(value, dict), "model_assignments must be an object")
+    out: dict[str, str] = {}
+    for agent, model in value.items():
+        key = _valid_key(agent, "model_assignments keys")
+        _require(isinstance(model, str), f"model_assignments['{key}'] must be a string")
+        out[key] = model
+    return out
+
+
+def _valid_semi_auto(value: Any) -> dict[str, bool]:
+    _require(isinstance(value, dict), "semi_auto must be an object")
+    out: dict[str, bool] = {}
+    for flag, on in value.items():
+        key = _valid_key(flag, "semi_auto keys")
+        _require(isinstance(on, bool), f"semi_auto['{key}'] must be true or false")
+        out[key] = on
+    return out
+
+
+#: One validator per patchable field. A field with no validator is not
+#: patchable, which is the same rule the old key tuple expressed -- this just
+#: also says what each field has to BE.
+TEAM_FIELD_VALIDATORS = {
+    "max_workers": _valid_max_workers,
+    "default_lane": _valid_default_lane,
+    "active_agents": lambda v: _valid_name_list(v, "active_agents"),
+    "squads": _valid_squads,
+    "model_assignments": _valid_model_assignments,
+    "semi_auto": _valid_semi_auto,
+}
+
+
 def save_team(project: str, patch: dict[str, Any]) -> dict[str, Any]:
+    """Patch a project's team config, validating every value on the way in.
+
+    This used to key-filter and then write whatever arrived. That was safe
+    only while nothing could reach the endpoint; the cockpit now can, and an
+    unvalidated write here is a poison pill for every READ path, not a
+    cosmetic problem:
+
+    * ``core.team_config`` does ``int(team.get("max_workers", 3) or 3)``, so a
+      stored ``"abc"`` raises ``ValueError`` on every subsequent read --
+      dashboard, hierarchy, routing and build all fail for that project, and
+      nothing in the UI can undo it because the undo path reads first.
+    * ``active_agents`` is read as ``[str(a) for a in ...]``, so a stored
+      string ``"claude"`` silently becomes the six agents ``c, l, a, u, d, e``.
+    * ``default_lane`` reaches ``core.routing_summary``, which treats anything
+      that is not ``local_only`` as a configured lane to honour.
+
+    Rejections raise ``ProjectRowUpdateError``, which ``web_api`` already maps
+    to HTTP 400 with the message, so the caller is told which field and why.
+    """
     if not isinstance(patch, dict):
         raise ProjectRowUpdateError("team patch must be a JSON object")
+    # Unknown keys are IGNORED, not rejected: that is the existing contract and
+    # the reason a patch cannot escape the team subtree (see
+    # test_project_row_rewrite.py, which patches `name`, `repo_root`, `policy`
+    # and asserts the row is untouched). They are reported in the envelope
+    # rather than dropped in silence -- an ignored field is indistinguishable
+    # from a saved one from the caller's side, and this repository's standing
+    # order is to say what was withheld.
+    ignored = sorted(set(patch) - set(TEAM_FIELD_VALIDATORS))
     changes = {
-        key: patch[key]
-        for key in (
-            "max_workers",
-            "default_lane",
-            "active_agents",
-            "squads",
-            "model_assignments",
-            "semi_auto",
-        )
+        key: TEAM_FIELD_VALIDATORS[key](patch[key])
+        for key in TEAM_FIELD_VALIDATORS
         if key in patch
     }
 
@@ -183,4 +292,6 @@ def save_team(project: str, patch: dict[str, Any]) -> dict[str, Any]:
         team.update(changes)
 
     rewrite_project_team(project, mutate)
-    return core.envelope(project, team=core.team_config(project))
+    return core.envelope(
+        project, team=core.team_config(project), ignored_fields=ignored
+    )

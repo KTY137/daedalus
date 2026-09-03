@@ -75,5 +75,28 @@ export async function runSystemCapabilitiesSpec(): Promise<SystemSpecResult[]> {
   check('autonomy still uses the existing project-scoped PUT port', updateProject === 'atlas' && (updatePatch?.agents as Record<string, string>).alpha === 'autonomous');
   check('the canonical PUT response replaces the local projection', result === updated);
 
+  // A 200 that is missing the key the card dereferences must become EVIDENCE,
+  // not an exception during render. Before this, `status: 'ready'` meant only
+  // "the call did not throw", and `data.queue.n_candidates` on a body without
+  // `queue` unmounted the whole settings drawer -- every other capability with
+  // it. Measured in a browser on 2026-09-03 before the guard existed.
+  const shapeless = {
+    ...ports,
+    getLoopQueue: async () => envelope(),          // 200, no `queue`
+    getProviderStatus: async () => envelope({ providers: [] })
+  } as SystemCapabilityPorts;
+  const malformed = await loadSystemCapabilities('atlas', shapeless, () => 1);
+  check(
+    'a 200 without the promised key is a contract failure, not a crash',
+    malformed.loopQueue.status === 'error' &&
+      malformed.loopQueue.error.kind === 'contract' &&
+      malformed.loopQueue.error.message.includes('queue'),
+    JSON.stringify(malformed.loopQueue)
+  );
+  check(
+    'one malformed body still does not erase the siblings that answered',
+    malformed.providerStatus.status === 'ready' && malformed.controlPlane.status === 'ready'
+  );
+
   return results;
 }
