@@ -92,26 +92,26 @@ class TensorAxis:
     def __post_init__(self) -> None:
         object.__setattr__(self, "name", _identifier(self.name, "axis.name"))
         raw_labels = _bounded_sequence(self.labels, "axis.labels", MAX_AXIS_LABELS)
-        labels = None
-        if type(raw_labels) is tuple:
-            previous_label: str | None = None
-            for index, raw_label in enumerate(raw_labels):
-                label = _non_empty(raw_label, f"axis.labels[{index}]", max_length=1000)
-                if "\x00" in label:
-                    raise ValueError("axis.labels must not contain NUL bytes")
-                if previous_label is not None:
-                    if label == previous_label:
-                        raise ValueError("axis.labels must not contain duplicates")
-                    if label < previous_label:
-                        break
-                previous_label = label
-            else:
-                labels = raw_labels
-        if labels is None:
-            labels = _sorted_strings(raw_labels, "axis.labels")
-            if any("\x00" in label for label in labels):
+        labels = None if type(raw_labels) is tuple else []
+        previous_label: str | None = None
+        for index, raw_label in enumerate(raw_labels):
+            label = _non_empty(raw_label, f"axis.labels[{index}]", max_length=1000)
+            if "\x00" in label:
                 raise ValueError("axis.labels must not contain NUL bytes")
-        object.__setattr__(self, "labels", labels)
+            if labels is None and previous_label is not None:
+                if label < previous_label:
+                    labels = [raw_labels[position] for position in range(index)]
+                elif label == previous_label:
+                    raise ValueError("axis.labels must not contain duplicates")
+            if labels is not None:
+                labels.append(label)
+            previous_label = label
+        if labels is not None:
+            labels.sort()
+            for index in range(1, len(labels)):
+                if labels[index - 1] == labels[index]:
+                    raise ValueError("axis.labels must not contain duplicates")
+            object.__setattr__(self, "labels", tuple(labels))
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "TensorAxis":
