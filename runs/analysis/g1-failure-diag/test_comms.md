@@ -281,6 +281,22 @@ it is "add a form to the cockpit that calls an endpoint already written" versus
 rebuild than this document assumed, and the owner should be asked in those
 terms.
 
+**Owner decision, same day: REBUILD.** Asked in the terms above, the owner
+chose to rebuild rather than retire. It landed in the React cockpit as
+`apps/web/src/features/settings/Team.tsx` (packet `g1-team-controls`), sourcing
+its lane choices and worker ceiling from the hierarchy payload rather than
+hardcoding them.
+
+Making the endpoint reachable turned up a second thing this diagnosis had no
+reason to look for: `save_team` key-filtered but validated no VALUES, and two
+of the three fields are read in ways that turn a bad write into damage rather
+than a bad setting. `int(team.get("max_workers", 3) or 3)` in `core.team_config`
+raises on a stored `"abc"`, so every read path for that project fails and the
+UI cannot undo it because the undo path reads first; `active_agents` is read as
+`[str(a) for a in value]`, so a stored string becomes one agent per character.
+Every field is validated now, and rejections come back as HTTP 400 with the
+field and the reason.
+
 **Test staleness: done, separately.** `tests/test_comms.py` no longer asserts
 capabilities against the comment block (packet `g1-ext-honest-tests`, merged as
 `e1ad6493`). Needle-by-needle measurement of the two old tests: 3 live / 6
