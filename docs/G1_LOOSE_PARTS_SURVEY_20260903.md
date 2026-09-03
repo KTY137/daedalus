@@ -10,12 +10,24 @@ was modified and nothing was staged by this lane.
 owner-authorised history rewrite purged a private note from every commit. The
 rewrite changed 1088 commit identities and left 78992 unchanged. Each hex
 reference below was translated mechanically through
-`docs/recovery/purge-20260903/sha-map.tsv` and then checked to resolve and to
-name the commit the surrounding prose describes — not matched by subject line,
-which is the same same-looking-identity inference that cost this branch a
-commit that day. One reference is deliberately untranslated:
-`fe634b58`, the head the discrimination receipt is bound to, is not in the map
-because it was not rewritten, so it still means what it meant.
+`docs/recovery/purge-20260903/sha-map.tsv`, then checked three ways: that each
+names the commit the surrounding prose describes, that each still resolves, and
+that each is **reachable from a published ref**. Not matched by subject line,
+which is the same same-looking-identity inference that cost this branch a commit
+that day.
+
+The reachability check is the one worth naming, because the obvious check is
+too weak. `git cat-file -e` and `git log <sha>` both succeed for an object that
+exists locally but is referenced by nothing — it survives until the next `gc`
+and then the pin breaks in a fresh clone, silently and later. Two pins in
+another lane's document were exactly that. `git merge-base --is-ancestor <sha>
+<ref>` is the check that distinguishes them. Every reference here is reachable
+from `origin/main`, except `ce8273bf` and `37ca6080`, which are commits of this
+branch and are reachable from `origin/packet/g1-map-02`.
+
+One reference is deliberately untranslated: `fe634b58`, the head the
+discrimination receipt is bound to, is not in the map because it was not
+rewritten, so it still means what it meant.
 
 **Concurrency caveat — the tree moved underneath this survey.** At the start the
 checkout was on `packet/g1-pkg-split2` with 130 dirty files. Mid-survey another
