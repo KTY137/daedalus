@@ -53,6 +53,8 @@ class _PrefixPredicateForbiddenCoordinates(tuple[tuple[str, str], ...]):
 
 
 _COORDINATE_READS: dict[int, int] = {}
+_INDEX_PAYLOAD_READS = 0
+_INDEX_PAYLOAD_PROBE = False
 
 
 class _CoordinateReadBoundEntry(SparseTensorEntry):
@@ -67,6 +69,18 @@ class _CoordinateReadBoundEntry(SparseTensorEntry):
                     raise AssertionError(
                         "canonical TensorView construction re-walked entries for duplicate validation"
                     )
+        return super().__getattribute__(name)
+
+
+class _IndexPayloadReadBoundEntry(SparseTensorEntry):
+    def __getattribute__(self, name: str):  # type: ignore[no-untyped-def]
+        global _INDEX_PAYLOAD_READS
+        if _INDEX_PAYLOAD_PROBE and name in {"value", "masked", "evidence_sha256s"}:
+            _INDEX_PAYLOAD_READS += 1
+            if _INDEX_PAYLOAD_READS > 8:
+                raise AssertionError(
+                    "entry lookup reread non-semantic payload while bisecting canonical claims"
+                )
         return super().__getattribute__(name)
 
 
@@ -233,6 +247,38 @@ def test_select_does_not_recheck_bisected_prefix_predicate() -> None:
     selected = tensor.select(node="node-255")
 
     assert selected == expected
+
+
+def test_index_coordinate_bisects_only_the_unique_semantic_claim_key() -> None:
+    global _INDEX_PAYLOAD_PROBE, _INDEX_PAYLOAD_READS
+    labels = tuple(f"node-{index:03d}" for index in range(256))
+    entries = tuple(
+        _IndexPayloadReadBoundEntry(
+            coordinates=(("node", node),),
+            relation="membership",
+            value=float(index + 1),
+            evidence_sha256s=(f"{index + 1:064x}",),
+        )
+        for index, node in enumerate(labels)
+    )
+    tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=(TensorAxis("node", labels),),
+        entries=entries,
+        provenance=_provenance(),
+    )
+
+    _INDEX_PAYLOAD_READS = 0
+    _INDEX_PAYLOAD_PROBE = True
+    try:
+        assert tensor.index_coordinate(entries[-1]) == (255,)
+        assert _INDEX_PAYLOAD_READS <= 8
+    finally:
+        _INDEX_PAYLOAD_PROBE = False
 
 
 def test_select_and_index_reuse_validated_coordinate_label_order() -> None:
