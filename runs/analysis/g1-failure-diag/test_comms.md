@@ -247,3 +247,47 @@ Two independent, separable fixes:
   `web_api`/`control_plane` backend at all — `daedalus/core.py:100` shows `active_agents`
   is *read* into the dashboard payload, but a write path was not traced in this
   read-only session.
+
+## Addendum 2026-09-03, a later session — both open questions measured
+
+Answers to the two items above, so the owner decision is not made on a guess.
+Measured at `1865a753`; this addendum is appended, nothing above it was edited.
+
+**The write path EXISTS.** `daedalus/interfaces/http/effects.py:52-53`:
+
+```python
+if len(parts) == 4 and parts[:2] == ["api", "projects"] and parts[3] == "team":
+    self._send_json(hierarchy.save_team(parts[2], body))
+```
+
+`PUT /api/projects/<name>/team` reaches `hierarchy.save_team`, and it sits in
+the *effects* handler, so it is already on the policy-guarded side of the seam.
+The read side is live too: `daedalus/core.py:100` normalises `active_agents`,
+`core.py:302/327` uses it to pick agents, and `build.py:526-539` uses
+`max_workers`/`active_agents` for wave sizing and routing. [MEASURED]
+
+**No surface calls it.** `apps/web/src/**` contains zero occurrences of
+`max_workers`, `active_agents`, `default_lane`, or `projects/<n>/team`
+(ripgrep, case-insensitive, whole subtree). The live extension has none either
+— the strings survive only inside the commented-out `legacyDashboardHtmlSource`
+block. [MEASURED]
+
+**What that changes.** This diagnosis framed the fix as "rebuild a
+team/environment-controls surface ... wired through the existing backend
+contract *if one exists*". It does exist, complete, on both read and write
+sides. So the product fork is not "build a feature" versus "drop a feature" —
+it is "add a form to the cockpit that calls an endpoint already written" versus
+"delete a backend capability nobody can reach". That is a materially cheaper
+rebuild than this document assumed, and the owner should be asked in those
+terms.
+
+**Test staleness: done, separately.** `tests/test_comms.py` no longer asserts
+capabilities against the comment block (packet `g1-ext-honest-tests`, merged as
+`e1ad6493`). Needle-by-needle measurement of the two old tests: 3 live / 6
+comment / 1 nowhere, and 2 live / 7 comment / 0 nowhere respectively — so the
+GREEN one was reading a comment for seven of its nine assertions. The gap this
+document describes is now pinned as an explicit measured gap
+(`test_team_controls_are_absent_from_the_live_extension`) rather than a red
+test, so it stays visible without blocking the suite. The retained legacy block
+was NOT deleted: the comment above it records a deliberate decision, and a
+test-repair packet does not overrule that.
