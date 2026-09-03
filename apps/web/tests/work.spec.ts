@@ -76,7 +76,19 @@ async function openCockpit(page: Page) {
   await expect(page.locator('.cockpit')).toBeVisible();
 }
 
-async function stub(page: Page, options: { task?: Record<string, unknown>; artifacts?: Record<string, unknown> } = {}) {
+async function stub(
+  page: Page,
+  options: {
+    task?: Record<string, unknown>;
+    artifacts?: Record<string, unknown>;
+    /** `/api/drafts` answers `scope: null` when it could not narrow the pile
+     *  to this project. Those drafts are real, and they are not this
+     *  project's to count or to act on. */
+    scope?: string | null;
+    /** the bus answers 404 for an id it does not have — the real shape */
+    taskMissing?: boolean;
+  } = {}
+) {
   await page.addInitScript(() => {
     localStorage.setItem('daedalus-thread:atlas', 'conv_1');
     localStorage.setItem('daedalus-cockpit-view', 'chat');
@@ -91,8 +103,9 @@ async function stub(page: Page, options: { task?: Record<string, unknown>; artif
   await page.route('**/api/runtimes/status**', (route) => route.fulfill({
     json: { ok: true, generated_at: '', project: null, warnings: [], runtimes: [] }
   }));
+  const scope = options.scope === undefined ? project.repo_root : options.scope;
   await page.route('**/api/drafts**', (route) => route.fulfill({
-    json: { ok: true, generated_at: '', project: project.name, warnings: [], scope: project.repo_root, pending_count: drafts.length, drafts }
+    json: { ok: true, generated_at: '', project: project.name, warnings: [], scope, pending_count: drafts.length, drafts }
   }));
   await page.route((url) => url.pathname === '/api/conversations' && url.searchParams.has('project'), (route) =>
     route.fulfill({ json: { ok: true, generated_at: '', project: project.name, warnings: [], conversations: [] } })
@@ -100,9 +113,18 @@ async function stub(page: Page, options: { task?: Record<string, unknown>; artif
   await page.route((url) => url.pathname === '/api/conversations/conv_1', (route) =>
     route.fulfill({ json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation: storedView } })
   );
-  await page.route((url) => url.pathname === '/api/queue/req_open', (route) =>
-    route.fulfill({ json: { ok: true, generated_at: '', project: null, warnings: [], task: options.task ?? runningTask } })
-  );
+  await page.route((url) => url.pathname === '/api/queue/req_open', (route) => {
+    // `read.py` answers `200 if snap["found"] else 404`. A test that stubbed
+    // 200 with `found: false` would assert a shape the server never emits —
+    // and did, until the review caught it.
+    if (options.taskMissing) {
+      return route.fulfill({
+        status: 404,
+        json: { ok: false, error: 'unknown task id req_open (wrong id, or the archive has since been cleared)' }
+      });
+    }
+    return route.fulfill({ json: { ok: true, generated_at: '', project: null, warnings: [], task: options.task ?? runningTask } });
+  });
   await page.route((url) => url.pathname === '/api/queue/req_open/artifacts', (route) =>
     route.fulfill({
       json: {
@@ -281,22 +303,54 @@ test.describe('work rail', () => {
     await expect(log.locator('.work-detail-note.bad')).toBeVisible();
   });
 
-  test('a dispatch the bus does not know is a fact, not an error', async ({ page }) => {
-    await stub(page, {
-      task: {
-        ...runningTask, found: false, state: 'unknown', source: 'none', observed_at: null, age_s: null,
-        lane: null, requested_lane: null, actual_providers: [], project: null, objective: null,
-        bridge_status: null, report_status: null, summary: null, error: null, applied: null,
-        applied_reason: 'no task with this id was found on the file bus (wrong id, or the archive has since been cleared)',
-        busy_for_s: null, progress: null
-      }
-    });
+  test('a dispatch the bus does not know is a fact, not an outage', async ({ page }) => {
+    // The server answers 404 here, so this is also the regression for the
+    // reading that dressed the most likely real case — an archive that was
+    // cleared — as "the bus could not be read".
+    await stub(page, { taskMissing: true });
     await openCockpit(page);
     await page.getByRole('tab', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
-    const detail = page.locator('.work-detail');
-    await expect(detail).toContainText('Auf dem Bus nicht auffindbar');
-    await expect(detail).toContainText('wrong id');
+    const note = page.locator('.work-row.live .work-detail-note');
+    await expect(note).toContainText('Auf dem Bus nicht auffindbar');
+    await expect(note).toContainText('archive has since been cleared');
+    // Not an infrastructure failure: the row must not be painted as one.
+    await expect(page.locator('.work-detail-note.bad')).toHaveCount(0);
+  });
+
+  test('an unscoped draft pile is never counted under this project\'s name', async ({ page }) => {
+    // `/api/drafts` could not narrow the pile to this project. Those drafts
+    // exist and belong to someone; they are not this project's decision, and
+    // the rail must neither list nor count them.
+    await stub(page, { scope: null });
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+
+    const waiting = page.locator('.work-section.wait');
+    await expect(waiting).not.toContainText('Parser härten');
+    await expect(waiting).not.toContainText('Tests nachziehen');
+    await expect(waiting.locator('.work-count')).toHaveCount(0);
+    // And the tab must not advertise them either.
+    await expect(page.getByRole('tab', { name: /Arbeit/ }).locator('.rail-badge')).toHaveCount(0);
+    // "Nothing waits" would be a claim about a pile it could not read.
+    await expect(waiting).toContainText('Projekt wird ermittelt');
+  });
+
+  test('counts the event stream never reported are not asserted as nothing', async ({ page }) => {
+    // The stream never answers here, so quarantined/unread were never
+    // reported. Saying "Nichts" would assert an absence from a source that
+    // never spoke. (Without this abort the REAL server answers and reports
+    // zeroes, which is a different, honest sentence.)
+    await page.route('**/api/events**', (route) => route.abort('connectionrefused'));
+    await stub(page, { scope: project.repo_root });
+    await page.route('**/api/drafts**', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: project.name, warnings: [], scope: project.repo_root, pending_count: 0, drafts: [] }
+    }));
+    await openCockpit(page);
+    await page.getByRole('tab', { name: /Arbeit/ }).click();
+
+    const waiting = page.locator('.work-section.wait');
+    await expect(waiting).toContainText('Ereignisstrom noch nicht gemeldet');
   });
 });

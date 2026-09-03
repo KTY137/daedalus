@@ -28,7 +28,9 @@ import {
 import { loadAutonomy, saveAutonomy, type AutonomyLevel } from '@/features/settings/autonomy';
 import { Conversation } from '@/features/conversation/Conversation';
 import { ThreadList } from '@/features/conversation/ThreadList';
-import { WorkRail, type LiveState } from '@/features/mission/WorkRail';
+import { WorkRail } from '@/features/mission/WorkRail';
+import { HealthPanel } from '@/features/system/HealthPanel';
+import { EMPTY_LIVE, markDisconnected, markSeen, reduceLiveEvent } from '@/features/mission/live';
 import type { OpenDispatch } from '@/features/conversation/model';
 import { Settings } from '@/features/settings/Settings';
 import { Decision } from '@/features/mission/Decision';
@@ -104,6 +106,9 @@ export function Cockpit() {
   });
   const [studioOpen, setStudioOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The health surface. Its chip in the status line used to be a button that
+   *  closed the theme studio — an affordance that did nothing. */
+  const [healthOpen, setHealthOpen] = useState(false);
   /** which runtime answers; '' means "let the backend route" */
   const [brain, setBrain] = useState<string>(() => {
     try {
@@ -118,14 +123,15 @@ export function Cockpit() {
   const [paletteActive, setPaletteActive] = useState(0);
   const [query, setQuery] = useState('');
   /**
-   * The live counters, all of them.
+   * The live counters, all of them, folded by a reducer that can be tested.
    *
    * `stream_state` (interfaces/bridge/projection.py) has always sent the
    * watcher state, the unread and quarantined counts and the last report
    * brief; this held two of the seven and discarded the rest, including the
-   * whole `report` payload. The work rail is what reads them.
+   * whole `report` payload. The fold now lives in `features/mission/live.ts`
+   * so a frame can be fed to it and asserted.
    */
-  const [live, setLive] = useState<Omit<LiveState, 'connected'>>({});
+  const [live, setLive] = useState(EMPTY_LIVE);
   const [streamLive, setStreamLive] = useState(false);
   const [budget, setBudget] = useState<{ hidden1: number; hidden2: number; ids: string[] }>({ hidden1: 0, hidden2: 0, ids: [] });
   const [paletteScope, setPaletteScope] = useState<'all' | 'hidden'>('all');
@@ -133,12 +139,31 @@ export function Cockpit() {
   const [pendingCount, setPendingCount] = useState(0);
   /** The rail beside the conversation: threads, the work overview, or the map. */
   const [railTab, setRailTab] = useState<'verlauf' | 'arbeit' | 'karte'>('verlauf');
+  /**
+   * True only while the reader is actually looking at the rail that shows
+   * reports. The rail lives inside the conversation view, so leaving that
+   * view makes an arriving report news again — otherwise a reader who parked
+   * on Arbeit and switched to the map never saw the badge fire.
+   */
+  const railSeenRef = useRef(false);
   /** Every pending draft, handed up by the decision card that already read them. */
   const [pendingDrafts, setPendingDrafts] = useState<{ rows: DraftRow[]; scoped: boolean }>({ rows: [], scoped: false });
   const onPendingDrafts = useCallback(
     (rows: DraftRow[], scoped: boolean) => setPendingDrafts({ rows, scoped }),
     []
   );
+  /**
+   * The draft queue belongs to the project it was read for.
+   *
+   * `Decision` only overwrites this on a SUCCESSFUL load, and that load has
+   * been measured at 17-31s on this machine. Without this reset the rail drew
+   * the previous project's drafts, clickable, under the new project's name
+   * for the whole of that window — the wrong-project form of the defect the
+   * decision card itself was rebuilt for in August.
+   */
+  useEffect(() => {
+    setPendingDrafts({ rows: [], scoped: false });
+  }, [project]);
   /** A thread chosen in the rail; the serial makes re-picking the same id a fresh request. */
   const [threadPick, setThreadPick] = useState<{ id: string; serial: number } | undefined>();
   /** What the conversation holds, so the rail can mark it and re-read after a turn. */
@@ -148,6 +173,16 @@ export function Cockpit() {
     labels: Record<string, string>;
     openDispatches: OpenDispatch[];
   }>({ id: '', settled: 0, labels: {}, openDispatches: [] });
+  /**
+   * The rail is on screen only when the conversation view is open AND the
+   * Arbeit tab is the one showing. A ref, because the SSE callback is created
+   * once and would otherwise close over a stale value.
+   */
+  useEffect(() => {
+    railSeenRef.current = view === 'chat' && railTab === 'arbeit';
+    if (railSeenRef.current) setLive(markSeen);
+  }, [railTab, view]);
+
   const onThreadState = useCallback(
     (state: { id: string; settled: number; labels: Record<string, string>; openDispatches: OpenDispatch[] }) =>
       setThreadState(state),
@@ -277,56 +312,24 @@ export function Cockpit() {
   /* ---- live counters ---- */
   useEffect(() => {
     if (!project) return;
+    // Nothing the previous project's bus said is true of this one. The counts,
+    // the watcher, the report list and the announcement all start empty, and
+    // the surface says "not reported yet" until this project's stream speaks.
+    setLive(EMPTY_LIVE);
     const es = openEventStream(project, (name, data) => {
-      const d = (data || {}) as Record<string, unknown>;
-      const num = (v: unknown): number | undefined =>
-        typeof v === 'number' && Number.isFinite(v) ? v : undefined;
-      const text = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
-      const brief = (v: unknown): LiveState['report'] => {
-        if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
-        const r = v as Record<string, unknown>;
-        const name_ = text(r.name);
-        if (!name_) return undefined;
-        return {
-          name: name_,
-          status: text(r.status) || 'unbekannt',
-          lane: text(r.lane) || '',
-          project: text(r.project),
-          summary: text(r.summary)
-        };
-      };
-      if (name === 'hello') {
-        setStreamLive(true);
-        setLive({
-          inFlight: num(d.in_flight),
-          queued: num(d.queue_depth),
-          unread: num(d.unread_count),
-          quarantined: num(d.quarantined_count),
-          watcher: text(d.watcher_state),
-          report: brief(d.latest_report)
-        });
-      } else if (name === 'heartbeat') {
-        setStreamLive(true);
-        setLive((prev) => ({
-          ...prev,
-          inFlight: num(d.in_flight) ?? prev.inFlight,
-          watcher: text(d.watcher_state) ?? prev.watcher
-        }));
-      } else if (name === 'queue') {
-        // `queue_depth`, not `depth`. The server has always sent the former
-        // (interfaces/http/sse.py) and the contract has always declared it;
-        // this read the latter, so the counter froze at the hello snapshot
-        // and every later change was silently dropped.
-        setLive((prev) => ({ ...prev, queued: num(d.queue_depth) ?? prev.queued }));
-      } else if (name === 'report') {
-        setLive((prev) => ({ ...prev, report: brief(d) ?? prev.report }));
-        setDraftSignal((n) => n + 1);
-      }
+      if (name === 'hello' || name === 'heartbeat') setStreamLive(true);
+      // A report the reader is already looking at is not news to announce.
+      setLive((prev) => reduceLiveEvent(prev, name, data, railSeenRef.current));
+      if (name === 'report') setDraftSignal((n) => n + 1);
     });
-    es.addEventListener('error', () => setStreamLive(false));
+    es.addEventListener('error', () => {
+      setStreamLive(false);
+      setLive(markDisconnected);
+    });
     return () => {
       es.close();
       setStreamLive(false);
+      setLive(markDisconnected);
     };
   }, [project]);
 
@@ -452,9 +455,10 @@ export function Cockpit() {
         setPaletteOpen(false);
         setStudioOpen(false);
         setSettingsOpen(false);
+        setHealthOpen(false);
         return;
       }
-      if (chord || e.altKey || paletteOpen || settingsOpen || studioOpen || isTypingTarget(e.target)) return;
+      if (chord || e.altKey || paletteOpen || settingsOpen || studioOpen || healthOpen || isTypingTarget(e.target)) return;
       if (e.key === '1') goto('map');
       else if (e.key === '2') goto('chat');
       else if (e.key === '3') goto('ide');
@@ -462,7 +466,7 @@ export function Cockpit() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [goto, loadStructure, paletteOpen, project, settingsOpen, studioOpen]);
+  }, [goto, healthOpen, loadStructure, paletteOpen, project, settingsOpen, studioOpen]);
 
   const onBudget = useCallback(
     (hidden1: number, hidden2: number, ids: string[]) => setBudget({ hidden1, hidden2, ids }),
@@ -482,6 +486,9 @@ export function Cockpit() {
    */
   const workWaiting =
     (pendingDrafts.scoped ? pendingDrafts.rows.length : 0) + (live.quarantined || 0) + (live.unread || 0);
+  /** What the rail's tab has to announce: things waiting, plus reports that
+   *  arrived while the reader was looking somewhere else. */
+  const railBadge = workWaiting + live.unseen;
 
   const contextModule = nh?.focus;
   const selectedProject = projects.find((row) => row.name === project);
@@ -708,9 +715,20 @@ export function Cockpit() {
               <button type="button" role="tab" aria-selected={railTab === 'verlauf'} className={railTab === 'verlauf' ? 'on' : ''} onClick={() => setRailTab('verlauf')}>
                 Verlauf
               </button>
-              <button type="button" role="tab" aria-selected={railTab === 'arbeit'} className={railTab === 'arbeit' ? 'on' : ''} onClick={() => setRailTab('arbeit')}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={railTab === 'arbeit'}
+                className={railTab === 'arbeit' ? 'on' : ''}
+                onClick={() => {
+                  setRailTab('arbeit');
+                  setLive(markSeen);
+                }}
+              >
                 Arbeit
-                {workWaiting > 0 && <span className="rail-badge">{workWaiting}</span>}
+                {railBadge > 0 && (
+                  <span className={live.unseen > 0 ? 'rail-badge new' : 'rail-badge'}>{railBadge}</span>
+                )}
               </button>
               <button type="button" role="tab" aria-selected={railTab === 'karte'} className={railTab === 'karte' ? 'on' : ''} onClick={() => setRailTab('karte')}>
                 Karte
@@ -769,7 +787,7 @@ export function Cockpit() {
           inFlight={live.inFlight}
           queued={live.queued}
           streamLive={streamLive}
-          onOpenHealth={() => setStudioOpen(false)}
+          onOpenHealth={() => setHealthOpen(true)}
         />
       </footer>
 
@@ -858,6 +876,10 @@ export function Cockpit() {
         onAutonomy={chooseAutonomy}
         logSignal={autoLog}
       />
+
+      <AnimatePresence>
+        <HealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} health={health} error={healthError} />
+      </AnimatePresence>
 
       <ThemeStudio open={studioOpen} onClose={() => setStudioOpen(false)} />
     </div>

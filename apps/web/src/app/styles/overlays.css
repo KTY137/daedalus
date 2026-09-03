@@ -5,6 +5,102 @@
  * the keyboard; the hot list is a standing index of the heaviest modules.
  */
 
+/* ------------------------------------------------------------ health panel */
+
+/*
+ * The health surface reuses the palette's scrim and surface so the shell has
+ * one overlay grammar, and adds the rows: a subsystem is its state, the
+ * question it answers, its headline, and — once opened — its facts, each with
+ * the provenance stamp the backend attached. An unlabelled number is a rumour,
+ * so no value is drawn without its stamp beside it.
+ */
+.health-panel { width: min(760px, 92vw); max-height: min(76vh, 720px); display: flex; flex-direction: column; }
+.health-head { display: flex; align-items: baseline; gap: var(--u3); padding: var(--u3) var(--u4) var(--u2); }
+.health-head h2 {
+  flex: 1 1 auto;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: var(--fs-lg);
+  color: var(--ink);
+}
+.health-filter,
+.health-close {
+  min-height: 44px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.health-filter:hover, .health-filter:focus-visible,
+.health-close:hover, .health-close:focus-visible { color: var(--ink); border-color: var(--accent); outline: none; }
+
+.health-list { list-style: none; margin: 0; padding: 0 var(--u4) var(--u2); overflow: auto; display: grid; gap: var(--u1); }
+.health-row { border-left: 2px solid var(--line); }
+.health-row.ok { border-left-color: var(--ok); }
+.health-row.bad { border-left-color: var(--bad); }
+.health-row.warn { border-left-color: var(--warn); }
+.health-row > button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--u1) var(--u2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.health-row > button:hover { background: var(--surface2); }
+.health-row > button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.health-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--u2); }
+.health-name { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink); }
+.health-state { font-size: var(--fs-xs); color: var(--ink2); }
+.health-required {
+  font-size: var(--fs-xs);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+/* The question the subsystem exists to answer — the line that makes a name
+   like `git.worktree` mean something to a reader. */
+.health-asks { font-size: var(--fs-xs); color: var(--ink3); font-style: italic; }
+.health-headline { font-size: var(--fs-xs); color: var(--ink2); line-height: 1.45; }
+.health-remedy { margin: 0; padding: 0 var(--u4) var(--u2); font-size: var(--fs-xs); color: var(--ink3); line-height: 1.5; }
+.health-remedy.bad { color: var(--bad); }
+.health-row .health-remedy { padding: 0 var(--u2) var(--u1) var(--u2); }
+
+.health-facts { list-style: none; margin: 0; padding: 0 var(--u2) var(--u2); display: grid; gap: 2px; }
+.health-fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--u1) var(--u2);
+  font-size: var(--fs-xs);
+}
+.health-fact-label { min-width: 12ch; color: var(--ink3); }
+.health-fact-value { font-family: var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
+.health-prov {
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  font-size: var(--fs-xs);
+}
+.health-prov.measured { color: var(--ok); }
+.health-prov.inherited { color: var(--ink3); }
+.health-prov.assumed { color: var(--warn); }
+.health-fact-meta { display: inline-flex; gap: var(--u2); color: var(--ink3); }
+.health-fact-meta code { font-family: var(--font-mono); }
+.health-foot { margin: 0; padding: var(--u2) var(--u4) var(--u3); border-top: var(--border) solid var(--line2); font-size: var(--fs-xs); color: var(--ink3); }
+
 /* --------------------------------------------------------------- hotlist */
 
 .hotlist { padding: var(--u2) var(--u3); }

@@ -227,6 +227,9 @@
   text-align: center;
 }
 .rail-tabs button.on .rail-badge { background: color-mix(in srgb, var(--accent-ink) 22%, transparent); color: var(--accent-ink); }
+/* Something ARRIVED while the reader was elsewhere. A count that merely grew
+   is not news; a report that landed unwatched is. */
+.rail-badge.new { background: var(--live); color: var(--room2); }
 
 /* ------------------------------------------------------------ statusline */
 

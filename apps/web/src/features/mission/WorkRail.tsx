@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
-import { getTask, getTaskArtifacts, type DraftRow, type TaskArtifacts, type TaskDetail } from '@/shared/api';
+import { useCallback, useRef, useState } from 'react';
+import { ApiError, getTask, getTaskArtifacts, type DraftRow, type TaskArtifacts, type TaskDetail } from '@/shared/api';
 import type { OpenDispatch } from '@/features/conversation/model';
 import { relativeTime, taskStateLabel } from '@/features/conversation/model';
 import { ActivityLog } from './ActivityLog';
+import type { LiveState } from './live';
 
 /**
  * ARBEIT — what waits on you, what is running, what just happened.
@@ -22,18 +23,6 @@ import { ActivityLog } from './ActivityLog';
  * that already fetched them, the dispatches from the conversation that
  * already resumed them, and the counters from the one event stream.
  */
-
-/** The live counters, exactly as the stream reports them. */
-export interface LiveState {
-  /** the stream is open; false means these numbers are last-known, not now */
-  connected: boolean;
-  inFlight?: number;
-  queued?: number;
-  unread?: number;
-  quarantined?: number;
-  watcher?: string;
-  report?: { name: string; status: string; lane: string; project?: string; summary?: string };
-}
 
 export interface WorkRailProps {
   project: string;
@@ -82,6 +71,8 @@ type DetailState =
   | { kind: 'shut' }
   | { kind: 'reading' }
   | { kind: 'read'; task: TaskDetail; artifacts?: TaskArtifacts }
+  /** the bus answered, and its answer is that it has no such id */
+  | { kind: 'gone'; reason: string }
   | { kind: 'failed'; reason: string };
 
 function List({ label, items }: { label: string; items: string[] | undefined }) {
@@ -103,12 +94,17 @@ function List({ label, items }: { label: string; items: string[] | undefined }) 
 
 function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
   const [state, setState] = useState<DetailState>({ kind: 'shut' });
+  /** Which read is still the one that matters: a second click while the
+   *  first is in flight must not reopen the row the reader just closed. */
+  const readId = useRef(0);
 
   const toggle = useCallback(async () => {
     if (state.kind !== 'shut') {
+      readId.current += 1;
       setState({ kind: 'shut' });
       return;
     }
+    const id = ++readId.current;
     setState({ kind: 'reading' });
     try {
       const payload = await getTask(dispatch.ref);
@@ -124,8 +120,19 @@ function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
           /* the snapshot is the answer; artifacts are the bonus */
         }
       }
+      if (readId.current !== id) return;
       setState({ kind: 'read', task, artifacts });
     } catch (reason) {
+      if (readId.current !== id) return;
+      // A 404 IS THE ANSWER. `read.py` returns 404 when `_task_snapshot` says
+      // `found: false` — the archive was cleared, or the id is wrong — and
+      // `request()` turns that into an ApiError. Reporting it as "the bus
+      // could not be read" would dress the single most likely real case as an
+      // outage; it is a fact, and the server's own sentence carries it.
+      if (reason instanceof ApiError && reason.kind === 'notfound') {
+        setState({ kind: 'gone', reason: reason.message });
+        return;
+      }
       setState({ kind: 'failed', reason: reason instanceof Error ? reason.message : 'unbekannter Fehler' });
     }
   }, [dispatch.ref, state.kind]);
@@ -144,6 +151,9 @@ function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
       </button>
 
       {state.kind === 'reading' && <p className="work-detail-note">Zustand wird vom Bus gelesen …</p>}
+      {state.kind === 'gone' && (
+        <p className="work-detail-note">Auf dem Bus nicht auffindbar. {state.reason}</p>
+      )}
       {state.kind === 'failed' && (
         <p className="work-detail-note bad">Der Bus konnte nicht gelesen werden: {state.reason}</p>
       )}
@@ -229,16 +239,25 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
    * under this project's name.
    */
   const waiting = (draftsScoped ? drafts.length : 0) + quarantined + unread;
-  const running = openDispatches.length + (live.inFlight || 0);
+  /**
+   * Dispatches only. `in_flight` is a FLAG the watcher raises about the one
+   * task it currently holds, so adding it here counted the same task twice
+   * whenever the watcher had picked up the dispatch above it.
+   */
+  const running = openDispatches.length;
+  /** Whether the counts above were reported at all, or merely defaulted. */
+  const countsRead = live.unread !== undefined || live.quarantined !== undefined;
 
   return (
     <div className="work" aria-label="Arbeit">
       <Section title="Wartet auf dich" count={waiting} tone="wait">
         {waiting === 0 ? (
           <p className="work-none">
-            {draftsScoped || !project
-              ? 'Nichts. Entwürfe, zurückgestellte Läufe und ungelesene Berichte erscheinen hier.'
-              : 'Projekt wird ermittelt …'}
+            {!draftsScoped && project
+              ? 'Projekt wird ermittelt …'
+              : !countsRead
+                ? 'Keine Entwürfe. Zurückgestellte Läufe und ungelesene Berichte hat der Ereignisstrom noch nicht gemeldet.'
+                : 'Nichts. Entwürfe, zurückgestellte Läufe und ungelesene Berichte erscheinen hier.'}
           </p>
         ) : (
           <ul className="work-list">
@@ -265,6 +284,7 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
                   <span>
                     In Quarantäne, bis jemand hinsieht. <code>daedalus bridge status</code> zeigt sie.
                   </span>
+                  <span>beim Verbinden gezählt</span>
                 </span>
               </li>
             )}
@@ -275,6 +295,10 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
                 </span>
                 <span className="work-row-meta">
                   <span>Auf dem Datei-Bus eingetroffen, hier noch nicht geöffnet.</span>
+                  {/* The bus sends deltas for reports, the queue and the
+                      watcher — never for these two. They are the value at
+                      connect time and do not fall as you read them. */}
+                  <span>beim Verbinden gezählt</span>
                 </span>
               </li>
             )}
@@ -300,7 +324,9 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
                 Wächter <b className={watcher.verbatim ? 'mono' : undefined}>{watcher.text}</b>
               </span>
               {live.queued !== undefined && <span>Warteschlange {live.queued}</span>}
-              {live.inFlight !== undefined && <span>{live.inFlight} in Bearbeitung</span>}
+              {live.inFlight !== undefined && (
+                <span>{live.inFlight ? 'hat gerade eine Aufgabe' : 'hält gerade nichts'}</span>
+              )}
               {!live.connected && <span className="work-stale">Strom unterbrochen — Stand von zuletzt</span>}
             </span>
           </li>
@@ -308,17 +334,22 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
       </Section>
 
       <Section title="Zuletzt" tone="past">
-        {live.report ? (
+        {live.recent.length > 0 ? (
           <ul className="work-list">
-            <li className="work-row">
-              <span className="work-row-what">{live.report.summary || 'Ohne Zusammenfassung'}</span>
-              <span className="work-row-meta">
-                <span>{live.report.status || 'unbekannt'}</span>
-                {live.report.lane && <span>Lane {live.report.lane}</span>}
-                {live.report.project && <span>{live.report.project}</span>}
-                <code>{live.report.name}</code>
-              </span>
-            </li>
+            {/* Every report this session saw arrive, newest first. One slot
+                meant a second report overwrote the first before anyone had
+                read it; the ledger below is what remembers past the session. */}
+            {live.recent.map((report) => (
+              <li key={report.name} className="work-row">
+                <span className="work-row-what">{report.summary || 'Ohne Zusammenfassung'}</span>
+                <span className="work-row-meta">
+                  <span>{report.status}</span>
+                  {report.lane && <span>Lane {report.lane}</span>}
+                  {report.project && <span>{report.project}</span>}
+                  <code>{report.name}</code>
+                </span>
+              </li>
+            ))}
           </ul>
         ) : (
           <p className="work-none">Noch kein Bericht auf diesem Bus.</p>
