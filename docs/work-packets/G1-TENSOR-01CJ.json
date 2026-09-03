@@ -1,0 +1,90 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CJ",
+  "title": "Fold SparseTensorEntry evidence digest sort fallback into one validation pass",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CI",
+  "campaign_issue": 239,
+  "base_revision": "e45042c9605481590c23c61f0f25d65e3552514f",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "SparseTensorEntry already retained an exact canonical evidence_sha256s tuple by object identity, but an out-of-order exact tuple was validated only until the first inversion and then routed through _sorted_strings(..., digests=True). That fallback revalidated the complete bounded sequence, allocated a second converted list and duplicate-detection set, sorted, and materialized the canonical tuple. Adding an evidence index, cache, adapter, or second evidence representation would increase rather than reduce the surface.",
+  "primary_claim": "SparseTensorEntry now validates evidence digests and detects canonical ordering in one bounded traversal. Exact already-canonical tuples retain object identity; non-canonical and non-tuple bounded sequences are validated once, sorted only when required, and duplicate-refused by adjacent comparison. Empty, invalid, duplicate, and oversized evidence inputs remain fail closed. Fourfold authority, TensorView wire semantics, evidence digest semantics, projection status semantics, and provenance binding are unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_evidence_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CJ.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 55,
+    "code_test_deletions": 18,
+    "production_additions": 19,
+    "production_deletions": 17,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Remove the redundant _sorted_strings fallback from the tensor evidence path and fold canonicalization into the existing bounded traversal. The exact evidence tuple remains the single immutable representation; only inputs that actually require ordering allocate a temporary list for sorting. This removes duplicate validation and duplicate-detection-set work without broadening the Tensor/Fourfold architecture.",
+  "acceptance": [
+    "an unsorted exact evidence digest tuple is canonicalized deterministically while every digest receives _sha256 validation exactly once",
+    "an exact already-canonical evidence digest tuple remains eligible for object-identity reuse through the existing SparseTensorEntry contract",
+    "an unsorted tuple containing a duplicate digest remains fail closed",
+    "empty, invalid, and oversized evidence inputs remain fail closed through the existing bounded contract",
+    "the Fourfold-v2 workflow executes successfully on exact code/test revision b238f1aafb19c7dc3f575c07e35754c69cb2c826",
+    "the designated Python 3.12/hash-seed-0 Fourfold/kernel contracts and bounded Tensor/Forest diagnostic execute successfully",
+    "the isolated wheel build and install execute successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "e33fbdfc6d50da9b803ee6f240fc859dadcf251e",
+    "code_test_revision": "b238f1aafb19c7dc3f575c07e35754c69cb2c826",
+    "production_blob": "f61c1825eb315ad27eb392c0a9e7f0c8d3c7a69c",
+    "focused_test_blob": "5065ad8cd2fc71512a8db0eb4289b49e4cc76e4f",
+    "fourfold_v2_run": 33770448406,
+    "fourfold_v2_conclusion": "success",
+    "focused_python_3_10_hashseed_0": "200 passed, 2 skipped in 1.85s",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision b238f1aafb19c7dc3f575c07e35754c69cb2c826",
+      "all Python 3.10/3.12 and hash-seed 0/123456 contract jobs completed success",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success with real build and isolated-install steps",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision b238f1aafb19c7dc3f575c07e35754c69cb2c826. The executed focused contract surface includes the new regression that requires each digest in an out-of-order exact evidence tuple to receive _sha256 validation exactly once, plus duplicate-refusal coverage. Python 3.10/hash-seed-0 reported 200 passed and 2 skipped for tests/twin plus tests/test_kernel_contracts.py. The designated Python 3.12/hash-seed-0 Fourfold/kernel contract and bounded Tensor/Forest diagnostic steps also completed successfully. No measured wall-clock latency, peak-memory, Tensor-vs-Forest, CrewAI, AlphaEvolve, or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "adversarial_regressions_added": true,
+    "independent_owner_review_completed": false,
+    "note": "The PR remains Draft and unmerged; this packet records builder/hosted-CI evidence only and does not substitute for the Masterplan's independent review or owner decision."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_close": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_observation_note": "archive/legacy-20260830 was already at this ref when observed before the evidence commit; this work packet did not write, merge, cherry-pick, rename, delete, or force-move the archive ref.",
+    "ui_line_preserved_observed_before_close": "worktree-g1-ui-ikarus@005495b81ac88142026cda6452cbad43c7bb6c5d",
+    "visible_remote_refs_observed_before_close": 17,
+    "topology_note": "No existing ref was deleted, archived, renamed, or force-moved merely to reduce branch count. Existing extra refs remain intact pending separate evidence classification and selective reintegration where justified."
+  },
+  "rollback": "Revert commits e33fbdfc6d50da9b803ee6f240fc859dadcf251e and b238f1aafb19c7dc3f575c07e35754c69cb2c826 to restore the previous _sorted_strings evidence fallback and remove the focused regression. Fourfold authority, TensorView sparse behavior, bounded construction, evidence semantics, and wire contracts are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
