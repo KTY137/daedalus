@@ -149,9 +149,23 @@ class SparseTensorEntry:
             "entry.evidence_sha256s",
             MAX_ENTRY_EVIDENCE_DIGESTS,
         )
-        evidence = _sorted_strings(
-            raw_evidence, "entry.evidence_sha256s", digests=True
-        )
+        evidence = None
+        if type(raw_evidence) is tuple:
+            previous_digest: str | None = None
+            for index, raw_digest in enumerate(raw_evidence):
+                digest = _sha256(raw_digest, f"entry.evidence_sha256s[{index}]")
+                if previous_digest is not None:
+                    if digest == previous_digest:
+                        raise ValueError("entry.evidence_sha256s must not contain duplicates")
+                    if digest < previous_digest:
+                        break
+                previous_digest = digest
+            else:
+                evidence = raw_evidence
+        if evidence is None:
+            evidence = _sorted_strings(
+                raw_evidence, "entry.evidence_sha256s", digests=True
+            )
         if not evidence:
             raise ValueError("entry must retain evidence digests")
         object.__setattr__(self, "evidence_sha256s", evidence)
