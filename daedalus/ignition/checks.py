@@ -39,6 +39,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -241,6 +242,41 @@ def _rel(root: Path, path: Path) -> str:
 # --------------------------------------------------------------------------- #
 # pytest                                                                       #
 # --------------------------------------------------------------------------- #
+#: The only environment variables an evaluator child inherits.
+#:
+#: THIS LIST IS AN ALLOWLIST, and it is one because the alternative was measured
+#: to leak. ``env = dict(os.environ)`` handed the candidate's own conformance
+#: suite every variable this process holds: an adversarial review of G1-ISO-01
+#: read a planted credential out of it from inside this very gate, and used the
+#: inherited ``PYTHONPATH`` to import the evaluator's own package in two lines.
+#:
+#: What it is NOT: a boundary. The child still runs at the operator's privilege
+#: level and can reach this repository through ``site-packages``. Removing the
+#: environment removes the cheap route and the secrets, nothing more.
+EVALUATOR_CHILD_ENV_KEYS = frozenset({
+    "SYSTEMROOT", "WINDIR", "PATH", "PATHEXT", "COMSPEC",
+    "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
+    "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL",
+})
+
+
+def evaluator_child_env(**overrides: str) -> dict[str, str]:
+    """The environment an evaluator child may see, plus explicit additions.
+
+    One definition, because two evaluators spawn children over candidate code
+    -- this module's :func:`pytest_check` and
+    :func:`daedalus.ignition.runner._behavior` -- and two allowlists would
+    drift apart exactly once and then stay wrong.
+    """
+
+    env = {
+        key: value for key, value in os.environ.items()
+        if key.upper() in EVALUATOR_CHILD_ENV_KEYS
+    }
+    env.update(overrides)
+    return env
+
+
 def pytest_check(
     root: str | Path,
     node_ids: Sequence[str] = (),
@@ -255,7 +291,21 @@ def pytest_check(
     verdict whose gate left an untracked file behind (``_post_gate_artifact_
     stable``). ``PYTHONDONTWRITEBYTECODE`` suppresses ``__pycache__`` and
     ``-p no:cacheprovider`` suppresses ``.pytest_cache``; without both, a
-    passing suite would still fail the attempt.
+    passing suite would still fail the attempt. The transcript file below lives
+    in the system temp directory for the same reason -- never under ``root``.
+
+    ``timeout_s`` IS AN UPPER BOUND, which it was not until 2026-09-03.
+    ``capture_output=True`` means PIPEs, and the candidate writes the test file
+    this gate runs: asking pytest for ``capfd`` and calling ``capfd.disabled()``
+    hands a spawned descendant the evaluator's real stdout handle, after which
+    ``communicate()`` waits for that descendant rather than for the child it
+    killed. MEASURED at 45.6 s against a declared 3.0 s bound. Routing the
+    transcript to a FILE removes the pipe, so nothing a descendant inherits is
+    something this process must drain. An orphaned descendant can still outlive
+    the gate; that is a different problem, named rather than assumed away.
+
+    The environment is an allowlist (:func:`evaluator_child_env`), not this
+    process's own -- see :data:`EVALUATOR_CHILD_ENV_KEYS`.
     """
 
     tree = Path(root).resolve()
@@ -270,24 +320,38 @@ def pytest_check(
         "--no-header",
         *targets,
     ]
-    env = dict(os.environ)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env.pop("PYTEST_ADDOPTS", None)
-    env.pop("PYTEST_CURRENT_TEST", None)
-    try:
-        completed = subprocess.run(
-            argv,
-            cwd=str(tree),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        returncode: int | None = completed.returncode
-        text = (completed.stdout or "") + (completed.stderr or "")
-    except subprocess.TimeoutExpired as exc:
-        returncode = None
-        text = f"pytest timed out after {timeout_s}s: {exc}"
+    env = evaluator_child_env(PYTHONDONTWRITEBYTECODE="1")
+    with tempfile.TemporaryDirectory(
+        prefix="daedalus-pytest-", ignore_cleanup_errors=True
+    ) as scratch:
+        transcript = Path(scratch) / "pytest.log"
+        try:
+            with transcript.open("wb") as sink:
+                completed = subprocess.run(
+                    argv,
+                    cwd=str(tree),
+                    env=env,
+                    # NOT capture_output: see the docstring. stdin is closed so
+                    # a candidate cannot block the gate waiting on input it
+                    # inherited from the operator's terminal.
+                    stdin=subprocess.DEVNULL,
+                    stdout=sink,
+                    stderr=subprocess.STDOUT,
+                    timeout=timeout_s,
+                )
+            returncode: int | None = completed.returncode
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            returncode = None
+            timed_out = True
+        try:
+            text = transcript.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:                               # pragma: no cover
+            text = f"the pytest transcript could not be read ({exc})"
+    if timed_out:
+        # The partial transcript FIRST: a refusal that drops what the suite
+        # already said is a refusal nobody can act on.
+        text = f"{text}\npytest timed out after {timeout_s}s"
     passed = returncode == 0
     return CheckReport(
         kind="pytest",

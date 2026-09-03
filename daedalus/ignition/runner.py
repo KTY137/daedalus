@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -21,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from daedalus.ignition.checks import evaluator_child_env
 from daedalus.kernel.fourfold_evidence import assemble_fourfold_evidence_packet
 from daedalus.schemas import ContractProvenance, EvidenceItem, EvidencePacket, ResourceUsage
 from daedalus.spine.envelope import canonical_sha
@@ -176,17 +176,6 @@ with open(_out, "w", encoding="utf-8") as handle:
 #: slow box would read as a broken candidate.
 BEHAVIOR_PROBE_TIMEOUT_S = 120.0
 
-#: The only environment variables the probe child inherits. Everything else --
-#: including ``PYTHONPATH`` and any provider credential in this process -- is
-#: dropped. ``-I`` alone was NOT enough: it makes the INTERPRETER ignore
-#: ``PYTHON*``, but ``os.environ`` still carried them, and two lines of
-#: candidate code put ``PYTHONPATH`` back on ``sys.path`` (adversarial review of
-#: 3b531d44, case H). This is exposure reduction, not a boundary.
-_PROBE_ENV_KEYS = frozenset({
-    "SYSTEMROOT", "WINDIR", "PATH", "PATHEXT", "COMSPEC", "NUMBER_OF_PROCESSORS",
-    "PROCESSOR_ARCHITECTURE", "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL",
-})
-
 #: What the probe must answer with. A dict that is missing a key, or carries the
 #: wrong type, is a refusal rather than a measurement: ``run_voltage_ignition``
 #: indexes these directly, and an empty object used to escape as a bare
@@ -197,13 +186,6 @@ _BEHAVIOR_RESULT_TYPES: dict[str, type | tuple[type, ...]] = {
     "bias_voltage": (int, float),
     "has_old_voltage_attribute": bool,
 }
-
-
-def _probe_env() -> dict[str, str]:
-    return {
-        key: value for key, value in os.environ.items()
-        if key.upper() in _PROBE_ENV_KEYS
-    }
 
 
 def _validated_behavior(payload: object, *, nonce: str) -> dict[str, object]:
@@ -276,9 +258,9 @@ def _behavior(candidate: Path) -> Mapping[str, object]:
       ``daedalus``, so the child can import ``daedalus.ignition.checks``, and it
       resolves to the operator's live checkout. The measured child had
       ``os.access(..., W_OK)`` and a successful ``open(..., "r+")`` on it. What
-      ``-I`` and :data:`_PROBE_ENV_KEYS` together DO remove is the inherited
-      ``PYTHONPATH`` route and the rest of this process's environment,
-      including any credential in it.
+      ``-I`` and :func:`daedalus.ignition.checks.evaluator_child_env` together
+      DO remove is the inherited ``PYTHONPATH`` route and the rest of this
+      process's environment, including any credential in it.
     * this is process isolation at the operator's own privilege level, not
       capability-bounded containment.
       ``daedalus.spine.containment.spawn_contained`` is that mechanism, and it
@@ -324,7 +306,7 @@ def _behavior(candidate: Path) -> Mapping[str, object]:
                     # process in communicate() long after the timeout fired.
                     stdout=subprocess.DEVNULL,
                     stderr=stderr_sink,
-                    env=_probe_env(),
+                    env=evaluator_child_env(),
                     timeout=BEHAVIOR_PROBE_TIMEOUT_S,
                 )
         except subprocess.TimeoutExpired:
