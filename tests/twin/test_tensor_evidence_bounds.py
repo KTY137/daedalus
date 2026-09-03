@@ -99,6 +99,18 @@ def test_evidence_limit_is_inclusive_and_canonical() -> None:
     assert entry.evidence_sha256s == tuple(sorted(evidence))
 
 
+def test_evidence_canonicalization_reuses_exact_canonical_digest_tuple() -> None:
+    evidence = tuple(_digest(index) for index in range(MAX_ENTRY_EVIDENCE_DIGESTS))
+
+    entry = SparseTensorEntry(
+        coordinates=(("node", "src/a.py"),),
+        relation="membership",
+        evidence_sha256s=evidence,
+    )
+
+    assert entry.evidence_sha256s is evidence
+
+
 def test_wire_payload_cannot_bypass_evidence_bound() -> None:
     payload = {
         "coordinates": [["node", "src/a.py"]],
