@@ -154,6 +154,26 @@ def test_projection_matches_direct_forest_relations_and_composes() -> None:
     assert tuple(composed.iter_entries()) == (("src/a.py", "docs/b.md", True),)
 
 
+def test_same_plane_projection_reuses_the_exact_typed_axis() -> None:
+    forest = _forest()
+    snapshot = _complete_snapshot(forest)
+
+    imports = boolean_relation_block_from_fourfold(
+        forest,
+        snapshot,
+        RelationSignature("code", "imports", "code"),
+    )
+    documents = boolean_relation_block_from_fourfold(
+        forest,
+        snapshot,
+        RelationSignature("code", "documents", "knowledge"),
+    )
+
+    assert imports.row_axis is imports.column_axis
+    assert imports.row_axis.labels is snapshot.plane_map["code"].node_ids
+    assert documents.row_axis is not documents.column_axis
+
+
 def test_projection_refuses_legacy_partial_endpoint_planes() -> None:
     forest = _forest()
     snapshot = _legacy_snapshot(forest)
