@@ -1,0 +1,128 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CN",
+  "title": "Use native CSR row occupancy in bounded relation probe",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CM",
+  "campaign_issue": 239,
+  "base_revision": "1445c6a90fe6dd81aa1ad88bf296980a6c472697",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "The 01CM diagnostic built strict Boolean CSR blocks correctly but queried them by iterating every stored entry twice, rebuilding two temporary source sets and sorting their intersection. That probe path ignored the already canonical shared row axis and CSR row offsets, so part of the observed CSR query cost measured harness reconstruction rather than the representation's native row-support operation.",
+  "primary_claim": "The schema-v5 bounded relation probe now derives the strict Boolean CSR result directly from the exact shared row axis and row_offsets already present in TypedRelationBlock. A focused regression makes iter_entries() fail on this probe path. All comparison arms still must return the same deterministic result. This is a diagnostic/harness correction with zero production-code changes and introduces no query index, cache, backend, store, registry, graph authority, Tensor type, or semantic plane.",
+  "scope": {
+    "changed": [
+      "tests/twin/test_tensor_forest_cost_probe.py",
+      "docs/FOURFOLD_TENSOR_KERNEL_CONTRACT.md"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CN.json"
+    ],
+    "production_code_changes": 0,
+    "code_test_commit": "c9004dfc7fb6340c5bbbdc7871e836c347fab726",
+    "test_blob": "e5f9f31bd72cc2347a6ed4fd96d9bd7a54c30452",
+    "test_additions": 39,
+    "test_deletions": 5,
+    "contract_alignment_commit": "4dc30f37bf440e0f9962d3f63820274dad7f8104",
+    "contract_blob": "5c6b3c4e7418e8f0e5826195ded7986de40893cd",
+    "new_graph_schema": false,
+    "new_relation_block_type": false,
+    "new_query_index": false,
+    "new_cache": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Fix the already identified hot path in the existing diagnostic before considering any new optimization layer. Reuse row_axis.labels and row_offsets that TypedRelationBlock already owns, delete the diagnostic's two full entry rescans, two temporary source sets, and intersection sort, and pin that reuse with an adversarial monkeypatch regression. Do not add a second index or backend to compensate for a harness-level misuse of the existing CSR representation.",
+  "acceptance": [
+    "the strict CSR query requires an exactly shared source row axis",
+    "the strict CSR query uses row occupancy from existing row_offsets and does not call iter_entries()",
+    "all four relation arms return the same deterministic result before diagnostic costs are emitted",
+    "the relation report identifies schema v5 and the shared-row-axis-occupancy query basis",
+    "all Python 3.10/3.12 and hash-seed 0/123456 Fourfold/kernel contract jobs execute successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 bounded Tensor/Forest diagnostic executes successfully and emits the corrected CSR arm",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no benchmark superiority, OwnerApproval, promotion, merge, Ready-for-Review transition, or Gate transition is inferred"
+  ],
+  "verification": {
+    "exact_code_test_revision": "c9004dfc7fb6340c5bbbdc7871e836c347fab726",
+    "fourfold_v2_run": 33794558741,
+    "fourfold_v2_conclusion": "success",
+    "focused_python_3_10_hashseed_0": "208 passed, 2 skipped in 3.20s",
+    "focused_python_3_12_hashseed_0": "208 passed, 2 skipped in 3.25s",
+    "observed_jobs": [
+      "Fourfold-v2 completed success on exact revision c9004dfc7fb6340c5bbbdc7871e836c347fab726",
+      "all four Python 3.10/3.12 and hash-seed 0/123456 contract jobs completed success",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests completed success",
+      "designated Python 3.12/hash-seed-0 Emit bounded Tensor/Forest diagnostic cost probes completed success",
+      "isolated-wheel completed success with build and isolated-install steps",
+      "repository-collection completed success (collection only)"
+    ],
+    "diagnostic_relation_probe": {
+      "schema": "daedalus-tensor-forest-relation-cost-probe/5",
+      "authority": "diagnostic-only",
+      "claim": "none",
+      "construction_basis": "forest+complete-fourfold",
+      "fourfold_boolean_csr_query_basis": "shared-row-axis-occupancy",
+      "subject_count": 512,
+      "node_count": 1024,
+      "edge_count": 768,
+      "repeats": 5,
+      "query_iterations_per_repeat": 10,
+      "result_count": 256,
+      "result_sha256": "e89b50ef66e4156831682ce77877ded4323b13964ee0132adb2a4c4607126046",
+      "source_forest_sha256": "8cb5f95bed55b692b7ed766d63df527c038bcf7d8c35d5289f20661444fdb790",
+      "source_fourfold_sha256": "a639713b10a84f890974dbf97b6b2671d59b87d7670a8266ae5b0000de0a74fc",
+      "medians_ns": {
+        "forest_direct": {"construction": 349626961, "query": 153546},
+        "forest_preindexed": {"construction": 345629838, "query": 27344},
+        "forest_plus_tensor": {"construction": 514860908, "query": 1815862},
+        "fourfold_boolean_csr": {"construction": 490478100, "query": 240043}
+      },
+      "peak_bytes_medians": {
+        "forest_direct": {"construction": 1703365, "query": 80288},
+        "forest_preindexed": {"construction": 1703315, "query": 12744},
+        "forest_plus_tensor": {"construction": 1714970, "query": 58640},
+        "fourfold_boolean_csr": {"construction": 1754580, "query": 5472}
+      },
+      "prior_01CM_hosted_observation": {
+        "fourfold_boolean_csr_query_ns_median": 2000232,
+        "comparison_note": "The large drop from the separate 01CM hosted observation to 01CN is evidence that the earlier diagnostic included avoidable entry-rescan/set/sort overhead. Because these are separate hosted runs, it is not used as a rigorous speedup or benchmark-superiority claim."
+      },
+      "interpretation": "Within the exact 01CN hosted run, strict Boolean CSR is much cheaper than generic TensorView for this row-support query but remains slower than direct Forest and far slower than the preindexed Forest baseline. This supports correcting the harness while retaining the negative architecture result: there is no evidence here for a new sparse backend or for promoting CSR as the general query engine."
+    },
+    "claim": "Hosted green CI is claimed only for exact code/test revision c9004dfc7fb6340c5bbbdc7871e836c347fab726. Documentation/evidence commits after that revision do not extend the green-CI claim. Repository-wide evidence is collection-only, not full-suite execution. Diagnostic timings are single-hosted-run falsification evidence and do not establish comparative superiority."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "new_adversarial_regression_required": true,
+    "adversarial_regression": "test_relation_block_query_uses_csr_row_occupancy monkeypatches TypedRelationBlock.iter_entries to fail and proves the bounded relation query still returns the exact expected source support from shared row offsets.",
+    "independent_owner_review_completed": false
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_record": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "main_observed_before_record": "e31213aff40ab322dcead6d50ae19007f3f9b6b1",
+    "ui_line_observed_before_record": "worktree-g1-ui-ikarus@fb5bbc91cfce411133e68609b7f9e776315fa80c",
+    "visible_remote_refs_observed_before_record": 18,
+    "topology_note": "Only the existing tensor-kernel branch was advanced by this packet. Existing additional packet/rescue/evidence refs remain untouched; none was deleted or archived merely to reduce the visible count. archive/legacy-20260830 remains a frozen evidence/history anchor."
+  },
+  "rollback": "Revert code/test commit c9004dfc7fb6340c5bbbdc7871e836c347fab726 and the following contract/evidence commits to restore the schema-v4 diagnostic. Production Forest, FourfoldSnapshot, TensorView, TypedRelationBlock, relation projection, and promotion authority are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "ready_for_review_transition": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
