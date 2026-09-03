@@ -19,7 +19,7 @@ TWO DEFECTS, BOTH MEASURED HERE BEFORE THEY WERE FIXED.
    keeps the parent inside ``communicate()`` after ``timeout_s`` fired.
 
 The FIRST version of the timeout test here PASSED against the broken code, and
-that negative result is kept in this docstring rather than deleted: an ordinary
+that negative result is kept rather than deleted: an ordinary
 ``subprocess.Popen`` inside a pytest test inherits pytest's own capture file,
 not the evaluator's pipe, so it does not reach the defect. The candidate writes
 the test file, so it can simply ask pytest for ``capfd`` and turn capture off:
@@ -30,18 +30,27 @@ the test file, so it can simply ask pytest for ``capfd`` and turn capture off:
 
 ``SPAWNS_SURVIVOR`` below is that measured version.
 
+THE ALLOWLIST HAS TWO EDGES. A second adversarial review found that dropping
+``PATH``, ``TEMP`` or ``TMPDIR`` from ``EVALUATOR_CHILD_ENV_KEYS`` left all 135
+ignition tests green -- nothing asserted that the child receives what it NEEDS,
+only that it does not receive secrets. Narrowing an allowlist breaks other
+people's boxes exactly as silently as widening it leaks. Both edges are pinned
+below.
+
 WHAT THESE TESTS DO NOT CLAIM. Closing the *write* capability -- the review
 wrote a file into the evaluator's own package from inside this child -- needs
-containment or filesystem permissions, not a flag. It stays open, and
-``test_the_evaluator_bundle_notices_a_changed_evaluator`` pins the tripwire
-that catches it after the fact instead.
+containment or filesystem permissions, not a flag.
 """
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
 import time
 from pathlib import Path
+
+import pytest
 
 from daedalus.ignition import bundle as ignition_bundle
 from daedalus.ignition import checks as ignition_checks
@@ -73,6 +82,20 @@ def test_hangs_and_leaves_a_descendant(capfd):
         time.sleep(45)
 '''
 
+#: Touches the home directory the way ordinary tooling does. With no home
+#: variable in the child, win32 ``expanduser`` returns the literal ``~`` and
+#: this creates a directory of that name INSIDE the judged tree.
+TOUCHES_HOME = '''\
+import os
+import pathlib
+
+
+def test_uses_a_home_relative_cache():
+    target = pathlib.Path(os.path.expanduser("~/.cache/daedalus-probe"))
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "state.json").write_text("{}", encoding="utf-8")
+'''
+
 
 def _tree(root: Path, name: str, source: str) -> Path:
     tests = root / "tests"
@@ -81,6 +104,9 @@ def _tree(root: Path, name: str, source: str) -> Path:
     return root
 
 
+# --------------------------------------------------------------------------- #
+# the allowlist: the ceiling                                                   #
+# --------------------------------------------------------------------------- #
 def test_pytest_child_does_not_inherit_the_verifier_environment(monkeypatch, tmp_path):
     """A credential in the verifier is not handed to the candidate's suite."""
     monkeypatch.setenv("DAEDALUS_TEST_FAKE_SECRET", "sk-verifier-secret-do-not-leak")
@@ -101,6 +127,54 @@ def test_pytest_child_does_not_inherit_the_verifier_environment(monkeypatch, tmp
     )
 
 
+# --------------------------------------------------------------------------- #
+# the allowlist: the floor                                                     #
+# --------------------------------------------------------------------------- #
+def test_the_child_receives_the_variables_it_cannot_work_without(tmp_path):
+    """Narrowing the allowlist must go red, not silently break other boxes.
+
+    MEASURED before this test existed: dropping ``PATH``, or ``TEMP``/``TMP``/
+    ``TMPDIR``, from the allowlist left all 135 ignition tests green.
+    """
+    root = _tree(tmp_path / "candidate", "test_env.py", RECORDS_ENV)
+
+    ignition_checks.pytest_check(root, ["tests/test_env.py"], timeout_s=120.0)
+
+    seen = json.loads((root / "tests" / "env.json").read_text(encoding="utf-8"))
+    missing = sorted(
+        key for key in ignition_checks.EVALUATOR_CHILD_ENV_REQUIRED
+        if key in os.environ and key not in seen
+    )
+    assert not missing, (
+        f"the evaluator child was denied {missing}, which it cannot work "
+        "without; a narrowed allowlist breaks boxes other than this one and "
+        "nothing else in the suite notices"
+    )
+
+
+def test_a_home_relative_suite_does_not_pollute_the_judged_tree(tmp_path):
+    """The silent half of a too-narrow allowlist.
+
+    Without a home variable, win32 ``expanduser("~")`` returns ``~`` rather
+    than raising, the suite passes, and a directory named ``~`` appears in the
+    candidate worktree -- which
+    ``kernel.attempt_execution._post_gate_artifact_stable`` turns into a
+    refused GREEN verdict.
+    """
+    root = _tree(tmp_path / "candidate", "test_home.py", TOUCHES_HOME)
+
+    report = ignition_checks.pytest_check(root, ["tests/test_home.py"], timeout_s=120.0)
+
+    assert report.passed, report.output[-2000:]
+    assert not (root / "~").exists(), (
+        "a literal '~' directory was created inside the judged tree: the child "
+        "has no home variable, so expanduser did not expand"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# the wall-time bound                                                          #
+# --------------------------------------------------------------------------- #
 def test_the_pytest_timeout_is_an_upper_bound(tmp_path):
     """The gate returns at its bound even when a descendant outlives it.
 
@@ -123,6 +197,9 @@ def test_the_pytest_timeout_is_an_upper_bound(tmp_path):
     )
 
 
+# --------------------------------------------------------------------------- #
+# the transcript contract                                                      #
+# --------------------------------------------------------------------------- #
 def test_a_normal_suite_still_passes_and_still_reports(tmp_path):
     """The bound and the allowlist did not break the ordinary green path."""
     root = _tree(
@@ -149,12 +226,63 @@ def test_a_failing_suite_still_reports_its_failure(tmp_path):
     assert "the candidate is wrong" in report.output
 
 
-def test_a_timed_out_suite_still_carries_its_output(tmp_path):
-    """A refusal that says nothing is a refusal nobody can act on."""
+def test_stderr_reaches_the_transcript(tmp_path):
+    """MEASURED gap: dropping ``stderr=STDOUT`` was caught by nothing.
+
+    pytest's own collection errors and interpreter-level failures arrive on
+    stderr. A transcript that silently loses them is a receipt that cannot say
+    why a candidate was refused.
+    """
+    root = _tree(
+        tmp_path / "candidate", "test_boom.py",
+        "import sys\n\n\ndef test_boom():\n"
+        "    sys.stderr.write('STDERR MARKER 8817\\n')\n"
+        "    sys.stderr.flush()\n"
+        "    raise SystemExit(3)\n")
+
+    report = ignition_checks.pytest_check(root, ["tests/test_boom.py"], timeout_s=120.0)
+
+    assert "STDERR MARKER 8817" in report.output
+
+
+def test_the_child_cannot_block_on_inherited_stdin(tmp_path):
+    """MEASURED gap: dropping ``stdin=DEVNULL`` was caught by nothing.
+
+    A candidate reading stdin must get EOF, not the operator's terminal.
+    """
+    root = _tree(
+        tmp_path / "candidate", "test_stdin.py",
+        "import os\n\n\ndef test_stdin(capfd):\n"
+        "    with capfd.disabled():\n"
+        "        assert os.read(0, 16) == b''\n")
+
+    started = time.monotonic()
+    report = ignition_checks.pytest_check(
+        root, ["tests/test_stdin.py"], timeout_s=20.0)
+    elapsed = time.monotonic() - started
+
+    assert report.passed, report.output[-2000:]
+    assert elapsed < 15.0
+
+
+def test_a_timed_out_suite_names_its_bound(tmp_path):
+    """What a killed run CAN promise, which is less than it first claimed.
+
+    An earlier version of this test was called
+    ``test_a_timed_out_suite_still_carries_its_output`` and asserted only
+    ``"timed out" in report.output`` -- which it would have passed with the
+    transcript dropped entirely. MEASURED: pytest buffers test output in its
+    own capture and writes it at report time, so a killed run has flushed
+    nothing and 'CANDIDATE SPOKE' does NOT survive. Output written outside
+    pytest's capture does survive; that half is asserted here.
+    """
     root = _tree(
         tmp_path / "candidate", "test_slow.py",
-        "import time\n\n\ndef test_slow():\n    print('CANDIDATE SPOKE')\n"
-        "    time.sleep(45)\n")
+        "import sys\nimport time\n\n\ndef test_slow(capfd):\n"
+        "    with capfd.disabled():\n"
+        "        sys.stdout.write('UNCAPTURED MARKER 4471\\n')\n"
+        "        sys.stdout.flush()\n"
+        "        time.sleep(45)\n")
 
     report = ignition_checks.pytest_check(
         root, ["tests/test_slow.py"], timeout_s=3.0)
@@ -162,60 +290,79 @@ def test_a_timed_out_suite_still_carries_its_output(tmp_path):
     assert report.passed is False
     assert report.detail["returncode"] is None
     assert "timed out" in report.output
+    assert "UNCAPTURED MARKER 4471" in report.output, (
+        "output the suite had already flushed was lost with the transcript"
+    )
+    assert report.detail["argv"], "the refusal must still name what it ran"
 
 
-def test_the_evaluator_bundle_notices_a_changed_evaluator(tmp_path):
-    """The tripwire that catches what isolation does not prevent.
-
-    ``gate1`` re-reads the bundle after the run and turns a difference into a
-    blocker ("this receipt cannot say what judged"). That is detection, not
-    prevention -- and it only covers the modules
-    :data:`daedalus.ignition.bundle.EVALUATOR_MODULES` names explicitly, not
-    everything they import. This pins the half that exists.
-    """
-    real_root = Path(ignition_bundle.__file__).resolve().parents[2]
-    fake_root = tmp_path / "repo"
-    for rel in ignition_bundle.EVALUATOR_MODULES:
-        target = fake_root / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(real_root / rel, target)
-
-    before = ignition_bundle.evaluator_bundle(
-        fake_root,
+# --------------------------------------------------------------------------- #
+# the tripwire that catches what isolation does not prevent                    #
+# --------------------------------------------------------------------------- #
+def _bundle_digest(root: Path) -> str:
+    return ignition_bundle.evaluator_bundle(
+        root,
         criterion_path=ignition_checks.CONFORMANCE_TEST_PATH,
         criterion_source=ignition_checks.CONFORMANCE_TEST_SOURCE,
         node_ids={"code-type": ignition_checks.CODE_TYPE_NODE_IDS},
-        fixture_root=fake_root,
+        fixture_root=root,
     )["digest"]
 
-    target = fake_root / "daedalus/ignition/checks.py"
+
+@pytest.fixture()
+def evaluator_tree(tmp_path):
+    """A copy of every module the bundle actually hashes."""
+    real_root = Path(ignition_bundle.__file__).resolve().parents[2]
+    fake_root = tmp_path / "repo"
+    for rel in ignition_bundle.import_closure(
+            real_root, ignition_bundle.EVALUATOR_MODULES):
+        target = fake_root / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(real_root / rel, target)
+    return fake_root
+
+
+@pytest.mark.parametrize("rel", [
+    "daedalus/ignition/checks.py",       # a declared evaluator root
+    "daedalus/spine/envelope.py",        # reached only through the closure
+    "daedalus/twin/reference_compiler.py",
+])
+def test_the_bundle_digest_moves_when_any_judging_module_changes(evaluator_tree, rel):
+    """The tripwire covers the import CLOSURE, not just the six roots.
+
+    THIS TEST REPLACES A FALSE ONE. Its predecessor,
+    ``test_the_bundle_does_not_cover_what_the_evaluators_import``, asserted
+    ``"daedalus/spine/envelope.py" not in EVALUATOR_MODULES`` and
+    ``len(EVALUATOR_MODULES) == 6`` -- both true, and neither of them the
+    proposition its name, docstring and work packet claimed. It documented a
+    gap that does not exist: ``bundle.import_closure`` walks every in-repo
+    module reachable from the six roots (MEASURED: 198 of them, including
+    ``envelope.py``) and ``bundle_digest_from_body`` folds that digest into the
+    identity. A green test asserting a false fact is what ``AGENTS.md`` calls
+    an unverifiable claim.
+    """
+    before = _bundle_digest(evaluator_tree)
+
+    target = evaluator_tree / rel
     target.write_text(
         target.read_text(encoding="utf-8") + "\n# candidate was here\n",
         encoding="utf-8")
 
-    after = ignition_bundle.evaluator_bundle(
-        fake_root,
-        criterion_path=ignition_checks.CONFORMANCE_TEST_PATH,
-        criterion_source=ignition_checks.CONFORMANCE_TEST_SOURCE,
-        node_ids={"code-type": ignition_checks.CODE_TYPE_NODE_IDS},
-        fixture_root=fake_root,
-    )["digest"]
-
-    assert before != after, (
-        "an evaluator module changed and the bundle digest did not move; the "
-        "receipt's 'an evaluator changed while the slice was running' blocker "
-        "would never fire"
+    assert _bundle_digest(evaluator_tree) != before, (
+        f"{rel} changed and the bundle digest did not move; the receipt's "
+        "'an evaluator changed while the slice was running' blocker would "
+        "never fire for it"
     )
 
 
-def test_the_bundle_does_not_cover_what_the_evaluators_import():
-    """The tripwire's honest limit, pinned so it cannot be forgotten.
+def test_the_closure_reaches_past_the_declared_roots():
+    """The closure is the identity, and it is much larger than the root list."""
+    real_root = Path(ignition_bundle.__file__).resolve().parents[2]
+    closure = ignition_bundle.import_closure(
+        real_root, ignition_bundle.EVALUATOR_MODULES)
 
-    ``EVALUATOR_MODULES`` is an explicit six-file list. Those six import many
-    others -- ``daedalus/spine/envelope.py`` supplies ``canonical_sha`` to both
-    ``checks`` and ``runner`` -- and a change there moves no bundle digest.
-    This test EXPECTS the gap; it exists so that closing it is a deliberate
-    decision with a failing test, not a silent one.
-    """
-    assert "daedalus/spine/envelope.py" not in ignition_bundle.EVALUATOR_MODULES
     assert len(ignition_bundle.EVALUATOR_MODULES) == 6
+    assert len(closure) > 100, len(closure)
+    assert "daedalus/spine/envelope.py" in closure
+    for rel in ignition_bundle.EVALUATOR_MODULES:
+        assert rel in closure

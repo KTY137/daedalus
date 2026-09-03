@@ -250,13 +250,15 @@ def _behavior(candidate: Path) -> Mapping[str, object]:
     through stdout. Printing the expected JSON and calling ``os._exit(0)`` used
     to forge a passing verdict from a candidate with no ``parse_event`` at all.
 
-    WHAT THIS IS NOT, stated because the first version of this docstring got it
-    wrong and an adversarial review refuted it:
+    WHAT THIS IS NOT, stated because two earlier versions of this docstring got
+    it wrong and two adversarial reviews refuted them:
 
     * ``-I`` does NOT stop the candidate from importing this evaluator. This
       interpreter's ``site-packages`` carries an editable install of
       ``daedalus``, so the child can import ``daedalus.ignition.checks``, and it
-      resolves to the operator's live checkout. The measured child had
+      resolves to the operator's live checkout -- NOT to the worktree the gate
+      runs from, so under a worktree layout the bundle hashes one tree while
+      the child can write another. The measured child had
       ``os.access(..., W_OK)`` and a successful ``open(..., "r+")`` on it. What
       ``-I`` and :func:`daedalus.ignition.checks.evaluator_child_env` together
       DO remove is the inherited ``PYTHONPATH`` route and the rest of this
@@ -268,10 +270,22 @@ def _behavior(candidate: Path) -> Mapping[str, object]:
       ``log=None`` gives the child no stdio to answer through. Closing the
       write capability above needs it (or OS permissions), and that is deferred
       work, not something this function may claim.
-    * a candidate that walks the probe's own stack frames can still read the
-      nonce and forge the answer. Defeating that needs the evaluator to observe
-      the candidate from OUTSIDE the interpreter; the nonce closes the cheap
-      forgery, not the determined one.
+    * the nonce closes the BLIND forgery only, and the non-blind one is not
+      "determined" -- it is four lines. MEASURED: the probe body runs under
+      ``python -I -c``, so ``_nonce`` and ``_out`` are ordinary attributes of
+      ``__main__`` before ``import ignition_app``, and a candidate whose
+      ``__init__.py`` reads ``__main__._nonce``, writes ``__main__._out`` and
+      calls ``os._exit(0)`` obtains a passing verdict with no ``Event`` class
+      and no ``parse_event`` in existence. An earlier version of this docstring
+      said "walks the probe's own stack frames", which overstated the cost by
+      implying frame introspection was required. Defeating it needs the
+      evaluator to observe the candidate from OUTSIDE the interpreter.
+      WHAT STILL CATCHES IT: nothing in this function, but a full slice cannot
+      be won this way -- ``gate1``'s composed ``pytest_check`` imports
+      ``ignition_app`` and ``_old_symbol_occurrences`` reads the tree, so both
+      go red. The residue is a fabricated ``gate1-behavior`` EvidenceItem
+      carrying ``assurance="deterministic"``: a defect in the evidence, not in
+      the verdict, and open.
 
     So the result declares ``"isolation": "subprocess"`` and nothing stronger.
 
@@ -279,9 +293,13 @@ def _behavior(candidate: Path) -> Mapping[str, object]:
     the diagnostics go to FILES and stdout is discarded, so no descendant holds
     a pipe this process must drain: a grandchild used to hold the parent 12.6x
     past its own declared timeout while the refusal still reported the short
-    bound. An orphaned grandchild can still outlive the probe -- that is named
-    in ``docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md``, not
-    assumed away.
+    bound. Re-measured against six attack shapes (inherited ``os.dup(1)``,
+    re-opening the transcript by path, a spawn chain that forks after the kill):
+    every one returned within 0.01s of the declared bound. An orphaned
+    grandchild can still outlive the probe, and a timed-out probe leaks its
+    temp directory permanently -- both named in
+    ``docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md`` rather
+    than assumed away.
     """
 
     source = str(Path(candidate).resolve() / "src")

@@ -253,11 +253,35 @@ def _rel(root: Path, path: Path) -> str:
 #: What it is NOT: a boundary. The child still runs at the operator's privilege
 #: level and can reach this repository through ``site-packages``. Removing the
 #: environment removes the cheap route and the secrets, nothing more.
+#: THE HOME VARIABLES ARE HERE BECAUSE DROPPING THEM FAILED SILENTLY, which is
+#: worse than failing loudly. Without them, win32 ``os.path.expanduser("~")``
+#: returns the LITERAL string ``~`` instead of raising, so a target suite doing
+#: ``Path(expanduser("~/.cache/x")).mkdir(parents=True)`` creates a directory
+#: named ``~`` inside the judged tree -- and
+#: ``kernel.attempt_execution._post_gate_artifact_stable`` then refuses the
+#: GREEN verdict over the untracked file. MEASURED: the same suite creates no
+#: such directory under an unrestricted environment. POSIX ``expanduser`` falls
+#: back to ``pwd``, so this shape is win32-only.
+#:
+#: A NARROWER LIST IS NOT SAFER. Dropping ``PATH``, ``TEMP``, ``TMP`` or
+#: ``TMPDIR`` left all 135 ignition tests green while breaking boxes other than
+#: this one, because nothing asserted the child receives what it NEEDS -- only
+#: that it does not receive secrets. Both edges are pinned now; see
+#: :data:`EVALUATOR_CHILD_ENV_REQUIRED`.
 EVALUATOR_CHILD_ENV_KEYS = frozenset({
     "SYSTEMROOT", "WINDIR", "PATH", "PATHEXT", "COMSPEC",
     "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
-    "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL",
+    "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE",
+    "USERPROFILE", "HOME", "HOMEDRIVE", "HOMEPATH",
 })
+
+#: The keys a child cannot work without. Split out so a test can pin the FLOOR
+#: of the allowlist: narrowing it is exactly as breaking as widening it leaks,
+#: and only one of those two directions had a test.
+EVALUATOR_CHILD_ENV_REQUIRED = frozenset(
+    {"PATH", "TEMP", "TMP", "SYSTEMROOT", "USERPROFILE"}
+    if os.name == "nt" else {"PATH", "HOME"}
+)
 
 
 def evaluator_child_env(**overrides: str) -> dict[str, str]:
