@@ -97,7 +97,7 @@ def _forest_query(subject: KnowledgeForest, plane: str) -> tuple[str, ...]:
 
 
 def _tensor_query(subject: TensorView, plane: str) -> tuple[str, ...]:
-    return tuple(entry.coordinate_map["node"] for entry in subject.select(plane=plane))
+    return tuple(entry.coordinates[0][1] for entry in subject.select(plane=plane))
 
 
 def _relation_forest(size: int) -> KnowledgeForest:
