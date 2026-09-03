@@ -77,6 +77,28 @@ push status — all true, none of them the actual claim.
 > disk, `git show <sha>:<path>` answers about history, and every claim about
 > what is IN the repository needs the second.
 
+**A caveat on that rule, on this machine.** In git-bash, MSYS argument
+conversion rewrites `<ref>:<path>` into a Windows path list when the ref
+contains a slash and the path does not. Characterised by probe:
+
+    git show origin/main:.gitignore          -> fatal: ambiguous argument
+                                                'origin\main;.gitignore'
+    git show main:.gitignore                 -> works   (ref has no slash)
+    git show origin/main:docs/HANDOFF.md     -> works   (path has a slash)
+    git show <sha>:.gitignore                -> works
+    MSYS2_ARG_CONV_EXCL='*' git show origin/main:.gitignore  -> works
+
+One session hit this, read the failure as "main has no .gitignore at all", and
+came within a message of reporting a correct claim as false. Note what saved it
+and what to generalise: this failure is LOUD. It does not return wrong content —
+it refuses. That makes it a different and milder hazard than `git log <sha>` or
+`cat-file -e` succeeding on an unreferenced object, which answers confidently
+and wrongly. The shared lesson is only that the command you typed may not be the
+command that executed; the danger differs sharply between the two cases.
+
+The measurements in this record are unaffected: they used commit SHAs, which
+contain no slash, or paths that do.
+
 **Two branches lost commits.** The push script resolved each origin branch name
 by preferring a local branch of that name over the remote-tracking ref. Where a
 lane had pushed without updating its local branch — the normal state for anyone
