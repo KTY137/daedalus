@@ -344,14 +344,36 @@ way rather than overwriting the real `kairos/decompose.py` annotation.
 
 ### 5.5 Still not done
 
-- **The `center:` directive in `.daedalusignore` is inert.** Nothing parses it.
-  `project_scope` takes its center from an explicit argument or
-  `DAEDALUS_CENTER`; `_parse_line` turns the line into an ignore pattern that
-  matches nothing. This repo declares `center: daedalus, tools, apps/web/src`
-  with a comment describing a precedence that was never implemented. Fixing it
-  changes structcore's metric and naming semantics repo-wide, so it is its own
-  packet. Pinned as a strict `xfail` in `tests/test_mapping_scope.py` so it
-  cannot be forgotten.
+- ~~**The `center:` directive in `.daedalusignore` is inert.**~~ **CLOSED by
+  G1-MAP-03** (`b0be0ad8`). Nothing parsed it: `project_scope` read its center
+  from an explicit argument or `DAEDALUS_CENTER` only, and `_parse_line` turned
+  the directive into an anchored ignore pattern matching no path. The
+  precedence the file's comment claims — explicit argument, then
+  `DAEDALUS_CENTER`, then the directive — now holds, and the center is part of
+  the scope fingerprint so two scopes that see different trees cannot share a
+  cache key.
+
+  What it had been costing is in `structcore/index.py`'s own comment: shell
+  files are withheld from every metric, which "costs ~2% (the per-file parse)
+  and saves ~96% (clone passes)". Every ordinary caller builds with
+  `center=None`, so the whole repository was the core and every hotspot
+  ranking, clone pass and slice expansion ranged over vendored trees.
+
+  **Reach was deliberately left out of it.** It passes an explicit empty
+  center — the strongest tier — so the island census still covers the whole
+  repository. Honouring the declaration there would make `scripts/` periphery,
+  and `scripts/fourfold_repo_probe.py` is exactly the operator entry point
+  whose absence manufactured the false island in §4.1. What is periphery for a
+  hotspot ranking is not automatically periphery for *"can anything reach this
+  at all"*.
+
+  One true finding fell out, reported and not merged:
+  `tools/gate_discrimination.py:104` does `import system_check as sc` after
+  inserting `TOOLS_DIR` into `sys.path`. With `tools` declared a center root
+  structcore resolves that edge; the reachability walk does not follow
+  sys.path-relative sibling imports, so the gate names one more genuine
+  `ENGINE DISAGREEMENT`. The edge is real — the `sys.path` insert is two lines
+  above it — and making the two engines agree is its own question.
 - The remaining readable gate findings are now worth acting on: `NEW UNKNOWN`
   (2), `ENGINE DISAGREEMENT` (1), `NEW DARK SWITCH` (3), `DOC DRIFT` (16),
   `TEST ONLY` (22).
