@@ -203,7 +203,7 @@ class TensorView(CanonicalContract):
                     raise ValueError("every sparse entry must bind exactly the TensorView axes")
                 if _sorted_label_index(axis.labels, label) is None:
                     raise ValueError(f"entry label {label!r} is not declared by axis {axis_name!r}")
-            semantic_key = entry.semantic_key
+            semantic_key = (coordinates, entry.relation)
             if previous_semantic_key is not None:
                 if semantic_key < previous_semantic_key:
                     entries_are_canonical = False
