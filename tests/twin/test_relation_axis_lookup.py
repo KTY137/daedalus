@@ -42,10 +42,6 @@ def _subject() -> ProjectionSubject:
     )
 
 
-def _forbid_full_label_index(_axis: TypedAxis) -> object:
-    raise AssertionError("relation-block lookup materialized a full axis label index")
-
-
 def test_typed_axis_detects_duplicates_after_canonical_sort() -> None:
     axis = TypedAxis(
         "code",
@@ -59,12 +55,13 @@ def test_typed_axis_detects_duplicates_after_canonical_sort() -> None:
         TypedAxis("code", "code", ("src/a.py", "src/a.py"))
 
 
-def test_coordinate_build_and_get_reuse_sorted_axis_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_coordinate_build_and_get_use_only_canonical_axis_labels() -> None:
     row_axis = TypedAxis("code", "code", ("src/z.py", "src/a.py", "src/m.py"))
     column_axis = TypedAxis("type", "type", ("Widget", "Adapter", "Service"))
     semiring = BooleanSemiring()
 
-    monkeypatch.setattr(TypedAxis, "label_index", property(_forbid_full_label_index))
+    assert not hasattr(row_axis, "label_index")
+    assert not hasattr(column_axis, "label_index")
 
     block = TypedRelationBlock.from_coordinates(
         subject=_subject(),
