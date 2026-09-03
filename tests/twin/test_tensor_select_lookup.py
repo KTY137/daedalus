@@ -258,7 +258,7 @@ def test_select_bisects_canonical_prefix_without_full_entry_scan() -> None:
 
     selected = tensor.select(node="node-255")
 
-    assert tuple(entry.coordinate_map["plane"] for entry in selected) == (
+    assert tuple(entry.coordinates[1][1] for entry in selected) == (
         "code",
         "knowledge",
     )
@@ -351,7 +351,7 @@ def test_select_preserves_non_prefix_filter_and_fail_closed_validation() -> None
 
     selected = tensor.select(plane="code")
     assert len(selected) == 256
-    assert all(entry.coordinate_map["plane"] == "code" for entry in selected)
+    assert all(entry.coordinates[1][1] == "code" for entry in selected)
 
     with pytest.raises(ValueError, match="unknown tensor axis"):
         tensor.select(missing="value")
