@@ -207,6 +207,7 @@ const trustOutfile = path.join(workdir, 'runtimetrust.js');
 const safetyOutfile = path.join(workdir, 'safety.js');
 const watcherOutfile = path.join(workdir, 'watchers.js');
 const capOutfile = path.join(workdir, 'capabilities.js');
+const catOutfile = path.join(workdir, 'catalogue.js');
 
 try {
   await build({
@@ -221,7 +222,8 @@ try {
       runtimetrust: path.join(here, '..', 'features', 'settings', 'runtimetrust.spec.ts'),
       safety: path.join(here, '..', 'features', 'system', 'safety.spec.ts'),
       watchers: path.join(here, '..', 'features', 'system', 'watchers.spec.ts'),
-      capabilities: path.join(here, '..', 'features', 'system', 'capabilities.spec.ts')
+      capabilities: path.join(here, '..', 'features', 'system', 'capabilities.spec.ts'),
+      catalogue: path.join(here, '..', 'features', 'system', 'catalogue.spec.ts')
     },
     bundle: true,
     absWorkingDir: repoRoot,
@@ -248,6 +250,7 @@ try {
   const { runSafetySpec } = await import(pathToFileURL(safetyOutfile).href);
   const { runWatcherSpec } = await import(pathToFileURL(watcherOutfile).href);
   const { runCapabilitySpec } = await import(pathToFileURL(capOutfile).href);
+  const { runCatalogueSpec } = await import(pathToFileURL(catOutfile).href);
   const results = [
     ...runSurfaceSpec(),
     ...(await runSystemCapabilitiesSpec()),
@@ -260,6 +263,7 @@ try {
     ...runSafetySpec(),
     ...runWatcherSpec(),
     ...runCapabilitySpec(),
+    ...runCatalogueSpec(),
     ...(await architectureSpec())
   ];
   let failed = 0;

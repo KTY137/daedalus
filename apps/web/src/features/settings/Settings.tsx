@@ -5,6 +5,7 @@ import type { RuntimeRow } from '@/shared/contracts';
 import { drawerVariants, useReducedMotionPref } from '@/shared/ui/motion';
 import { SystemCapabilities } from '@/features/system/SystemCapabilities';
 import { ComputeSection } from '@/features/system/ComputeSection';
+import { CatalogueSection } from '@/features/system/CatalogueSection';
 import { trustNotes } from './runtimetrust';
 import {
   AUTONOMY_LEVELS,
@@ -680,6 +681,11 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
             panel is open: the shallow probe is cheap, but polling a closed
             panel would still be work nobody asked for. */}
         <ComputeSection enabled={open} />
+
+        {/* What this interface may be built from, and what it may not copy.
+            /api/catalogue had no caller; the licence traps it exists to catch
+            were invisible. */}
+        <CatalogueSection enabled={open} />
 
         <section className="settings-section" aria-labelledby="caps-settings-title">
           <div className="settings-title" id="caps-settings-title">Ausführungsgrenzen</div>

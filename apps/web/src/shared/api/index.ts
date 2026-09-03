@@ -302,6 +302,51 @@ export interface AcceleratorPayload extends ApiEnvelope {
  * a visible change rather than an argument default. See the note in
  * `features/system/ComputeSection.tsx`.
  */
+/**
+ * THE UI COMPONENT CATALOGUE — what this interface may be built from.
+ *
+ * A pure read by construction: `read.py` deliberately keeps the latent half
+ * out of this endpoint so a GET carries no undeclared effect, and it ships
+ * `rejected` beside `entries` because "a reader must see what was REFUSED and
+ * why, not just what was admitted".
+ */
+export interface CatalogueEntryRow {
+  name: string;
+  kind?: string;
+  title?: string;
+  purpose?: string;
+  /** VERBATIM licence string. Never shorten it: "MIT-with-Commons-Clause"
+   *  truncated at the first token becomes "MIT", which is the exact error
+   *  this catalogue exists to prevent. */
+  licence?: string;
+  licence_url?: string;
+  /** code-derived on the backend: copy_in | reference_only | reciprocal */
+  use_mode?: string;
+  vendorable?: boolean;
+  notes?: string;
+  provenance?: string;
+  tags?: string[];
+  props?: Record<string, unknown>;
+  usage?: unknown;
+  dependencies?: unknown;
+  catalogue_dependencies?: unknown;
+}
+
+export interface CataloguePayload extends ApiEnvelope {
+  catalogue: {
+    schema?: string;
+    sources?: string[];
+    entries?: CatalogueEntryRow[];
+    entry_count?: number;
+    rejected?: Array<Record<string, unknown>>;
+    rejected_count?: number;
+  };
+}
+
+export function getCatalogue() {
+  return request<CataloguePayload>('/api/catalogue');
+}
+
 export function getAcceleratorStatus() {
   return request<AcceleratorPayload>('/api/accelerators/status');
 }

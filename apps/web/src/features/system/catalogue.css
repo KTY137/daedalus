@@ -1,0 +1,23 @@
+/* What this interface may be built from. Refusals sort first: a builder needs
+   to know what NOT to reach for before reading a list of what is fine. */
+.cat-list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--u1); }
+.cat-row {
+  display: grid;
+  gap: 2px;
+  padding: var(--u1) var(--u2);
+  border-left: var(--border) solid var(--line2);
+  font-size: var(--fs-xs);
+}
+.cat-row.warn { border-left-color: var(--warn); }
+.cat-row.bad { border-left-color: var(--bad); }
+.cat-head { display: flex; flex-wrap: wrap; gap: var(--u2); align-items: baseline; }
+.cat-name { color: var(--ink); font-family: var(--font-mono); }
+/* VERBATIM, and never truncated: "MIT-with-Commons-Clause" shortened at the
+   first token becomes "MIT", which is the error the catalogue exists to catch.
+   `overflow-wrap` rather than an ellipsis for exactly that reason. */
+.cat-licence { color: var(--ink2); overflow-wrap: anywhere; }
+a.cat-licence { text-decoration: underline; }
+.cat-use { color: var(--ink3); }
+.cat-use.warn { color: var(--warn); }
+.cat-use.bad { color: var(--bad); }
+.cat-caution { color: var(--bad); line-height: 1.45; }
