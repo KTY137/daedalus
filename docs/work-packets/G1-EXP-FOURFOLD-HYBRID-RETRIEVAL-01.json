@@ -9,6 +9,7 @@
   "primary_claim": "The Fourfold/Tensor layer should express typed multi-relation query semantics and compile onto ordinary physical indices; BM25 supplies lexical seeds rather than being replaced by a flattened tensor score.",
   "scope": {
     "adds": [
+      ".github/workflows/fourfold-hybrid-retrieval.yml",
       "experiments/fourfold_hybrid_retrieval/__init__.py",
       "experiments/fourfold_hybrid_retrieval/relations.py",
       "experiments/fourfold_hybrid_retrieval/planner.py",
@@ -19,6 +20,7 @@
     ],
     "changes_production_runtime": false,
     "changes_authoritative_forest_or_fourfold": false,
+    "adds_ci_workflow": true,
     "adds_store_or_registry": false,
     "adds_scheduler_or_evaluator": false,
     "adds_embedding_backend": false,
@@ -50,6 +52,7 @@
       "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin/test_fourfold_hybrid_retrieval_experiment.py",
       "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/twin"
     ],
+    "workflow": ".github/workflows/fourfold-hybrid-retrieval.yml",
     "author_side_smoke": "API-compatible local stubs: py_compile succeeded; focused tests 5 passed. This is not exact-head repository evidence."
   },
   "kill_or_redesign": [
@@ -66,5 +69,5 @@
     "benchmark_superiority_claim": false,
     "merge_requested": false
   },
-  "rollback": "Delete the isolated experiment package, focused test and this Work Packet; no production contract or persistent state is changed."
+  "rollback": "Delete the isolated experiment package, focused test, workflow and this Work Packet; no production contract or persistent state is changed."
 }
