@@ -9,9 +9,10 @@ consumes approval and never promotes the candidate.
 from __future__ import annotations
 
 import csv
-import importlib
+import json
 import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -135,26 +136,116 @@ def materialize_voltage_rename(source_root: str | Path, candidate_root: str | Pa
     return candidate
 
 
+#: The probe body, which runs in a CHILD interpreter. It prints one JSON object
+#: and nothing else, so the parent never has to guess where the measurement
+#: starts. ``sys.argv[1]`` is the candidate's ``src``: under ``-c`` the argument
+#: vector is ``['-c', <first extra arg>]``.
+_BEHAVIOR_PROBE = """\
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import ignition_app
+event = ignition_app.parse_event({"id": "1", "bias_voltage": "125.0"})
+json.dump({
+    "type": type(event).__name__,
+    "id": event.id,
+    "bias_voltage": event.bias_voltage,
+    "has_old_voltage_attribute": hasattr(event, "voltage"),
+}, sys.stdout)
+"""
+
+#: A candidate that has not answered in this long is a refusal. Generous on
+#: purpose: the probe is one import and one call, and a bound that trips on a
+#: slow box would read as a broken candidate.
+BEHAVIOR_PROBE_TIMEOUT_S = 120.0
+
+
 def _behavior(candidate: Path) -> Mapping[str, object]:
-    source = str(candidate / "src")
-    previous = list(sys.path)
-    stale = [name for name in sys.modules if name == "ignition_app" or name.startswith("ignition_app.")]
-    for name in stale:
-        sys.modules.pop(name, None)
+    """Measure the candidate's runtime behavior WITHOUT importing it here.
+
+    THE PROCESS BOUNDARY IS THE POINT. Until 2026-09-03 this function did
+    ``sys.path.insert(0, source)`` and ``importlib.import_module`` -- so the
+    candidate's module-level code ran inside the interpreter that holds the
+    ``python.attempt`` EffectLease, assembles the EvidencePacket, decides
+    ``behavior_ok`` and writes the receipt. Master plan invariant 3 says
+    candidate execution "cannot modify its evaluator, policy, evidence, budget
+    ledger, or promotion mechanism", ``AGENTS.md`` lists "candidate access to
+    its evaluator" as a release-blocking defect, and
+    ``G1_ACTIVATION_CHECKLIST.md`` §2.3 named this exact line on 2026-08-17.
+    ``tests/ignition/test_behavior_probe_isolation.py`` pins the fix by having
+    the candidate record ``os.getpid()`` at import: against the old
+    implementation that pid IS this process's.
+
+    ``-I`` (isolated) is deliberate and does two things worth naming: it drops
+    the script directory and ``PYTHONPATH`` from ``sys.path``, so the candidate
+    cannot import the evaluator's own package through an inherited environment,
+    and it ignores ``PYTHON*`` variables generally. It does NOT remove
+    ``site-packages``; a candidate can still import whatever this interpreter
+    has installed. That is a bound, not a sandbox, and it is stated rather
+    than implied.
+
+    WHAT THIS IS NOT. ``daedalus.spine.containment.spawn_contained`` is the
+    capability-bounded mechanism in this repository, and it is not used here:
+    it is win32-only (``platform_supported()`` is ``os.name == "nt"``) and
+    never falls back, so it would make this slice refuse on every other
+    platform, and with ``log=None`` the contained child has no stdio at all --
+    there would be no way to read the measurement back. So the result declares
+    ``"isolation": "subprocess"`` and claims process isolation only.
+
+    SECOND HONEST LIMIT: ``subprocess.run(timeout=...)`` kills the direct child
+    on expiry, not its descendants. A candidate that spawns a grandchild at
+    import would leave it behind. The gate path already solves this with
+    :mod:`daedalus.spine.cancel`; wiring it here is deferred work, named in
+    ``docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md`` §8, not
+    silently assumed away.
+    """
+
+    source = str(Path(candidate).resolve() / "src")
     try:
-        sys.path.insert(0, source)
-        module = importlib.import_module("ignition_app")
-        event = module.parse_event({"id": "1", "bias_voltage": "125.0"})
-        return {
-            "type": type(event).__name__,
-            "id": event.id,
-            "bias_voltage": event.bias_voltage,
-            "has_old_voltage_attribute": hasattr(event, "voltage"),
-        }
-    finally:
-        sys.path[:] = previous
-        for name in [name for name in sys.modules if name == "ignition_app" or name.startswith("ignition_app.")]:
-            sys.modules.pop(name, None)
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", _BEHAVIOR_PROBE, source],
+            capture_output=True,
+            text=True,
+            timeout=BEHAVIOR_PROBE_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        raise IgnitionError(
+            "the candidate behavior probe did not answer within "
+            f"{BEHAVIOR_PROBE_TIMEOUT_S:g}s"
+        ) from None
+    except OSError as exc:
+        raise IgnitionError(
+            "the candidate behavior probe could not be started "
+            f"({type(exc).__name__}: {exc})"
+        ) from exc
+
+    if completed.returncode != 0:
+        # The child's traceback is the diagnosis -- a candidate that still
+        # carries the retired symbol fails here with its own KeyError, which is
+        # exactly what a reader of a red receipt needs to see.
+        raise IgnitionError(
+            f"the candidate behavior probe failed (rc={completed.returncode}): "
+            + (completed.stderr or "").strip()[-2000:]
+        )
+    try:
+        observed = json.loads(completed.stdout)
+    except ValueError as exc:
+        raise IgnitionError(
+            f"the candidate behavior probe did not return JSON ({exc}): "
+            f"{(completed.stdout or '')[:400]!r}"
+        ) from exc
+    if not isinstance(observed, dict):
+        raise IgnitionError(
+            "the candidate behavior probe returned "
+            f"{type(observed).__name__}, not an object"
+        )
+
+    # NOT a pid, NOT a duration, NOT a path. `gate1` digests this mapping into
+    # the `ignition-behavior` evidence item and the receipt compares two runs'
+    # check reports, so a field that moved per run would make every Gate-1 run
+    # report itself as a failed replay. `run_voltage_ignition` below digests it
+    # into `behavior_sha256` for the same reason.
+    observed["isolation"] = "subprocess"
+    return observed
 
 
 def _old_symbol_occurrences(root: Path) -> tuple[str, ...]:
@@ -304,6 +395,7 @@ candidate_behavior = _behavior
 fourfold_graph_delta = _graph_delta
 
 __all__ = [
+    "BEHAVIOR_PROBE_TIMEOUT_S",
     "IgnitionError",
     "IgnitionGraphDelta",
     "IgnitionResult",
