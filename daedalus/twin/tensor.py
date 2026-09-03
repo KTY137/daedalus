@@ -180,17 +180,20 @@ class TensorView(CanonicalContract):
         for axis in axes:
             if not isinstance(axis, TensorAxis):
                 raise ValueError("tensor.axes must contain TensorAxis records")
-            if previous_name is not None and axis.name < previous_name:
-                axes_are_canonical = False
-            previous_name = axis.name
-        ordered_axes = (
-            axes
-            if axes_are_canonical
-            else tuple(sorted(axes, key=lambda axis: axis.name))
-        )
-        for index in range(1, len(ordered_axes)):
-            if ordered_axes[index - 1].name == ordered_axes[index].name:
-                raise ValueError("tensor.axes must have unique names")
+            name = axis.name
+            if previous_name is not None:
+                if name < previous_name:
+                    axes_are_canonical = False
+                elif axes_are_canonical and name == previous_name:
+                    raise ValueError("tensor.axes must have unique names")
+            previous_name = name
+        if axes_are_canonical:
+            ordered_axes = axes
+        else:
+            ordered_axes = tuple(sorted(axes, key=lambda axis: axis.name))
+            for index in range(1, len(ordered_axes)):
+                if ordered_axes[index - 1].name == ordered_axes[index].name:
+                    raise ValueError("tensor.axes must have unique names")
         axes = ordered_axes
         object.__setattr__(self, "axes", axes)
 
