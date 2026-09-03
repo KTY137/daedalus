@@ -150,12 +150,69 @@ A tool call made from a worktree finds a state that has never been logged in and
 is refused with "Not logged into Semgrep Guardian"; the same call from the
 primary checkout succeeds. This explains an intermittent refusal rate that three
 sessions independently reported as uncorrelated with file, path depth, content
-or size: the variable is the caller's cwd, not the edit. It also explains `Edit`
-refused while `Bash` succeeded minutes later.
+or size: the variable is the caller's cwd, not the edit.
 
-An earlier hypothesis in this session — concurrent sessions racing to rewrite one
-unlocked token file — is REFUTED by measurement: `serial: 4`, and no write in the
-preceding three and a half hours. Four writes cannot produce a 60% refusal rate.
-It is recorded as refuted because it had already been circulated to three
-sessions as plausible, and a hypothesis that travels needs its retraction to
-travel too.
+### Settled by A-B-A replication in two independent sessions
+
+The deciding variable is the **Bash session's persistent working directory** —
+the one `cd` mutates and which survives across calls — and it governs the `Edit`
+and `Write` tools too, not only `Bash`.
+
+    cwd = worktree   ->  Edit worktree file   ->  REFUSED
+    cwd = primary    ->  Edit the SAME file   ->  SUCCEEDED
+    cwd = worktree   ->  Edit the SAME file   ->  REFUSED     (replication)
+
+Identical target file in all three; only the cwd changed. A second session ran
+the mirror form — 12 refusals and 3 successes across five conditions, including
+a primary-checkout file edited from a worktree cwd (refused) and a worktree file
+edited from the primary cwd (succeeded). Both directions measured, both
+replicated, and the refusing condition was independently confirmed live at the
+minute the cross-check ran, so the successes are observations rather than a
+quiet machine.
+
+**Three hypotheses died here and all three were ours.** A concurrent-write race
+(refuted: `serial: 4`, no write in three and a half hours — four writes cannot
+produce a 60% rate). Resolution by the edited file's location (refuted by the
+table above). And the "Edit refused while Bash succeeded" pair that looked like
+a tool-surface difference: those Bash calls had been `cd`-ing into a worktree to
+run tests, the cwd persisted, and later Edits inherited it. Bash was not
+surviving the condition — Bash was CREATING it.
+
+The 60% figure was never a rate. It was the fraction of the day one session's
+cwd happened to sit in a worktree. An earlier datapoint from 09:00 was also
+retired by its owner once the login timestamp (15:17) showed it predated any
+login at all.
+
+**A proposed fix failed mechanistically, and it was this session's.** Removing a
+worktree's `.semgrep/` does not fall back to `~/.semgrep`: the Guardian
+RECREATES it in cwd as a fresh 140-byte pre-login stub, measured within the same
+minute as the five refused edits that followed the removal. "Stop letting
+per-worktree `.semgrep/` directories exist" is therefore not available — they
+come back on their own. The real fix is resolving to one shared state root;
+logging in per worktree, or keeping cwd in a logged-in tree, are workarounds
+that every new worktree re-breaks.
+
+**Practical consequence, worth more than the mechanism:** any session that `cd`s
+into a worktree to run tests silently loses the ability to edit ANY file,
+including files in the logged-in primary checkout. It presents as a broken tool
+and has nothing to do with what is being edited. `cd` back and it works.
+
+Incidental: the hook is evaluated BEFORE `Edit`'s string match, so a refused
+edit never writes and a follow-up edit then fails on a missing `old_string` with
+an error that looks unrelated to the hook.
+
+### The ignore rule was on main only, and main is not where the token lives
+
+Immediately after this record first claimed the trap closed, `git check-ignore`
+across all nine worktrees returned NOT IGNORED in eight — including the primary
+checkout, the one tree holding the LOGGED-IN 1768-byte guardian.yml with a live
+JWT. The `.gitignore` rule had landed on `main`; the primary checkout sits on a
+packet branch. The trap reported as closed was still armed in the most dangerous
+tree.
+
+Closed branch-independently by appending `.semgrep/` to `.git/info/exclude`,
+which every linked worktree shares and which is not versioned, so it took effect
+in all nine at once without touching any lane's branch. Re-measured: nine of
+nine ignored. The tracked rule on main remains the durable fix for fresh clones,
+and every branch still needs it merged — an untracked live credential beside an
+unignored path is one `git add` from the same trap.
