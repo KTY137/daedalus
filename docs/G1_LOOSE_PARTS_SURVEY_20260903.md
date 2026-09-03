@@ -701,9 +701,22 @@ Doing only (1) leaves `--coverage-guided` permanently unavailable. An earlier
 draft of this section recommended (2) alone, before the opt-in default was
 measured; that recommendation was wrong.
 
-Neither is applied here. `pyproject.toml` and `uv.lock` move together, and this
-lane was frozen on git for an owner-authorised history rewrite when the finding
-landed. Recorded rather than half-done.
+**Both landed.** (1) in `90462c30`: the host verdict goes NOT FIT → **FIT TO
+MEASURE**, which is what unblocks a receipt refresh. (2) in `0580898c`, once the
+history rewrite's freeze lifted and the lockfile could move safely.
+
+The lockfile turned out to be stale independently of this change. `uv lock`
+added `coverage` as intended, and also `pytest-xdist` and `execnet`, which
+`pyproject.toml` already declared at line 81 and the lock simply did not carry
+— so `uv sync --frozen` had been passing only because it never checked for the
+missing ones. The diff is 154 insertions and **zero deletions**: three packages
+added, no existing version moved.
+
+Declaring the dependency is deliberately not the same act as provisioning an
+environment, and the two were kept separate: `coverage` is still absent from
+this machine's venv, the preflight still reports it absent-but-optional, and the
+host is still FIT. What changed is that anyone who wants the stronger gate now
+has a supported way to get it.
 
 ## 9. What was deliberately not fixed
 
