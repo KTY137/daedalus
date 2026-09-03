@@ -184,3 +184,21 @@ runs/analysis/**/tmp/
 runs/analysis/**/_scratch/
 runs/analysis/**/*.txt
 memory/events.local.jsonl.lock
+
+# Semgrep Guardian's credential file, at either level.
+#
+# The Guardian REWRITES this file on every token refresh, so it is permanently
+# dirty in every checkout and a broad `git add` sweeps it into a commit. That
+# fired twice on 2026-09-02 (b574717e, d6114b83) and both times happened to
+# catch the harmless pre-login form -- serial, anonymous_user_id, auth_method,
+# expiry, 140 bytes, verified token-free with `git show <sha>:<path>`. The
+# working copy is NOT harmless: it holds a live OAuth access token and refresh
+# token.
+#
+# The four paths were purged from history by the 2026-09-03 rewrite, but a
+# .gitignore entry has no effect on an ALREADY-TRACKED path, so the entry only
+# starts working once the purge lands in a given checkout -- which is now.
+# Without this, the next refresh leaves the file untracked-and-unignored and
+# the trap is armed again.
+.semgrep/
+apps/web/.semgrep/

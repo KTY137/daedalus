@@ -72,3 +72,22 @@
   padding-left: var(--u2);
   border-left: var(--border) solid var(--line2);
 }
+
+/* Prerequisites, one per line and neutrally labelled. The backend's `missing`
+   list mixes "go install this" with "the silicon does not have them"; a label
+   reading "fehlt" put the wrong verb on the second and contradicted the
+   sentence inside it. */
+.compute-lane-missing { display: grid; gap: 4px; }
+.compute-lane-missing-label {
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--label-tracking);
+  font-weight: var(--label-weight);
+}
+.compute-lane-missing ul { margin: 0; padding-left: var(--u2); }
+.compute-lane-missing li { color: var(--ink2); }
+
+.compute-remote { display: grid; gap: var(--u1); }
+/* What the remote architecture can host AT ALL — the backend's own sentence,
+   never recomputed here. */
+.compute-dev-capability { color: var(--ink3); }

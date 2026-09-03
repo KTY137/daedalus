@@ -315,15 +315,71 @@ The reviewer also checked and found sound: the tri-state handling, `laneRank`/
 (none vacuous), the unstubbed live test, that the deep probe genuinely never ran
 unasked, and the architecture against Plan §4/§13 and the hierarchy rule.
 
+### Follow-up: "missing" versus "impossible here"
+
+Closing the reviewer's S3 remainder turned up a defect of its own, in the same
+family as the rest of this packet.
+
+`capability_lanes()` exists to separate two things its docstring refuses to let
+blur: *"'missing' invites someone to go install a library. 'impossible' tells
+them to stop. Reporting the first when the second is true is how an afternoon
+gets spent against the wrong silicon."*
+
+The backend puts **both kinds of entry in the same `missing` list**. On a
+pre-Volta card the entry reads "tensor cores (this device is pre-Volta: NVIDIA
+MX330, compute capability 6.1) -- not installable, the silicon does not have
+them". This surface was labelling that whole list `fehlt:` — putting the exact
+verb the backend was avoiding onto the one entry that contradicts it, inside a
+comma-joined run-on where the disclaiming clause reads as an afterthought.
+
+The label is now neutral (`Voraussetzungen`) and each entry is its own line, so
+the backend's sentence reads as a statement. **This interface does not classify
+the entries itself**: which kind an entry is arrives inside its text, and the
+compute-capability floors stay in `_CC_FLOORS` on the Python side. A second
+opinion computed in a browser would be a second source of truth for a hardware
+fact.
+
+`remote_compute.devices[].capability` is now rendered too — verbatim, via
+`capabilityNote()`, which returns the backend's `note` and never derives one. A
+reachable bench previously showed as the single word "erreichbar", which let
+"it answered" read as "it can host this".
+
+| # | Claim | Check | Result |
+|---|---|---|---|
+| 20 | An architectural blocker is not labelled as something to install | `compute.spec.ts` | green; mutation-checked |
+| 21 | Each prerequisite is its own line | `compute.spec.ts` | green |
+| 22 | A reachable bench reports what its silicon can host | `compute.spec.ts` | green; mutation-checked |
+| 23 | A pre-Volta bench card says so rather than looking capable | `compute.spec.ts` | green; mutation-checked |
+
+Evidence: `test:app` 188/188; `npx playwright test` **102 passed, 1 skipped,
+0 failed**; tsc and build clean; audit floor 0 below. Mutations caught:
+restoring the `fehlt` label, and dropping the capability note.
+
 ### Remaining, named rather than closed
 
-- `remote_compute.lanes` and `devices[].capability` are in the contract but not
-  rendered. `capability_lanes()` exists to distinguish "missing" from
-  "impossible here", and a remote bench GPU currently shows only as the word
-  "erreichbar". Worth a follow-up.
-- `computeSummary` counts local devices only, so a machine with no local card
-  and a probed remote one reads "0 Geräte sichtbar".
+- `remote_compute.lanes` (the per-lane roll-up across remote devices) is in the
+  contract but still not rendered; the per-device `capability` note covers the
+  same ground for now.
+
+  *Closed since:* `computeSummary` counted local devices only, so the setup the
+  accelerators module was rewritten FOR — no local card, the capable card on
+  the bench — read "0 Geräte sichtbar" directly above a section listing that
+  bench GPU. Both sides are now counted, separately and never summed: a local
+  card and a remote one are not interchangeable, and one total would invite
+  exactly the substitution the module refuses to make. (`accelerators.spec.ts`,
+  4 checks.)
 - The `ready` framework path is **UNVERIFIED on real hardware**: no CUDA
   framework is installed here, so it is covered by fixtures and the pure spec,
-  never by a live probe.
-- The effectful-GET defect in `read.py` is reported and unfixed.
+  never by a live probe. The same applies to every remote-bench row above —
+  nothing remote is configured on this machine.
+- The effectful-GET defect in `read.py` is reported and unfixed, and is an
+  owner decision.
+- **Pin durability under the pending history rewrite.** The owner has approved
+  a full-history rewrite. The `Base revision` in this packet's metadata will
+  name a commit that no longer exists; it is to be repointed from the
+  old->new commit map that rewrite publishes, not silently left dangling and
+  not rewritten in lockstep (which would chase its own tail). The
+  `Effect-registry digest` above is **unaffected** — it is a content digest of
+  the registry, not a commit SHA. That contrast is the durable lesson: a
+  content digest of a thing survives history surgery, a pointer to a commit
+  does not.

@@ -3,6 +3,7 @@ import { ApiError, getAcceleratorStatus, type AcceleratorFramework, type Acceler
 import {
   FRAMEWORK_WORD,
   LANE_WORD,
+  capabilityNote,
   computeSummary,
   frameworkReading,
   frameworkTone,
@@ -157,7 +158,37 @@ export function ComputeSection({ enabled, read = getAcceleratorStatus }: Compute
                   <span className="compute-lane-for">für {lane.applicable_to.join(', ')}</span>
                 )}
                 {lane.missing.length > 0 && (
-                  <span className="compute-lane-missing">fehlt: {lane.missing.join(', ')}</span>
+                  /*
+                   * NOT "fehlt". The backend's `missing` list holds two kinds
+                   * of entry and only one of them is missing in the sense that
+                   * word implies:
+                   *
+                   *   "CUDA-capable PyTorch or CuPy runtime"   -> go install it
+                   *   "tensor cores (this device is pre-Volta: ...)
+                   *    -- not installable, the silicon does not have them"
+                   *
+                   * `capability_lanes()` exists precisely for the second, and
+                   * its docstring says why: "'missing' invites someone to go
+                   * install a library. 'impossible' tells them to stop.
+                   * Reporting the first when the second is true is how an
+                   * afternoon gets spent against the wrong silicon."
+                   *
+                   * Labelling the whole list "fehlt" put the wrong verb on the
+                   * architectural entry and contradicted the sentence inside
+                   * it. The label is neutral now and each entry gets its own
+                   * line, so the backend's sentence reads as a statement
+                   * rather than as one clause of a comma-joined run-on. This
+                   * interface does not try to classify the entries itself:
+                   * that verdict is the backend's and arrives inside the text.
+                   */
+                  <span className="compute-lane-missing">
+                    <span className="compute-lane-missing-label">Voraussetzungen</span>
+                    <ul>
+                      {lane.missing.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </span>
                 )}
                 {lane.evidence.length > 0 && (
                   <span className="compute-lane-evidence">Beleg: {lane.evidence.join(', ')}</span>
@@ -181,16 +212,40 @@ export function ComputeSection({ enabled, read = getAcceleratorStatus }: Compute
             </p>
           )}
 
-          {/* Remote compute: unknown is not offline. */}
+          {/* Remote compute: unknown is not offline. And when a bench IS
+              reachable, its cards carry the `capability_lanes()` verdict — the
+              answer to "could this silicon host the lane at all", which is a
+              different question from whether a library is installed. Rendering
+              only the word "erreichbar" threw that away and left the bench GPU
+              as a rumour. */}
           {snapshot.remote_compute.configured ? (
-            <p className="settings-hint">
-              Entfernte Rechenleistung {snapshot.remote_compute.target}:{' '}
-              {snapshot.remote_compute.available === true
-                ? 'erreichbar'
-                : snapshot.remote_compute.available === false
-                  ? `nicht erreichbar${snapshot.remote_compute.error ? ` — ${snapshot.remote_compute.error}` : ''}`
-                  : 'nicht geprüft'}
-            </p>
+            <div className="compute-remote">
+              <p className="settings-hint">
+                Entfernte Rechenleistung {snapshot.remote_compute.target}:{' '}
+                {snapshot.remote_compute.available === true
+                  ? 'erreichbar'
+                  : snapshot.remote_compute.available === false
+                    ? `nicht erreichbar${snapshot.remote_compute.error ? ` — ${snapshot.remote_compute.error}` : ''}`
+                    : 'nicht geprüft'}
+              </p>
+              {snapshot.remote_compute.devices.length > 0 && (
+                <ul className="compute-devices">
+                  {snapshot.remote_compute.devices.map((device, i) => (
+                    <li key={`${device.name}-${i}`}>
+                      <span className="compute-dev-name">{device.name}</span>
+                      <span>Compute {device.compute_capability}</span>
+                      <span>{memoryText(device.memory_mib)}</span>
+                      {/* The backend's own sentence about what this
+                          architecture can host. Not recomputed here: the CC
+                          floors live in `_CC_FLOORS` and stay there. */}
+                      {capabilityNote(device.capability) && (
+                        <span className="compute-dev-capability">{capabilityNote(device.capability)}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           ) : (
             <p className="settings-hint">
               Keine entfernte Rechenleistung konfiguriert. {snapshot.remote_compute.hint}

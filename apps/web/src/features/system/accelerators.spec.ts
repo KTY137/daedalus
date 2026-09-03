@@ -219,6 +219,36 @@ export function runAcceleratorSpec(): Result[] {
     'a read that never happened is not summarised as an empty machine',
     computeSummary(undefined) === 'Rechenlage nicht gelesen'
   );
+
+  /*
+   * The bench. `accelerators.py` was rewritten because "this module answered
+   * hardware questions about the machine it RUNS on while the capable card
+   * lives on the bench". Counting only local devices reproduced that in the
+   * one line a reader looks at first.
+   */
+  const benchOnly = computeSummary(payload({
+    hardware: { available: false, command: '', devices: [], error: 'nvidia-smi not found' },
+    lanes: [lane({ state: 'ready' })],
+    remote_compute: {
+      configured: true, available: true, target: 'user@bench',
+      devices: [{ name: 'RTX 5080', compute_capability: '12.0', memory_mib: 16303, driver_version: '610.47' }],
+      error: '', hint: ''
+    }
+  }));
+  check('a bench GPU is counted, not silently dropped', benchOnly.includes('1 auf der Bench'), benchOnly);
+  check(
+    'a machine with no local card still says so honestly',
+    benchOnly.includes('0 Ger\u00e4te sichtbar'),
+    benchOnly
+  );
+  // Counted separately, never summed: a local card and a remote one are not
+  // interchangeable, and one total would invite exactly that substitution.
+  check('local and remote are not added into one number', !benchOnly.includes('1 Ger\u00e4t sichtbar'), benchOnly);
+  check(
+    'no bench means no bench clause',
+    !computeSummary(payload({ lanes: [lane()] })).includes('Bench'),
+    computeSummary(payload({ lanes: [lane()] }))
+  );
   // A malformed 200 whose `accelerators` block never arrived is not a machine
   // that reported zero lanes.
   check(

@@ -248,6 +248,115 @@ test.describe('compute section', () => {
     await expect(panel.locator('.compute-claim-raw')).toContainText('false');
   });
 
+  test('an architectural blocker is not labelled as something to go install', async ({ page }) => {
+    /*
+     * `capability_lanes()` exists for this and says why in its docstring:
+     * "'missing' invites someone to go install a library. 'impossible' tells
+     * them to stop. Reporting the first when the second is true is how an
+     * afternoon gets spent against the wrong silicon."
+     *
+     * The backend puts BOTH kinds of entry in the same `missing` list — the
+     * installable one and the sentence ending "not installable, the silicon
+     * does not have them". Labelling the whole list "fehlt" put the wrong verb
+     * on the second and contradicted the text inside it.
+     */
+    await stub(page, shallow({
+      lanes: [{
+        id: 'tensor_inference', label: 'CUDA tensor inference', state: 'missing',
+        applicable_to: ['embedding batches'], evidence: [],
+        missing: [
+          'tensor cores (this device is pre-Volta: NVIDIA MX330, compute capability 6.1) -- not installable, the silicon does not have them'
+        ],
+        warning: ''
+      }]
+    }));
+    const panel = await openSettings(page);
+
+    const lane = panel.locator('.compute-lane', { hasText: 'CUDA tensor inference' });
+    // The backend's sentence survives intact and reads as its own statement.
+    await expect(lane).toContainText('not installable, the silicon does not have them');
+    // And the surface does not put "fehlt" in front of it.
+    await expect(
+      lane.locator('.compute-lane-missing-label'),
+      'an uninstallable prerequisite is labelled as missing'
+    ).not.toContainText('fehlt');
+    await expect(lane.locator('.compute-lane-missing-label')).toContainText('Voraussetzungen');
+  });
+
+  test('each prerequisite is its own line, not a comma-joined run-on', async ({ page }) => {
+    await stub(page, shallow({
+      lanes: [{
+        id: 'sparse_graph', label: 'CUDA sparse graph', state: 'missing',
+        applicable_to: [], evidence: [],
+        missing: ['NVIDIA CUDA device', 'CUDA-capable cuVS or cuGraph runtime'],
+        warning: ''
+      }]
+    }));
+    const panel = await openSettings(page);
+
+    const items = panel.locator('.compute-lane-missing li');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toHaveText('NVIDIA CUDA device');
+    await expect(items.nth(1)).toHaveText('CUDA-capable cuVS or cuGraph runtime');
+  });
+
+  test('a reachable bench reports what its silicon can host, not just that it answered', async ({ page }) => {
+    /*
+     * `_remote_compute_status` attaches `capability_lanes()` to every remote
+     * device. Rendering only the word "erreichbar" threw away the answer to
+     * "could this card host the lane at all" and left the bench GPU a rumour.
+     */
+    await stub(page, shallow({
+      remote_compute: {
+        configured: true, available: true, target: 'user@bench',
+        devices: [{
+          name: 'NVIDIA GeForce RTX 5080', compute_capability: '12.0',
+          memory_mib: 16303, driver_version: '610.47',
+          capability: {
+            compute_capability: '12.0', known: true,
+            supports: { tensor_cores: true, rt_cores: true },
+            note: 'architecture supports rt_cores, tensor_cores'
+          }
+        }],
+        lanes: { tensor_cores: true, rt_cores: true },
+        error: '', hint: ''
+      }
+    }));
+    const panel = await openSettings(page);
+
+    const remote = panel.locator('.compute-remote');
+    await expect(remote).toContainText('user@bench');
+    await expect(remote).toContainText('erreichbar');
+    await expect(remote).toContainText('NVIDIA GeForce RTX 5080');
+    // The backend's verdict, verbatim and not recomputed in the browser.
+    await expect(remote.locator('.compute-dev-capability')).toContainText('architecture supports rt_cores, tensor_cores');
+  });
+
+  test('a pre-Volta bench card says so rather than looking capable', async ({ page }) => {
+    await stub(page, shallow({
+      remote_compute: {
+        configured: true, available: true, target: 'user@bench',
+        devices: [{
+          name: 'NVIDIA MX330', compute_capability: '6.1',
+          memory_mib: 2048, driver_version: '560.94',
+          capability: {
+            compute_capability: '6.1', known: true,
+            supports: { tensor_cores: false, rt_cores: false },
+            note: 'pre-Volta: no tensor cores, no RT cores'
+          }
+        }],
+        lanes: { tensor_cores: false, rt_cores: false },
+        error: '', hint: ''
+      }
+    }));
+    const panel = await openSettings(page);
+
+    const remote = panel.locator('.compute-remote');
+    await expect(remote).toContainText('erreichbar');
+    // "Reachable" must not be allowed to read as "capable".
+    await expect(remote.locator('.compute-dev-capability')).toContainText('pre-Volta: no tensor cores');
+  });
+
   test('a compute read that failed is never drawn as a machine without accelerators', async ({ page }) => {
     await page.route('**/api/accelerators/status*', (route) => route.abort('failed'));
     const panel = await openSettings(page);

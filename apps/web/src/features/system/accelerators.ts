@@ -135,10 +135,49 @@ export function computeSummary(payload: AcceleratorPayload | undefined): string 
   const lanes = payload.accelerators.lanes || [];
   if (lanes.length === 0) return 'Keine Lane gemeldet';
   const ready = lanes.filter((l) => l.state === 'ready').length;
-  const devices = payload.accelerators.hardware?.devices?.length || 0;
-  const seen = devices === 1 ? '1 Gerät sichtbar' : `${devices} Geräte sichtbar`;
-  // Zero ready lanes is stated as zero, never as the device count.
-  return `${seen} · ${ready} von ${lanes.length} Lanes einsatzbereit`;
+
+  /*
+   * BOTH SIDES OF THE MACHINE, because counting one of them was a quiet lie.
+   *
+   * This counted `hardware.devices` only — the card in the box this process
+   * runs on. `accelerators.py` was rewritten specifically because that is the
+   * wrong question here: "this module answered hardware questions about the
+   * machine it RUNS on while the capable card lives on the bench". On exactly
+   * that setup — no local card, a probed RTX 5080 over ssh — the summary read
+   * "0 Geräte sichtbar" directly above a section listing the bench GPU.
+   *
+   * The two are counted separately rather than added. A local card and a
+   * remote one are not interchangeable, and a single total would invite
+   * exactly the substitution the module refuses to make.
+   */
+  const local = payload.accelerators.hardware?.devices?.length || 0;
+  const bench = payload.accelerators.remote_compute?.devices?.length || 0;
+  const seen = local === 1 ? '1 Gerät sichtbar' : `${local} Geräte sichtbar`;
+  const remote = bench > 0 ? ` · ${bench} auf der Bench` : '';
+
+  // Zero ready lanes is stated as zero, never as a device count.
+  return `${seen}${remote} · ${ready} von ${lanes.length} Lanes einsatzbereit`;
+}
+
+/**
+ * What the backend said this architecture can host, in its own words.
+ *
+ * `capability_lanes()` answers "could this silicon run the lane AT ALL",
+ * which is not the question "is a library installed". Its docstring is blunt
+ * about why the distinction earns its keep: "'missing' invites someone to go
+ * install a library. 'impossible' tells them to stop."
+ *
+ * This returns the backend's `note` and never derives one. The compute-
+ * capability floors live in `_CC_FLOORS` on the Python side and a second
+ * opinion computed in a browser would be a second source of truth for a
+ * hardware fact — exactly the duplication the plan forbids. An unparseable
+ * capability comes back `known: false` with its own note, which is also the
+ * backend's to write.
+ */
+export function capabilityNote(capability: Record<string, unknown> | undefined): string {
+  if (!capability) return '';
+  const note = capability.note;
+  return typeof note === 'string' ? note : '';
 }
 
 /** VRAM, or an honest absence. `nvidia-smi` reports `[N/A]` for some cards and
