@@ -10,7 +10,6 @@ from __future__ import annotations
 import math
 from bisect import bisect_left
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 
 from ..schemas import _identifier, _non_empty, _record_payload, _revision, _sha256
@@ -210,10 +209,6 @@ class TypedAxis:
         if any(labels[index - 1] == labels[index] for index in range(1, len(labels))):
             raise ValueError("axis.labels must not contain duplicates")
         object.__setattr__(self, "labels", tuple(labels))
-
-    @property
-    def label_index(self) -> Mapping[str, int]:
-        return MappingProxyType({label: index for index, label in enumerate(self.labels)})
 
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "plane": self.plane, "labels": list(self.labels)}
