@@ -18,7 +18,8 @@ function profile(mode = 'manual') {
     category_label: 'Engineering',
     squads: ['runtime'],
     active: true,
-    capabilities: ['read_files'],
+    // One grant the registry declares, one it does not -- the live mix.
+    capabilities: ['ollama_write', 'bash'],
     autonomy: { read_files: { project_default: mode } },
     ownership: ['daedalus/runtimes']
   };
@@ -43,6 +44,12 @@ async function fulfillJson(route: Route, body: Record<string, unknown>) {
  * The dashboard's `quality` block for the next stub. Mutable so one test can
  * make a safety probe fail without a second stub helper; reset per test.
  */
+/** The capability registry the hierarchy carries. Mutable per test. */
+let hierarchyCapabilities: Array<Record<string, unknown>> = [
+  { id: 'ollama_write', name: 'Ollama Write', description: 'Write through the local Ollama runtime.', requires_secret: false, risk: 'local_write' },
+  { id: 'deepseek_advisory', name: 'DeepSeek Advisory', description: '', requires_secret: true, risk: 'external_advisory' }
+];
+
 let dashboardWatcher: Record<string, unknown> = {
   running: true,
   stale_count: 0,
@@ -62,6 +69,10 @@ let dashboardQuality: Record<string, unknown> = {
 };
 
 test.beforeEach(() => {
+  hierarchyCapabilities = [
+    { id: 'ollama_write', name: 'Ollama Write', description: 'Write through the local Ollama runtime.', requires_secret: false, risk: 'local_write' },
+    { id: 'deepseek_advisory', name: 'DeepSeek Advisory', description: '', requires_secret: true, risk: 'external_advisory' }
+  ];
   dashboardWatcher = {
     running: true,
     stale_count: 0,
@@ -132,7 +143,11 @@ async function stubCockpit(page: Page, providerFails = false) {
   await page.route('**/api/projects/*/bootstrap/claude', (route) => fulfillJson(route, envelope({ prompt: 'CLAUDE_BOOTSTRAP_FIXTURE' })));
   await page.route('**/api/projects/*/hierarchy', (route) => fulfillJson(route, envelope({
     nodes: [{ id: 'alpha', type: 'agent', label: 'Alpha', data: {} }],
-    edges: [], health: {}, capabilities: [], policy_flags: {}
+    edges: [], health: {},
+    // The live capability registry, verbatim (2026-09-03). It was typed as an
+    // opaque Record and stubbed as [], so nothing exercised it.
+    capabilities: hierarchyCapabilities,
+    policy_flags: {}
   })));
   await page.route('**/api/providers/status', (route) => providerFails
     ? route.fulfill({ status: 500, json: { ok: false, error: 'provider sample unavailable' } })
@@ -356,4 +371,81 @@ test('a dashboard with no watcher block is not reported as having no watcher', a
   await expect(system.locator('.watcher-head')).not.toContainText('kein passender Prozess');
   // Unproven, not a measured absence: amber rather than red.
   await expect(system.locator('.watcher-head span')).toHaveClass(/\bwarn\b/);
+});
+
+test('a granted capability nobody classified says so, and is not guessed at', async ({ page }) => {
+  /*
+   * Two vocabularies that do not line up. Measured across the 24 live
+   * profiles: seven capabilities are granted, the registry declares five, and
+   * only `ollama_write` and `claude_escalate` appear in both. The five
+   * unclassified ones include `bash` and `file_write`.
+   *
+   * The grants used to print as a flat comma list in which every entry looked
+   * alike, so an unassessed grant was indistinguishable from a cleared one.
+   */
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  const grants = system.locator('.cap-grants li');
+  await expect(grants).toHaveCount(2);
+
+  // The declared one carries the registry's own class.
+  const ollama = grants.filter({ hasText: 'ollama_write' });
+  await expect(ollama).toContainText('schreibt lokal');
+
+  // The undeclared one says no class was assigned -- and is NOT painted red.
+  // Guessing that `bash` is dangerous would assert a classification nobody
+  // made, which is the failure this whole surface refuses.
+  const bash = grants.filter({ hasText: 'bash' });
+  await expect(bash).toContainText('ohne eingestufte Risikoklasse');
+  await expect(bash.locator('.cap-risk')).not.toHaveClass(/\bbad\b/);
+
+  // And the profile summarises what is open, by name.
+  await expect(system.getByText(/1 Berechtigung ohne eingestufte Risikoklasse: bash/)).toBeVisible();
+});
+
+test('a capability that needs a secret says so', async ({ page }) => {
+  hierarchyCapabilities = [
+    { id: 'bash', name: 'Bash', description: '', requires_secret: false, risk: 'local_write' },
+    { id: 'ollama_write', name: 'Ollama Write', description: '', requires_secret: true, risk: 'local_write' }
+  ];
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  await expect(system.locator('.cap-grants li', { hasText: 'ollama_write' })
+    .locator('.cap-secret')).toContainText('braucht ein Geheimnis');
+  // Now both grants are classified, so the open-grant summary disappears.
+  await expect(system.getByText(/ohne eingestufte Risikoklasse/)).toHaveCount(0);
+});
+
+test('an empty registry does not silently clear every grant', async ({ page }) => {
+  // A server that sends no registry has classified nothing. That must not
+  // read the same as a server that classified everything.
+  hierarchyCapabilities = [];
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  const grants = system.locator('.cap-grants li');
+  await expect(grants).toHaveCount(2);
+  await expect(grants.first()).toContainText('ohne eingestufte Risikoklasse');
+  await expect(system.getByText(/2 Berechtigungen ohne eingestufte Risikoklasse/)).toBeVisible();
+});
+
+test('an unrecognised risk class reaches the screen rather than being swallowed', async ({ page }) => {
+  // `risk` is a plain string in the contract on purpose: a NEW class must
+  // surface as an unrecognised word, not become a browser type error.
+  hierarchyCapabilities = [
+    { id: 'ollama_write', name: 'Ollama Write', description: '', requires_secret: false, risk: 'quantum_egress' },
+    { id: 'bash', name: 'Bash', description: '', requires_secret: false, risk: 'local_write' }
+  ];
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  const ollama = system.locator('.cap-grants li', { hasText: 'ollama_write' });
+  await expect(ollama).toContainText('quantum_egress');
+  await expect(ollama.locator('.cap-risk')).toHaveClass(/\bwarn\b/);
 });

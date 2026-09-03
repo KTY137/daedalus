@@ -132,3 +132,22 @@
 }
 .watcher-list li.bad { color: var(--bad); }
 .watcher-list code { font-family: var(--font-mono); }
+
+/* An agent's grants, each against the capability registry. They used to print
+   as a flat comma list in which every entry looked alike; five of the seven
+   granted here carry no declared risk class at all. Unassessed is drawn as
+   unassessed — not as safe, and not as dangerous, because this interface does
+   not classify what the registry declined to. */
+.cap-grants { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.cap-grants li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u1);
+  align-items: baseline;
+  font-size: var(--fs-xs);
+  color: var(--ink3);
+}
+.cap-grants li.warn { color: var(--ink2); }
+.cap-grants code { font-family: var(--font-mono); color: var(--ink); }
+.cap-risk.warn { color: var(--warn); }
+.cap-secret { color: var(--bad); }

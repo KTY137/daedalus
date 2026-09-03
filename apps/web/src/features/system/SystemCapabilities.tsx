@@ -9,6 +9,7 @@ import {
 } from './api';
 import { GATE_WORD, fallbackText, gateTone, safetyGates, staleText } from './safety';
 import { watcherReading, watcherWhere } from './watchers';
+import { readCapabilities, unclassifiedNote, type CapabilityEntry } from './capabilities';
 import './system-capabilities.css';
 
 export interface SystemCapabilitiesProps {
@@ -63,12 +64,16 @@ function ControlPlaneCard({
   project,
   result,
   onUpdated,
-  ports
+  ports,
+  registry
 }: {
   project: string;
   result: CapabilityResult<ControlPlanePayload>;
   onUpdated: (value: ControlPlanePayload) => void;
   ports: SystemCapabilityPorts;
+  /** `hierarchy.capabilities` — byte-identical to /api/capabilities, and
+   *  already in hand, so reading it costs no extra request. */
+  registry: CapabilityEntry[] | undefined;
 }) {
   const profiles = result.status === 'ready' ? result.data.profiles || [] : [];
   const [selected, setSelected] = useState('');
@@ -122,7 +127,32 @@ function ControlPlaneCard({
                   <option value="autonomous">autonomous</option>
                 </select>
               </label>
-              <p className="system-small">Capabilities: {profile.capabilities.join(', ') || 'keine gemeldet'}</p>
+              {/* WHAT THIS AGENT MAY DO, and whether anyone classified it.
+                  The grants used to print as a flat comma list in which every
+                  entry looked alike. Measured here: five of the seven granted
+                  across 24 profiles carry no declared risk class at all, and
+                  they include `bash` and `file_write`. Nothing below invents a
+                  class for them — unassessed is drawn as unassessed. */}
+              {profile.capabilities.length === 0 ? (
+                <p className="system-small">Berechtigungen: keine gemeldet</p>
+              ) : (
+                <>
+                  <ul className="cap-grants">
+                    {readCapabilities(profile.capabilities, registry).map((cap) => (
+                      <li key={cap.id} className={cap.tone} title={cap.description || undefined}>
+                        <code>{cap.id}</code>
+                        <span className={`cap-risk ${cap.tone}`}>{cap.text}</span>
+                        {cap.requiresSecret && <span className="cap-secret">braucht ein Geheimnis</span>}
+                      </li>
+                    ))}
+                  </ul>
+                  {unclassifiedNote(readCapabilities(profile.capabilities, registry)) && (
+                    <p className="system-small warn">
+                      {unclassifiedNote(readCapabilities(profile.capabilities, registry))}
+                    </p>
+                  )}
+                </>
+              )}
               {saveError && <p className="system-error" role="status">Autonomie nicht gespeichert: {saveError}</p>}
             </div>
           ) : <p>Keine Agentenprofile gemeldet.</p>}
@@ -277,6 +307,11 @@ export function SystemCapabilities({
             result={snapshot.controlPlane}
             onUpdated={updateControlPlane}
             ports={ports}
+            registry={
+              snapshot.hierarchy.status === 'ready'
+                ? snapshot.hierarchy.data.capabilities
+                : undefined
+            }
           />
 
           <CapabilityCard title="Claude Session Bootstrap" result={snapshot.claudeBootstrap}>

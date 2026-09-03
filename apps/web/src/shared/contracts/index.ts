@@ -80,11 +80,34 @@ export interface HierarchyEdge {
   data: Record<string, unknown>;
 }
 
+/**
+ * One entry in the capability REGISTRY: what a grant is, and what it costs.
+ *
+ * Served identically by `/api/capabilities` and inside `hierarchy` (verified
+ * against both endpoints 2026-09-03). It was typed as an opaque
+ * `Record<string, unknown>`, which is the same defect as an undeclared field:
+ * the data is present and unreachable, so nothing rendered it and an agent's
+ * grants printed as a flat list of bare names.
+ *
+ * `risk` is deliberately a plain string, not a union. The four classes seen
+ * live are external_read, local_write, external_advisory and
+ * trusted_frontier; pinning a union here would make a NEW class a type error
+ * in the browser rather than an unrecognised word the surface can report.
+ */
+export interface CapabilityEntry {
+  id: string;
+  name?: string;
+  description?: string;
+  risk?: string;
+  /** true when using this grant requires a configured secret */
+  requires_secret?: boolean;
+}
+
 export interface HierarchyPayload extends ApiEnvelope {
   nodes: HierarchyNode[];
   edges: HierarchyEdge[];
   health: Record<string, unknown>;
-  capabilities: Array<Record<string, unknown>>;
+  capabilities: CapabilityEntry[];
   policy_flags: Record<string, unknown>;
 }
 
