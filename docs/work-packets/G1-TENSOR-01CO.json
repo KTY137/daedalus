@@ -1,0 +1,94 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CO",
+  "title": "Reuse exact same-plane TypedAxis in strict relation projection",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CN",
+  "campaign_issue": 239,
+  "base_revision": "0657044258ab906704d8822f9c11c6cb5b14a697",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "The strict Forest/Fourfold Boolean relation adapter constructed two separately validated TypedAxis objects for same-plane relations even though source and target are the exact same Fourfold plane with the exact same canonical node_ids. TypedAxis already preserves a canonical tuple without copying, so the second axis object was redundant representation and validation work.",
+  "primary_claim": "Same-plane Boolean relation projection now constructs one TypedAxis and reuses that exact immutable object as both row_axis and column_axis. Cross-plane projection still constructs a distinct target axis. The change does not alter relation membership, Forest/Fourfold authority, Boolean scalar semantics, completeness refusal, hyperedge refusal, or promotion authority.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/relation_projection.py",
+      "tests/twin/test_fourfold_relation_projection.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CO.json"
+    ],
+    "production_commit": "0da484fa24e97feddce9c65f5ddef7ff9b87c7fb",
+    "exact_code_test_revision": "f8c33f433c87fae29e16816d107a57feb7ccb4ae",
+    "production_blob": "384179015333877737325b32ec5be6a0ded7f600",
+    "test_blob": "6c204d4781c72ae500cecaf9cfb16cb9bcc29bfe",
+    "production_additions": 8,
+    "production_deletions": 5,
+    "test_additions": 20,
+    "test_deletions": 0,
+    "new_graph_schema": false,
+    "new_relation_block_type": false,
+    "new_query_index": false,
+    "new_cache": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false,
+    "contract_semantics_changed": false
+  },
+  "gardener_decision": "Delete duplicate same-plane axis construction rather than add a cache or index. Reuse the exact existing TypedAxis object when source_plane equals target_plane, while retaining a distinct target axis for cross-plane relations. Pin object identity in the focused relation-projection tests so future refactors do not silently restore the redundant representation.",
+  "acceptance": [
+    "same-plane relation projection reuses one exact TypedAxis object for row and column axes",
+    "the reused axis retains the exact canonical Fourfold PlaneSnapshot.node_ids tuple",
+    "cross-plane relation projection retains distinct source and target axes",
+    "existing direct-Forest relation equality and Boolean composition tests continue to execute successfully",
+    "existing completeness, exact-Forest, retained-hyperedge and undirected-edge refusals continue to execute successfully",
+    "the Fourfold-v2 workflow completes successfully on the exact code/test revision",
+    "all four Python 3.10/3.12 and hash-seed 0/123456 contract jobs complete successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 bounded Tensor/Forest diagnostic completes successfully",
+    "the isolated wheel build/install completes successfully",
+    "no benchmark superiority, OwnerApproval, promotion, merge, Ready-for-Review transition, or Gate transition is inferred"
+  ],
+  "verification": {
+    "exact_code_test_revision": "f8c33f433c87fae29e16816d107a57feb7ccb4ae",
+    "fourfold_v2_run": 33799952754,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "contracts (3.10, 0) completed success and Run Fourfold and kernel contract tests completed success",
+      "contracts (3.10, 123456) completed success and Run Fourfold and kernel contract tests completed success",
+      "contracts (3.12, 0) completed success; Run Fourfold and kernel contract tests and Emit bounded Tensor/Forest diagnostic cost probes completed success",
+      "contracts (3.12, 123456) completed success and Run Fourfold and kernel contract tests completed success",
+      "isolated-wheel completed success with Build wheel and Install wheel in isolated environment steps"
+    ],
+    "benchmark_measurement_added": false,
+    "claim": "Hosted green CI is claimed only for exact code/test revision f8c33f433c87fae29e16816d107a57feb7ccb4ae. This packet makes no performance or comparative benchmark claim; it removes a redundant same-plane typed-axis construction and pins the identity reuse contract. Documentation/evidence commits after the tested revision do not extend the green-CI claim."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "focused_regression": "test_same_plane_projection_reuses_the_exact_typed_axis requires imports.row_axis is imports.column_axis, requires the reused labels tuple to be the exact Fourfold code-plane node_ids tuple, and verifies a cross-plane documents block keeps distinct axis objects.",
+    "independent_owner_review_completed": false
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_record": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "main_observed_before_record": "e31213aff40ab322dcead6d50ae19007f3f9b6b1",
+    "visible_remote_refs_observed_before_record": 18,
+    "topology_note": "Only the existing canonical tensor-kernel line was advanced. Existing packet/rescue/evidence refs remain untouched; none was deleted or archived merely to reduce the visible count. archive/legacy-20260830 remains a frozen evidence/history anchor."
+  },
+  "rollback": "Revert test commit f8c33f433c87fae29e16816d107a57feb7ccb4ae and production commit 0da484fa24e97feddce9c65f5ddef7ff9b87c7fb to restore separate same-plane row and column TypedAxis construction. Forest, FourfoldSnapshot, TypedRelationBlock semantics and promotion authority are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "ready_for_review_transition": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
