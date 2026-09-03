@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 import daedalus.twin.semiring as semiring_module
+import daedalus.twin.tensor as tensor_module
 from daedalus.twin.semiring import (
     MAX_EVIDENCE_ALTERNATIVES,
     MAX_EVIDENCE_TERM_ATOMS,
@@ -109,6 +110,40 @@ def test_evidence_canonicalization_reuses_exact_canonical_digest_tuple() -> None
     )
 
     assert entry.evidence_sha256s is evidence
+
+
+def test_evidence_unsorted_tuple_validates_each_digest_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = (_digest(2), _digest(0), _digest(1))
+    validations = {digest: 0 for digest in evidence}
+    validate_digest = tensor_module._sha256
+
+    def _counting_sha256(value: Any, name: str) -> str:
+        validations[value] += 1
+        return validate_digest(value, name)
+
+    monkeypatch.setattr(tensor_module, "_sha256", _counting_sha256)
+
+    entry = SparseTensorEntry(
+        coordinates=(("node", "src/a.py"),),
+        relation="membership",
+        evidence_sha256s=evidence,
+    )
+
+    assert entry.evidence_sha256s == tuple(sorted(evidence))
+    assert validations == {digest: 1 for digest in evidence}
+
+
+def test_evidence_unsorted_tuple_still_refuses_duplicate_digest() -> None:
+    evidence = (_digest(1), _digest(0), _digest(1))
+
+    with pytest.raises(ValueError, match="entry.evidence_sha256s must not contain duplicates"):
+        SparseTensorEntry(
+            coordinates=(("node", "src/a.py"),),
+            relation="membership",
+            evidence_sha256s=evidence,
+        )
 
 
 def test_wire_payload_cannot_bypass_evidence_bound() -> None:
