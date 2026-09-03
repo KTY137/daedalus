@@ -152,7 +152,7 @@ def test_the_child_receives_the_variables_it_cannot_work_without(tmp_path):
     )
 
 
-def test_a_home_relative_suite_does_not_pollute_the_judged_tree(tmp_path):
+def test_a_home_relative_suite_does_not_pollute_the_judged_tree(monkeypatch, tmp_path):
     """The silent half of a too-narrow allowlist.
 
     Without a home variable, win32 ``expanduser("~")`` returns ``~`` rather
@@ -160,7 +160,16 @@ def test_a_home_relative_suite_does_not_pollute_the_judged_tree(tmp_path):
     candidate worktree -- which
     ``kernel.attempt_execution._post_gate_artifact_stable`` turns into a
     refused GREEN verdict.
+
+    HOME IS REDIRECTED so this stays hermetic on both platforms: POSIX
+    ``expanduser`` falls back to ``pwd`` and would otherwise write into the CI
+    runner's real home directory, which is a side effect a test has no business
+    having.
     """
+    home = tmp_path / "home"
+    home.mkdir()
+    for key in ("HOME", "USERPROFILE"):
+        monkeypatch.setenv(key, str(home))
     root = _tree(tmp_path / "candidate", "test_home.py", TOUCHES_HOME)
 
     report = ignition_checks.pytest_check(root, ["tests/test_home.py"], timeout_s=120.0)
@@ -169,6 +178,10 @@ def test_a_home_relative_suite_does_not_pollute_the_judged_tree(tmp_path):
     assert not (root / "~").exists(), (
         "a literal '~' directory was created inside the judged tree: the child "
         "has no home variable, so expanduser did not expand"
+    )
+    assert (home / ".cache" / "daedalus-probe" / "state.json").exists(), (
+        "the child did not receive a usable home directory at all; the "
+        "assertion above would then pass for the wrong reason"
     )
 
 

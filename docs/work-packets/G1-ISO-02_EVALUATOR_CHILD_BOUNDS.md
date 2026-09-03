@@ -148,11 +148,19 @@ bytes now become `U+FFFD`.
    won this way (composed `pytest_check` and `_old_symbol_occurrences` both go
    red), but the residue is a fabricated `gate1-behavior` EvidenceItem carrying
    `assurance="deterministic"`.
-6. **CI does not run this packet's acceptance matrix.**
-   `.github/workflows/gate1-ignition.yml` runs `ubuntu-latest` on 3.10/3.12 and
-   its explicit test list contains neither `test_pytest_check_isolation.py` nor
-   `test_ignition_gate1.py`. The POSIX behaviour of the allowlist is therefore
-   **unmeasured**. This is the highest-value follow-up.
+6. ~~**CI does not run this packet's acceptance matrix.**~~ **ADDRESSED**, and
+   it was worse than the review found: the workflow triggered on pull requests
+   to `g0/sealed-promotion-runtime-sandbox` and pushes to `g1/ignition-slice`,
+   and **neither branch exists on origin**. The whole Gate-1 ignition job was
+   inert except via `workflow_dispatch`, and its test list ran the 2026-08-17
+   rehearsal rather than the slice. Now triggers on PRs to `main` and runs the
+   measured set. Measured CI-safe first, because adding a suite that needs
+   operator-local state turns everyone else's build red for a reason that is
+   not theirs: with `DAEDALUS_KILLSWITCH` pointed at a nonexistent path and
+   `runs/spine/spine.sqlite3` moved aside — the two things a fresh box lacks —
+   the full intended set is **189 passed, 1 skipped**.
+   The POSIX behaviour of the allowlist remains **UNVERIFIED** until that job
+   runs green on `ubuntu-latest`; the first green run IS the measurement.
 7. **`bundle.py`'s `import_closure` docstring still says "124 modules"**;
    measured 198. Out of this packet's declared scope (`bundle.py` is not an
    in-scope path) and left as a one-line follow-up rather than silently widened

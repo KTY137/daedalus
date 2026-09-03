@@ -1,15 +1,33 @@
 name: Gate 1 Ignition Slice
 
+# THIS WORKFLOW WAS INERT. Until 2026-09-03 it triggered on pull requests to
+# `g0/sealed-promotion-runtime-sandbox` and pushes to `g1/ignition-slice`.
+# NEITHER BRANCH EXISTS on origin -- measured against `git ls-remote --heads
+# origin`, which lists 16 refs and neither of those -- so the Gate-1 ignition
+# matrix ran only when somebody pressed the button by hand. An acceptance
+# matrix that does not run is not a weaker guarantee than one that does; it is
+# a different statement being reported under the same name.
+#
+# The test list was the second half of the same problem: it ran
+# `tests/ignition/test_voltage_ignition.py`, the 2026-08-17 rehearsal, and not
+# `tests/test_ignition_gate1.py`, which is the slice the plan actually asks
+# Gate 1 to prove.
 on:
   pull_request:
     branches:
+      - main
       - g0/sealed-promotion-runtime-sandbox
     paths:
       - "daedalus/ignition/**"
       - "daedalus/kernel/fourfold_evidence.py"
       - "tests/fixtures/ignition/**"
       - "tests/ignition/**"
+      - "tests/test_ignition_gate1.py"
+      - "tests/test_ignition_bundle.py"
+      - "tests/test_ignition_bundle_gitattributes.py"
       - "docs/work-packets/G1-WP-01_VOLTAGE_IGNITION.md"
+      - "docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md"
+      - "docs/work-packets/G1-ISO-02_EVALUATOR_CHILD_BOUNDS.md"
       - ".github/workflows/gate1-ignition.yml"
   push:
     branches:
@@ -40,9 +58,27 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
+      # MEASURED CI-SAFE 2026-09-03 before this list was widened: the whole set
+      # below runs green with NO killswitch permit (DAEDALUS_KILLSWITCH pointed
+      # at a path that does not exist) and NO `runs/spine/spine.sqlite3` --
+      # 189 passed, 1 skipped. Those two pieces of operator-local state are
+      # what a fresh box lacks, and they are exactly what a slice run needs but
+      # these suites do not. Checked because adding a suite that needs local
+      # state turns everyone else's build red for a reason that is not theirs.
+      #
+      # THIS RUNS ON LINUX AND THE CODE UNDER TEST WAS TUNED ON WIN32. The
+      # environment allowlist in `daedalus/ignition/checks.py`
+      # (EVALUATOR_CHILD_ENV_KEYS / EVALUATOR_CHILD_ENV_REQUIRED) was measured
+      # entirely on Windows; POSIX `expanduser` falls back to `pwd` where
+      # win32 returns a literal `~`. The first green run of this job on
+      # ubuntu-latest is that allowlist's first POSIX measurement, and until it
+      # exists the POSIX behaviour is UNVERIFIED rather than believed.
       - run: >-
           python -m pytest -q
-          tests/ignition/test_voltage_ignition.py
+          tests/ignition/
+          tests/test_ignition_gate1.py
+          tests/test_ignition_bundle.py
+          tests/test_ignition_bundle_gitattributes.py
           tests/kernel/test_fourfold_evidence.py
           tests/kernel/test_fourfold_approval_integration.py
           tests/kernel/test_owner_approval.py
