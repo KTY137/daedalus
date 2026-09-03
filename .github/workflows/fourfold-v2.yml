@@ -88,6 +88,14 @@ jobs:
                   query_iterations=10,
               )
               print(json.dumps(heldout_report, sort_keys=True, separators=(",", ":")))
+
+          csr_namespace = runpy.run_path("tests/twin/test_tensor_heldout_csr_probe.py")
+          csr_report = csr_namespace["heldout_csr_probe"](
+              size=256,
+              repeats=2,
+              query_iterations=10,
+          )
+          print(json.dumps(csr_report, sort_keys=True, separators=(",", ":")))
           PY
       - name: Verify wheel contains the twin package
         run: |
