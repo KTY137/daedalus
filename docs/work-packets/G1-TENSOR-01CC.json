@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CC",
+  "title": "Fold canonical duplicate-axis validation into the axis pass",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CB",
+  "campaign_issue": 239,
+  "base_revision": "2cd169204def3a07cd9e102961f49579e7fdaf73",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView already visits every retained TensorAxis to validate record type and canonical name ordering, but canonical input then paid a second full adjacent-axis pass solely to reject duplicate names. The same validated axis.name was also read again within the first pass. Because a sorted canonical axis sequence can only contain duplicates adjacently, uniqueness can be checked while the canonical-order pass is already in flight; only a genuinely non-canonical sequence needs the post-sort duplicate check.",
+  "primary_claim": "Canonical TensorView axis construction now reads each validated axis name once and folds adjacent duplicate-name refusal into the same ordering pass. Non-canonical axes still use the existing sort fallback and post-sort duplicate refusal. Axis ordering, labels, sparse entries, selectors, index projection, wire serialization, digest identity, Fourfold/Forest source binding, status and provenance semantics remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_select_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CC.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 54,
+    "code_test_deletions": 11,
+    "production_additions": 14,
+    "production_deletions": 11,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Delete the redundant canonical-axis uniqueness traversal rather than add an axis index or cache. Reuse the axis name already read for ordering, reject adjacent duplicates in that same pass, and retain the existing sorted fallback only for genuinely non-canonical input. Do not introduce a mapping view, cache, lookup service, alternate Tensor type, planner, store, registry, scheduler or backend.",
+  "acceptance": [
+    "canonical TensorView construction reads every already validated axis name exactly once during axis ordering/uniqueness validation",
+    "canonical duplicate axis names still fail closed",
+    "non-canonical axes still sort deterministically and duplicate names remain rejected after sorting",
+    "the original immutable canonical axis tuple is retained by identity",
+    "the Fourfold-v2 workflow executes successfully on the exact final code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "ca9274fd35b0a585ecaa02832435b910903357de",
+    "code_test_revision": "39a49e10c68cf2ee605ae9b8859b49211309baa1",
+    "production_blob": "d70eecfdd063dadc8314b6f813d88925ccf6a491",
+    "focused_test_blob": "36218edf475cd8a369807b5c094aedf4fd64e07d",
+    "fourfold_v2_run": 33726363168,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 39a49e10c68cf2ee605ae9b8859b49211309baa1",
+      "the Python 3.10/3.12 contract matrix completed under the successful workflow",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 39a49e10c68cf2ee605ae9b8859b49211309baa1. The executed tests/twin surface includes the focused regression that arms validated TensorAxis objects after construction and refuses any second axis.name read during canonical TensorView construction; the retained canonical axis tuple must also survive by identity. Existing canonicalization and duplicate-refusal coverage remains in the same executed surface. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01CC commits to restore the separate canonical-axis duplicate scan. Fourfold/Forest authority, Tensor wire contracts, axis labels, sparse entries, source/provenance identity and deterministic non-canonical sorting are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
