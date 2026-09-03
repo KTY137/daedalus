@@ -1,0 +1,77 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01BV",
+  "title": "Fold canonical duplicate-claim validation into the entry pass",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BU",
+  "campaign_issue": 239,
+  "base_revision": "35113f65a57229578e7bdbe2e8b0f6abc4259ad7",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView.__post_init__() already walks every retained SparseTensorEntry to validate exact axis bindings, label membership and canonical _entry_order. For already-canonical input, it then performed a second full traversal over ordered_entries solely to reject repeated coordinate/relation claims, even though adjacent canonical _entry_order values already expose the same semantic-key duplication during the first validation pass. At the declared one-million-entry ceiling this is a redundant O(entries) container walk on the canonical construction path.",
+  "primary_claim": "TensorView construction now rejects adjacent duplicate coordinate/relation claims while it is already validating canonical entry order, reusing the previously computed _entry_order tuple. Canonical entry tuples therefore do not require the former second duplicate-validation traversal. If input is non-canonical, the existing deterministic sort fallback still performs a post-sort duplicate scan so non-adjacent duplicate claims remain fail-closed.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_select_lookup.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01BV.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 98,
+    "code_test_deletions": 17,
+    "production_additions": 18,
+    "production_deletions": 16,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the canonical order tuple already computed for each entry instead of introducing a duplicate-key set, cache, semantic-key index, alternate Tensor representation or separate validation service. Keep the post-sort duplicate scan only on the non-canonical fallback path where duplicate claims may have been non-adjacent before sorting.",
+  "acceptance": [
+    "canonical TensorView entry validation retains exact axis-binding and declared-label checks",
+    "canonical entry tuples are reused and do not require a second full duplicate-claim traversal",
+    "duplicate coordinate/relation claims remain fail-closed even when value or evidence differs",
+    "non-canonical input retains deterministic sorting followed by duplicate-claim rejection",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "d5fa16a36a31ac9914b4bb236520ce54562a07f1",
+    "code_test_revision": "c78c725d62bcbf89711c511bad359e2ec9d7db7a",
+    "production_blob": "ff7493f6e2a5f0b829c9478a6af5840d58cfd165",
+    "focused_test_blob": "629cfcbc9abbef5a373172b9430b8dd7171496d7",
+    "fourfold_v2_run": 33698279387,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision c78c725d62bcbf89711c511bad359e2ec9d7db7a",
+      "Python 3.10/3.12 contract-matrix jobs executed successfully on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision c78c725d62bcbf89711c511bad359e2ec9d7db7a. The focused _CoordinateReadBoundEntry regression gives each canonical entry a budget of two coordinates reads: one for binding validation and one for _entry_order construction. It therefore fails on the former second duplicate-validation traversal while the new canonical path completes and reuses the same immutable entries tuple. A companion regression preserves fail-closed rejection for duplicate coordinate/relation claims with different scalar/evidence payloads. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01BV commits; Fourfold/Forest authority, Tensor wire contracts, status/provenance identity and public product surfaces remain unchanged, while canonical TensorView construction returns to its separate second full duplicate-claim traversal.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
