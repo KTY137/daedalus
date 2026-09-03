@@ -1,14 +1,25 @@
 # Loose parts of Daedalus — what is actually unwired at HEAD
 
-**Revision bound:** `8eaa5adf87095b77811c8545c04124350bf0e9e9`
+**Revision bound:** `17bfb1c90f192d575b0e2e4ad27f57b7e84c8074`
 (`packet/g1-pkg-split3`, 2026-09-03).
 
 **Classification:** `ALIGNED` — read-only inventory. No `daedalus/` source file
 was modified and nothing was staged by this lane.
 
+**Every SHA in this document was re-pinned on 2026-09-03** after an
+owner-authorised history rewrite purged a private note from every commit. The
+rewrite changed 1088 commit identities and left 78992 unchanged. Each hex
+reference below was translated mechanically through
+`docs/recovery/purge-20260903/sha-map.tsv` and then checked to resolve and to
+name the commit the surrounding prose describes — not matched by subject line,
+which is the same same-looking-identity inference that cost this branch a
+commit that day. One reference is deliberately untranslated:
+`fe634b58`, the head the discrimination receipt is bound to, is not in the map
+because it was not rewritten, so it still means what it meant.
+
 **Concurrency caveat — the tree moved underneath this survey.** At the start the
 checkout was on `packet/g1-pkg-split2` with 130 dirty files. Mid-survey another
-lane committed and merged that packet (`d6114b83`, `aac730d6`), added `8eaa5adf`,
+lane committed and merged that packet (`1f35c173`, `cd160c9f`), added `17bfb1c9`,
 and moved the checkout to `packet/g1-pkg-split3`. Four files were dirty at the
 close: `daedalus/providers/hermes_agent.py` (deleted, staged),
 `docs/architecture/shim-registry.json`, `tests/contracts/test_import_scc_hierarchy.py`,
@@ -335,17 +346,17 @@ matched any module**, orphaned by the recent flatten/package packets, which
 moved the code and left its rationale behind. 22 were remapped to their verified
 successors (each resolved against the tree and, where ambiguous, against the
 rename in Git history — `daedalus/cli.py -> interfaces/cli/entry.py` at `R095`,
-`daedalus/token_policy.py` deleted at `b35be0d7` after its owner appeared at
-`704ebb79`). Three were dropped: `ikarus.py`, `mission_control.py` and
+`daedalus/token_policy.py` deleted at `824099fb` after its owner appeared at
+`b1cf896d`). Three were dropped: `ikarus.py`, `mission_control.py` and
 `decompose.py` were re-export facades whose own note read *"keep until callers
-migrate"*, and `ef4629b0` retired them once every caller named its owner. A
+migrate"*, and `7838ce3b` retired them once every caller named its owner. A
 collision guard refused the whole write until `decompose.py` was resolved that
 way rather than overwriting the real `kairos/decompose.py` annotation.
 
 ### 5.5 Still not done
 
 - ~~**The `center:` directive in `.daedalusignore` is inert.**~~ **CLOSED by
-  G1-MAP-03** (`b0be0ad8`). Nothing parsed it: `project_scope` read its center
+  G1-MAP-03** (`37ca6080`). Nothing parsed it: `project_scope` read its center
   from an explicit argument or `DAEDALUS_CENTER` only, and `_parse_line` turned
   the directive into an anchored ignore pattern matching no path. The
   precedence the file's comment claims — explicit argument, then
@@ -651,7 +662,7 @@ the required-module list is simply stricter than the run it gates.
 This is on the promotion path, not a side quest. `docs/STATUS.md` records that
 promotion is blocked "on `runs/spine/gate_discrimination.json` being stale at
 HEAD — a measurement, not a pen stroke". It is stale: the receipt is bound to
-`head: fe634b58`, and HEAD is `031eeabf` `[MEASURED]`. Refreshing it is what
+`head: fe634b58`, and HEAD is `ce8273bf` `[MEASURED]`. Refreshing it is what
 clears that block, and the instrument that decides whether this machine may
 refresh it says no, for a module the refresh would not use.
 
@@ -682,7 +693,7 @@ landed. Recorded rather than half-done.
 
 `Iron Plan: ALIGNED`
 `Iron Gate: 1`
-`Evidence: daedalus.mapping.reach.analyse at 8eaa5adf (census, 52 flagged rows);
+`Evidence: daedalus.mapping.reach.analyse at 17bfb1c9 (census, 52 flagged rows);
 independent AST import-graph cross-examination (production vs test importers per
 row); runtime resolution of daedalus.orchestration.run_mission; git ls-files /
 check-ignore on apps/web/src-tauri/backend/_internal; tests/contracts import
