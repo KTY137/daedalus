@@ -117,3 +117,18 @@
 .safety-verdict.warn { color: var(--warn); }
 .safety-verdict.bad { color: var(--bad); }
 .safety-consequence { color: var(--ink3); line-height: 1.45; }
+
+/* The watcher processes core.py's command-line scan found. Each names the tree
+   it belongs to, because two matches from two checkouts is the normal case and
+   "2 watchers" alone would read as a conflict. */
+.watcher-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.watcher-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--u1);
+  align-items: baseline;
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+}
+.watcher-list li.bad { color: var(--bad); }
+.watcher-list code { font-family: var(--font-mono); }

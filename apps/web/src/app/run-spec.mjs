@@ -205,6 +205,7 @@ const outcomeOutfile = path.join(workdir, 'outcome.js');
 const healthReadOutfile = path.join(workdir, 'healthread.js');
 const trustOutfile = path.join(workdir, 'runtimetrust.js');
 const safetyOutfile = path.join(workdir, 'safety.js');
+const watcherOutfile = path.join(workdir, 'watchers.js');
 
 try {
   await build({
@@ -217,7 +218,8 @@ try {
       outcome: path.join(here, '..', 'features', 'mission', 'outcome.spec.ts'),
       healthread: path.join(here, '..', 'features', 'system', 'healthread.spec.ts'),
       runtimetrust: path.join(here, '..', 'features', 'settings', 'runtimetrust.spec.ts'),
-      safety: path.join(here, '..', 'features', 'system', 'safety.spec.ts')
+      safety: path.join(here, '..', 'features', 'system', 'safety.spec.ts'),
+      watchers: path.join(here, '..', 'features', 'system', 'watchers.spec.ts')
     },
     bundle: true,
     absWorkingDir: repoRoot,
@@ -242,6 +244,7 @@ try {
   const { runHealthReadSpec } = await import(pathToFileURL(healthReadOutfile).href);
   const { runRuntimeTrustSpec } = await import(pathToFileURL(trustOutfile).href);
   const { runSafetySpec } = await import(pathToFileURL(safetyOutfile).href);
+  const { runWatcherSpec } = await import(pathToFileURL(watcherOutfile).href);
   const results = [
     ...runSurfaceSpec(),
     ...(await runSystemCapabilitiesSpec()),
@@ -252,6 +255,7 @@ try {
     ...runHealthReadSpec(),
     ...runRuntimeTrustSpec(),
     ...runSafetySpec(),
+    ...runWatcherSpec(),
     ...(await architectureSpec())
   ];
   let failed = 0;

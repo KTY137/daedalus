@@ -8,6 +8,7 @@ import {
   type SystemCapabilityPorts
 } from './api';
 import { GATE_WORD, fallbackText, gateTone, safetyGates, staleText } from './safety';
+import { watcherReading, watcherWhere } from './watchers';
 import './system-capabilities.css';
 
 export interface SystemCapabilitiesProps {
@@ -232,6 +233,32 @@ export function SystemCapabilities({
                   {snapshot.dashboard.data.quality?.fallback_alarm && (
                     <span className="bad"> · Fallback-Alarm aktiv</span>
                   )}
+                </p>
+                {/* WHO IS ACTUALLY CONSUMING THE QUEUE. core.py finds
+                    watchers by matching process command lines, so `running`
+                    means "a matching process exists", not "your outbox has an
+                    owner". The caveat travels with the count -- and more than
+                    one match is stated rather than hidden behind a single
+                    word. See ./watchers.ts. */}
+                <p className="system-small watcher-head">
+                  Watcher:{' '}
+                  <span className={watcherReading(snapshot.dashboard.data.watcher).tone}>
+                    {watcherReading(snapshot.dashboard.data.watcher).text}
+                  </span>
+                </p>
+                {(snapshot.dashboard.data.watcher?.watchers || []).length > 0 && (
+                  <ul className="watcher-list">
+                    {(snapshot.dashboard.data.watcher?.watchers || []).map((w) => (
+                      <li key={w.pid} className={w.stale ? 'bad' : ''}>
+                        <code>pid {w.pid}</code>
+                        <span>{watcherWhere(w.command)}</span>
+                        {w.stale && <span className="bad">hängengeblieben</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="system-small watcher-basis">
+                  {watcherReading(snapshot.dashboard.data.watcher).basis}
                 </p>
                 {/* core.py writes this only when a watcher is stale, so it is
                     rendered only when it says something. */}

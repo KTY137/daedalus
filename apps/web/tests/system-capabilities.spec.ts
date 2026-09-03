@@ -43,6 +43,14 @@ async function fulfillJson(route: Route, body: Record<string, unknown>) {
  * The dashboard's `quality` block for the next stub. Mutable so one test can
  * make a safety probe fail without a second stub helper; reset per test.
  */
+let dashboardWatcher: Record<string, unknown> = {
+  running: true,
+  stale_count: 0,
+  watchers: [
+    { pid: 45280, command: '"C:/x/worktrees/g1-ui-ikarus/.venv/Scripts/python.exe" -m daedalus.file_bridge watch --project atlas', stale: false }
+  ]
+};
+
 let dashboardQuality: Record<string, unknown> = {
   local_only_never_claude: true,
   schema_non_empty_summary: true,
@@ -54,6 +62,13 @@ let dashboardQuality: Record<string, unknown> = {
 };
 
 test.beforeEach(() => {
+  dashboardWatcher = {
+    running: true,
+    stale_count: 0,
+    watchers: [
+      { pid: 45280, command: '"C:/x/worktrees/g1-ui-ikarus/.venv/Scripts/python.exe" -m daedalus.file_bridge watch --project atlas', stale: false }
+    ]
+  };
   dashboardQuality = {
     local_only_never_claude: true,
     schema_non_empty_summary: true,
@@ -99,6 +114,7 @@ async function stubCockpit(page: Page, providerFails = false) {
     // The live `quality` block, measured 2026-09-03. core.py builds it by
     // RUNNING two probes and escalates either failure as SAFETY.
     quality: dashboardQuality,
+    watcher: dashboardWatcher,
     governance: envelope({ promotion_allowed: false, verdict: 'BLOCKED_BY_GATE', state: 'present', head: null, gates: [], blockers: [] })
   })));
   await page.route('**/api/projects/*/control-plane', async (route) => {
@@ -268,4 +284,76 @@ test('a stale watcher carries the recommendation core.py wrote for it', async ({
 
   await expect(system.getByText(/Hängengebliebene Watcher: 1 hängengeblieben/)).toBeVisible();
   await expect(system.getByText('Use local_only until Claude quota recovers.')).toBeVisible();
+});
+
+test('the watcher count says how it was detected, and never claims outbox ownership', async ({ page }) => {
+  /*
+   * core.py finds watchers by matching process command lines -- that is the
+   * whole detection. `running: true` therefore means "a matching process
+   * exists on this machine", not "your outbox has an owner": the watcher lock
+   * lives beside HEARTBEAT_PATH, which is per-installation, so two checkouts
+   * have two locks and two outboxes and both match the same scan.
+   */
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  await expect(system.locator('.watcher-head')).toContainText('Watcher:');
+  await expect(system.locator('.watcher-head')).toContainText('1 passender Prozess');
+  // The caveat is on screen, not only in a source comment.
+  await expect(system.locator('.watcher-basis')).toContainText('Kommandozeilen');
+  // And the process is named by the tree it serves.
+  await expect(system.locator('.watcher-list li')).toContainText('g1-ui-ikarus');
+  await expect(system.locator('.watcher-list li')).toContainText('45280');
+});
+
+test('two matching processes are counted rather than hidden behind one word', async ({ page }) => {
+  // Measured on this machine: two matches for one project, from two different
+  // interpreters, both healthy. That is the ordinary multi-checkout case and
+  // is stated as such rather than as a conflict.
+  dashboardWatcher = {
+    running: true,
+    stale_count: 0,
+    watchers: [
+      { pid: 45280, command: '"C:/x/worktrees/g1-ui-ikarus/.venv/Scripts/python.exe" -m daedalus.file_bridge watch --project atlas', stale: false },
+      { pid: 9844, command: '"C:/uv/python/cpython-3.12-windows-x86_64-none/python.exe" -m daedalus.file_bridge watch --project atlas', stale: false }
+    ]
+  };
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  await expect(system.locator('.watcher-head')).toContainText('2 passende Prozesse');
+  await expect(system.locator('.watcher-list li')).toHaveCount(2);
+  // Each names a different tree, so the reader can tell them apart.
+  await expect(system.locator('.watcher-list li').nth(1)).toContainText('cpython-3.12');
+  await expect(system.locator('.watcher-basis')).toContainText('mehrere Checkouts');
+});
+
+test('no matching process is reported as a stalled queue, not as silence', async ({ page }) => {
+  dashboardWatcher = { running: false, stale_count: 0, watchers: [] };
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  await expect(system.locator('.watcher-head')).toContainText('kein passender Prozess gefunden');
+  // Drawn as a failure, not merely stated. A mutation that kept the words and
+  // dropped the colour slipped past this suite until the class was asserted.
+  await expect(system.locator('.watcher-head span')).toHaveClass(/\bbad\b/);
+  await expect(system.locator('.watcher-basis')).toContainText('bleiben liegen');
+  await expect(system.locator('.watcher-list')).toHaveCount(0);
+});
+
+test('a dashboard with no watcher block is not reported as having no watcher', async ({ page }) => {
+  // An older backend sends no `watcher` block at all. "Nobody told us" and
+  // "nothing is running" are different, and only one of them is a fact.
+  dashboardWatcher = undefined as unknown as Record<string, unknown>;
+  await stubCockpit(page);
+  await openSystemSettings(page);
+  const system = page.getByTestId('system-capabilities');
+
+  await expect(system.locator('.watcher-head')).toContainText('nicht gemeldet');
+  await expect(system.locator('.watcher-head')).not.toContainText('kein passender Prozess');
+  // Unproven, not a measured absence: amber rather than red.
+  await expect(system.locator('.watcher-head span')).toHaveClass(/\bwarn\b/);
 });
