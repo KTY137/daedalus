@@ -65,9 +65,9 @@ class _CoordinateReadBoundEntry(SparseTensorEntry):
             if reads is not None:
                 reads += 1
                 _COORDINATE_READS[entry_id] = reads
-                if reads > 2:
+                if reads > 1:
                     raise AssertionError(
-                        "canonical TensorView construction re-walked entries for duplicate validation"
+                        "canonical TensorView construction reread validated coordinates for semantic ordering"
                     )
         return super().__getattribute__(name)
 
@@ -156,7 +156,7 @@ def _full_prefix_tensor() -> TensorView:
     )
 
 
-def test_canonical_entry_validation_does_not_rewalk_duplicate_claims() -> None:
+def test_canonical_entry_validation_reuses_validated_coordinates_for_semantic_key() -> None:
     labels = tuple(f"node-{index:03d}" for index in range(128))
     entries = tuple(
         _CoordinateReadBoundEntry(
@@ -182,7 +182,7 @@ def test_canonical_entry_validation_does_not_rewalk_duplicate_claims() -> None:
         )
 
         assert tensor.entries is entries
-        assert max(_COORDINATE_READS[id(entry)] for entry in entries) == 2
+        assert max(_COORDINATE_READS[id(entry)] for entry in entries) == 1
     finally:
         for entry in entries:
             _COORDINATE_READS.pop(id(entry), None)
