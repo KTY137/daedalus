@@ -152,23 +152,27 @@ def test_the_environment_cannot_make_a_module_periphery(
     assert _facts(report, "thirdparty/unused.py").shell is True
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "FINDING 2026-09-03: the `center:` directive in .daedalusignore is "
-        "INERT. Nothing parses it -- `project_scope` takes its center from an "
-        "explicit argument or DAEDALUS_CENTER only, and `_parse_line` turns "
-        "the line into an ignore pattern that matches nothing. This repo's "
-        "own .daedalusignore declares `center: daedalus, tools, apps/web/src` "
-        "with the comment 'Weakest tier: an explicit --center or "
-        "DAEDALUS_CENTER still overrides', which describes a precedence that "
-        "was never implemented. Fixing it changes structcore's metric and "
-        "naming semantics repo-wide, so it is a separate packet and not this "
-        "one; pinned here so the gap cannot be forgotten."
-    ),
-)
-def test_the_center_directive_in_the_ignore_file_is_read(repo: Path) -> None:
-    assert analyse(repo).scope["center"] == ["mini"]
+def test_reach_deliberately_does_not_apply_the_declared_center(
+    repo: Path,
+) -> None:
+    """The census keeps covering the whole repository.
+
+    G1-MAP-03 made the ``center:`` directive live -- ``project_scope`` reads it
+    now (``tests/test_structcore_center_directive.py``). Reach still passes an
+    explicit empty center, which is the strongest tier of that precedence, so
+    the directive does not reach it.
+
+    That is a decision, not an omission. This repo declares
+    ``center: daedalus, tools, apps/web/src``; honouring it here would make
+    ``scripts/`` and ``experiments/`` periphery and withhold them from the
+    island census -- and ``scripts/fourfold_repo_probe.py`` is exactly the
+    operator entry point whose absence from an earlier survey produced a false
+    island (§4.1 of docs/G1_LOOSE_PARTS_SURVEY_20260903.md). What is periphery
+    for a hotspot ranking is not automatically periphery for "can anything
+    reach this at all". Only the committed ignore rules narrow this census.
+    """
+    assert analyse(repo).scope["center"] == []
+    assert _facts(analyse(repo), "mini/stranded.py").shell is False
 
 
 # --------------------------------------------- the walk is NOT narrowed
