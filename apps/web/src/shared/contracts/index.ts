@@ -550,9 +550,13 @@ export interface ContextPlanPayload extends ApiEnvelope {
   };
 }
 
-export interface StructurePayload {
-  ok: boolean;
-  project: string;
+export interface StructurePayload extends ApiEnvelope {
+  /*
+   * Extends the envelope rather than re-declaring `ok` and `project` by hand,
+   * which is what it did until 2026-09-03 -- and which made `generated_at`
+   * unreachable through the typed path, so nothing could say how old a
+   * structure reading was. Found by the live contract audit.
+   */
   structure: {
     backend: { tree_sitter: boolean; lizard: boolean };
     repo_root: string;
@@ -586,7 +590,6 @@ export interface StructurePayload {
      */
     graph?: StructureGraph;
   };
-  warnings?: string[];
 }
 
 export interface DistillIncluded {

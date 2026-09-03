@@ -124,9 +124,57 @@ CASES = [
     # third defect above lived there. Eight of its fields were still
     # undeclared, so adding it here would have failed immediately -- which is
     # the point: an endpoint the audit cannot watch is an endpoint where the
-    # next one hides.
+    # next one hides. `test_every_read_endpoint_is_audited_or_exempt` below now
+    # enforces that principle instead of leaving it to whoever remembers.
     ("/api/dashboard?project=daedalus_wt", "", "DashboardPayload"),
+    ("/api/catalogue", "", "CataloguePayload"),
+    ("/api/loop/queue?project=daedalus_wt", "", "LoopQueuePayload"),
+    ("/api/loop/attempts", "", "LoopAttemptsPayload"),
+    ("/api/loop/architecture?project=daedalus_wt", "", "LoopArchitecturePayload"),
+    ("/api/projects/daedalus_wt/hierarchy", "", "HierarchyPayload"),
+    ("/api/projects/daedalus_wt/hierarchy", "capabilities.0", "CapabilityEntry"),
+    ("/api/projects/daedalus_wt/control-plane", "", "ControlPlanePayload"),
+    ("/api/projects/daedalus_wt/control-plane", "profiles.0", "AgentProfile"),
+    ("/api/structure?project=daedalus_wt", "", "StructurePayload"),
+    ("/api/topology?project=daedalus_wt", "", "TopologyPayload"),
+    ("/api/drafts?project=daedalus_wt", "", "DraftsPayload"),
 ]
+
+# Read endpoints the cockpit can call that are deliberately NOT audited, each
+# with the reason. An entry here is a decision; an endpoint in NEITHER list is
+# a gap, and the coverage test below fails on it.
+EXEMPT: dict[str, str] = {
+    "/api/env/status": "returns a secrets-adjacent inventory; auditing it here "
+                       "would print key names into test output",
+    "/api/context/plan": "requires request-specific parameters; a bare GET is a "
+                         "400 and there is no representative shape to pin",
+    "/api/desktop/settings": "desktop-only route, absent from the web server "
+                             "this audit runs against",
+    "/api/conversations": "row shape is pinned by tests/test_conversation_list.py "
+                          "against the store, which is stronger than a live sample",
+    "/api/queue": "POST only; this audit compares GET response shapes",
+    "/api/queue/": "needs a task id that exists; covered by tests/capability/",
+    "/api/drafts/": "needs a draft id that exists",
+    "/api/runtimes/": "the /test subpath is a POST probe, not a read",
+    "/api/distill": "POST only; this audit compares GET response shapes",
+    "/api/ikarus/ask": "POST only, and a call costs money against the "
+                       "provider budget",
+    "/api/ikarus/chat": "POST only, and a call costs money against the "
+                        "provider budget",
+    "/api/projects/": "the bare prefix is the registration POST; its GET "
+                      "subpaths are audited above",
+    "/api/desktop/services/ide/start": "POST only, and it starts a service",
+    # Found by the coverage test itself on 2026-09-03: five endpoints the
+    # cockpit calls that were in neither list.
+    "/api/events": "server-sent events, not a JSON document; its frame shapes "
+                   "are pinned by features/mission/live.ts and mission.spec.ts",
+    "/api/ikarus/stream": "server-sent events, not a JSON document",
+    "/api/conversations/": "the per-conversation subpath needs an id that "
+                           "exists; the list shape is audited via its own store test",
+    "/api/editor/contexts/": "needs an editor context ref minted by a POST",
+    "/api/drafts": "audited above with a project query; this bare prefix is the "
+                   "same route",
+}
 
 _cache: dict[str, dict] = {}
 
@@ -199,6 +247,48 @@ def test_every_required_field_actually_arrives(url, dotted, iface) -> None:
         f"{dotted or '(root)'} did not send them. Either the field is optional "
         "and the contract should say so with `?`, or the server regressed."
     )
+
+
+def _endpoints_the_cockpit_calls() -> set[str]:
+    """Every `/api/...` literal reachable through `shared/api`.
+
+    Read out of the source rather than maintained by hand, because a list
+    maintained by hand is exactly what fell behind: the dashboard was missing
+    from CASES when this file was written, and that is where a real defect was
+    living.
+    """
+    src = (SHARED / "api" / "index.ts").read_text(encoding="utf-8")
+    return set(re.findall(r"[\"'`](/api/[a-z0-9/_.-]*)", src))
+
+
+def test_every_read_endpoint_is_audited_or_exempt() -> None:
+    """No endpoint may be silently unwatched.
+
+    An endpoint absent from both CASES and EXEMPT is a blind spot, and every
+    contract defect found so far was in a blind spot. Adding a route to
+    `shared/api` therefore forces a decision here: audit it, or say in one
+    line why not.
+    """
+    audited = {url.split("?", 1)[0] for url, _dotted, _iface in CASES}
+    known = audited | set(EXEMPT)
+    unwatched = sorted(_endpoints_the_cockpit_calls() - known)
+
+    assert not unwatched, (
+        "these endpoints are reachable from the cockpit but appear in neither "
+        f"CASES nor EXEMPT: {unwatched}. Add a case, or add an EXEMPT entry "
+        "saying why one cannot exist. An unwatched endpoint is where the next "
+        "undeclared field will live."
+    )
+
+
+def test_exemptions_are_real_endpoints_and_carry_a_reason() -> None:
+    """An exemption for an endpoint nobody calls is dead weight that makes the
+    list look more considered than it is."""
+    live = _endpoints_the_cockpit_calls()
+    stale = sorted(set(EXEMPT) - live)
+    assert not stale, f"EXEMPT names endpoints the cockpit no longer calls: {stale}"
+    for url, reason in EXEMPT.items():
+        assert len(reason.strip()) > 15, f"{url} is exempt without a real reason"
 
 
 def test_the_parser_separates_optional_from_required() -> None:

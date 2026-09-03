@@ -1192,9 +1192,18 @@ export interface DraftRow {
  * spans every project. A surface that shows the count must read it, so an
  * unscoped total can never be presented as one project's own.
  */
+/** Named rather than inline so the live contract audit can check it: an
+ *  anonymous intersection type has no interface to compare a payload against,
+ *  which made this endpoint unauditable. */
+export interface DraftsPayload extends ApiEnvelope {
+  drafts: DraftRow[];
+  pending_count: number;
+  scope: string | null;
+}
+
 export function getDrafts(project?: string) {
   const q = project ? `?project=${encodeURIComponent(project)}` : '';
-  return request<ApiEnvelope & { drafts: DraftRow[]; pending_count: number; scope: string | null }>(
+  return request<DraftsPayload>(
     `/api/drafts${q}`
   );
 }
