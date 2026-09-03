@@ -22,9 +22,10 @@ from typing import Any
 
 import pytest
 
-from daedalus import atomic
+from daedalus import atomic, core
 from daedalus.interfaces.http import web_api
 from daedalus.foundation import projects
+from daedalus.foundation.projects import ProjectRowUpdateError
 from daedalus.orchestration import control_plane, hierarchy
 from daedalus.spine import effect_boundary
 
@@ -928,3 +929,126 @@ def test_refused_put_effect_start_prevents_lock_and_publish(
     assert body["ok"] is False
     assert events == ["begin-refused"]
     assert path.read_bytes() == before
+
+
+# ---------------------------------------------------------------------------
+# save_team value validation
+#
+# save_team key-filtered but never checked VALUES. That was survivable only
+# while nothing could reach the endpoint. The cockpit now can, and an
+# unvalidated write here poisons every READ path for the project -- see the
+# first test, which proves the poison rather than asserting the guard alone.
+# ---------------------------------------------------------------------------
+
+
+def _team_row(registry: Path, repo: Path, team: dict[str, Any] | None = None) -> Path:
+    return _row(registry, repo, extra={"team": team if team is not None else {"max_workers": 3}})
+
+
+def test_a_non_numeric_max_workers_would_brick_every_read_and_is_refused(
+    tmp_path: Path, project_registry: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The fixture is not inert: it first shows the damage, then the guard."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    path = _team_row(project_registry, repo)
+
+    # 1. The damage is real. Written directly, "abc" makes team_config raise --
+    #    and team_config is what dashboard, hierarchy, routing and build all
+    #    call, so the project becomes unreadable and the UI cannot undo it
+    #    because the undo path reads first.
+    projects.rewrite_project_team("demo", lambda team: team.update({"max_workers": "abc"}))
+    with pytest.raises(ValueError):
+        core.team_config("demo")
+
+    # 2. The guard refuses it at the boundary instead.
+    projects.rewrite_project_team("demo", lambda team: team.update({"max_workers": 3}))
+    before = path.read_bytes()
+    with pytest.raises(ProjectRowUpdateError, match="max_workers must be an integer"):
+        hierarchy.save_team("demo", {"max_workers": "abc"})
+    assert path.read_bytes() == before
+    assert core.team_config("demo")["max_workers"] == 3
+
+
+def test_active_agents_as_a_string_is_refused_not_exploded_into_letters(
+    tmp_path: Path, project_registry: Path
+) -> None:
+    """core.team_config reads active_agents as [str(a) for a in value], so a
+    stored string becomes one 'agent' per CHARACTER, silently."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _team_row(project_registry, repo)
+
+    projects.rewrite_project_team("demo", lambda team: team.update({"active_agents": "claude"}))
+    assert core.team_config("demo")["active_agents"] == list("claude")  # the damage
+
+    projects.rewrite_project_team("demo", lambda team: team.update({"active_agents": []}))
+    with pytest.raises(ProjectRowUpdateError, match="active_agents must be a list"):
+        hierarchy.save_team("demo", {"active_agents": "claude"})
+    assert core.team_config("demo")["active_agents"] == []
+
+
+def test_default_lane_must_be_one_the_router_knows(
+    tmp_path: Path, project_registry: Path
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _team_row(project_registry, repo)
+    with pytest.raises(ProjectRowUpdateError, match="default_lane must be one of"):
+        hierarchy.save_team("demo", {"default_lane": "nonsense"})
+    for lane in core.KNOWN_LANES:
+        hierarchy.save_team("demo", {"default_lane": lane})
+        assert core.team_config("demo")["default_lane"] == lane
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        (True, "max_workers must be an integer"),   # bool is an int in Python
+        (0, "max_workers must be between"),
+        (-1, "max_workers must be between"),
+        (hierarchy.MAX_WORKERS_CEILING + 1, "max_workers must be between"),
+        (3.5, "max_workers must be an integer"),
+    ],
+)
+def test_max_workers_bounds(
+    tmp_path: Path, project_registry: Path, value: Any, message: str
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _team_row(project_registry, repo)
+    with pytest.raises(ProjectRowUpdateError, match=message):
+        hierarchy.save_team("demo", {"max_workers": value})
+
+
+def test_the_bounds_admit_their_own_edges(tmp_path: Path, project_registry: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _team_row(project_registry, repo)
+    for value in (1, hierarchy.MAX_WORKERS_CEILING):
+        hierarchy.save_team("demo", {"max_workers": value})
+        assert core.team_config("demo")["max_workers"] == value
+
+
+def test_ignored_fields_are_reported_rather_than_dropped_in_silence(
+    tmp_path: Path, project_registry: Path
+) -> None:
+    """Unknown keys stay IGNORED -- that is what keeps a patch inside the team
+    subtree -- but the caller is told, because an ignored field and a saved one
+    look identical from the other side of the wire."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _team_row(project_registry, repo)
+    result = hierarchy.save_team("demo", {"max_workers": 4, "repo_root": "/elsewhere", "nope": 1})
+    assert result["ignored_fields"] == ["nope", "repo_root"]
+    assert result["team"]["max_workers"] == 4
+
+
+def test_semi_auto_flags_must_be_booleans(tmp_path: Path, project_registry: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _team_row(project_registry, repo)
+    with pytest.raises(ProjectRowUpdateError, match="must be true or false"):
+        hierarchy.save_team("demo", {"semi_auto": {"never_auto_write": "no"}})
+    hierarchy.save_team("demo", {"semi_auto": {"never_auto_write": False}})
+    assert core.team_config("demo")["semi_auto"]["never_auto_write"] is False

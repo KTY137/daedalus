@@ -235,21 +235,32 @@ class VsCodeExtensionTests(unittest.TestCase):
             self.assertIn(needle, dead)
             self.assertNotIn(needle, live)
 
-    def test_team_controls_are_absent_from_the_live_extension(self):
-        """A gap, pinned as a gap rather than left as a red test.
+    def test_team_controls_live_in_the_cockpit_not_the_extension(self):
+        """Where the team editor is, now that the owner decided to rebuild it.
 
-        The backend has a write path -- PUT /api/projects/<name>/team reaches
-        ``hierarchy.save_team`` in daedalus/interfaces/http/effects.py -- and
-        ``daedalus/core.py`` reads ``active_agents`` to size waves and route
-        work. No surface calls it: not the live extension, and [MEASURED
-        2026-09-03] not apps/web/src either. Whether that capability comes
-        back or is formally retired is an owner decision; until it is made,
-        this records the measured state instead of a test that fails without
-        saying what it wants. See runs/analysis/g1-failure-diag/test_comms.md.
+        This was written earlier the same day as a pinned GAP: the backend
+        write path existed (PUT /api/projects/<name>/team ->
+        ``hierarchy.save_team``) and ``daedalus/core.py`` read
+        ``active_agents`` to route work, but no surface called it. The owner
+        chose rebuild over retire, and it landed in the React cockpit --
+        ``apps/web/src/features/settings/Team.tsx``.
+
+        So the assertion stays but its meaning changes: the extension is NOT
+        where the editor belongs, and a needle reappearing there would mean
+        someone revived the retired inline dashboard rather than extending the
+        cockpit. The second half is the half that now carries the capability
+        claim. See runs/analysis/g1-failure-diag/test_comms.md.
         """
         live, _ = _split_extension_source()
         for needle in ("max_workers", "active_agents", "default_lane"):
             self.assertNotIn(needle, live)
+        cockpit = ROOT / "apps" / "web" / "src" / "features" / "settings"
+        model = (cockpit / "teamModel.ts").read_text(encoding="utf-8")
+        component = (cockpit / "Team.tsx").read_text(encoding="utf-8")
+        self.assertIn("max_workers", model)
+        self.assertIn("default_lane", model)
+        self.assertIn("active_agents", model)
+        self.assertIn("updateTeam", component)
 
     def test_extension_uses_backend_json_contracts(self):
         src = EXTENSION_MAIN.read_text(encoding="utf-8")
