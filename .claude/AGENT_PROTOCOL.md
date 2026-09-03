@@ -166,6 +166,8 @@ confusing verification run.
   `python -m daedalus.hooks.crosstalk say "..."` when you take a file another
   session may want. The channel **informs; it never blocks**: it is a display
   surface, not a trust boundary, and it is off unless `DAEDALUS_CROSSTALK=on`.
+  When it is quiet and you expected otherwise, `crosstalk status` says which of
+  the six reasons it is — do not guess from the silence.
 - **Additive endpoints only.** `/api/dashboard` shape is frozen by `tests/test_ui_contract.py`.
 - **BYOK.** The platform never holds a paid API key.
 

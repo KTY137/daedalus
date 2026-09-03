@@ -14,6 +14,7 @@ from __future__ import annotations
 import io
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -51,12 +52,20 @@ class FakeTransport:
     """Stands in for ``gh api graphql``. Records every call and returns canned
     GraphQL payloads."""
 
-    def __init__(self, visibility="PRIVATE", discussions=None, fail=None, discussions_enabled=True):
+    def __init__(
+        self,
+        visibility="PRIVATE",
+        discussions=None,
+        fail=None,
+        discussions_enabled=True,
+        read_body="ANMELDUNG `b7c1` packet/x @aaa",
+    ):
         self.calls: list[dict] = []
         self.visibility = visibility
         self.discussions = list(discussions or [])
         self.fail = fail
         self.discussions_enabled = discussions_enabled
+        self.read_body = read_body
 
     def comments(self) -> list[str]:
         return [
@@ -93,7 +102,7 @@ class FakeTransport:
                             {
                                 "author": {"login": "KTY137"},
                                 "createdAt": "2026-09-03T09:00:00Z",
-                                "body": "ANMELDUNG `b7c1` packet/x @aaa",
+                                "body": self.read_body,
                             }
                         ]
                     },
@@ -434,3 +443,227 @@ def test_hooks_entrypoint_notes_admit_the_github_egress():
     notes = REGISTRY_BY_ID["daedalus.hooks"].notes
     assert "loopback" in notes  # the old justification is still there ...
     assert "github.com" in notes  # ... and no longer the whole truth on its own
+
+
+# --------------------------------------------------------------------------
+# the real gh transport
+#
+# Every test above fakes ``gh_graphql`` itself, which leaves the seam that
+# actually runs in production -- argv construction, the -f/-F choice, exit
+# handling, JSON parsing -- with no coverage at all. These drive the real
+# function against a stub executable.
+# --------------------------------------------------------------------------
+
+
+STUB = r'''
+import json, os, sys
+open(os.environ["STUB_ARGV"], "w", encoding="utf-8").write(json.dumps(sys.argv[1:]))
+mode = os.environ.get("STUB_MODE", "ok")
+if mode == "ok":
+    print(json.dumps({"data": {"repository": {"id": "R_1"}}}))
+elif mode == "graphql_error":
+    print(json.dumps({"errors": [{"message": "Could not resolve to a Repository"}]}))
+elif mode == "not_json":
+    print("gh: something went wrong")
+elif mode == "fail":
+    sys.stderr.write("gh: could not authenticate\nsecond line\n")
+    sys.exit(1)
+elif mode == "hang":
+    import time; time.sleep(30)
+'''
+
+
+@pytest.fixture
+def stub(tmp_path: Path, monkeypatch):
+    script = tmp_path / "gh_stub.py"
+    script.write_text(STUB, encoding="utf-8")
+    argv_dump = tmp_path / "argv.json"
+    monkeypatch.setenv("STUB_ARGV", str(argv_dump))
+    monkeypatch.setenv("STUB_MODE", "ok")
+    prefix = (sys.executable, str(script))
+
+    def recorded() -> list[str]:
+        return json.loads(argv_dump.read_text(encoding="utf-8"))
+
+    return prefix, recorded
+
+
+def test_gh_graphql_builds_the_argv_and_parses_data(stub, monkeypatch):
+    prefix, recorded = stub
+    data = crosstalk.gh_graphql(
+        "query($n:Int!){x}", {"owner": "KTY137", "n": 6}, argv_prefix=prefix
+    )
+    assert data == {"repository": {"id": "R_1"}}
+    argv = recorded()
+    assert argv[:3] == ["api", "graphql", "-f"]
+    assert argv[3] == "query=query($n:Int!){x}"
+    # strings go through -f (raw); a leading "@" in a -F value would be read
+    # by gh as a file name, which is why the flag is chosen per type
+    assert "-f" in argv and argv[argv.index("owner=KTY137") - 1] == "-f"
+    assert argv[argv.index("n=6") - 1] == "-F"
+
+
+def test_gh_graphql_maps_a_graphql_error_to_transport_error(stub, monkeypatch):
+    prefix, _ = stub
+    monkeypatch.setenv("STUB_MODE", "graphql_error")
+    with pytest.raises(crosstalk.TransportError) as caught:
+        crosstalk.gh_graphql("query{x}", {}, argv_prefix=prefix)
+    assert "Could not resolve to a Repository" in str(caught.value)
+
+
+def test_gh_graphql_maps_a_nonzero_exit_to_its_first_stderr_line(stub, monkeypatch):
+    prefix, _ = stub
+    monkeypatch.setenv("STUB_MODE", "fail")
+    with pytest.raises(crosstalk.TransportError) as caught:
+        crosstalk.gh_graphql("query{x}", {}, argv_prefix=prefix)
+    assert "could not authenticate" in str(caught.value)
+    assert "second line" not in str(caught.value)
+
+
+def test_gh_graphql_maps_unparseable_output(stub, monkeypatch):
+    prefix, _ = stub
+    monkeypatch.setenv("STUB_MODE", "not_json")
+    with pytest.raises(crosstalk.TransportError) as caught:
+        crosstalk.gh_graphql("query{x}", {}, argv_prefix=prefix)
+    assert "kein JSON" in str(caught.value)
+
+
+def test_gh_graphql_maps_a_missing_binary(tmp_path: Path):
+    missing = str(tmp_path / "definitely-not-here")
+    with pytest.raises(crosstalk.TransportError) as caught:
+        crosstalk.gh_graphql("query{x}", {}, argv_prefix=(missing,))
+    assert "nicht installiert" in str(caught.value)
+
+
+def test_gh_graphql_maps_a_timeout(stub, monkeypatch):
+    prefix, _ = stub
+    monkeypatch.setenv("STUB_MODE", "hang")
+    monkeypatch.setattr(crosstalk, "GH_TIMEOUT_S", 0.5)
+    with pytest.raises(crosstalk.TransportError) as caught:
+        crosstalk.gh_graphql("query{x}", {}, argv_prefix=prefix)
+    assert "timeout" in str(caught.value)
+
+
+# --------------------------------------------------------------------------
+# redaction must not eat prose
+# --------------------------------------------------------------------------
+
+
+def test_a_commit_subject_mentioning_a_secret_word_is_not_deleted():
+    """The secret filter is a PATH filter. Applied to prose it deleted a whole
+    ERGEBNIS because a commit subject said "token", and then blamed a
+    "secret-verdaechtiger pfad" that was never a path."""
+    note = crosstalk.Note(
+        "ERGEBNIS", "a3f2", "main", "a -> b",
+        ("commits: 2 (fix(auth): rotate the token | chore: bump)",), "",
+    )
+    assert "token" in note.lines[0]  # the fixture is not inert
+    body = crosstalk.render(note)
+    assert "rotate the token" in body
+    assert "chore: bump" in body
+    assert "zurueckgehalten" not in body
+
+
+def test_a_path_shaped_secret_is_still_withheld_from_prose():
+    note = crosstalk.Note(
+        "SAGT", "a3f2", "main", "abc",
+        ("ich fasse an: daedalus/a.py, .agentenv/tool-allowances.json",), "",
+    )
+    assert ".agentenv" in note.lines[0]  # the fixture is not inert
+    body = crosstalk.render(note)
+    assert ".agentenv" not in body
+    assert "daedalus/a.py" in body
+    assert "1 zurueckgehalten" in body
+
+
+def test_a_bare_secret_path_without_a_separator_is_still_withheld():
+    kept, withheld = crosstalk.redact_paths(["notes.md", "secrets.env", ".env"])
+    assert kept == ["notes.md"]
+    assert withheld == 2
+
+
+# --------------------------------------------------------------------------
+# honest reporting, a pure poll, and no self-echo
+# --------------------------------------------------------------------------
+
+
+def test_report_says_unreadable_rather_than_claiming_no_commits(repo: Path, monkeypatch):
+    """A starting revision can be GONE by the time a session ends -- another
+    lane rebases. Reporting that as "keine Commits" turns an unreadable range
+    into a claim about the work."""
+    fake = FakeTransport(discussions=[{"id": "D_1", "title": "crew-channel", "number": 1}])
+    _live(monkeypatch, fake)
+    state = {"crosstalk_head": "0000000000000000000000000000000000000000"}
+    head_now = _git(repo, "rev-parse", "--short", "HEAD")
+    crosstalk.report(repo, "sess-r", "main", head_now, "", state, crosstalk.Channel(repo))
+    body = fake.comments()[0]
+    assert "NICHT LESBAR" in body
+    assert "keine Commits" not in body
+
+
+def test_report_says_no_commits_when_the_head_did_not_move(repo: Path, monkeypatch):
+    fake = FakeTransport(discussions=[{"id": "D_1", "title": "crew-channel", "number": 1}])
+    _live(monkeypatch, fake)
+    head = _git(repo, "rev-parse", "--short", "HEAD")
+    crosstalk.report(
+        repo, "sess-r2", "main", head, "", {"crosstalk_head": head}, crosstalk.Channel(repo)
+    )
+    body = fake.comments()[0]
+    assert "keine Commits in dieser Session" in body
+    assert "NICHT LESBAR" not in body
+
+
+def test_poll_does_not_mutate_the_state_it_reads(tmp_path: Path):
+    """poll runs under with_deadline, and an overrunning call is abandoned,
+    not cancelled. If it wrote to the dict while update_state was serialising
+    it, json.dumps would raise and the turn would lose its whole injection."""
+    fake = FakeTransport(discussions=[{"id": "D_1", "title": "crew-channel", "number": 1}])
+    channel = _channel(tmp_path, fake)
+    state = {"unrelated": 1}
+    lines, updates = crosstalk.poll("main", channel, state, 1000.0)
+    assert state == {"unrelated": 1}  # untouched
+    assert updates["crosstalk_polled_at"] == 1000.0
+    assert updates["crosstalk_cache"] == lines
+
+
+def test_poll_serves_the_cache_inside_the_ttl(tmp_path: Path):
+    fake = FakeTransport(discussions=[{"id": "D_1", "title": "crew-channel", "number": 1}])
+    channel = _channel(tmp_path, fake)
+    state = {"crosstalk_polled_at": 1000.0, "crosstalk_cache": ["  [x] alt"]}
+    lines, updates = crosstalk.poll("main", channel, state, 1000.0 + 10)
+    assert lines == ["  [x] alt"]
+    assert updates == {}
+    assert fake.count("comments(last") == 0
+
+
+def test_a_session_does_not_read_its_own_announcement_back(repo: Path, monkeypatch):
+    own = crosstalk.short_sid("sess-echo")
+    fake = FakeTransport(
+        discussions=[{"id": "D_1", "title": "crew-channel", "number": 1}],
+        read_body=f"ANMELDUNG `{own}` main @aaa",
+    )
+    _live(monkeypatch, fake)
+    lines = crosstalk.announce(
+        repo, "sess-echo", "main", "aaa", "", crosstalk.Channel(repo), do_post=False
+    )
+    assert not any(own in line for line in lines)
+
+
+def test_status_names_the_switch_when_the_channel_is_off(repo: Path, monkeypatch, capsys):
+    monkeypatch.delenv("DAEDALUS_CROSSTALK", raising=False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+    assert crosstalk.main(["crosstalk", "status"]) == 0
+    out = capsys.readouterr().out
+    assert "DAEDALUS_CROSSTALK=AUS" in out
+    assert "crew-channel" in out
+
+
+def test_status_reports_ready_when_the_channel_is_armed(repo: Path, monkeypatch, capsys):
+    fake = FakeTransport(discussions=[{"id": "D_1", "title": "crew-channel", "number": 1}])
+    _live(monkeypatch, fake)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo))
+    assert crosstalk.main(["crosstalk", "status"]) == 0
+    out = capsys.readouterr().out
+    assert "PRIVATE" in out
+    assert "crew-channel: vorhanden" in out
+    assert "bereit" in out

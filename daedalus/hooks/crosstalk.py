@@ -81,6 +81,16 @@ ABS_PAT = re.compile(
     r"([A-Za-z]:[\\/][^\s,;]*)|(\\\\[^\s,;]+)|(/(?:home|Users|root)/[^\s,;]*)"
 )
 
+#: A token only faces the secret filter when it LOOKS like a path. The
+#: filter is a path filter, and applied to prose it deleted a whole ERGEBNIS
+#: because a commit subject said "token" -- then blamed a
+#: "secret-verdaechtiger pfad" that was never a path. Bare secret filenames
+#: without a separator still qualify through the suffix arm, and a real path
+#: LIST goes through :func:`redact_paths`, which filters every entry.
+PATH_SHAPED = re.compile(
+    r"[\/]|^\.\w|\.(env|pem|key|p12|pfx|crt|jks)$", re.IGNORECASE
+)
+
 WITHHELD = "<pfad entfernt>"
 
 
@@ -112,27 +122,23 @@ def redact_paths(paths: Iterable[str]) -> tuple[list[str], int]:
 
 
 def _sanitize(line: str) -> tuple[str, int]:
-    """One body line, plus how many secret-shaped tokens were removed."""
+    """One body line, plus how many secret-shaped PATHS were removed from it.
+
+    Absolute paths go unconditionally: they carry the machine's user name and
+    layout. The secret filter, by contrast, only sees comma-separated tokens
+    that look like paths -- prose keeps its words.
+    """
     line = ABS_PAT.sub(WITHHELD, line)
     withheld = 0
-    if "," in line:
-        head, _, rest = line.partition(":")
-        prefix = head + ":" if rest else ""
-        body = rest if rest else line
-        keep: list[str] = []
-        for part in (p.strip() for p in body.split(",")):
-            if not part:
-                continue
-            if SECRET_PAT.search(part):
-                withheld += 1
-            else:
-                keep.append(part)
-        line = (prefix + " " if prefix else "") + ", ".join(keep)
-        if not keep:
-            line = ""
-    elif SECRET_PAT.search(line):
-        return "", 1
-    return line, withheld
+    kept: list[str] = []
+    for part in (p.strip() for p in line.split(",")):
+        if not part:
+            continue
+        if PATH_SHAPED.search(part) and SECRET_PAT.search(part):
+            withheld += 1
+        else:
+            kept.append(part)
+    return ", ".join(kept), withheld
 
 
 def render(note: Note) -> str:
@@ -200,7 +206,9 @@ def enabled(env: Mapping[str, str] | None = None) -> bool:
     return (source.get(ENV_ENABLE) or "").strip().lower() == "on"
 
 
-def gh_graphql(query: str, variables: dict) -> dict:
+def gh_graphql(
+    query: str, variables: dict, *, argv_prefix: tuple[str, ...] = ("gh",)
+) -> dict:
     """One ``gh api graphql`` call.
 
     The credential never enters this process: gh holds it, which is why this
@@ -208,7 +216,7 @@ def gh_graphql(query: str, variables: dict) -> dict:
     and numbers through ``-F`` (typed); ``-F`` on a string would read a
     leading ``@`` as a file name.
     """
-    args = ["gh", "api", "graphql", "-f", "query=" + query]
+    args = [*argv_prefix, "api", "graphql", "-f", "query=" + query]
     for key, value in variables.items():
         flag = "-F" if isinstance(value, (int, float)) and not isinstance(value, bool) else "-f"
         args += [flag, f"{key}={value}"]
@@ -449,9 +457,13 @@ def announce(
         note = Note("ANMELDUNG", short_sid(sid), branch, head, lines, ts)
         for title in titles:
             channel.post(note, title)
+    # Drop this session's own lines. Reading back the ANMELDUNG posted three
+    # statements ago tells the session nothing it does not know, and it spends
+    # the injection budget that the OTHER sessions' lines are the point of.
+    mine = f"`{short_sid(sid)}`"
     seen: list[str] = []
     for title in titles:
-        seen += channel.read(title, READ_COMMENTS)
+        seen += [line for line in channel.read(title, READ_COMMENTS) if mine not in line]
     if seen:
         return ["CROSSTALK (" + ", ".join(titles) + "):"] + seen[-READ_COMMENTS:]
     if channel.reason:
@@ -468,15 +480,35 @@ def report(
     state: dict,
     channel: Channel,
 ) -> None:
-    """Post the ERGEBNIS to every thread this session spoke in."""
+    """Post the ERGEBNIS to every thread this session spoke in.
+
+    "no commits" and "I could not read the range" are different sentences on
+    purpose. The starting revision can genuinely be gone by the time a session
+    ends -- another lane rebases, or the branch moved -- and reporting that as
+    a quiet "keine Commits" turns an unreadable range into a claim about the
+    work. ``GitOut.ok`` exists in this repository for exactly this distinction.
+    """
     head_then = str(state.get("crosstalk_head") or "")
     lines: list[str] = []
-    if head_then and head_then != head_now:
+    if not head_then:
+        lines.append("Startstand unbekannt -- kein Vergleich moeglich")
+    elif head_then == head_now:
+        lines.append("keine Commits in dieser Session")
+    else:
         rng = f"{head_then}..{head_now}"
         subjects = git(root, "log", "--format=%s", rng)
-        subs = [s for s in str(subjects).splitlines() if s] if subjects.ok else []
-        if subs:
-            lines.append(f"commits: {len(subs)} ({' | '.join(subs[:3])})")
+        if not subjects.ok:
+            lines.append(
+                f"Commits NICHT LESBAR ({rng}) -- der Startstand ist fort "
+                "(rebase?), das ist nicht dasselbe wie 'nichts getan'"
+            )
+        else:
+            subs = [s for s in str(subjects).splitlines() if s]
+            lines.append(
+                f"commits: {len(subs)} ({' | '.join(subs[:3])})"
+                if subs
+                else "keine Commits in dieser Session"
+            )
         names = git(root, "diff", "--name-only", rng)
         if names.ok:
             kept, withheld = redact_paths([n for n in str(names).splitlines() if n])
@@ -484,8 +516,6 @@ def report(
                 f"geaendert: {len(kept)} Dateien"
                 + (f" ({withheld} zurueckgehalten)" if withheld else "")
             )
-    if not lines:
-        lines.append("keine Commits in dieser Session")
     started = state.get("crosstalk_started")
     if isinstance(started, (int, float)):
         lines.append(f"Dauer: {int((time.time() - started) / 60)} min")
@@ -501,22 +531,31 @@ def report(
         channel.post(note, title)
 
 
-def poll(branch: str, channel: Channel, state: dict, now: float) -> list[str]:
-    """New comments for the turn handler. Refetches at most every
-    :data:`POLL_TTL_S`; otherwise serves the cached lines. Mutates ``state``
-    in place -- call it from inside ``update_state``."""
+def poll(
+    branch: str, channel: Channel, state: dict, now: float
+) -> tuple[list[str], dict]:
+    """New comments for the turn handler, plus the state fragment the CALLER
+    must apply. Refetches at most every :data:`POLL_TTL_S`; otherwise serves
+    the cached lines.
+
+    This reads ``state`` and never writes it, which is not fastidiousness. It
+    runs inside ``with_deadline``, and a call that overruns its deadline is
+    ABANDONED, not cancelled -- the thread keeps going. If it then wrote to the
+    dict while ``update_state`` was serialising it, ``json.dumps`` would raise
+    "dictionary changed size during iteration" and the turn would lose its
+    whole context injection. The caller applies the fragment on the main
+    thread, after the deadline has already been decided.
+    """
     if not enabled(channel.env):
-        return []
+        return [], {}
     last = state.get("crosstalk_polled_at")
     cached = state.get("crosstalk_cache") or []
     if isinstance(last, (int, float)) and now - last < POLL_TTL_S:
-        return list(cached)
+        return list(cached), {}
     lines: list[str] = []
     for title in threads_for(branch):
         lines += channel.read(title, READ_COMMENTS)
-    state["crosstalk_polled_at"] = now
-    state["crosstalk_cache"] = lines
-    return lines
+    return lines, {"crosstalk_polled_at": now, "crosstalk_cache": lines}
 
 
 # --------------------------------------------------------------------------
@@ -524,12 +563,52 @@ def poll(branch: str, channel: Channel, state: dict, now: float) -> list[str]:
 # --------------------------------------------------------------------------
 
 ENTRYPOINT_ID = "daedalus.hooks.crosstalk"
-USAGE = 'usage: python -m daedalus.hooks.crosstalk say "<zeile>"'
+USAGE = (
+    'usage: python -m daedalus.hooks.crosstalk say "<zeile>"\n'
+    "       python -m daedalus.hooks.crosstalk status"
+)
+
+
+def _status_lines(root: Path) -> list[str]:
+    """Why the channel is or is not talking.
+
+    The channel is off by default and has six distinct ways to stay quiet.
+    Without this verb the only way to tell "switched off" from "no gh login"
+    from "Discussions not enabled" is to start a session and read the injected
+    text, which is a poor instrument for a thing you are trying to set up.
+    """
+    channel = Channel(root)
+    branch = str(git(root, "rev-parse", "--abbrev-ref", "HEAD")).strip()
+    out = [
+        f"schalter   {ENV_ENABLE}={'on' if enabled(channel.env) else 'AUS'}",
+        f"branch     {branch or '(detached)'}",
+        f"threads    {', '.join(threads_for(branch))}",
+    ]
+    if not enabled(channel.env):
+        out.append(f"-> nichts wird gepostet oder gelesen. {ENV_ENABLE}=on schaltet ein.")
+        return out
+    slug = channel._slug()
+    out.append(f"repo       {'/'.join(slug) if slug else '(unbekannt)'}")
+    repo = channel._repo_facts()
+    if repo is None:
+        out.append(f"-> {channel.reason or 'Repository nicht lesbar'}")
+        return out
+    out.append(f"sichtbar   {repo.get('visibility')}")
+    if not channel._may_post(repo):
+        out.append(f"-> {channel.reason}")
+        return out
+    existing = {
+        node.get("title") for node in (repo.get("discussions") or {}).get("nodes") or []
+    }
+    for title in threads_for(branch):
+        out.append(f"thread     {title}: {'vorhanden' if title in existing else 'wird angelegt'}")
+    out.append("-> bereit")
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
-    """``python -m daedalus.hooks.crosstalk say "..."`` -- one line, written by
-    the model, into this branch's threads.
+    """``say "..."`` posts one model-written line into this branch's threads;
+    ``status`` says why the channel is quiet.
 
     Exit code is always 0: this is a courtesy channel, and a failed post must
     not fail whatever command sequence the model was running.
@@ -547,10 +626,15 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 - a refusal is reported, never raised
         print(f"[crosstalk] effect boundary refused or unavailable: {exc}", file=sys.stderr)
         return 0
-    if len(argv) < 3 or argv[1] != "say" or not str(argv[2]).strip():
+    verb = argv[1] if len(argv) > 1 else ""
+    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()).resolve()
+    if verb == "status":
+        for line in _status_lines(root):
+            print(line)
+        return 0
+    if verb != "say" or len(argv) < 3 or not str(argv[2]).strip():
         print(USAGE, file=sys.stderr)
         return 0
-    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()).resolve()
     branch = str(git(root, "rev-parse", "--abbrev-ref", "HEAD")).strip()
     head = str(git(root, "rev-parse", "--short", "HEAD")).strip()
     sid = os.environ.get("CLAUDE_SESSION_ID") or "cli"
