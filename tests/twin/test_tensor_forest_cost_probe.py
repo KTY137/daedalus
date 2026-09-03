@@ -13,7 +13,16 @@ import pytest
 
 from daedalus.schemas import ContractProvenance
 from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
-from daedalus.twin import FourfoldSnapshot, fourfold_from_knowledge_forest
+from daedalus.twin import (
+    FourfoldSnapshot,
+    PlaneSnapshot,
+    fourfold_from_knowledge_forest,
+)
+from daedalus.twin.relation_blocks import (
+    RelationSignature,
+    TypedRelationBlock,
+)
+from daedalus.twin.relation_projection import boolean_relation_block_from_fourfold
 from daedalus.twin.tensor import SparseTensorEntry, TensorAxis, TensorView
 
 REVISION = "a" * 40
@@ -191,6 +200,47 @@ def _relation_tensor(
     )
 
 
+def _complete_relation_fourfold(forest: KnowledgeForest) -> FourfoldSnapshot:
+    legacy = _fourfold(
+        forest,
+        trace_id="tensor-forest-relation-cost-probe",
+    )
+    planes = tuple(
+        (
+            PlaneSnapshot(
+                plane=plane.plane,
+                source_revision=plane.source_revision,
+                status="complete",
+                node_ids=plane.node_ids,
+                relation_sha256s=plane.relation_sha256s,
+                evidence_sha256s=plane.evidence_sha256s,
+            )
+            if plane.plane in {"code", "knowledge"}
+            else plane
+        )
+        for plane in legacy.planes
+    )
+    provenance = ContractProvenance(
+        origin="test.tensor-forest-relation-cost-probe.complete-fixture",
+        source_revision=REVISION,
+        created_at=NOW,
+        input_digests=(
+            forest.content_sha256,
+            *(plane.digest for plane in planes),
+            *(binding.digest for binding in legacy.bindings),
+        ),
+        trace_id="tensor-forest-relation-cost-probe-complete",
+    )
+    return FourfoldSnapshot(
+        repository_id=legacy.repository_id,
+        source_revision=legacy.source_revision,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=legacy.bindings,
+        provenance=provenance,
+    )
+
+
 def _relation_forest_query(subject: KnowledgeForest) -> tuple[str, ...]:
     kind_by_node = {node.id: node.kind for node in subject.nodes}
     documented: set[str] = set()
@@ -253,6 +303,20 @@ def _relation_tensor_query(subject: TensorView) -> tuple[str, ...]:
         elif entry.relation == "imports" and target_plane == "code":
             importing.add(source)
     return tuple(sorted(documented & importing))
+
+
+def _relation_block_query(
+    subject: tuple[
+        KnowledgeForest,
+        FourfoldSnapshot,
+        TypedRelationBlock[bool],
+        TypedRelationBlock[bool],
+    ],
+) -> tuple[str, ...]:
+    _, _, imports, documents = subject
+    importing = {source for source, _, _ in imports.iter_entries()}
+    documented = {source for source, _, _ in documents.iter_entries()}
+    return tuple(sorted(importing & documented))
 
 
 def _measure(
@@ -390,14 +454,11 @@ def relation_probe(
         raise ValueError(f"size must be an integer in [1, {MAX_PROBE_SUBJECTS}]")
 
     reference_forest = _relation_forest(size)
-    reference_fourfold = _fourfold(
-        reference_forest,
-        trace_id="tensor-forest-relation-cost-probe",
-    )
+    reference_fourfold = _complete_relation_fourfold(reference_forest)
 
     def build_forest_arm() -> tuple[KnowledgeForest, FourfoldSnapshot]:
         forest = _relation_forest(size)
-        fourfold = _fourfold(forest, trace_id="tensor-forest-relation-cost-probe")
+        fourfold = _complete_relation_fourfold(forest)
         return forest, fourfold
 
     forest_metrics, forest_result = _measure(
@@ -413,7 +474,7 @@ def relation_probe(
         dict[tuple[str, str, str], frozenset[str]],
     ]:
         forest = _relation_forest(size)
-        fourfold = _fourfold(forest, trace_id="tensor-forest-relation-cost-probe")
+        fourfold = _complete_relation_fourfold(forest)
         return forest, fourfold, _relation_forest_index(forest)
 
     preindexed_metrics, preindexed_result = _measure(
@@ -425,7 +486,7 @@ def relation_probe(
 
     def build_tensor_arm() -> tuple[KnowledgeForest, FourfoldSnapshot, TensorView]:
         forest = _relation_forest(size)
-        fourfold = _fourfold(forest, trace_id="tensor-forest-relation-cost-probe")
+        fourfold = _complete_relation_fourfold(forest)
         return forest, fourfold, _relation_tensor(forest, fourfold)
 
     tensor_metrics, tensor_result = _measure(
@@ -435,14 +496,45 @@ def relation_probe(
         query_iterations=query_iterations,
     )
 
-    if forest_result != preindexed_result or forest_result != tensor_result:
+    def build_relation_block_arm() -> tuple[
+        KnowledgeForest,
+        FourfoldSnapshot,
+        TypedRelationBlock[bool],
+        TypedRelationBlock[bool],
+    ]:
+        forest = _relation_forest(size)
+        fourfold = _complete_relation_fourfold(forest)
+        imports = boolean_relation_block_from_fourfold(
+            forest,
+            fourfold,
+            RelationSignature("code", "imports", "code"),
+        )
+        documents = boolean_relation_block_from_fourfold(
+            forest,
+            fourfold,
+            RelationSignature("code", "documents", "knowledge"),
+        )
+        return forest, fourfold, imports, documents
+
+    relation_block_metrics, relation_block_result = _measure(
+        build_relation_block_arm,
+        _relation_block_query,
+        repeats=repeats,
+        query_iterations=query_iterations,
+    )
+
+    if (
+        forest_result != preindexed_result
+        or forest_result != tensor_result
+        or forest_result != relation_block_result
+    ):
         raise AssertionError("comparison arm changed the direct cross-plane Forest query subject")
 
     return {
-        "schema": "daedalus-tensor-forest-relation-cost-probe/3",
+        "schema": "daedalus-tensor-forest-relation-cost-probe/4",
         "authority": "diagnostic-only",
         "claim": "none",
-        "construction_basis": "forest+fourfold",
+        "construction_basis": "forest+complete-fourfold",
         "source_forest_sha256": reference_forest.content_sha256,
         "source_fourfold_sha256": reference_fourfold.digest,
         "workload": "documented-import-sources",
@@ -459,6 +551,7 @@ def relation_probe(
             "forest_direct": forest_metrics,
             "forest_preindexed": preindexed_metrics,
             "forest_plus_tensor": tensor_metrics,
+            "fourfold_boolean_csr": relation_block_metrics,
         },
     }
 
@@ -506,8 +599,8 @@ def test_probe_binds_tensor_to_real_fourfold_snapshot_identity() -> None:
 def test_relation_probe_matches_cross_plane_multi_relation_forest_subject() -> None:
     result = relation_probe(size=64, repeats=1, query_iterations=2)
 
-    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/3"
-    assert result["construction_basis"] == "forest+fourfold"
+    assert result["schema"] == "daedalus-tensor-forest-relation-cost-probe/4"
+    assert result["construction_basis"] == "forest+complete-fourfold"
     assert len(result["source_forest_sha256"]) == 64
     assert len(result["source_fourfold_sha256"]) == 64
     assert result["workload"] == "documented-import-sources"
@@ -528,9 +621,25 @@ def test_relation_cost_probe_reports_equal_budget_arms_without_speed_claim() -> 
         "forest_direct",
         "forest_preindexed",
         "forest_plus_tensor",
+        "fourfold_boolean_csr",
     }
     for metrics in result["arms"].values():
         assert all(type(value) is int and value >= 0 for value in metrics.values())
+
+
+def test_relation_probe_binds_csr_arm_to_complete_fourfold_snapshot() -> None:
+    forest = _relation_forest(8)
+    fourfold = _complete_relation_fourfold(forest)
+
+    assert fourfold.source_forest_sha256 == forest.content_sha256
+    assert fourfold.plane_map["code"].status == "complete"
+    assert fourfold.plane_map["knowledge"].status == "complete"
+    block = boolean_relation_block_from_fourfold(
+        forest,
+        fourfold,
+        RelationSignature("code", "documents", "knowledge"),
+    )
+    assert block.subject.source_fourfold_sha256 == fourfold.digest
 
 
 def test_cost_probe_bounds_its_own_work() -> None:
