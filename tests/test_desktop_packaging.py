@@ -879,5 +879,5 @@ def test_desktop_release_versions_are_aligned() -> None:
         == match.group(1)
         == locked_match.group(1)
         == project_match.group(1)
-        == "0.1.4"
+        == "0.1.5"
     )
