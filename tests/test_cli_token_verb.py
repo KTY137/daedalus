@@ -11,7 +11,7 @@ These probes pin the three halves of "wired": the verb dispatches from
 ``cli.main``'s argv, the registry row is no longer inventory-only, and the
 row's guard anchor still resolves against the tree it points at.
 
-MUTATION NOTE: delete the ``elif cmd == "tokens"`` arm in ``daedalus/cli.py``
+MUTATION NOTE: delete the ``elif cmd == "tokens"`` arm in ``daedalus/interfaces/cli/entry.py``
 and the first two tests go red.  Delete the ``begin_effect`` call in
 ``token_monitor.main`` and the anchor probe goes red (and the family probe in
 ``tests/test_cli_effect_boundary.py`` goes red with it).  Move that call below
@@ -85,7 +85,7 @@ def test_the_tokens_verb_is_reachable_from_cli_main_argv(
     canonical boundary.  Anything broken anywhere along that chain shows up
     here as an import error, a non-zero exit, or missing JSON.
     """
-    from daedalus.cli import main as cli_main
+    from daedalus.interfaces.cli.entry import main as cli_main
 
     monkeypatch.setattr(
         "sys.argv",
@@ -119,7 +119,7 @@ def test_the_tokens_verb_is_named_in_the_cli_usage():
     the usage line, which leaves the command working and undiscoverable --
     exactly the state this change was made to end.
     """
-    usage = (ROOT / "daedalus" / "cli.py").read_text(encoding="utf-8")
+    usage = (ROOT / "daedalus" / "interfaces" / "cli" / "entry.py").read_text(encoding="utf-8")
     assert "daedalus tokens" in usage
 
 

@@ -24,7 +24,7 @@ IMPLEMENTATIONS = {
     "sse": HTTP_ROOT / "sse.py",
     "router": HTTP_ROOT / "router.py",
 }
-REGISTRY_SHA256 = "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
+REGISTRY_SHA256 = "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
 WIRE_LITERAL_CONTRACTS = {
     "read": (
         ("handle_get",),

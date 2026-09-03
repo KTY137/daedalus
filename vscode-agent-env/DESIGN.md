@@ -299,7 +299,7 @@ is genuinely native VS Code surface rather than a window onto the React app.
 ### Why this exists
 
 `bindDashboardWebview()` owns exactly one fact the React app cannot know about itself: whether
-the local `daedalus.cli web` process it depends on is actually reachable. Before this section
+the local `daedalus.interfaces.cli.entry web` process it depends on is actually reachable. Before this section
 existed, that fact collapsed to two outcomes — the iframe (success) or a blank panel plus a
 generic, often-swallowed VS Code error toast (every failure, indistinguishable from each other).
 "Cannot find daedalus root", "python isn't on PATH", "the process started and then crashed", and

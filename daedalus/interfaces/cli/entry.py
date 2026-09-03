@@ -109,8 +109,8 @@ def _spawn(argv: list[str]) -> None:
     (--live) them across the local bench via Kairos."""
     import argparse
     import json
-    from .kairos.scheduler import KairosScheduler
-    from .foundation.projects import resolve_repo_root
+    from ...kairos.scheduler import KairosScheduler
+    from ...foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus spawn",
@@ -132,9 +132,9 @@ def _spawn(argv: list[str]) -> None:
         print(json.dumps(result, indent=2, default=str))
         return
 
-    from .build import plan_build
-    from .build_exec import WaveExecutor
-    from .orchestration import run_mission
+    from ...build import plan_build
+    from ...build_exec import WaveExecutor
+    from ...orchestration import run_mission
 
     session = plan_build(
         args.objective,
@@ -174,8 +174,8 @@ def _build(argv: list[str]) -> None:
     now -- persists a session snapshot under runs/build/."""
     import argparse
     import json
-    from .build import plan_build
-    from .foundation.projects import resolve_repo_root
+    from ...build import plan_build
+    from ...foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus build",
@@ -213,7 +213,7 @@ def _build(argv: list[str]) -> None:
 
 def _init(argv: list[str]) -> None:
     from pathlib import Path
-    from .config import init_repo
+    from ...config import init_repo
     repo = str(Path(argv[0]).resolve()) if argv else str(Path.cwd())
     path = init_repo(repo)
     print(f"wrote {path}\n"
@@ -222,7 +222,7 @@ def _init(argv: list[str]) -> None:
 
 
 def _projects(argv: list[str]) -> None:
-    from .foundation.projects import list_projects
+    from ...foundation.projects import list_projects
     projects = list_projects()
     if not projects:
         print("no registered projects")
@@ -235,7 +235,7 @@ def _accelerators(argv: list[str]) -> None:
     import argparse
     import json
 
-    from .foundation.accelerators import accelerator_status
+    from ...foundation.accelerators import accelerator_status
 
     parser = argparse.ArgumentParser(
         prog="daedalus accelerators",
@@ -278,10 +278,10 @@ def _context(argv: list[str]) -> None:
     import argparse
     import json
 
-    from .orchestration.context_plan import plan_context
-    from .foundation.projects import load_project, resolve_repo_root
-    from .structcore.churn import co_change_pairs
-    from .structcore.index import cached_index
+    from ...orchestration.context_plan import plan_context
+    from ...foundation.projects import load_project, resolve_repo_root
+    from ...structcore.churn import co_change_pairs
+    from ...structcore.index import cached_index
 
     parser = argparse.ArgumentParser(
         prog="daedalus context",
@@ -362,8 +362,8 @@ def _agents(argv: list[str]) -> None:
     override under .agentenv/agents/; otherwise the built-in global agents/."""
     import argparse
     import json
-    from .orchestration import agents_registry as reg
-    from .foundation.projects import resolve_repo_root
+    from ...orchestration import agents_registry as reg
+    from ...foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus agents",
@@ -453,8 +453,8 @@ def _categories(argv: list[str]) -> None:
     otherwise the built-in global agents/categories.json."""
     import argparse
     import json
-    from .orchestration import categories as cats
-    from .foundation.projects import resolve_repo_root
+    from ...orchestration import categories as cats
+    from ...foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus categories",
@@ -509,7 +509,7 @@ def _drafts(argv: list[str]) -> None:
     Claude action by design (a free model may propose, never merge)."""
     import argparse
     import json
-    from .kairos import drafts as dr
+    from ...kairos import drafts as dr
 
     parser = argparse.ArgumentParser(
         prog="daedalus drafts",
@@ -568,8 +568,8 @@ def _council(argv: list[str]) -> None:
     import argparse
     import json
     from pathlib import Path
-    from .council import session as cs
-    from .council import vendors as cv
+    from ...council import session as cs
+    from ...council import vendors as cv
 
     parser = argparse.ArgumentParser(
         prog="daedalus council",
@@ -768,7 +768,7 @@ def _council_pr(args, parser) -> None:
     Every operational failure here is a STATUS, never an exception: the module
     enumerates them precisely so a caller does not have to guess."""
     from pathlib import Path
-    from .council import publish as cp
+    from ...council import publish as cp
 
     # A deliberation is arbitrary Unicode and a Windows console is cp1252. The
     # convene path already learned this; the early return for the PR channel
@@ -850,7 +850,7 @@ def _canary(argv: list[str]) -> int:
     import argparse
     import dataclasses
     import json
-    from .council import canary as cn
+    from ...council import canary as cn
 
     parser = argparse.ArgumentParser(
         prog="daedalus canary",
@@ -1019,8 +1019,8 @@ def _claude_crew(argv: list[str]) -> None:
     import argparse
     import json
     from pathlib import Path
-    from .foundation.claude_detect import detect_claude_crew
-    from .foundation.projects import resolve_repo_root
+    from ...foundation.claude_detect import detect_claude_crew
+    from ...foundation.projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
         prog="daedalus claude-crew",
@@ -1062,7 +1062,7 @@ def _governance(argv: list[str]) -> int:
 
     import json
 
-    from .core import get_governance
+    from ...core import get_governance
 
     g = get_governance(args.project)
     if args.json:
@@ -1120,7 +1120,7 @@ def main() -> None:
     # the call cap, the declared subscription vendors -- is exactly the kind of
     # thing that belongs in `.env`. Loading after it would read the defaults and
     # silently ignore what the operator configured.
-    from .foundation.dotenv import DotEnvRefused, load as _load_dotenv
+    from ...foundation.dotenv import DotEnvRefused, load as _load_dotenv
 
     try:
         _load_dotenv()
@@ -1131,37 +1131,37 @@ def main() -> None:
         print(f"[daedalus] REFUSED: {exc}", file=sys.stderr)
         return 2
 
-    from .budget import install_process_guard
+    from ...budget import install_process_guard
 
     install_process_guard()
 
     if cmd == "doctor":
-        from .doctor import main as m; m()
+        from ...doctor import main as m; m()
     elif cmd == "offload":
-        from .offload import main as m; m()
+        from ...offload import main as m; m()
     elif cmd == "spawn":
         _spawn(rest)
     elif cmd == "build":
         _build(rest)
     elif cmd == "ikarus":
-        from .kairos.scheduler import main as m; m()
+        from ...kairos.scheduler import main as m; m()
     elif cmd == "dctx":
-        from .dctx import main as m; m()
+        from ...dctx import main as m; m()
     elif cmd == "context":
         _context(rest)
     elif cmd == "metrics":
-        from .metrics import main as m; m()
+        from ...metrics import main as m; m()
     elif cmd == "benchmark":
-        from .orchestration.benchmark import main as m; m()
+        from ...orchestration.benchmark import main as m; m()
     elif cmd == "status":
         # The verdict is the point of this command, so it must reach the shell.
         # `m()` alone discarded it and every `daedalus status` looked like a
         # success -- including the ones reporting a degraded subsystem.
-        from .status import main as m; raise SystemExit(m())
+        from ...status import main as m; raise SystemExit(m())
     elif cmd == "health":
-        from .health import main as m; raise SystemExit(m(rest))
+        from ...health import main as m; raise SystemExit(m(rest))
     elif cmd == "project-memory":
-        from .memory.projection_worker import main as m; raise SystemExit(m(rest))
+        from ...memory.projection_worker import main as m; raise SystemExit(m(rest))
     elif cmd == "drill":
         # tools/ is not a package, so this shells out rather than importing.
         # Resolved from this file's location, never from cwd -- `daedalus drill`
@@ -1175,17 +1175,17 @@ def main() -> None:
             raise SystemExit(2)
         raise SystemExit(_sp.run([sys.executable, str(script), *rest]).returncode)
     elif cmd == "dashboard":
-        from .kairos.control import main_dashboard as m; m(rest)
+        from ...kairos.control import main_dashboard as m; m(rest)
     elif cmd == "models":
-        from .kairos.control import main_models as m; m(rest)
+        from ...kairos.control import main_models as m; m(rest)
     elif cmd == "accelerators":
         _accelerators(rest)
     elif cmd == "squads":
-        from .kairos.control import main_squads as m; m(rest)
+        from ...kairos.control import main_squads as m; m(rest)
     elif cmd == "watcher":
-        from .kairos.control import main_watcher as m; m(rest)
+        from ...kairos.control import main_watcher as m; m(rest)
     elif cmd == "review-diff":
-        from .kairos.control import main_review_diff as m; m(rest)
+        from ...kairos.control import main_review_diff as m; m(rest)
     elif cmd == "projects":
         _projects(rest)
     elif cmd == "agents":
@@ -1201,7 +1201,7 @@ def main() -> None:
     elif cmd == "drafts":
         _drafts(rest)
     elif cmd == "selftest":
-        from .interfaces.cli.selftest import main as m; m(rest)
+        from .selftest import main as m; m(rest)
     elif cmd == "tokens":
         # Observability, not enforcement. It READS the budget ledger and the
         # intent spine and writes only its own report under memory/; the spend
@@ -1209,22 +1209,22 @@ def main() -> None:
         # here so the monitor is reachable the way every other verb is -- it
         # was registered on the effect boundary with no console door, which is
         # how a monitor ends up trusted and never run.
-        from .interfaces.cli.token_monitor import main as m; raise SystemExit(m(rest))
+        from .token_monitor import main as m; raise SystemExit(m(rest))
     elif cmd == "bookkeeper":
-        from .interfaces.cli.bookkeeper import main as m; m(rest)
+        from .bookkeeper import main as m; m(rest)
     elif cmd == "map":
-        from .mapping.render import main as m; raise SystemExit(m(rest))
+        from ...mapping.render import main as m; raise SystemExit(m(rest))
     elif cmd == "web":
-        from .interfaces.http.web_api import main as m; m(rest)
+        from ..http.web_api import main as m; m(rest)
     elif cmd == "enforce":
-        from .interfaces.cli.enforce import main as m; m()
+        from .enforce import main as m; m()
     elif cmd == "improve":
-        from .orchestration.execution import (
+        from ...orchestration.execution import (
             attempt_ports,
             offload_port,
             picker_evaluation_ports,
         )
-        from .spine.picker import main as m
+        from ...spine.picker import main as m
         raise SystemExit(m(
             rest,
             evaluation_ports=picker_evaluation_ports(),
@@ -1240,12 +1240,12 @@ def main() -> None:
         # produces evidence; only this separate, explicitly invoked step turns
         # a retained observation into a trusted one, so a candidate that can
         # write evidence still cannot write trust.
-        from .runtimes.fault_attestation_issuer import main as m
+        from ...runtimes.fault_attestation_issuer import main as m
         raise SystemExit(m(rest))
     elif cmd == "fixture-fault-collect":
         # Produces evidence and holds no key. Kept separate from the issuer so
         # that being able to write evidence is never a way to write trust.
-        from .runtimes.fixture_fault_collector import main as m
+        from ...runtimes.fixture_fault_collector import main as m
         raise SystemExit(m(rest))
     elif cmd == "fixture-fault-attestation":
         # The sibling operator command for the deterministic-fixture column.
@@ -1253,7 +1253,7 @@ def main() -> None:
         # key parameter on purpose: neither column's issuer can sign the
         # other's rows, so compromising one collector does not buy trust in
         # the other.
-        from .runtimes.fixture_fault_attestation_issuer import main as m
+        from ...runtimes.fixture_fault_attestation_issuer import main as m
         raise SystemExit(m(rest))
     else:
         print(f"unknown command '{cmd}'\n")

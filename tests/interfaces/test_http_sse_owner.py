@@ -16,7 +16,7 @@ from daedalus.spine.effect_boundary import registry_sha256
 ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "daedalus" / "interfaces" / "http" / "web_api.py"
 OWNER = ROOT / "daedalus" / "interfaces" / "http" / "sse.py"
-REGISTRY_SHA256 = "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
+REGISTRY_SHA256 = "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
 
 
 class _Wire:

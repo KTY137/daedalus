@@ -53,7 +53,7 @@ from ..runtimes.provider_observation import (
 )
 from ..spine.effect_boundary import Effect
 from ..spine.envelope import canonical_sha
-from ..token_policy import trim_paths
+from ..runtimes.providers.token_policy import trim_paths
 from ._report import bounded_execution_limit_policy
 from .base import Provider, ProviderCapabilities
 

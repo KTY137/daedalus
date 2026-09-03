@@ -124,7 +124,7 @@ _PLACEHOLDER = re.compile(r"[*?<>\[\]{}]|\.\.\.")
 _DOTTED = re.compile(r"^[a-z_][a-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+$")
 
 # `path/to/mod.py::symbol` and `path/to/mod.py:symbol`. The colon form requires
-# an IDENTIFIER after it, so `daedalus/cli.py:794` (a line number) is not read
+# an IDENTIFIER after it, so `daedalus/interfaces/cli/entry.py:794` (a line number) is not read
 # as a symbol that is missing.
 _PATH_SYMBOL = re.compile(r"^([\w./-]+\.py)::?([A-Za-z_][A-Za-z0-9_]*)$")
 

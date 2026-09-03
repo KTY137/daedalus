@@ -49,7 +49,7 @@ LEAKED_UNDER_THE_DRAFT = (
     "daedalus/offload.py",
     "daedalus/router.py",
     "daedalus/providers/ollama.py",
-    "daedalus/cli.py",
+    "daedalus/interfaces/cli/entry.py",
     "daedalus/health.py",
     "daedalus/config.py",
     "pyproject.toml",

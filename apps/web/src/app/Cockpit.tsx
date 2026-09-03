@@ -527,7 +527,7 @@ export function Cockpit() {
           <h2>Die Daedalus-API antwortet nicht.</h2>
           <p>
             Nichts auf diesem Bildschirm wurde von ihr gelesen — das ist nicht dasselbe wie „es gibt nichts zu zeigen“.
-            Starte sie mit <code>python -m daedalus.cli web</code> und lade neu.
+            Starte sie mit <code>python -m daedalus.interfaces.cli.cli web</code> und lade neu.
           </p>
         </>
       ) : !project ? (

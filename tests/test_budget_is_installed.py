@@ -48,21 +48,21 @@ def test_the_cli_entry_point_installs_the_guard():
     would match -- and a test that matches its own explanation stays green after
     the code it describes is deleted. That has happened four times in this repo.
     """
-    from daedalus import cli
+    from daedalus.interfaces.cli import entry
 
-    tree = ast.parse(textwrap.dedent(inspect.getsource(cli.main)))
+    tree = ast.parse(textwrap.dedent(inspect.getsource(entry.main)))
     calls = [n for n in ast.walk(tree)
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
              and n.func.id == "install_process_guard"]
-    assert calls, "daedalus.cli.main does not install the spend guard"
+    assert calls, "daedalus.interfaces.cli.entry.main does not install the spend guard"
 
 
 def test_the_guard_is_installed_BEFORE_any_subcommand_dispatch():
     """Order is the whole property. A cap installed after dispatch is a cap
     installed after the spending."""
-    from daedalus import cli
+    from daedalus.interfaces.cli import entry
 
-    tree = ast.parse(textwrap.dedent(inspect.getsource(cli.main)))
+    tree = ast.parse(textwrap.dedent(inspect.getsource(entry.main)))
     fn = tree.body[0]
     install_line = None
     first_dispatch_line = None

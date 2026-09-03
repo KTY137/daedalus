@@ -146,7 +146,10 @@ def test_frozen_repository_baseline_is_exact_and_green() -> None:
     # 21 since G1-HIER-10 registered ``daedalus.schemas``. A moving census,
     # not an invariant: re-measure it in the packet that adds or retires a
     # shim.
-    assert report.shim_entry_count == 17
+    # 16 since G1-FLAT-06 deleted ``daedalus.token_policy``, whose removal
+    # criteria were met once its two production callers named the owner
+    # directly. A moving census, not an invariant.
+    assert report.shim_entry_count == 16
     assert report.passed is True
 
 

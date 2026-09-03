@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from daedalus.kairos.decompose import decompose
 from daedalus.limit_policy import ExecutionLimitPolicy, MODE_UNBOUNDED_EXECUTION
-from daedalus.token_policy import trim_paths
+from daedalus.runtimes.providers.token_policy import trim_paths
 
 
 UNBOUNDED = ExecutionLimitPolicy(mode=MODE_UNBOUNDED_EXECUTION)

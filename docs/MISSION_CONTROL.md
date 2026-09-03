@@ -2,6 +2,6 @@
 
 # Mission Control v1 (dead design, never built)
 
-Design intent: a tabbed VS Code dashboard (Overview, Queue Timeline, Agent Squads, Model Resources, Quality Gates) reading `python -m daedalus.cli dashboard --project <name> --json` and the outbox/inbox file bus, stateless, with a defensive-write policy (no automatic writes to `.agentenv/agentenv.json` or project configs). None of it was implemented; the CLI command, the five-tab layout, and the safety posture described in earlier revisions of this file do not exist in the shipped extension.
+Design intent: a tabbed VS Code dashboard (Overview, Queue Timeline, Agent Squads, Model Resources, Quality Gates) reading `python -m daedalus.interfaces.cli.entry dashboard --project <name> --json` and the outbox/inbox file bus, stateless, with a defensive-write policy (no automatic writes to `.agentenv/agentenv.json` or project configs). None of it was implemented; the CLI command, the five-tab layout, and the safety posture described in earlier revisions of this file do not exist in the shipped extension.
 
 See also: [`docs/COMMS_PROTOCOL.md`](COMMS_PROTOCOL.md) (outbox/inbox JSON contract, still live), [`vscode-agent-env/DESIGN.md`](../vscode-agent-env/DESIGN.md) (the design that replaced this one).

@@ -166,7 +166,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
     EntrypointSpec(
         id="cli.daedalus",
         surface=Surface.CLI,
-        target="daedalus.cli:main",
+        target="daedalus.interfaces.cli.entry:main",
         effects=(
             Effect.FILESYSTEM_WRITE,
             Effect.PROCESS_SPAWN,
@@ -176,7 +176,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         ),
         guard_contracts=("budget.process_guard",),
         wiring=Wiring.LOCAL_GUARDS,
-        anchors=(GuardAnchor("daedalus.cli:main", "install_process_guard"),),
+        anchors=(GuardAnchor("daedalus.interfaces.cli.entry:main", "install_process_guard"),),
         notes="Console script installs the spend guard, then dispatches local subcommands.",
     ),
     EntrypointSpec(
@@ -688,7 +688,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         notes=(
             "Checkpoint writes (one-shot and watch loop) begin centrally, at "
             "the top of main() BEFORE argument parsing, so both doors pass "
-            "it: the `daedalus tokens` subcommand in daedalus/cli.py and the "
+            "it: the `daedalus tokens` subcommand in daedalus/interfaces/cli/entry.py and the "
             "`python -m daedalus.interfaces.cli.token_monitor` module tail. WRITE ROOTS, "
             "exhaustively: memory/ -- token_status.local.json, the event "
             "journal, the TODO snapshot -- is the report it produces. The "

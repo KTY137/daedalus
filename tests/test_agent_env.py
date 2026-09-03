@@ -11,7 +11,11 @@ from daedalus.foundation.projects import list_projects, load_project, resolve_re
 from daedalus.router import route_task
 from daedalus.status import _count_open_todos
 from daedalus.schemas import validate_report
-from daedalus.token_policy import STATIC_PROMPT_PREFIX, trim_paths, trim_text
+from daedalus.runtimes.providers.token_policy import (
+    STATIC_PROMPT_PREFIX,
+    trim_paths,
+    trim_text,
+)
 from daedalus.interfaces.cli.token_monitor import STATUS_PATH, UsageSample, checkpoint_if_needed, should_checkpoint, summarize_usage
 
 

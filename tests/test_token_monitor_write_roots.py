@@ -4,7 +4,7 @@ Two claims, one instrument.
 
 1. THE TAIL STARTS AT THE BOUNDARY. The module has a second door: the
    ``if __name__ == "__main__"`` tail is reachable without passing
-   ``daedalus.cli:main``'s dispatch, so adding the ``daedalus tokens``
+   ``daedalus.interfaces.cli.entry:main``'s dispatch, so adding the ``daedalus tokens``
    subcommand did not close it -- it added a door beside it. The boundary
    therefore lives at the top of ``main()``, where both doors pass it, and this
    proves it from the tail's side. Same argument and same shape as

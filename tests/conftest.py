@@ -28,7 +28,7 @@ THE SAME ARGUMENT, FOR DECLARATIONS THAT MOVE A VERDICT
 ``DAEDALUS_TRUSTED_HOSTS`` and ``DAEDALUS_SUBSCRIPTION_VENDORS`` are operator
 declarations: the first decides whether a host is inside the egress fence, the
 second whether a vendor's calls cost dollars. Both legitimately live in a
-developer's ``.env``, and ``daedalus.cli.main`` loads that file into
+developer's ``.env``, and ``daedalus.interfaces.cli.entry.main`` loads that file into
 ``os.environ`` for real -- permanently, on purpose, because the guard it
 configures must see it.
 

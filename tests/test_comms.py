@@ -170,7 +170,7 @@ class VsCodeExtensionTests(unittest.TestCase):
         ):
             self.assertIn(f'registerCommand("{command}"', src)
         self.assertIn('"daedalus.file_bridge"', src)
-        self.assertIn('"daedalus.cli"', src)
+        self.assertIn('"daedalus.interfaces.cli.entry"', src)
 
     def test_extension_dashboard_supports_team_and_environment_controls(self):
         src = EXTENSION_MAIN.read_text(encoding="utf-8")

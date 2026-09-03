@@ -108,7 +108,7 @@ each inspected, unchanged by this reconstruction):
 | `daedalus/doctor.py` | `--version` / `login status` probes generate no tokens |
 | `daedalus/health.py` | git, `shutil.which`, local `/api/tags` |
 | `daedalus/claude_bridge.py` | since `448969d` the `__main__` fail-closes via `parser.error` before any effect; the one vendor spawn is private and brokered |
-| `tools/system_check.py` | spawns `daedalus.cli web` / `file_bridge watch`; its `claude` token is a room SPEAKER NAME |
+| `tools/system_check.py` | spawns `daedalus.interfaces.cli.entry web` / `file_bridge watch`; its `claude` token is a room SPEAKER NAME |
 | `tools/gate_discrimination.py` | vendor token inside a fixture string; protected artifact (see above) |
 
 ## 4. Who installs the ceiling
@@ -125,7 +125,7 @@ Independently reproduced 2026-08-22 [MEASURED] by scanning every non-test
 `*.py` for a *call* to `install_process_guard()` — **8 files**, exactly the set
 the test pins, with no drift:
 
-`daedalus/budget.py`, `daedalus/cli.py`, `daedalus/orchestration/loop.py`,
+`daedalus/budget.py`, `daedalus/interfaces/cli/entry.py`, `daedalus/orchestration/loop.py`,
 `runs/ab/run_arm.py`, `runs/council/room.py`, `runs/council/room_server.py`,
 `runs/council/summarize.py`, `tools/operability_drill.py`.
 

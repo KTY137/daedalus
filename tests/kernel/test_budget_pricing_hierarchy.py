@@ -105,5 +105,5 @@ def test_legacy_pickle_global_still_resolves_to_the_canonical_class() -> None:
 
 def test_structure_packet_keeps_the_effect_registry_digest() -> None:
     assert registry_sha256() == (
-        "1afe32ac18cb6cb755a1bf9a3f5aa47834c3716298e8914c0cc6c983633aef3d"
+        "615372b006399f851eb5f707ccc21ccdb347dec2e717e0911c6ac36549164752"
     )

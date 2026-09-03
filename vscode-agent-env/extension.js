@@ -126,7 +126,7 @@ async function ensureWebServer(context) {
   try {
     webServerProcess = cp.spawn(
       python(),
-      ["-m", "daedalus.cli", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
+      ["-m", "daedalus.interfaces.cli.entry", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
       { cwd: root, windowsHide: true, detached: false, stdio: ["ignore", "ignore", "pipe"] }
     );
   } catch (err) {
@@ -493,13 +493,13 @@ async function envStatus(context) {
   }).filter(Boolean);
   const ollama = await execTool("ollama", ["--version"], root, 5000);
   let doctor = "";
-  try { doctor = await runPython(context, ["-m", "daedalus.cli", "doctor"], { timeout: 15000 }); } catch (err) { doctor = String(err.message || err); }
+  try { doctor = await runPython(context, ["-m", "daedalus.interfaces.cli.entry", "doctor"], { timeout: 15000 }); } catch (err) { doctor = String(err.message || err); }
   return { root, extensions, ollamaCli: { ok: ollama.ok, detail: ollama.stdout || ollama.stderr || ollama.error }, doctor };
 }
 
 async function dashboardState(context, projectName) {
   const picked = projectName || cfg().get("defaultProject") || (projects(context)[0] && projects(context)[0].name);
-  const args = ["-m", "daedalus.cli", "dashboard", "--json"];
+  const args = ["-m", "daedalus.interfaces.cli.entry", "dashboard", "--json"];
   if (picked) args.push("--project", picked);
   const state = await runJson(context, args, { timeout: 30000 });
   state.env = await envStatus(context);
@@ -516,7 +516,7 @@ async function enforceProject(context, projectName) {
   if (!projectName) return Promise.reject(new Error("No project selected"));
   const ok = await confirmAction("Enforce Daedalus harness?", `Project: ${projectName}\nThis rewrites AGENTS.md / CLAUDE.md and writes enforcement state.`);
   if (!ok) return null;
-  return runPython(context, ["-m", "daedalus.cli", "enforce", "--project", projectName], { timeout: 30000 });
+  return runPython(context, ["-m", "daedalus.interfaces.cli.entry", "enforce", "--project", projectName], { timeout: 30000 });
 }
 
 async function pickProject(context, item) {
@@ -745,7 +745,7 @@ async function reviewDiff(context, projectName) {
   if (!project) return null;
   const ok = await confirmAction("Queue local-only diff review?", `Project: ${project}\nLane: local_only`);
   if (!ok) return null;
-  const out = await runPython(context, ["-m", "daedalus.cli", "review-diff", "--project", project, "--lane", "local_only", "--json"]);
+  const out = await runPython(context, ["-m", "daedalus.interfaces.cli.entry", "review-diff", "--project", project, "--lane", "local_only", "--json"]);
   vscode.window.showInformationMessage(`Local-only review queued for ${project}`);
   queueProvider.refresh();
   return out;
@@ -769,7 +769,7 @@ async function spawnIkarus(context, item) {
   if (!mode) return;
   const ok = await confirmAction("Spawn Ikarus?", `Project: ${project}\nMode: ${mode.label}\nObjective: ${objective}`);
   if (!ok) return;
-  const args = ["-m", "daedalus.cli", "spawn", objective, "--project", project];
+  const args = ["-m", "daedalus.interfaces.cli.entry", "spawn", objective, "--project", project];
   if (mode.label === "Live dispatch") args.push("--live");
   terminal(context, `Ikarus: ${project}`, args);
 }
@@ -1325,7 +1325,7 @@ function legacyDashboardHtmlSource(n) {
     </section>
     <section class="block">
       <h2>New Agent</h2>
-      <div class="desc">Registers a new agent role via <code>daedalus.cli agents add</code>. Agents are local-only by default; enable "external ok" only for roles cleared to reach hosted providers.</div>
+      <div class="desc">Registers a new agent role via <code>daedalus.interfaces.cli.entry agents add</code>. Agents are local-only by default; enable "external ok" only for roles cleared to reach hosted providers.</div>
       <div class="panel">
         <div class="field-row">
           <div class="field"><label for="naName">Name</label><input id="naName" type="text" placeholder="e.g. scribe"></div>
