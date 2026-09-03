@@ -1,0 +1,81 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CH",
+  "title": "Reuse exact canonical SparseTensorEntry evidence digest tuples",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CG",
+  "campaign_issue": 239,
+  "base_revision": "57e98c97c7b96036c91d34d89445ef1a6ec92232",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "SparseTensorEntry.evidence_sha256s is bounded to 64 digests and retained as the canonical immutable evidence container, but __post_init__ always routed even an exact already-canonical tuple through _sorted_strings(..., digests=True). That path validates into a list, builds a duplicate-detection set, sorts the list and creates a replacement tuple even when no canonicalization is necessary. Adding an evidence cache, index or parallel representation would increase rather than reduce the surface.",
+  "primary_claim": "SparseTensorEntry now validates an exact tuple of lowercase SHA-256 digests in one ordered pass and retains that tuple by object identity when it is already strictly sorted and unique. Duplicate or invalid digests remain fail closed, while non-tuple or out-of-order bounded input still uses the existing _sorted_strings canonicalizer. Tensor evidence semantics, Fourfold authority, wire serialization and digest semantics are unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_evidence_bounds.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CH.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 29,
+    "code_test_deletions": 3,
+    "production_additions": 17,
+    "production_deletions": 3,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the already canonical immutable evidence tuple instead of introducing a cache, evidence index, adapter or second representation. Keep the existing _sorted_strings path only for inputs that actually require ordering or canonicalization. This removes redundant canonical-path materialization while preserving the single SparseTensorEntry evidence representation and bounded fail-closed contract.",
+  "acceptance": [
+    "an exact canonical evidence_sha256s tuple is retained by object identity after digest, ordering and uniqueness validation",
+    "reverse-ordered bounded evidence still canonicalizes deterministically through the existing fallback",
+    "oversized evidence fan-in is still refused before element access",
+    "invalid and duplicate SHA-256 digests remain fail closed",
+    "the Fourfold-v2 workflow executes successfully on exact code/test revision 4c1346b64f6f155da81dfbf973ecfe5c95f9ac2b",
+    "the designated Python 3.12/hash-seed-0 Fourfold/kernel contracts and Tensor/Forest diagnostic execute successfully",
+    "the isolated wheel build and install execute successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "e07efaf257eb65c60a1d873337da3c75509a181b",
+    "code_test_revision": "4c1346b64f6f155da81dfbf973ecfe5c95f9ac2b",
+    "production_blob": "532b78e2172a6c4cccfe291d2a972e4aabec5008",
+    "focused_test_blob": "0b5f6a69f743268f92fcb7b7f01e12c897d233ec",
+    "fourfold_v2_run": 33753286295,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 4c1346b64f6f155da81dfbf973ecfe5c95f9ac2b",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success with real build and isolated-install steps",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 4c1346b64f6f155da81dfbf973ecfe5c95f9ac2b. The executed tests/twin surface includes test_evidence_canonicalization_reuses_exact_canonical_digest_tuple, which requires exact canonical SparseTensorEntry evidence tuple retention. The workflow also executes the existing Fourfold/kernel contract surface and designated bounded Tensor/Forest diagnostics. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor": "057f96cb12d2dd1fea6e505acb4c89d620abc378",
+    "ui_line_preserved": "worktree-g1-ui-ikarus@5b58f8c3a3125d5199a6c0c9cd10f5cc7512140b",
+    "visible_remote_refs_observed_before_close": 16,
+    "topology_note": "No existing ref was deleted, archived, renamed or force-moved for visual branch-count reduction; extra visible refs remain for separate containment/evidence classification."
+  },
+  "rollback": "Revert the G1-TENSOR-01CH code/test commits to restore unconditional _sorted_strings canonicalization for SparseTensorEntry evidence_sha256s. Fourfold authority, TensorView sparse behavior, bounded construction and wire contracts are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
