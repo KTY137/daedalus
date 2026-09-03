@@ -42,7 +42,12 @@ def _subject() -> ProjectionSubject:
     )
 
 
-def test_typed_axis_detects_duplicates_after_canonical_sort() -> None:
+def test_typed_axis_reuses_canonical_tuple_and_sorts_only_fallback() -> None:
+    canonical = tuple(f"src/{index:03d}.py" for index in range(256))
+    canonical_axis = TypedAxis("code", "code", canonical)
+
+    assert canonical_axis.labels is canonical
+
     axis = TypedAxis(
         "code",
         "code",
