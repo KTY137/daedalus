@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CA",
+  "title": "Prune the redundant TensorView axis mapping surface",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01BZ",
+  "campaign_issue": 239,
+  "base_revision": "15de8cfb8e368d557018993424d87fc40d72a3f3",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "TensorView already retains axes as one validated, unique, canonical immutable tuple, while the axis_map convenience property rebuilt the same axis-name binding as a fresh dict plus MappingProxyType on every access. Earlier Tensor gardening had removed internal dependency on this mapping view, leaving a redundant parallel representation on the contained experimental line.",
+  "primary_claim": "TensorView now exposes its canonical axes tuple as the single retained axis representation and no longer exposes the redundant axis_map mapping view. Axis ordering, labels, shape, sparse selection/indexing, wire serialization, digest identity, Fourfold/Forest source binding, status and provenance semantics remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_kernel.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CA.json"
+    ],
+    "code_test_commits": 2,
+    "code_test_additions": 7,
+    "code_test_deletions": 4,
+    "production_additions": 0,
+    "production_deletions": 4,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Delete the dead derived axis mapping view before the experimental Tensor surface can harden into another compatibility contract. Reuse the already canonical TensorView.axes tuple rather than retain or cache a second axis-name representation; do not add a lookup service, cache, alternate Tensor type, planner, store, registry, scheduler or backend.",
+  "acceptance": [
+    "TensorView no longer exposes axis_map",
+    "the canonical axes tuple remains named, sorted and directly iterable as the single axis representation",
+    "existing Tensor wire round-trip and digest tests remain in the executed Fourfold/Tensor contract surface",
+    "existing sparse select and index_coordinate behavior remains in the executed contract surface",
+    "the Fourfold-v2 workflow executes successfully on the exact code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "268d4e46e7b1878ec29c608a146f97b2c2a066bf",
+    "code_test_revision": "75ba78c54d9a03a2ef90bc4f9ae035f24b1ebc61",
+    "production_blob": "718b856efdd1b475297bd691430e24c3792d9921",
+    "focused_test_blob": "be4cfa483d4c77997de224d25d91b1abc16e4b73",
+    "fourfold_v2_run": 33717621510,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 75ba78c54d9a03a2ef90bc4f9ae035f24b1ebc61",
+      "all Python 3.10/3.12 contract matrix jobs completed success on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 75ba78c54d9a03a2ef90bc4f9ae035f24b1ebc61. The Fourfold-v2 contract step executes the existing tests/twin surface, including the focused regression asserting that TensorView has no axis_map while its canonical axes remain available in deterministic order. Existing Tensor contract tests continue to exercise canonicalization, digest/wire round-trip, selection, index projection and fail-closed validation. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01CA commits to restore the derived axis_map convenience property. Fourfold/Forest authority, Tensor wire contracts, source/provenance identity and stored canonical axes are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
