@@ -8,7 +8,6 @@ from __future__ import annotations
 import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Any, ClassVar, Mapping, Sequence
 
 from ..schemas import (
@@ -140,10 +139,6 @@ class SparseTensorEntry:
         if not evidence:
             raise ValueError("entry must retain evidence digests")
         object.__setattr__(self, "evidence_sha256s", evidence)
-
-    @property
-    def coordinate_map(self) -> Mapping[str, str]:
-        return MappingProxyType(dict(self.coordinates))
 
     @property
     def semantic_key(self) -> tuple[tuple[tuple[str, str], ...], str]:
