@@ -558,6 +558,128 @@ claims carry evidence. That is the coherence problem — not the module count.
 
 ---
 
+## 8. The blockers, measured instead of quoted
+
+§6 named six blockers and stopped there. This section measures them, because
+"blocked" is a claim like any other and two of the six turn out not to be what
+the packets say they are.
+
+### 8.1 How much each one gates `[MEASURED 2026-09-03, 217 work packets]`
+
+| blocker | packets naming it | kind |
+| --- | --- | --- |
+| Docker sandbox evidence | 11 | open **owner position** (Revision 8) |
+| Gate-wide Primary-Checkout mutation exclusion | 11 | engineering |
+| issue #189 (provider-observation persistence) | 7 | open issue |
+| complete fault injection | 7 | evidence |
+| live runtime receipts | 6 | evidence |
+| issue #194 (repository-write findings) | 5 | open issue |
+
+The two heaviest gate eleven packets each. Only one of those two is an owner
+decision, which makes it the highest-leverage thing on this list.
+
+### 8.2 The Docker blocker is not procurement any more
+
+Master plan Revision 8 records that *"Docker host procurement stays an open
+owner position"*. On this host, today `[MEASURED]`:
+
+- `docker --version` → **29.7.2** — the CLI is installed;
+- `wsl --status` → default distribution present (`NVIDIA-Workbench`), version 2;
+- `docker info` → **fails**: cannot connect to
+  `npipe:////./pipe/dockerDesktopLinuxEngine`.
+
+So the machine has Docker and WSL2 and the daemon is not running. That is a
+materially different position from *procurement*: the question in front of the
+owner is starting or configuring an engine, not acquiring a host. Eleven
+packets' evidence obligation sits behind it.
+
+This does not close the blocker and this lane did not start anything — a
+container engine is a host-level service and its own decision. It records that
+the blocker's stated shape is stale.
+
+### 8.3 This repository declares every checkout unfit to produce its own evidence
+
+`tools/gate_host_preflight.py` exists to answer whether a machine can produce a
+gate discrimination receipt. Run here it reports **NOT FIT**, for exactly one
+reason out of twelve checks `[MEASURED]`:
+
+```text
+[FAIL] module coverage: NOT IMPORTABLE
+NOT FIT: 1 required check(s) failed.
+```
+
+Everything else passes: Python 3.12.13, pytest 9.1.1, git, 8 worktrees, 58 GiB
+headroom, and `daedalus` resolving to this checkout.
+
+`coverage` is declared **nowhere**. It is in no extra in `pyproject.toml`, and
+`uv.lock` contains zero occurrences of it `[MEASURED]`. So it cannot be
+installed from this project's own packaging at all, and any environment built
+the documented way is NOT FIT by the repository's own instrument.
+
+Worse, the two instruments disagree about whether it is required:
+
+- `tools/gate_host_preflight.py:49` — `REQUIRED_MODULES = ("pytest", "coverage")`,
+  justified as *"a gate run on this host would not measure what the receipt
+  would claim it measured"*;
+- `tools/gate_discrimination.py:752` — `_coverage_probe` returns `None` when
+  `python -m coverage` is not runnable, and the module's own comment says this
+  *"changes only WHICH of the 12 corpus entries spend a gate run, never the SHA
+  a receipt is bound to or how CAUGHT/SURVIVED is decided"*.
+
+The second is the honest one, and it is honest in the way that matters: the
+receipt carries `coverage_guided` and `coverage_state` fields, so a run without
+coverage says so rather than silently claiming the stronger measurement. The
+receipt does not claim what it did not measure.
+
+### 8.4 The preflight blocks a run that would not have used coverage
+
+The disagreement is sharper than "one is strict". Coverage-guided
+discrimination is **opt-in** `[MEASURED]`:
+
+- `tools/gate_discrimination.py:913` — `coverage_guided: bool = False`;
+- `:1130` — `--coverage-guided` is a `store_true` flag;
+- `:968` — without it, `coverage_state = "not_requested"` and the module is
+  never invoked.
+
+And the committed receipt, `runs/spine/gate_discrimination.json`, was produced
+that way: `coverage_guided: false`, `coverage_state: "not_requested"`.
+
+So the default gate run never touches `coverage` at all, and the preflight
+declares a host unfit to perform it anyway. That is not a strictness preference;
+the required-module list is simply stricter than the run it gates.
+
+This is on the promotion path, not a side quest. `docs/STATUS.md` records that
+promotion is blocked "on `runs/spine/gate_discrimination.json` being stale at
+HEAD — a measurement, not a pen stroke". It is stale: the receipt is bound to
+`head: fe634b58`, and HEAD is `031eeabf` `[MEASURED]`. Refreshing it is what
+clears that block, and the instrument that decides whether this machine may
+refresh it says no, for a module the refresh would not use.
+
+### 8.5 The fix, and which part of it is which
+
+Two changes, and they are not the same change:
+
+1. **`tools/gate_host_preflight.py`** — `coverage` belongs in
+   `OPTIONAL_MODULES`, or in a required set that is conditional on
+   `--coverage-guided`. As written it fails hosts for a capability the default
+   run does not exercise. This is the part that unblocks the receipt refresh.
+2. **`pyproject.toml`** — `coverage` should still be declared in the test
+   extra, because the opt-in mode is currently *unusable*: it cannot be
+   installed from this project's packaging at all. This does not unblock
+   anything by itself; it makes the stronger evidence available to anyone who
+   asks for it.
+
+Doing only (2) would make hosts fit while leaving the preflight's logic wrong.
+Doing only (1) leaves `--coverage-guided` permanently unavailable. An earlier
+draft of this section recommended (2) alone, before the opt-in default was
+measured; that recommendation was wrong.
+
+Neither is applied here. `pyproject.toml` and `uv.lock` move together, and this
+lane was frozen on git for an owner-authorised history rewrite when the finding
+landed. Recorded rather than half-done.
+
+---
+
 `Iron Plan: ALIGNED`
 `Iron Gate: 1`
 `Evidence: daedalus.mapping.reach.analyse at 8eaa5adf (census, 52 flagged rows);
