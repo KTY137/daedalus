@@ -478,6 +478,28 @@ def _bridge_progress(key: str, latest_kind: str, age_s: float | None, succeeded:
                    "detail": {"note": note}},))
 
 
+def _report_verdict(report_path: "Path") -> tuple[bool | None, object]:
+    """``(succeeded, raw_status)`` for a bridge report, or ``(None, None)``.
+
+    ONE rule, called from both the archived branch and the report branch, so
+    an archived task and a not-yet-archived one can never disagree about the
+    same report. They did: the archive branch used to hardcode success.
+
+    ``succeeded`` is tri-state on purpose. A report with no status at all is
+    ``None`` -- unproven -- never ``False``, because "the watcher wrote no
+    status" and "the watcher wrote a failure" are different facts.
+    """
+    import json as _json
+
+    try:
+        report = _json.loads(report_path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError):
+        report = {}
+    status = report.get("bridge_status") or report.get("status")
+    succeeded = (str(status).lower() in ("done", "ok", "success")) if status else None
+    return succeeded, status
+
+
 def snapshot_from_bridge(key: str, *, now: float | None = None) -> "P.UnitProgress | None":
     """Read-only poll of one :mod:`daedalus.file_bridge`-dispatched task,
     keyed by the outbox filename stem :func:`daedalus.file_bridge.enqueue`
@@ -500,9 +522,42 @@ def snapshot_from_bridge(key: str, *, now: float | None = None) -> "P.UnitProgre
     now = now if now is not None else time.time()
 
     archive_path = fb.ARCHIVE / f"{key}.json"
+    report_path = fb.INBOX / f"{key}.report.json"
+
     if archive_path.exists():
         age = max(0.0, now - archive_path.stat().st_mtime)
-        return _bridge_progress(key, P.DONE, age, True, True, "archived (acknowledged)",
+        # THE ARCHIVE HOLDS THE REQUEST, NOT THE OUTCOME.
+        #
+        # ``runs/processed/{key}.json`` is the enqueued REQUEST -- objective,
+        # lane, paths, model -- and carries no status field of any kind.
+        # "Archived" means the watcher acknowledged the task and filed it,
+        # which it does for FAILURES exactly as it does for successes.
+        #
+        # This branch used to return ``succeeded=True, applied=True`` from that
+        # file. It was this module's own forbidden collapse, named in
+        # ``progress.py``'s docstring -- "finished is not succeeded, and
+        # succeeded is not applied" -- and it was invisible, because this
+        # branch runs BEFORE the report branch below and masks it. A task whose
+        # report said ``bridge_status=failed`` flipped to a green "succeeded"
+        # the moment the watcher filed it, while the task-level view kept
+        # reporting the failure honestly. Two projections of one run,
+        # disagreeing, with the optimistic one winning.
+        #
+        # Measured 2026-09-03 on a real dispatch: state=failed, error="the
+        # trusted local bench did not accept the task", progress.succeeded=true.
+        #
+        # The verdict now comes from the report, by the same rule the report
+        # branch uses. With no report retained there is no evidence either way,
+        # so the answer is None -- unproven -- never True.
+        if report_path.exists():
+            succeeded, status = _report_verdict(report_path)
+            note = f"archived (acknowledged); report says bridge_status={status!r}"
+        else:
+            succeeded, note = None, ("archived (acknowledged); no report was retained, "
+                                     "so the outcome is unproven")
+        # ``applied`` stays None for the reason it does in the report branch:
+        # nothing here is evidence that anything reached the disk.
+        return _bridge_progress(key, P.DONE, age, succeeded, None, note,
                                 source_path=archive_path)
 
     try:
@@ -513,16 +568,9 @@ def snapshot_from_bridge(key: str, *, now: float | None = None) -> "P.UnitProgre
         return _bridge_progress(key, P.DONE, None, False, False,
                                 "quarantined: the watcher gave up on it")
 
-    report_path = fb.INBOX / f"{key}.report.json"
     if report_path.exists():
-        import json as _json
-        try:
-            report = _json.loads(report_path.read_text(encoding="utf-8", errors="replace"))
-        except (OSError, ValueError):
-            report = {}
         age = max(0.0, now - report_path.stat().st_mtime)
-        status = report.get("bridge_status") or report.get("status")
-        succeeded = (str(status).lower() in ("done", "ok", "success")) if status else None
+        succeeded, status = _report_verdict(report_path)
         return _bridge_progress(key, P.DONE, age, succeeded, None,
                                 f"report landed, bridge_status={status!r}",
                                 source_path=report_path)
