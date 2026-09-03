@@ -4,6 +4,7 @@ import { getEnvStatus, getRuntimeStatus, testRuntime, type EnvStatusPayload } fr
 import type { RuntimeRow } from '@/shared/contracts';
 import { drawerVariants, useReducedMotionPref } from '@/shared/ui/motion';
 import { SystemCapabilities } from '@/features/system/SystemCapabilities';
+import { ComputeSection } from '@/features/system/ComputeSection';
 import {
   AUTONOMY_LEVELS,
   readAutonomyLog,
@@ -673,6 +674,11 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
         </section>
 
         <SystemCapabilities project={project} enabled={open} />
+
+        {/* What compute this machine can actually use. Read only while the
+            panel is open: the shallow probe is cheap, but polling a closed
+            panel would still be work nobody asked for. */}
+        <ComputeSection enabled={open} />
 
         <section className="settings-section" aria-labelledby="caps-settings-title">
           <div className="settings-title" id="caps-settings-title">Ausführungsgrenzen</div>

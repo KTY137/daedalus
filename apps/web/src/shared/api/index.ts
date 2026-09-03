@@ -195,6 +195,84 @@ export function getProviderStatus() {
   return request<ProviderStatusPayload>('/api/providers/status');
 }
 
+/**
+ * WHAT COMPUTE IS ACTUALLY AVAILABLE — `/api/accelerators/status`.
+ *
+ * `daedalus/foundation/accelerators.py` answers three questions it refuses to
+ * merge: is hardware visible, is a backend CUDA-capable, is that backend
+ * applicable to the operation. The types below keep all three separable, and
+ * keep the two tri-states tri-state. See `features/system/accelerators.ts`
+ * for the reading rules and why `probed` must be consulted before `installed`.
+ */
+export interface AcceleratorDevice {
+  name: string;
+  compute_capability: string;
+  memory_mib: number;
+  driver_version: string;
+}
+
+export interface AcceleratorHardware {
+  available: boolean;
+  command: string;
+  devices: AcceleratorDevice[];
+  /** why nvidia-smi produced nothing; empty string when it worked */
+  error: string;
+}
+
+export interface AcceleratorFramework {
+  installed: boolean;
+  /** TRI-STATE. `null` means the question is open, never "no". */
+  cuda_ready: boolean | null;
+  detail: string;
+  /** false on the shallow answer: nothing was executed for this row. */
+  probed: boolean;
+}
+
+export interface AcceleratorLane {
+  id: string;
+  label: string;
+  /** ready | unverified | configured | missing | unsupported */
+  state: string;
+  applicable_to: string[];
+  evidence: string[];
+  missing: string[];
+  /** a semantic caveat, e.g. that a lane is not a retrieval primitive */
+  warning: string;
+}
+
+export interface AcceleratorRemoteCompute {
+  configured: boolean;
+  /** TRI-STATE. `null` means nothing was probed, not "offline". */
+  available: boolean | null;
+  target: string;
+  devices: AcceleratorDevice[];
+  error: string;
+  hint: string;
+}
+
+export interface AcceleratorSnapshot {
+  schema: string;
+  hardware: AcceleratorHardware;
+  frameworks: Record<string, AcceleratorFramework>;
+  lanes: AcceleratorLane[];
+  remote_compute: AcceleratorRemoteCompute;
+  /** The anti-laundering block: what visible hardware does NOT imply. */
+  claims: Record<string, boolean>;
+}
+
+export interface AcceleratorPayload extends ApiEnvelope {
+  accelerators: AcceleratorSnapshot;
+}
+
+/**
+ * `deep` runs the real import/CUDA probe and is OPT-IN because it costs
+ * seconds and imports heavy modules. The shallow default is honest about
+ * being shallow: every framework comes back `probed: false`.
+ */
+export function getAcceleratorStatus(deep = false) {
+  return request<AcceleratorPayload>(`/api/accelerators/status${deep ? '?deep=1' : ''}`);
+}
+
 /** One fact behind a health verdict. The backend refuses to call inherited or
  * configured data "measured", and the UI keeps that provenance visible. */
 export interface HealthFact {
