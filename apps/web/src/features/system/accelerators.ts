@@ -7,62 +7,81 @@ import type { AcceleratorPayload, AcceleratorFramework, AcceleratorLane } from '
  * `daedalus/foundation/accelerators.py` opens by separating three questions
  * that "are often blurred": is NVIDIA hardware visible, is a backend installed
  * and actually CUDA-capable, and is that backend applicable to the operation
- * being discussed. It then answers all three and ships a `claims` block that
- * says in so many words that the first does not imply the second and the
- * second does not imply the third.
+ * being discussed. It then answers all three and ships a `claims` block saying
+ * the first does not imply the second and the second does not imply the third.
  *
  * A panel that drew "RTX 5080 ✓" and stopped would re-blur exactly what that
- * module spends its length separating. So the reading below refuses three
- * specific collapses, and each refusal has a test:
+ * module spends its length separating.
  *
- * 1. `probed: false` is NOT `installed: false`. The shallow answer — the one
- *    you get without `?deep=1` — reports every framework as not installed with
- *    the detail "deep probe not requested". Rendering that as "nicht
- *    verfügbar" would turn a question nobody asked into a measured absence.
- * 2. `cuda_ready: null` is NOT `false`. A framework can be installed and its
- *    CUDA capability still unknown; the field is tri-state and stays tri-state.
- * 3. `remote_compute.available: null` is NOT "offline". Nothing was probed,
- *    because no target is configured.
+ * SIX READINGS, BECAUSE THE PAYLOAD EXPRESSES SIX THINGS. An earlier version
+ * of this file had four and got the shallow answer wrong in both directions.
+ * It assumed `installed` was a meaningless placeholder until a deep probe ran.
+ * It is not: `_framework_rows(deep=False)` calls `_has_module(name)`, which is
+ * a live `importlib.util.find_spec`. So the shallow answer carries a real
+ * measurement of presence and a genuinely open question about CUDA — two
+ * facts, which the old reading collapsed into one word ("nicht geprüft") and
+ * thereby discarded the measured half.
  *
- * The lane vocabulary is the backend's own five words, and like the health
- * vocabulary it does not collapse to a boolean:
+ * The failure directions this file exists to refuse:
  *
- *   ready       a backend is installed AND measured CUDA-capable
- *   unverified  it is installed, but this process could not prove it works
- *   configured  a path/SDK is configured; nothing was executed
- *   missing     the named requirement is not present
- *   unsupported not a Daedalus backend at all, on purpose (DLSS)
+ * 1. A DEAD PROBE MUST NOT READ AS ABSENCE. When the probe subprocess times
+ *    out, crashes, or prints unparseable output, `deep_framework_status()`
+ *    returns `{"probe": {...}}` with no framework keys — and `_framework_rows`
+ *    still stamps `probed: True` on all six, filling in `installed: False` and
+ *    an EMPTY `detail`. Read naively that is six confident red rows saying
+ *    "nicht installiert" about six modules nobody looked at. The discriminator
+ *    is the detail: `_DEEP_PROBE` writes a non-empty detail on every row it
+ *    produces — the version string on success, `"ExcName: msg"` on failure —
+ *    so `probed` with an empty detail can only mean the row is a fill-in.
+ * 2. A MEASURED PRESENCE MUST NOT BE THROWN AWAY. `installed: true` with
+ *    `probed: false` means find_spec found it and nothing was executed.
+ * 3. `cuda_ready: null` IS NOT `false`. `_DEEP_PROBE` deliberately sets null
+ *    for cuvs, cugraph and newton because import success "alone must not claim
+ *    CUDA readiness". Three values in, three readings out.
  */
 
-/** How a framework row actually reads, once the two nulls are respected. */
-export type FrameworkReading = 'ready' | 'unverified' | 'installed' | 'absent' | 'unchecked';
+export type FrameworkReading =
+  /** probed, imported, and a device check said CUDA works */
+  | 'ready'
+  /** probed, imported, and a device check said CUDA does NOT work */
+  | 'no_cuda'
+  /** probed and imported, but the probe deliberately left CUDA unanswered */
+  | 'cuda_untested'
+  /** not probed: find_spec found it, nothing was executed */
+  | 'importable'
+  /** the check ran and the module is not importable */
+  | 'absent'
+  /** the deep probe died; this row is a fill-in and says nothing */
+  | 'unchecked';
 
 export const FRAMEWORK_WORD: Record<FrameworkReading, string> = {
   ready: 'CUDA-fähig',
-  unverified: 'installiert, CUDA ungeprüft',
-  installed: 'installiert',
+  no_cuda: 'installiert, kein CUDA',
+  cuda_untested: 'installiert, CUDA nicht geprüft',
+  importable: 'importierbar, nicht ausgeführt',
   absent: 'nicht installiert',
   unchecked: 'nicht geprüft'
 };
 
-/**
- * Read one framework row.
- *
- * ORDER MATTERS. `probed` is consulted FIRST, before `installed`, because the
- * shallow payload sets `installed: false` on every framework whether or not it
- * is there — the probe simply did not run. Checking `installed` first would
- * report six absent frameworks on a machine that may have all six.
- */
 export function frameworkReading(row: AcceleratorFramework): FrameworkReading {
-  if (!row.probed) return 'unchecked';
-  if (!row.installed) return 'absent';
-  if (row.cuda_ready === true) return 'ready';
-  if (row.cuda_ready === false) return 'unverified';
-  // installed, probed, and the CUDA question came back null: still open.
-  return 'installed';
+  if (row.probed) {
+    // See refusal 1 above: an empty detail on a probed row is a fill-in for a
+    // framework the probe process never reported on.
+    if (!row.detail) return 'unchecked';
+    if (!row.installed) return 'absent';
+    if (row.cuda_ready === true) return 'ready';
+    if (row.cuda_ready === false) return 'no_cuda';
+    return 'cuda_untested';
+  }
+  // Shallow. `installed` is a live find_spec, so it is evidence either way.
+  return row.installed ? 'importable' : 'absent';
 }
 
-/** Only a measured `ready` is green. Everything unproven is drawn as unproven. */
+/**
+ * Only a measured `ready` is green; only a measured absence is red. Everything
+ * in between is unproven, including a row the probe failed to produce — which
+ * must never look like the confident red of "we looked, it is not there".
+ */
 export function frameworkTone(reading: FrameworkReading): string {
   if (reading === 'ready') return 'ok';
   if (reading === 'absent') return 'bad';
@@ -109,18 +128,23 @@ export function sortLanes(lanes: AcceleratorLane[]): AcceleratorLane[] {
  */
 export function computeSummary(payload: AcceleratorPayload | undefined): string {
   if (!payload) return 'Rechenlage nicht gelesen';
-  const lanes = payload.accelerators?.lanes || [];
+  // A payload whose `accelerators` block never arrived is not a machine that
+  // reported zero lanes. Saying "keine Lane gemeldet" for a malformed 200
+  // asserts something the response never contained.
+  if (!payload.accelerators) return 'Rechenlage unvollständig gelesen';
+  const lanes = payload.accelerators.lanes || [];
   if (lanes.length === 0) return 'Keine Lane gemeldet';
   const ready = lanes.filter((l) => l.state === 'ready').length;
-  const devices = payload.accelerators?.hardware?.devices?.length || 0;
+  const devices = payload.accelerators.hardware?.devices?.length || 0;
   const seen = devices === 1 ? '1 Gerät sichtbar' : `${devices} Geräte sichtbar`;
   // Zero ready lanes is stated as zero, never as the device count.
   return `${seen} · ${ready} von ${lanes.length} Lanes einsatzbereit`;
 }
 
-/** Was anything actually executed, or is this the shallow answer? */
-export function wasDeepProbed(payload: AcceleratorPayload | undefined): boolean {
-  const frameworks = payload?.accelerators?.frameworks;
-  if (!frameworks) return false;
-  return Object.values(frameworks).some((row) => row.probed);
+/** VRAM, or an honest absence. `nvidia-smi` reports `[N/A]` for some cards and
+ *  the backend turns that into `null` — which `Math.round(null / 1024)` would
+ *  render as a confident "0 GiB", i.e. a card stated to have no memory. */
+export function memoryText(mib: number | null | undefined): string {
+  if (typeof mib !== 'number' || !Number.isFinite(mib)) return 'VRAM nicht gemeldet';
+  return `${Math.round(mib / 1024)} GiB`;
 }

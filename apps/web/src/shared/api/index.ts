@@ -207,8 +207,15 @@ export function getProviderStatus() {
 export interface AcceleratorDevice {
   name: string;
   compute_capability: string;
-  memory_mib: number;
+  /** `null` when nvidia-smi reported `[N/A]` — the backend anticipates that
+   *  explicitly (`except ValueError: memory_mib = None`). Typed as a plain
+   *  number, `Math.round(null / 1024)` rendered a confident "0 GiB", i.e. a
+   *  card stated to have no memory. */
+  memory_mib: number | null;
   driver_version: string;
+  /** `capability_lanes()` for this device: what this card can and cannot do,
+   *  which is how the backend distinguishes "missing" from "impossible here". */
+  capability?: Record<string, unknown>;
 }
 
 export interface AcceleratorHardware {
@@ -220,12 +227,29 @@ export interface AcceleratorHardware {
 }
 
 export interface AcceleratorFramework {
+  /** On the SHALLOW answer this is a live `importlib.util.find_spec` result,
+   *  not a placeholder — it is evidence either way. */
   installed: boolean;
   /** TRI-STATE. `null` means the question is open, never "no". */
   cuda_ready: boolean | null;
+  /** The backend's own words. A `probed` row with an EMPTY detail is a
+   *  fill-in for a framework the probe subprocess never reported on — see
+   *  `features/system/accelerators.ts`. */
   detail: string;
   /** false on the shallow answer: nothing was executed for this row. */
   probed: boolean;
+}
+
+/** A configured remote Ollama endpoint. Its `warning` names transport
+ *  problems such as plaintext HTTP, which a compute panel must not swallow. */
+export interface AcceleratorRemoteOllama {
+  configured: boolean;
+  available: boolean;
+  /** credentials, path, query and fragment already stripped by the backend */
+  endpoint: string;
+  models: string[];
+  error: string;
+  warning: string;
 }
 
 export interface AcceleratorLane {
@@ -246,6 +270,8 @@ export interface AcceleratorRemoteCompute {
   available: boolean | null;
   target: string;
   devices: AcceleratorDevice[];
+  /** per-lane verdicts for the remote host, same vocabulary as `lanes` */
+  lanes?: Record<string, unknown>;
   error: string;
   hint: string;
 }
@@ -255,6 +281,7 @@ export interface AcceleratorSnapshot {
   hardware: AcceleratorHardware;
   frameworks: Record<string, AcceleratorFramework>;
   lanes: AcceleratorLane[];
+  remote_rtx_ollama: AcceleratorRemoteOllama;
   remote_compute: AcceleratorRemoteCompute;
   /** The anti-laundering block: what visible hardware does NOT imply. */
   claims: Record<string, boolean>;
@@ -265,12 +292,18 @@ export interface AcceleratorPayload extends ApiEnvelope {
 }
 
 /**
- * `deep` runs the real import/CUDA probe and is OPT-IN because it costs
- * seconds and imports heavy modules. The shallow default is honest about
- * being shallow: every framework comes back `probed: false`.
+ * The SHALLOW read only, and deliberately so.
+ *
+ * `?deep=1` makes the server spawn a 30-second subprocess importing torch,
+ * cupy, warp and friends. `do_GET` carries no `effect_boundary` row, and the
+ * same file refuses to expose the latent store on a GET for exactly that
+ * reason. This function therefore has no `deep` parameter: a caller cannot
+ * reach the effectful branch by passing a flag, and adding one back would be
+ * a visible change rather than an argument default. See the note in
+ * `features/system/ComputeSection.tsx`.
  */
-export function getAcceleratorStatus(deep = false) {
-  return request<AcceleratorPayload>(`/api/accelerators/status${deep ? '?deep=1' : ''}`);
+export function getAcceleratorStatus() {
+  return request<AcceleratorPayload>('/api/accelerators/status');
 }
 
 /** One fact behind a health verdict. The backend refuses to call inherited or

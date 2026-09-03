@@ -7,28 +7,43 @@ import {
   frameworkReading,
   frameworkTone,
   laneTone,
-  sortLanes,
-  wasDeepProbed
+  memoryText,
+  sortLanes
 } from './accelerators';
 import './compute.css';
 
 /**
  * RECHENLAGE — what compute this machine can actually use.
  *
- * `/api/accelerators/status` has existed the whole time with no caller in this
- * cockpit. It is the only surface that can answer "will this run on the GPU",
- * and the module behind it is unusually careful: it separates visible hardware
- * from an installed backend from an applicable backend, and ships a `claims`
- * block stating that neither implication holds.
+ * `/api/accelerators/status` had no caller in this cockpit. It is the only
+ * surface that can answer "will this run on the GPU", and the module behind it
+ * separates visible hardware from an installed backend from an applicable
+ * backend, then ships a `claims` block stating that neither implication holds.
  *
  * This section draws all three levels and the claims. It adds no judgement of
  * its own — every state word, every "missing" item and every warning is a
  * field of the payload. See `./accelerators.ts` for the reading rules.
  *
- * THE DEEP PROBE IS A BUTTON, NOT A DEFAULT. `?deep=1` imports torch, cupy,
- * warp and friends to ask each whether CUDA really works. That is seconds of
- * work and real imports, so it happens when a person asks for it. The shallow
- * answer is labelled as shallow rather than quietly presented as a result.
+ * WHY THERE IS NO "DEEP PROBE" BUTTON.
+ *
+ * `?deep=1` makes the server run
+ * `subprocess.run([sys.executable, "-c", _DEEP_PROBE], timeout=30)`, importing
+ * torch, cupy, warp, cuvs, cugraph and newton. This section briefly offered a
+ * button for it, and that was wrong: `do_GET` in
+ * `daedalus/interfaces/http/read.py` carries no `effect_boundary` row, and the
+ * same file says so explicitly twenty lines below, refusing to expose the
+ * latent store on a GET because "a GET that opened a store would be an
+ * undeclared effect". Spawning a 30-second subprocess is strictly more
+ * effectful than opening a store, and CORS does not prevent a page from
+ * ISSUING the request — only from reading the reply.
+ *
+ * The route is older than this surface, but a dead route is not an entrypoint;
+ * a button is. Making it reachable would be "a new effectful entrypoint that
+ * bypasses policy", which AGENTS.md classes as a release-blocking defect. So
+ * the shallow read — a pure read, no subprocess — is all this section does,
+ * and the deep answer waits for the route to move behind the effect boundary.
+ * That is an owner decision and its own Work Packet, not a side effect of a
+ * UI change.
  */
 
 function Reading({ name, row }: { name: string; row: AcceleratorFramework }) {
@@ -38,37 +53,48 @@ function Reading({ name, row }: { name: string; row: AcceleratorFramework }) {
       <span className={`dot ${frameworkTone(reading)}`} aria-hidden="true" />
       <span className="compute-fw-name">{name}</span>
       <span className="compute-fw-state">{FRAMEWORK_WORD[reading]}</span>
-      {/* The backend's own explanation, including "deep probe not requested" —
-          which is the honest reason this row says nothing yet. */}
-      {row.detail && <span className="compute-fw-detail">{row.detail}</span>}
+      {/* The backend's own explanation, when it wrote one and it says
+          something this row does not already. "deep probe not requested" is
+          on every shallow row and is stated once in the header above; six
+          copies of it would be noise, not evidence. A probed row with no
+          detail at all is a fill-in, which the reading already refuses to
+          call an absence. */}
+      {row.detail && row.detail !== 'deep probe not requested' && (
+        <span className="compute-fw-detail">{row.detail}</span>
+      )}
     </li>
   );
 }
 
-export function ComputeSection({ enabled }: { enabled: boolean }) {
+export interface ComputeSectionProps {
+  enabled: boolean;
+  /** Injected so the loading, failure and staleness paths have a seam. */
+  read?: typeof getAcceleratorStatus;
+}
+
+export function ComputeSection({ enabled, read = getAcceleratorStatus }: ComputeSectionProps) {
   const [payload, setPayload] = useState<AcceleratorPayload | undefined>();
   const [error, setError] = useState<string>('');
-  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async (deep: boolean) => {
-    setBusy(true);
+  const load = useCallback(async () => {
     try {
-      setPayload(await getAcceleratorStatus(deep));
+      setPayload(await read());
       setError('');
     } catch (err) {
-      // A failed read is a fact. It never becomes an empty inventory.
+      // A failed read is a fact. It never becomes an empty inventory — but it
+      // also must not leave the previous answer looking current, so the
+      // banner below is rendered ABOVE the retained rows and says they are
+      // the older reading rather than this one.
       setError(err instanceof ApiError ? `${err.kind}: ${err.message}` : String(err));
-    } finally {
-      setBusy(false);
     }
-  }, []);
+  }, [read]);
 
   useEffect(() => {
-    if (enabled) void load(false);
+    if (enabled) void load();
   }, [enabled, load]);
 
   const snapshot = payload?.accelerators;
-  const deep = wasDeepProbed(payload);
+  const remote = snapshot?.remote_rtx_ollama;
 
   return (
     <section className="settings-section" aria-labelledby="compute-title">
@@ -78,6 +104,7 @@ export function ComputeSection({ enabled }: { enabled: boolean }) {
       {error && (
         <p className="settings-hint bad" role="alert">
           Die Rechenlage konnte nicht gelesen werden: {error}. Das ist nicht dasselbe wie „keine Beschleuniger“.
+          {payload ? ' Was unten steht, ist der vorherige Stand und nicht dieser.' : ''}
         </p>
       )}
       {!error && !snapshot && <p className="settings-hint" role="status">Rechenlage wird gelesen …</p>}
@@ -91,7 +118,7 @@ export function ComputeSection({ enabled }: { enabled: boolean }) {
                 <li key={`${device.name}-${i}`}>
                   <span className="compute-dev-name">{device.name}</span>
                   <span>Compute {device.compute_capability}</span>
-                  <span>{Math.round(device.memory_mib / 1024)} GiB</span>
+                  <span>{memoryText(device.memory_mib)}</span>
                   <span>Treiber {device.driver_version}</span>
                 </li>
               ))}
@@ -105,13 +132,11 @@ export function ComputeSection({ enabled }: { enabled: boolean }) {
             </p>
           )}
 
-          {/* 2 — installed backends. The shallow answer says it is shallow. */}
+          {/* 2 — backends. Nothing here was EXECUTED: this is a find_spec
+              answer plus an open CUDA question, and it says so. */}
           <div className="compute-head">
             <span>Backends</span>
-            {!deep && <span className="compute-shallow">nicht geprüft — flache Antwort</span>}
-            <button type="button" className="settings-refresh" onClick={() => void load(true)} disabled={busy}>
-              {busy ? 'Läuft …' : 'Tief prüfen'}
-            </button>
+            <span className="compute-shallow">nur Import geprüft, nichts ausgeführt</span>
           </div>
           <ul className="compute-fws">
             {Object.entries(snapshot.frameworks).map(([name, row]) => (
@@ -137,12 +162,24 @@ export function ComputeSection({ enabled }: { enabled: boolean }) {
                 {lane.evidence.length > 0 && (
                   <span className="compute-lane-evidence">Beleg: {lane.evidence.join(', ')}</span>
                 )}
-                {/* The semantic caveat. Without it a reader could take
-                    "einsatzbereit" for "and it is the right tool". */}
+                {/* The semantic caveat. Without it "einsatzbereit" reads as
+                    "and it is the right tool for this". */}
                 {lane.warning && <span className="compute-lane-warn">{lane.warning}</span>}
               </li>
             ))}
           </ul>
+
+          {/* A configured remote model endpoint, and above all its warning.
+              The backend emits "remote endpoint uses plaintext HTTP; prefer a
+              private tunnel or TLS" — a sentence a compute panel has no
+              business swallowing. */}
+          {remote?.configured && (
+            <p className={`settings-hint ${remote.warning ? 'bad' : ''}`}>
+              Entferntes Ollama {remote.endpoint || '(Endpunkt nicht gemeldet)'}:{' '}
+              {remote.available ? `erreichbar, ${remote.models.length} Modelle` : `nicht erreichbar${remote.error ? ` — ${remote.error}` : ''}`}
+              {remote.warning ? ` · ${remote.warning}` : ''}
+            </p>
+          )}
 
           {/* Remote compute: unknown is not offline. */}
           {snapshot.remote_compute.configured ? (
@@ -161,7 +198,10 @@ export function ComputeSection({ enabled }: { enabled: boolean }) {
           )}
 
           {/* The claims block, verbatim in meaning. This is the reason the
-              three levels above are drawn separately at all. */}
+              three levels above are drawn separately at all. Any claim this
+              interface does not recognise is shown raw rather than dropped:
+              silently swallowing an anti-laundering assertion is the wrong
+              failure mode for an anti-laundering block. */}
           <ul className="compute-claims">
             {snapshot.claims.hardware_visible_is_not_backend_ready && (
               <li>Sichtbare Hardware bedeutet nicht, dass ein Backend bereit ist.</li>
@@ -172,7 +212,26 @@ export function ComputeSection({ enabled }: { enabled: boolean }) {
             {snapshot.claims.dlss_general_tensor_backend === false && (
               <li>DLSS ist kein allgemeines Tensor-Backend und wird hier nicht als eines geführt.</li>
             )}
+            {Object.entries(snapshot.claims)
+              .filter(([key]) => ![
+                'hardware_visible_is_not_backend_ready',
+                'backend_ready_is_not_semantic_validity',
+                'dlss_general_tensor_backend'
+              ].includes(key))
+              .map(([key, value]) => (
+                <li key={key} className="compute-claim-raw">
+                  <code>{key}</code> = {String(value)}
+                </li>
+              ))}
           </ul>
+
+          {/* The hardware read is `@lru_cache(maxsize=1)` on the server and
+              carries no probe timestamp, so this cannot be dated. Saying so is
+              cheaper than implying it is live. */}
+          <p className="settings-hint">
+            Die Hardware-Abfrage wird serverseitig zwischengespeichert und meldet keinen Messzeitpunkt; sie kann
+            älter sein als diese Anzeige. Die Backend-Zeile ist bei jedem Aufruf frisch geprüft.
+          </p>
         </div>
       )}
     </section>
