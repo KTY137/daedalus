@@ -1,0 +1,95 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CQ",
+  "title": "Reuse CrossPlaneBinding identity during Fourfold canonicalization",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CP",
+  "campaign_issue": 239,
+  "base_revision": "e4661230c23474097a7865a6b78130d178963c75",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "FourfoldSnapshot canonicalization recomputed each CrossPlaneBinding semantic key twice and each canonical digest four times: duplicate check, digest-index insertion, canonical sort key, and provenance-input reconstruction. Binding digests serialize and hash immutable canonical payloads, so this repeated work was redundant inside one bounded constructor.",
+  "primary_claim": "Each validated CrossPlaneBinding semantic key and digest is now computed once during FourfoldSnapshot canonicalization. The retained digest key supplies duplicate rejection, deterministic digest ordering, canonical binding order, and provenance inputs without rehashing the same immutable binding. Endpoint membership, semantic-claim uniqueness, duplicate refusal, provenance requirements, Forest authority, Fourfold semantics, and promotion authority are unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/contracts.py",
+      "tests/twin/test_fourfold_contracts.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CQ.json"
+    ],
+    "production_commit": "8217eba1df5c52cb48514aa9bc3ba4bd05d13cc3",
+    "exact_code_test_revision": "7eb26b8072cb6dc900b6fedc43a94dd10126aeef",
+    "production_blob": "6490c7ef26b0ee3a14d90877cd903430fabff503",
+    "test_blob": "da08d426b6f6f226205684fa75e3ad294a77ca4a",
+    "production_additions": 9,
+    "production_deletions": 6,
+    "test_additions": 25,
+    "test_deletions": 0,
+    "new_graph_schema": false,
+    "new_tensor_type": false,
+    "new_query_index": false,
+    "new_cache": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false,
+    "contract_semantics_changed": false
+  },
+  "gardener_decision": "Reuse constructor-local semantic keys and canonical digest strings instead of repeatedly serializing/hashing immutable CrossPlaneBinding records or introducing a persistent cache. Keep one existing digest-index as the authority for duplicate refusal, canonical binding ordering and provenance input reconstruction.",
+  "acceptance": [
+    "each CrossPlaneBinding digest is evaluated exactly once during FourfoldSnapshot canonicalization",
+    "canonical binding ordering remains deterministic by digest",
+    "semantic-claim and exact-binding duplicates remain fail-closed",
+    "endpoint-plane membership and revision checks remain unchanged",
+    "existing Fourfold and kernel contract tests execute successfully",
+    "the Fourfold-v2 workflow completes successfully on the exact code/test revision",
+    "all four Python 3.10/3.12 and hash-seed 0/123456 contract jobs complete successfully",
+    "the designated Python 3.12/hash-seed-0 bounded Tensor/Forest diagnostic completes successfully",
+    "the isolated wheel build/install completes successfully",
+    "repository-collection remains collection-only rather than a full-suite execution claim",
+    "no benchmark superiority, OwnerApproval, promotion, merge, Ready-for-Review transition, or Gate transition is inferred"
+  ],
+  "verification": {
+    "exact_code_test_revision": "7eb26b8072cb6dc900b6fedc43a94dd10126aeef",
+    "fourfold_v2_run": 33811439455,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "all four contracts jobs for Python 3.10/3.12 and hash seeds 0/123456 completed successfully",
+      "contracts (3.12, 0) completed successfully with 212 passed, 2 skipped and the bounded Tensor/Forest diagnostic step successful",
+      "contracts (3.10, 0) completed successfully with 212 passed, 2 skipped",
+      "isolated-wheel completed successfully with wheel build and isolated installation",
+      "repository-collection completed successfully and remains collect-only evidence"
+    ],
+    "benchmark_measurement_added": false,
+    "claim": "Hosted green CI is claimed only for exact code/test revision 7eb26b8072cb6dc900b6fedc43a94dd10126aeef. Existing diagnostic probes executed and remain explicitly diagnostic-only with claim=none. This packet makes no latency, memory, Tensor-vs-Forest, CrewAI, AlphaEvolve, or other comparative benchmark claim. Evidence/documentation commits after the tested revision do not extend the green-CI claim unless independently executed."
+  },
+  "review": {
+    "builder_scope_reviewed": true,
+    "focused_regression": "test_snapshot_computes_each_binding_digest_once_during_canonicalization monkeypatches CrossPlaneBinding.digest and proves one digest evaluation per retained binding while preserving snapshot equality.",
+    "independent_owner_review_completed": false
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false,
+    "archive_anchor_observed_before_record": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "main_observed_before_record": "e31213aff40ab322dcead6d50ae19007f3f9b6b1",
+    "visible_remote_refs_observed_before_record": 18,
+    "topology_note": "Only the existing canonical tensor-kernel line was advanced. Existing extra packet/rescue/evidence refs were left untouched rather than deleted or archived merely to reduce the visible branch count. archive/legacy-20260830 remains a frozen evidence/history anchor and received no active work."
+  },
+  "rollback": "Revert test commit 7eb26b8072cb6dc900b6fedc43a94dd10126aeef and production commit 8217eba1df5c52cb48514aa9bc3ba4bd05d13cc3 to restore repeated binding-key and binding-digest evaluation. Fourfold ontology, Forest authority, Tensor relation semantics and promotion authority are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "ready_for_review_transition": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
