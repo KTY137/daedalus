@@ -84,6 +84,20 @@ class _IndexPayloadReadBoundEntry(SparseTensorEntry):
         return super().__getattribute__(name)
 
 
+class _CanonicalOrderPayloadForbiddenEntry(SparseTensorEntry):
+    def __getattribute__(self, name: str):  # type: ignore[no-untyped-def]
+        if name in {"value", "masked", "evidence_sha256s"}:
+            try:
+                forbidden = object.__getattribute__(self, "_payload_reads_forbidden")
+            except AttributeError:
+                forbidden = False
+            if forbidden:
+                raise AssertionError(
+                    "TensorView canonicalization read payload after the semantic claim was unique"
+                )
+        return super().__getattribute__(name)
+
+
 def _provenance() -> ContractProvenance:
     return ContractProvenance(
         origin="test.tensor.select",
@@ -172,6 +186,34 @@ def test_canonical_entry_validation_does_not_rewalk_duplicate_claims() -> None:
     finally:
         for entry in entries:
             _COORDINATE_READS.pop(id(entry), None)
+
+
+def test_entry_canonicalization_orders_only_by_unique_semantic_claim_key() -> None:
+    labels = tuple(f"node-{index:03d}" for index in range(128))
+    entries = tuple(
+        _CanonicalOrderPayloadForbiddenEntry(
+            coordinates=(("node", node),),
+            relation="membership",
+            value=float(index + 1),
+            evidence_sha256s=(f"{index + 1:064x}",),
+        )
+        for index, node in reversed(tuple(enumerate(labels)))
+    )
+    for entry in entries:
+        object.__setattr__(entry, "_payload_reads_forbidden", True)
+
+    tensor = TensorView(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=FOREST,
+        source_fourfold_sha256=FOURFOLD,
+        status="complete",
+        axes=(TensorAxis("node", labels),),
+        entries=entries,
+        provenance=_provenance(),
+    )
+
+    assert tuple(entry.coordinates[0][1] for entry in tensor.entries) == labels
 
 
 def test_canonical_entry_validation_still_rejects_duplicate_claims() -> None:
