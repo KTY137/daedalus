@@ -169,6 +169,26 @@ export interface DashboardPayload extends ApiEnvelope {
     watchers?: Array<{ pid: number; command: string; stale: boolean }>;
     stale_count?: number;
   };
+  /*
+   * THE REST OF WHAT /api/dashboard SENDS.
+   *
+   * Declared shallowly and deliberately: naming them makes them reachable
+   * and lets `tests/contracts/test_ui_contract_matches_live_payloads.py`
+   * watch this endpoint at all, which it could not while eight fields were
+   * undeclared. Their inner shapes stay `unknown` because nothing renders
+   * them yet, and inventing a structure nobody consumes would be a contract
+   * asserting more than anyone has checked.
+   *
+   * Measured on the live endpoint 2026-09-03.
+   */
+  status?: Record<string, unknown>;
+  models?: Record<string, unknown>;
+  squads?: Record<string, unknown>;
+  categories?: Array<Record<string, unknown>>;
+  claude_crew?: Record<string, unknown>;
+  enforcement?: Record<string, unknown>;
+  project_config?: Record<string, unknown>;
+  projects?: Array<Record<string, unknown>>;
 }
 
 export interface AgentProfile {

@@ -189,15 +189,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "283 tracked files" in message
+    assert "284 tracked files" in message
     assert payload["counts"] == {
-        "assigned_artifacts": 280,
+        # +1 across every packet-derived count, and the legacy baseline
+        # unchanged, because G1-UI-07 added exactly one tracked artifact.
+        # A packet that moved a legacy artifact would show here as
+        # legacy_artifacts falling, which is the thing this pins.
+        "assigned_artifacts": 281,
         "legacy_artifacts": 204,
-        "packet_artifacts": 282,
-        "packet_ids": 217,
-        "post_index_artifacts": 78,
+        "packet_artifacts": 283,
+        "packet_ids": 218,
+        "post_index_artifacts": 79,
         "registry_artifacts": 1,
-        "tracked_files": 283,
+        "tracked_files": 284,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -321,6 +325,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-UI-04",
         "G1-UI-05",
         "G1-UI-06",
+        "G1-UI-07",
         "G1-WEB-01",
         "G1-WP-INDEX-01",
     }

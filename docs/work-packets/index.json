@@ -9,13 +9,13 @@
     "master_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2"
   },
   "counts": {
-    "assigned_artifacts": 280,
+    "assigned_artifacts": 281,
     "legacy_artifacts": 204,
-    "packet_artifacts": 282,
-    "packet_ids": 217,
-    "post_index_artifacts": 78,
+    "packet_artifacts": 283,
+    "packet_ids": 218,
+    "post_index_artifacts": 79,
     "registry_artifacts": 1,
-    "tracked_files": 283,
+    "tracked_files": 284,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -3719,6 +3719,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-UI-07_REFUSALS_THE_COCKPIT_NEVER_DREW.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "fb2ab6cf0180f23f61cabf46f6dafa7213b6c73c",
+        "classification": "ALIGNED",
+        "dependencies": "G1-UI-06 (work rail, live stream, status line chips) in the same",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-UI-07",
+      "primary_artifact": "docs/work-packets/G1-UI-07_REFUSALS_THE_COCKPIT_NEVER_DREW.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-WEB-01_PROJECT_SCOPED_LIVE_EVENTS.md"
       ],
       "metadata": {
@@ -4815,6 +4831,20 @@
       "format": "markdown",
       "packet_id": "G1-UI-06",
       "path": "docs/work-packets/G1-UI-06_IKARUS_OVERSIGHT_SURFACE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-UI-07",
+      "path": "docs/work-packets/G1-UI-07_REFUSALS_THE_COCKPIT_NEVER_DREW.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
