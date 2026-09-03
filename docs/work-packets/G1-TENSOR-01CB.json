@@ -1,0 +1,85 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-TENSOR-01CB",
+  "title": "Prune the redundant SparseTensorEntry coordinate mapping surface",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-TENSOR-01CA",
+  "campaign_issue": 239,
+  "base_revision": "9dc95c5df44cf5f86cbcdd46cc3779d3fe9405b3",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "finding": "SparseTensorEntry already retains coordinates as one validated, canonical immutable tuple, while coordinate_map rebuilt the same axis-label binding as a fresh dict plus MappingProxyType on every access. The convenience view duplicated the canonical coordinate representation and imposed repeated per-read materialization in selectors and diagnostic probes.",
+  "primary_claim": "SparseTensorEntry now exposes its canonical coordinates tuple as the single retained coordinate representation and no longer exposes coordinate_map. TensorView selection, index projection, canonicalization, wire serialization, digest identity, Fourfold/Forest source binding, status and provenance semantics remain unchanged.",
+  "scope": {
+    "changed": [
+      "daedalus/twin/tensor.py",
+      "tests/twin/test_tensor_kernel.py",
+      "tests/twin/test_tensor_select_lookup.py",
+      "tests/twin/test_tensor_forest_cost_probe.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-TENSOR-01CB.json"
+    ],
+    "code_test_commits": 4,
+    "code_test_additions": 15,
+    "code_test_deletions": 13,
+    "production_additions": 1,
+    "production_deletions": 6,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Delete the derived coordinate mapping view before the experimental Tensor surface hardens into another compatibility contract. Reuse the already validated canonical SparseTensorEntry.coordinates tuple directly in focused selectors and the diagnostic cost probe; do not introduce a cache, mapping adapter, lookup service, alternate Tensor type, planner, store, registry, scheduler or backend.",
+  "acceptance": [
+    "SparseTensorEntry no longer exposes coordinate_map",
+    "the canonical coordinates tuple remains named, sorted and directly readable as the single retained coordinate representation",
+    "existing Tensor selection and index-coordinate bounds remain in the executed Fourfold/Tensor contract surface",
+    "the Tensor/Forest diagnostic consumes canonical coordinate tuples directly and preserves result identity checks",
+    "the Fourfold-v2 workflow executes successfully on the exact final code/test revision",
+    "the designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic executes successfully",
+    "the isolated wheel build/install executes successfully",
+    "repository-wide evidence remains collection-only rather than a full-suite execution claim",
+    "no OwnerApproval, promotion, Gate transition, measured memory/latency improvement or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "production_revision": "1eaaa196105a6500b1df155c8b6311c451a67057",
+    "code_test_revision": "13ddcf39817781211fc2b99b145dfcc2949c4c80",
+    "production_blob": "f7f1e5c3eb34bc3e6183d3bb1923150d01861aa4",
+    "focused_test_blob": "d970ac46ae34cf5c4c52cc292aac9db73b3a8678",
+    "selector_test_blob": "9a6667d95afa3d6de3f0ea9b50e24379445b2a6a",
+    "cost_probe_blob": "2cae3617c91804fcfb58a8a44546aa7786051816",
+    "red_intermediate_revision": "0cd05225dcaa683f9e6b0fb84c64be5d90afd603",
+    "red_intermediate_run": 33721798528,
+    "red_intermediate_observation": "The first exact code/test attempt correctly failed four tests because two existing selector tests and the Tensor/Forest diagnostic still consumed coordinate_map. This red evidence prevented a false green claim; those consumers were migrated to the canonical coordinates tuple within the same packet.",
+    "fourfold_v2_run": 33722199604,
+    "fourfold_v2_conclusion": "success",
+    "observed_jobs": [
+      "Fourfold-v2 workflow completed success on exact code/test revision 13ddcf39817781211fc2b99b145dfcc2949c4c80",
+      "all Python 3.10/3.12 contract matrix jobs completed success on GitHub-hosted runners",
+      "designated Python 3.12/hash-seed-0 Run Fourfold and kernel contract tests step completed success",
+      "designated Python 3.12/hash-seed-0 Tensor/Forest diagnostic step completed success",
+      "isolated-wheel completed success",
+      "repository-collection completed success (collection only)"
+    ],
+    "claim": "Hosted CI is claimed only for exact code/test revision 13ddcf39817781211fc2b99b145dfcc2949c4c80. The executed tests/twin surface includes the focused regression asserting that SparseTensorEntry has no coordinate_map while its canonical coordinates remain deterministic, selector/index bounds, and the Tensor/Forest diagnostic result-equivalence checks. The earlier intermediate revision 0cd05225dcaa683f9e6b0fb84c64be5d90afd603 is explicitly recorded as red, not green. No measured wall-clock latency, peak-memory, Tensor-vs-Forest or benchmark-superiority claim is inferred. Repository-wide evidence is collection-only, not full-suite execution."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-TENSOR-01CB commits to restore the derived coordinate_map convenience property and its test consumers. Fourfold/Forest authority, Tensor wire contracts, source/provenance identity and stored canonical coordinates are otherwise unchanged.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
