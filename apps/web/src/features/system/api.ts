@@ -50,9 +50,36 @@ export function capabilityFailure(error: unknown): CapabilityFailure {
   };
 }
 
-async function capture<T>(work: () => Promise<T>, now: () => number): Promise<CapabilityResult<T>> {
+async function capture<T>(
+  work: () => Promise<T>,
+  now: () => number,
+  /**
+   * The key this projection PROMISES to carry.
+   *
+   * `status: 'ready'` used to mean only "the HTTP call did not throw", and the
+   * cards dereference a second level straight off it — `data.queue
+   * .n_candidates`, `data.architecture.digest`. A 200 whose body lacks the key
+   * therefore threw a TypeError during render, which unmounted the ENTIRE
+   * settings drawer: every other capability with it, including the ones that
+   * had answered perfectly, plus any unrelated section rendered alongside.
+   * [MEASURED 2026-09-03] a loop-queue body without `queue` left the drawer
+   * with zero team sections and a bare page error.
+   *
+   * A failed read is evidence in its own right, says the contract above. So is
+   * a malformed one, and it is reported the same way instead of thrown.
+   */
+  promises?: keyof T & string
+): Promise<CapabilityResult<T>> {
   try {
-    return { status: 'ready', data: await work(), loadedAt: now() };
+    const data = await work();
+    if (promises && (data as Record<string, unknown> | null)?.[promises] === undefined) {
+      return {
+        status: 'error',
+        error: { kind: 'contract', message: `the response carries no "${promises}"` },
+        loadedAt: now()
+      };
+    }
+    return { status: 'ready', data, loadedAt: now() };
   } catch (error) {
     return { status: 'error', error: capabilityFailure(error), loadedAt: now() };
   }
@@ -81,11 +108,11 @@ export async function loadSystemCapabilities(
     capture(() => ports.getDashboard(project), now),
     capture(() => ports.getControlPlane(project), now),
     capture(() => ports.getClaudeBootstrap(project), now),
-    capture(() => ports.getProviderStatus(), now),
-    capture(() => ports.getHierarchy(project), now),
-    capture(() => ports.getLoopQueue(project, 10), now),
-    capture(() => ports.getLoopAttempts(20), now),
-    capture(() => ports.getLoopArchitecture(project), now)
+    capture(() => ports.getProviderStatus(), now, 'providers'),
+    capture(() => ports.getHierarchy(project), now, 'nodes'),
+    capture(() => ports.getLoopQueue(project, 10), now, 'queue'),
+    capture(() => ports.getLoopAttempts(20), now, 'attempts'),
+    capture(() => ports.getLoopArchitecture(project), now, 'architecture')
   ]);
 
   return {

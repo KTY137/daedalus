@@ -44,6 +44,38 @@ function hierarchy(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * A project the cockpit can select, injected.
+ *
+ * The first version of this spec stubbed only the two endpoints under test and
+ * passed — because a throwaway project happened to be registered on the machine
+ * at that moment. Removing it turned both tests red without a line of product
+ * code changing. That is the trap the deleted loop.spec.ts named in its own
+ * header: a spec that passes only when the environment happens to cooperate is
+ * telling you about the machine, not about the cockpit.
+ */
+async function stubProject(page: Page): Promise<void> {
+  const project = { name: 'probe', repo_root: 'C:\\work\\probe', team: {} };
+  const envelope = (extra: Record<string, unknown> = {}) => ({
+    ok: true, generated_at: '2026-09-03T00:00:00Z', project: project.name, warnings: [], ...extra
+  });
+  const json = (route: import('@playwright/test').Route, body: Record<string, unknown>) =>
+    route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(body) });
+
+  await page.route('**/api/**', (route) => json(route, envelope()));
+  await page.route('**/api/events**', (route) => route.fulfill({
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream', Connection: 'close' },
+    body: 'event: hello\ndata: {"queue_depth":0,"in_flight":0,"watcher_state":"idle","unread_count":0}\n\n'
+  }));
+  await page.route('**/api/projects', (route) => json(route, envelope({ projects: [project] })));
+  await page.route('**/api/dashboard**', (route) => json(route, envelope({
+    selected_project: project.name,
+    queue: { pending: [], reports: [] },
+    governance: envelope({ promotion_allowed: false, verdict: 'BLOCKED_BY_GATE', state: 'present', head: null, gates: [], blockers: [] })
+  })));
+}
+
 async function openSettings(page: Page): Promise<void> {
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
   expect(response).not.toBeNull();
@@ -56,6 +88,7 @@ async function openSettings(page: Page): Promise<void> {
 test.describe('team editor', () => {
   test('renders the lanes the backend named and saves only what moved', async ({ page }) => {
     const puts: Array<Record<string, unknown>> = [];
+    await stubProject(page);
     await page.route('**/api/projects/*/hierarchy', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(hierarchy()) })
     );
@@ -109,6 +142,7 @@ test.describe('team editor', () => {
   });
 
   test('a rejected patch shows the backend reason verbatim', async ({ page }) => {
+    await stubProject(page);
     await page.route('**/api/projects/*/hierarchy', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(hierarchy()) })
     );
