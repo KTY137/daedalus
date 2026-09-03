@@ -200,15 +200,24 @@ class TypedAxis:
         object.__setattr__(self, "name", _identifier(self.name, "axis.name"))
         if self.plane not in FOURFOLD_PLANES:
             raise ValueError(f"axis.plane must be one of {FOURFOLD_PLANES}")
-        labels = sorted(
-            _label(item, f"axis.labels[{index}]")
-            for index, item in enumerate(
-                _sequence(self.labels, "axis.labels", MAX_BLOCK_AXIS_LABELS)
-            )
-        )
-        if any(labels[index - 1] == labels[index] for index in range(1, len(labels))):
-            raise ValueError("axis.labels must not contain duplicates")
-        object.__setattr__(self, "labels", tuple(labels))
+        raw_labels = _sequence(self.labels, "axis.labels", MAX_BLOCK_AXIS_LABELS)
+        labels = None if type(raw_labels) is tuple else []
+        previous: str | None = None
+        for index, raw in enumerate(raw_labels):
+            label = _label(raw, f"axis.labels[{index}]")
+            if labels is None and previous is not None:
+                if label < previous:
+                    labels = [raw_labels[position] for position in range(index)]
+                elif label == previous:
+                    raise ValueError("axis.labels must not contain duplicates")
+            if labels is not None:
+                labels.append(label)
+            previous = label
+        if labels is not None:
+            labels.sort()
+            if any(labels[index - 1] == labels[index] for index in range(1, len(labels))):
+                raise ValueError("axis.labels must not contain duplicates")
+            object.__setattr__(self, "labels", tuple(labels))
 
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "plane": self.plane, "labels": list(self.labels)}
