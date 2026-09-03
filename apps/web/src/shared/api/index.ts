@@ -539,6 +539,73 @@ export function observeConversationTurn(
   return { close };
 }
 
+/**
+ * One task on the file bus, read once rather than streamed.
+ *
+ * `GET /api/queue/<id>` has existed since the bus did and had no caller in
+ * this frontend: the conversation follows a task it started through the
+ * one-shot SSE, and a task nobody is currently watching — a dispatch resumed
+ * from the spine, a run started elsewhere — could not be inspected at all.
+ * `_task_snapshot` (daedalus/web_api.py) always answers with the same keys in
+ * every branch, including `found: false`, so an unknown id is a fact rather
+ * than an error.
+ */
+export interface TaskDetail {
+  id: string;
+  found: boolean;
+  state: string;
+  source: string;
+  observed_at?: string | null;
+  age_s?: number | null;
+  lane?: string | null;
+  requested_lane?: string | null;
+  actual_providers?: string[];
+  project?: string | null;
+  objective?: string | null;
+  bridge_status?: string | null;
+  report_status?: string | null;
+  summary?: string | null;
+  error?: string | null;
+  applied?: boolean | null;
+  applied_reason?: string | null;
+  busy_for_s?: number | null;
+  stalled?: boolean;
+  progress?: Record<string, unknown> | null;
+}
+
+export function getTask(id: string) {
+  return request<ApiEnvelope & { task: TaskDetail }>(`/api/queue/${encodeURIComponent(id)}`);
+}
+
+/**
+ * What a finished task actually produced.
+ *
+ * `available` is the honest half: an unfinished task answers `available:
+ * false` with a `reason`, and the interface says that rather than drawing an
+ * empty list of changed files as though the run had changed nothing.
+ */
+export interface TaskArtifacts {
+  found: boolean;
+  available: boolean;
+  task?: string;
+  reason?: string;
+  applied?: boolean | null;
+  applied_reason?: string | null;
+  files_changed?: string[];
+  rolled_back?: string[];
+  wrote?: string[];
+  draft_ids?: string[];
+  tests_run?: string[];
+  risks?: string[];
+  todos?: string[];
+}
+
+export function getTaskArtifacts(id: string) {
+  return request<ApiEnvelope & { artifacts: TaskArtifacts }>(
+    `/api/queue/${encodeURIComponent(id)}/artifacts`
+  );
+}
+
 export interface QueueTaskPayload extends ApiEnvelope {
   /** Address for GET /api/queue/<id> and its one-shot progress stream. */
   id: string;

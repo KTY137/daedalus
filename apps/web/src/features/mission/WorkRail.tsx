@@ -1,6 +1,7 @@
-import type { DraftRow } from '@/shared/api';
+import { useCallback, useState } from 'react';
+import { getTask, getTaskArtifacts, type DraftRow, type TaskArtifacts, type TaskDetail } from '@/shared/api';
 import type { OpenDispatch } from '@/features/conversation/model';
-import { relativeTime } from '@/features/conversation/model';
+import { relativeTime, taskStateLabel } from '@/features/conversation/model';
 
 /**
  * ARBEIT — what waits on you, what is running, what just happened.
@@ -62,6 +63,135 @@ function watcherLabel(state: string | undefined): { text: string; verbatim: bool
   if (!state) return { text: 'unbekannt', verbatim: false };
   const known = WATCHER[state.toLowerCase()];
   return known ? { text: known, verbatim: false } : { text: state, verbatim: true };
+}
+
+/**
+ * ONE DISPATCH, OPENED.
+ *
+ * The rail knows a dispatch exists because the conversation spine recorded
+ * it; it knows nothing else until someone asks the bus. `GET /api/queue/<id>`
+ * and its `/artifacts` sibling have both existed since the bus did and had no
+ * caller in this frontend at all, so a task nobody happened to be streaming
+ * was a reference number and nothing more.
+ *
+ * Read on demand, never on mount: a rail that fetched every dispatch as it
+ * drew would turn a glance into a fan-out.
+ */
+type DetailState =
+  | { kind: 'shut' }
+  | { kind: 'reading' }
+  | { kind: 'read'; task: TaskDetail; artifacts?: TaskArtifacts }
+  | { kind: 'failed'; reason: string };
+
+function List({ label, items }: { label: string; items: string[] | undefined }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="work-detail-list">
+      <span>{label}</span>
+      <ul>
+        {items.slice(0, 6).map((item) => (
+          <li key={item}>
+            <code>{item}</code>
+          </li>
+        ))}
+      </ul>
+      {items.length > 6 && <span className="work-detail-more">und {items.length - 6} weitere</span>}
+    </div>
+  );
+}
+
+function DispatchRow({ dispatch }: { dispatch: OpenDispatch }) {
+  const [state, setState] = useState<DetailState>({ kind: 'shut' });
+
+  const toggle = useCallback(async () => {
+    if (state.kind !== 'shut') {
+      setState({ kind: 'shut' });
+      return;
+    }
+    setState({ kind: 'reading' });
+    try {
+      const payload = await getTask(dispatch.ref);
+      const task = payload.task;
+      // Artifacts exist only once the run finished; asking earlier answers
+      // `available: false` with a reason, which is worth showing but is not
+      // worth a second request while the task is plainly still running.
+      let artifacts: TaskArtifacts | undefined;
+      if (task.found && task.state !== 'queued' && task.state !== 'running') {
+        try {
+          artifacts = (await getTaskArtifacts(dispatch.ref)).artifacts;
+        } catch {
+          /* the snapshot is the answer; artifacts are the bonus */
+        }
+      }
+      setState({ kind: 'read', task, artifacts });
+    } catch (reason) {
+      setState({ kind: 'failed', reason: reason instanceof Error ? reason.message : 'unbekannter Fehler' });
+    }
+  }, [dispatch.ref, state.kind]);
+
+  const open = state.kind !== 'shut';
+
+  return (
+    <li className="work-row live">
+      <button type="button" onClick={() => void toggle()} aria-expanded={open}>
+        <span className="work-row-what">{dispatch.summary || 'Aufgabe übergeben'}</span>
+        <span className="work-row-meta">
+          <code>{dispatch.ref}</code>
+          {dispatch.since && <span>seit {relativeTime(dispatch.since) || dispatch.since}</span>}
+          <span>noch kein Bericht</span>
+        </span>
+      </button>
+
+      {state.kind === 'reading' && <p className="work-detail-note">Zustand wird vom Bus gelesen …</p>}
+      {state.kind === 'failed' && (
+        <p className="work-detail-note bad">Der Bus konnte nicht gelesen werden: {state.reason}</p>
+      )}
+      {state.kind === 'read' && (
+        <div className="work-detail">
+          {!state.task.found ? (
+            <p className="work-detail-note">
+              Auf dem Bus nicht auffindbar.
+              {state.task.applied_reason ? ` ${state.task.applied_reason}` : ''}
+            </p>
+          ) : (
+            <>
+              <span className="work-row-meta">
+                <span>
+                  Zustand <b>{taskStateLabel(state.task)}</b>
+                </span>
+                {(state.task.requested_lane || state.task.lane) && (
+                  <span>
+                    Lane <code>{state.task.requested_lane || state.task.lane}</code>
+                  </span>
+                )}
+                {state.task.actual_providers && state.task.actual_providers.length > 0 && (
+                  <span>über {state.task.actual_providers.join(', ')}</span>
+                )}
+                {typeof state.task.age_s === 'number' && <span>{Math.round(state.task.age_s)} s alt</span>}
+                <span>Quelle {state.task.source}</span>
+              </span>
+              {state.task.summary && <p className="work-detail-summary">{state.task.summary}</p>}
+              {state.task.error && <p className="work-detail-note bad">Fehler: {state.task.error}</p>}
+              {state.artifacts && !state.artifacts.available && (
+                <p className="work-detail-note">
+                  Noch kein Ergebnis: {state.artifacts.reason || 'der Lauf ist nicht abgeschlossen'}
+                </p>
+              )}
+              {state.artifacts?.available && (
+                <>
+                  <List label="Geändert" items={state.artifacts.files_changed} />
+                  <List label="Zurückgerollt" items={state.artifacts.rolled_back} />
+                  <List label="Tests" items={state.artifacts.tests_run} />
+                  <List label="Entwürfe" items={state.artifacts.draft_ids} />
+                  <List label="Risiken" items={state.artifacts.risks} />
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </li>
+  );
 }
 
 function Section({
@@ -154,14 +284,7 @@ export function WorkRail({ project, drafts, draftsScoped, live, openDispatches, 
       <Section title="Läuft gerade" count={running} tone="live">
         <ul className="work-list">
           {openDispatches.map((d) => (
-            <li key={d.ref} className="work-row live">
-              <span className="work-row-what">{d.summary || 'Aufgabe übergeben'}</span>
-              <span className="work-row-meta">
-                <code>{d.ref}</code>
-                {d.since && <span>seit {relativeTime(d.since) || d.since}</span>}
-                <span>noch kein Bericht</span>
-              </span>
-            </li>
+            <DispatchRow key={d.ref} dispatch={d} />
           ))}
           {running === 0 && openDispatches.length === 0 && (
             <li className="work-row">

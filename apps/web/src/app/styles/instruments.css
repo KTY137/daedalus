@@ -177,6 +177,21 @@
 .work-row-meta b.mono { font-family: var(--font-mono); }
 .work-stale { color: var(--warn); }
 
+/* One dispatch, opened onto what the bus actually says about it. */
+.work-detail { display: grid; gap: var(--u1); padding-top: var(--u1); }
+.work-detail-note { margin: 0; font-size: var(--fs-xs); color: var(--ink3); line-height: 1.45; }
+.work-detail-note.bad { color: var(--bad); }
+.work-detail-summary { margin: 0; font-size: var(--fs-xs); color: var(--ink2); line-height: 1.45; }
+.work-detail-list { display: grid; gap: 2px; font-size: var(--fs-xs); color: var(--ink3); }
+.work-detail-list > span {
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+}
+.work-detail-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.work-detail-list code { font-family: var(--font-mono); color: var(--ink2); overflow-wrap: anywhere; }
+.work-detail-more { color: var(--ink3); }
+
 /* The rail tab says how many things wait, the same way the view switch does. */
 .rail-badge {
   display: inline-block;

@@ -362,7 +362,16 @@ export function openDispatchesFrom(view: ConversationView | undefined): OpenDisp
 
 /* ---------------------------------------------------------------- labels */
 
-export function taskStateLabel(task: TaskSnapshot): string {
+/** Anything that reports a bus state. Widened from `TaskSnapshot` so the
+ *  one-shot read (`getTask`) and the stream share one vocabulary instead of
+ *  growing a second, drifting copy. */
+export interface TaskStateLike {
+  state: string;
+  stalled?: boolean;
+  timed_out?: boolean;
+}
+
+export function taskStateLabel(task: TaskStateLike): string {
   if (task.stalled) return 'festgefahren';
   if (task.timed_out) return 'unklar';
   const state = task.state.toLowerCase();
