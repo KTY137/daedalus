@@ -5,7 +5,7 @@ on:
     branches:
       - g0/provider-target-receipt-retention-inventory-linear
     paths:
-      - "daedalus/runtimes/provider_target_receipt_retention_contract.py"
+      - "daedalus/runtimes/provider/target_receipt_retention_contract.py"
       - "scripts/run_provider_target_receipt_retention_contract_mutations.py"
       - "tests/runtimes/test_provider_target_receipt_retention_contract*.py"
       - "docs/work-packets/G0-RTC-07F_PROVIDER_TARGET_RECEIPT_RETENTION_CONTRACT.*"
@@ -107,7 +107,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-retention-contract-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_target_receipt_retention_contract import (
+          from daedalus.runtimes.provider.target_receipt_retention_contract import (
               ProviderTargetReceiptRetentionOperationAuthority,
               ProviderTargetReceiptRetentionOperationSubject,
               authorize_provider_target_receipt_retention_operation,

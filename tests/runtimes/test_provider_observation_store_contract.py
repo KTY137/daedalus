@@ -8,9 +8,9 @@ import pytest
 
 from daedalus.kernel.contracts import EffectLease
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
-from daedalus.runtimes.provider_observation import issue_provider_observation_authority
-from daedalus.runtimes.provider_observation_store import ProviderObservationStoreTarget
-from daedalus.runtimes.provider_observation_store_contract import (
+from daedalus.runtimes.provider.observation import issue_provider_observation_authority
+from daedalus.runtimes.provider.observation_store import ProviderObservationStoreTarget
+from daedalus.runtimes.provider.observation_store_contract import (
     BIND_PROVIDER_START,
     INITIALIZE_STORE,
     STORE_GUARD_CONTRACT,

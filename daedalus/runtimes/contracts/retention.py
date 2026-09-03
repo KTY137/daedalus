@@ -10,7 +10,7 @@ from typing import Any
 from daedalus.spine.envelope import canonical_json
 
 
-RETENTION_SOURCE_PATH = "daedalus/runtimes/provider_target_receipt_ledger.py"
+RETENTION_SOURCE_PATH = "daedalus/runtimes/provider/target_receipt_ledger.py"
 RETENTION_MAX_SOURCE_BYTES = 2 * 1024 * 1024
 _SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 

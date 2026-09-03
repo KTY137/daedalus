@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.runtimes.provider_target_receipt_retention_completed_evidence as completed
+import daedalus.runtimes.provider.target_receipt_retention_completed_evidence as completed
 
 
 _FORBIDDEN_CALL_NAMES = {

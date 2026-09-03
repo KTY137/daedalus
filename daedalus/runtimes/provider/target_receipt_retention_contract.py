@@ -32,7 +32,7 @@ from daedalus.kernel.contracts.base import (
     _utc_timestamp,
 )
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
 )
 from daedalus.spine.effect_boundary import GuardDecision

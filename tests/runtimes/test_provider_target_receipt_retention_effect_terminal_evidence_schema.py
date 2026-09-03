@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from daedalus.runtimes.provider_target_receipt_retention_effect_terminal_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_effect_terminal_evidence import (
     ProviderTargetReceiptRetentionEffectTerminalEvidenceReceipt,
 )
 

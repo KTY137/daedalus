@@ -21,11 +21,11 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from daedalus.kernel.contracts.base import _identifier, _sha256
-from daedalus.runtimes.provider_invocation import (
+from daedalus.runtimes.provider.invocation import (
     ProviderInvocationSubject,
     ProviderInvocationSubjectError,
 )
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthority,
     ProviderObservationAuthorityError,
     _normalize_keyring,

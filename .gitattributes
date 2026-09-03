@@ -44,8 +44,8 @@ docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl -text
 
 # Sources hashed by the gate inventories (daedalus/gates/*_inventory.py read the
 # WORKING-TREE bytes of the module named in their _SOURCE_PATH).
-daedalus/runtimes/provider_target_receipt_ledger.py -text
-daedalus/runtimes/provider_observation.py -text
+daedalus/runtimes/provider/target_receipt_ledger.py -text
+daedalus/runtimes/provider/observation.py -text
 
 # Modules and fixtures that hash their own file to identify the implementation
 # that produced an observation or a fault receipt. Under CRLF the same revision
@@ -140,7 +140,7 @@ tests/gates/test_repository_head_revision_wire.py -text
 # `daedalus.ignition.bundle.import_closure(ROOT, EVALUATOR_MODULES)`, 124
 # modules, every one under daedalus/): 123 of 124 resolved `text: unspecified`
 # -- no explicit, non-autocrlf-dependent declaration at all -- the one
-# exception (daedalus/runtimes/provider_observation.py) already pinned above
+# exception (daedalus/runtimes/provider/observation.py) already pinned above
 # for an unrelated reason. And a SECOND measurement the first draft of this
 # section got wrong: checking raw file bytes (not `git ls-files --eol`'s
 # INDEX column, which is always `i/lf`) showed 121 of these 124 files are
@@ -254,7 +254,7 @@ daedalus/providers/personas.py -text
 daedalus/router.py -text
 daedalus/runtimes/broker.py -text
 daedalus/runtimes/profiles.py -text
-daedalus/runtimes/provider_observation.py -text
+daedalus/runtimes/provider/observation.py -text
 daedalus/runtimes/trust.py -text
 daedalus/runtimes/trust_store.py -text
 daedalus/schemas.py -text
@@ -314,27 +314,27 @@ daedalus/gates/python_target_structure.py -text
 daedalus/gates/repository_tree.py -text
 daedalus/kernel/artifacts.py -text
 daedalus/kernel/source_trees.py -text
-daedalus/runtimes/provider_executable_object_registry.py -text
-daedalus/runtimes/provider_executable_pre_admission.py -text
-daedalus/runtimes/provider_executable_structure.py -text
-daedalus/runtimes/provider_executable_targets.py -text
-daedalus/runtimes/provider_invocation.py -text
-daedalus/runtimes/provider_invocation_abi.py -text
-daedalus/runtimes/provider_invocation_authority.py -text
-daedalus/runtimes/provider_invocation_identity.py -text
-daedalus/runtimes/provider_invocation_payload.py -text
-daedalus/runtimes/provider_invocation_registry.py -text
-daedalus/runtimes/provider_invocation_resolution.py -text
-daedalus/runtimes/provider_runtime_executable_binding.py -text
-daedalus/runtimes/provider_runtime_invocation_binding.py -text
-daedalus/runtimes/provider_target_receipt_retention_admission.py -text
-daedalus/runtimes/provider_target_receipt_retention_completed_evidence.py -text
-daedalus/runtimes/provider_target_receipt_retention_contract.py -text
-daedalus/runtimes/provider_target_receipt_retention_effect_terminal_evidence.py -text
-daedalus/runtimes/provider_target_receipt_retention_preflight.py -text
-daedalus/runtimes/provider_target_receipt_retention_recovery.py -text
-daedalus/runtimes/provider_target_verification.py -text
-daedalus/runtimes/provider_target_verification_contracts.py -text
+daedalus/runtimes/provider/executable_object_registry.py -text
+daedalus/runtimes/provider/executable_pre_admission.py -text
+daedalus/runtimes/provider/executable_structure.py -text
+daedalus/runtimes/provider/executable_targets.py -text
+daedalus/runtimes/provider/invocation.py -text
+daedalus/runtimes/provider/invocation_abi.py -text
+daedalus/runtimes/provider/invocation_authority.py -text
+daedalus/runtimes/provider/invocation_identity.py -text
+daedalus/runtimes/provider/invocation_payload.py -text
+daedalus/runtimes/provider/invocation_registry.py -text
+daedalus/runtimes/provider/invocation_resolution.py -text
+daedalus/runtimes/provider/runtime_executable_binding.py -text
+daedalus/runtimes/provider/runtime_invocation_binding.py -text
+daedalus/runtimes/provider/target_receipt_retention_admission.py -text
+daedalus/runtimes/provider/target_receipt_retention_completed_evidence.py -text
+daedalus/runtimes/provider/target_receipt_retention_contract.py -text
+daedalus/runtimes/provider/target_receipt_retention_effect_terminal_evidence.py -text
+daedalus/runtimes/provider/target_receipt_retention_preflight.py -text
+daedalus/runtimes/provider/target_receipt_retention_recovery.py -text
+daedalus/runtimes/provider/target_verification.py -text
+daedalus/runtimes/provider/target_verification_contracts.py -text
 daedalus/runtimes/admission/offload_egress.py -text
 daedalus/orchestration/workspace_containment.py -text
 daedalus/foundation/text_integrity.py -text

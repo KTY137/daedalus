@@ -32,7 +32,7 @@
       ]
     },
     {
-      "module": "daedalus/runtimes/provider_observation.py",
+      "module": "daedalus/runtimes/provider/observation.py",
       "tests": [
         "tests/runtimes/test_provider_observation_authority.py",
         "tests/runtimes/test_runtime_provider_post_invoke_unknown.py",

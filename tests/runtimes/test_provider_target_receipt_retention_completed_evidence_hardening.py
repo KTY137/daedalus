@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.runtimes.provider_target_receipt_retention_completed_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_completed_evidence import (
     ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
 )
-from daedalus.runtimes.provider_target_receipt_retention_recovery import (
+from daedalus.runtimes.provider.target_receipt_retention_recovery import (
     decide_provider_target_receipt_retention_recovery,
 )
 

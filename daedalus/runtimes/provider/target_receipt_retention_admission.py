@@ -38,14 +38,14 @@ from daedalus.runtimes.contracts.ports import (
     RepositoryHeadReceiptVerifier,
     RetentionInventoryScanner,
 )
-from daedalus.runtimes.provider_target_receipt_ledger import (
+from daedalus.runtimes.provider.target_receipt_ledger import (
     ProviderTargetReceiptLedger,
 )
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_ENTRYPOINT,
     RETENTION_GUARD_CONTRACT,
 )
-from daedalus.runtimes.provider_target_receipt_retention_preflight import (
+from daedalus.runtimes.provider.target_receipt_retention_preflight import (
     ProviderTargetReceiptRetentionPreflightError,
     ProviderTargetReceiptRetentionPreflightReceipt,
     verify_provider_target_receipt_retention_preflight,

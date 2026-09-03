@@ -78,10 +78,10 @@ def register_hermes_runtime_operation(
     receipt or inject a callback.
     """
 
-    from daedalus.runtimes.provider_executable_object_registry import (
+    from daedalus.runtimes.provider.executable_object_registry import (
         ProviderExecutableObjectRegistry,
     )
-    from daedalus.runtimes.provider_executable_pre_admission import (
+    from daedalus.runtimes.provider.executable_pre_admission import (
         ProviderExecutablePreAdmissionReceipt,
     )
 
@@ -139,7 +139,7 @@ class HermesKernelProvider:
         payload = broker_arguments.get("invocation_payload")
         if payload is None:
             raise HermesKernelProviderError("authenticated provider payload is required")
-        from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
+        from daedalus.runtimes.provider.invocation_payload import ProviderInvocationPayload
 
         if type(payload) is not ProviderInvocationPayload:
             raise HermesKernelProviderError(

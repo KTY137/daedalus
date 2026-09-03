@@ -26,7 +26,7 @@ from daedalus.runtimes.broker import (
     _production_observation_binding,
     _validate_binding,
 )
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthority,
     ProviderObservationBindingLedger,
 )

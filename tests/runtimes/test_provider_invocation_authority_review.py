@@ -4,7 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 
-import daedalus.runtimes.provider_invocation_authority as authority_module
+import daedalus.runtimes.provider.invocation_authority as authority_module
 
 
 SOURCE_PATH = Path(inspect.getsourcefile(authority_module) or "")

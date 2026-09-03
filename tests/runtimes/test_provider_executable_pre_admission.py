@@ -6,26 +6,26 @@ import pytest
 
 from daedalus.gates.repository_head_revision import RepositoryHeadRevisionReceipt
 from daedalus.kernel.artifacts import ArtifactRef
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionBindingError,
     ProviderExecutablePreAdmissionReceipt,
     ProviderExecutablePreAdmissionShapeError,
     build_provider_executable_pre_admission,
 )
-from daedalus.runtimes.provider_executable_structure import (
+from daedalus.runtimes.provider.executable_structure import (
     ProviderExecutableStructureReceipt,
     VerifiedProviderExecutableTarget,
 )
-from daedalus.runtimes.provider_invocation_resolution import (
+from daedalus.runtimes.provider.invocation_resolution import (
     ProviderInvocationResolutionReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_completed_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_completed_evidence import (
     ProviderTargetReceiptRetentionCompletedEvidenceReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_effect_terminal_evidence import (
+from daedalus.runtimes.provider.target_receipt_retention_effect_terminal_evidence import (
     ProviderTargetReceiptRetentionEffectTerminalEvidenceReceipt,
 )
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
     VerifiedPythonTarget,
 )

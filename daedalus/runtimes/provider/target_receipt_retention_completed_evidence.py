@@ -21,18 +21,18 @@ from typing import Any, Mapping
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.contracts.base import _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_executable_targets import (
+from daedalus.runtimes.provider.executable_targets import (
     ProviderExecutableTargetAuthority,
     ProviderExecutableTargetManifest,
     ProviderExecutableTargetProjection,
 )
-from daedalus.runtimes.provider_invocation_authority import (
+from daedalus.runtimes.provider.invocation_authority import (
     ProviderInvocationObservationAuthority,
 )
-from daedalus.runtimes.provider_invocation_registry import (
+from daedalus.runtimes.provider.invocation_registry import (
     ProviderInvocationRegistryManifest,
 )
-from daedalus.runtimes.provider_target_receipt_ledger import (
+from daedalus.runtimes.provider.target_receipt_ledger import (
     ProviderTargetReceiptLedger,
     ProviderTargetReceiptRetentionError,
     ProviderTargetReceiptRetentionStateError,
@@ -41,18 +41,18 @@ from daedalus.runtimes.provider_target_receipt_ledger import (
     _receipt_bytes,
     _validate_topology,
 )
-from daedalus.runtimes.provider_target_receipt_retention_admission import (
+from daedalus.runtimes.provider.target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionError,
     ProviderTargetReceiptRetentionAdmissionReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_recovery import (
+from daedalus.runtimes.provider.target_receipt_retention_recovery import (
     ProviderTargetReceiptRetentionRecoveryDecision,
     ProviderTargetReceiptRetentionRecoveryError,
 )
-from daedalus.runtimes.provider_target_verification import (
+from daedalus.runtimes.provider.target_verification import (
     verify_provider_target_verification_receipt,
 )
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
     ProviderTargetVerificationError,
 )

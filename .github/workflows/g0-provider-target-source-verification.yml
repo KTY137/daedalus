@@ -5,8 +5,8 @@ on:
     branches:
       - g0/provider-executable-target-manifest-linear
     paths:
-      - "daedalus/runtimes/provider_target_verification.py"
-      - "daedalus/runtimes/provider_target_verification_contracts.py"
+      - "daedalus/runtimes/provider/target_verification.py"
+      - "daedalus/runtimes/provider/target_verification_contracts.py"
       - "tests/runtimes/test_provider_target_verification.py"
       - "tests/runtimes/test_provider_target_verification_hardening.py"
       - "tests/runtimes/test_provider_target_verification_review.py"
@@ -110,11 +110,11 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-provider-target-verification-wheel/bin/python - <<'PY'
-          from daedalus.runtimes.provider_target_verification import (
+          from daedalus.runtimes.provider.target_verification import (
               issue_provider_target_verification_receipt,
               verify_provider_target_verification_receipt,
           )
-          from daedalus.runtimes.provider_target_verification_contracts import (
+          from daedalus.runtimes.provider.target_verification_contracts import (
               ProviderExecutableTargetVerificationReceipt,
               VerifiedPythonTarget,
           )

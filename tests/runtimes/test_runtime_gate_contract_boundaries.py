@@ -40,14 +40,14 @@ from daedalus.runtimes.contracts.retention import (
     ProviderTargetReceiptRetentionInventoryError,
     ProviderTargetReceiptRetentionSurface,
 )
-from daedalus.runtimes.provider_executable_structure import (
+from daedalus.runtimes.provider.executable_structure import (
     verify_provider_executable_structure,
     verify_provider_executable_structure_receipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_admission import (
+from daedalus.runtimes.provider.target_receipt_retention_admission import (
     verify_provider_target_receipt_retention_admission,
 )
-from daedalus.runtimes.provider_target_receipt_retention_preflight import (
+from daedalus.runtimes.provider.target_receipt_retention_preflight import (
     verify_provider_target_receipt_retention_preflight,
 )
 

@@ -4,8 +4,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
-from daedalus.runtimes.provider_invocation_payload import (
+from daedalus.runtimes.provider.invocation import ProviderInvocationSubject
+from daedalus.runtimes.provider.invocation_payload import (
     ProviderInvocationPayload,
     ProviderInvocationPayloadError,
     build_provider_invocation_payload,

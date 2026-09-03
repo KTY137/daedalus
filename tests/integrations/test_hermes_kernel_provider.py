@@ -18,8 +18,8 @@ from daedalus.integrations.hermes.memory_provider import ReadOnlyMemoryProvider
 from daedalus.integrations.hermes.protocol import canonical_sha256
 from daedalus.integrations.hermes.runtime_adapter import HermesRuntimeRequest
 from daedalus.integrations.hermes.tool_gateway import HermesGatewayDescriptor
-from daedalus.runtimes.provider_executable_object_registry import ProviderExecutableObjectRegistry
-from daedalus.runtimes.provider_executable_pre_admission import ProviderExecutablePreAdmissionReceipt
+from daedalus.runtimes.provider.executable_object_registry import ProviderExecutableObjectRegistry
+from daedalus.runtimes.provider.executable_pre_admission import ProviderExecutablePreAdmissionReceipt
 
 
 def _sha(label: str) -> str:

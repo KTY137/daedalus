@@ -14,6 +14,14 @@
     "pre_hardening_revision": "b2bda280f8f98d6e977e092c5429da3c85427a33",
     "topology_hardened_revision": "0df759d1fd9bc5d83e9fc72f1c850756afa93fe5"
   },
+  "relocation": {
+    "packet_id": "G1-PKG-01",
+    "date": "2026-09-03",
+    "path": "daedalus/runtimes/provider/target_receipt_ledger.py",
+    "git_blob_sha1": "cc9dd91f55c543030e82e0e1f526766419cbd98a",
+    "reason": "The provider_ family became the daedalus.runtimes.provider package and the prefix was dropped. This module's own imports changed with its siblings' names, so its blob changed. source_identity above is NOT edited: it remains a true statement about revision 0df759d1fd9bc5d83e9fc72f1c850756afa93fe5, where that path and those bytes existed. This block records where the same module lives now.",
+    "bytes_changed": "import statements only"
+  },
   "purpose": "Invalidate the stale pre-hardening receipt-retention inventory test binding and rebind scanner evidence to the exact topology-hardened ledger bytes without claiming central admission.",
   "scope": {
     "production_behavior_changed": false,

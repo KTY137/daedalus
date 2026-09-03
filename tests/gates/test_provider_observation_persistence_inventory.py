@@ -12,7 +12,7 @@ from daedalus.gates.provider_observation_persistence_inventory import (
 
 
 REVISION = "1" * 40
-SOURCE_PATH = Path("daedalus/runtimes/provider_observation.py")
+SOURCE_PATH = Path("daedalus/runtimes/provider/observation.py")
 ROOT = Path(__file__).resolve().parents[2]
 
 

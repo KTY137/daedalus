@@ -20,15 +20,15 @@ from typing import Any, Mapping
 from daedalus.kernel.contracts.base import _identifier, _revision, _sha256
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
-from daedalus.runtimes.provider_executable_object_registry import (
+from daedalus.runtimes.provider.executable_object_registry import (
     ProviderExecutableObjectAdmissionReceipt,
     ProviderExecutableObjectRegistry,
     ProviderExecutableObjectRegistryError,
 )
-from daedalus.runtimes.provider_executable_pre_admission import (
+from daedalus.runtimes.provider.executable_pre_admission import (
     ProviderExecutablePreAdmissionReceipt,
 )
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthority,
     ProviderObservationAuthorityError,
     ProviderObservationBindingLedger,

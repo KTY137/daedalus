@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Mapping
 
 from daedalus.kernel.contracts.base import _identifier, _revision
-from daedalus.runtimes.provider_observation import (
+from daedalus.runtimes.provider.observation import (
     ProviderObservationAuthorityBindingError,
     ProviderObservationAuthorityStateError,
     ProviderObservationBindingLedger,

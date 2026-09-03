@@ -34,7 +34,7 @@ from daedalus.runtimes.contracts.retention import (
 )
 from daedalus.kernel.contracts import EffectLease
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_GUARD_CONTRACT,
     ProviderTargetReceiptRetentionContractError,
     ProviderTargetReceiptRetentionOperationAuthority,
@@ -42,7 +42,7 @@ from daedalus.runtimes.provider_target_receipt_retention_contract import (
     authorize_provider_target_receipt_retention_operation,
     build_provider_target_receipt_retention_operation_subject,
 )
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
 )
 from daedalus.kernel.contracts.base import _repo_path, _sha256

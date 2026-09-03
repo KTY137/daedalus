@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from daedalus.kernel.source_trees import SourceTreeStore
-from daedalus.runtimes.provider_target_verification_contracts import (
+from daedalus.runtimes.provider.target_verification_contracts import (
     ProviderTargetVerificationBindingError,
     ProviderTargetVerificationSourceError,
     VerifiedPythonTarget,

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus/runtimes/provider_target_receipt_ledger.py"
+TARGET = ROOT / "daedalus/runtimes/provider/target_receipt_ledger.py"
 TESTS = (
     "tests/runtimes/test_provider_target_receipt_ledger.py",
     "tests/runtimes/test_provider_target_receipt_ledger_hardening.py",

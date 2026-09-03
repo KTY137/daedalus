@@ -4,7 +4,7 @@
   "packet_id": "G1-MUT-02A",
   "jobs": [
     {
-      "module": "daedalus/runtimes/provider_target_verification.py",
+      "module": "daedalus/runtimes/provider/target_verification.py",
       "tests": [
         "tests/runtimes/test_provider_target_verification.py",
         "tests/runtimes/test_provider_target_verification_review.py"
@@ -59,7 +59,7 @@
       ]
     },
     {
-      "module": "daedalus/runtimes/provider_target_verification_contracts.py",
+      "module": "daedalus/runtimes/provider/target_verification_contracts.py",
       "tests": [
         "tests/runtimes/test_provider_target_verification.py",
         "tests/runtimes/test_provider_target_verification_review.py"

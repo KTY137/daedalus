@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from daedalus.runtimes.provider_target_receipt_retention_admission import (
+from daedalus.runtimes.provider.target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionReceipt,
 )
-from daedalus.runtimes.provider_target_receipt_retention_contract import (
+from daedalus.runtimes.provider.target_receipt_retention_contract import (
     RETENTION_GUARD_CONTRACT,
 )
-from daedalus.runtimes.provider_target_receipt_retention_recovery import (
+from daedalus.runtimes.provider.target_receipt_retention_recovery import (
     ProviderTargetReceiptRetentionRecoveryDecision,
     ProviderTargetReceiptRetentionRecoveryShapeError,
     decide_provider_target_receipt_retention_recovery,
