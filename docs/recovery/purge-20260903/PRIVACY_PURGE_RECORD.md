@@ -109,3 +109,53 @@ the ref having moved:
 
     git ls-files | grep -Ei 'semgrep/guardian|GUTEN_MORGEN'   # expect empty
     git check-ignore -v .semgrep/guardian.yml                 # expect a hit
+
+All nine worktrees were measured clean of the purged paths after realignment.
+Two caveats on that measurement, both from the lane that found the hazard:
+
+- `ls-files` proves the purged paths are gone from an index. It does NOT prove
+  the index is current, and a stale index is dangerous for reasons beyond those
+  paths — its staleness surfaces as index-vs-HEAD ADDITIONS, which that check
+  cannot see. `git reset` (mixed) in each worktree is free, idempotent, and is
+  the thing that actually answers freshness.
+- A worktree created after the rewrite cannot have carried a pre-rewrite index,
+  so its cleanliness is structural rather than evidence about the others.
+
+## The re-pinning trap: a SHA that resolves is not a SHA that survived
+
+Repointing pins from the map, one lane found two of its four still resolving
+perfectly under `git log` in its worktree — while `git branch --contains`
+returned empty for both. They were unreferenced objects awaiting garbage
+collection. **A pin that resolves today only because the old objects have not
+been collected yet is a pin that breaks in a fresh clone, silently and later.**
+Spot-checking `git show <sha>` is the wrong test for whether a pin survived this
+rewrite; presence in `sha-map.tsv` is the right one.
+
+The same lane confirmed the predicted contrast inside one metadata block: its
+`Base revision` moved, its `Effect-registry digest` re-measured byte-identical.
+A content digest of what a thing IS survives a rewrite; a pointer to where it
+sat does not.
+
+## Unrelated finding this operation surfaced
+
+The Semgrep Guardian resolves its session state RELATIVE TO THE WORKING
+DIRECTORY. Measured across every tree on this machine:
+
+    ~/.semgrep/guardian.yml            1699 B   logged in
+    primary checkout                   1768 B   logged in
+    apps/web/                           140 B   pre-login
+    all seven linked worktrees      140-145 B   pre-login
+
+A tool call made from a worktree finds a state that has never been logged in and
+is refused with "Not logged into Semgrep Guardian"; the same call from the
+primary checkout succeeds. This explains an intermittent refusal rate that three
+sessions independently reported as uncorrelated with file, path depth, content
+or size: the variable is the caller's cwd, not the edit. It also explains `Edit`
+refused while `Bash` succeeded minutes later.
+
+An earlier hypothesis in this session — concurrent sessions racing to rewrite one
+unlocked token file — is REFUTED by measurement: `serial: 4`, and no write in the
+preceding three and a half hours. Four writes cannot produce a 60% refusal rate.
+It is recorded as refuted because it had already been circulated to three
+sessions as plausible, and a hypothesis that travels needs its retraction to
+travel too.
