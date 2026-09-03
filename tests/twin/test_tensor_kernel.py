@@ -87,6 +87,13 @@ def test_input_order_is_canonical_and_digest_stable() -> None:
     assert first.shape == (2, 2)
 
 
+def test_tensor_view_does_not_expose_parallel_axis_mapping_view() -> None:
+    tensor = view()
+
+    assert not hasattr(tensor, "axis_map")
+    assert tuple(axis.name for axis in tensor.axes) == ("node", "plane")
+
+
 def test_entry_validation_and_sorting_share_canonical_label_index() -> None:
     tensor = TensorView(
         repository_id="KTY137/daedalus",
