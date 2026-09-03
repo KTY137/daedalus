@@ -84,6 +84,30 @@ binds one repository, one exact source revision, and one exact
 This removes per-entry repetition of plane and relation strings while retaining
 canonical digests. It is a reference representation, not a new state store.
 
+### Strict Forest/Fourfold relation projection
+
+`daedalus/twin/relation_projection.py` wires one exact Forest/Fourfold subject
+into the existing Boolean CSR oracle without introducing another graph schema,
+registry or store.
+
+- the Forest content digest must exactly match `FourfoldSnapshot.source_forest_sha256`;
+- both endpoint planes must be `complete`, because `TypedRelationBlock` has no
+  partial/absent status and therefore cannot safely encode an incomplete plane;
+- cross-plane rows come only from verified `FourfoldSnapshot.bindings`;
+- same-plane rows come only from directed `ForestEdge` payloads whose canonical
+  digest is retained by the plane's `relation_sha256s`;
+- retained hyperedges and undirected edges refuse instead of being flattened
+  into invented pairwise/directional semantics;
+- the adapter is intentionally Boolean-only. Forest weights, multiplicity,
+  costs and evidence-bundle algebra remain unsupported until their projection
+  semantics are explicit.
+
+Focused tests compare the generated blocks against the direct Forest subject
+and compose an admitted same-plane relation with an admitted cross-plane
+relation through the existing reference kernel. A legacy partial Fourfold
+snapshot is required to refuse rather than silently turning unknown edges into
+sparse zeroes.
+
 ### Contraction IR
 
 `daedalus/twin/contractions.py` implements three operations:
@@ -114,6 +138,10 @@ The packet includes executable checks for:
 - the concrete multi-hop Fourfold query above;
 - Boolean existence, natural multiplicity, tropical minimum cost, and evidence
   provenance over the same sparse composition mechanism;
+- strict Forest/Fourfold identity and completeness before relation projection;
+- direct-Forest equivalence for admitted same-plane and verified cross-plane
+  Boolean relations;
+- explicit refusal for retained hyperedges and undirected same-plane edges;
 - revision and semiring isolation;
 - boundary-map and component identities/associativity;
 - vertical and horizontal 2-cell composition;
@@ -130,9 +158,13 @@ This packet does **not** add:
 - latent Tucker/RESCAL models;
 - automatic edge trust, owner approval, or promotion;
 - polygraphic normal forms or coherence receipts;
-- a replacement for `TensorView`, Forest, or `FourfoldSnapshot`.
+- a replacement for `TensorView`, Forest, or `FourfoldSnapshot`;
+- weighted, natural-count, tropical-cost or evidence-DAG projection from Forest
+  payloads whose scalar meaning has not been specified.
 
-The next useful packet is a measured adapter from selected Forest/Fourfold
-relations into these blocks, compared against direct Forest queries and simple
-indices. The kernel should be removed if it merely renames graph fields and
-cannot simplify evidence composition or multi-relation query execution.
+The next useful packet is to add this strict relation adapter as a fourth arm in
+the existing bounded Forest/preindexed/Tensor cost probe using a fixture whose
+endpoint planes are mechanically known complete. Performance remains diagnostic
+until repeated equal-budget measurements justify a claim. The kernel should be
+removed if it merely renames graph fields and cannot simplify evidence
+composition or multi-relation query execution.
