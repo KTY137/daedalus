@@ -695,6 +695,7 @@ def _scan_module(info: _ModuleInfo, resolver: _Resolver) -> tuple[
     tree = info.tree
     consts = info.consts
     const_names = {name for name in consts if name.isupper() and "_" in name}
+    env_helpers = _env_reader_helpers(tree)
     sites: list[EnvSite] = []
     params: list[ParamSwitch] = []
     dynamic: list[str] = []
@@ -766,10 +767,87 @@ def _scan_module(info: _ModuleInfo, resolver: _Resolver) -> tuple[
                           f"the lane reports unconfigured until it is set",
                 ))
 
+        # A name handed to a helper that reads the environment by parameter.
+        # The read itself is unresolvable where it happens; the CHOICE of
+        # variable is made here, so here is where it is attributed.
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in env_helpers):
+            idx = env_helpers[node.func.id]
+            if len(node.args) > idx:
+                arg = node.args[idx]
+                env_name: str | None = None
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    env_name = arg.value
+                elif isinstance(arg, ast.Name):
+                    line0 = getattr(node, "lineno", 0)
+                    func0 = _enclosing(parents, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    ok, value = resolver.value(arg.id, info, line0, func0)
+                    if ok and isinstance(value, str):
+                        env_name = value
+                # An argument that does not resolve stays unknown. This widens
+                # what can be PROVEN, never what is guessed.
+                if env_name and _ENV_TOKEN.fullmatch(env_name):
+                    line = getattr(node, "lineno", 0)
+                    func = _enclosing(parents, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    default_expr = (node.args[idx + 1]
+                                    if len(node.args) > idx + 1 else None)
+                    default_literal = _resolve_default(
+                        default_expr, info, resolver, line, func)
+                    state = _state_for(False, default_literal,
+                                       default_expr is not None)
+                    sites.append(EnvSite(
+                        name=env_name,
+                        module=module,
+                        line=line,
+                        via="helper",
+                        default=_src(default_expr) if default_expr is not None else "None",
+                        default_literal=default_literal,
+                        required=False,
+                        kind=_classify_kind(env_name, node, parents, func),
+                        polarity=_polarity(env_name),
+                        state=state,
+                        dark=False,
+                        fallback=f"passed to `{node.func.id}()`, which reads it "
+                                 f"from the environment",
+                        gates=_gates_sentence(func, tree, module,
+                                              _qualname(parents, node)),
+                    ))
+
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             params.extend(_param_switches(node, parents, module, tree))
 
     return sites, params, dynamic, literals, const_names
+
+
+def _env_reader_helpers(tree: ast.AST) -> dict[str, int]:
+    """``{function name: index of the parameter it reads the environment by}``.
+
+    A module that wraps its reads in ``_env_float(name, default)`` hides every
+    variable it owns: the read site is ``os.environ.get(name)`` with a
+    parameter, so no literal is ever visible there. The name is chosen at the
+    CALL, which is why the call is what gets attributed.
+
+    Detected structurally, never by name: the function must actually hand one of
+    its own parameters to ``os.environ`` in its own body. A helper that merely
+    accepts a string called ``name`` is not an environment read, and treating it
+    as one would turn every formatter into a switch.
+    """
+    out: dict[str, int] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        params = [a.arg for a in node.args.args] + [
+            a.arg for a in getattr(node.args, "kwonlyargs", [])]
+        if not params:
+            continue
+        for sub in ast.walk(node):
+            if _env_read(sub) is None:
+                continue
+            expr = _name_expr(sub)
+            if isinstance(expr, ast.Name) and expr.id in params:
+                out[node.name] = params.index(expr.id)
+                break
+    return out
 
 
 def _registry_env_keys(node: ast.AST) -> list[tuple[str, list[str]]]:

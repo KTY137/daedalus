@@ -35,6 +35,38 @@ does not raise or lower any ceiling — the worst it can do is attribute a spend
 to an envelope that did not make it, and the module states the floor plainly: a
 spend satisfying neither test "is bounded by the period ceiling alone".
 
+**DAEDALUS_BUDGET_USD** — `daedalus/kernel/policy/ledger.py:657`, read as
+`_env_float(ENV_CEILING, DEFAULT_CEILING_USD)`. The spend ceiling for one
+activation period, defaulting to `$5.00`. This is the monetary axis master plan
+§4.1 and amendment Revisions 9 and 10 govern; raising it is a decision someone
+makes, not a default someone inherits. `.env.example` has always described it.
+
+**DAEDALUS_BUDGET_MAX_CALLS** — `daedalus/kernel/policy/ledger.py:722`, read as
+`_env_int(ENV_MAX_CALLS, DEFAULT_MAX_CALLS)`, default 40. The billable-call
+ceiling for the same period. Its constant lives in
+`daedalus/kernel/policy/pricing.py`.
+
+**DAEDALUS_BUDGET_PERIOD_CEILING_ENABLED** — `daedalus/kernel/policy/ledger.py:704`,
+read as `_env_bool(ENV_PERIOD_CEILING_ENABLED, True)`. The legacy switch that
+**turns the period USD ceiling off**: false yields a policy in custom mode with
+`period_usd` unconfigured. Default true, and a value that is neither boolean nor
+empty raises rather than guessing "whether the period USD ceiling is active".
+`DAEDALUS_EXECUTION_LIMIT_POLICY`, checked immediately above it, takes
+precedence when present.
+
+These three were invisible to the switch inventory until 2026-09-03. All are
+read through a helper that takes the variable name as a parameter, which the
+scanner could not follow, so the two documented ones were reported as *dead
+configuration* and this third one was not reported at all. A switch that
+disables the monetary ceiling should not be able to hide from the instrument
+that lists switches.
+
+**DAEDALUS_EMBED_TIMEOUT_S** and **DAEDALUS_EMBED_COLD_TIMEOUT_S** —
+`daedalus/orchestration/semantic_route.py:242` and `:270`. Wall-clock ceilings
+for the embedding call on the warm and cold paths respectively; the cold one is
+separate because a first call pays model load. Same helper indirection, same
+reason they were invisible.
+
 **DAEDALUS_DESKTOP_STARTUP_NONCE** — `daedalus/interfaces/http/server.py:27`,
 read by `desktop_startup_nonce()`. The nonce the desktop parent issues to its
 own backend. Validated strictly: exactly 64 lowercase hex characters, or the
