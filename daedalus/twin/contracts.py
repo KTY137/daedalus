@@ -348,19 +348,22 @@ class FourfoldSnapshot(CanonicalContract):
                 raise ValueError(
                     "binding target endpoint is not a member of its declared plane"
                 )
-            if binding.semantic_key in semantic_claims:
+            semantic_key = binding.semantic_key
+            if semantic_key in semantic_claims:
                 raise ValueError(
                     "bindings must not repeat the same semantic claim with a "
                     "different evidence bundle"
                 )
-            semantic_claims.add(binding.semantic_key)
-            if binding.digest in unique_by_digest:
+            semantic_claims.add(semantic_key)
+            binding_digest = binding.digest
+            if binding_digest in unique_by_digest:
                 raise ValueError("bindings must not contain duplicates")
-            unique_by_digest[binding.digest] = binding
+            unique_by_digest[binding_digest] = binding
+        ordered_bindings = sorted(unique_by_digest.items(), key=lambda item: item[0])
         object.__setattr__(
             self,
             "bindings",
-            tuple(sorted(unique_by_digest.values(), key=lambda item: item.digest)),
+            tuple(binding for _, binding in ordered_bindings),
         )
         if self.provenance.source_revision != self.source_revision:
             raise ValueError(
@@ -371,7 +374,7 @@ class FourfoldSnapshot(CanonicalContract):
             (
                 self.source_forest_sha256,
                 *(plane.digest for plane in self.planes),
-                *(binding.digest for binding in self.bindings),
+                *(binding_digest for binding_digest, _ in ordered_bindings),
             ),
             "fourfold snapshot",
         )
