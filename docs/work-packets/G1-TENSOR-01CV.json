@@ -1,0 +1,108 @@
+{
+  "work_packet_id": "G1-TENSOR-01CV",
+  "title": "Prune duplicate contraction-plan interpreter",
+  "date_europe_berlin": "2026-09-04",
+  "classification": "GARDENING_CONTAINMENT",
+  "parent_work_packet": "G1-TENSOR-01CU",
+  "campaign_issue": 239,
+  "authority": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "b3963bd952c9112a1c3491db98c24139a0422293",
+    "exact_code_test_head": "03ef1ffaace56bcd7021adcc9d45a7fd1b069ddd",
+    "code_test_tree": "c88748730061b79a445a4d3dd2a6d31e90c75d0f",
+    "deleted_production_path": "daedalus/twin/contractions.py",
+    "deleted_production_blob": "aed2c2b9982ccfc45b0ae2e0240029279dea8740",
+    "deleted_production_lines": 280,
+    "deleted_dedicated_test_path": "tests/twin/test_contraction_operation_budget.py",
+    "deleted_dedicated_test_blob": "d38d5c548c6aa648ead7ba6cd8922ff134afa0db",
+    "deleted_dedicated_test_lines": 377,
+    "retained_multihop_test_path": "tests/twin/test_relation_contractions.py",
+    "retained_multihop_test_blob": "288cfcfcce52fecbdff9577f6081c347c95cb55e",
+    "files_changed_before_record": 3,
+    "commits_before_record": 1,
+    "additions_before_record": 16,
+    "deletions_before_record": 723,
+    "net_lines_before_record": -707
+  },
+  "finding": "The standalone contraction AST/interpreter wrapped TypedRelationBlock.matmul/hadamard, repeated compatibility and operation-budget traversal before delegating to those existing bounded operations, and was not exported by daedalus.twin. It therefore formed a parallel execution/budget abstraction without a required product surface.",
+  "gardener_change": "Delete the contraction-plan module and its dedicated interpreter-budget tests. Keep the concrete multi-hop Fourfold semantic regression by composing the existing TypedRelationBlock blocks directly with matmul and hadamard. This makes the typed sparse block operations the single executable reference authority for this experimental kernel and removes code rather than adding another backend or abstraction.",
+  "focused_regressions": [
+    "The retained multi-hop Fourfold query still performs two Boolean matrix compositions and one Hadamard intersection directly through TypedRelationBlock and returns the same exact code-to-type result set.",
+    "Existing relation-block tests continue to cover Boolean existence, natural path counts, tropical minimum cost, evidence provenance, canonical digests, subject isolation, semiring isolation and typed-axis compatibility.",
+    "Complete repository test collection succeeds after removal, providing collection evidence that no remaining collected test imports the deleted contraction module."
+  ],
+  "documentation": {
+    "contract_path": "docs/FOURFOLD_TENSOR_KERNEL_CONTRACT.md",
+    "previous_blob": "5c6b3c4e7418e8f0e5826195ded7986de40893cd",
+    "replacement_blob": "5607fd9e59809280c580b024e213c974d4b2f4d8",
+    "decision": "Document TypedRelationBlock matmul/hadamard as the retained executable sparse composition authority and record the contraction-plan experiment as pruned."
+  },
+  "verification": {
+    "workflow": "Fourfold v2",
+    "run_id": 33831978417,
+    "event": "push",
+    "exact_revision": "03ef1ffaace56bcd7021adcc9d45a7fd1b069ddd",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": {
+      "contracts_python_3_10_hashseed_0": "success",
+      "contracts_python_3_10_hashseed_123456": "success",
+      "contracts_python_3_12_hashseed_0": "success",
+      "contracts_python_3_12_hashseed_123456": "success",
+      "isolated_wheel": "success",
+      "repository_collection": "success"
+    },
+    "contract_test_counts": {
+      "python_3_10_hashseed_0": "208 passed, 2 skipped in 4.41s",
+      "python_3_12_hashseed_0": "208 passed, 2 skipped in 2.91s"
+    },
+    "designated_python_3_12_hashseed_0": {
+      "fourfold_and_kernel_contract_tests": "success",
+      "bounded_tensor_forest_diagnostic": "success",
+      "wheel_contains_twin_package": "success"
+    },
+    "repository_collection_is_execution_claim": false
+  },
+  "diagnostic_interpretation": {
+    "authority": "diagnostic-only",
+    "claim": "none",
+    "general_csr_query_engine_supported": false,
+    "reason": "The hosted diagnostic continues to show the preindexed Forest materially cheaper than strict Fourfold Boolean CSR on the held-out workload; this packet therefore prunes an unused planning layer instead of adding a backend."
+  },
+  "claims": {
+    "hosted_green_bound_only_to_exact_code_test_head": true,
+    "full_repository_suite_executed": false,
+    "measured_latency_speedup": false,
+    "measured_peak_memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "history_rewritten": false,
+    "branch_deleted": false,
+    "branch_archived": false,
+    "visible_remote_refs_observed": 18,
+    "archive_anchor": "archive/legacy-20260830",
+    "archive_anchor_sha_observed": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_anchor_modified": false,
+    "main_sha_observed": "e31213aff40ab322dcead6d50ae19007f3f9b6b1"
+  },
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "promotion_receipt_minted": false,
+    "ready_for_review_transition": false,
+    "automatic_promotion": false,
+    "merge": false,
+    "gate_transition": false,
+    "independent_owner_review_completed": false
+  }
+}
