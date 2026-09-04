@@ -303,22 +303,47 @@ class TypedRelationBlock(Generic[T]):
             values = raw_values
         else:
             values = tuple(values)
-        if any(type(item) is not int for item in offsets):
-            raise ValueError("block.row_offsets must contain integers")
+
+        offsets_monotone = True
+        previous_offset: int | None = None
+        for item in offsets:
+            if type(item) is not int:
+                raise ValueError("block.row_offsets must contain integers")
+            if previous_offset is not None and previous_offset > item:
+                offsets_monotone = False
+            previous_offset = item
         if len(offsets) != len(self.row_axis.labels) + 1 or not offsets or offsets[0] != 0:
             raise ValueError("block.row_offsets must contain every row boundary and start at zero")
-        if any(left > right for left, right in zip(offsets, offsets[1:])):
+        if not offsets_monotone:
             raise ValueError("block.row_offsets must be monotone")
-        if any(type(item) is not int for item in columns):
-            raise ValueError("block.column_indices must contain integers")
-        if any(not 0 <= item < len(self.column_axis.labels) for item in columns):
+
+        row_count = len(self.row_axis.labels)
+        column_count = len(self.column_axis.labels)
+        row = 0
+        row_stop = offsets[1] if row_count else 0
+        previous_column: int | None = None
+        columns_out_of_range = False
+        columns_not_strict = False
+        for position, item in enumerate(columns):
+            if type(item) is not int:
+                raise ValueError("block.column_indices must contain integers")
+            if not 0 <= item < column_count:
+                columns_out_of_range = True
+            while row < row_count and position >= row_stop:
+                row += 1
+                previous_column = None
+                if row < row_count:
+                    row_stop = offsets[row + 1]
+            if row < row_count:
+                if previous_column is not None and previous_column >= item:
+                    columns_not_strict = True
+                previous_column = item
+        if columns_out_of_range:
             raise ValueError("block.column_indices contains an out-of-range index")
         if len(columns) != len(values) or offsets[-1] != len(values):
             raise ValueError("CSR arrays must terminate at the common entry count")
-        for row in range(len(self.row_axis.labels)):
-            selected = columns[offsets[row] : offsets[row + 1]]
-            if any(left >= right for left, right in zip(selected, selected[1:])):
-                raise ValueError("column indices must be strictly increasing inside each row")
+        if columns_not_strict:
+            raise ValueError("column indices must be strictly increasing inside each row")
         object.__setattr__(self, "row_offsets", offsets)
         object.__setattr__(self, "column_indices", columns)
         object.__setattr__(self, "values", values)
