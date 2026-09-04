@@ -195,7 +195,7 @@ def _bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         source_sha256=source_sha,
     )
     registry = ProviderExecutableObjectRegistry(tmp_path)
-    registry.register(
+    executable_admission = registry.register(
         pre_admission,
         invoke=module.invoke,
         output_digests=module.output_digests,
@@ -204,6 +204,9 @@ def _bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         authority,
         payload,
         pre_admission,
+        dependency_manifest_sha256=(
+            executable_admission.dependency_manifest_sha256
+        ),
         authority_id=AUTHORITY_ID,
         authority_keyring={AUTHORITY_KEY_ID: AUTHORITY_KEY},
         observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
@@ -221,6 +224,7 @@ def _bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         pre_admission,
         module,
         path,
+        executable_admission,
     ]
 
 
@@ -255,6 +259,11 @@ def test_runtime_invocation_binding_authenticates_conjunction_without_effect(
     assert receipt.provider_id == authority.invocation_subject.provider_id
     assert receipt.adapter_id == authority.invocation_subject.adapter_id
     assert receipt.pre_admission_sha256 == pre_admission.digest
+    assert (
+        receipt.dependency_manifest_sha256
+        == bundle[10].dependency_manifest_sha256
+        == abi.dependency_manifest_sha256
+    )
     assert abi.invocation_payload_sha256 == payload.digest
     rendered = receipt.to_dict()
     assert rendered["pre_effect_subject_verified"] is True
@@ -355,6 +364,35 @@ def test_forged_abi_signature_refuses_before_effect(
     with pytest.raises(
         ProviderRuntimeInvocationBindingMismatch,
         match="invocation ABI did not authenticate pre-effect",
+    ):
+        _bind(bundle)
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+
+
+def test_signed_dependency_manifest_substitution_refuses_before_effect(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _bundle(tmp_path, monkeypatch)
+    authorization, execution, authority, payload, _abi, _ledger, _, pre_admission = (
+        bundle[:8]
+    )
+    bundle[4] = issue_provider_invocation_abi_contract(
+        authority,
+        payload,
+        pre_admission,
+        dependency_manifest_sha256=_sha("foreign-dependency-manifest"),
+        authority_id=AUTHORITY_ID,
+        authority_keyring={AUTHORITY_KEY_ID: AUTHORITY_KEY},
+        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
+        execution=execution,
+        at=fixture.NOW,
+    )
+
+    with pytest.raises(
+        ProviderRuntimeInvocationBindingMismatch,
+        match="authenticated invocation/executable subject mismatch: "
+        "dependency_manifest_sha256",
     ):
         _bind(bundle)
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
