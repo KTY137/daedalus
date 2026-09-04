@@ -1,0 +1,77 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-05",
+  "title": "Pin the frozen latent-ceiling source revision before claims",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-04",
+  "campaign_issue": 239,
+  "base_revision": "c714f49527b2273c516d8a8849c54ea671e1c6ff",
+  "authority_refs": [
+    "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+    "https://github.com/KTY137/daedalus/issues/239"
+  ],
+  "finding": "The experiment froze the denominator but accepted any syntactically valid 40-hex source_revision. A complete measured corpus could therefore publish a ceiling while identifying a different repository revision than the preregistered failure corpus measured on 29/30 July, weakening revision-bound evidence identity.",
+  "primary_claim": "The latent-ceiling file boundary now refuses any source_revision other than the preregistered frozen revision, and direct evaluation cannot mark a corpus complete or emit a numeric ceiling when its revision identity differs even if all 1,383 measured rows are present.",
+  "frozen_identity": {
+    "source_revision": "68721e3208194391d71b0ae64d24157fd1876207",
+    "expected_total": 1383
+  },
+  "scope": {
+    "changed": [
+      "experiments/tensor_embedding/arm_o_latent_ceiling.py",
+      "tests/test_tensor_latent_ceiling.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-EXP-TENSOR-LATENT-CEILING-05.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_embedding_backend": false,
+    "adds_tensor_backend": false,
+    "adds_graph_authority": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler": false,
+    "adds_schema_framework": false,
+    "adds_semantic_plane": false,
+    "public_product_surface": false
+  },
+  "gardener_decision": "Reuse the existing frozen-corpus guard path with one revision constant. Do not introduce a corpus registry, revision service, schema framework, migration layer, embedding service, vector store, or second experiment identity model.",
+  "acceptance": [
+    "the committed prediction-only corpus remains valid, incomplete, and bound to the preregistered source revision",
+    "a changed but syntactically valid source revision is refused at the file boundary",
+    "a programmatically constructed complete 1,383-row corpus with a changed source revision cannot publish a ceiling",
+    "the existing frozen denominator guard and malformed-corpus refusals remain unchanged",
+    "a complete measured corpus on the frozen revision still computes present_not_expressible / 1383",
+    "no OwnerApproval, promotion, gate transition, or benchmark superiority claim is created"
+  ],
+  "verification": {
+    "commands": [
+      "python -m py_compile experiments/tensor_embedding/arm_o_latent_ceiling.py tests/test_tensor_latent_ceiling.py",
+      "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests/test_tensor_latent_ceiling.py",
+      "python experiments/tensor_embedding/arm_o_latent_ceiling.py experiments/tensor_embedding/arm_o_latent_ceiling_corpus.json"
+    ],
+    "local_exact_blob_result": "19 passed in 0.09s; py_compile succeeded; prediction-only CLI emitted ceiling=null and exit 3",
+    "production_blob": "74455945323c7a13b360327a06b053258508cb87",
+    "test_blob": "b0a6072cba0259120bada69fadf9143e20e6018a",
+    "corpus_blob": "ceb22596086027038deaae78450a6f1c96ea6246",
+    "hosted_ci": "unclaimed unless an exact-head workflow run appears after push",
+    "claim": "Only checks tied to the recorded exact blobs/head count as green evidence; no full-repository, package, platform, latent-benefit, or benchmark claim follows."
+  },
+  "branch_hygiene": {
+    "remote_branch": "exp/tensor-latent-ceiling-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_touched": false,
+    "history_rewritten": false
+  },
+  "rollback": "Revert the G1-EXP-TENSOR-LATENT-CEILING-05 commits; the experiment remains prediction-only and no production Tensor/embedding authority is affected.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1"
+}
