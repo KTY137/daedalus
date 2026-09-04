@@ -82,7 +82,8 @@ jobs:
             daedalus/shift_ticker.py \
             experiments/fourfold_hybrid_retrieval/*.py \
             experiments/tensor_embedding/arm_o_latent_ceiling.py \
-            experiments/tensor_gpu/cuda_boolean_probe.py
+            experiments/tensor_gpu/cuda_boolean_probe.py \
+            experiments/tensor_gpu/cpu_bitset_baseline.py
       - name: Run integrated contract surface
         env:
           PYTHONHASHSEED: ${{ matrix.hash-seed }}
@@ -93,6 +94,16 @@ jobs:
             tests/test_tensor_latent_ceiling.py \
             tests/test_arch_memory.py \
             tests/test_shift.py
+      - name: Emit bounded packed CPU bitset Tensor baseline
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python experiments/tensor_gpu/cpu_bitset_baseline.py \
+            --sizes 64 128 256 \
+            --densities 0.01 0.05 \
+            --repeats 5 \
+            --warmup 2
       - name: Verify public package API
         run: |
           python - <<'PY'
