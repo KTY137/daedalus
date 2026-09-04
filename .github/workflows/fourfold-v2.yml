@@ -12,7 +12,6 @@ on:
       - "daedalus/shift_ticker.py"
       - "daedalus/schemas.py"
       - "daedalus/structcore/forest.py"
-      - "experiments/fourfold_hybrid_retrieval/**"
       - "experiments/tensor_embedding/**"
       - "experiments/tensor_gpu/**"
       - "docs/work-packets/**"
@@ -32,7 +31,6 @@ on:
       - "daedalus/shift.py"
       - "daedalus/shift_hook.py"
       - "daedalus/shift_ticker.py"
-      - "experiments/fourfold_hybrid_retrieval/**"
       - "experiments/tensor_embedding/**"
       - "experiments/tensor_gpu/**"
       - "docs/work-packets/**"
@@ -80,7 +78,6 @@ jobs:
             daedalus/shift.py \
             daedalus/shift_hook.py \
             daedalus/shift_ticker.py \
-            experiments/fourfold_hybrid_retrieval/*.py \
             experiments/tensor_embedding/arm_o_latent_ceiling.py \
             experiments/tensor_gpu/cuda_boolean_probe.py
       - name: Run integrated contract surface
@@ -103,8 +100,6 @@ jobs:
               TypedRelationBlock,
               boolean_relation_block_from_fourfold,
           )
-          import daedalus.twin.hybrid_retrieval
-          import daedalus.twin.relation_compiler
           print(BooleanSemiring.name)
           print(TensorView.CONTRACT_TYPE)
           print(Transformation2Cell.__name__)
@@ -154,8 +149,6 @@ jobs:
           import daedalus.arch_memory
           import daedalus.shift
           import daedalus.twin
-          import daedalus.twin.hybrid_retrieval
-          import daedalus.twin.relation_compiler
           import daedalus.twin.relation_projection
           import daedalus.twin.tensor
           import daedalus.twin.two_category
