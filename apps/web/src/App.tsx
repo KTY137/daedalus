@@ -202,6 +202,7 @@ type ChatMsg = {
   enqueue?: { objective: string; lane: string };              // enqueue intent → existing queueTask
   enqueueState?: 'pending' | 'queued' | 'cancelled';
   streaming?: boolean;                                         // live bubble mid-turn; never persisted (see saveTranscript)
+  halted?: boolean;                                            // delivery ended without a proven complete final
 };
 
 const CHAT_CHIPS = ["What's running?", 'Build me an agent network', 'Route this to Claude', 'Show the mission feed'];
@@ -425,6 +426,28 @@ function IkarusPanel({ project, runtimes, providerStatus, onApplied }: { project
     // place so no branch can leave a bubble marked live and block persistence.
     // (The enqueue/design branches push a NEW bubble and leave `liveId` in place.)
     if (liveId !== null) updateMsg(liveId, { streaming: false });
+    if (result.stream_interrupted) {
+      // Interrupted text is display-only. Even if a malformed or stale final
+      // carries an action shape, never surface Apply/Confirm from an incomplete
+      // turn.
+      const text = result.assistant || 'The response stream was interrupted before a complete answer arrived.';
+      const patch: Partial<ChatMsg> = {
+        streaming: false,
+        halted: true,
+        system: true,
+        brain,
+        model: result.model_used,
+        text,
+        stat: 'interrupted - answer incomplete; no action was started'
+      };
+      if (liveId !== null) updateMsg(liveId, patch);
+      else push({
+        role: 'ik', text, streaming: false, halted: true, system: true,
+        brain, model: result.model_used,
+        stat: 'interrupted - answer incomplete; no action was started'
+      });
+      return;
+    }
     if (!result.ok || result.intent === 'error') {
       const text = result.assistant || 'Ikarus could not answer that.';
       if (liveId !== null) updateMsg(liveId, { system: true, brain, text });
@@ -470,8 +493,10 @@ function IkarusPanel({ project, runtimes, providerStatus, onApplied }: { project
     // returns the same `final` envelope, so this is purely a latency win: the
     // Claude CLI has a ~4s startup floor that no amount of backend work removes,
     // and streaming turns that from a blank wait into text appearing.
-    // Falls back to the blocking call if the stream never produced anything.
-    const streamed = await new Promise<boolean>((resolve) => {
+    // A blocking call is only a capability fallback when EventSource does not
+    // exist. Once a stream is attempted, every uncertain outcome is terminal:
+    // replaying the same turn could duplicate provider spend or an action.
+    const streamHandled = await new Promise<boolean>((resolve) => {
       if (typeof EventSource === 'undefined') { resolve(false); return; }
 
       let liveId: number | null = null;
@@ -490,29 +515,41 @@ function IkarusPanel({ project, runtimes, providerStatus, onApplied }: { project
       let settled = false;
       const finish = (ok: boolean) => { if (!settled) { settled = true; resolve(ok); } };
 
-      streamIkarus(project, trimmed, provider, model, effort, {
-        onDelta: (chunk) => {
-          acc += chunk;
-          if (liveId === null) liveId = openBubble();
-          updateMsg(liveId, { text: acc });
-        },
-        onFinal: (result) => {
-          renderResult(result, trimmed, liveId);
-          finish(true);
-        },
-        onError: () => {
-          // Partial text with no `final` is worse than useless — it looks like a
-          // complete answer. Drop the bubble and let the blocking path retry.
-          if (liveId !== null) {
-            const id = liveId;
-            setMessages((prev) => prev.filter((m) => m.id !== id));
+      const halt = () => {
+        if (liveId === null) liveId = openBubble();
+        updateMsg(liveId, {
+          text: acc || 'The response stream was interrupted before a complete answer arrived.',
+          streaming: false,
+          halted: true,
+          system: true,
+          stat: 'interrupted - answer incomplete; not automatically retried'
+        });
+        finish(true);
+      };
+
+      try {
+        streamIkarus(project, trimmed, provider, model, effort, {
+          onDelta: (chunk) => {
+            acc += chunk;
+            if (liveId === null) liveId = openBubble();
+            updateMsg(liveId, { text: acc });
+          },
+          onFinal: (result) => {
+            renderResult(result, trimmed, liveId);
+            finish(true);
+          },
+          onError: () => {
+            halt();
           }
-          finish(false);
-        }
-      });
+        });
+      } catch {
+        // A constructor/transport exception cannot prove the GET never reached
+        // the server. Preserve the unknown outcome instead of replaying it.
+        halt();
+      }
     });
 
-    if (streamed) {
+    if (streamHandled) {
       setThinking(null);
       setBusy(false);
       return;
@@ -634,6 +671,9 @@ function IkarusPanel({ project, runtimes, providerStatus, onApplied }: { project
             )}
             {m.stat && (
               <small style={{ display: 'block', marginTop: 4, color: 'var(--muted)', fontSize: 11 }}>{m.stat}</small>
+            )}
+            {m.halted && (
+              <small style={{ display: 'block', marginTop: 4, color: 'var(--warn)', fontSize: 11 }}>halted</small>
             )}
 
             {m.design && (
