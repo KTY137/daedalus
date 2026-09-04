@@ -1,10 +1,10 @@
 """Packed-CPU baseline for the CUDA Boolean Fourfold experiment.
 
 This file is a benchmark arm, not a production backend. It reuses the exact
-``TypedRelationBlock`` fixture and Boolean semiring oracle from
-``cuda_boolean_probe.py`` and asks a narrower question first: how far can one
-get by packing each relation row into a Python integer bitset and executing the
-Boolean composition with C-level bigint OR operations?
+shared Boolean probe contract and semantic oracle used by the CUDA arm and asks
+a narrower question first: how far can one get by packing each relation row
+into a Python integer bitset and executing the Boolean composition with C-level
+bigint OR operations?
 
 A strong result here would raise the bar for CUDA: GPU complexity is useful only
 when it beats a simpler CPU representation under the same revision-bound
@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import json
 import platform
-import runpy
 import statistics
 import sys
 import time
@@ -24,20 +23,42 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from daedalus.twin.relation_blocks import MAX_BLOCK_ENTRIES, RelationSignature, TypedRelationBlock
+from daedalus.twin.relation_blocks import (
+    MAX_BLOCK_ENTRIES,
+    MAX_REFERENCE_OPERATIONS,
+    RelationSignature,
+    TypedRelationBlock,
+)
 from daedalus.twin.semiring import BooleanSemiring
 
-_CUDA_NAMESPACE = runpy.run_path(str(Path(__file__).with_name("cuda_boolean_probe.py")))
-ProbeCase = _CUDA_NAMESPACE["ProbeCase"]
-build_boolean_case = _CUDA_NAMESPACE["build_boolean_case"]
-estimate_dense_device_bytes = _CUDA_NAMESPACE["estimate_dense_device_bytes"]
-exact_reference_operation_count = _CUDA_NAMESPACE["exact_reference_operation_count"]
-write_report = _CUDA_NAMESPACE["write_report"]
+if __package__:
+    from .boolean_probe_contract import (
+        MAX_CASES,
+        MAX_REPEATS,
+        MAX_WARMUP,
+        ProbeCase,
+        build_boolean_case,
+        estimate_dense_device_bytes,
+        exact_reference_operation_count,
+        ratio,
+        same_support,
+        write_report,
+    )
+else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
+    from boolean_probe_contract import (
+        MAX_CASES,
+        MAX_REPEATS,
+        MAX_WARMUP,
+        ProbeCase,
+        build_boolean_case,
+        estimate_dense_device_bytes,
+        exact_reference_operation_count,
+        ratio,
+        same_support,
+        write_report,
+    )
 
 SCHEMA = "daedalus-tensor-cpu-bitset-baseline/1"
-MAX_CASES = 32
-MAX_REPEATS = _CUDA_NAMESPACE["MAX_REPEATS"]
-MAX_WARMUP = _CUDA_NAMESPACE["MAX_WARMUP"]
 
 
 @dataclass(frozen=True)
@@ -227,24 +248,6 @@ def execute_bitset(
     )
 
 
-def _same_support(
-    left: TypedRelationBlock[bool],
-    right: TypedRelationBlock[bool],
-) -> bool:
-    return (
-        left.subject == right.subject
-        and left.row_axis == right.row_axis
-        and left.column_axis == right.column_axis
-        and tuple(left.iter_entries()) == tuple(right.iter_entries())
-    )
-
-
-def _ratio(numerator: float | None, denominator: float) -> float | None:
-    if numerator is None or denominator <= 0.0:
-        return None
-    return numerator / denominator
-
-
 def run_case(case: ProbeCase) -> dict[str, Any]:
     if not isinstance(case, ProbeCase):
         raise ValueError("case must be ProbeCase")
@@ -278,7 +281,7 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
         + kernel_median
         + execution.canonicalize_ms
     )
-    support_equal = None if oracle is None else _same_support(oracle, execution.block)
+    support_equal = None if oracle is None else same_support(oracle, execution.block)
     if support_equal is False:
         raise AssertionError("packed CPU bitset support differs from the stdlib CSR oracle")
 
@@ -318,8 +321,8 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
             "boolean_support_equal": support_equal,
         },
         "diagnostic_ratios": {
-            "csr_over_resident_bitset_kernel": _ratio(oracle_ms, kernel_median),
-            "csr_over_bitset_one_shot": _ratio(oracle_ms, one_shot_ms),
+            "csr_over_resident_bitset_kernel": ratio(oracle_ms, kernel_median),
+            "csr_over_bitset_one_shot": ratio(oracle_ms, one_shot_ms),
         },
     }
 
@@ -363,7 +366,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cpu-max-operations",
         type=int,
-        default=_CUDA_NAMESPACE["MAX_REFERENCE_OPERATIONS"],
+        default=MAX_REFERENCE_OPERATIONS,
     )
     parser.add_argument("--output", type=Path)
     return parser
