@@ -186,8 +186,19 @@ export async function apiJson<T = any>(
   }, path);
 }
 
-/** Let the initial fan-out of API calls finish so a "nothing rendered"
- *  assertion is about the app and not about our timing. */
+/**
+ * Let the initial API fan-out become observably quiet.
+ *
+ * `networkidle` is deliberately NOT used here: the cockpit owns a long-lived
+ * `/api/events` stream, so a healthy app may never reach Playwright's global
+ * network-idle state. Waiting for it turned every `settle()` call into a fixed
+ * 30-second tax and eventually made the acceptance suite hit its 600-second
+ * outer timeout without identifying a product failure. Instead, when response
+ * signals are available, require at least one API response and then a short
+ * quiet window in the response count. This measures the thing this helper
+ * actually cares about — the initial request burst — without treating a live
+ * event stream as a hang.
+ */
 export async function settle(page: Page, signals?: Signals): Promise<void> {
   if (signals) {
     await expect
@@ -196,11 +207,30 @@ export async function settle(page: Page, signals?: Signals): Promise<void> {
         timeout: 30_000,
       })
       .toBeGreaterThan(0);
+
+    let lastCount = signals.api.length;
+    let stablePolls = 0;
+    await expect
+      .poll(
+        () => {
+          const count = signals.api.length;
+          if (count === lastCount) {
+            stablePolls += 1;
+          } else {
+            lastCount = count;
+            stablePolls = 0;
+          }
+          return stablePolls;
+        },
+        {
+          message: 'the initial /api/ response burst never became quiet',
+          timeout: 6_000,
+          intervals: [250],
+        },
+      )
+      .toBeGreaterThanOrEqual(3);
   }
-  await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {
-    /* the SSE feed on /api/events never goes idle by design */
-  });
-  await page.waitForTimeout(1_500);
+  await page.waitForTimeout(500);
 }
 
 /** One 500 from a named endpoint, shaped exactly like the server's own error
