@@ -544,8 +544,10 @@ class TypedRelationBlock(Generic[T]):
 
     def _require_semiring(self, semiring: Semiring[T]) -> Semiring[Any]:
         reference = _reference_semiring(semiring)
-        if semiring.name != self.semiring_name:
-            raise ValueError(f"block uses semiring {self.semiring_name!r}, not {semiring.name!r}")
+        if reference.name != self.semiring_name:
+            raise ValueError(
+                f"block uses semiring {self.semiring_name!r}, not {reference.name!r}"
+            )
         return reference
 
     def _require_compatible(
