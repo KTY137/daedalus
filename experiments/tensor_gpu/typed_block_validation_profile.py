@@ -1,17 +1,19 @@
-"""Profile canonical ``TypedRelationBlock`` construction without bypassing it.
+"""Profile canonical ``TypedRelationBlock`` materialization without bypassing it.
 
 GPU-10 showed that packed Boolean support materializes quickly enough that the
 remaining cost is dominated by canonical ``TypedRelationBlock`` construction.
-GPU-11/12 then identified and fused repeated structural validation scans. This
-contained diagnostic answers the next narrower question: how much work remains
-in the exact persisted-scalar admission path relative to the full canonical
-constructor?
+GPU-11/12 identified and fused repeated structural validation scans. GPU-13
+then separated the exact persisted-scalar ``_stored`` cost. This contained
+GPU-14 diagnostic asks the next narrower question: how expensive is decoding
+packed support into canonical CSR relative to the unchanged canonical block
+constructor and scalar-admission path?
 
-The profiler executes the real canonical constructor and the real ``_stored``
-scalar contract. It does not duplicate structural validation or add a trusted
-constructor, alternate relation type, cache, backend, or semantic authority.
-Profiler timings are attribution evidence only; independent unprofiled timings
-are non-additive and neither timing mints a speedup or promotion claim.
+The profiler executes the real support decoder, canonical constructor, and
+``_stored`` scalar contract. It does not duplicate structural validation or add
+a trusted constructor, alternate relation type, cache, backend, or semantic
+authority. Independently sampled timings are diagnostic and non-additive;
+profiler timings are attribution evidence only. Neither mints a speedup or
+promotion claim.
 """
 from __future__ import annotations
 
@@ -20,7 +22,6 @@ import cProfile
 import json
 import platform
 import statistics
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,7 +51,7 @@ else:  # direct ``python experiments/tensor_gpu/typed_block_validation_profile.p
         pack_rows,
     )
 
-SCHEMA = "daedalus-tensor-typed-block-validation-profile/2"
+SCHEMA = "daedalus-tensor-typed-block-validation-profile/3"
 MAX_PROFILE_REPEATS = 5
 
 
@@ -182,6 +183,10 @@ def _timing_summary(samples: Sequence[float]) -> dict[str, float | int]:
     }
 
 
+def _ratio(numerator: float, denominator: float) -> float | None:
+    return None if denominator <= 0.0 else numerator / denominator
+
+
 def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
     if not isinstance(case, ProbeCase):
         raise ValueError("case must be ProbeCase")
@@ -189,7 +194,13 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
 
     left, right, fixture = build_boolean_case(case)
     result_masks = compose_packed_rows(pack_rows(left), pack_rows(right))
-    row_offsets, column_indices = _csr_support_from_masks(left, right, result_masks)
+
+    support, support_decode_samples = _measure_repeated(
+        lambda: _csr_support_from_masks(left, right, result_masks),
+        repeats=case.repeats,
+        warmup=case.warmup,
+    )
+    row_offsets, column_indices = support
     values = (True,) * len(column_indices)
 
     admitted_values, scalar_samples = _measure_repeated(
@@ -216,9 +227,17 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
     if any(sample.block.digest != canonical.digest for sample in profiled):
         raise AssertionError("profiling changed canonical TypedRelationBlock output")
 
+    decoded_again = _csr_support_from_masks(left, right, result_masks)
+    if decoded_again != support:
+        raise AssertionError("support decoding drifted for identical packed output")
+    if canonical.row_offsets != row_offsets or canonical.column_indices != column_indices:
+        raise AssertionError("canonical block changed decoded Boolean support")
+
     metrics = _median_metrics(profiled)
     profiled_wall_median = float(statistics.median(sample.wall_ms for sample in profiled))
-    unprofiled_median = float(statistics.median(unprofiled_samples))
+    constructor_median = float(statistics.median(unprofiled_samples))
+    scalar_median = float(statistics.median(scalar_samples))
+    support_decode_median = float(statistics.median(support_decode_samples))
     post_init_cumulative_ms = float(
         metrics["typed_block_post_init"]["cumulative_ms_median"]
     )
@@ -237,6 +256,12 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
         },
         "output_entries": canonical.entry_count,
         "canonical_digest": canonical.digest,
+        "support_decode": {
+            "contract": "experiments.tensor_gpu.cpu_bitset_baseline._csr_support_from_masks",
+            "row_count": len(row_offsets) - 1,
+            "entry_count": len(column_indices),
+            "unprofiled_ms": _timing_summary(support_decode_samples),
+        },
         "scalar_admission": {
             "contract": "daedalus.twin.relation_blocks._stored(value, 'boolean')",
             "value_count": len(values),
@@ -244,12 +269,20 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
             "unprofiled_ms": _timing_summary(scalar_samples),
         },
         "unprofiled_construct_ms": _timing_summary(unprofiled_samples),
+        "unprofiled_comparison": {
+            "support_decode_to_constructor_ratio": _ratio(
+                support_decode_median, constructor_median
+            ),
+            "scalar_to_constructor_ratio": _ratio(scalar_median, constructor_median),
+            "interpretation": (
+                "Ratios compare independently sampled medians using one warmup/repeat policy. "
+                "Support decode, scalar admission, and constructor timings are non-additive."
+            ),
+        },
         "profiled_construct_wall_ms": _timing_summary(
             tuple(sample.wall_ms for sample in profiled)
         ),
-        "profiler_slowdown_ratio": (
-            None if unprofiled_median <= 0.0 else profiled_wall_median / unprofiled_median
-        ),
+        "profiler_slowdown_ratio": _ratio(profiled_wall_median, constructor_median),
         "profile_metrics": metrics,
         "profile_attribution": {
             "post_init_cumulative_ms_median": post_init_cumulative_ms,
@@ -283,12 +316,12 @@ def run_probe(
         "status": "completed",
         "authority": "diagnostic-only",
         "claim": "none",
-        "semantic_scope": "canonical Boolean TypedRelationBlock construction only",
+        "semantic_scope": "canonical Boolean TypedRelationBlock materialization only",
         "measurement_contract": (
-            "Run the unchanged canonical constructor with deterministic cProfile attribution "
-            "and an independent unprofiled scan through the exact existing _stored Boolean "
-            "scalar-admission contract. Structural validation is not duplicated or bypassed. "
-            "Profiler timings include observer overhead; independently measured wall timings "
+            "Run the unchanged packed-support decoder and canonical constructor with one "
+            "warmup/repeat policy, retain deterministic cProfile attribution, and independently "
+            "scan the exact existing _stored Boolean scalar-admission contract. Structural "
+            "validation is not duplicated or bypassed. Independently measured wall timings "
             "are diagnostic and non-additive."
         ),
         "runtime": {
@@ -305,7 +338,7 @@ def run_probe(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Profile the existing canonical TypedRelationBlock constructor."
+        description="Profile the existing canonical TypedRelationBlock materialization boundary."
     )
     parser.add_argument("--sizes", type=int, nargs="+", default=(64, 128, 256))
     parser.add_argument("--densities", type=float, nargs="+", default=(0.01, 0.05))
