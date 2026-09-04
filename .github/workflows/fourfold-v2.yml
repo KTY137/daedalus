@@ -112,6 +112,26 @@ jobs:
           path: runs/tensor_gpu/cpu_bitset_ci.json
           if-no-files-found: error
           retention-days: 7
+      - name: Emit canonical TypedRelationBlock validation profile
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python experiments/tensor_gpu/typed_block_validation_profile.py \
+            --sizes 64 128 256 \
+            --densities 0.01 0.05 \
+            --repeats 5 \
+            --warmup 2 \
+            --profile-repeats 3 \
+            --output runs/tensor_gpu/typed_block_validation_profile_ci.json
+      - name: Retain canonical TypedRelationBlock validation profile
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensor-typed-block-validation-profile-${{ github.sha }}
+          path: runs/tensor_gpu/typed_block_validation_profile_ci.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Emit packed intermediate residency diagnostic
         if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
         env:
