@@ -14,7 +14,10 @@ on:
       - "daedalus/ikarus_effect_bridge.py"
       - "daedalus/ikarus_oneshot.py"
       - "daedalus/ikarus_tool_scope.py"
+      - "daedalus/ikarus_os.py"
       - "daedalus/runtime_registry.py"
+      - "daedalus/providers/_ollama_native.py"
+      - "daedalus/providers/ollama.py"
       - "daedalus/runtimes/provider_executable_pre_admission.py"
       - "daedalus/runtimes/provider_executable_object_registry.py"
       - "daedalus/runtimes/provider_runtime_executable_binding.py"
@@ -24,6 +27,8 @@ on:
       - "tests/test_ikarus_effect_bridge.py"
       - "tests/test_ikarus_oneshot.py"
       - "tests/test_ikarus_tool_scope.py"
+      - "tests/test_ikarus_stream.py"
+      - "tests/test_ikarus_os_boundary.py"
       - "tests/test_runtime_registry_singleflight.py"
       - "tests/runtimes/test_provider_executable_pre_admission.py"
       - "tests/runtimes/test_provider_executable_pre_admission_review.py"
@@ -79,7 +84,10 @@ jobs:
           daedalus/ikarus_effect_bridge.py
           daedalus/ikarus_oneshot.py
           daedalus/ikarus_tool_scope.py
+          daedalus/ikarus_os.py
           daedalus/runtime_registry.py
+          daedalus/providers/_ollama_native.py
+          daedalus/providers/ollama.py
           daedalus/runtimes/provider_executable_pre_admission.py
           daedalus/runtimes/provider_executable_object_registry.py
           daedalus/runtimes/provider_runtime_executable_binding.py
@@ -89,6 +97,8 @@ jobs:
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
+          tests/test_ikarus_stream.py
+          tests/test_ikarus_os_boundary.py
           tests/test_runtime_registry_singleflight.py
           tests/runtimes/test_provider_executable_pre_admission.py
           tests/runtimes/test_provider_executable_object_registry.py
@@ -107,6 +117,8 @@ jobs:
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
           tests/test_ikarus_runtime_role.py
+          tests/test_ikarus_stream.py
+          tests/test_ikarus_os_boundary.py
           tests/test_runtime_registry_singleflight.py
           tests/kernel/test_runtime_conformance_harness.py
           tests/runtimes/test_runtime_conformance_profiles.py
