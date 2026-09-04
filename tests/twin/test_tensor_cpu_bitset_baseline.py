@@ -8,6 +8,7 @@ _BASELINE = importlib.import_module("experiments.tensor_gpu.cpu_bitset_baseline"
 _CONTRACT = importlib.import_module("experiments.tensor_gpu.boolean_probe_contract")
 ProbeCase = _BASELINE.ProbeCase
 _block_from_masks = _BASELINE._block_from_masks
+_measure_repeated = _BASELINE._measure_repeated
 build_boolean_case = _BASELINE.build_boolean_case
 compose_packed_rows = _BASELINE.compose_packed_rows
 execute_bitset = _BASELINE.execute_bitset
@@ -77,6 +78,22 @@ def test_packed_boolean_composition_matches_stdlib_oracle() -> None:
     assert all(value >= 0.0 for value in execution.kernel_ms)
 
 
+def test_repeated_measurement_uses_equal_warmup_and_sample_counts() -> None:
+    calls = 0
+
+    def operation() -> int:
+        nonlocal calls
+        calls += 1
+        return calls
+
+    result, samples = _measure_repeated(operation, repeats=4, warmup=3)
+
+    assert calls == 7
+    assert result == 7
+    assert len(samples) == 4
+    assert all(value >= 0.0 for value in samples)
+
+
 def test_execute_bitset_validates_packed_rows_once_outside_timed_kernel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -128,6 +145,17 @@ def test_execute_bitset_reuses_probe_repeat_and_warmup_bounds() -> None:
             execute_bitset(left, right, repeats=repeats, warmup=warmup)
 
 
+def test_repeated_measurement_reuses_probe_repeat_and_warmup_bounds() -> None:
+    for repeats, warmup in (
+        (0, 0),
+        (MAX_REPEATS + 1, 0),
+        (1, -1),
+        (1, MAX_WARMUP + 1),
+    ):
+        with pytest.raises(ValueError):
+            _measure_repeated(lambda: 1, repeats=repeats, warmup=warmup)
+
+
 def test_block_reconstruction_refuses_out_of_range_bits() -> None:
     case = _case()
     left, right, _ = build_boolean_case(case)
@@ -143,11 +171,12 @@ def test_block_reconstruction_refuses_out_of_range_bits() -> None:
 def test_probe_is_diagnostic_only_and_verifies_small_case() -> None:
     report = run_probe((_case(),))
 
-    assert report["schema"] == "daedalus-tensor-cpu-bitset-baseline/1"
+    assert report["schema"] == "daedalus-tensor-cpu-bitset-baseline/2"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert report["semantic_scope"] == "Boolean relation support only"
+    assert "same warmup/repeat policy" in report["measurement_contract"]
     assert report["runtime"]["int_bits_per_digit"] > 0
     assert len(report["cases"]) == 1
 
@@ -158,9 +187,18 @@ def test_probe_is_diagnostic_only_and_verifies_small_case() -> None:
         "cpu_oracle_executed": True,
         "boolean_support_equal": True,
     }
+    assert result["cpu_reference"]["samples"] == 2
+    assert result["cpu_reference"]["elapsed_ms_median"] >= 0.0
+    assert result["cpu_reference"]["elapsed_ms_min"] >= 0.0
+    assert result["cpu_reference"]["elapsed_ms_max"] >= result["cpu_reference"]["elapsed_ms_min"]
+    assert result["cpu_bitset"]["samples"] == 2
     assert result["cpu_bitset"]["validate_ms"] >= 0.0
     assert result["cpu_bitset"]["output_entries"] == result["cpu_reference"]["output_entries"]
     assert result["cpu_bitset"]["digest"] == result["cpu_reference"]["digest"]
+    assert set(result["diagnostic_ratios"]) == {
+        "csr_full_operation_over_resident_bitset_kernel",
+        "csr_full_operation_over_bitset_one_shot",
+    }
 
 
 def test_probe_bounds_case_collection() -> None:
