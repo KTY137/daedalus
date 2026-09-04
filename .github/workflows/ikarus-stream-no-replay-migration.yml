@@ -47,11 +47,10 @@ jobs:
           tests/test_ikarus_stream.py
           tests/test_ikarus_os_boundary.py
 
-      - name: Run focused Ikarus stream and transport regressions
+      - name: Run focused stream regressions
         run: >-
           python -m pytest -q -p no:cacheprovider
           tests/test_ikarus_stream.py
-          tests/test_ikarus_os_boundary.py
 
       - name: Prove an attempted empty stream cannot re-enter blocking chat
         run: |
@@ -60,7 +59,9 @@ jobs:
           source = Path("daedalus/ikarus_os.py").read_text(encoding="utf-8")
           tests = Path("tests/test_ikarus_stream.py").read_text(encoding="utf-8")
           tail = source[source.index("def _ask_stream_inner"):]
-          empty = tail[tail.index("    if not text:"):tail.index("    block = _ctx_envelope_block(ctx)", tail.index("    if not text:") + 1)]
+          start = tail.index("    if not text:")
+          end = tail.index("\n    block = _ctx_envelope_block(ctx)", start + 1)
+          empty = tail[start:end]
           assert "_chat(" not in empty, empty
           assert "stream_interrupted=True" in empty
           assert "not automatically retried" in empty
@@ -69,8 +70,11 @@ jobs:
           print("attempted-stream no-replay invariant: OK")
           PY
 
-      - name: Remove one-shot migration machinery
+      - name: Remove one-shot migration machinery before conformance scan
         run: git rm tools/_ikarus_stream_no_replay_migration.py .github/workflows/ikarus-stream-no-replay-migration.yml
+
+      - name: Run Ikarus effect-boundary regression after helper removal
+        run: python -m pytest -q -p no:cacheprovider tests/test_ikarus_os_boundary.py
 
       - name: Commit verified no-replay repair
         run: |
