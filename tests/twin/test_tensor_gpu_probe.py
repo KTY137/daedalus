@@ -15,6 +15,7 @@ PROBE_PATH = (
 )
 _NAMESPACE = runpy.run_path(str(PROBE_PATH))
 ProbeCase = _NAMESPACE["ProbeCase"]
+_cuda_oom_result = _NAMESPACE["_cuda_oom_result"]
 build_boolean_case = _NAMESPACE["build_boolean_case"]
 blocked_report = _NAMESPACE["blocked_report"]
 estimate_dense_device_bytes = _NAMESPACE["estimate_dense_device_bytes"]
@@ -54,7 +55,7 @@ def test_probe_case_bounds_dense_input_and_execution() -> None:
             ProbeCase(**kwargs)
 
 
-def test_dense_memory_estimate_accounts_for_tensor_core_padding() -> None:
+def test_device_memory_estimate_accounts_for_padding_and_sparse_scatter_indices() -> None:
     case = ProbeCase(
         size=9,
         density=0.1,
@@ -63,7 +64,9 @@ def test_dense_memory_estimate_accounts_for_tensor_core_padding() -> None:
         tile_multiple=8,
         max_device_mib=64,
     )
-    assert estimate_dense_device_bytes(case) == 16 * 16 * 7
+    # 16x16 padded resident matrices/mask at 7 bytes per cell plus one live
+    # pair of int64 scatter-index tensors for 9 canonical entries.
+    assert estimate_dense_device_bytes(case) == (16 * 16 * 7) + (9 * 2 * 8)
 
 
 def test_synthetic_case_is_deterministic_and_matches_reference_contract() -> None:
@@ -94,6 +97,39 @@ def test_synthetic_case_is_deterministic_and_matches_reference_contract() -> Non
     assert result.subject == left.subject
     assert result.row_axis == left.row_axis
     assert result.column_axis == right.column_axis
+
+
+def test_cuda_oom_is_blocked_without_hiding_unrelated_exceptions() -> None:
+    class FakeOom(Exception):
+        pass
+
+    class FakeCuda:
+        emptied = False
+
+        def empty_cache(self) -> None:
+            self.emptied = True
+
+    class FakeTorch:
+        OutOfMemoryError = FakeOom
+        cuda = FakeCuda()
+
+    case = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=1,
+        warmup=0,
+        max_device_mib=64,
+    )
+    fake = FakeTorch()
+    blocked = _cuda_oom_result(fake, FakeOom("allocator refused"), case)
+
+    assert blocked is not None
+    assert blocked["status"] == "blocked"
+    assert blocked["claim"] == "none"
+    assert blocked["reason"] == "cuda-out-of-memory"
+    assert blocked["case"]["estimated_device_bytes"] == estimate_dense_device_bytes(case)
+    assert fake.cuda.emptied is True
+    assert _cuda_oom_result(fake, RuntimeError("not OOM"), case) is None
 
 
 def test_blocked_report_cannot_mint_a_gpu_or_benchmark_claim() -> None:
