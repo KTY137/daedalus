@@ -1,322 +1,101 @@
-"""arch_memory.py \u2014 the compressed architecture an agent carries into every turn.
+"""Compatibility facade for the canonical architecture-memory implementation.
 
-WHAT THIS IS FOR
-----------------
-An agent starts every conversation not knowing what this repository IS. It
-rediscovers the shape by grepping, which costs tokens, takes turns, and produces
-a different (usually worse) picture each time. A few hundred tokens of true,
-current structure injected up front replaces all of that.
-
-The hard part is not producing a summary. It is producing one that stays SMALL
-and stays TRUE, and says so when it is neither.
-
-WHAT GOES IN, AND WHY EACH LINE EARNS ITS PLACE
------------------------------------------------
-* **Freshness first.** A stale architecture summary is worse than none: it reads
-  as authoritative and describes a tree that no longer exists. So the first line
-  says which commit it was measured at and whether that is still HEAD.
-* **Package roles**, because "what are the top-level parts" is the question every
-  new turn actually has.
-* **Hubs**, because a change to a module 40 things import behaves differently
-  from a change to a leaf, and that is invisible in a file listing.
-* **Islands and shims**, because dead and vestigial code is exactly what an agent
-  wastes a turn reading.
-* **Doc drift**, because prose that names code that does not exist is the defect
-  class this repo hunts, and knowing it is outstanding changes what you trust.
-* **What the index could NOT see.** Every other line is what we know; this one is
-  the shape of what we do not, and it is the line that keeps the rest honest.
-
-WHAT IS DELIBERATELY LEFT OUT
------------------------------
-File listings, function names, line counts, anything a grep answers on demand.
-A summary that tries to be complete stops being a summary, and the budget it
-spends is charged on EVERY turn for the rest of the session.
-
-DERIVED, NEVER HAND-MAINTAINED
-------------------------------
-Built from ``docs/architecture-state.json`` (produced by ``daedalus.mapping.drift``)
-plus the structcore index. Regenerate and it is true by construction. It is
-regenerated on commit by ``hooks/post-commit``, because a commit is exactly the
-moment the structure changed and nothing else reliably marks it.
+The maintained implementation lives in :mod:`daedalus.interfaces.cli.arch_memory`.
+This module preserves the historical ``daedalus.arch_memory`` import used by
+agent hooks and older integrations without carrying a second implementation.
 """
 from __future__ import annotations
 
-import json
-import subprocess
-from dataclasses import dataclass
+from os import PathLike
 from pathlib import Path
+from typing import TypeAlias
 
-ARCH_MEMORY_VERSION = "1"
-MEMORY_REL_PATH = "runs/arch_memory.json"
-STATE_REL_PATH = "docs/architecture-state.json"
+from .interfaces.cli import arch_memory as _impl
 
-#: Hard budget. This text is charged on every turn for the whole session, so the
-#: bound is a product decision, not a formatting preference.
-MAX_LINES = 24
-MAX_LINE_CHARS = 110
-
-
-def _git(root: Path, *args) -> str:
-    try:
-        out = subprocess.run(["git", *args], cwd=str(root), capture_output=True,
-                             text=True, encoding="utf-8", errors="replace", timeout=20)
-        return out.stdout.strip() if out.returncode == 0 else ""
-    except (OSError, subprocess.SubprocessError):
-        return ""
-
-
-@dataclass
-class ArchMemory:
-    head: str = ""
-    branch: str = ""
-    dirty: bool = False
-    lines: tuple = ()
-    generated_at: str = ""
-    version: str = ARCH_MEMORY_VERSION
-
-    def to_dict(self) -> dict:
-        return {"head": self.head, "branch": self.branch, "dirty": self.dirty,
-                "lines": list(self.lines), "generated_at": self.generated_at,
-                "version": self.version}
+ARCH_MEMORY_VERSION = _impl.ARCH_MEMORY_VERSION
+LAST_SHOWN_REL_PATH = _impl.LAST_SHOWN_REL_PATH
+MAX_LINE_CHARS = _impl.MAX_LINE_CHARS
+MAX_LINES = _impl.MAX_LINES
+MEMORY_REL_PATH = _impl.MEMORY_REL_PATH
+NEWLINE = _impl.NEWLINE
+STATE_REL_PATH = _impl.STATE_REL_PATH
+ArchMemory = _impl.ArchMemory
+ArchitectureSnapshot: TypeAlias = ArchMemory
+build = _impl.build
+load = _impl.load
+main = _impl.main
+render = _impl.render
+save = _impl.save
 
 
-def _package_roles(root: Path) -> list[str]:
-    """One line per top-level package, from its own module docstring's first
-    sentence. Reading the code's own words beats inventing a description that
-    then drifts from it."""
-    import ast
-
-    roles = []
-    pkg_root = root / "daedalus"
-    if not pkg_root.is_dir():
-        return roles
-    for sub in sorted(p for p in pkg_root.iterdir() if p.is_dir()
-                      and (p / "__init__.py").exists() and not p.name.startswith("_")):
-        try:
-            doc = ast.get_docstring(ast.parse((sub / "__init__.py").read_text(encoding="utf-8")))
-        except (OSError, SyntaxError, UnicodeDecodeError):
-            doc = None
-        if not doc:
-            continue
-        first = doc.strip().split("\n")[0]
-        first = first.split(" \u2014 ")[-1].split(" -- ")[-1].strip().rstrip(".")
-        roles.append(f"  {sub.name:<11} {first[:MAX_LINE_CHARS - 16]}")
-    return roles
+def _bounded_text(
+    text: str,
+    *,
+    max_lines: int | None,
+    max_chars: int | None,
+) -> str:
+    """Apply optional presentation budgets without changing stored truth."""
+    if max_lines is not None:
+        if type(max_lines) is not int or max_lines < 0:
+            raise ValueError("max_lines must be a non-negative integer or None")
+        text = NEWLINE.join(text.splitlines()[:max_lines])
+    if max_chars is not None:
+        if type(max_chars) is not int or max_chars < 0:
+            raise ValueError("max_chars must be a non-negative integer or None")
+        text = text[:max_chars]
+    return text
 
 
-def build(repo_root=".") -> ArchMemory:
-    root = Path(repo_root).resolve()
-    head = _git(root, "rev-parse", "HEAD")
-    branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
-    dirty = bool(_git(root, "status", "--porcelain"))
+def render_delta(
+    repo_root: str | PathLike[str] = ".",
+    shown_path: Path | None = None,
+    *,
+    silent_when_unchanged: bool = False,
+    max_lines: int | None = None,
+    max_chars: int | None = None,
+) -> str:
+    """Render the canonical session delta with optional output budgets.
 
-    state: dict = {}
-    try:
-        state = json.loads((root / STATE_REL_PATH).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        state = {}
-
-    lines: list[str] = []
-    counts = state.get("counts") or {}
-    snap_head = ((state.get("repo_state") or {}).get("head") or "")
-
-    # FRESHNESS FIRST. A summary that cannot say whether it still describes the
-    # tree is the one failure mode that makes every other line dangerous.
-    if not state:
-        lines.append("ARCHITECTURE: no snapshot (run: python -m daedalus.mapping.drift)")
-    elif snap_head and head and snap_head != head:
-        lines.append(f"ARCHITECTURE: STALE -- measured at {snap_head[:8]}, HEAD is {head[:8]}")
-    else:
-        lines.append(f"ARCHITECTURE: measured at {(snap_head or head)[:8]}"
-                     + ("  (working tree dirty)" if dirty else ""))
-
-    if counts:
-        lines.append(f"  {counts.get('modules', '?')} modules | "
-                     f"{counts.get('islands', 0)} islands | {counts.get('shims', 0)} shims | "
-                     f"{counts.get('unreached', 0)} unreached \u00b7 "
-                     f"{counts.get('doc_drift', 0)} doc-drift")
-
-    roles = _package_roles(root)
-    if roles:
-        lines.append("PACKAGES")
-        lines.extend(roles[:9])
-
-    islands = list(state.get("islands") or ())
-    if islands:
-        lines.append("ISLANDS (nothing imports these -- do not read them by accident)")
-        lines.append("  " + ", ".join(Path(i).name for i in islands[:8])
-                     + (f" +{len(islands) - 8} more" if len(islands) > 8 else ""))
-    shims = list(state.get("shims") or ())
-    if shims:
-        lines.append("SHIMS (re-export only): " + ", ".join(Path(s).name for s in shims[:6]))
-    drift = list(state.get("doc_drift") or ())
-    if drift:
-        lines.append("DOC DRIFT (prose naming code that is not there): "
-                     + ", ".join(str(d) for d in drift[:4]))
-
-    # The honest closer: what the snapshot could not resolve.
-    unknown = counts.get("unknown", 0)
-    unparsable = counts.get("unparsable", 0)
-    if unknown or unparsable:
-        lines.append(f"NOT SEEN: {unknown} unknown, {unparsable} unparsable "
-                     "-- these are gaps in the map, not absences in the tree")
-
-    lines = [l[:MAX_LINE_CHARS] for l in lines[:MAX_LINES]]
-    from datetime import datetime
-    return ArchMemory(head=head, branch=branch, dirty=dirty, lines=tuple(lines),
-                      generated_at=datetime.now().astimezone().isoformat(timespec="seconds"))
-
-
-def save(mem: ArchMemory, repo_root=".") -> Path:
-    """Publish whole or not at all.
-
-    A post-commit hook writes this while a prompt hook may be reading it. There
-    is no read-modify-write here, so atomic publish is sufficient and no lock is
-    needed -- a reader sees the previous snapshot or the new one, never half.
+    The canonical implementation records the complete rendered snapshot before
+    this facade truncates presentation output. A small caller budget therefore
+    never corrupts the next delta comparison.
     """
-    import os as _os
-    p = Path(repo_root) / MEMORY_REL_PATH
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + f".{_os.getpid()}.tmp")
-    tmp.write_text(json.dumps(mem.to_dict(), indent=1), encoding="utf-8")
-    _os.replace(tmp, p)
-    return p
+    text = _impl.render_delta(
+        repo_root,
+        shown_path,
+        silent_when_unchanged=silent_when_unchanged,
+    )
+    return _bounded_text(text, max_lines=max_lines, max_chars=max_chars)
 
 
-def load(repo_root=".") -> ArchMemory:
-    try:
-        raw = json.loads((Path(repo_root) / MEMORY_REL_PATH).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return ArchMemory()
-    return ArchMemory(head=raw.get("head", ""), branch=raw.get("branch", ""),
-                      dirty=bool(raw.get("dirty")), lines=tuple(raw.get("lines") or ()),
-                      generated_at=raw.get("generated_at", ""))
-
-
-def render(repo_root=".") -> str:
-    """The text a hook prints. Reports staleness against the LIVE head rather
-    than trusting what was stored, because the stored copy is exactly the thing
-    that goes out of date."""
-    mem = load(repo_root)
-    if not mem.lines:
-        return ""
-    live = _git(Path(repo_root).resolve(), "rev-parse", "HEAD")
-    out = list(mem.lines)
-    if live and mem.head and live != mem.head:
-        out.insert(0, f"ARCH MEMORY IS STALE: built at {mem.head[:8]}, HEAD is now "
-                      f"{live[:8]} \u2014 regenerate with `python -m daedalus.arch_memory`")
-    return "\n".join(out)
-
-
-
-# --------------------------------------------------------------------------- #
-# What the agent is SHOWN, as opposed to what is stored                         #
-# --------------------------------------------------------------------------- #
-# The full block is fourteen lines of structured fact. Printed on every turn it
-# becomes wallpaper: a hook can guarantee that something is AVAILABLE, it cannot
-# make it read. Repetition is what turns available into ignored -- and it is
-# charged to the token budget every single turn for the whole session.
-#
-# So after the first showing, only the DELTA is shown. A change is news; an
-# unchanged tree is one line. The full block returns whenever it actually
-# changes, which is exactly when it is worth reading again.
-LAST_SHOWN_REL_PATH = "runs/arch_memory.shown"
-#: Named rather than inlined: this file has been edited through several
-#: layers of shell quoting and a bare escape did not survive the trip.
-NEWLINE = chr(10)
-
-
-def _last_shown(root: Path) -> list[str]:
-    try:
-        return (root / LAST_SHOWN_REL_PATH).read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-
-
-def _remember_shown(root: Path, lines) -> None:
-    import os as _os
-    p = root / LAST_SHOWN_REL_PATH
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + f".{_os.getpid()}.tmp")
-    tmp.write_text(NEWLINE.join(lines), encoding="utf-8")
-    _os.replace(tmp, p)
-
-
-def render_delta(repo_root=".") -> str:
-    """What changed since this was last shown \u2014 or one line saying nothing did.
-
-    The FIRST call in a session shows everything, because a fresh agent knows
-    nothing. Afterwards it shows only what moved, so an unchanged repository
-    costs one line instead of fourteen and a changed one is impossible to miss
-    among the noise it no longer has to compete with.
-    """
+def is_stale(repo_root: str | PathLike[str] = ".") -> bool:
+    """Return whether the stored architecture snapshot predates live ``HEAD``."""
     root = Path(repo_root).resolve()
-    mem = load(root)
-    if not mem.lines:
-        return ""
-    live = _git(root, "rev-parse", "HEAD")
-    now = list(mem.lines)
-    if live and mem.head and live != mem.head:
-        now.insert(0, f"ARCH MEMORY IS STALE: built at {mem.head[:8]}, HEAD is now "
-                      f"{live[:8]} -- rebuild: python -m daedalus.arch_memory")
-
-    before = _last_shown(root)
-    if not before:
-        _remember_shown(root, now)
-        return NEWLINE.join(now)
-    if before == now:
-        # Deliberately not silent: "nothing changed" is itself information, and
-        # a hook that prints nothing is indistinguishable from a hook that broke.
-        return "ARCHITECTURE: unchanged since the last turn"
-
-    gone = [l for l in before if l not in now]
-    new = [l for l in now if l not in before]
-    out = ["ARCHITECTURE CHANGED since the last turn:"]
-    out += [f"  - {l.strip()}" for l in gone[:6]]
-    out += [f"  + {l.strip()}" for l in new[:6]]
-    if len(gone) > 6 or len(new) > 6:
-        out.append(f"  ... {max(0, len(gone) - 6) + max(0, len(new) - 6)} more line(s); "
-                   "full picture: python -m daedalus.arch_memory --show")
-    _remember_shown(root, now)
-    return NEWLINE.join(out)
+    snapshot = load(root)
+    live_head = _impl._git(root, "rev-parse", "HEAD")
+    return bool(snapshot.head and live_head and snapshot.head != live_head)
 
 
-# --------------------------------------------------------------------------- #
-# Failing test to demonstrate defect                                          #
-# --------------------------------------------------------------------------- #
-def test_render_delta_new_session_should_show_full_architecture():
-    """render_delta promises: first call in session shows everything.
-    But a previous session's shown file causes a new session to show a delta."""
-    import tempfile, shutil
-    root = Path(tempfile.mkdtemp())
-    try:
-        # Create a minimal memory that would be shown
-        mem = ArchMemory(head="", lines=("PACKAGE alpha", "PACKAGE beta"))
-        save(mem, str(root))
-        # Write a shown file from a supposed previous session
-        shown = root / "runs" / "arch_memory.shown"
-        shown.write_text("old stale line")
-        # Now call render_delta as if it's a fresh session
-        out = render_delta(str(root))
-        # The promise: first call shows everything, so we should see the full architecture.
-        # With head empty, no staleness line is added, so the full is "PACKAGE alpha\nPACKAGE beta".
-        expected = "PACKAGE alpha\nPACKAGE beta"
-        assert out == expected, f"Expected full architecture, got:\n{out}"
-    finally:
-        shutil.rmtree(root)
-
-
-def main(argv: list[str]) -> int:  # pragma: no cover - thin CLI
-    root = argv[0] if argv and not argv[0].startswith("-") else "."
-    if "--show" in argv:
-        print(render(root) or "(no memory built yet)")
-        return 0
-    mem = build(root)
-    save(mem, root)
-    print("\n".join(mem.lines))
-    return 0
+__all__ = [
+    "ARCH_MEMORY_VERSION",
+    "ArchitectureSnapshot",
+    "ArchMemory",
+    "LAST_SHOWN_REL_PATH",
+    "MAX_LINE_CHARS",
+    "MAX_LINES",
+    "MEMORY_REL_PATH",
+    "STATE_REL_PATH",
+    "build",
+    "is_stale",
+    "load",
+    "main",
+    "render",
+    "render_delta",
+    "save",
+]
 
 
 if __name__ == "__main__":  # pragma: no cover
     import sys
+
     raise SystemExit(main(sys.argv[1:]))
