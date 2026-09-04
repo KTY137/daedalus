@@ -1,0 +1,86 @@
+{
+  "work_packet_id": "G1-TENSOR-01CT",
+  "title": "Skip Forest relation scans for empty retained Fourfold relation sets",
+  "date_europe_berlin": "2026-09-04",
+  "classification": "GARDENING",
+  "parent_work_packet": "G1-TENSOR-01CS",
+  "campaign_issue": 239,
+  "authority": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "4c17e4438e73cabdf7893869df0945de9b01d05b",
+    "production_commit": "c955431afb6ac3577ba8e0d6c0ca1d44e00029e7",
+    "exact_code_test_head": "21edf1d3ef6ce08c28be8967592f6bb4e8393fe8",
+    "production_blob": "bd7cb1321153b0f5638d86318bf96c7898aafffc",
+    "focused_test_blob": "3ff47ae4c052c78f7b8bcad719f2bbdd3b9de178",
+    "files_changed_before_record": 2,
+    "commits_before_record": 2,
+    "production_additions": 21,
+    "production_deletions": 20,
+    "test_additions": 60,
+    "test_deletions": 0
+  },
+  "finding": "Same-plane relation projection already treated Fourfold PlaneSnapshot.relation_sha256s as the authoritative retained relation set, but still scanned matching Forest edges and hyperedges and recomputed canonical digests when that retained digest tuple was empty. A complete plane with no retained relation digests therefore paid Forest traversal and hashing work that could not produce an authoritative relation.",
+  "gardener_change": "When the complete source plane retains no relation digests, keep the same-plane coordinate set empty and bypass the Forest edge/hyperedge digest scan entirely. Existing retained-digest membership, retained-hyperedge refusal, undirected-edge refusal, endpoint completeness checks, exact Forest/Fourfold binding and bounded TypedRelationBlock construction remain unchanged when retained digests exist. No cache, index, graph authority, Tensor type, backend, store, registry, scheduler, semantic plane or public product surface was added.",
+  "focused_regressions": [
+    "A complete Fourfold code plane with an empty relation_sha256s tuple projects an empty same-plane Boolean relation even when the bound Forest contains edges and a hyperedge.",
+    "The regression monkeypatches relation_projection.canonical_sha to raise, proving the empty-retention path performs no Forest relation digest computation."
+  ],
+  "verification": {
+    "workflow": "Fourfold v2",
+    "run_id": 33824190611,
+    "event": "push",
+    "exact_revision": "21edf1d3ef6ce08c28be8967592f6bb4e8393fe8",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": {
+      "contracts_python_3_10_hashseed_0": "success",
+      "contracts_python_3_10_hashseed_123456": "success",
+      "contracts_python_3_12_hashseed_0": "success",
+      "contracts_python_3_12_hashseed_123456": "success",
+      "isolated_wheel": "success",
+      "repository_collection": "success"
+    },
+    "designated_python_3_12_hashseed_0": {
+      "fourfold_and_kernel_contract_tests": "success",
+      "bounded_tensor_forest_diagnostic": "success",
+      "wheel_contains_twin_package": "success"
+    },
+    "repository_collection_is_execution_claim": false
+  },
+  "claims": {
+    "hosted_green_bound_only_to_exact_code_test_head": true,
+    "full_repository_suite_executed": false,
+    "measured_latency_speedup": false,
+    "measured_peak_memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "history_rewritten": false,
+    "branch_deleted": false,
+    "branch_archived": false,
+    "visible_remote_refs_observed": 18,
+    "archive_anchor": "archive/legacy-20260830",
+    "archive_anchor_sha_observed": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_anchor_modified": false,
+    "main_sha_observed": "e31213aff40ab322dcead6d50ae19007f3f9b6b1"
+  },
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "promotion_receipt_minted": false,
+    "ready_for_review_transition": false,
+    "automatic_promotion": false,
+    "merge": false,
+    "gate_transition": false,
+    "independent_owner_review_completed": false
+  }
+}
