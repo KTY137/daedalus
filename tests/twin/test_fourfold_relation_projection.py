@@ -110,6 +110,45 @@ def _complete_snapshot(forest: KnowledgeForest) -> FourfoldSnapshot:
     )
 
 
+def _complete_snapshot_without_code_relations(forest: KnowledgeForest) -> FourfoldSnapshot:
+    complete = _complete_snapshot(forest)
+    planes = tuple(
+        (
+            PlaneSnapshot(
+                plane=plane.plane,
+                source_revision=plane.source_revision,
+                status=plane.status,
+                reason=plane.reason,
+                node_ids=plane.node_ids,
+                relation_sha256s=(),
+                evidence_sha256s=plane.evidence_sha256s,
+            )
+            if plane.plane == "code"
+            else plane
+        )
+        for plane in complete.planes
+    )
+    provenance = ContractProvenance(
+        origin="test.fourfold-relation-projection.empty-code-relations",
+        source_revision=REVISION,
+        created_at=NOW,
+        input_digests=(
+            forest.content_sha256,
+            *(plane.digest for plane in planes),
+            *(binding.digest for binding in complete.bindings),
+        ),
+        trace_id="fourfold-relation-projection-empty-code-relations",
+    )
+    return FourfoldSnapshot(
+        repository_id=complete.repository_id,
+        source_revision=complete.source_revision,
+        source_forest_sha256=complete.source_forest_sha256,
+        planes=planes,
+        bindings=complete.bindings,
+        provenance=provenance,
+    )
+
+
 def test_projection_matches_direct_forest_relations_and_composes() -> None:
     forest = _forest()
     snapshot = _complete_snapshot(forest)
@@ -241,3 +280,24 @@ def test_projection_of_an_unretained_relation_is_an_empty_exact_block() -> None:
 
     assert tuple(block.iter_entries()) == ()
     assert block.get("src/a.py", "src/b.py", BooleanSemiring()) is False
+
+
+def test_empty_same_plane_retention_skips_forest_digest_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    forest = _forest(with_hyperedge=True)
+    snapshot = _complete_snapshot_without_code_relations(forest)
+
+    def unexpected_digest_scan(*_args: object, **_kwargs: object) -> str:
+        raise AssertionError("empty Fourfold relation retention must not hash Forest relations")
+
+    monkeypatch.setattr(
+        "daedalus.twin.relation_projection.canonical_sha",
+        unexpected_digest_scan,
+    )
+
+    block = boolean_relation_block_from_fourfold(
+        forest,
+        snapshot,
+        RelationSignature("code", "imports", "code"),
+    )
+
+    assert tuple(block.iter_entries()) == ()
