@@ -82,8 +82,7 @@ jobs:
             daedalus/shift_ticker.py \
             experiments/fourfold_hybrid_retrieval/*.py \
             experiments/tensor_embedding/arm_o_latent_ceiling.py \
-            experiments/tensor_gpu/cuda_boolean_probe.py \
-            experiments/tensor_gpu/cpu_bitset_baseline.py
+            experiments/tensor_gpu/*.py
       - name: Run integrated contract surface
         env:
           PYTHONHASHSEED: ${{ matrix.hash-seed }}
