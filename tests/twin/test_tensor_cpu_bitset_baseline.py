@@ -1,27 +1,21 @@
 from __future__ import annotations
 
-import runpy
-from pathlib import Path
+import importlib
 
 import pytest
 
-BASELINE_PATH = (
-    Path(__file__).parents[2]
-    / "experiments"
-    / "tensor_gpu"
-    / "cpu_bitset_baseline.py"
-)
-_NAMESPACE = runpy.run_path(str(BASELINE_PATH))
-ProbeCase = _NAMESPACE["ProbeCase"]
-_block_from_masks = _NAMESPACE["_block_from_masks"]
-build_boolean_case = _NAMESPACE["build_boolean_case"]
-compose_packed_rows = _NAMESPACE["compose_packed_rows"]
-execute_bitset = _NAMESPACE["execute_bitset"]
-pack_rows = _NAMESPACE["pack_rows"]
-run_probe = _NAMESPACE["run_probe"]
-BooleanSemiring = _NAMESPACE["BooleanSemiring"]
-MAX_REPEATS = _NAMESPACE["MAX_REPEATS"]
-MAX_WARMUP = _NAMESPACE["MAX_WARMUP"]
+_BASELINE = importlib.import_module("experiments.tensor_gpu.cpu_bitset_baseline")
+_CONTRACT = importlib.import_module("experiments.tensor_gpu.boolean_probe_contract")
+ProbeCase = _BASELINE.ProbeCase
+_block_from_masks = _BASELINE._block_from_masks
+build_boolean_case = _BASELINE.build_boolean_case
+compose_packed_rows = _BASELINE.compose_packed_rows
+execute_bitset = _BASELINE.execute_bitset
+pack_rows = _BASELINE.pack_rows
+run_probe = _BASELINE.run_probe
+BooleanSemiring = _BASELINE.BooleanSemiring
+MAX_REPEATS = _BASELINE.MAX_REPEATS
+MAX_WARMUP = _BASELINE.MAX_WARMUP
 
 
 def _case() -> object:
@@ -32,6 +26,13 @@ def _case() -> object:
         warmup=1,
         max_device_mib=64,
     )
+
+
+def test_baseline_uses_the_shared_probe_case_contract() -> None:
+    assert _BASELINE.ProbeCase is _CONTRACT.ProbeCase
+    assert _BASELINE.build_boolean_case is _CONTRACT.build_boolean_case
+    assert _BASELINE.estimate_dense_device_bytes is _CONTRACT.estimate_dense_device_bytes
+    assert _BASELINE.exact_reference_operation_count is _CONTRACT.exact_reference_operation_count
 
 
 def test_pack_rows_preserves_exact_csr_support() -> None:
@@ -55,7 +56,7 @@ def test_pack_rows_preserves_exact_csr_support() -> None:
 def test_packed_boolean_composition_matches_stdlib_oracle() -> None:
     case = _case()
     left, right, _ = build_boolean_case(case)
-    operations = _NAMESPACE["exact_reference_operation_count"](left, right)
+    operations = _BASELINE.exact_reference_operation_count(left, right)
     oracle = left.matmul(
         right,
         BooleanSemiring(),
