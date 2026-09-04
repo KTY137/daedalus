@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import ast
+import importlib
 import json
-import runpy
 from pathlib import Path
 
 import pytest
@@ -13,16 +13,18 @@ PROBE_PATH = (
     / "tensor_gpu"
     / "cuda_boolean_probe.py"
 )
-_NAMESPACE = runpy.run_path(str(PROBE_PATH))
-ProbeCase = _NAMESPACE["ProbeCase"]
-_cuda_oom_result = _NAMESPACE["_cuda_oom_result"]
-_resident_mm = _NAMESPACE["_resident_mm"]
-build_boolean_case = _NAMESPACE["build_boolean_case"]
-blocked_report = _NAMESPACE["blocked_report"]
-estimate_dense_device_bytes = _NAMESPACE["estimate_dense_device_bytes"]
-exact_reference_operation_count = _NAMESPACE["exact_reference_operation_count"]
-write_report = _NAMESPACE["write_report"]
-BooleanSemiring = _NAMESPACE["BooleanSemiring"]
+CONTRACT_PATH = PROBE_PATH.with_name("boolean_probe_contract.py")
+_PROBE = importlib.import_module("experiments.tensor_gpu.cuda_boolean_probe")
+_CONTRACT = importlib.import_module("experiments.tensor_gpu.boolean_probe_contract")
+ProbeCase = _PROBE.ProbeCase
+_cuda_oom_result = _PROBE._cuda_oom_result
+_resident_mm = _PROBE._resident_mm
+build_boolean_case = _PROBE.build_boolean_case
+blocked_report = _PROBE.blocked_report
+estimate_dense_device_bytes = _PROBE.estimate_dense_device_bytes
+exact_reference_operation_count = _PROBE.exact_reference_operation_count
+write_report = _PROBE.write_report
+BooleanSemiring = _PROBE.BooleanSemiring
 
 
 def test_probe_module_keeps_torch_optional_at_import_time() -> None:
@@ -40,6 +42,21 @@ def test_probe_module_keeps_torch_optional_at_import_time() -> None:
     }
     assert "torch" not in imports
     assert "torch" not in imported_from
+
+
+def test_cuda_and_cpu_arms_share_one_fixture_contract_without_runpy() -> None:
+    cpu = importlib.import_module("experiments.tensor_gpu.cpu_bitset_baseline")
+    assert _PROBE.ProbeCase is _CONTRACT.ProbeCase
+    assert cpu.ProbeCase is _CONTRACT.ProbeCase
+    assert _PROBE.build_boolean_case is _CONTRACT.build_boolean_case
+    assert cpu.build_boolean_case is _CONTRACT.build_boolean_case
+    assert _PROBE.write_report is _CONTRACT.write_report
+    assert cpu.write_report is _CONTRACT.write_report
+
+    for path in (PROBE_PATH, PROBE_PATH.with_name("cpu_bitset_baseline.py")):
+        source = path.read_text(encoding="utf-8")
+        assert "import runpy" not in source
+        assert "runpy.run_path" not in source
 
 
 def test_probe_case_bounds_dense_input_and_execution() -> None:
