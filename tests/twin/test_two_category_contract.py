@@ -147,6 +147,51 @@ def test_boundary_map_identity_and_associativity() -> None:
     assert f.then(g).then(h) == f.then(g.then(h))
 
 
+def test_boundary_maps_do_not_retain_parallel_lookup_surfaces() -> None:
+    count = 128
+    source = TypedBoundary(
+        tuple(
+            BoundaryPort(f"source-{index:03d}", "code", f"source.contract.{index}")
+            for index in reversed(range(count))
+        )
+    )
+    middle = TypedBoundary(
+        tuple(
+            BoundaryPort(f"middle-{index:03d}", "code", f"middle.contract.{index}")
+            for index in reversed(range(count))
+        )
+    )
+    target = TypedBoundary(
+        tuple(
+            BoundaryPort(f"target-{index:03d}", "code", f"target.contract.{index}")
+            for index in reversed(range(count))
+        )
+    )
+    first = BoundaryMap(
+        source,
+        middle,
+        tuple(
+            (f"source-{index:03d}", f"middle-{index:03d}")
+            for index in reversed(range(count))
+        ),
+    )
+    second = BoundaryMap(
+        middle,
+        target,
+        tuple(
+            (f"middle-{index:03d}", f"target-{index:03d}")
+            for index in reversed(range(count))
+        ),
+    )
+
+    assert first.then(second).assignments == tuple(
+        (f"source-{index:03d}", f"target-{index:03d}")
+        for index in range(count)
+    )
+    assert not hasattr(source, "port_map")
+    assert not hasattr(first, "assignment_map")
+
+
 def test_open_components_have_strict_horizontal_identity_and_associativity() -> None:
     i = boundary("i")
     j = boundary("j")
