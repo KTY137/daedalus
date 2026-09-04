@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest import mock
 
 import pytest
 
 import daedalus.claude_bridge as bridge
 import daedalus.providers.claude_sealed_operation as sealed
+from daedalus.providers.claude_cli import claude_invocation_sha256
 from daedalus.spine.envelope import canonical_sha
 
 
@@ -51,20 +53,34 @@ def test_provider_prompt_never_reaches_windows_cmd_shim() -> None:
     run.assert_not_called()
 
 
-def _sealed_payload() -> dict[str, object]:
-    return {
+def _sealed_payload(worktree: Path) -> dict[str, object]:
+    payload: dict[str, object] = {
         "objective": "review Ikarus runtime",
-        "worktree": "/tmp/ikarus-worktree",
+        "worktree": str(worktree),
         "paths": ["daedalus/ikarus_os.py"],
         "agent": {"call_name": "Ikarus", "name": "Ikarus", "must_read": []},
         "model": "sonnet",
         "timeout_s": 30,
-        "invocation_sha256": "a" * 64,
+        "attempt_id": "attempt-ikarus-1",
+        "source_revision": "f" * 40,
+        "request_sha256": "d" * 64,
     }
+    payload["invocation_sha256"] = claude_invocation_sha256(
+        objective=payload["objective"],  # type: ignore[arg-type]
+        worktree=payload["worktree"],  # type: ignore[arg-type]
+        paths=payload["paths"],  # type: ignore[arg-type]
+        agent=payload["agent"],  # type: ignore[arg-type]
+        model=payload["model"],  # type: ignore[arg-type]
+        timeout_s=payload["timeout_s"],  # type: ignore[arg-type]
+        attempt_id=payload["attempt_id"],  # type: ignore[arg-type]
+        source_revision=payload["source_revision"],  # type: ignore[arg-type]
+        request_sha256=payload["request_sha256"],  # type: ignore[arg-type]
+    )
+    return payload
 
 
-def test_sealed_claude_operation_consumes_only_authenticated_payload() -> None:
-    payload = _sealed_payload()
+def test_sealed_claude_operation_consumes_only_authenticated_payload(tmp_path: Path) -> None:
+    payload = _sealed_payload(tmp_path)
     expected = {
         "agent": "Ikarus",
         "prompt_sha256": "b" * 64,
@@ -75,7 +91,7 @@ def test_sealed_claude_operation_consumes_only_authenticated_payload() -> None:
         assert sealed.invoke(payload) == expected
     invoke.assert_called_once_with(
         objective="review Ikarus runtime",
-        repo_root="/tmp/ikarus-worktree",
+        repo_root=str(tmp_path.resolve()),
         paths=["daedalus/ikarus_os.py"],
         agent={"call_name": "Ikarus", "name": "Ikarus", "must_read": []},
         model="sonnet",
@@ -83,8 +99,8 @@ def test_sealed_claude_operation_consumes_only_authenticated_payload() -> None:
     )
 
 
-def test_sealed_claude_operation_refuses_payload_shape_before_subprocess() -> None:
-    payload = _sealed_payload()
+def test_sealed_claude_operation_refuses_payload_shape_before_subprocess(tmp_path: Path) -> None:
+    payload = _sealed_payload(tmp_path)
     payload["unexpected_callback"] = "ambient"
     with mock.patch.object(sealed, "_invoke_claude_cli") as invoke:
         with pytest.raises(ValueError, match="payload fields are not exact"):
@@ -92,8 +108,66 @@ def test_sealed_claude_operation_refuses_payload_shape_before_subprocess() -> No
     invoke.assert_not_called()
 
 
-def test_sealed_claude_output_evidence_binds_invocation_identity() -> None:
-    payload = _sealed_payload()
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("objective", "ship altered runtime"),
+        ("paths", ["README.md"]),
+        ("agent", {"call_name": "Other", "name": "Other", "must_read": []}),
+        ("model", "opus"),
+        ("timeout_s", 31),
+        ("attempt_id", "attempt-ikarus-2"),
+        ("source_revision", "e" * 40),
+        ("request_sha256", "e" * 64),
+    ],
+)
+def test_sealed_claude_operation_refuses_semantic_substitution_before_subprocess(
+    tmp_path: Path,
+    field: str,
+    replacement: object,
+) -> None:
+    payload = _sealed_payload(tmp_path)
+    payload[field] = replacement
+    with mock.patch.object(sealed, "_invoke_claude_cli") as invoke:
+        with pytest.raises(ValueError, match="invocation_sha256 does not match payload"):
+            sealed.invoke(payload)
+    invoke.assert_not_called()
+
+
+def test_sealed_claude_operation_refuses_worktree_substitution_before_subprocess(
+    tmp_path: Path,
+) -> None:
+    payload = _sealed_payload(tmp_path)
+    alternate = tmp_path / "alternate"
+    alternate.mkdir()
+    payload["worktree"] = str(alternate)
+    with mock.patch.object(sealed, "_invoke_claude_cli") as invoke:
+        with pytest.raises(ValueError, match="invocation_sha256 does not match payload"):
+            sealed.invoke(payload)
+    invoke.assert_not_called()
+
+
+def test_sealed_claude_operation_executes_canonical_path_identity(tmp_path: Path) -> None:
+    payload = _sealed_payload(tmp_path)
+    payload["paths"] = ["daedalus\\ikarus_os.py", "daedalus/ikarus_os.py"]
+    payload["invocation_sha256"] = claude_invocation_sha256(
+        objective=payload["objective"],  # type: ignore[arg-type]
+        worktree=payload["worktree"],  # type: ignore[arg-type]
+        paths=payload["paths"],  # type: ignore[arg-type]
+        agent=payload["agent"],  # type: ignore[arg-type]
+        model=payload["model"],  # type: ignore[arg-type]
+        timeout_s=payload["timeout_s"],  # type: ignore[arg-type]
+        attempt_id=payload["attempt_id"],  # type: ignore[arg-type]
+        source_revision=payload["source_revision"],  # type: ignore[arg-type]
+        request_sha256=payload["request_sha256"],  # type: ignore[arg-type]
+    )
+    with mock.patch.object(sealed, "_invoke_claude_cli", return_value={}) as invoke:
+        sealed.invoke(payload)
+    assert invoke.call_args.kwargs["paths"] == ["daedalus/ikarus_os.py"]
+
+
+def test_sealed_claude_output_evidence_binds_invocation_identity(tmp_path: Path) -> None:
+    payload = _sealed_payload(tmp_path)
     report = {"status": "done", "summary": "sealed"}
     value = {
         "agent": "Ikarus",
@@ -105,7 +179,7 @@ def test_sealed_claude_output_evidence_binds_invocation_identity() -> None:
         {
             "provider": "claude_cli",
             "agent": "Ikarus",
-            "invocation_sha256": "a" * 64,
+            "invocation_sha256": payload["invocation_sha256"],
             "prompt_sha256": "b" * 64,
             "report_sha256": canonical_sha(report),
             "report": report,
