@@ -12,6 +12,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import shutil
 import subprocess
 from typing import TYPE_CHECKING, Any
 
@@ -47,6 +49,30 @@ REPORT_SCHEMA: dict[str, Any] = {
     "required": sorted(REPORT_KEYS),
     "additionalProperties": False,
 }
+
+
+_CMD_SHIM_SUFFIXES = (".cmd", ".bat")
+
+
+def _command_for_spawn(resolved: str | None, *, platform_name: str) -> str:
+    """Return the executable that may receive argv without a shell relay.
+
+    On Windows, ``subprocess.run(..., shell=False)`` still routes ``.cmd`` and
+    ``.bat`` launchers through ``cmd.exe``.  That command interpreter reparses
+    every argv element, so a provider prompt or model value must never cross
+    that boundary.  Refuse the launch rather than pretending ``shell=False``
+    makes a shell script behave like a native executable.
+    """
+
+    if platform_name != "nt":
+        return "claude"
+    if not resolved:
+        raise RuntimeError("Claude executable could not be resolved before spawn")
+    if resolved.casefold().endswith(_CMD_SHIM_SUFFIXES):
+        raise RuntimeError(
+            "Claude execution refused: Windows .cmd/.bat launchers reparse argv"
+        )
+    return resolved
 
 
 def build_prompt(
@@ -156,8 +182,9 @@ def _invoke_claude_cli(
 
     paths = trim_paths(paths)
     prompt = build_prompt(objective, repo_root, paths, agent)
+    command = _command_for_spawn(shutil.which("claude"), platform_name=os.name)
     cmd = [
-        "claude",
+        command,
         "-p",
         prompt,
         "--model",
