@@ -31,6 +31,7 @@ on:
       - "daedalus/runtimes/provider_invocation_payload.py"
       - "daedalus/runtimes/provider_invocation_abi.py"
       - "daedalus/runtimes/provider_runtime_invocation_binding.py"
+      - "daedalus/runtimes/sealed_broker.py"
       - "tools/gui_check.py"
       - "tests/test_claude_bridge_cmd_shim.py"
       - "tests/test_gui_check_budget.py"
@@ -53,6 +54,7 @@ on:
       - "tests/runtimes/test_provider_invocation_abi_review.py"
       - "tests/runtimes/test_provider_runtime_invocation_binding.py"
       - "tests/runtimes/test_provider_runtime_invocation_binding_review.py"
+      - "tests/runtimes/test_sealed_runtime_provider.py"
       - "docs/research/hermes-agent-v2026.8.19-provenance.json"
       - "docs/research/hermes-agent-v2026.8.27-delta-provenance.json"
       - "docs/work-packets/G1-IKARUS-07S_PROVIDER_STACK_SERIALIZATION.md"
@@ -108,6 +110,7 @@ jobs:
           daedalus/runtimes/provider_invocation_payload.py
           daedalus/runtimes/provider_invocation_abi.py
           daedalus/runtimes/provider_runtime_invocation_binding.py
+          daedalus/runtimes/sealed_broker.py
           tools/gui_check.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
@@ -127,6 +130,7 @@ jobs:
           tests/runtimes/test_provider_invocation_abi_review.py
           tests/runtimes/test_provider_runtime_invocation_binding.py
           tests/runtimes/test_provider_runtime_invocation_binding_review.py
+          tests/runtimes/test_sealed_runtime_provider.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
       - run: >-
@@ -155,6 +159,7 @@ jobs:
           tests/runtimes/test_provider_invocation_abi_review.py
           tests/runtimes/test_provider_runtime_invocation_binding.py
           tests/runtimes/test_provider_runtime_invocation_binding_review.py
+          tests/runtimes/test_sealed_runtime_provider.py
           tests/runtimes/test_provider_invocation_authority.py
           tests/runtimes/test_runtime_provider_exact_authority_boundary.py
           tests/runtimes/test_provider_observation_authority_review.py
