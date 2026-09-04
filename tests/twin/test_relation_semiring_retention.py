@@ -147,6 +147,45 @@ def test_known_semiring_name_still_allows_protocol_backend_substitution() -> Non
     assert tuple(block.iter_entries()) == (("a", "T", True),)
 
 
+def test_semiring_validation_reuses_canonical_name_after_resolution(monkeypatch) -> None:
+    rows, columns = axes()
+    block = TypedRelationBlock.from_coordinates(
+        subject=subject(),
+        signature=RelationSignature("code", "declares", "type"),
+        row_axis=rows,
+        column_axis=columns,
+        coordinates=(("a", "T", True),),
+        semiring=AlternateBooleanBackend(),
+    )
+    resolutions = 0
+
+    class ResolvedBackend:
+        zero = False
+        one = True
+
+        @property
+        def name(self):
+            raise AssertionError("resolved caller semiring name must not be re-read")
+
+        @staticmethod
+        def add(left: bool, right: bool) -> bool:
+            return left or right
+
+        @staticmethod
+        def multiply(left: bool, right: bool) -> bool:
+            return left and right
+
+    def canonical_reference(_selected):
+        nonlocal resolutions
+        resolutions += 1
+        return relation_blocks.BooleanSemiring()
+
+    monkeypatch.setattr(relation_blocks, "_reference_semiring", canonical_reference)
+
+    assert block.get("a", "T", ResolvedBackend()) is True
+    assert resolutions == 1
+
+
 def test_known_semiring_name_cannot_spoof_reference_identity_or_addition() -> None:
     rows, columns = axes()
 
