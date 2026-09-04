@@ -1,0 +1,115 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-GARDEN-HYBRID-01",
+  "title": "Prune duplicate packaged Fourfold hybrid retrieval stack",
+  "date": "2026-09-04",
+  "classification": "GARDENING",
+  "status": "closed-candidate-awaiting-owner-decision",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "campaign_issue": 239,
+  "pull_request": 313,
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+  "exact_tested_head": "c2d62a9a0ea741c5d0ef93ed972ea858a044518f",
+  "finding": "After PRs 311, 312 and 262 were merged on 2026-09-04, main contained two independent Fourfold-hybrid implementations. The packaged daedalus.twin contraction/hybrid/compiler stack also reintroduced the ContractionPlan/ReferenceContractionInterpreter layer that the canonical Fourfold Tensor kernel contract explicitly records as pruned by G1-TENSOR-01CV for duplicating validation, operation budgeting and TypedRelationBlock execution. Repository search found no production consumer outside the packaged hybrid stack's own tests and workflow imports.",
+  "gardener_decision": "Retain the merged PR/commit/blob history and the contained experiments/fourfold_hybrid_retrieval implementation as evidence. Remove only the duplicate live packaged implementation, its dedicated tests and redundant workflow; keep the canonical TensorView, semirings, TypedRelationBlock, strict relation projection, GPU probe, latent experiment and Fourfold authority unchanged.",
+  "deleted": [
+    {
+      "path": "daedalus/twin/contractions.py",
+      "blob": "aed2c2b9982ccfc45b0ae2e0240029279dea8740",
+      "deletion_commit": "ae5a867d3ea4377fefad2e7f492532388fd96215"
+    },
+    {
+      "path": "daedalus/twin/hybrid_retrieval.py",
+      "blob": "2d1f7e795094ecf7bf2a181bd9217e5709e77ab5",
+      "deletion_commit": "50ef15b0f1efffc301a3d15b62fecaa2bf1df00e"
+    },
+    {
+      "path": "daedalus/twin/relation_compiler.py",
+      "blob": "b7803d9584e526d740ad282c5328da0e50a50caa",
+      "deletion_commit": "8f27ec50237b6f692ba36baf8d0a147f54731564"
+    },
+    {
+      "path": "tests/twin/test_contraction_operation_budget.py",
+      "blob": "d38d5c548c6aa648ead7ba6cd8922ff134afa0db",
+      "deletion_commit": "87c2197bbb5bc3f304497ad897e82f450834620f"
+    },
+    {
+      "path": "tests/twin/test_fourfold_hybrid_retrieval.py",
+      "blob": "d9941ef030e1a50ddffa42cae709deb3b1bca771",
+      "deletion_commit": "118672d0aa20e1e5707538317fc0bba9fe01b56c"
+    },
+    {
+      "path": ".github/workflows/fourfold-hybrid-retrieval-evidence.yml",
+      "blob": "afb9ddf933b18ee1484b5b1d8df6ef1e2a66225e",
+      "deletion_commit": "ef325c1c3b56a18199f5278e47f34c96ca3e13cc"
+    }
+  ],
+  "changed": [
+    {
+      "path": ".github/workflows/fourfold-v2.yml",
+      "pre_blob": "bd6c79267cd419b97c49c020c4d60d6c7f3b182a",
+      "post_blob": "b316b5df744d3da1e3393daa9aa21c5667c882c2",
+      "commit": "68de26435cb3edcf45514aa5488bb8681537ecdb",
+      "purpose": "Remove import smoke for the retired duplicate modules while retaining the existing integrated Fourfold/Tensor contract workflow."
+    }
+  ],
+  "added": [
+    {
+      "path": "tests/twin/test_hybrid_retrieval_gardening.py",
+      "commit": "c2d62a9a0ea741c5d0ef93ed972ea858a044518f",
+      "purpose": "Prevent the second packaged hybrid stack from regrowing while requiring the retained contained experiment to remain available as evidence."
+    }
+  ],
+  "retained_evidence": {
+    "contained_experiment": "experiments/fourfold_hybrid_retrieval/",
+    "historical_prs": [311, 312, 262],
+    "note": "No historical PR, commit, blob, work-packet record or archive anchor was deleted or rewritten."
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33866589758,
+    "head_sha": "c2d62a9a0ea741c5d0ef93ed972ea858a044518f",
+    "status": "completed",
+    "conclusion": "success",
+    "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "integrated_contract_surface": "success",
+    "public_package_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only",
+    "full_suite": "not executed; manual-only job skipped on pull_request",
+    "claim_boundary": "Green evidence applies only to exact_tested_head, not to the later evidence-only record commit."
+  },
+  "delta_before_record": {
+    "changed_files": 8,
+    "additions": 46,
+    "deletions": 1998,
+    "net_lines": -1952
+  },
+  "claims": {
+    "full_repository_suite_green": false,
+    "benchmark_superiority": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "automatic_merge": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "remote_branch_reused": "g1/gardener-post-release-containment-03",
+    "branch_rebased_or_force_updated": false,
+    "branch_fast_forwarded_to_pre_head": true,
+    "archive_branch": "archive/legacy-20260830",
+    "archive_branch_head_observed": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_branch_written": false,
+    "evidence_deleted_for_branch_count": false
+  }
+}
