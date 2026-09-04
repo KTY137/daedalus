@@ -65,15 +65,15 @@ def test_profile_executes_the_existing_canonical_constructor() -> None:
         assert metric["cumulative_ms"] >= 0.0
 
 
-def test_probe_separates_exact_scalar_admission_without_structural_bypass() -> None:
+def test_probe_pairs_support_decode_and_scalar_admission_without_bypass() -> None:
     report = _PROFILE.run_probe((_case(),), profile_repeats=2)
 
-    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/2"
+    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/3"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
-    assert report["semantic_scope"] == "canonical Boolean TypedRelationBlock construction only"
-    assert "unchanged canonical constructor" in report["measurement_contract"]
+    assert report["semantic_scope"] == "canonical Boolean TypedRelationBlock materialization only"
+    assert "unchanged packed-support decoder and canonical constructor" in report["measurement_contract"]
     assert "exact existing _stored Boolean scalar-admission contract" in report["measurement_contract"]
     assert "Structural validation is not duplicated or bypassed" in report["measurement_contract"]
     assert "non-additive" in report["measurement_contract"]
@@ -83,9 +83,12 @@ def test_probe_separates_exact_scalar_admission_without_structural_bypass() -> N
     assert result["claim"] == "none"
     assert result["unprofiled_construct_ms"]["samples"] == 2
     assert result["profiled_construct_wall_ms"]["samples"] == 2
+    assert result["support_decode"]["unprofiled_ms"]["samples"] == 2
     assert result["scalar_admission"]["unprofiled_ms"]["samples"] == 2
+    assert result["support_decode"]["entry_count"] == result["output_entries"]
     assert result["scalar_admission"]["value_count"] == result["output_entries"]
     assert result["scalar_admission"]["admitted_count"] == result["output_entries"]
+    assert result["support_decode"]["unprofiled_ms"]["median"] >= 0.0
     assert result["scalar_admission"]["unprofiled_ms"]["median"] >= 0.0
     assert result["unprofiled_construct_ms"]["median"] >= 0.0
     assert result["profiled_construct_wall_ms"]["median"] >= 0.0
@@ -93,10 +96,28 @@ def test_probe_separates_exact_scalar_admission_without_structural_bypass() -> N
     assert result["profile_metrics"]["typed_block_post_init"]["calls"] == 1
     assert result["profile_metrics"]["stored_scalar_admission"]["calls"] == result["output_entries"]
     assert result["profile_metrics"]["bounded_sequence_admission"]["calls"] == 3
+    assert result["unprofiled_comparison"]["support_decode_to_constructor_ratio"] is None or result["unprofiled_comparison"]["support_decode_to_constructor_ratio"] >= 0.0
+    assert result["unprofiled_comparison"]["scalar_to_constructor_ratio"] is None or result["unprofiled_comparison"]["scalar_to_constructor_ratio"] >= 0.0
+    assert "independently sampled medians" in result["unprofiled_comparison"]["interpretation"]
+    assert "non-additive" in result["unprofiled_comparison"]["interpretation"]
     assert result["profile_attribution"]["post_init_cumulative_ms_median"] >= 0.0
     assert result["profile_attribution"]["stored_cumulative_ms_median"] >= 0.0
     assert result["profile_attribution"]["post_init_less_stored_cumulative_ms_median"] >= 0.0
     assert "not a pure structural wall-time" in result["profile_attribution"]["interpretation"]
+
+
+def test_support_decode_measurement_reuses_exact_existing_decoder() -> None:
+    case = _case()
+    left, right, _ = _PROFILE.build_boolean_case(case)
+    masks = _PROFILE.compose_packed_rows(_PROFILE.pack_rows(left), _PROFILE.pack_rows(right))
+
+    expected = _PROFILE._csr_support_from_masks(left, right, masks)
+    report = _PROFILE.run_probe((case,), profile_repeats=1)
+    result = report["cases"][0]
+
+    assert result["support_decode"]["contract"].endswith("._csr_support_from_masks")
+    assert result["support_decode"]["row_count"] == len(expected[0]) - 1
+    assert result["support_decode"]["entry_count"] == len(expected[1])
 
 
 def test_scalar_admission_reuses_fail_closed_persisted_boolean_contract() -> None:
