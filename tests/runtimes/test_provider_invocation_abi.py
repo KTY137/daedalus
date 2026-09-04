@@ -177,7 +177,6 @@ def _issue(execution: EffectExecutionRequest):
         authority,
         payload,
         pre_admission,
-        dependency_manifest_sha256=_sha("dependency-manifest"),
         authority_id="authority.runtime-provider-observation",
         authority_keyring=AUTHORITY_KEYRING,
         observation_keyring=OBSERVATION_KEYRING,
@@ -214,17 +213,14 @@ def test_authenticated_invocation_abi_round_trips_and_verifies() -> None:
     assert restored.pre_admission_sha256 == pre_admission.digest
     assert restored.invoke_target == pre_admission.invoke_target
     assert restored.output_evidence_target == pre_admission.output_digests_target
-    assert restored.dependency_manifest_sha256 == _sha("dependency-manifest")
     assert restored.to_dict()["provider_execution_allowed"] is False
     assert restored.to_dict()["effect_start_authorized"] is False
 
 
 def test_issue_uses_only_the_authenticated_canonical_authority_keyring() -> None:
-    parameters = inspect.signature(issue_provider_invocation_abi_contract).parameters
-    assert "authority_secret" not in parameters
-    dependency_manifest = parameters["dependency_manifest_sha256"]
-    assert dependency_manifest.kind is inspect.Parameter.KEYWORD_ONLY
-    assert dependency_manifest.default is inspect.Parameter.empty
+    assert "authority_secret" not in inspect.signature(
+        issue_provider_invocation_abi_contract
+    ).parameters
 
     execution = _execution()
     authority = _authority(execution)
@@ -239,7 +235,6 @@ def test_issue_uses_only_the_authenticated_canonical_authority_keyring() -> None
             authority,
             payload,
             pre_admission,
-            dependency_manifest_sha256=_sha("dependency-manifest"),
             authority_id="authority.runtime-provider-observation",
             authority_keyring={"provider-authority-key": FOREIGN_AUTHORITY_SECRET},
             observation_keyring=OBSERVATION_KEYRING,
@@ -259,7 +254,6 @@ def test_issue_snapshots_stateful_authority_keyring_before_authentication() -> N
         authority,
         payload,
         pre_admission,
-        dependency_manifest_sha256=_sha("dependency-manifest"),
         authority_id="authority.runtime-provider-observation",
         authority_keyring=keyring,
         observation_keyring=OBSERVATION_KEYRING,
@@ -295,7 +289,6 @@ def test_payload_for_other_adapter_refuses_before_contract_issue() -> None:
             authority,
             foreign_payload,
             _pre_admission(authority),
-            dependency_manifest_sha256=_sha("dependency-manifest"),
             authority_id="authority.runtime-provider-observation",
             authority_keyring=AUTHORITY_KEYRING,
             observation_keyring=OBSERVATION_KEYRING,
@@ -314,10 +307,6 @@ def test_target_or_payload_digest_substitution_breaks_signature() -> None:
         dataclasses.replace(
             contract,
             output_evidence_source_sha256=_sha("other-output-source"),
-        ),
-        dataclasses.replace(
-            contract,
-            dependency_manifest_sha256=_sha("other-dependency-manifest"),
         ),
     ):
         with pytest.raises(ProviderInvocationABISignatureError):

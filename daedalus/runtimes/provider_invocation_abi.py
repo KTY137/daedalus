@@ -35,7 +35,7 @@ from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 
-_SCHEMA = "daedalus-provider-invocation-abi/2"
+_SCHEMA = "daedalus-provider-invocation-abi/1"
 _TRUE_CLAIMS = (
     "parent_invocation_authority_authenticated",
     "payload_digest_authenticated",
@@ -296,7 +296,6 @@ class ProviderInvocationABIContract:
     invoke_source_sha256: str
     output_evidence_target: str
     output_evidence_source_sha256: str
-    dependency_manifest_sha256: str
     authority_key_id: str
     signature_sha256: str
 
@@ -330,7 +329,6 @@ class ProviderInvocationABIContract:
                 "pre_admission_sha256",
                 "invoke_source_sha256",
                 "output_evidence_source_sha256",
-                "dependency_manifest_sha256",
                 "signature_sha256",
             ):
                 object.__setattr__(
@@ -387,7 +385,6 @@ class ProviderInvocationABIContract:
             "invoke_source_sha256": self.invoke_source_sha256,
             "output_evidence_target": self.output_evidence_target,
             "output_evidence_source_sha256": self.output_evidence_source_sha256,
-            "dependency_manifest_sha256": self.dependency_manifest_sha256,
             "authority_key_id": self.authority_key_id,
             "signature_sha256": self.signature_sha256,
             **{field: True for field in _TRUE_CLAIMS},
@@ -419,7 +416,6 @@ class ProviderInvocationABIContract:
             "invoke_source_sha256",
             "output_evidence_target",
             "output_evidence_source_sha256",
-            "dependency_manifest_sha256",
             "authority_key_id",
             "signature_sha256",
         }
@@ -471,7 +467,6 @@ def issue_provider_invocation_abi_contract(
     payload: ProviderInvocationPayload,
     pre_admission: ProviderExecutablePreAdmissionReceipt,
     *,
-    dependency_manifest_sha256: str,
     authority_id: str,
     authority_keyring: Mapping[str, bytes | str],
     observation_keyring: Mapping[str, bytes | str],
@@ -527,7 +522,6 @@ def issue_provider_invocation_abi_contract(
         invoke_source_sha256=pre_admission.invoke_source_sha256,
         output_evidence_target=pre_admission.output_digests_target,
         output_evidence_source_sha256=pre_admission.output_digests_source_sha256,
-        dependency_manifest_sha256=dependency_manifest_sha256,
         authority_key_id=authority.observation_authority.authority_key_id,
         signature_sha256="0" * 64,
     )
@@ -602,7 +596,6 @@ def verify_provider_invocation_abi_contract(
         authority,
         payload,
         pre_admission,
-        dependency_manifest_sha256=contract.dependency_manifest_sha256,
         authority_id=authority_id,
         authority_keyring=authority_rows,
         observation_keyring=observation_rows,

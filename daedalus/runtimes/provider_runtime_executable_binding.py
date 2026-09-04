@@ -36,7 +36,7 @@ from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 
-_SCHEMA = "daedalus-provider-runtime-executable-binding/2"
+_SCHEMA = "daedalus-provider-runtime-executable-binding/1"
 _TRUE_CLAIMS = (
     "observation_authority_authenticated_before_effect",
     "registered_executable_objects_reverified",
@@ -170,7 +170,6 @@ class ProviderRuntimeExecutableBindingReceipt:
     output_digests_target: str
     output_digests_source_sha256: str
     output_digests_code_sha256: str
-    dependency_manifest_sha256: str
 
     def __post_init__(self) -> None:
         try:
@@ -201,7 +200,6 @@ class ProviderRuntimeExecutableBindingReceipt:
                 "invoke_code_sha256",
                 "output_digests_source_sha256",
                 "output_digests_code_sha256",
-                "dependency_manifest_sha256",
             ):
                 object.__setattr__(
                     self,
@@ -249,7 +247,6 @@ class ProviderRuntimeExecutableBindingReceipt:
             "output_digests_target": self.output_digests_target,
             "output_digests_source_sha256": self.output_digests_source_sha256,
             "output_digests_code_sha256": self.output_digests_code_sha256,
-            "dependency_manifest_sha256": self.dependency_manifest_sha256,
             **{field: True for field in _TRUE_CLAIMS},
             **{field: False for field in _FALSE_CLAIMS},
         }
@@ -282,7 +279,6 @@ class ProviderRuntimeExecutableBindingReceipt:
             "output_digests_target",
             "output_digests_source_sha256",
             "output_digests_code_sha256",
-            "dependency_manifest_sha256",
         }
         if not isinstance(payload, Mapping) or set(payload) != {
             "schema",
@@ -496,7 +492,6 @@ def bind_provider_runtime_executable(
         output_digests_target=admission.output_digests_target,
         output_digests_source_sha256=admission.output_digests_source_sha256,
         output_digests_code_sha256=admission.output_digests_code_sha256,
-        dependency_manifest_sha256=admission.dependency_manifest_sha256,
     )
 
 
