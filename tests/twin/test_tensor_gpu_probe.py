@@ -16,6 +16,7 @@ PROBE_PATH = (
 _NAMESPACE = runpy.run_path(str(PROBE_PATH))
 ProbeCase = _NAMESPACE["ProbeCase"]
 _cuda_oom_result = _NAMESPACE["_cuda_oom_result"]
+_resident_mm = _NAMESPACE["_resident_mm"]
 build_boolean_case = _NAMESPACE["build_boolean_case"]
 blocked_report = _NAMESPACE["blocked_report"]
 estimate_dense_device_bytes = _NAMESPACE["estimate_dense_device_bytes"]
@@ -67,6 +68,25 @@ def test_device_memory_estimate_accounts_for_padding_and_sparse_scatter_indices(
     # 16x16 padded resident matrices/mask at 7 bytes per cell plus one live
     # pair of int64 scatter-index tensors for 9 canonical entries.
     assert estimate_dense_device_bytes(case) == (16 * 16 * 7) + (9 * 2 * 8)
+
+
+def test_resident_mm_reuses_the_caller_owned_output_buffer() -> None:
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.calls: list[tuple[object, object, object]] = []
+
+        def mm(self, left: object, right: object, *, out: object) -> object:
+            self.calls.append((left, right, out))
+            return out
+
+    fake = FakeTorch()
+    output = object()
+    assert _resident_mm(fake, "left", "right", output) is output
+    assert fake.calls == [("left", "right", output)]
+
+    source = PROBE_PATH.read_text(encoding="utf-8")
+    assert "torch.matmul(" not in source
+    assert source.count("_resident_mm(torch, left_dense, right_dense, product)") == 2
 
 
 def test_synthetic_case_is_deterministic_and_matches_reference_contract() -> None:
