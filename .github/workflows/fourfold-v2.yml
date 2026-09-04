@@ -132,6 +132,28 @@ jobs:
           path: runs/tensor_gpu/cpu_bitset_residency_ci.json
           if-no-files-found: error
           retention-days: 7
+      - name: Emit frozen packed-prefix fanout diagnostic
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python experiments/tensor_gpu/cpu_bitset_fanout_probe.py \
+            --sizes 64 128 256 \
+            --densities 0.01 0.05 \
+            --chain-relations 3 \
+            --queries 4 \
+            --max-resident-mib 64 \
+            --repeats 5 \
+            --warmup 2 \
+            --output runs/tensor_gpu/cpu_bitset_fanout_ci.json
+      - name: Retain frozen packed-prefix fanout diagnostic
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensor-cpu-bitset-fanout-${{ github.sha }}
+          path: runs/tensor_gpu/cpu_bitset_fanout_ci.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Verify public package API
         run: |
           python - <<'PY'
