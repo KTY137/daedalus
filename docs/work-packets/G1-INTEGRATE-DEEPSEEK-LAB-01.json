@@ -1,0 +1,33 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-INTEGRATE-DEEPSEEK-LAB-01",
+  "title": "Integrate the legacy DeepSeek laboratory line without regressing current main",
+  "status": "integrated-selectively",
+  "date": "2026-09-04",
+  "classification": "INTEGRATION",
+  "source_branch": "experiment/deepseek-lab",
+  "source_head": "a31d004dc764dd7b64fec88247e48d59f2b5519c",
+  "strategy": "two-parent current-main-wins merge with dependency-safe live ports",
+  "live_ports": [
+    "daedalus/arch_memory.py",
+    "daedalus/arch_hook.py",
+    "daedalus/shift.py",
+    "daedalus/shift_hook.py",
+    "daedalus/shift_ticker.py",
+    "tests/test_arch_memory.py",
+    "tests/test_shift.py"
+  ],
+  "history_retained": true,
+  "not_replayed_into_live_tree": [
+    "historical provider and router replacements",
+    "historical loop, config, Forest, index and parser replacements",
+    "historical agent-environment and MCP configuration",
+    "historical GUI probe and wiki/typegraph stack"
+  ],
+  "reason": "Those files were authored against a tree more than two thousand commits behind current main and overlap newer trust, runtime, provider, Fourfold and UI implementations. Replaying them would be a regression rather than an integration. Their exact code remains reachable through the second merge parent.",
+  "authority": {
+    "changes_gate": false,
+    "grants_owner_approval": false,
+    "automatic_promotion": false
+  }
+}
