@@ -13,6 +13,7 @@ on:
     paths:
       - "apps/web/src/App.tsx"
       - "apps/web/src/types.ts"
+      - "apps/web/tests/_app.ts"
       - "apps/web/tests/classic-stream.spec.ts"
       - "daedalus/claude_bridge.py"
       - "daedalus/ikarus_effect_bridge.py"
@@ -30,7 +31,9 @@ on:
       - "daedalus/runtimes/provider_invocation_payload.py"
       - "daedalus/runtimes/provider_invocation_abi.py"
       - "daedalus/runtimes/provider_runtime_invocation_binding.py"
+      - "tools/gui_check.py"
       - "tests/test_claude_bridge_cmd_shim.py"
+      - "tests/test_gui_check_budget.py"
       - "tests/test_ikarus_bridge_progress.py"
       - "tests/test_ikarus_effect_bridge.py"
       - "tests/test_ikarus_oneshot.py"
@@ -105,7 +108,9 @@ jobs:
           daedalus/runtimes/provider_invocation_payload.py
           daedalus/runtimes/provider_invocation_abi.py
           daedalus/runtimes/provider_runtime_invocation_binding.py
+          tools/gui_check.py
           tests/test_claude_bridge_cmd_shim.py
+          tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
@@ -127,6 +132,7 @@ jobs:
       - run: >-
           python -m pytest -q -p no:cacheprovider
           tests/test_claude_bridge_cmd_shim.py
+          tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
@@ -159,6 +165,7 @@ jobs:
     env:
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
       PYTHONHASHSEED: "0"
+      DAEDALUS_GUI_SUITE_TIMEOUT_S: "1200"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
