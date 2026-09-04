@@ -11,6 +11,9 @@ on:
       - g1/ikarus-effect-bridge-06
       - main
     paths:
+      - "apps/web/src/App.tsx"
+      - "apps/web/src/types.ts"
+      - "apps/web/tests/classic-stream.spec.ts"
       - "daedalus/ikarus_effect_bridge.py"
       - "daedalus/ikarus_oneshot.py"
       - "daedalus/ikarus_tool_scope.py"
@@ -137,3 +140,29 @@ jobs:
           tests/runtimes/test_provider_invocation_authority.py
           tests/runtimes/test_runtime_provider_exact_authority_boundary.py
           tests/runtimes/test_provider_observation_authority_review.py
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: npm ci --prefix apps/web
+      - run: npm run build --prefix apps/web
+      - run: npx --prefix apps/web playwright install --with-deps chromium --only-shell
+      - run: python tools/gui_check.py
