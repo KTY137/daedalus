@@ -102,7 +102,16 @@ jobs:
             --sizes 64 128 256 \
             --densities 0.01 0.05 \
             --repeats 5 \
-            --warmup 2
+            --warmup 2 \
+            --output runs/tensor_gpu/cpu_bitset_ci.json
+      - name: Retain bounded packed CPU bitset diagnostic
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensor-cpu-bitset-baseline-${{ github.sha }}
+          path: runs/tensor_gpu/cpu_bitset_ci.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Verify public package API
         run: |
           python - <<'PY'
