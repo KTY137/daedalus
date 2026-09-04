@@ -105,6 +105,7 @@ class ProbeCase:
 class _GpuExecution:
     block: TypedRelationBlock[bool]
     pack_to_device_ms: float
+    output_allocate_ms: float
     kernel_ms: tuple[float, ...]
     readback_and_canonicalize_ms: float
     peak_device_bytes: int
@@ -342,6 +343,12 @@ def _validate_gpu_operands(
         raise ValueError("current probe requires one common square probe size")
 
 
+def _resident_mm(torch: Any, left_dense: Any, right_dense: Any, product: Any) -> Any:
+    """Execute one 2-D CUDA GEMM into an already allocated output tensor."""
+
+    return torch.mm(left_dense, right_dense, out=product)
+
+
 def _gpu_boolean_matmul(
     torch: Any,
     left: TypedRelationBlock[bool],
@@ -385,10 +392,19 @@ def _gpu_boolean_matmul(
     torch.cuda.synchronize(device_index)
     pack_ms = (time.perf_counter_ns() - started) / 1_000_000.0
 
-    product = None
+    started = time.perf_counter_ns()
+    with torch.inference_mode():
+        product = torch.empty(
+            (padded_size, padded_size),
+            dtype=dtype,
+            device=device,
+        )
+    torch.cuda.synchronize(device_index)
+    output_allocate_ms = (time.perf_counter_ns() - started) / 1_000_000.0
+
     with torch.inference_mode():
         for _ in range(case.warmup):
-            product = torch.matmul(left_dense, right_dense)
+            _resident_mm(torch, left_dense, right_dense, product)
         torch.cuda.synchronize(device_index)
 
         kernel_ms: list[float] = []
@@ -396,12 +412,11 @@ def _gpu_boolean_matmul(
             start_event = torch.cuda.Event(enable_timing=True)
             end_event = torch.cuda.Event(enable_timing=True)
             start_event.record()
-            product = torch.matmul(left_dense, right_dense)
+            _resident_mm(torch, left_dense, right_dense, product)
             end_event.record()
             torch.cuda.synchronize(device_index)
             kernel_ms.append(float(start_event.elapsed_time(end_event)))
 
-    assert product is not None
     started = time.perf_counter_ns()
     support = (product[: case.size, : case.size] > 0).to(
         device="cpu",
@@ -442,6 +457,7 @@ def _gpu_boolean_matmul(
     return _GpuExecution(
         block=block,
         pack_to_device_ms=pack_ms,
+        output_allocate_ms=output_allocate_ms,
         kernel_ms=tuple(kernel_ms),
         readback_and_canonicalize_ms=readback_ms,
         peak_device_bytes=peak_bytes,
@@ -503,6 +519,7 @@ def run_case(
     kernel_median = float(statistics.median(gpu.kernel_ms))
     end_to_end_ms = (
         gpu.pack_to_device_ms
+        + gpu.output_allocate_ms
         + kernel_median
         + gpu.readback_and_canonicalize_ms
     )
@@ -536,6 +553,7 @@ def run_case(
         },
         "gpu": {
             "pack_to_device_ms": gpu.pack_to_device_ms,
+            "output_allocate_ms": gpu.output_allocate_ms,
             "kernel_ms_median": kernel_median,
             "kernel_ms_min": min(gpu.kernel_ms),
             "kernel_ms_max": max(gpu.kernel_ms),
