@@ -109,6 +109,31 @@ def test_adapter_maps_only_evidence_backed_cross_plane_relations():
     assert snapshot.plane_map["type"].relation_sha256s
 
 
+def test_snapshot_computes_each_binding_digest_once_during_canonicalization(monkeypatch):
+    snapshot = adapted()
+    original_digest = CrossPlaneBinding.digest.fget
+    assert original_digest is not None
+    calls = 0
+
+    def counted_digest(binding: CrossPlaneBinding) -> str:
+        nonlocal calls
+        calls += 1
+        return original_digest(binding)
+
+    monkeypatch.setattr(CrossPlaneBinding, "digest", property(counted_digest))
+    rebuilt = FourfoldSnapshot(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_forest_sha256=snapshot.source_forest_sha256,
+        planes=snapshot.planes,
+        bindings=snapshot.bindings,
+        provenance=snapshot.provenance,
+    )
+
+    assert rebuilt == snapshot
+    assert calls == len(snapshot.bindings)
+
+
 def test_snapshot_round_trips_strictly_and_rejects_unknown_fields():
     snapshot = adapted()
     parsed = parse_fourfold_snapshot(json.loads(snapshot.to_json()))

@@ -82,3 +82,37 @@ def test_round_trip_rejects_nested_shape_and_evidence_wire_drift() -> None:
     payload["values"][0]["scalar_type"] = "opaque"
     with pytest.raises(ValueError, match="evidence-dag wire values"):
         TypedRelationBlock.from_dict(payload)
+
+
+def test_canonical_block_reuses_exact_values_tuple_after_validation() -> None:
+    values = (True,)
+    original = TypedRelationBlock(
+        subject=subject(),
+        signature=RelationSignature("code", "declares", "type"),
+        row_axis=TypedAxis("code", "code", ("src/a.py",)),
+        column_axis=TypedAxis("type", "type", ("Widget",)),
+        semiring_name="boolean",
+        row_offsets=(0, 1),
+        column_indices=(0,),
+        values=values,
+    )
+
+    assert original.values is values
+
+
+def test_values_tuple_falls_back_when_scalar_normalization_is_required() -> None:
+    values = (1,)
+    normalized = TypedRelationBlock(
+        subject=subject(),
+        signature=RelationSignature("code", "costs", "type"),
+        row_axis=TypedAxis("code", "code", ("src/a.py",)),
+        column_axis=TypedAxis("type", "type", ("Widget",)),
+        semiring_name="tropical",
+        row_offsets=(0, 1),
+        column_indices=(0,),
+        values=values,
+    )
+
+    assert normalized.values == (1.0,)
+    assert normalized.values is not values
+    assert type(normalized.values[0]) is float

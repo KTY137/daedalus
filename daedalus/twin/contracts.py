@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, ClassVar, Mapping, Sequence
 
-from ..kernel.contracts.base import (
+from ..schemas import (
     CanonicalContract,
     ContractProvenance,
     _identifier,
@@ -45,13 +45,30 @@ def _node_id(value: Any, name: str) -> str:
 def _sorted_node_ids(values: Sequence[Any], name: str) -> tuple[str, ...]:
     if isinstance(values, (str, bytes)):
         raise ValueError(f"{name} must be a sequence, not a string")
-    converted = tuple(
-        _node_id(value, f"{name}[{index}]")
-        for index, value in enumerate(values)
-    )
-    if len(set(converted)) != len(converted):
-        raise ValueError(f"{name} must not contain duplicates")
-    return tuple(sorted(converted))
+
+    converted: list[str] = []
+    in_order = True
+    previous: str | None = None
+    for index, value in enumerate(values):
+        node_id = _node_id(value, f"{name}[{index}]")
+        if previous is not None:
+            if node_id == previous:
+                raise ValueError(f"{name} must not contain duplicates")
+            if node_id < previous:
+                in_order = False
+        converted.append(node_id)
+        previous = node_id
+
+    if in_order:
+        if type(values) is tuple:
+            return values
+        return tuple(converted)
+
+    converted.sort()
+    for index in range(1, len(converted)):
+        if converted[index - 1] == converted[index]:
+            raise ValueError(f"{name} must not contain duplicates")
+    return tuple(converted)
 
 
 @dataclass(frozen=True)
@@ -331,19 +348,22 @@ class FourfoldSnapshot(CanonicalContract):
                 raise ValueError(
                     "binding target endpoint is not a member of its declared plane"
                 )
-            if binding.semantic_key in semantic_claims:
+            semantic_key = binding.semantic_key
+            if semantic_key in semantic_claims:
                 raise ValueError(
                     "bindings must not repeat the same semantic claim with a "
                     "different evidence bundle"
                 )
-            semantic_claims.add(binding.semantic_key)
-            if binding.digest in unique_by_digest:
+            semantic_claims.add(semantic_key)
+            binding_digest = binding.digest
+            if binding_digest in unique_by_digest:
                 raise ValueError("bindings must not contain duplicates")
-            unique_by_digest[binding.digest] = binding
+            unique_by_digest[binding_digest] = binding
+        ordered_bindings = sorted(unique_by_digest.items(), key=lambda item: item[0])
         object.__setattr__(
             self,
             "bindings",
-            tuple(sorted(unique_by_digest.values(), key=lambda item: item.digest)),
+            tuple(binding for _, binding in ordered_bindings),
         )
         if self.provenance.source_revision != self.source_revision:
             raise ValueError(
@@ -354,7 +374,7 @@ class FourfoldSnapshot(CanonicalContract):
             (
                 self.source_forest_sha256,
                 *(plane.digest for plane in self.planes),
-                *(binding.digest for binding in self.bindings),
+                *(binding_digest for binding_digest, _ in ordered_bindings),
             ),
             "fourfold snapshot",
         )

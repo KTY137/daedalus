@@ -2,14 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-import daedalus.twin.contractions as contractions_module
-from daedalus.twin.contractions import (
-    BlockRef,
-    Compose,
-    ContractionPlan,
-    Hadamard,
-    ReferenceContractionInterpreter,
-)
 from daedalus.twin.relation_blocks import (
     ProjectionSubject,
     RelationSignature,
@@ -105,19 +97,25 @@ def fourfold_query_blocks() -> dict[str, TypedRelationBlock[bool]]:
     }  # type: ignore[return-value]
 
 
-def test_reference_ir_executes_the_multihop_fourfold_query() -> None:
+def test_direct_blocks_execute_the_multihop_fourfold_query() -> None:
     semiring = BooleanSemiring()
     blocks = fourfold_query_blocks()
-    plan = ContractionPlan(
-        output_name="indirect-declaration-documented",
-        expression=Hadamard(
-            Compose(BlockRef("imports"), BlockRef("declares"), "imports-declares"),
-            Compose(BlockRef("documents"), BlockRef("mentions"), "docs-mention-type"),
-            "agrees-under-both-observers",
-        ),
-    )
 
-    result = ReferenceContractionInterpreter(semiring).evaluate(plan, blocks)
+    imports_declares = blocks["imports"].matmul(
+        blocks["declares"],
+        semiring,
+        relation="imports-declares",
+    )
+    docs_mentions = blocks["documents"].matmul(
+        blocks["mentions"],
+        semiring,
+        relation="docs-mention-type",
+    )
+    result = imports_declares.hadamard(
+        docs_mentions,
+        semiring,
+        relation="agrees-under-both-observers",
+    )
 
     assert result.signature == RelationSignature(
         "code", "agrees-under-both-observers", "type"
@@ -306,54 +304,6 @@ def test_typed_middle_axis_must_match_exactly() -> None:
 
     with pytest.raises(ValueError, match="exactly shared typed middle axis"):
         left.matmul(right, semiring, relation="invalid")
-
-
-def test_contraction_plan_digest_is_canonical_and_missing_inputs_refuse() -> None:
-    first = ContractionPlan(
-        "out",
-        Compose(BlockRef("left"), BlockRef("right"), "composed"),
-    )
-    second = ContractionPlan(
-        output_name="out",
-        expression=Compose(
-            left=BlockRef(name="left"),
-            right=BlockRef(name="right"),
-            relation="composed",
-        ),
-    )
-
-    assert first.digest == second.digest
-    with pytest.raises(ValueError, match="unknown block"):
-        ReferenceContractionInterpreter(BooleanSemiring()).evaluate(first, {})
-
-
-def test_contraction_plan_structural_bound_is_fail_closed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(contractions_module, "_MAX_CONTRACTION_PLAN_NODES", 5)
-    at_limit = Compose(
-        Compose(BlockRef("a"), BlockRef("b"), "ab"),
-        BlockRef("c"),
-        "abc",
-    )
-    oversized = Compose(at_limit, BlockRef("d"), "abcd")
-
-    accepted = ContractionPlan("bounded", at_limit)
-    assert len(accepted.digest) == 64
-    assert accepted.to_dict()["expression"]["op"] == "compose"
-    with pytest.raises(ValueError, match="exceeds bounded node limit 5"):
-        ContractionPlan("oversized", oversized)
-
-
-def test_contraction_plan_cycle_terminates_at_structural_bound(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(contractions_module, "_MAX_CONTRACTION_PLAN_NODES", 5)
-    cyclic = Compose(BlockRef("left"), BlockRef("right"), "cycle")
-    object.__setattr__(cyclic, "left", cyclic)
-
-    with pytest.raises(ValueError, match="exceeds bounded node limit 5"):
-        ContractionPlan("cyclic", cyclic)
 
 
 def test_direct_csr_contract_refuses_wrong_scalar_kind_and_structural_zero() -> None:

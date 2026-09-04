@@ -291,10 +291,18 @@ class TypedRelationBlock(Generic[T]):
         columns = _sequence(self.column_indices, "block.column_indices", MAX_BLOCK_ENTRIES)
         if type(columns) is not tuple:
             columns = tuple(columns)
-        values = tuple(
-            _stored(item, self.semiring_name)
-            for item in _sequence(self.values, "block.values", MAX_BLOCK_ENTRIES)
-        )
+        raw_values = _sequence(self.values, "block.values", MAX_BLOCK_ENTRIES)
+        values = None if type(raw_values) is tuple else []
+        for index, item in enumerate(raw_values):
+            stored = _stored(item, self.semiring_name)
+            if values is None and stored is not item:
+                values = [raw_values[position] for position in range(index)]
+            if values is not None:
+                values.append(stored)
+        if values is None:
+            values = raw_values
+        else:
+            values = tuple(values)
         if any(type(item) is not int for item in offsets):
             raise ValueError("block.row_offsets must contain integers")
         if len(offsets) != len(self.row_axis.labels) + 1 or not offsets or offsets[0] != 0:
@@ -536,8 +544,10 @@ class TypedRelationBlock(Generic[T]):
 
     def _require_semiring(self, semiring: Semiring[T]) -> Semiring[Any]:
         reference = _reference_semiring(semiring)
-        if semiring.name != self.semiring_name:
-            raise ValueError(f"block uses semiring {self.semiring_name!r}, not {semiring.name!r}")
+        if reference.name != self.semiring_name:
+            raise ValueError(
+                f"block uses semiring {self.semiring_name!r}, not {reference.name!r}"
+            )
         return reference
 
     def _require_compatible(
@@ -548,7 +558,10 @@ class TypedRelationBlock(Generic[T]):
         if not isinstance(other, TypedRelationBlock):
             raise ValueError("other must be TypedRelationBlock")
         reference = self._require_semiring(semiring)
-        other._require_semiring(semiring)
+        if other.semiring_name != reference.name:
+            raise ValueError(
+                f"block uses semiring {other.semiring_name!r}, not {reference.name!r}"
+            )
         if self.subject != other.subject:
             raise ValueError("relation blocks must bind the same exact Fourfold subject")
         return reference

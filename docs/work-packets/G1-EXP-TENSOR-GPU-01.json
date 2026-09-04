@@ -1,0 +1,138 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-01",
+  "title": "Probe CUDA/Tensor-Core execution for Boolean Fourfold relation composition",
+  "status": "closed-awaiting-owner-gpu-measurement",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "ce8a3b2526bdfb04ae0d0fa31fb9e2c5cc706e92",
+  "production_commit": "1fcd4945dcce877df58fb8366044bd08ab165079",
+  "tested_head": "0942b610f74cbd5f60612a870b86d98e96aaf4b0",
+  "hypothesis": "For sufficiently large or dense Boolean relation blocks, an aligned FP16/BF16 CUDA GEMM may reproduce exact Boolean support faster than the stdlib CSR oracle once inputs remain resident on an NVIDIA GPU. One-shot transfer, dense packing and result canonicalization may erase that advantage for sparse or small Fourfold workloads.",
+  "hardware_boundary": {
+    "target": "CUDA matrix multiplication submitted through PyTorch/cuBLAS",
+    "tensor_cores": "candidate only when device capability, dtype and selected cuBLAS kernel permit; external profiling is required to prove actual Tensor-Core use",
+    "rt_cores": "not used; ray traversal/intersection hardware is not a general semiring executor",
+    "raster_units": "not used; graphics rasterization is not the selected computational contract",
+    "semantic_scope": "Boolean path existence only",
+    "natural_semiring": "not admitted because FP16/BF16 path multiplicities are not exact in general",
+    "evidence_semiring": "not admitted; provenance remains on the CPU/reference boundary"
+  },
+  "scope": {
+    "added": [
+      "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "tests/twin/test_tensor_gpu_probe.py",
+      "docs/work-packets/G1-EXP-TENSOR-GPU-01.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_runtime_dependency": false,
+    "adds_backend_to_daedalus_twin": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler": false,
+    "adds_semantic_plane": false,
+    "automatic_promotion": false
+  },
+  "experiment_contract": {
+    "input": "two exact Boolean TypedRelationBlock values with one shared typed middle axis and one exact Fourfold subject",
+    "encoding": "canonical CSR support is scattered into zero-padded FP16/BF16 dense matrices aligned to 8- or 16-element tiles",
+    "operation": "torch.matmul on CUDA followed by support > 0",
+    "oracle": "TypedRelationBlock.matmul with BooleanSemiring",
+    "correctness": "when the bounded CPU oracle executes, every retained row/column support entry must be exactly equal",
+    "measurements": [
+      "typed CSR fixture construction",
+      "sparse-to-dense packing and host/device submission",
+      "CUDA kernel median/min/max with explicit synchronization",
+      "device-to-host support readback and canonical TypedRelationBlock reconstruction",
+      "resident-kernel and one-shot ratios against the CPU oracle",
+      "peak allocated device bytes"
+    ],
+    "reported_environment": [
+      "torch version",
+      "CUDA runtime version",
+      "device name and index",
+      "compute capability",
+      "free and total VRAM",
+      "dtype, tile multiple, padded size, density and exact reference operation count"
+    ],
+    "bounds": {
+      "max_axis": 8192,
+      "max_input_entries_per_block": 1000000,
+      "max_reference_operations": 5000000,
+      "max_cases": 32,
+      "max_repeats": 100,
+      "max_warmup": 50,
+      "default_device_memory_ceiling_mib": 1024,
+      "additional_vram_rule": "the estimate must also fit inside half of currently free device memory"
+    }
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "blob": "52efd5484aca5242f5e118ae243ed60796dd8e83"
+    },
+    {
+      "path": "tests/twin/test_tensor_gpu_probe.py",
+      "blob": "e35c6081b4da79174cf5e5d66414681261cd62b4"
+    }
+  ],
+  "verification": {
+    "workflow": "Fourfold v2",
+    "run_id": 33857199021,
+    "head_sha": "0942b610f74cbd5f60612a870b86d98e96aaf4b0",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "cpu_contracts": "success; includes lazy optional-torch import, strict bounds, deterministic typed fixture, exact CPU Boolean matmul contract, non-authorizing blocked report and atomic strict-JSON output",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "gpu_execution": "not executed by GitHub-hosted CPU runners and not claimed",
+    "tensor_core_use": "not profiled and not claimed"
+  },
+  "owner_reproduction": {
+    "prerequisite": "a CUDA-enabled PyTorch build matching the installed NVIDIA driver",
+    "command": "python experiments/tensor_gpu/cuda_boolean_probe.py --sizes 256 512 1024 --densities 0.005 0.02 --repeats 20 --output runs/tensor_gpu/cuda_boolean_probe.json",
+    "expected_blocked_exit": 2,
+    "interpretation": "compare cpu_over_resident_gpu_kernel with cpu_over_gpu_one_shot; a large resident ratio without a one-shot crossover means GPU residency or batching is required, not that the product path is faster"
+  },
+  "kill_or_redesign": [
+    "Boolean support differs from the exact stdlib CSR oracle",
+    "dense packing or readback dominates realistic Fourfold workloads",
+    "VRAM expansion is unacceptable at observed graph sparsity",
+    "no repeated-query break-even exists against preindexed Forest/relation dictionaries",
+    "the result depends on more information or a different query than the baseline",
+    "a simpler CPU bitset or Rust sparse kernel yields the same benefit with lower complexity"
+  ],
+  "next_if_positive": "Retain matrices on-device across a frozen query batch, benchmark against BM25 plus relation dictionaries and a Rust CPU bitset baseline, then consider one removable Rust/CUDA adapter that remains observationally equal to the reference kernel.",
+  "claims": {
+    "cuda_code_present": true,
+    "hosted_cpu_contracts_green": true,
+    "gpu_run_completed": false,
+    "tensor_core_usage_proven": false,
+    "latency_speedup": false,
+    "memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 262
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "note": "The packet modified only the existing exp/tensor-kernel-contract-01 line. No ref was created, deleted, renamed, force-updated or moved into the archive anchor."
+  }
+}
