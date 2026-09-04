@@ -1,0 +1,297 @@
+"""Profile canonical ``TypedRelationBlock`` construction without bypassing it.
+
+GPU-10 showed that packed Boolean support materializes quickly enough that the
+remaining cost is dominated by canonical ``TypedRelationBlock`` construction.
+This contained diagnostic answers the next narrower question: which existing
+validation helpers and constructor frames consume that cost?
+
+The profiler executes the real canonical constructor. It does not add a trusted
+constructor, alternate relation type, cache, backend, or semantic authority.
+Deterministic profiler timings are attribution evidence only; the unprofiled
+constructor timing remains the performance baseline and neither timing mints a
+speedup or promotion claim.
+"""
+from __future__ import annotations
+
+import argparse
+import cProfile
+import json
+import platform
+import statistics
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from types import CodeType
+from typing import Any, Callable, Sequence
+
+import daedalus.schemas as _schemas
+import daedalus.twin.relation_blocks as _relation_blocks
+from daedalus.twin.relation_blocks import TypedRelationBlock
+
+if __package__:
+    from .boolean_probe_contract import MAX_CASES, MAX_REPEATS, MAX_WARMUP, ProbeCase, build_boolean_case, write_report
+    from .cpu_bitset_baseline import (
+        _block_from_csr_support,
+        _csr_support_from_masks,
+        _measure_repeated,
+        compose_packed_rows,
+        pack_rows,
+    )
+else:  # direct ``python experiments/tensor_gpu/typed_block_validation_profile.py``
+    from boolean_probe_contract import MAX_CASES, MAX_REPEATS, MAX_WARMUP, ProbeCase, build_boolean_case, write_report
+    from cpu_bitset_baseline import (
+        _block_from_csr_support,
+        _csr_support_from_masks,
+        _measure_repeated,
+        compose_packed_rows,
+        pack_rows,
+    )
+
+SCHEMA = "daedalus-tensor-typed-block-validation-profile/1"
+MAX_PROFILE_REPEATS = 5
+
+
+@dataclass(frozen=True)
+class _ProfileSample:
+    block: TypedRelationBlock[bool]
+    wall_ms: float
+    metrics: dict[str, dict[str, float | int]]
+
+
+def _validate_profile_repeats(value: int) -> int:
+    if type(value) is not int or not 1 <= value <= MAX_PROFILE_REPEATS:
+        raise ValueError(
+            f"profile_repeats must be an integer from 1 to {MAX_PROFILE_REPEATS}"
+        )
+    return value
+
+
+def _nested_codes(code: CodeType, *, name: str) -> tuple[CodeType, ...]:
+    found: list[CodeType] = []
+    for constant in code.co_consts:
+        if isinstance(constant, CodeType):
+            if constant.co_name == name:
+                found.append(constant)
+            found.extend(_nested_codes(constant, name=name))
+    return tuple(found)
+
+
+def _entry_metrics(entries: Sequence[Any]) -> dict[str, float | int]:
+    return {
+        "calls": sum(int(entry.callcount) for entry in entries),
+        "self_ms": sum(float(entry.inlinetime) for entry in entries) * 1_000.0,
+        "cumulative_ms": sum(float(entry.totaltime) for entry in entries) * 1_000.0,
+    }
+
+
+def _code_metrics(stats: Sequence[Any], codes: Sequence[CodeType]) -> dict[str, float | int]:
+    code_ids = {id(code) for code in codes}
+    return _entry_metrics(
+        tuple(
+            entry
+            for entry in stats
+            if isinstance(entry.code, CodeType) and id(entry.code) in code_ids
+        )
+    )
+
+
+def _builtin_metrics(stats: Sequence[Any], marker: str) -> dict[str, float | int]:
+    return _entry_metrics(
+        tuple(
+            entry
+            for entry in stats
+            if isinstance(entry.code, str) and marker in entry.code
+        )
+    )
+
+
+def _profile_once(factory: Callable[[], TypedRelationBlock[bool]]) -> _ProfileSample:
+    if not callable(factory):
+        raise ValueError("factory must be callable")
+    profiler = cProfile.Profile()
+    started = time.perf_counter_ns()
+    profiler.enable()
+    try:
+        block = factory()
+    finally:
+        profiler.disable()
+    wall_ms = (time.perf_counter_ns() - started) / 1_000_000.0
+    stats = tuple(profiler.getstats())
+
+    post_init_code = TypedRelationBlock.__post_init__.__code__
+    metrics = {
+        "bitset_block_factory": _code_metrics(stats, (_block_from_csr_support.__code__,)),
+        "typed_block_post_init": _code_metrics(stats, (post_init_code,)),
+        "stored_scalar_admission": _code_metrics(stats, (_relation_blocks._stored.__code__,)),
+        "bounded_sequence_admission": _code_metrics(stats, (_relation_blocks._sequence.__code__,)),
+        "semiring_resolution": _code_metrics(stats, (_relation_blocks._reference_semiring.__code__,)),
+        "identifier_admission": _code_metrics(stats, (_schemas._identifier.__code__,)),
+        "constructor_validation_generators": _code_metrics(
+            stats,
+            _nested_codes(post_init_code, name="<genexpr>"),
+        ),
+        "builtin_any": _builtin_metrics(stats, "builtins.any"),
+    }
+    return _ProfileSample(block=block, wall_ms=wall_ms, metrics=metrics)
+
+
+def _median_metrics(samples: Sequence[_ProfileSample]) -> dict[str, dict[str, float | int]]:
+    if not samples:
+        raise ValueError("profile samples must not be empty")
+    names = tuple(samples[0].metrics)
+    if any(tuple(sample.metrics) != names for sample in samples[1:]):
+        raise AssertionError("profile metric surface drifted inside one case")
+    output: dict[str, dict[str, float | int]] = {}
+    for name in names:
+        calls = {int(sample.metrics[name]["calls"]) for sample in samples}
+        if len(calls) != 1:
+            raise AssertionError(f"profile call count for {name} drifted inside one case")
+        output[name] = {
+            "calls": calls.pop(),
+            "self_ms_median": float(
+                statistics.median(float(sample.metrics[name]["self_ms"]) for sample in samples)
+            ),
+            "cumulative_ms_median": float(
+                statistics.median(
+                    float(sample.metrics[name]["cumulative_ms"]) for sample in samples
+                )
+            ),
+        }
+    return output
+
+
+def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
+    if not isinstance(case, ProbeCase):
+        raise ValueError("case must be ProbeCase")
+    profile_repeats = _validate_profile_repeats(profile_repeats)
+
+    left, right, fixture = build_boolean_case(case)
+    result_masks = compose_packed_rows(pack_rows(left), pack_rows(right))
+    row_offsets, column_indices = _csr_support_from_masks(left, right, result_masks)
+
+    factory = lambda: _block_from_csr_support(
+        left,
+        right,
+        row_offsets,
+        column_indices,
+        relation="cpu_bitset_composed",
+    )
+    canonical, unprofiled_samples = _measure_repeated(
+        factory,
+        repeats=case.repeats,
+        warmup=case.warmup,
+    )
+    profiled = tuple(_profile_once(factory) for _ in range(profile_repeats))
+    if any(sample.block.digest != canonical.digest for sample in profiled):
+        raise AssertionError("profiling changed canonical TypedRelationBlock output")
+
+    metrics = _median_metrics(profiled)
+    profiled_wall_median = float(statistics.median(sample.wall_ms for sample in profiled))
+    unprofiled_median = float(statistics.median(unprofiled_samples))
+    return {
+        "status": "verified",
+        "claim": "none",
+        "case": {
+            "size": case.size,
+            "repeats": case.repeats,
+            "warmup": case.warmup,
+            "profile_repeats": profile_repeats,
+            **fixture,
+        },
+        "output_entries": canonical.entry_count,
+        "canonical_digest": canonical.digest,
+        "unprofiled_construct_ms": {
+            "median": unprofiled_median,
+            "min": min(unprofiled_samples),
+            "max": max(unprofiled_samples),
+            "samples": len(unprofiled_samples),
+        },
+        "profiled_construct_wall_ms": {
+            "median": profiled_wall_median,
+            "min": min(sample.wall_ms for sample in profiled),
+            "max": max(sample.wall_ms for sample in profiled),
+            "samples": len(profiled),
+        },
+        "profiler_slowdown_ratio": (
+            None if unprofiled_median <= 0.0 else profiled_wall_median / unprofiled_median
+        ),
+        "profile_metrics": metrics,
+    }
+
+
+def run_probe(
+    cases: Sequence[ProbeCase],
+    *,
+    profile_repeats: int,
+) -> dict[str, Any]:
+    if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
+        raise ValueError("cases must be a bounded sequence")
+    if not cases or len(cases) > MAX_CASES:
+        raise ValueError(f"cases must contain between 1 and {MAX_CASES} entries")
+    if any(not isinstance(case, ProbeCase) for case in cases):
+        raise ValueError("cases must contain ProbeCase values")
+    profile_repeats = _validate_profile_repeats(profile_repeats)
+    return {
+        "schema": SCHEMA,
+        "status": "completed",
+        "authority": "diagnostic-only",
+        "claim": "none",
+        "semantic_scope": "canonical Boolean TypedRelationBlock construction only",
+        "measurement_contract": (
+            "Run the unchanged canonical constructor with deterministic cProfile attribution; "
+            "retain separate unprofiled wall samples because profiler timings include observer "
+            "overhead. Profile self/cumulative metrics are diagnostic and non-additive."
+        ),
+        "runtime": {
+            "python_implementation": platform.python_implementation(),
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+        },
+        "cases": [
+            run_case(case, profile_repeats=profile_repeats)
+            for case in cases
+        ],
+    }
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Profile the existing canonical TypedRelationBlock constructor."
+    )
+    parser.add_argument("--sizes", type=int, nargs="+", default=(64, 128, 256))
+    parser.add_argument("--densities", type=float, nargs="+", default=(0.01, 0.05))
+    parser.add_argument("--repeats", type=int, default=5)
+    parser.add_argument("--warmup", type=int, default=2)
+    parser.add_argument("--profile-repeats", type=int, default=3)
+    parser.add_argument("--output", type=Path)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    if type(args.repeats) is not int or not 1 <= args.repeats <= MAX_REPEATS:
+        raise ValueError(f"repeats must be an integer from 1 to {MAX_REPEATS}")
+    if type(args.warmup) is not int or not 0 <= args.warmup <= MAX_WARMUP:
+        raise ValueError(f"warmup must be an integer from 0 to {MAX_WARMUP}")
+    profile_repeats = _validate_profile_repeats(args.profile_repeats)
+    cases = tuple(
+        ProbeCase(
+            size=size,
+            density=float(density),
+            repeats=args.repeats,
+            warmup=args.warmup,
+            max_device_mib=64,
+        )
+        for size in args.sizes
+        for density in args.densities
+    )
+    report = run_probe(cases, profile_repeats=profile_repeats)
+    print(json.dumps(report, indent=2, sort_keys=True, allow_nan=False))
+    if args.output is not None:
+        write_report(args.output, report)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
