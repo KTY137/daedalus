@@ -36,6 +36,8 @@ write_report = _CUDA_NAMESPACE["write_report"]
 
 SCHEMA = "daedalus-tensor-cpu-bitset-baseline/1"
 MAX_CASES = 32
+MAX_REPEATS = _CUDA_NAMESPACE["MAX_REPEATS"]
+MAX_WARMUP = _CUDA_NAMESPACE["MAX_WARMUP"]
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,7 @@ class BitsetExecution:
 
     block: TypedRelationBlock[bool]
     pack_ms: float
+    validate_ms: float
     kernel_ms: tuple[float, ...]
     canonicalize_ms: float
 
@@ -80,6 +83,42 @@ def pack_rows(block: TypedRelationBlock[bool]) -> tuple[int, ...]:
     return tuple(rows)
 
 
+def _validate_packed_rows(
+    left_rows: Sequence[int],
+    right_rows: Sequence[int],
+) -> None:
+    """Validate packed operands once before any timed kernel repetition."""
+
+    if isinstance(left_rows, (str, bytes)) or isinstance(right_rows, (str, bytes)):
+        raise ValueError("packed rows must be integer sequences")
+    if any(type(value) is not int or value < 0 for value in left_rows):
+        raise ValueError("left packed rows must be non-negative integers")
+    if any(type(value) is not int or value < 0 for value in right_rows):
+        raise ValueError("right packed rows must be non-negative integers")
+    right_count = len(right_rows)
+    if any(value.bit_length() > right_count for value in left_rows):
+        raise ValueError("left bitset references a missing right row")
+
+
+def _compose_packed_rows_unchecked(
+    left_rows: Sequence[int],
+    right_rows: Sequence[int],
+) -> tuple[int, ...]:
+    """Boolean matrix product for already validated packed operands."""
+
+    output: list[int] = []
+    for left_mask in left_rows:
+        remaining = left_mask
+        result = 0
+        while remaining:
+            least = remaining & -remaining
+            middle = least.bit_length() - 1
+            result |= right_rows[middle]
+            remaining ^= least
+        output.append(result)
+    return tuple(output)
+
+
 def compose_packed_rows(
     left_rows: Sequence[int],
     right_rows: Sequence[int],
@@ -88,30 +127,13 @@ def compose_packed_rows(
 
     Each set bit in a left row selects one complete right-row bitset. The
     Boolean semiring's OR-over-AND support therefore becomes a sequence of
-    bigint OR operations implemented by CPython's native integer core.
+    bigint OR operations implemented by CPython's native integer core. Direct
+    callers retain strict validation; benchmark repetitions validate once in
+    :func:`execute_bitset` and then time only the already-admitted kernel.
     """
 
-    if isinstance(left_rows, (str, bytes)) or isinstance(right_rows, (str, bytes)):
-        raise ValueError("packed rows must be integer sequences")
-    if any(type(value) is not int or value < 0 for value in left_rows):
-        raise ValueError("left packed rows must be non-negative integers")
-    if any(type(value) is not int or value < 0 for value in right_rows):
-        raise ValueError("right packed rows must be non-negative integers")
-
-    output: list[int] = []
-    right_count = len(right_rows)
-    for left_mask in left_rows:
-        remaining = left_mask
-        result = 0
-        while remaining:
-            least = remaining & -remaining
-            middle = least.bit_length() - 1
-            if middle >= right_count:
-                raise ValueError("left bitset references a missing right row")
-            result |= right_rows[middle]
-            remaining ^= least
-        output.append(result)
-    return tuple(output)
+    _validate_packed_rows(left_rows, right_rows)
+    return _compose_packed_rows_unchecked(left_rows, right_rows)
 
 
 def _block_from_masks(
@@ -168,24 +190,28 @@ def execute_bitset(
     relation: str = "cpu_bitset_composed",
 ) -> BitsetExecution:
     _validate_boolean_pair(left, right)
-    if type(repeats) is not int or repeats < 1:
-        raise ValueError("repeats must be a positive integer")
-    if type(warmup) is not int or warmup < 0:
-        raise ValueError("warmup must be a non-negative integer")
+    if type(repeats) is not int or not 1 <= repeats <= MAX_REPEATS:
+        raise ValueError(f"repeats must be an integer from 1 to {MAX_REPEATS}")
+    if type(warmup) is not int or not 0 <= warmup <= MAX_WARMUP:
+        raise ValueError(f"warmup must be an integer from 0 to {MAX_WARMUP}")
 
     started = time.perf_counter_ns()
     left_rows = pack_rows(left)
     right_rows = pack_rows(right)
     pack_ms = (time.perf_counter_ns() - started) / 1_000_000.0
 
+    started = time.perf_counter_ns()
+    _validate_packed_rows(left_rows, right_rows)
+    validate_ms = (time.perf_counter_ns() - started) / 1_000_000.0
+
     result_rows: tuple[int, ...] = ()
     for _ in range(warmup):
-        result_rows = compose_packed_rows(left_rows, right_rows)
+        result_rows = _compose_packed_rows_unchecked(left_rows, right_rows)
 
     kernel_ms: list[float] = []
     for _ in range(repeats):
         started = time.perf_counter_ns()
-        result_rows = compose_packed_rows(left_rows, right_rows)
+        result_rows = _compose_packed_rows_unchecked(left_rows, right_rows)
         kernel_ms.append((time.perf_counter_ns() - started) / 1_000_000.0)
     assert result_rows or not left_rows
 
@@ -195,6 +221,7 @@ def execute_bitset(
     return BitsetExecution(
         block=block,
         pack_ms=pack_ms,
+        validate_ms=validate_ms,
         kernel_ms=tuple(kernel_ms),
         canonicalize_ms=canonicalize_ms,
     )
@@ -245,7 +272,12 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
         warmup=case.warmup,
     )
     kernel_median = float(statistics.median(execution.kernel_ms))
-    one_shot_ms = execution.pack_ms + kernel_median + execution.canonicalize_ms
+    one_shot_ms = (
+        execution.pack_ms
+        + execution.validate_ms
+        + kernel_median
+        + execution.canonicalize_ms
+    )
     support_equal = None if oracle is None else _same_support(oracle, execution.block)
     if support_equal is False:
         raise AssertionError("packed CPU bitset support differs from the stdlib CSR oracle")
@@ -272,6 +304,7 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
         },
         "cpu_bitset": {
             "pack_ms": execution.pack_ms,
+            "validate_ms": execution.validate_ms,
             "kernel_ms_median": kernel_median,
             "kernel_ms_min": min(execution.kernel_ms),
             "kernel_ms_max": max(execution.kernel_ms),
