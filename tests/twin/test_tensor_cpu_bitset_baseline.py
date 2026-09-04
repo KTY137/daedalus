@@ -20,6 +20,8 @@ execute_bitset = _NAMESPACE["execute_bitset"]
 pack_rows = _NAMESPACE["pack_rows"]
 run_probe = _NAMESPACE["run_probe"]
 BooleanSemiring = _NAMESPACE["BooleanSemiring"]
+MAX_REPEATS = _NAMESPACE["MAX_REPEATS"]
+MAX_WARMUP = _NAMESPACE["MAX_WARMUP"]
 
 
 def _case() -> object:
@@ -69,13 +71,60 @@ def test_packed_boolean_composition_matches_stdlib_oracle() -> None:
 
     assert tuple(execution.block.iter_entries()) == tuple(oracle.iter_entries())
     assert execution.block.digest == oracle.digest
+    assert execution.validate_ms >= 0.0
     assert len(execution.kernel_ms) == case.repeats
     assert all(value >= 0.0 for value in execution.kernel_ms)
 
 
-def test_compose_packed_rows_rejects_missing_middle_row() -> None:
+def test_execute_bitset_validates_packed_rows_once_outside_timed_kernel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = ProbeCase(
+        size=8,
+        density=0.25,
+        repeats=5,
+        warmup=3,
+        max_device_mib=64,
+    )
+    left, right, _ = build_boolean_case(case)
+    globals_map = execute_bitset.__globals__
+    original = globals_map["_validate_packed_rows"]
+    calls = 0
+
+    def counted(left_rows: object, right_rows: object) -> None:
+        nonlocal calls
+        calls += 1
+        original(left_rows, right_rows)
+
+    monkeypatch.setitem(globals_map, "_validate_packed_rows", counted)
+    execution = execute_bitset(
+        left,
+        right,
+        repeats=case.repeats,
+        warmup=case.warmup,
+    )
+
+    assert calls == 1
+    assert len(execution.kernel_ms) == 5
+
+
+def test_compose_packed_rows_keeps_strict_direct_call_validation() -> None:
+    with pytest.raises(ValueError, match="non-negative integers"):
+        compose_packed_rows((-1,), (1,))
     with pytest.raises(ValueError, match="missing right row"):
         compose_packed_rows((1 << 3,), (1, 2, 4))
+
+
+def test_execute_bitset_reuses_probe_repeat_and_warmup_bounds() -> None:
+    left, right, _ = build_boolean_case(_case())
+    for repeats, warmup in (
+        (0, 0),
+        (MAX_REPEATS + 1, 0),
+        (1, -1),
+        (1, MAX_WARMUP + 1),
+    ):
+        with pytest.raises(ValueError):
+            execute_bitset(left, right, repeats=repeats, warmup=warmup)
 
 
 def test_block_reconstruction_refuses_out_of_range_bits() -> None:
@@ -108,6 +157,7 @@ def test_probe_is_diagnostic_only_and_verifies_small_case() -> None:
         "cpu_oracle_executed": True,
         "boolean_support_equal": True,
     }
+    assert result["cpu_bitset"]["validate_ms"] >= 0.0
     assert result["cpu_bitset"]["output_entries"] == result["cpu_reference"]["output_entries"]
     assert result["cpu_bitset"]["digest"] == result["cpu_reference"]["digest"]
 
