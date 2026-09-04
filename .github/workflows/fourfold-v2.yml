@@ -1,28 +1,49 @@
-name: Fourfold v2
+name: Fourfold, Tensor and integration contracts
 
 on:
   pull_request:
-    branches:
-      - experimental
+    branches: [main]
     paths:
       - "daedalus/twin/**"
+      - "daedalus/arch_memory.py"
+      - "daedalus/arch_hook.py"
+      - "daedalus/shift.py"
+      - "daedalus/shift_hook.py"
+      - "daedalus/shift_ticker.py"
       - "daedalus/schemas.py"
       - "daedalus/structcore/forest.py"
+      - "experiments/fourfold_hybrid_retrieval/**"
+      - "experiments/tensor_embedding/**"
+      - "experiments/tensor_gpu/**"
       - "tests/twin/**"
       - "tests/test_kernel_contracts.py"
+      - "tests/test_tensor_latent_ceiling.py"
+      - "tests/test_arch_memory.py"
+      - "tests/test_shift.py"
       - "pyproject.toml"
       - ".github/workflows/fourfold-v2.yml"
   push:
-    branches:
-      - core/fourfold-v2
+    branches: [main]
     paths:
       - "daedalus/twin/**"
+      - "daedalus/arch_memory.py"
+      - "daedalus/arch_hook.py"
+      - "daedalus/shift.py"
+      - "daedalus/shift_hook.py"
+      - "daedalus/shift_ticker.py"
+      - "experiments/fourfold_hybrid_retrieval/**"
+      - "experiments/tensor_embedding/**"
+      - "experiments/tensor_gpu/**"
       - "tests/twin/**"
+      - "tests/test_tensor_latent_ceiling.py"
+      - "tests/test_arch_memory.py"
+      - "tests/test_shift.py"
       - "pyproject.toml"
       - ".github/workflows/fourfold-v2.yml"
+  workflow_dispatch:
 
 concurrency:
-  group: fourfold-v2-${{ github.workflow }}-${{ github.ref }}
+  group: fourfold-tensor-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -30,8 +51,9 @@ permissions:
 
 jobs:
   contracts:
+    name: Contracts (Python ${{ matrix.python-version }}, hash ${{ matrix.hash-seed }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -43,37 +65,71 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install package and test runner
+      - name: Install package and declared test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install . pytest
-      - name: Run Fourfold and kernel contract tests
+          python -m pip install ".[test]"
+      - name: Compile integrated modules
+        run: |
+          python -m py_compile \
+            daedalus/twin/*.py \
+            daedalus/arch_memory.py \
+            daedalus/arch_hook.py \
+            daedalus/shift.py \
+            daedalus/shift_hook.py \
+            daedalus/shift_ticker.py \
+            experiments/fourfold_hybrid_retrieval/*.py \
+            experiments/tensor_embedding/arm_o_latent_ceiling.py \
+            experiments/tensor_gpu/cuda_boolean_probe.py
+      - name: Run integrated contract surface
         env:
           PYTHONHASHSEED: ${{ matrix.hash-seed }}
         run: |
-          python -m pytest -q tests/twin tests/test_kernel_contracts.py
-      - name: Verify wheel contains the twin package
+          python -m pytest -q \
+            tests/twin \
+            tests/test_kernel_contracts.py \
+            tests/test_tensor_latent_ceiling.py \
+            tests/test_arch_memory.py \
+            tests/test_shift.py
+      - name: Verify public package API
         run: |
-          python -c "import daedalus.twin; print(daedalus.twin.FOURFOLD_PLANES)"
+          python - <<'PY'
+          from daedalus.twin import (
+              BooleanSemiring,
+              TensorView,
+              Transformation2Cell,
+              TypedRelationBlock,
+              boolean_relation_block_from_fourfold,
+          )
+          import daedalus.twin.hybrid_retrieval
+          import daedalus.twin.relation_compiler
+          print(BooleanSemiring.name)
+          print(TensorView.CONTRACT_TYPE)
+          print(Transformation2Cell.__name__)
+          print(TypedRelationBlock.__name__)
+          print(boolean_relation_block_from_fourfold.__name__)
+          PY
 
-  full-suite:
+  repository-collection:
+    name: Complete repository collection
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install complete test surface
+      - name: Install complete declared test surface
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ".[test,polyglot,root]" pytest
-      - name: Run complete repository suite
+          python -m pip install ".[test,polyglot,root]"
+      - name: Collect the complete repository suite
         env:
           PYTHONHASHSEED: "0"
-        run: python -m pytest -q
+        run: python -m pytest --collect-only -q
 
   isolated-wheel:
+    name: Isolated wheel imports
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -85,7 +141,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip build
           python -m build --wheel
-      - name: Install wheel in isolated environment
+      - name: Install and import from an isolated environment
         shell: bash
         run: |
           set -euo pipefail
@@ -93,8 +149,33 @@ jobs:
           /tmp/daedalus-wheel/bin/python -m pip install dist/*.whl
           cd /tmp
           PYTHONPATH= /tmp/daedalus-wheel/bin/python - <<'PY'
+          import daedalus.arch_memory
+          import daedalus.shift
           import daedalus.twin
-          import daedalus.twin.extractors
+          import daedalus.twin.hybrid_retrieval
+          import daedalus.twin.relation_compiler
+          import daedalus.twin.relation_projection
+          import daedalus.twin.tensor
+          import daedalus.twin.two_category
           print(daedalus.twin.FOURFOLD_PLANES)
-          print(daedalus.twin.extractors.registered_language_ids())
+          print(daedalus.twin.TensorView.CONTRACT_TYPE)
           PY
+
+  full-suite:
+    name: Complete suite (manual only)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install complete declared test surface
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[test,polyglot,root]"
+      - name: Run complete suite in measured load-file mode
+        env:
+          PYTHONHASHSEED: "0"
+        run: python -m pytest -q -n auto --dist loadfile
