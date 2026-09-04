@@ -1,0 +1,97 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-FOURFOLD-HYBRID-01",
+  "title": "Execute hybrid lexical retrieval through typed Fourfold relation plans",
+  "gate": 1,
+  "classification": "EXPERIMENT",
+  "campaign_issue": 239,
+  "base_revision": "056ad01c0bfad3982f116010317a20996bd9709c",
+  "masterplan_authority": "Revision 11 / Version 2.2.0 / Gate 1 — Renovation and owner-directed Genesis",
+  "source_experiment": {
+    "branch": "exp/tensor-kernel-contract-01",
+    "revision": "e840d4ed0b214556edd2e17c42c2f47f314ee998",
+    "packet": "G1-TENSOR-01CF",
+    "reuse": [
+      "canonical semiring reference observers",
+      "typed CSR relation blocks",
+      "bounded contraction IR and reference interpreter",
+      "focused exact-head kernel tests"
+    ]
+  },
+  "finding": "The previous Tensor retrieval experiments compared a representation against specialized indices. The retained measurements show that most apparent query gain came from preindexing while a simple relation index remained faster. The untested architecture is to retain lexical retrieval as the physical seed index and use the typed Fourfold algebra as the logical cross-plane query and evidence-composition layer.",
+  "primary_claim": "A pure, revision-bound compiler now projects authoritative KnowledgeForest edges and verified Fourfold bindings into canonical full-plane TypedRelationBlock objects. A proposal-only hybrid retriever keeps BM25 and exact identifier lookup as the seed/fallback index, executes one declared ContractionPlan under Boolean, Natural and Evidence-DAG observers, requires their typed support to agree, and fuses only graph-supported targets by RRF while retaining path counts and evidence clauses.",
+  "scope": {
+    "ported_from_contained_experiment": [
+      "daedalus/twin/semiring.py",
+      "daedalus/twin/relation_blocks.py",
+      "daedalus/twin/contractions.py",
+      "tests/twin/test_semiring_reference.py",
+      "tests/twin/test_relation_contractions.py",
+      "tests/twin/test_contraction_operation_budget.py",
+      "tests/twin/test_hadamard_streaming.py",
+      "tests/twin/test_relation_axis_lookup.py",
+      "tests/twin/test_relation_block_roundtrip.py",
+      "tests/twin/test_relation_semiring_retention.py"
+    ],
+    "added": [
+      "daedalus/twin/relation_compiler.py",
+      "daedalus/twin/hybrid_retrieval.py",
+      "tests/twin/test_fourfold_hybrid_retrieval.py",
+      "docs/work-packets/G1-EXP-FOURFOLD-HYBRID-01.json"
+    ],
+    "changed_existing_main_files": [],
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "new_backend_dependency": false,
+    "new_model_client": false,
+    "public_product_surface": false
+  },
+  "design": {
+    "authority": "Forest and FourfoldSnapshot remain authoritative",
+    "logical_query": "ContractionPlan over typed relation signatures",
+    "physical_seed_index": "deterministic in-memory BM25 plus exact identifier boost",
+    "reference_execution": "TypedRelationBlock CSR under the existing interpreter",
+    "observers": [
+      "boolean",
+      "natural",
+      "evidence-dag"
+    ],
+    "fusion": "reciprocal-rank fusion of source lexical seeds, target lexical hits and graph support",
+    "output_authority": "unverified-retrieval-proposal",
+    "automatic_promotions": 0
+  },
+  "acceptance": [
+    "relation axes use complete Fourfold plane memberships so independently compiled relations compose exactly",
+    "Forest edges and their matching verified binding projection produce one semantic relation fact rather than duplicate path support",
+    "explicit absent relation signatures compile to empty typed blocks instead of missing catalog entries",
+    "Boolean, Natural and Evidence-DAG observers return identical source-target support for the same plan",
+    "Tropical compilation refuses because ForestEdge.weight has no declared path-cost semantics",
+    "BM25 and exact identifier lookup remain callable without graph execution",
+    "typed multihop execution filters a lexically relevant but semantically inconsistent source",
+    "hybrid hits retain supporting seeds, natural path multiplicity and evidence alternatives",
+    "all results remain proposal-only and automatic promotion remains zero",
+    "no existing main file, store, registry, scheduler, authority or semantic plane is changed"
+  ],
+  "verification": {
+    "requested": [
+      "python -m pytest -q tests/twin tests/test_kernel_contracts.py",
+      "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 Fourfold-v2 matrix",
+      "isolated wheel build/install/import",
+      "repository-wide collection only"
+    ],
+    "executed_on_branch": false,
+    "claim": "Only exact-head executed GitHub workflow results count as evidence."
+  },
+  "rollback": "Revert the single implementation commit. Main-authoritative Forest/Fourfold contracts are untouched and no persisted hybrid state exists.",
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "automatic_merge": false,
+    "automatic_promotion": false,
+    "gate_transition": false,
+    "benchmark_superiority_claim": false
+  },
+  "iron_plan": "EXPERIMENT (contained)",
+  "active_authoritative_gate": "Gate 1 — Renovation and owner-directed Genesis"
+}
