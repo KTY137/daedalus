@@ -1,0 +1,102 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-04",
+  "title": "Separate packed-bitset validation from the timed resident kernel",
+  "status": "closed",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "a4f97fa437161b5a4e3ad419ee237fc0405d599f",
+  "implementation_commit": "0fa3c203a37494f1cb574eb0e0ed5ec47de5a39d",
+  "tested_head": "946a8eb634dc1becfaf073a2f4e2c8b35248fb13",
+  "finding": "The packed CPU calibration labelled its repeated measurement as kernel time, but compose_packed_rows revalidated every packed row on every warmup and measured repetition. That O(row-count) Python validation was therefore charged to the resident bitset kernel even though a persistent CPU/GPU backend would validate admission once. Direct execute_bitset calls also accepted unbounded repeat and warmup counts even though ProbeCase already owned canonical bounds.",
+  "change": {
+    "summary": "Validate packed operands exactly once before warmup and timing, then call one private already-admitted kernel for every repetition. Preserve strict validation for direct compose_packed_rows callers. Report validation time separately and include it in the one-shot path while excluding it from resident-kernel timing. Reuse the existing CUDA probe repeat/warmup ceilings instead of defining another budget.",
+    "production_runtime_changed": false,
+    "new_runtime_dependency": false,
+    "new_backend": false,
+    "new_store_or_registry": false,
+    "new_scheduler": false,
+    "new_semantic_plane": false,
+    "automatic_promotion": false
+  },
+  "measurement_contract": {
+    "resident_kernel": "_compose_packed_rows_unchecked over already validated integer-row tuples",
+    "one_shot": "pack + validate + median resident kernel + canonicalize",
+    "direct_api": "compose_packed_rows remains fail-closed and validates type, sign and middle-row reachability on every direct call",
+    "oracle": "TypedRelationBlock.matmul with BooleanSemiring",
+    "claim": "none"
+  },
+  "bounds": {
+    "max_repeats": 100,
+    "max_warmup": 50,
+    "source": "cuda_boolean_probe.py ProbeCase constants",
+    "duplicate_budget_added": false
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "blob": "7f1b524caa714c47be488d79a57d2e41636add68"
+    },
+    {
+      "path": "tests/twin/test_tensor_cpu_bitset_baseline.py",
+      "blob": "dc94ab05440b12f07d1cf0dfa15ef54ce28bef90"
+    }
+  ],
+  "delta_from_pre_head": {
+    "commits": 2,
+    "files": 2,
+    "additions": 102,
+    "deletions": 19
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33881625288,
+    "head_sha": "946a8eb634dc1becfaf073a2f4e2c8b35248fb13",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "designated_calibration_job": "Contracts (Python 3.12, hash 0)",
+    "calibration_step": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only",
+    "full_suite": "skipped; manual-only and not claimed",
+    "focused_regressions": [
+      "exact Boolean support and digest still match the stdlib CSR oracle",
+      "packed validation is invoked once per execute_bitset call rather than once per warmup/repeat",
+      "direct compose_packed_rows still rejects negative rows and missing middle rows",
+      "execute_bitset reuses the existing maximum repeat and warmup budgets",
+      "diagnostic report exposes validate_ms separately"
+    ]
+  },
+  "claims": {
+    "measurement_boundary_corrected": true,
+    "cpu_bitset_speedup": false,
+    "cuda_speedup": false,
+    "tensor_core_usage_proven": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "next_if_useful": "Use the corrected resident-kernel and one-shot decomposition when comparing a real owner-machine CUDA run or a future Rust CPU bitset probe; do not compare CUDA only against the deliberately high-overhead stdlib CSR oracle.",
+  "tracking": {
+    "issue": 239,
+    "pull_request": 314
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "note": "Only the existing exp/tensor-kernel-contract-01 line was advanced. No branch was created, deleted, renamed, force-updated or moved into the archive history anchor."
+  }
+}
