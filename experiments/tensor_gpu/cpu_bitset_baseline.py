@@ -21,11 +21,10 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence, TypeVar
 
 from daedalus.twin.relation_blocks import (
     MAX_BLOCK_ENTRIES,
-    MAX_REFERENCE_OPERATIONS,
     RelationSignature,
     TypedRelationBlock,
 )
@@ -58,7 +57,8 @@ else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
         write_report,
     )
 
-SCHEMA = "daedalus-tensor-cpu-bitset-baseline/1"
+SCHEMA = "daedalus-tensor-cpu-bitset-baseline/2"
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -70,6 +70,43 @@ class BitsetExecution:
     validate_ms: float
     kernel_ms: tuple[float, ...]
     canonicalize_ms: float
+
+
+def _validate_sampling(*, repeats: int, warmup: int) -> None:
+    if type(repeats) is not int or not 1 <= repeats <= MAX_REPEATS:
+        raise ValueError(f"repeats must be an integer from 1 to {MAX_REPEATS}")
+    if type(warmup) is not int or not 0 <= warmup <= MAX_WARMUP:
+        raise ValueError(f"warmup must be an integer from 0 to {MAX_WARMUP}")
+
+
+def _measure_repeated(
+    operation: Callable[[], T],
+    *,
+    repeats: int,
+    warmup: int,
+) -> tuple[T, tuple[float, ...]]:
+    """Measure one already-admitted operation with identical sample policy.
+
+    This helper intentionally owns only warmup/repeat mechanics. Callers retain
+    responsibility for semantic admission and for deciding which preparation or
+    canonicalization costs belong inside the timed callable.
+    """
+
+    if not callable(operation):
+        raise ValueError("operation must be callable")
+    _validate_sampling(repeats=repeats, warmup=warmup)
+    for _ in range(warmup):
+        operation()
+
+    result: T | None = None
+    samples: list[float] = []
+    for _ in range(repeats):
+        started = time.perf_counter_ns()
+        result = operation()
+        samples.append((time.perf_counter_ns() - started) / 1_000_000.0)
+    if result is None:  # repeats is bounded to >= 1; keep the invariant local.
+        raise AssertionError("repeated measurement produced no result")
+    return result, tuple(samples)
 
 
 def _validate_boolean_pair(
@@ -211,10 +248,7 @@ def execute_bitset(
     relation: str = "cpu_bitset_composed",
 ) -> BitsetExecution:
     _validate_boolean_pair(left, right)
-    if type(repeats) is not int or not 1 <= repeats <= MAX_REPEATS:
-        raise ValueError(f"repeats must be an integer from 1 to {MAX_REPEATS}")
-    if type(warmup) is not int or not 0 <= warmup <= MAX_WARMUP:
-        raise ValueError(f"warmup must be an integer from 0 to {MAX_WARMUP}")
+    _validate_sampling(repeats=repeats, warmup=warmup)
 
     started = time.perf_counter_ns()
     left_rows = pack_rows(left)
@@ -225,16 +259,11 @@ def execute_bitset(
     _validate_packed_rows(left_rows, right_rows)
     validate_ms = (time.perf_counter_ns() - started) / 1_000_000.0
 
-    result_rows: tuple[int, ...] = ()
-    for _ in range(warmup):
-        result_rows = _compose_packed_rows_unchecked(left_rows, right_rows)
-
-    kernel_ms: list[float] = []
-    for _ in range(repeats):
-        started = time.perf_counter_ns()
-        result_rows = _compose_packed_rows_unchecked(left_rows, right_rows)
-        kernel_ms.append((time.perf_counter_ns() - started) / 1_000_000.0)
-    assert result_rows or not left_rows
+    result_rows, kernel_ms = _measure_repeated(
+        lambda: _compose_packed_rows_unchecked(left_rows, right_rows),
+        repeats=repeats,
+        warmup=warmup,
+    )
 
     started = time.perf_counter_ns()
     block = _block_from_masks(left, right, result_rows, relation=relation)
@@ -243,7 +272,7 @@ def execute_bitset(
         block=block,
         pack_ms=pack_ms,
         validate_ms=validate_ms,
-        kernel_ms=tuple(kernel_ms),
+        kernel_ms=kernel_ms,
         canonicalize_ms=canonicalize_ms,
     )
 
@@ -257,16 +286,20 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
     operations = exact_reference_operation_count(left, right)
 
     oracle: TypedRelationBlock[bool] | None = None
-    oracle_ms: float | None = None
+    oracle_samples: tuple[float, ...] = ()
+    oracle_median: float | None = None
     if operations <= case.cpu_max_operations:
-        started = time.perf_counter_ns()
-        oracle = left.matmul(
-            right,
-            BooleanSemiring(),
-            relation="cpu_bitset_composed",
-            max_operations=case.cpu_max_operations,
+        oracle, oracle_samples = _measure_repeated(
+            lambda: left.matmul(
+                right,
+                BooleanSemiring(),
+                relation="cpu_bitset_composed",
+                max_operations=case.cpu_max_operations,
+            ),
+            repeats=case.repeats,
+            warmup=case.warmup,
         )
-        oracle_ms = (time.perf_counter_ns() - started) / 1_000_000.0
+        oracle_median = float(statistics.median(oracle_samples))
 
     execution = execute_bitset(
         left,
@@ -301,7 +334,10 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
         },
         "cpu_reference": {
             "status": "verified" if oracle is not None else "skipped-operation-bound",
-            "elapsed_ms": oracle_ms,
+            "elapsed_ms_median": oracle_median,
+            "elapsed_ms_min": None if not oracle_samples else min(oracle_samples),
+            "elapsed_ms_max": None if not oracle_samples else max(oracle_samples),
+            "samples": len(oracle_samples),
             "output_entries": None if oracle is None else oracle.entry_count,
             "digest": None if oracle is None else oracle.digest,
         },
@@ -311,6 +347,7 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
             "kernel_ms_median": kernel_median,
             "kernel_ms_min": min(execution.kernel_ms),
             "kernel_ms_max": max(execution.kernel_ms),
+            "samples": len(execution.kernel_ms),
             "canonicalize_ms": execution.canonicalize_ms,
             "one_shot_end_to_end_ms": one_shot_ms,
             "output_entries": execution.block.entry_count,
@@ -321,8 +358,12 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
             "boolean_support_equal": support_equal,
         },
         "diagnostic_ratios": {
-            "csr_over_resident_bitset_kernel": ratio(oracle_ms, kernel_median),
-            "csr_over_bitset_one_shot": ratio(oracle_ms, one_shot_ms),
+            "csr_full_operation_over_resident_bitset_kernel": ratio(
+                oracle_median, kernel_median
+            ),
+            "csr_full_operation_over_bitset_one_shot": ratio(
+                oracle_median, one_shot_ms
+            ),
         },
     }
 
@@ -341,6 +382,11 @@ def run_probe(cases: Sequence[ProbeCase]) -> dict[str, Any]:
         "authority": "diagnostic-only",
         "claim": "none",
         "semantic_scope": "Boolean relation support only",
+        "measurement_contract": (
+            "CSR reference and resident bitset kernel use the same warmup/repeat "
+            "policy in one process; bitset one-shot additionally includes pack, "
+            "validation and canonical reconstruction."
+        ),
         "runtime": {
             "python_implementation": platform.python_implementation(),
             "python_version": platform.python_version(),
@@ -366,7 +412,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cpu-max-operations",
         type=int,
-        default=MAX_REFERENCE_OPERATIONS,
+        default=5_000_000,
     )
     parser.add_argument("--output", type=Path)
     return parser
