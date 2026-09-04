@@ -14,6 +14,7 @@ on:
       - "apps/web/src/App.tsx"
       - "apps/web/src/types.ts"
       - "apps/web/tests/classic-stream.spec.ts"
+      - "daedalus/claude_bridge.py"
       - "daedalus/ikarus_effect_bridge.py"
       - "daedalus/ikarus_oneshot.py"
       - "daedalus/ikarus_tool_scope.py"
@@ -21,6 +22,7 @@ on:
       - "daedalus/progress_sources.py"
       - "daedalus/runtime_registry.py"
       - "daedalus/providers/_ollama_native.py"
+      - "daedalus/providers/claude_cli.py"
       - "daedalus/providers/ollama.py"
       - "daedalus/runtimes/provider_executable_pre_admission.py"
       - "daedalus/runtimes/provider_executable_object_registry.py"
@@ -28,6 +30,7 @@ on:
       - "daedalus/runtimes/provider_invocation_payload.py"
       - "daedalus/runtimes/provider_invocation_abi.py"
       - "daedalus/runtimes/provider_runtime_invocation_binding.py"
+      - "tests/test_claude_bridge_cmd_shim.py"
       - "tests/test_ikarus_bridge_progress.py"
       - "tests/test_ikarus_effect_bridge.py"
       - "tests/test_ikarus_oneshot.py"
@@ -86,6 +89,7 @@ jobs:
       - run: python -m pip install -e . pytest
       - run: >-
           python -m py_compile
+          daedalus/claude_bridge.py
           daedalus/ikarus_effect_bridge.py
           daedalus/ikarus_oneshot.py
           daedalus/ikarus_tool_scope.py
@@ -93,6 +97,7 @@ jobs:
           daedalus/progress_sources.py
           daedalus/runtime_registry.py
           daedalus/providers/_ollama_native.py
+          daedalus/providers/claude_cli.py
           daedalus/providers/ollama.py
           daedalus/runtimes/provider_executable_pre_admission.py
           daedalus/runtimes/provider_executable_object_registry.py
@@ -100,6 +105,7 @@ jobs:
           daedalus/runtimes/provider_invocation_payload.py
           daedalus/runtimes/provider_invocation_abi.py
           daedalus/runtimes/provider_runtime_invocation_binding.py
+          tests/test_claude_bridge_cmd_shim.py
           tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
@@ -120,6 +126,7 @@ jobs:
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
       - run: >-
           python -m pytest -q -p no:cacheprovider
+          tests/test_claude_bridge_cmd_shim.py
           tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
