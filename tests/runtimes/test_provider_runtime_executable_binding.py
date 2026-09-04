@@ -223,6 +223,10 @@ def test_binding_authenticates_provider_and_executable_without_starting_effect(
     assert ledger.load(execution.execution_id) is None
     assert receipt.provider_id == authority.provider_id
     assert receipt.pre_admission_sha256 == pre_admission.digest
+    assert (
+        receipt.dependency_manifest_sha256
+        == registry.verify_registered(pre_admission).dependency_manifest_sha256
+    )
     payload = receipt.to_dict()
     assert payload["observation_authority_authenticated_before_effect"] is True
     assert payload["registered_executable_objects_reverified"] is True
