@@ -65,28 +65,47 @@ def test_profile_executes_the_existing_canonical_constructor() -> None:
         assert metric["cumulative_ms"] >= 0.0
 
 
-def test_probe_is_diagnostic_only_and_retains_unprofiled_baseline() -> None:
+def test_probe_separates_exact_scalar_admission_without_structural_bypass() -> None:
     report = _PROFILE.run_probe((_case(),), profile_repeats=2)
 
-    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/1"
+    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/2"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert report["semantic_scope"] == "canonical Boolean TypedRelationBlock construction only"
     assert "unchanged canonical constructor" in report["measurement_contract"]
-    assert "observer overhead" in report["measurement_contract"]
+    assert "exact existing _stored Boolean scalar-admission contract" in report["measurement_contract"]
+    assert "Structural validation is not duplicated or bypassed" in report["measurement_contract"]
+    assert "non-additive" in report["measurement_contract"]
 
     result = report["cases"][0]
     assert result["status"] == "verified"
     assert result["claim"] == "none"
     assert result["unprofiled_construct_ms"]["samples"] == 2
     assert result["profiled_construct_wall_ms"]["samples"] == 2
+    assert result["scalar_admission"]["unprofiled_ms"]["samples"] == 2
+    assert result["scalar_admission"]["value_count"] == result["output_entries"]
+    assert result["scalar_admission"]["admitted_count"] == result["output_entries"]
+    assert result["scalar_admission"]["unprofiled_ms"]["median"] >= 0.0
     assert result["unprofiled_construct_ms"]["median"] >= 0.0
     assert result["profiled_construct_wall_ms"]["median"] >= 0.0
     assert set(result["profile_metrics"]) == EXPECTED_METRICS
     assert result["profile_metrics"]["typed_block_post_init"]["calls"] == 1
     assert result["profile_metrics"]["stored_scalar_admission"]["calls"] == result["output_entries"]
     assert result["profile_metrics"]["bounded_sequence_admission"]["calls"] == 3
+    assert result["profile_attribution"]["post_init_cumulative_ms_median"] >= 0.0
+    assert result["profile_attribution"]["stored_cumulative_ms_median"] >= 0.0
+    assert result["profile_attribution"]["post_init_less_stored_cumulative_ms_median"] >= 0.0
+    assert "not a pure structural wall-time" in result["profile_attribution"]["interpretation"]
+
+
+def test_scalar_admission_reuses_fail_closed_persisted_boolean_contract() -> None:
+    assert _PROFILE._scalar_admission((True, True)) == (True, True)
+
+    with pytest.raises(ValueError, match="semiring zero"):
+        _PROFILE._scalar_admission((True, False))
+    with pytest.raises(ValueError, match="bool values"):
+        _PROFILE._scalar_admission((True, 1))  # type: ignore[arg-type]
 
 
 def test_profile_repeat_bound_is_strict_and_rejects_bool() -> None:
