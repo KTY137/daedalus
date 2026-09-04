@@ -22,6 +22,18 @@ without a verified streaming transport because no streaming request was attempte
 - Existing Ollama single-transport `keep_alive` semantics remain intact.
 - No new provider, executor, queue, authority, or action path is introduced.
 
+## Verification evidence
+
+The bounded migration was applied against the exact canonical branch state and
+verified before its product commit: `tests/test_ikarus_stream.py` passed 25/25,
+`tests/test_ikarus_os_boundary.py` passed 20/20 after the one-shot migration helper
+was removed, Python compilation passed, and a source invariant proved that the
+post-attempt `if not text` path contains no `_chat(...)` call. The resulting product
+commit is `ed735e088f1e5344443924e0a20a14004a7f1478`.
+
+The ordinary Gate-1 unified workflow remains the branch-wide verification authority;
+this packet is included in the canonical line without changing any gate claim.
+
 ## Non-claims
 
 This packet does not claim provider cancellation propagation, sealed broker cutover
