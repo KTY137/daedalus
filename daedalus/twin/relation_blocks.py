@@ -556,7 +556,10 @@ class TypedRelationBlock(Generic[T]):
         if not isinstance(other, TypedRelationBlock):
             raise ValueError("other must be TypedRelationBlock")
         reference = self._require_semiring(semiring)
-        other._require_semiring(semiring)
+        if other.semiring_name != reference.name:
+            raise ValueError(
+                f"block uses semiring {other.semiring_name!r}, not {reference.name!r}"
+            )
         if self.subject != other.subject:
             raise ValueError("relation blocks must bind the same exact Fourfold subject")
         return reference
