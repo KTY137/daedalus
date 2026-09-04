@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/ikarus-issue-292-migration.yml"
       - "tools/_ikarus_issue292_migration.py"
+      - "tools/_ikarus_issue292_fixup.py"
 
 permissions:
   contents: write
@@ -33,13 +34,17 @@ jobs:
       - name: Apply issue 292 migration
         run: python tools/_ikarus_issue292_migration.py
 
+      - name: Align current stream and boundary contracts
+        run: python tools/_ikarus_issue292_fixup.py
+
       - name: Compile changed runtime modules
         run: |
           python -m py_compile \
             daedalus/providers/_ollama_native.py \
             daedalus/providers/ollama.py \
             daedalus/ikarus_os.py \
-            tests/test_ikarus_stream.py
+            tests/test_ikarus_stream.py \
+            tests/test_ikarus_os_boundary.py
 
       - name: Run focused Ikarus transport regression suite
         run: |
@@ -54,6 +59,7 @@ jobs:
           shell = Path('daedalus/ikarus_os.py').read_text(encoding='utf-8')
           provider = Path('daedalus/providers/ollama.py').read_text(encoding='utf-8')
           native = Path('daedalus/providers/_ollama_native.py').read_text(encoding='utf-8')
+          boundary = Path('tests/test_ikarus_os_boundary.py').read_text(encoding='utf-8')
           assert 'warm_model_async' not in shell
           assert 'def warm_model(' not in provider
           assert 'def warm_model_async(' not in provider
@@ -61,17 +67,18 @@ jobs:
           assert 'keep_alive=keep_alive_value()' in shell
           assert 'def native_chat_stream(' in native
           assert '"stream": bool(stream)' in native
+          assert '"native_chat", "native_chat_stream"' in boundary
           print('single-transport dominance checks: OK')
           PY
 
       - name: Remove one-shot migration machinery
-        run: git rm tools/_ikarus_issue292_migration.py .github/workflows/ikarus-issue-292-migration.yml
+        run: git rm tools/_ikarus_issue292_migration.py tools/_ikarus_issue292_fixup.py .github/workflows/ikarus-issue-292-migration.yml
 
       - name: Commit verified migration
         run: |
           git config user.name "Daedalus Ikarus CI"
           git config user.email "actions@users.noreply.github.com"
-          git add daedalus/providers/_ollama_native.py daedalus/providers/ollama.py daedalus/ikarus_os.py tests/test_ikarus_stream.py
+          git add daedalus/providers/_ollama_native.py daedalus/providers/ollama.py daedalus/ikarus_os.py tests/test_ikarus_stream.py tests/test_ikarus_os_boundary.py
           git diff --cached --check
           git commit -m "fix(ikarus): bind Ollama residency to chat transport (#292)"
           git push origin HEAD:g1/ikarus-runtime-invocation-binding-07d3
