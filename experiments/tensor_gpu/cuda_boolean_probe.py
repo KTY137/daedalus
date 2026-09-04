@@ -14,10 +14,8 @@ records only ``tensor_core_candidate=true`` and never claims hardware-unit use.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib
 import json
-import math
 import statistics
 import time
 from dataclasses import dataclass
@@ -27,21 +25,41 @@ from typing import Any, Sequence
 from daedalus.twin.relation_blocks import (
     MAX_BLOCK_ENTRIES,
     MAX_REFERENCE_OPERATIONS,
-    ProjectionSubject,
     RelationSignature,
-    TypedAxis,
     TypedRelationBlock,
 )
 from daedalus.twin.semiring import BooleanSemiring
 
+if __package__:
+    from .boolean_probe_contract import (
+        MAX_CASES,
+        MIB,
+        ProbeCase,
+        SUPPORTED_DTYPES,
+        build_boolean_case,
+        estimate_dense_device_bytes,
+        exact_reference_operation_count,
+        padded,
+        ratio,
+        same_support,
+        write_report,
+    )
+else:  # direct ``python experiments/tensor_gpu/cuda_boolean_probe.py``
+    from boolean_probe_contract import (
+        MAX_CASES,
+        MIB,
+        ProbeCase,
+        SUPPORTED_DTYPES,
+        build_boolean_case,
+        estimate_dense_device_bytes,
+        exact_reference_operation_count,
+        padded,
+        ratio,
+        same_support,
+        write_report,
+    )
+
 SCHEMA = "daedalus-tensor-cuda-boolean-probe/1"
-MAX_AXIS = 8_192
-MAX_REPEATS = 100
-MAX_WARMUP = 50
-MAX_DEVICE_MIB = 32_768
-_SUPPORTED_DTYPES = frozenset({"float16", "bfloat16"})
-_MIB = 1024 * 1024
-_INT64_BYTES = 8
 
 
 class ProbeBlocked(RuntimeError):
@@ -54,54 +72,6 @@ class ProbeBlocked(RuntimeError):
 
 
 @dataclass(frozen=True)
-class ProbeCase:
-    size: int
-    density: float
-    repeats: int = 20
-    warmup: int = 5
-    dtype_name: str = "float16"
-    tile_multiple: int = 8
-    max_device_mib: int = 1_024
-    cpu_max_operations: int = MAX_REFERENCE_OPERATIONS
-
-    def __post_init__(self) -> None:
-        if type(self.size) is not int or not 2 <= self.size <= MAX_AXIS:
-            raise ValueError(f"size must be an integer from 2 to {MAX_AXIS}")
-        if type(self.density) is not float or not math.isfinite(self.density):
-            raise ValueError("density must be a finite float")
-        if not 0.0 < self.density <= 1.0:
-            raise ValueError("density must be in (0, 1]")
-        if type(self.repeats) is not int or not 1 <= self.repeats <= MAX_REPEATS:
-            raise ValueError(f"repeats must be an integer from 1 to {MAX_REPEATS}")
-        if type(self.warmup) is not int or not 0 <= self.warmup <= MAX_WARMUP:
-            raise ValueError(f"warmup must be an integer from 0 to {MAX_WARMUP}")
-        if self.dtype_name not in _SUPPORTED_DTYPES:
-            raise ValueError(f"dtype_name must be one of {sorted(_SUPPORTED_DTYPES)}")
-        if self.tile_multiple not in (8, 16):
-            raise ValueError("tile_multiple must be 8 or 16")
-        if (
-            type(self.max_device_mib) is not int
-            or not 64 <= self.max_device_mib <= MAX_DEVICE_MIB
-        ):
-            raise ValueError(
-                f"max_device_mib must be an integer from 64 to {MAX_DEVICE_MIB}"
-            )
-        if (
-            type(self.cpu_max_operations) is not int
-            or not 0 <= self.cpu_max_operations <= MAX_REFERENCE_OPERATIONS
-        ):
-            raise ValueError(
-                "cpu_max_operations must be a bounded non-negative integer"
-            )
-        width = _row_width(self.size, self.density)
-        if self.size * width > MAX_BLOCK_ENTRIES:
-            raise ValueError(
-                "input relation exceeds TypedRelationBlock entry limit; "
-                f"size={self.size}, row_width={width}, entries={self.size * width}"
-            )
-
-
-@dataclass(frozen=True)
 class _GpuExecution:
     block: TypedRelationBlock[bool]
     pack_to_device_ms: float
@@ -110,122 +80,6 @@ class _GpuExecution:
     readback_and_canonicalize_ms: float
     peak_device_bytes: int
     output_entries: int
-
-
-def _row_width(size: int, density: float) -> int:
-    return max(1, min(size, int(round(size * density))))
-
-
-def _padded(value: int, multiple: int) -> int:
-    return ((value + multiple - 1) // multiple) * multiple
-
-
-def _dtype_bytes(dtype_name: str) -> int:
-    if dtype_name not in _SUPPORTED_DTYPES:
-        raise ValueError(f"unsupported dtype {dtype_name!r}")
-    return 2
-
-
-def estimate_dense_device_bytes(case: ProbeCase) -> int:
-    """Conservative explicit allocation estimate before CUDA admission.
-
-    The dense resident set is two inputs, one GEMM output, and one Boolean
-    support mask. Packing one CSR block also creates int64 row and column index
-    tensors; the two inputs are packed sequentially, so only one such pair is
-    counted at peak. cuBLAS workspace is implementation-owned and cannot be
-    predicted here, which is why admission additionally reserves half of free
-    VRAM as headroom and runtime OOM is converted to a blocked measurement.
-    """
-
-    padded = _padded(case.size, case.tile_multiple)
-    cells = padded * padded
-    dense_bytes = cells * (3 * _dtype_bytes(case.dtype_name) + 1)
-    input_entries = case.size * _row_width(case.size, case.density)
-    scatter_index_bytes = input_entries * 2 * _INT64_BYTES
-    return dense_bytes + scatter_index_bytes
-
-
-def _coprime_step(size: int, salt: int) -> int:
-    step = (2 * salt + 1) % size
-    if step == 0:
-        step = 1
-    while math.gcd(step, size) != 1:
-        step = (step + 2) % size
-        if step == 0:
-            step = 1
-    return step
-
-
-def _relation_coordinates(
-    labels: tuple[str, ...],
-    *,
-    row_width: int,
-    salt: int,
-) -> tuple[tuple[str, str, bool], ...]:
-    size = len(labels)
-    step = _coprime_step(size, salt)
-    coordinates: list[tuple[str, str, bool]] = []
-    for row in range(size):
-        base = (row * (2 * salt + 17) + salt) % size
-        for offset in range(row_width):
-            column = (base + offset * step) % size
-            coordinates.append((labels[row], labels[column], True))
-    return tuple(coordinates)
-
-
-def build_boolean_case(
-    case: ProbeCase,
-) -> tuple[TypedRelationBlock[bool], TypedRelationBlock[bool], dict[str, Any]]:
-    """Build two exact typed relations with one shared middle axis."""
-
-    labels = tuple(f"node-{index:05d}" for index in range(case.size))
-    source_axis = TypedAxis("source-nodes", "code", labels)
-    middle_axis = TypedAxis("middle-nodes", "code", labels)
-    target_axis = TypedAxis("target-nodes", "code", labels)
-    subject = ProjectionSubject(
-        repository_id="KTY137/daedalus",
-        source_revision="a" * 40,
-        source_fourfold_sha256=hashlib.sha256(
-            f"cuda-probe:{case.size}:{case.density:.12g}".encode("utf-8")
-        ).hexdigest(),
-    )
-    row_width = _row_width(case.size, case.density)
-    boolean = BooleanSemiring()
-    left = TypedRelationBlock.from_coordinates(
-        subject=subject,
-        signature=RelationSignature("code", "cuda_probe_left", "code"),
-        row_axis=source_axis,
-        column_axis=middle_axis,
-        coordinates=_relation_coordinates(labels, row_width=row_width, salt=19),
-        semiring=boolean,
-    )
-    right = TypedRelationBlock.from_coordinates(
-        subject=subject,
-        signature=RelationSignature("code", "cuda_probe_right", "code"),
-        row_axis=middle_axis,
-        column_axis=target_axis,
-        coordinates=_relation_coordinates(labels, row_width=row_width, salt=43),
-        semiring=boolean,
-    )
-    return left, right, {
-        "requested_density": case.density,
-        "actual_density": row_width / case.size,
-        "row_width": row_width,
-        "left_entries": left.entry_count,
-        "right_entries": right.entry_count,
-    }
-
-
-def exact_reference_operation_count(
-    left: TypedRelationBlock[bool],
-    right: TypedRelationBlock[bool],
-) -> int:
-    if left.column_axis != right.row_axis:
-        raise ValueError("operation count requires an exactly shared middle axis")
-    return sum(
-        right.row_offsets[middle + 1] - right.row_offsets[middle]
-        for middle in left.column_indices
-    )
 
 
 def _load_torch() -> Any:
@@ -360,7 +214,7 @@ def _gpu_boolean_matmul(
 ) -> _GpuExecution:
     _validate_gpu_operands(left, right)
     estimated = estimate_dense_device_bytes(case)
-    admitted = min(case.max_device_mib * _MIB, free_device_bytes // 2)
+    admitted = min(case.max_device_mib * MIB, free_device_bytes // 2)
     if estimated > admitted:
         raise ProbeBlocked(
             "device-memory-bound",
@@ -369,7 +223,7 @@ def _gpu_boolean_matmul(
 
     device = f"cuda:{device_index}"
     dtype = _torch_dtype(torch, case.dtype_name)
-    padded_size = _padded(case.size, case.tile_multiple)
+    padded_size = padded(case.size, case.tile_multiple)
     torch.cuda.synchronize(device_index)
     torch.cuda.reset_peak_memory_stats(device_index)
 
@@ -465,24 +319,6 @@ def _gpu_boolean_matmul(
     )
 
 
-def _same_support(
-    left: TypedRelationBlock[bool],
-    right: TypedRelationBlock[bool],
-) -> bool:
-    return (
-        left.subject == right.subject
-        and left.row_axis == right.row_axis
-        and left.column_axis == right.column_axis
-        and tuple(left.iter_entries()) == tuple(right.iter_entries())
-    )
-
-
-def _ratio(numerator: float | None, denominator: float) -> float | None:
-    if numerator is None or denominator <= 0.0:
-        return None
-    return numerator / denominator
-
-
 def run_case(
     case: ProbeCase,
     *,
@@ -523,7 +359,7 @@ def run_case(
         + kernel_median
         + gpu.readback_and_canonicalize_ms
     )
-    support_equal = None if cpu_block is None else _same_support(cpu_block, gpu.block)
+    support_equal = None if cpu_block is None else same_support(cpu_block, gpu.block)
     if support_equal is False:
         raise AssertionError("CUDA Boolean support differs from the stdlib CSR oracle")
 
@@ -534,7 +370,7 @@ def run_case(
             "size": case.size,
             "dtype": case.dtype_name,
             "tile_multiple": case.tile_multiple,
-            "padded_size": _padded(case.size, case.tile_multiple),
+            "padded_size": padded(case.size, case.tile_multiple),
             "repeats": case.repeats,
             "warmup": case.warmup,
             "max_device_mib": case.max_device_mib,
@@ -568,8 +404,8 @@ def run_case(
             "boolean_support_equal": support_equal,
         },
         "diagnostic_ratios": {
-            "cpu_over_resident_gpu_kernel": _ratio(cpu_ms, kernel_median),
-            "cpu_over_gpu_one_shot": _ratio(cpu_ms, end_to_end_ms),
+            "cpu_over_resident_gpu_kernel": ratio(cpu_ms, kernel_median),
+            "cpu_over_gpu_one_shot": ratio(cpu_ms, end_to_end_ms),
         },
     }
 
@@ -619,10 +455,8 @@ def run_probe(
 ) -> dict[str, Any]:
     if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
         raise ValueError("cases must be a bounded sequence")
-    if not cases:
-        raise ValueError("at least one probe case is required")
-    if len(cases) > 32:
-        raise ValueError("at most 32 probe cases are allowed")
+    if not cases or len(cases) > MAX_CASES:
+        raise ValueError(f"cases must contain between 1 and {MAX_CASES} entries")
     if any(not isinstance(case, ProbeCase) for case in cases):
         raise ValueError("cases must contain ProbeCase values")
 
@@ -673,16 +507,6 @@ def run_probe(
     }
 
 
-def write_report(path: Path, report: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(
-        json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
-    temporary.replace(path)
-
-
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -694,7 +518,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--densities", type=float, nargs="+", default=(0.005, 0.02))
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--warmup", type=int, default=5)
-    parser.add_argument("--dtype", choices=sorted(_SUPPORTED_DTYPES), default="float16")
+    parser.add_argument("--dtype", choices=sorted(SUPPORTED_DTYPES), default="float16")
     parser.add_argument("--tile-multiple", type=int, choices=(8, 16), default=8)
     parser.add_argument("--device-index", type=int, default=0)
     parser.add_argument("--max-device-mib", type=int, default=1024)
