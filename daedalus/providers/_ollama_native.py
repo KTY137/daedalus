@@ -16,7 +16,7 @@ import json
 import urllib.error
 import urllib.request
 import os
-from typing import Any
+from typing import Any, Iterator
 
 from ._openai_compat import ProviderHTTPError
 
@@ -137,44 +137,30 @@ def _native_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def native_chat(
+def _native_chat_body(
     *,
-    host: str,
     model: str,
     messages: list[dict[str, Any]],
+    stream: bool,
     tools: list | None = None,
-    # bool keeps every existing caller byte-identical; a dict opts that call
-    # into schema-constrained decoding. Typed as ``object`` rather than
-    # ``bool | dict`` so a caller passing a schema is not a type error in the
-    # many places that still pass True.
     force_json: object = False,
     num_ctx: int | None = None,
     num_predict: int | None = None,
     think: bool | None = None,
     keep_alive: str | None = None,
-    timeout_s: int = 300,
     temperature: float = 0.0,
 ) -> dict[str, Any]:
-    """POST ``messages`` to Ollama's native ``/api/chat`` and return the assistant
-    message adapted to the OpenAI shape (see :func:`_adapt_message`).
+    """Build the one native ``/api/chat`` request shape used by both modes.
 
-    ``options.num_ctx`` (defaulting to :func:`num_ctx_value`) is the whole point
-    of this path -- it is the only way to lift the ~2050-token ``/v1`` cap.
-    ``num_predict`` is optional and omitted by default, preserving every
-    existing caller; bounded rewrite callers use it to prevent a malformed
-    JSON generation from consuming the entire remaining context window.
-    ``think`` is likewise opt-in. Structured edit callers disable hidden
-    reasoning so a bounded generation cannot spend its entire token allowance
-    before emitting the required JSON value.
-    ``format:"json"`` is sent only when ``force_json``; ``keep_alive`` and
-    ``tools`` only when provided. Raises :class:`ProviderHTTPError` on any HTTP
-    error or an unreachable host, mirroring ``_openai_compat._post``.
+    Keeping this in one helper is more than deduplication: options that affect
+    correctness (``num_ctx``, constrained ``format``, ``think`` and especially
+    ``keep_alive``) must not silently drift between blocking chat and streaming
+    chat.  ``stream`` is the only transport-mode difference.
     """
-    url = host.rstrip("/") + "/api/chat"
     body: dict[str, Any] = {
         "model": model,
         "messages": _native_messages(messages),
-        "stream": False,
+        "stream": bool(stream),
         "options": {"num_ctx": num_ctx or num_ctx_value(), "temperature": temperature},
     }
     if num_predict is not None:
@@ -182,34 +168,51 @@ def native_chat(
     if think is not None:
         body["think"] = bool(think)
     if force_json:
-        # A dict is a JSON *schema*, and that distinction is load-bearing.
-        # ``format:"json"`` only promises valid JSON of any shape; a schema
-        # constrains the SHAPE at the sampler, masking invalid tokens instead of
-        # validating after the fact.
-        #
-        # MEASURED 2026-07-29 on the bench, 3 trials x 2 tasks per model, native
-        # `tools` array vs schema-constrained decoding:
-        #
-        #     qwen2.5-coder:7b     0%  ->  100%
-        #     qwen2.5-coder:14b    0%  ->  100%
-        #     devstral:latest      0%  ->  100%
-        #     qwen3.6:latest     100%  ->  100%
-        #
-        # The three that scored zero were not failing to *decide* -- they were
-        # failing to EMIT the decision in the structured form, narrating it in
-        # prose instead, which the harness reads as a successful turn that did
-        # nothing. Constraining the shape removes the failure entirely, on the
-        # 4.5GB model as well as the 22GB one.
         body["format"] = force_json if isinstance(force_json, dict) else "json"
     if keep_alive is not None:
         body["keep_alive"] = keep_alive
     if tools:
         body["tools"] = tools
+    return body
 
+
+def _native_request(host: str, body: dict[str, Any]) -> tuple[str, urllib.request.Request]:
+    url = host.rstrip("/") + "/api/chat"
     request = urllib.request.Request(
         url, data=json.dumps(body).encode("utf-8"),
         headers={"Content-Type": "application/json"}, method="POST",
     )
+    return url, request
+
+
+def native_chat(
+    *,
+    host: str,
+    model: str,
+    messages: list[dict[str, Any]],
+    tools: list | None = None,
+    # bool keeps every existing caller byte-identical; a dict opts that call
+    # into schema-constrained decoding.
+    force_json: object = False,
+    num_ctx: int | None = None,
+    num_predict: int | None = None,
+    think: bool | None = None,
+    keep_alive: str | None = None,
+    timeout_s: float = 300.0,
+    temperature: float = 0.0,
+) -> dict[str, Any]:
+    """POST one non-streaming native ``/api/chat`` request.
+
+    ``keep_alive`` belongs to this request itself.  Callers therefore do not
+    need a second ``/api/generate`` warm-up transport to keep the model resident.
+    Raises :class:`ProviderHTTPError` on transport/protocol failure.
+    """
+    body = _native_chat_body(
+        model=model, messages=messages, stream=False, tools=tools,
+        force_json=force_json, num_ctx=num_ctx, num_predict=num_predict,
+        think=think, keep_alive=keep_alive, temperature=temperature,
+    )
+    url, request = _native_request(host, body)
     try:
         with urllib.request.urlopen(request, timeout=timeout_s) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -221,8 +224,67 @@ def native_chat(
     except TimeoutError as exc:
         raise ProviderHTTPError(
             f"request to {url} timed out after {timeout_s:g}s") from exc
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ProviderHTTPError(f"invalid JSON response from {url}: {exc}") from exc
 
     message = payload.get("message")
     if not isinstance(message, dict):
         raise ProviderHTTPError(f"unexpected response shape: {payload}")
     return _adapt_message(message)
+
+
+def native_chat_stream(
+    *,
+    host: str,
+    model: str,
+    messages: list[dict[str, Any]],
+    tools: list | None = None,
+    force_json: object = False,
+    num_ctx: int | None = None,
+    num_predict: int | None = None,
+    think: bool | None = None,
+    keep_alive: str | None = None,
+    timeout_s: float = 300.0,
+    temperature: float = 0.0,
+) -> Iterator[str]:
+    """Yield native Ollama text deltas from ONE ``/api/chat`` request.
+
+    Ollama streams newline-delimited JSON.  The response context is owned by
+    this generator, so closing/cancelling the consumer closes the HTTP response;
+    there is no daemon warm-up thread that can outlive the chat turn.  Residency
+    refresh is carried by ``keep_alive`` on this same authorized transport.
+    """
+    body = _native_chat_body(
+        model=model, messages=messages, stream=True, tools=tools,
+        force_json=force_json, num_ctx=num_ctx, num_predict=num_predict,
+        think=think, keep_alive=keep_alive, temperature=temperature,
+    )
+    url, request = _native_request(host, body)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as resp:
+            for raw in resp:
+                if not raw or not raw.strip():
+                    continue
+                try:
+                    payload = json.loads(raw.decode("utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                    raise ProviderHTTPError(
+                        f"invalid streaming frame from {url}: {exc}") from exc
+                if payload.get("error"):
+                    raise ProviderHTTPError(
+                        f"Ollama stream error from {url}: {payload.get('error')}")
+                message = payload.get("message")
+                if isinstance(message, dict):
+                    content = message.get("content")
+                    if isinstance(content, str) and content:
+                        yield content
+                if payload.get("done"):
+                    break
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise ProviderHTTPError(
+            f"request to {url} timed out after {timeout_s:g}s") from exc

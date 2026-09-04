@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 
 from daedalus import ikarus_os
+from daedalus.providers import _ollama_native as native_mod
 from daedalus.providers import ollama as ollama_mod
 from daedalus.providers._openai_compat import ProviderHTTPError, chat_stream
 
@@ -32,6 +33,7 @@ class _Resp(io.BytesIO):
         return self
 
     def __exit__(self, *a):
+        self.close()
         return False
 
 
@@ -74,40 +76,73 @@ class ChatStreamTest(unittest.TestCase):
 
 
 class KeepAliveTest(unittest.TestCase):
-    """The measured trap: /v1/chat/completions DROPS keep_alive, so the pin has
-    to hit the native /api/generate endpoint or residency never changes."""
+    """Residency refresh must ride on the answer transport itself."""
 
-    def test_pin_targets_native_api_with_keep_alive(self):
+    def test_blocking_native_chat_carries_keep_alive_on_same_request(self):
         captured = {}
 
         def fake_urlopen(req, timeout=None):
             captured["url"] = req.full_url
             captured["body"] = json.loads(req.data.decode("utf-8"))
-            resp = _Resp(b"{}")
+            resp = _Resp(json.dumps({
+                "message": {"role": "assistant", "content": "hi"}
+            }).encode("utf-8"))
             resp.status = 200
             return resp
 
-        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
-            ok = ollama_mod.warm_model(host="http://127.0.0.1:11434", model="m7")
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen) as up:
+            msg = native_mod.native_chat(
+                host="http://127.0.0.1:11434", model="m7",
+                messages=[{"role": "user", "content": "hello"}],
+                keep_alive="30m")
 
-        self.assertTrue(ok)
-        self.assertTrue(captured["url"].endswith("/api/generate"))
-        self.assertNotIn("/v1/", captured["url"])
+        self.assertEqual(msg["content"], "hi")
+        self.assertEqual(up.call_count, 1)
+        self.assertTrue(captured["url"].endswith("/api/chat"))
+        self.assertNotIn("/api/generate", captured["url"])
+        self.assertIs(captured["body"]["stream"], False)
         self.assertEqual(captured["body"]["keep_alive"], "30m")
         self.assertEqual(captured["body"]["model"], "m7")
+
+    def test_streaming_native_chat_carries_keep_alive_on_same_request(self):
+        frames = (
+            json.dumps({"message": {"role": "assistant", "content": "Hel"}, "done": False}) + "\n"
+            + json.dumps({"message": {"role": "assistant", "content": "lo"}, "done": False}) + "\n"
+            + json.dumps({"message": {"role": "assistant", "content": ""}, "done": True}) + "\n"
+        ).encode("utf-8")
+        resp = _Resp(frames)
+        with mock.patch("urllib.request.urlopen", return_value=resp) as up:
+            out = list(native_mod.native_chat_stream(
+                host="http://127.0.0.1:11434", model="m7",
+                messages=[{"role": "user", "content": "hello"}],
+                keep_alive="2h"))
+        self.assertEqual(out, ["Hel", "lo"])
+        self.assertEqual(up.call_count, 1)
+        body = json.loads(up.call_args[0][0].data.decode("utf-8"))
+        self.assertIs(body["stream"], True)
+        self.assertEqual(body["keep_alive"], "2h")
+
+    def test_closing_stream_closes_the_only_http_response(self):
+        frames = (
+            json.dumps({"message": {"role": "assistant", "content": "first"}, "done": False}) + "\n"
+            + json.dumps({"message": {"role": "assistant", "content": "second"}, "done": False}) + "\n"
+        ).encode("utf-8")
+        resp = _Resp(frames)
+        with mock.patch("urllib.request.urlopen", return_value=resp):
+            stream = native_mod.native_chat_stream(
+                host="http://127.0.0.1:11434", model="m7",
+                messages=[{"role": "user", "content": "hello"}], keep_alive="30m")
+            self.assertEqual(next(stream), "first")
+            stream.close()
+        self.assertTrue(resp.closed)
 
     def test_env_override(self):
         with mock.patch.dict("os.environ", {"OLLAMA_KEEP_ALIVE": "2h"}):
             self.assertEqual(ollama_mod.keep_alive_value(), "2h")
 
-    def test_zero_disables_pin_without_calling_out(self):
-        with mock.patch("urllib.request.urlopen") as up:
-            self.assertFalse(ollama_mod.warm_model(keep_alive="0"))
-        up.assert_not_called()
-
-    def test_pin_failure_is_never_fatal(self):
-        with mock.patch("urllib.request.urlopen", side_effect=OSError("boom")):
-            self.assertFalse(ollama_mod.warm_model(model="m"))
+    def test_legacy_background_warmup_transport_is_gone(self):
+        self.assertFalse(hasattr(ollama_mod, "warm_model"))
+        self.assertFalse(hasattr(ollama_mod, "warm_model_async"))
 
 
 class AskStreamTest(unittest.TestCase):
@@ -138,31 +173,32 @@ class AskStreamTest(unittest.TestCase):
         self.assertEqual([e for e, _ in evs], ["start", "delta", "delta", "final"])
         self.assertEqual([p["text"] for e, p in evs if e == "delta"], ["Hel", "lo"])
         self.assertEqual(evs[-1][1]["assistant"], "Hello")
-        self.assertEqual(evs[-1][1]["provider_used"], "ollama")
+        self.assertEqual(evs[-1][1]["provider_used"], "ollama_http")
 
-    def test_midstream_error_falls_back_to_blocking(self):
+    def test_midstream_error_keeps_partial_text_and_marks_interrupted(self):
         def boom():
             yield "partial"
             raise RuntimeError("stream died")
 
-        with mock.patch.object(ikarus_os, "_ollama_stream", return_value=boom()), \
-             mock.patch.object(ikarus_os, "ask",
-                               return_value={"assistant": "fallback", "intent": "chat"}) as blocking:
+        with mock.patch.object(ikarus_os, "_ollama_stream", return_value=boom()):
+            evs = self._events(self.PROJECT, "hello there", provider="ollama")
+        self.assertEqual(evs[-1][1]["assistant"], "partial")
+        self.assertTrue(evs[-1][1]["stream_interrupted"])
+        self.assertEqual(evs[-1][1]["provider_used"], "ollama_http")
+
+    def test_empty_stream_falls_back_to_resolved_blocking_voice(self):
+        fallback = {"assistant": "fallback", "intent": "chat", "provider_used": "ollama_http"}
+        with mock.patch.object(ikarus_os, "_ollama_stream", return_value=iter([])), \
+             mock.patch.object(ikarus_os, "_chat", return_value=fallback) as blocking:
             evs = self._events(self.PROJECT, "hello there", provider="ollama")
         blocking.assert_called_once()
-        self.assertEqual(evs[-1][1]["assistant"], "fallback")
-
-    def test_empty_stream_falls_back_to_blocking(self):
-        with mock.patch.object(ikarus_os, "_ollama_stream", return_value=iter([])), \
-             mock.patch.object(ikarus_os, "ask",
-                               return_value={"assistant": "fallback", "intent": "chat"}):
-            evs = self._events(self.PROJECT, "hello there", provider="ollama")
         self.assertEqual(evs[-1][1]["assistant"], "fallback")
 
     def test_unwired_provider_degrades_to_deterministic(self):
         # codex_cli gained a real chat branch; "gemini" remains genuinely unwired.
         evs = self._events(self.PROJECT, "hello there", provider="gemini")
-        self.assertEqual(evs[-1][1]["provider_used"], "deterministic")
+        self.assertEqual(evs[-1][1]["provider_used"], "unavailable")
+        self.assertEqual(evs[-1][1]["intent"], "error")
         self.assertNotIn("delta", [e for e, _ in evs])
 
     def test_empty_message_is_safe(self):
@@ -221,30 +257,48 @@ class ClaudeStreamFrameTest(unittest.TestCase):
 class NonStreamingUnchangedTest(unittest.TestCase):
     """The blocking path must keep working exactly as before."""
 
-    def test_ask_still_answers_deterministically(self):
+    def test_ask_without_an_available_voice_fails_loud_instead_of_silent_fallback(self):
         res = ikarus_os.ask("sunny_garden", "hello there", provider=None)
-        self.assertEqual(res["provider_used"], "deterministic")
-        self.assertIn("Ikarus", res["assistant"])
+        self.assertEqual(res["provider_used"], "unavailable")
+        self.assertEqual(res["intent"], "error")
+        self.assertIn("no available LLM voice", res["assistant"])
 
-    def test_blocking_ollama_path_also_pins_residency(self):
-        """The pin is a side effect only: same reply, but the next turn stays warm."""
-        with mock.patch("daedalus.providers.ollama.warm_model_async") as warm, \
-             mock.patch("daedalus.ikarus_os.chat_completion", return_value="  hi  "):
+    def test_blocking_ollama_is_one_guarded_native_transport(self):
+        with mock.patch.object(ikarus_os, "_provider_start") as start, \
+             mock.patch("daedalus.providers._ollama_native.native_chat",
+                        return_value={"role": "assistant", "content": "  hi  "}) as chat:
             out = ikarus_os._ollama("hello", "m7", "low")
-        self.assertEqual(out, "hi")  # unchanged: still stripped text
-        warm.assert_called_once()
+        self.assertEqual(out, "hi")
+        start.assert_called_once_with("ollama", endpoint="http://127.0.0.1:11434", model="m7")
+        chat.assert_called_once()
+        kwargs = chat.call_args.kwargs
+        self.assertEqual(kwargs["keep_alive"], ollama_mod.keep_alive_value())
+        self.assertEqual(kwargs["num_predict"], 700)
+        self.assertEqual(kwargs["host"], "http://127.0.0.1:11434")
+
+    def test_streaming_ollama_is_one_guarded_native_transport(self):
+        with mock.patch.object(ikarus_os, "_provider_start") as start, \
+             mock.patch("daedalus.providers._ollama_native.native_chat_stream",
+                        return_value=iter(["Hel", "lo"])) as chat:
+            out = list(ikarus_os._ollama_stream("hello", "m7", "low"))
+        self.assertEqual(out, ["Hel", "lo"])
+        start.assert_called_once_with("ollama", endpoint="http://127.0.0.1:11434", model="m7")
+        chat.assert_called_once()
+        kwargs = chat.call_args.kwargs
+        self.assertEqual(kwargs["keep_alive"], ollama_mod.keep_alive_value())
+        self.assertEqual(kwargs["num_predict"], 700)
 
     def test_blocking_ollama_still_returns_none_on_failure(self):
-        with mock.patch("daedalus.providers.ollama.warm_model_async"), \
-             mock.patch("daedalus.ikarus_os.chat_completion",
+        with mock.patch.object(ikarus_os, "_provider_start"), \
+             mock.patch("daedalus.providers._ollama_native.native_chat",
                         side_effect=RuntimeError("dead")):
             self.assertIsNone(ikarus_os._ollama("hello", "m7", "low"))
 
     def test_effort_caps_preserved(self):
-        self.assertEqual(ikarus_os._effort_cap("low"), 300)
-        self.assertEqual(ikarus_os._effort_cap("medium"), 700)
-        self.assertEqual(ikarus_os._effort_cap("high"), 1400)
-        self.assertEqual(ikarus_os._effort_cap(None), 300)
+        self.assertEqual(ikarus_os._effort_cap("low"), 700)
+        self.assertEqual(ikarus_os._effort_cap("medium"), 1400)
+        self.assertEqual(ikarus_os._effort_cap("high"), 2800)
+        self.assertEqual(ikarus_os._effort_cap(None), 700)
 
 
 if __name__ == "__main__":

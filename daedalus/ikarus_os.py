@@ -1184,25 +1184,28 @@ def _refusal_envelope(project: str, receipt: dict) -> dict:
 
 def _ollama(message: str, model: str, effort: str | None,
             context: str = "", *, timeout_s: float = 150.0) -> str | None:
-    from .providers.ollama import DEFAULT_HOST, warm_model_async
+    """One guarded Ollama chat transport, with residency refresh in-band.
+
+    The native ``/api/chat`` endpoint honors ``keep_alive`` while the OpenAI
+    compatibility shim does not.  Carrying it on the answer request removes the
+    former daemon ``/api/generate`` warm-up: one ``_provider_start`` now
+    authorizes exactly one network-capable operation against the exact host.
+    """
+    from .providers._ollama_native import native_chat
+    from .providers.ollama import DEFAULT_HOST, keep_alive_value
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
-    # BEFORE warm_model_async, which connects on a daemon thread, and before
-    # the request is built. A repointed OLLAMA_HOST is refused here.
     _provider_start("ollama", endpoint=host, model=model)
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
-    # Refresh VRAM residency off-thread. Purely a side effect: the reply text and
-    # envelope are byte-for-byte what they were, but the NEXT turn skips the
-    # ~44s cold reload instead of paying it after 5 idle minutes.
-    warm_model_async(host, model)
     try:
-        txt = chat_completion(
-            base_url=host.rstrip("/") + "/v1", model=model,
-            system=system, user=_with_context(message, context),
-            force_json=False, temperature=0.3,
-            timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},
+        msg = native_chat(
+            host=host, model=model,
+            messages=[{"role": "system", "content": system},
+                      {"role": "user", "content": _with_context(message, context)}],
+            keep_alive=keep_alive_value(), num_predict=_effort_cap(effort),
+            temperature=0.3, timeout_s=timeout_s,
         )
-        return (txt or "").strip() or None
+        return (msg.get("content") or "").strip() or None
     except Exception:
         return None
 
@@ -1548,20 +1551,24 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
 
 
 def _ollama_stream(message: str, model: str, effort: str | None, context: str = "", *, timeout_s: float = 150.0):
-    """Yield text deltas from the local Ollama runtime, and refresh the VRAM
-    residency TTL in the background so the NEXT turn skips the ~44s reload."""
-    from .providers._openai_compat import chat_stream
-    from .providers.ollama import DEFAULT_HOST, warm_model_async
+    """Yield Ollama deltas from one guarded native ``/api/chat`` transport.
+
+    ``keep_alive`` is part of this same request.  Closing the generator closes
+    the response, so cancellation cannot leave a second background warm-up
+    socket running after the Voice turn has stopped.
+    """
+    from .providers._ollama_native import native_chat_stream
+    from .providers.ollama import DEFAULT_HOST, keep_alive_value
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
-    # Before warm_model_async's daemon thread and before the stream request.
     _provider_start("ollama", endpoint=host, model=model)
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
-    warm_model_async(host, model)  # non-blocking: never delays this reply
-    yield from chat_stream(
-        base_url=host.rstrip("/") + "/v1", model=model,
-        system=system, user=_with_context(message, context), temperature=0.3,
-        timeout_s=timeout_s, extra={"max_tokens": _effort_cap(effort)},
+    yield from native_chat_stream(
+        host=host, model=model,
+        messages=[{"role": "system", "content": system},
+                  {"role": "user", "content": _with_context(message, context)}],
+        keep_alive=keep_alive_value(), num_predict=_effort_cap(effort),
+        temperature=0.3, timeout_s=timeout_s,
     )
 
 

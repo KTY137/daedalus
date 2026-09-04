@@ -301,55 +301,6 @@ def keep_alive_value() -> str:
     return os.environ.get("OLLAMA_KEEP_ALIVE", DEFAULT_KEEP_ALIVE)
 
 
-def warm_model(host: str | None = None, model: str | None = None,
-               keep_alive: str | None = None, timeout_s: float = 60.0) -> bool:
-    """Pin ``model`` in VRAM for ``keep_alive`` via Ollama's NATIVE /api/generate.
-
-    Why native and not the OpenAI-compat body: Ollama's /v1/chat/completions
-    shim SILENTLY DROPS an unknown ``keep_alive`` field — measured, the TTL
-    stayed at the 5-minute default. Sending it here is the only thing that
-    actually moves the expiry (verified: expires_at jumped to 30.0 minutes).
-
-    An empty prompt makes this a pure load/refresh (`done_reason: "load"`), so
-    it costs nothing once the model is already resident. Local-only, no spend,
-    no egress. Returns True if the pin was accepted; never raises.
-    """
-    host = (host or os.environ.get("OLLAMA_HOST", DEFAULT_HOST)).rstrip("/")
-    model = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-    keep_alive = keep_alive or keep_alive_value()
-    if str(keep_alive) == "0":  # explicitly disabled
-        return False
-    import urllib.request
-
-    # Pin at the same num_ctx the real offload calls request, so the runner is
-    # pre-sized and the first real call doesn't pay a reload to grow the window.
-    body = json.dumps({"model": model, "keep_alive": keep_alive,
-                       "options": {"num_ctx": num_ctx_value()}}).encode("utf-8")
-    req = urllib.request.Request(
-        f"{host}/api/generate", data=body,
-        headers={"Content-Type": "application/json"}, method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-            return 200 <= resp.status < 300
-    except Exception:
-        return False  # best-effort: a cold model is slow, never fatal
-
-
-def warm_model_async(host: str | None = None, model: str | None = None,
-                     keep_alive: str | None = None) -> None:
-    """Fire-and-forget :func:`warm_model` on a daemon thread.
-
-    Used to refresh the residency TTL around a chat turn without adding the
-    pin's latency to the user's reply.
-    """
-    import threading
-
-    threading.Thread(
-        target=warm_model, args=(host, model, keep_alive), daemon=True
-    ).start()
-
-
 def remote_endpoint_consented(host: str | None) -> bool:
     """True only when the operator named THIS endpoint, exactly.
 

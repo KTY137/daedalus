@@ -484,7 +484,8 @@ def test_every_effect_sink_is_reachable_only_through_the_doors():
     sink_calls = {
         "subprocess.run", "subprocess.Popen", "subprocess.check_call",
         "subprocess.check_output", "urlopen", "urllib.request.urlopen",
-        "chat_completion", "chat_stream", "socket.create_connection",
+        "chat_completion", "chat_stream", "native_chat", "native_chat_stream",
+        "socket.create_connection",
     }
 
     discovered = {
