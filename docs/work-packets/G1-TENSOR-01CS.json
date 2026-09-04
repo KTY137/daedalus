@@ -1,0 +1,86 @@
+{
+  "work_packet_id": "G1-TENSOR-01CS",
+  "title": "Reuse canonical CSR value tuples through block validation",
+  "date_europe_berlin": "2026-09-04",
+  "classification": "GARDENING",
+  "parent_work_packet": "G1-TENSOR-01CR",
+  "campaign_issue": 239,
+  "authority": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "704f6af8581871298a17e4e02491d4dfa030fb3f",
+    "production_commit": "c293afdf8ea791f0a882da34f18ab3b47d087ccc",
+    "exact_code_test_head": "fc2e6080c5a4aa71fe448530d43f0630a2705a70",
+    "production_blob": "2e4cbf9b740fd7b7423cb6e39d74dea1289878e9",
+    "focused_test_blob": "1aa9707ebe19048049bc1b7b112f3e8d94dbfedd",
+    "files_changed_before_record": 2,
+    "commits_before_record": 2,
+    "production_additions": 12,
+    "production_deletions": 4,
+    "test_additions": 34,
+    "test_deletions": 0
+  },
+  "finding": "TypedRelationBlock.__post_init__ bounded and semantically validated values but always rebuilt them with tuple(...), even when _from_indexed, matmul, or hadamard had already supplied an exact immutable canonical tuple. This duplicated the retained CSR value container after construction.",
+  "gardener_change": "Validate each scalar exactly once, keep the existing tuple when every validated scalar is already the stored representation, and allocate a fallback list/tuple only when the caller supplied a non-tuple sequence or scalar normalization changes an item. No helper cache, alternate block type, index, store, registry, scheduler, backend, graph authority, semantic plane, or public product surface was added.",
+  "focused_regressions": [
+    "A canonical Boolean values tuple is retained by exact object identity after TypedRelationBlock validation.",
+    "A Tropical integer tuple still falls back to a newly normalized float tuple, proving identity reuse cannot bypass scalar normalization."
+  ],
+  "verification": {
+    "workflow": "Fourfold v2",
+    "run_id": 33820591813,
+    "event": "push",
+    "exact_revision": "fc2e6080c5a4aa71fe448530d43f0630a2705a70",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": {
+      "contracts_python_3_10_hashseed_0": "success",
+      "contracts_python_3_10_hashseed_123456": "success",
+      "contracts_python_3_12_hashseed_0": "success",
+      "contracts_python_3_12_hashseed_123456": "success",
+      "isolated_wheel": "success",
+      "repository_collection": "success"
+    },
+    "designated_python_3_12_hashseed_0": {
+      "fourfold_and_kernel_contract_tests": "success",
+      "bounded_tensor_forest_diagnostic": "success",
+      "wheel_contains_twin_package": "success"
+    },
+    "repository_collection_is_execution_claim": false
+  },
+  "claims": {
+    "hosted_green_bound_only_to_exact_code_test_head": true,
+    "full_repository_suite_executed": false,
+    "measured_latency_speedup": false,
+    "measured_peak_memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "history_rewritten": false,
+    "branch_deleted": false,
+    "branch_archived": false,
+    "visible_remote_refs_observed": 18,
+    "archive_anchor": "archive/legacy-20260830",
+    "archive_anchor_sha_observed": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_anchor_modified": false,
+    "main_sha_observed": "e31213aff40ab322dcead6d50ae19007f3f9b6b1"
+  },
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "promotion_receipt_minted": false,
+    "ready_for_review_transition": false,
+    "automatic_promotion": false,
+    "merge": false,
+    "gate_transition": false,
+    "independent_owner_review_completed": false
+  }
+}
