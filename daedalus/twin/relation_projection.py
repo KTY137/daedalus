@@ -111,26 +111,27 @@ def boolean_relation_block_from_fourfold(
                 append(binding.source_node_id, binding.target_node_id)
     else:
         retained_digests = source_plane.relation_sha256s
-        for hyperedge in forest.hyperedges:
-            if hyperedge.relation != signature.relation:
-                continue
-            digest = canonical_sha(hyperedge.to_dict())
-            if _retains_digest(retained_digests, digest):
-                raise ValueError(
-                    "binary relation projection cannot flatten a retained ForestHyperedge"
-                )
+        if retained_digests:
+            for hyperedge in forest.hyperedges:
+                if hyperedge.relation != signature.relation:
+                    continue
+                digest = canonical_sha(hyperedge.to_dict())
+                if _retains_digest(retained_digests, digest):
+                    raise ValueError(
+                        "binary relation projection cannot flatten a retained ForestHyperedge"
+                    )
 
-        for edge in forest.edges:
-            if edge.relation != signature.relation:
-                continue
-            digest = canonical_sha(edge.to_dict())
-            if not _retains_digest(retained_digests, digest):
-                continue
-            if not edge.directed:
-                raise ValueError(
-                    "binary relation projection requires an explicitly directed ForestEdge"
-                )
-            append(edge.source, edge.target)
+            for edge in forest.edges:
+                if edge.relation != signature.relation:
+                    continue
+                digest = canonical_sha(edge.to_dict())
+                if not _retains_digest(retained_digests, digest):
+                    continue
+                if not edge.directed:
+                    raise ValueError(
+                        "binary relation projection requires an explicitly directed ForestEdge"
+                    )
+                append(edge.source, edge.target)
 
     return TypedRelationBlock.from_coordinates(
         subject=ProjectionSubject(
