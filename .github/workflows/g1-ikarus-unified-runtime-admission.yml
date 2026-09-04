@@ -24,6 +24,7 @@ on:
       - "daedalus/runtime_registry.py"
       - "daedalus/providers/_ollama_native.py"
       - "daedalus/providers/claude_cli.py"
+      - "daedalus/providers/claude_sealed_operation.py"
       - "daedalus/providers/ollama.py"
       - "daedalus/runtimes/provider_executable_pre_admission.py"
       - "daedalus/runtimes/provider_executable_object_registry.py"
@@ -103,6 +104,7 @@ jobs:
           daedalus/runtime_registry.py
           daedalus/providers/_ollama_native.py
           daedalus/providers/claude_cli.py
+          daedalus/providers/claude_sealed_operation.py
           daedalus/providers/ollama.py
           daedalus/runtimes/provider_executable_pre_admission.py
           daedalus/runtimes/provider_executable_object_registry.py
