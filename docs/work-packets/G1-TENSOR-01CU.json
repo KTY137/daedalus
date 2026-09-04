@@ -1,0 +1,90 @@
+{
+  "work_packet_id": "G1-TENSOR-01CU",
+  "title": "Reuse canonical Fourfold plane tuple during strict relation projection",
+  "date_europe_berlin": "2026-09-04",
+  "classification": "GARDENING",
+  "parent_work_packet": "G1-TENSOR-01CT",
+  "campaign_issue": 239,
+  "authority": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "e963692d6608abdb9102a73a23d72d69d7ea18ea",
+    "production_commit": "c352dac83d9599382770cf274712ce935ad8ca21",
+    "exact_code_test_head": "55bab164abda345c86f950b4b632a8a816d1615c",
+    "production_blob": "a9c99df62fc5c2d2a82dd7db4dc46b0a5bf9c0ea",
+    "focused_test_blob": "4375d67e1405d79568f5a849b0f0fec95ac84663",
+    "files_changed_before_record": 2,
+    "commits_before_record": 2,
+    "production_additions": 9,
+    "production_deletions": 4,
+    "test_additions": 26,
+    "test_deletions": 0
+  },
+  "finding": "FourfoldSnapshot canonicalizes its four PlaneSnapshot records into FOURFOLD_PLANES order during construction, but strict Boolean relation projection called snapshot.plane_map on every projected block. plane_map materializes a fresh dict and MappingProxyType each access even though relation projection only needs the already-canonical source and target plane records.",
+  "gardener_change": "Relation projection now resolves endpoint planes directly from the immutable canonical snapshot.planes tuple using FOURFOLD_PLANES. Same-plane signatures reuse the already-resolved source PlaneSnapshot as the target as well. This removes a redundant per-block mapping materialization without adding a cache, index, second lookup abstraction, graph authority, Tensor type, backend, store, registry, scheduler, semantic plane or public product surface.",
+  "focused_regressions": [
+    "Same-plane code->imports->code projection remains exact while FourfoldSnapshot.plane_map is monkeypatched to raise on access.",
+    "Cross-plane code->documents->knowledge projection remains exact under the same plane_map refusal, pinning canonical tuple lookup for both endpoint shapes."
+  ],
+  "verification": {
+    "workflow": "Fourfold v2",
+    "run_id": 33829164788,
+    "event": "push",
+    "exact_revision": "55bab164abda345c86f950b4b632a8a816d1615c",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": {
+      "contracts_python_3_10_hashseed_0": "success",
+      "contracts_python_3_10_hashseed_123456": "success",
+      "contracts_python_3_12_hashseed_0": "success",
+      "contracts_python_3_12_hashseed_123456": "success",
+      "isolated_wheel": "success",
+      "repository_collection": "success"
+    },
+    "contract_test_counts": {
+      "python_3_10_hashseed_0": "220 passed, 2 skipped in 4.09s",
+      "python_3_12_hashseed_0": "220 passed, 2 skipped in 5.27s"
+    },
+    "designated_python_3_12_hashseed_0": {
+      "fourfold_and_kernel_contract_tests": "success",
+      "bounded_tensor_forest_diagnostic": "success",
+      "wheel_contains_twin_package": "success"
+    },
+    "repository_collection_is_execution_claim": false
+  },
+  "claims": {
+    "hosted_green_bound_only_to_exact_code_test_head": true,
+    "full_repository_suite_executed": false,
+    "measured_latency_speedup": false,
+    "measured_peak_memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "history_rewritten": false,
+    "branch_deleted": false,
+    "branch_archived": false,
+    "visible_remote_refs_observed": 18,
+    "archive_anchor": "archive/legacy-20260830",
+    "archive_anchor_sha_observed": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_anchor_modified": false,
+    "main_sha_observed": "e31213aff40ab322dcead6d50ae19007f3f9b6b1"
+  },
+  "authority_boundary": {
+    "owner_approval_minted": false,
+    "promotion_receipt_minted": false,
+    "ready_for_review_transition": false,
+    "automatic_promotion": false,
+    "merge": false,
+    "gate_transition": false,
+    "independent_owner_review_completed": false
+  }
+}
