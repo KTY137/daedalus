@@ -18,7 +18,7 @@ from bisect import bisect_left
 
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import KnowledgeForest
-from .contracts import FourfoldSnapshot
+from .contracts import FOURFOLD_PLANES, FourfoldSnapshot
 from .relation_blocks import (
     MAX_BLOCK_ENTRIES,
     ProjectionSubject,
@@ -63,9 +63,14 @@ def boolean_relation_block_from_fourfold(
     if forest.content_sha256 != snapshot.source_forest_sha256:
         raise ValueError("relation projection requires the exact Forest bound by Fourfold")
 
-    plane_map = snapshot.plane_map
-    source_plane = plane_map[signature.source_plane]
-    target_plane = plane_map[signature.target_plane]
+    # FourfoldSnapshot canonicalizes planes into FOURFOLD_PLANES order once.
+    # Reuse that immutable tuple instead of rebuilding ``plane_map`` per block.
+    source_plane = snapshot.planes[FOURFOLD_PLANES.index(signature.source_plane)]
+    target_plane = (
+        source_plane
+        if signature.source_plane == signature.target_plane
+        else snapshot.planes[FOURFOLD_PLANES.index(signature.target_plane)]
+    )
     incomplete = sorted(
         {
             plane.plane
