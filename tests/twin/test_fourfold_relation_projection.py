@@ -213,6 +213,32 @@ def test_same_plane_projection_reuses_the_exact_typed_axis() -> None:
     assert documents.row_axis is not documents.column_axis
 
 
+def test_projection_reuses_canonical_plane_tuple_without_materializing_plane_map(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest = _forest()
+    snapshot = _complete_snapshot(forest)
+
+    def unexpected_plane_map(_snapshot: FourfoldSnapshot) -> object:
+        raise AssertionError("relation projection must not rebuild Fourfold plane_map")
+
+    monkeypatch.setattr(FourfoldSnapshot, "plane_map", property(unexpected_plane_map))
+
+    imports = boolean_relation_block_from_fourfold(
+        forest,
+        snapshot,
+        RelationSignature("code", "imports", "code"),
+    )
+    documents = boolean_relation_block_from_fourfold(
+        forest,
+        snapshot,
+        RelationSignature("code", "documents", "knowledge"),
+    )
+
+    assert tuple(imports.iter_entries()) == (("src/a.py", "src/b.py", True),)
+    assert tuple(documents.iter_entries()) == (("src/b.py", "docs/b.md", True),)
+
+
 def test_projection_refuses_legacy_partial_endpoint_planes() -> None:
     forest = _forest()
     snapshot = _legacy_snapshot(forest)
