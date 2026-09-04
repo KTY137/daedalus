@@ -1,0 +1,74 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-TENSOR-01CZ",
+  "title": "Prune retained 2-category lookup-map surfaces",
+  "status": "closed",
+  "date": "2026-09-04",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "877c3b4dc80730e09418ef46c86218bc27289c90",
+  "production_commit": "3240550b9a0d2e2a8b46b29371cb630b6f76cdd6",
+  "tested_head": "67598415ca33329e22023de5a53e4f0a7265d780",
+  "files": [
+    {
+      "path": "daedalus/twin/two_category.py",
+      "blob": "4a917bc787bac0f73a097b477366e0574b4060fc",
+      "additions": 9,
+      "deletions": 14
+    },
+    {
+      "path": "tests/twin/test_two_category_contract.py",
+      "blob": "fd0e173249b7e07ef5a7fa4a6a1cc8df112ed2cf",
+      "additions": 45,
+      "deletions": 0
+    }
+  ],
+  "change": "TypedBoundary.port_map and BoundaryMap.assignment_map were regenerating full MappingProxyType/dict lookup surfaces from already canonical immutable tuples. BoundaryMap validation also re-read those properties inside the assignment loop, rebuilding complete maps repeatedly. The packet removes both retained helper surfaces, materializes source/target port dictionaries once locally during validation, and uses one transient assignment dictionary only while composing maps. Canonical boundary/map ordering, totality, plane preservation, identities, associativity, 2-cell composition and wire digests remain owned by the existing contracts; no cache, index service, registry, store, planner or second 2-category abstraction was added.",
+  "verification": {
+    "workflow": "Fourfold v2",
+    "run_id": 33856431630,
+    "head_sha": "67598415ca33329e22023de5a53e4f0a7265d780",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "contracts": "success on all four matrix jobs",
+    "python_3_12_seed_0_diagnostics": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "production_only_run": "33856361461 was cancelled after the subsequent focused-test commit superseded that head",
+    "focused_regression": "128-port canonical boundary maps compose correctly while port_map and assignment_map are absent",
+    "diagnostics": {
+      "authority": "diagnostic-only",
+      "claim": "none"
+    }
+  },
+  "claims": {
+    "structural_bloat_reduced": true,
+    "latency_speedup": false,
+    "memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 262
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "archive_head_observed": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "visible_remote_refs_before_evidence_commit": 18,
+    "note": "This packet modified only exp/tensor-kernel-contract-01. Existing evidence-bearing/noncanonical refs, worktree-g1-ui-ikarus and archive/legacy-20260830 were not moved, deleted, renamed, force-updated or used as a destination for active work."
+  }
+}
