@@ -1401,8 +1401,10 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     ``conversation_id`` is READ-ONLY here — it reaches :func:`_decide` so a
     confirmation can be recognised. Persistence stays in :func:`ask_stream`.
 
-    Fail-closed: any streaming failure (unsupported flag, dead runtime, mid-
-    stream error) degrades to the blocking path rather than erroring the chat.
+    Fail-closed: once a provider stream has been entered, an empty or failed
+    stream is terminal and is never silently replayed through the blocking path.
+    The blocking path remains only the capability fallback when the selected
+    provider has no verified streaming transport.
 
     THE BOUNDARY COMES FIRST, here and not in :func:`ask_stream`. The tap
     around this generator only persists the final turn; THIS is the function
@@ -1527,7 +1529,9 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         yield "final", _reconcile_final(route, _refusal_envelope(project, exc.receipt))
         return
     except Exception:
-        failed = True  # fall through to the blocking path
+        # The request may already have reached the provider.  Preserve an
+        # interrupted outcome below instead of issuing an invisible second call.
+        failed = True
 
     text = "".join(chunks).strip()
     if failed and text:
@@ -1538,9 +1542,19 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             provider_used=p, model_used=model_used, stream_interrupted=True, **extra))
         return
     if not text:
-        yield "final", _reconcile_final(
-            route, _chat(project, message, p or provider, model, effort,
-                         conversation_id=conversation_id))
+        # A selected streamer has already been entered, so an empty result is an
+        # unknown delivery outcome.  Re-entering _chat here can duplicate spend
+        # or a remotely completed turn.  Halt loudly and require an explicit
+        # user retry instead.  The earlier `streamer is None` branch remains the
+        # only safe blocking capability fallback because no stream was attempted.
+        block = _ctx_envelope_block(ctx)
+        extra = {"context": block} if block else {}
+        yield "final", _reconcile_final(route, core.envelope(
+            project, intent="chat", shell=SHELL_VOICE,
+            assistant=("The response stream ended without a complete answer. "
+                       "The request was not automatically retried."),
+            provider_used=p, model_used=model_used, stream_interrupted=True,
+            **extra))
         return
 
     block = _ctx_envelope_block(ctx)

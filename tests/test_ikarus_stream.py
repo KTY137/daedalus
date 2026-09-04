@@ -180,19 +180,25 @@ class AskStreamTest(unittest.TestCase):
             yield "partial"
             raise RuntimeError("stream died")
 
-        with mock.patch.object(ikarus_os, "_ollama_stream", return_value=boom()):
+        with mock.patch.object(ikarus_os, "_ollama_stream", return_value=boom()), \
+             mock.patch.object(ikarus_os, "_chat") as blocking:
             evs = self._events(self.PROJECT, "hello there", provider="ollama")
+        blocking.assert_not_called()
         self.assertEqual(evs[-1][1]["assistant"], "partial")
         self.assertTrue(evs[-1][1]["stream_interrupted"])
         self.assertEqual(evs[-1][1]["provider_used"], "ollama_http")
 
-    def test_empty_stream_falls_back_to_resolved_blocking_voice(self):
-        fallback = {"assistant": "fallback", "intent": "chat", "provider_used": "ollama_http"}
+    def test_empty_stream_halts_without_replaying_provider(self):
         with mock.patch.object(ikarus_os, "_ollama_stream", return_value=iter([])), \
-             mock.patch.object(ikarus_os, "_chat", return_value=fallback) as blocking:
+             mock.patch.object(ikarus_os, "_chat") as blocking:
             evs = self._events(self.PROJECT, "hello there", provider="ollama")
-        blocking.assert_called_once()
-        self.assertEqual(evs[-1][1]["assistant"], "fallback")
+        blocking.assert_not_called()
+        final = evs[-1][1]
+        self.assertEqual(final["intent"], "chat")
+        self.assertEqual(final["provider_used"], "ollama_http")
+        self.assertTrue(final["stream_interrupted"])
+        self.assertIn("not automatically retried", final["assistant"])
+        self.assertNotIn("delta", [event for event, _ in evs])
 
     def test_unwired_provider_degrades_to_deterministic(self):
         # codex_cli gained a real chat branch; "gemini" remains genuinely unwired.
