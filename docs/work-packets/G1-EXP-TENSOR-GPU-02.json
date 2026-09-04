@@ -1,0 +1,81 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-02",
+  "title": "Account CUDA scatter staging in VRAM admission and fail closed on OOM",
+  "status": "closed",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "8adc894d34fd7bd1ced88b03c8d8d6dbbb70c765",
+  "production_commit": "6e8b855b171bfca985852a2ede73cfd7e71042b5",
+  "tested_head": "a7f79511f59ee7f476bcf4fd8029dc03873f9e60",
+  "finding": "The first CUDA Boolean probe admitted work from a dense-resident-set estimate that omitted the temporary int64 row/column scatter-index tensors used while converting canonical CSR support to dense CUDA matrices. An allocator OOM could also escape as an exception instead of becoming explicit blocked experimental evidence.",
+  "change": {
+    "device_memory_estimate": "Count padded dense A/B/C plus Boolean support mask and one live pair of int64 scatter-index tensors. The two input blocks are packed sequentially, so only one staging pair is admitted at peak.",
+    "workspace_headroom": "Keep the existing min(explicit-case-VRAM-ceiling, half-currently-free-VRAM) rule because cuBLAS workspace is implementation-owned and not exactly predictable by the probe.",
+    "oom_semantics": "Translate only PyTorch's explicit OutOfMemoryError into status=blocked, claim=none, reason=cuda-out-of-memory. Unrelated exceptions remain visible and are re-raised.",
+    "authority": "No production backend, runtime dependency, store, registry, scheduler, semantic plane or promotion path was added."
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "blob": "96866e8ec03252208868a0ddfcf7d434811dd9ca"
+    },
+    {
+      "path": "tests/twin/test_tensor_gpu_probe.py",
+      "blob": "10ba18e7d45453f57fba41b3e58b01f30d8bc9f3"
+    }
+  ],
+  "verification": {
+    "workflow": "Fourfold v2",
+    "run_id": 33861553018,
+    "head_sha": "a7f79511f59ee7f476bcf4fd8029dc03873f9e60",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "designated_tensor_forest_diagnostic": "success on Python 3.12 / seed 0",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not full-suite execution",
+    "gpu_execution": "not executed on hosted runners and not claimed",
+    "tensor_core_usage": "not profiled and not claimed"
+  },
+  "acceptance": [
+    "the explicit admission estimate includes CUDA scatter staging memory in addition to padded dense resident allocations",
+    "the estimate remains bounded by the existing TypedRelationBlock entry ceiling and probe case limits",
+    "an explicit PyTorch CUDA OOM becomes non-authorizing blocked evidence",
+    "a non-OOM runtime error is not swallowed or relabeled as an OOM",
+    "the existing deterministic Boolean CPU oracle contract remains executable and green on the exact tested head",
+    "no GPU speed, memory, Tensor-Core-use or benchmark-superiority claim is emitted"
+  ],
+  "claims": {
+    "hosted_cpu_contracts_green": true,
+    "gpu_run_completed": false,
+    "tensor_core_usage_proven": false,
+    "latency_speedup": false,
+    "memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 262
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "history_rewritten": false,
+    "note": "Only the existing exp/tensor-kernel-contract-01 line was advanced. No ref was created, deleted, renamed, force-updated or moved into the archive anchor."
+  }
+}
