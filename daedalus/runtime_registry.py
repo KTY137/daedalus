@@ -207,10 +207,22 @@ def runtime_status(runtime_id: str) -> dict[str, Any]:
 # `measured_age_s`, and the surface shows it. The uncached path -- the direct
 # callers in tests and elsewhere -- is byte-identical to before; the field
 # appears only when a caller opts into the cache.
+#
+# Concurrent cache misses for the SAME runtime are single-flight. Without that,
+# two browser polls arriving in one scheduler tick both miss, both drop the cache
+# lock, and both spawn the same slow CLI `--version` probe. The cache then reduces
+# steady-state work but amplifies a cold/expired edge into N identical processes.
+# Runtime-specific probe locks coalesce only that duplicate work: two DIFFERENT
+# runtimes still probe in parallel, and TTL=0 still means sequential calls never
+# reuse a result.
 _STATUS_CACHE_TTL_S = float(os.environ.get("DAEDALUS_RUNTIME_STATUS_TTL_S", "30"))
 _status_cache_lock = threading.Lock()
 #: runtime_id -> (monotonic_at, measured_at_iso, row) for the last probe.
 _status_cache: dict[str, tuple[float, str, dict[str, Any]]] = {}
+#: Stable per-runtime single-flight locks. Protected by ``_status_cache_lock``
+#: only while looking up/creating a lock; the expensive probe never holds the
+#: global cache lock.
+_status_probe_locks: dict[str, threading.Lock] = {}
 
 
 def _now_iso() -> str:
@@ -223,41 +235,68 @@ def reset_status_cache() -> None:
         _status_cache.clear()
 
 
+def _fresh_cached_row(runtime_id: str, ttl: float, now_mono: float) -> dict[str, Any] | None:
+    """Return one stamped fresh row while holding no slow-operation lock."""
+    with _status_cache_lock:
+        entry = _status_cache.get(runtime_id)
+        if entry is None or (now_mono - entry[0]) >= ttl:
+            return None
+        mono_at, iso_at, row = entry
+        return {
+            **row,
+            "measured_at": iso_at,
+            "measured_age_s": round(now_mono - mono_at, 3),
+        }
+
+
+def _runtime_probe_lock(runtime_id: str) -> threading.Lock:
+    """Get the single-flight lock for one runtime without serialising others."""
+    with _status_cache_lock:
+        lock = _status_probe_locks.get(runtime_id)
+        if lock is None:
+            lock = threading.Lock()
+            _status_probe_locks[runtime_id] = lock
+        return lock
+
+
 def cached_runtime_status(
     runtime_id: str, *, ttl_s: float | None = None
 ) -> dict[str, Any]:
     """`runtime_status` behind a per-runtime TTL cache, stamped with when the
-    probe ran. On a hit within the TTL the stored row is returned verbatim with
-    a fresh `measured_age_s`; on a miss or expiry the probe runs and the row is
-    stamped `measured_at` now. Each runtime is cached independently, so one slow
-    CLI never forces the others to be re-probed."""
+    probe ran.
+
+    A fresh hit returns immediately. On a miss/expiry, exactly one caller probes
+    a given runtime; concurrent callers for that same runtime wait for the probe
+    and then consume its newly cached row. Different runtimes use different
+    single-flight locks, so a slow Claude probe does not block Ollama/Codex.
+    """
     ttl = _STATUS_CACHE_TTL_S if ttl_s is None else float(ttl_s)
-    now_mono = time.monotonic()
-    with _status_cache_lock:
-        entry = _status_cache.get(runtime_id)
-        # Strict: a reading is fresh only while it is YOUNGER than the TTL, so a
-        # zero TTL is always expired (an explicit "do not cache") rather than a
-        # one-shot cache that a same-tick second call would still hit.
-        if entry is not None and (now_mono - entry[0]) < ttl:
-            mono_at, iso_at, row = entry
-            return {
-                **row,
-                "measured_at": iso_at,
-                "measured_age_s": round(now_mono - mono_at, 3),
-            }
-    # Probe OUTSIDE the lock -- it can take seconds, and holding the lock would
-    # serialise every concurrent poll behind one slow CLI, which is the cost
-    # this cache exists to remove.
-    try:
-        row = runtime_status(runtime_id)
-    except Exception as exc:  # noqa: BLE001 - a probe failure is a row, not a raise
-        spec = next((r for r in RUNTIMES if r.id == runtime_id), None)
-        base = asdict(spec) if spec is not None else {"id": runtime_id}
-        row = {**base, "available": False, "auth_status": "error", "last_error": str(exc)}
-    iso_at = _now_iso()
-    with _status_cache_lock:
-        _status_cache[runtime_id] = (time.monotonic(), iso_at, row)
-    return {**row, "measured_at": iso_at, "measured_age_s": 0.0}
+    cached = _fresh_cached_row(runtime_id, ttl, time.monotonic())
+    if cached is not None:
+        return cached
+
+    # Do not hold `_status_cache_lock` while waiting or probing. The per-runtime
+    # lock only coalesces duplicate work for this runtime; unrelated status
+    # probes remain concurrent.
+    probe_lock = _runtime_probe_lock(runtime_id)
+    with probe_lock:
+        # Double-check after waiting: the leader may have populated the cache
+        # while this caller was blocked on the single-flight lock.
+        cached = _fresh_cached_row(runtime_id, ttl, time.monotonic())
+        if cached is not None:
+            return cached
+
+        try:
+            row = runtime_status(runtime_id)
+        except Exception as exc:  # noqa: BLE001 - a probe failure is a row, not a raise
+            spec = next((r for r in RUNTIMES if r.id == runtime_id), None)
+            base = asdict(spec) if spec is not None else {"id": runtime_id}
+            row = {**base, "available": False, "auth_status": "error", "last_error": str(exc)}
+        iso_at = _now_iso()
+        measured_mono = time.monotonic()
+        with _status_cache_lock:
+            _status_cache[runtime_id] = (measured_mono, iso_at, row)
+        return {**row, "measured_at": iso_at, "measured_age_s": 0.0}
 
 
 def all_status(*, use_cache: bool = False, ttl_s: float | None = None) -> dict[str, Any]:
