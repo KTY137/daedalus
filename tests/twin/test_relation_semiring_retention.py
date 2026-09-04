@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import daedalus.twin.relation_blocks as relation_blocks
 from daedalus.twin.relation_blocks import (
     ProjectionSubject,
     RelationSignature,
@@ -200,3 +201,82 @@ def test_known_semiring_name_cannot_spoof_reference_multiplication() -> None:
     product = left.matmul(right, semiring, relation="reaches")
 
     assert tuple(product.iter_entries()) == (("a", "field", 6),)
+
+
+def test_composition_reuses_resolved_semiring_for_compatibility(monkeypatch) -> None:
+    source_axis = TypedAxis("source", "code", ("a",))
+    middle_axis = TypedAxis("middle", "type", ("T",))
+    target_axis = TypedAxis("target", "data", ("field",))
+    semiring = AlternateBooleanBackend()
+    left = TypedRelationBlock.from_coordinates(
+        subject=subject(),
+        signature=RelationSignature("code", "declares", "type"),
+        row_axis=source_axis,
+        column_axis=middle_axis,
+        coordinates=(("a", "T", True),),
+        semiring=semiring,
+    )
+    right = TypedRelationBlock.from_coordinates(
+        subject=subject(),
+        signature=RelationSignature("type", "shapes", "data"),
+        row_axis=middle_axis,
+        column_axis=target_axis,
+        coordinates=(("T", "field", True),),
+        semiring=semiring,
+    )
+    original = relation_blocks._reference_semiring
+    resolutions = 0
+
+    def counted_reference(selected):
+        nonlocal resolutions
+        resolutions += 1
+        return original(selected)
+
+    monkeypatch.setattr(relation_blocks, "_reference_semiring", counted_reference)
+
+    product = left.matmul(right, semiring, relation="reaches")
+
+    assert tuple(product.iter_entries()) == (("a", "field", True),)
+    # One resolution validates compatibility; one validates the result block.
+    assert resolutions == 2
+
+
+def test_other_block_semiring_mismatch_reuses_resolved_reference(monkeypatch) -> None:
+    source_axis = TypedAxis("source", "code", ("a",))
+    middle_axis = TypedAxis("middle", "type", ("T",))
+    target_axis = TypedAxis("target", "data", ("field",))
+    boolean = AlternateBooleanBackend()
+    natural = DivergentNaturalBackend()
+    left = TypedRelationBlock.from_coordinates(
+        subject=subject(),
+        signature=RelationSignature("code", "declares", "type"),
+        row_axis=source_axis,
+        column_axis=middle_axis,
+        coordinates=(("a", "T", True),),
+        semiring=boolean,
+    )
+    right = TypedRelationBlock.from_coordinates(
+        subject=subject(),
+        signature=RelationSignature("type", "shapes", "data"),
+        row_axis=middle_axis,
+        column_axis=target_axis,
+        coordinates=(("T", "field", 1),),
+        semiring=natural,
+    )
+    original = relation_blocks._reference_semiring
+    resolutions = 0
+
+    def counted_reference(selected):
+        nonlocal resolutions
+        resolutions += 1
+        return original(selected)
+
+    monkeypatch.setattr(relation_blocks, "_reference_semiring", counted_reference)
+
+    with pytest.raises(
+        ValueError,
+        match="block uses semiring 'natural', not 'boolean'",
+    ):
+        left.matmul(right, boolean, relation="invalid")
+
+    assert resolutions == 1
