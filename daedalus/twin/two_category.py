@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from types import MappingProxyType
 from typing import Any, Mapping, Sequence
 
 from ..schemas import _identifier, _non_empty, _revision, _sha256
@@ -79,10 +78,6 @@ class TypedBoundary:
             raise ValueError("boundary port ids must be unique")
         object.__setattr__(self, "ports", tuple(sorted(ports, key=lambda port: port.port_id)))
 
-    @property
-    def port_map(self) -> Mapping[str, BoundaryPort]:
-        return MappingProxyType({port.port_id: port for port in self.ports})
-
     def to_dict(self) -> dict[str, Any]:
         return {"ports": [port.to_dict() for port in self.ports]}
 
@@ -116,14 +111,18 @@ class BoundaryMap:
                 )
             )
         source_ids = [source for source, _ in assignments]
-        if len(source_ids) != len(set(source_ids)):
+        source_id_set = set(source_ids)
+        if len(source_ids) != len(source_id_set):
             raise ValueError("boundary map source assignments must be unique")
-        if set(source_ids) != set(self.source.port_map):
+        source_ports = {port.port_id: port for port in self.source.ports}
+        target_ports = {port.port_id: port for port in self.target.ports}
+        if source_id_set != source_ports.keys():
             raise ValueError("boundary map must be total over its source boundary")
         for source_id, target_id in assignments:
-            if target_id not in self.target.port_map:
+            target_port = target_ports.get(target_id)
+            if target_port is None:
                 raise ValueError(f"unknown target port {target_id!r}")
-            if self.source.port_map[source_id].plane != self.target.port_map[target_id].plane:
+            if source_ports[source_id].plane != target_port.plane:
                 raise ValueError("boundary maps must preserve Fourfold planes")
         object.__setattr__(self, "assignments", tuple(sorted(assignments)))
 
@@ -136,10 +135,6 @@ class BoundaryMap:
         )
 
     @property
-    def assignment_map(self) -> Mapping[str, str]:
-        return MappingProxyType(dict(self.assignments))
-
-    @property
     def is_identity(self) -> bool:
         return self.source == self.target and all(left == right for left, right in self.assignments)
 
@@ -148,7 +143,7 @@ class BoundaryMap:
             raise ValueError("other must be BoundaryMap")
         if self.target != other.source:
             raise ValueError("boundary maps require an exactly shared middle boundary")
-        right = other.assignment_map
+        right = dict(other.assignments)
         return BoundaryMap(
             self.source,
             other.target,
