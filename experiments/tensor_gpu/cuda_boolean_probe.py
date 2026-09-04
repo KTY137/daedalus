@@ -41,6 +41,7 @@ MAX_WARMUP = 50
 MAX_DEVICE_MIB = 32_768
 _SUPPORTED_DTYPES = frozenset({"float16", "bfloat16"})
 _MIB = 1024 * 1024
+_INT64_BYTES = 8
 
 
 class ProbeBlocked(RuntimeError):
@@ -125,11 +126,22 @@ def _dtype_bytes(dtype_name: str) -> int:
 
 
 def estimate_dense_device_bytes(case: ProbeCase) -> int:
-    """Conservative resident allocation estimate for A, B, C and support mask."""
+    """Conservative explicit allocation estimate before CUDA admission.
+
+    The dense resident set is two inputs, one GEMM output, and one Boolean
+    support mask. Packing one CSR block also creates int64 row and column index
+    tensors; the two inputs are packed sequentially, so only one such pair is
+    counted at peak. cuBLAS workspace is implementation-owned and cannot be
+    predicted here, which is why admission additionally reserves half of free
+    VRAM as headroom and runtime OOM is converted to a blocked measurement.
+    """
 
     padded = _padded(case.size, case.tile_multiple)
     cells = padded * padded
-    return cells * (3 * _dtype_bytes(case.dtype_name) + 1)
+    dense_bytes = cells * (3 * _dtype_bytes(case.dtype_name) + 1)
+    input_entries = case.size * _row_width(case.size, case.density)
+    scatter_index_bytes = input_entries * 2 * _INT64_BYTES
+    return dense_bytes + scatter_index_bytes
 
 
 def _coprime_step(size: int, salt: int) -> int:
@@ -513,7 +525,7 @@ def run_case(
         },
         "construction": {
             "typed_csr_inputs_ms": build_ms,
-            "estimated_dense_device_bytes": estimate_dense_device_bytes(case),
+            "estimated_device_bytes": estimate_dense_device_bytes(case),
             "reference_operation_count": operation_count,
         },
         "cpu_reference": {
@@ -553,6 +565,32 @@ def blocked_report(reason: str, detail: str) -> dict[str, Any]:
         "reason": reason,
         "detail": detail,
         "cases": [],
+    }
+
+
+def _cuda_oom_result(torch: Any, exc: BaseException, case: ProbeCase) -> dict[str, Any] | None:
+    """Translate only PyTorch's explicit CUDA OOM type into blocked evidence."""
+
+    oom_type = getattr(torch, "OutOfMemoryError", None)
+    if not isinstance(oom_type, type) or not isinstance(exc, oom_type):
+        return None
+    try:
+        torch.cuda.empty_cache()
+    except Exception:
+        # Cleanup is best-effort after the allocator already refused work. The
+        # original OOM remains the measured reason; cleanup cannot turn it green.
+        pass
+    return {
+        "status": "blocked",
+        "claim": "none",
+        "reason": "cuda-out-of-memory",
+        "detail": str(exc),
+        "case": {
+            "size": case.size,
+            "density": case.density,
+            "dtype": case.dtype_name,
+            "estimated_device_bytes": estimate_dense_device_bytes(case),
+        },
     }
 
 
@@ -596,6 +634,11 @@ def run_probe(
                     },
                 }
             )
+        except Exception as exc:
+            blocked = _cuda_oom_result(torch, exc, case)
+            if blocked is None:
+                raise
+            results.append(blocked)
 
     return {
         "schema": SCHEMA,
