@@ -52,8 +52,34 @@ PASS, FAIL, INCOMPLETE = "PASS", "FAIL", "INCOMPLETE"
 EXIT_OK, EXIT_FAILED, EXIT_INCOMPLETE = 0, 1, 2
 
 READINESS_S = 60.0          # the server has this long to answer GET /
-SUITE_TIMEOUT_S = 600       # one playwright invocation
+SUITE_TIMEOUT_DEFAULT_S = 600   # one playwright invocation, on a quiet box
+SUITE_TIMEOUT_ENV = "DAEDALUS_GUI_SUITE_TIMEOUT_S"
 NOT_BUILT_MARKER = "Run npm install"
+
+
+def suite_timeout_s(env: dict[str, str] | None = None) -> float:
+    """How long one playwright invocation may take.
+
+    The default remains bounded and a timeout remains a FAIL. The override
+    exists because the shell suite includes deliberately slow cold-index and
+    project-switch acceptance paths, while CI load can vary substantially.
+    A positive numeric value lets the caller declare the budget explicitly;
+    invalid or non-positive values fall back to the 600s default rather than
+    becoming a way to disable the bound.
+    """
+    raw = (os.environ if env is None else env).get(SUITE_TIMEOUT_ENV, "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(SUITE_TIMEOUT_DEFAULT_S)
+    return value if value > 0 else float(SUITE_TIMEOUT_DEFAULT_S)
+
+
+def timeout_message(budget: float) -> str:
+    """Produce an actionable timeout verdict without weakening the gate."""
+    return (f"the browser suite did not finish within {budget:g}s. If the machine "
+            f"is under load rather than the suite being stuck, raise "
+            f"{SUITE_TIMEOUT_ENV} and report the value with the verdict.")
 
 # Environment that must never reach the server we start. Not "not set" --
 # actively removed, because inheriting one of these from an operator's shell is
@@ -284,13 +310,14 @@ def _run_suite(node: str, cli: Path, web_root: Path, grep: list[str],
     # from PLAYWRIGHT_JSON_OUTPUT_NAME instead of the one this process chose.
     # playwright.config.ts already wires the json reporter to DAEDALUS_GUI_REPORT.
     cmd = [node, str(cli), "test", *grep]
+    budget = suite_timeout_s()
     try:
         proc = subprocess.run(cmd, cwd=str(web_root), capture_output=True,
                               encoding="utf-8", errors="replace",
-                              timeout=SUITE_TIMEOUT_S, env=env)
+                              timeout=budget, env=env)
         rc, out = proc.returncode, (proc.stdout or "") + (proc.stderr or "")
     except subprocess.TimeoutExpired:
-        return 124, f"the browser suite did not finish within {SUITE_TIMEOUT_S}s", {}
+        return 124, timeout_message(budget), {}
     except OSError as exc:
         return 127, f"could not execute playwright: {exc}", {}
     return rc, out, _read_report(report_path)
