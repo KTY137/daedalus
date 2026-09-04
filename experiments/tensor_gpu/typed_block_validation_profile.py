@@ -2,14 +2,16 @@
 
 GPU-10 showed that packed Boolean support materializes quickly enough that the
 remaining cost is dominated by canonical ``TypedRelationBlock`` construction.
-This contained diagnostic answers the next narrower question: which existing
-validation helpers and constructor frames consume that cost?
+GPU-11/12 then identified and fused repeated structural validation scans. This
+contained diagnostic answers the next narrower question: how much work remains
+in the exact persisted-scalar admission path relative to the full canonical
+constructor?
 
-The profiler executes the real canonical constructor. It does not add a trusted
+The profiler executes the real canonical constructor and the real ``_stored``
+scalar contract. It does not duplicate structural validation or add a trusted
 constructor, alternate relation type, cache, backend, or semantic authority.
-Deterministic profiler timings are attribution evidence only; the unprofiled
-constructor timing remains the performance baseline and neither timing mints a
-speedup or promotion claim.
+Profiler timings are attribution evidence only; independent unprofiled timings
+are non-additive and neither timing mints a speedup or promotion claim.
 """
 from __future__ import annotations
 
@@ -48,7 +50,7 @@ else:  # direct ``python experiments/tensor_gpu/typed_block_validation_profile.p
         pack_rows,
     )
 
-SCHEMA = "daedalus-tensor-typed-block-validation-profile/1"
+SCHEMA = "daedalus-tensor-typed-block-validation-profile/2"
 MAX_PROFILE_REPEATS = 5
 
 
@@ -106,6 +108,14 @@ def _builtin_metrics(stats: Sequence[Any], marker: str) -> dict[str, float | int
     )
 
 
+def _scalar_admission(values: Sequence[bool]) -> tuple[bool, ...]:
+    """Run the exact persisted Boolean scalar contract without structural work."""
+
+    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
+        raise ValueError("values must be a scalar sequence")
+    return tuple(_relation_blocks._stored(value, "boolean") for value in values)
+
+
 def _profile_once(factory: Callable[[], TypedRelationBlock[bool]]) -> _ProfileSample:
     if not callable(factory):
         raise ValueError("factory must be callable")
@@ -161,6 +171,17 @@ def _median_metrics(samples: Sequence[_ProfileSample]) -> dict[str, dict[str, fl
     return output
 
 
+def _timing_summary(samples: Sequence[float]) -> dict[str, float | int]:
+    if not samples:
+        raise ValueError("timing samples must not be empty")
+    return {
+        "median": float(statistics.median(samples)),
+        "min": float(min(samples)),
+        "max": float(max(samples)),
+        "samples": len(samples),
+    }
+
+
 def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
     if not isinstance(case, ProbeCase):
         raise ValueError("case must be ProbeCase")
@@ -169,6 +190,15 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
     left, right, fixture = build_boolean_case(case)
     result_masks = compose_packed_rows(pack_rows(left), pack_rows(right))
     row_offsets, column_indices = _csr_support_from_masks(left, right, result_masks)
+    values = (True,) * len(column_indices)
+
+    admitted_values, scalar_samples = _measure_repeated(
+        lambda: _scalar_admission(values),
+        repeats=case.repeats,
+        warmup=case.warmup,
+    )
+    if admitted_values != values:
+        raise AssertionError("scalar admission changed canonical Boolean values")
 
     factory = lambda: _block_from_csr_support(
         left,
@@ -189,6 +219,12 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
     metrics = _median_metrics(profiled)
     profiled_wall_median = float(statistics.median(sample.wall_ms for sample in profiled))
     unprofiled_median = float(statistics.median(unprofiled_samples))
+    post_init_cumulative_ms = float(
+        metrics["typed_block_post_init"]["cumulative_ms_median"]
+    )
+    stored_cumulative_ms = float(
+        metrics["stored_scalar_admission"]["cumulative_ms_median"]
+    )
     return {
         "status": "verified",
         "claim": "none",
@@ -201,22 +237,32 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
         },
         "output_entries": canonical.entry_count,
         "canonical_digest": canonical.digest,
-        "unprofiled_construct_ms": {
-            "median": unprofiled_median,
-            "min": min(unprofiled_samples),
-            "max": max(unprofiled_samples),
-            "samples": len(unprofiled_samples),
+        "scalar_admission": {
+            "contract": "daedalus.twin.relation_blocks._stored(value, 'boolean')",
+            "value_count": len(values),
+            "admitted_count": len(admitted_values),
+            "unprofiled_ms": _timing_summary(scalar_samples),
         },
-        "profiled_construct_wall_ms": {
-            "median": profiled_wall_median,
-            "min": min(sample.wall_ms for sample in profiled),
-            "max": max(sample.wall_ms for sample in profiled),
-            "samples": len(profiled),
-        },
+        "unprofiled_construct_ms": _timing_summary(unprofiled_samples),
+        "profiled_construct_wall_ms": _timing_summary(
+            tuple(sample.wall_ms for sample in profiled)
+        ),
         "profiler_slowdown_ratio": (
             None if unprofiled_median <= 0.0 else profiled_wall_median / unprofiled_median
         ),
         "profile_metrics": metrics,
+        "profile_attribution": {
+            "post_init_cumulative_ms_median": post_init_cumulative_ms,
+            "stored_cumulative_ms_median": stored_cumulative_ms,
+            "post_init_less_stored_cumulative_ms_median": max(
+                0.0, post_init_cumulative_ms - stored_cumulative_ms
+            ),
+            "interpretation": (
+                "Single-run cProfile inclusive attribution only. The less-stored remainder "
+                "contains every other __post_init__ child/self cost and is not a pure "
+                "structural wall-time measurement."
+            ),
+        },
     }
 
 
@@ -239,9 +285,11 @@ def run_probe(
         "claim": "none",
         "semantic_scope": "canonical Boolean TypedRelationBlock construction only",
         "measurement_contract": (
-            "Run the unchanged canonical constructor with deterministic cProfile attribution; "
-            "retain separate unprofiled wall samples because profiler timings include observer "
-            "overhead. Profile self/cumulative metrics are diagnostic and non-additive."
+            "Run the unchanged canonical constructor with deterministic cProfile attribution "
+            "and an independent unprofiled scan through the exact existing _stored Boolean "
+            "scalar-admission contract. Structural validation is not duplicated or bypassed. "
+            "Profiler timings include observer overhead; independently measured wall timings "
+            "are diagnostic and non-additive."
         ),
         "runtime": {
             "python_implementation": platform.python_implementation(),
