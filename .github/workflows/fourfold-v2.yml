@@ -103,8 +103,6 @@ jobs:
               TypedRelationBlock,
               boolean_relation_block_from_fourfold,
           )
-          import daedalus.twin.hybrid_retrieval
-          import daedalus.twin.relation_compiler
           print(BooleanSemiring.name)
           print(TensorView.CONTRACT_TYPE)
           print(Transformation2Cell.__name__)
@@ -154,8 +152,6 @@ jobs:
           import daedalus.arch_memory
           import daedalus.shift
           import daedalus.twin
-          import daedalus.twin.hybrid_retrieval
-          import daedalus.twin.relation_compiler
           import daedalus.twin.relation_projection
           import daedalus.twin.tensor
           import daedalus.twin.two_category
