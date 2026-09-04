@@ -1,0 +1,72 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-TENSOR-01CY",
+  "title": "Reuse canonical semiring name after resolution",
+  "status": "closed",
+  "date": "2026-09-04",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "75576494426b585713d48be123324b1cedcbe1cf",
+  "production_commit": "6c54d78e48d98b051bb629431f538adbeb495fba",
+  "tested_head": "b8ce21c738b38b346ffbe1172faa0004ab64f63e",
+  "files": [
+    {
+      "path": "daedalus/twin/relation_blocks.py",
+      "blob": "8fa3c503fe9dbd2e77e1dde58ae9687a4e5c6737",
+      "additions": 4,
+      "deletions": 2
+    },
+    {
+      "path": "tests/twin/test_relation_semiring_retention.py",
+      "blob": "7399524ec76fe5882b1a454d2ef4d8a97f722a67",
+      "additions": 39,
+      "deletions": 0
+    }
+  ],
+  "change": "After resolving a caller semiring to the canonical reference oracle, validate the block against reference.name instead of re-reading semiring.name. This removes a redundant observation of an alternate backend and keeps compatibility decisions bound to the already resolved canonical semantic identity.",
+  "verification": {
+    "workflow": "Fourfold v2",
+    "run_id": 33851870679,
+    "head_sha": "b8ce21c738b38b346ffbe1172faa0004ab64f63e",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "contracts": "success on all four matrix jobs",
+    "python_3_12_seed_0_diagnostics": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "production_only_run": "33851827056 was cancelled after the subsequent test commit superseded that head",
+    "diagnostics": {
+      "authority": "diagnostic-only",
+      "claim": "none"
+    }
+  },
+  "claims": {
+    "latency_speedup": false,
+    "memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 262
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "archive_head_observed": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "visible_remote_refs_before_evidence_commit": 18,
+    "note": "This packet modified only exp/tensor-kernel-contract-01. Existing noncanonical/evidence-bearing refs and the archive ref were not moved, deleted, renamed, or normalized."
+  }
+}
