@@ -7,7 +7,9 @@ import pytest
 _BASELINE = importlib.import_module("experiments.tensor_gpu.cpu_bitset_baseline")
 _CONTRACT = importlib.import_module("experiments.tensor_gpu.boolean_probe_contract")
 ProbeCase = _BASELINE.ProbeCase
+_block_from_csr_support = _BASELINE._block_from_csr_support
 _block_from_masks = _BASELINE._block_from_masks
+_csr_support_from_masks = _BASELINE._csr_support_from_masks
 _measure_repeated = _BASELINE._measure_repeated
 build_boolean_case = _BASELINE.build_boolean_case
 compose_packed_rows = _BASELINE.compose_packed_rows
@@ -74,6 +76,11 @@ def test_packed_boolean_composition_matches_stdlib_oracle() -> None:
     assert tuple(execution.block.iter_entries()) == tuple(oracle.iter_entries())
     assert execution.block.digest == oracle.digest
     assert execution.validate_ms >= 0.0
+    assert execution.support_decode_ms >= 0.0
+    assert execution.block_construct_ms >= 0.0
+    assert execution.canonicalize_ms == (
+        execution.support_decode_ms + execution.block_construct_ms
+    )
     assert len(execution.kernel_ms) == case.repeats
     assert all(value >= 0.0 for value in execution.kernel_ms)
 
@@ -156,6 +163,32 @@ def test_repeated_measurement_reuses_probe_repeat_and_warmup_bounds() -> None:
             _measure_repeated(lambda: 1, repeats=repeats, warmup=warmup)
 
 
+def test_support_decode_rebuilds_exact_boolean_csr_without_value_accumulator() -> None:
+    case = _case()
+    left, right, _ = build_boolean_case(case)
+    masks = compose_packed_rows(pack_rows(left), pack_rows(right))
+
+    row_offsets, column_indices = _csr_support_from_masks(left, right, masks)
+    rebuilt = _block_from_csr_support(
+        left,
+        right,
+        row_offsets,
+        column_indices,
+        relation="cpu_bitset_composed",
+    )
+    direct = _block_from_masks(
+        left,
+        right,
+        masks,
+        relation="cpu_bitset_composed",
+    )
+
+    assert rebuilt.row_offsets == row_offsets
+    assert rebuilt.column_indices == column_indices
+    assert rebuilt.values == (True,) * len(column_indices)
+    assert rebuilt.digest == direct.digest
+
+
 def test_block_reconstruction_refuses_out_of_range_bits() -> None:
     case = _case()
     left, right, _ = build_boolean_case(case)
@@ -171,7 +204,7 @@ def test_block_reconstruction_refuses_out_of_range_bits() -> None:
 def test_probe_is_diagnostic_only_and_verifies_small_case() -> None:
     report = run_probe((_case(),))
 
-    assert report["schema"] == "daedalus-tensor-cpu-bitset-baseline/2"
+    assert report["schema"] == "daedalus-tensor-cpu-bitset-baseline/3"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
@@ -193,6 +226,12 @@ def test_probe_is_diagnostic_only_and_verifies_small_case() -> None:
     assert result["cpu_reference"]["elapsed_ms_max"] >= result["cpu_reference"]["elapsed_ms_min"]
     assert result["cpu_bitset"]["samples"] == 2
     assert result["cpu_bitset"]["validate_ms"] >= 0.0
+    assert result["cpu_bitset"]["support_decode_ms"] >= 0.0
+    assert result["cpu_bitset"]["block_construct_ms"] >= 0.0
+    assert result["cpu_bitset"]["canonicalize_ms"] == (
+        result["cpu_bitset"]["support_decode_ms"]
+        + result["cpu_bitset"]["block_construct_ms"]
+    )
     assert result["cpu_bitset"]["output_entries"] == result["cpu_reference"]["output_entries"]
     assert result["cpu_bitset"]["digest"] == result["cpu_reference"]["digest"]
     assert set(result["diagnostic_ratios"]) == {
