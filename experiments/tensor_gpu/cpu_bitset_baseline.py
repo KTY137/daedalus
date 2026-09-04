@@ -57,7 +57,7 @@ else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
         write_report,
     )
 
-SCHEMA = "daedalus-tensor-cpu-bitset-baseline/2"
+SCHEMA = "daedalus-tensor-cpu-bitset-baseline/3"
 T = TypeVar("T")
 
 
@@ -69,6 +69,8 @@ class BitsetExecution:
     pack_ms: float
     validate_ms: float
     kernel_ms: tuple[float, ...]
+    support_decode_ms: float
+    block_construct_ms: float
     canonicalize_ms: float
 
 
@@ -194,19 +196,23 @@ def compose_packed_rows(
     return _compose_packed_rows_unchecked(left_rows, right_rows)
 
 
-def _block_from_masks(
+def _csr_support_from_masks(
     left: TypedRelationBlock[bool],
     right: TypedRelationBlock[bool],
     masks: Sequence[int],
-    *,
-    relation: str,
-) -> TypedRelationBlock[bool]:
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Decode packed Boolean support into canonical CSR offsets and indices.
+
+    The packed representation already implies every stored value is ``True``.
+    Keep value materialization out of this scan so the experiment can measure
+    support decoding separately from constructing the canonical typed block.
+    """
+
     if len(masks) != len(left.row_axis.labels):
         raise ValueError("bitset output must contain every result row")
     column_count = len(right.column_axis.labels)
     offsets = [0]
     indices: list[int] = []
-    values: list[bool] = []
     for mask in masks:
         if type(mask) is not int or mask < 0:
             raise ValueError("bitset output rows must be non-negative integers")
@@ -216,13 +222,25 @@ def _block_from_masks(
         while remaining:
             least = remaining & -remaining
             indices.append(least.bit_length() - 1)
-            values.append(True)
             if len(indices) > MAX_BLOCK_ENTRIES:
                 raise ValueError(
                     f"bitset output exceeds TypedRelationBlock limit {MAX_BLOCK_ENTRIES}"
                 )
             remaining ^= least
         offsets.append(len(indices))
+    return tuple(offsets), tuple(indices)
+
+
+def _block_from_csr_support(
+    left: TypedRelationBlock[bool],
+    right: TypedRelationBlock[bool],
+    row_offsets: tuple[int, ...],
+    column_indices: tuple[int, ...],
+    *,
+    relation: str,
+) -> TypedRelationBlock[bool]:
+    """Build the canonical Boolean block from already decoded CSR support."""
+
     return TypedRelationBlock(
         subject=left.subject,
         signature=RelationSignature(
@@ -233,9 +251,26 @@ def _block_from_masks(
         row_axis=left.row_axis,
         column_axis=right.column_axis,
         semiring_name="boolean",
-        row_offsets=tuple(offsets),
-        column_indices=tuple(indices),
-        values=tuple(values),
+        row_offsets=row_offsets,
+        column_indices=column_indices,
+        values=(True,) * len(column_indices),
+    )
+
+
+def _block_from_masks(
+    left: TypedRelationBlock[bool],
+    right: TypedRelationBlock[bool],
+    masks: Sequence[int],
+    *,
+    relation: str,
+) -> TypedRelationBlock[bool]:
+    row_offsets, column_indices = _csr_support_from_masks(left, right, masks)
+    return _block_from_csr_support(
+        left,
+        right,
+        row_offsets,
+        column_indices,
+        relation=relation,
     )
 
 
@@ -266,13 +301,26 @@ def execute_bitset(
     )
 
     started = time.perf_counter_ns()
-    block = _block_from_masks(left, right, result_rows, relation=relation)
-    canonicalize_ms = (time.perf_counter_ns() - started) / 1_000_000.0
+    row_offsets, column_indices = _csr_support_from_masks(left, right, result_rows)
+    support_decode_ms = (time.perf_counter_ns() - started) / 1_000_000.0
+
+    started = time.perf_counter_ns()
+    block = _block_from_csr_support(
+        left,
+        right,
+        row_offsets,
+        column_indices,
+        relation=relation,
+    )
+    block_construct_ms = (time.perf_counter_ns() - started) / 1_000_000.0
+    canonicalize_ms = support_decode_ms + block_construct_ms
     return BitsetExecution(
         block=block,
         pack_ms=pack_ms,
         validate_ms=validate_ms,
         kernel_ms=kernel_ms,
+        support_decode_ms=support_decode_ms,
+        block_construct_ms=block_construct_ms,
         canonicalize_ms=canonicalize_ms,
     )
 
@@ -348,6 +396,8 @@ def run_case(case: ProbeCase) -> dict[str, Any]:
             "kernel_ms_min": min(execution.kernel_ms),
             "kernel_ms_max": max(execution.kernel_ms),
             "samples": len(execution.kernel_ms),
+            "support_decode_ms": execution.support_decode_ms,
+            "block_construct_ms": execution.block_construct_ms,
             "canonicalize_ms": execution.canonicalize_ms,
             "one_shot_end_to_end_ms": one_shot_ms,
             "output_entries": execution.block.entry_count,
@@ -385,7 +435,8 @@ def run_probe(cases: Sequence[ProbeCase]) -> dict[str, Any]:
         "measurement_contract": (
             "CSR reference and resident bitset kernel use the same warmup/repeat "
             "policy in one process; bitset one-shot additionally includes pack, "
-            "validation and canonical reconstruction."
+            "validation and canonical reconstruction. Canonical reconstruction is "
+            "split into packed-support decoding and TypedRelationBlock construction."
         ),
         "runtime": {
             "python_implementation": platform.python_implementation(),
