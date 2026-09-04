@@ -18,6 +18,7 @@ on:
       - "daedalus/ikarus_oneshot.py"
       - "daedalus/ikarus_tool_scope.py"
       - "daedalus/ikarus_os.py"
+      - "daedalus/progress_sources.py"
       - "daedalus/runtime_registry.py"
       - "daedalus/providers/_ollama_native.py"
       - "daedalus/providers/ollama.py"
@@ -27,6 +28,7 @@ on:
       - "daedalus/runtimes/provider_invocation_payload.py"
       - "daedalus/runtimes/provider_invocation_abi.py"
       - "daedalus/runtimes/provider_runtime_invocation_binding.py"
+      - "tests/test_ikarus_bridge_progress.py"
       - "tests/test_ikarus_effect_bridge.py"
       - "tests/test_ikarus_oneshot.py"
       - "tests/test_ikarus_tool_scope.py"
@@ -88,6 +90,7 @@ jobs:
           daedalus/ikarus_oneshot.py
           daedalus/ikarus_tool_scope.py
           daedalus/ikarus_os.py
+          daedalus/progress_sources.py
           daedalus/runtime_registry.py
           daedalus/providers/_ollama_native.py
           daedalus/providers/ollama.py
@@ -97,6 +100,7 @@ jobs:
           daedalus/runtimes/provider_invocation_payload.py
           daedalus/runtimes/provider_invocation_abi.py
           daedalus/runtimes/provider_runtime_invocation_binding.py
+          tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
@@ -116,6 +120,7 @@ jobs:
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
       - run: >-
           python -m pytest -q -p no:cacheprovider
+          tests/test_ikarus_bridge_progress.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
