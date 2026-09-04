@@ -11,10 +11,12 @@ functions can run.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from ..claude_bridge import _invoke_claude_cli
 from ..spine.envelope import canonical_sha
+from .claude_cli import _normalize_paths, claude_invocation_sha256
 
 
 _REQUIRED_FIELDS = frozenset(
@@ -25,13 +27,16 @@ _REQUIRED_FIELDS = frozenset(
         "agent",
         "model",
         "timeout_s",
+        "attempt_id",
+        "source_revision",
+        "request_sha256",
         "invocation_sha256",
     }
 )
 
 
 def _payload(payload: Any) -> dict[str, Any]:
-    """Return one exact Claude payload or fail closed before any subprocess."""
+    """Return one canonical, self-authenticating Claude payload or fail closed."""
 
     if type(payload) is not dict or set(payload) != _REQUIRED_FIELDS:
         raise ValueError("sealed Claude payload fields are not exact")
@@ -41,6 +46,9 @@ def _payload(payload: Any) -> dict[str, Any]:
     agent = payload["agent"]
     model = payload["model"]
     timeout_s = payload["timeout_s"]
+    attempt_id = payload["attempt_id"]
+    source_revision = payload["source_revision"]
+    request_sha256 = payload["request_sha256"]
     invocation_sha256 = payload["invocation_sha256"]
     if not isinstance(objective, str) or not objective.strip():
         raise ValueError("sealed Claude objective must be non-empty")
@@ -56,13 +64,44 @@ def _payload(payload: Any) -> dict[str, Any]:
         raise ValueError("sealed Claude model must be non-empty")
     if isinstance(timeout_s, bool) or not isinstance(timeout_s, int) or timeout_s <= 0:
         raise ValueError("sealed Claude timeout_s must be a positive integer")
+    if not isinstance(attempt_id, str) or not attempt_id.strip():
+        raise ValueError("sealed Claude attempt_id must be non-empty")
+    if not isinstance(source_revision, str) or not source_revision.strip():
+        raise ValueError("sealed Claude source_revision must be non-empty")
+    if (
+        not isinstance(request_sha256, str)
+        or len(request_sha256) != 64
+        or any(char not in "0123456789abcdef" for char in request_sha256)
+    ):
+        raise ValueError("sealed Claude request_sha256 must be lowercase SHA-256")
     if (
         not isinstance(invocation_sha256, str)
         or len(invocation_sha256) != 64
         or any(char not in "0123456789abcdef" for char in invocation_sha256)
     ):
         raise ValueError("sealed Claude invocation_sha256 must be lowercase SHA-256")
-    return payload
+
+    expected_invocation_sha256 = claude_invocation_sha256(
+        objective=objective,
+        worktree=worktree,
+        paths=paths,
+        agent=agent,
+        model=model,
+        timeout_s=timeout_s,
+        attempt_id=attempt_id,
+        source_revision=source_revision,
+        request_sha256=request_sha256,
+    )
+    if invocation_sha256 != expected_invocation_sha256:
+        raise ValueError("sealed Claude invocation_sha256 does not match payload")
+
+    # Execute the same canonical representation that the invocation digest
+    # authenticates.  In particular, do not hash normalized path/worktree
+    # aliases and then send their non-canonical spellings to the subprocess.
+    bound = dict(payload)
+    bound["worktree"] = str(Path(worktree).expanduser().resolve(strict=True))
+    bound["paths"] = _normalize_paths(paths)
+    return bound
 
 
 def invoke(payload: Any) -> dict[str, Any]:
