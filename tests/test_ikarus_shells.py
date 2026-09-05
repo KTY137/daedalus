@@ -9,8 +9,11 @@ the capability predicate (that one is tested in test_ikarus_act.py):
     words when absent
   * the German act request round-trips through may_act + the enqueue path
 
-No network: every test that can reach a liveness check patches it.
+No network: every test that can reach a liveness check patches it, and the
+freeform voice is pinned for the whole module -- see :func:`setUpModule`, which
+is what makes that first sentence true rather than merely intended.
 """
+import os
 import unittest
 from collections import namedtuple
 from unittest import mock
@@ -25,6 +28,75 @@ _ABSENT = _Hand("absent", "ConnectionRefusedError: refused", "http://127.0.0.1:1
 _UNKNOWN = _Hand("unknown", "TimeoutError: timed out", "http://127.0.0.1:11434")
 
 PROJECT = "sunny_garden"
+
+#: What the pinned voice says. Deliberately not German and not help text: no
+#: assertion in this file reads it, and a recognisable string makes it obvious
+#: in a failure dump that the pin -- not a vendor -- produced the answer.
+_PINNED_VOICE_REPLY = "pinned voice: this file does not test the brain"
+_VOICE_PINS: list = []
+
+
+def setUpModule():
+    """Pin the freeform voice for this whole module. No probe, no spawn.
+
+    MEASURED 2026-09-05 at 585b7ea4: three tests here let a chat turn fall
+    through ``_route`` to ``_chat`` with ``provider=None``. That makes
+    ``IkarusLLMClient.resolve`` probe whichever runtimes this box happens to
+    have installed, and then spawn the winner FOR REAL -- here
+    ``claude_code_cli`` (``auto_selected: true``, ``max_attempts: 1``). ``_chat``
+    reports one unusable vendor answer as ``intent="error"`` on purpose, so a
+    vendor hiccup lands on a routing assertion as::
+
+        tests/test_ikarus_shells.py:444
+        AssertionError: 'error' != 'chat'
+
+    ``GermanActRequestTest::test_declining_queues_nothing`` run ALONE, seven
+    times: two failed (34.8 s) and five passed (74.7-118.6 s). It was reported
+    as an order dependency because it first surfaced in a 16-file run; it is
+    not one. A routing verdict a vendor outage can flip is not testing routing,
+    and it also charged the operator for a model call per run.
+
+    TWO PINS, because either alone leaves a live edge:
+
+    * ``DAEDALUS_IKARUS_PROVIDER=claude`` makes ``resolve`` return a configured
+      provider before it probes anything, so the verdict no longer depends on
+      which CLIs this machine has. ``deterministic`` is NOT usable here --
+      automatic selection deliberately never lands on the local index, so an
+      env default of ``deterministic`` falls straight through to the probe loop
+      (MEASURED: ``reason='first available provider in automatic preference
+      order'``).
+    * ``_llm`` returns a fixed triple, so the resolved provider is never
+      spawned. A ``MagicMock`` rather than a hand-written stub on purpose: it
+      cannot go stale against ``_llm``'s signature, which is the drift
+      ``tests/test_ikarus_llm_voice.py::_assert_mirrors_real_llm`` exists to
+      catch for the doubles that do spell the parameters out.
+
+    WHAT THIS DOES NOT HIDE. Which voice speaks the chat text is not this
+    file's subject; the routing decision is made in ``_route`` before ``_chat``
+    is reached. A test that NAMES a provider is untouched -- an explicit
+    request never consults the env default -- so ``ProviderFenceTest`` still
+    proves an unwired voice fails closed, and the auto-selection path itself is
+    covered hermetically in ``tests/test_ikarus_llm_voice.py`` against a fake
+    client. Tests that need other ``_llm`` behaviour patch it themselves and
+    win, being the inner patch.
+
+    A module hook rather than a pytest fixture so ``python -m unittest
+    tests.test_ikarus_shells`` is pinned too; pytest honours ``setUpModule``.
+    """
+    _VOICE_PINS.extend((
+        mock.patch.dict(os.environ, {"DAEDALUS_IKARUS_PROVIDER": "claude"}),
+        mock.patch.object(
+            ikarus_os, "_llm",
+            return_value=(_PINNED_VOICE_REPLY, "pinned-model",
+                          ikarus_os._EMPTY_CTX)),
+    ))
+    for pin in _VOICE_PINS:
+        pin.start()
+
+
+def tearDownModule():
+    while _VOICE_PINS:
+        _VOICE_PINS.pop().stop()
 
 
 def _offer_turn(objective):
@@ -443,6 +515,12 @@ class GermanActRequestTest(_LocalOnlyProject, unittest.TestCase):
             res = ikarus_os.ask(PROJECT, "nein", provider=None, conversation_id="c1")
         self.assertEqual(res["intent"], "chat")
         self.assertNotIn("action", res)
+        # The decline is ANSWERED, not swallowed: it still reaches the Voice.
+        # Asserted since the voice is pinned (see setUpModule) so that a pin
+        # which accidentally short-circuited the turn would be visible here
+        # instead of quietly satisfying the two assertions above.
+        self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
+        self.assertEqual(res["assistant"], _PINNED_VOICE_REPLY)
 
     def test_without_conversation_state_a_confirmation_clears_nothing(self):
         # The degrade direction: no store -> MORE restrictive, never less.
@@ -452,6 +530,8 @@ class GermanActRequestTest(_LocalOnlyProject, unittest.TestCase):
             res = ikarus_os.ask(PROJECT, "ja", provider=None, conversation_id="c1")
         self.assertEqual(res["intent"], "chat")
         self.assertNotIn("action", res)
+        self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
+        self.assertEqual(res["assistant"], _PINNED_VOICE_REPLY)
 
     def test_the_same_round_trip_over_the_stream(self):
         with mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
@@ -481,6 +561,7 @@ class FalsePositiveDoesNotReachTheHandTest(unittest.TestCase):
         self.assertEqual(res["intent"], "chat")
         self.assertEqual(res["shell"], ikarus_os.SHELL_VOICE)
         self.assertNotIn("action", res)
+        self.assertEqual(res["assistant"], _PINNED_VOICE_REPLY)
 
     def test_and_the_real_build_request_still_is(self):
         with mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
