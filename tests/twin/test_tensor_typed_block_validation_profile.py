@@ -65,17 +65,18 @@ def test_profile_executes_the_existing_canonical_constructor() -> None:
         assert metric["cumulative_ms"] >= 0.0
 
 
-def test_probe_pairs_support_decode_and_scalar_admission_without_bypass() -> None:
+def test_probe_pairs_support_decode_with_constructor_native_attribution() -> None:
     report = _PROFILE.run_probe((_case(),), profile_repeats=2)
 
-    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/3"
+    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/4"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert report["semantic_scope"] == "canonical Boolean TypedRelationBlock materialization only"
     assert "unchanged packed-support decoder and canonical constructor" in report["measurement_contract"]
-    assert "exact existing _stored Boolean scalar-admission contract" in report["measurement_contract"]
-    assert "Structural validation is not duplicated or bypassed" in report["measurement_contract"]
+    assert "constructor-native cProfile attribution" in report["measurement_contract"]
+    assert "do not execute a standalone scalar timing path" in report["measurement_contract"]
+    assert "not duplicated or bypassed" in report["measurement_contract"]
     assert "non-additive" in report["measurement_contract"]
 
     result = report["cases"][0]
@@ -84,12 +85,9 @@ def test_probe_pairs_support_decode_and_scalar_admission_without_bypass() -> Non
     assert result["unprofiled_construct_ms"]["samples"] == 2
     assert result["profiled_construct_wall_ms"]["samples"] == 2
     assert result["support_decode"]["unprofiled_ms"]["samples"] == 2
-    assert result["scalar_admission"]["unprofiled_ms"]["samples"] == 2
+    assert "scalar_admission" not in result
     assert result["support_decode"]["entry_count"] == result["output_entries"]
-    assert result["scalar_admission"]["value_count"] == result["output_entries"]
-    assert result["scalar_admission"]["admitted_count"] == result["output_entries"]
     assert result["support_decode"]["unprofiled_ms"]["median"] >= 0.0
-    assert result["scalar_admission"]["unprofiled_ms"]["median"] >= 0.0
     assert result["unprofiled_construct_ms"]["median"] >= 0.0
     assert result["profiled_construct_wall_ms"]["median"] >= 0.0
     assert set(result["profile_metrics"]) == EXPECTED_METRICS
@@ -97,12 +95,14 @@ def test_probe_pairs_support_decode_and_scalar_admission_without_bypass() -> Non
     assert result["profile_metrics"]["stored_scalar_admission"]["calls"] == result["output_entries"]
     assert result["profile_metrics"]["bounded_sequence_admission"]["calls"] == 3
     assert result["unprofiled_comparison"]["support_decode_to_constructor_ratio"] is None or result["unprofiled_comparison"]["support_decode_to_constructor_ratio"] >= 0.0
-    assert result["unprofiled_comparison"]["scalar_to_constructor_ratio"] is None or result["unprofiled_comparison"]["scalar_to_constructor_ratio"] >= 0.0
-    assert "independently sampled medians" in result["unprofiled_comparison"]["interpretation"]
+    assert "independently sampled decoder and constructor medians" in result["unprofiled_comparison"]["interpretation"]
     assert "non-additive" in result["unprofiled_comparison"]["interpretation"]
+    assert "scalar_to_constructor_ratio" not in result["unprofiled_comparison"]
     assert result["profile_attribution"]["post_init_cumulative_ms_median"] >= 0.0
     assert result["profile_attribution"]["stored_cumulative_ms_median"] >= 0.0
     assert result["profile_attribution"]["post_init_less_stored_cumulative_ms_median"] >= 0.0
+    assert "real canonical constructor" in result["profile_attribution"]["interpretation"]
+    assert "no duplicate scalar wall-time probe" in result["profile_attribution"]["interpretation"]
     assert "not a pure structural wall-time" in result["profile_attribution"]["interpretation"]
 
 
@@ -120,13 +120,8 @@ def test_support_decode_measurement_reuses_exact_existing_decoder() -> None:
     assert result["support_decode"]["entry_count"] == len(expected[1])
 
 
-def test_scalar_admission_reuses_fail_closed_persisted_boolean_contract() -> None:
-    assert _PROFILE._scalar_admission((True, True)) == (True, True)
-
-    with pytest.raises(ValueError, match="semiring zero"):
-        _PROFILE._scalar_admission((True, False))
-    with pytest.raises(ValueError, match="bool values"):
-        _PROFILE._scalar_admission((True, 1))  # type: ignore[arg-type]
+def test_duplicate_scalar_wall_timer_is_removed() -> None:
+    assert not hasattr(_PROFILE, "_scalar_admission")
 
 
 def test_profile_repeat_bound_is_strict_and_rejects_bool() -> None:
