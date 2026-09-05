@@ -238,6 +238,7 @@ def _model_proposal(prompt: str, capabilities: Mapping[str, Any],
         project=None, timeout_s=timeout_s, limit_policy=limit_policy,
         response_schema={"anyOf": alternatives},
         cancelled=cancelled,
+        transport="native",  # explicit, not derived from the schema (G1-IKARUS-31)
     )
     if not response:
         raise ComputerLoopRefused("configured computer planner returned no usable response")

@@ -16,7 +16,7 @@ Working-tree context: isolated worktree `.claude/worktrees/stage3-failed-receipt
 
 Dependencies: `G1-IKARUS-26` (the live measurement), `G1-IKARUS-29` (plan budget, pre-effect timeout), `G1-KERNEL-02` (`run_cancellable`, `ProviderCancelled`)
 
-Stage: 15 of the owner-directed 2026-09-05 loop; design agreed with Codex in the room (question 21:55, answer 21:56: option B, three additions).
+Stage: 15 of the owner-directed 2026-09-05 loop; design agreed with Codex in the room (question 21:55, answer 21:56: option B, three additions) and with review session 6e (21:00: explicit transport discriminator, Codex's additions, the transport-switch reload measured as a residual).
 
 ## Primary acceptance claim
 
@@ -38,7 +38,8 @@ In scope: `daedalus/orchestration/ikarus/shell.py` (`_llm` gains `cancelled`; `_
 
 ## Contracts and behavior
 
-- `shell._llm(..., cancelled=None)`: the probe is forwarded to the Ollama HTTP route only; other providers ignore it.
+- `shell._llm(..., cancelled=None, transport=None)`: the probe and the transport are forwarded to the Ollama HTTP route only; other providers ignore them.
+- `transport` is an explicit caller decision (review session 6e): `"native"` or `"v1"`; any other value is a `ValueError`. Left unset, a schema-constrained call derives `"native"` (Codex, option B) and a schema-less call keeps `"v1"`. The computer planner names `transport="native"` explicitly; `--transport native` without a schema sends a plain native chat (no `format`).
 - `shell._ollama(..., response_schema=None, cancelled=None)`: with a schema, `_ollama_native_schema` posts one native request `{model, messages:[system,user], stream:false, format:<schema>, keep_alive, options:{num_ctx, temperature 0.3[, num_predict]}}`; `timeout_s` reaches `native_chat` unchanged, `None` included; with a probe the call runs through `run_cancellable` and `ProviderCancelled` is raised through; any other failure still returns `None` as before. Without a schema the `/v1` branch is untouched, warm-up included.
 - `computer_loop._cancel_probe(cancelled, service)`: `True` when the mission probe fires or `service.check_cancelled()` raises; never raises itself. The loop's `checkpoint()` after a failed planner call keeps the typed attribution: `_ComputerCancelled` -> `cancelled`, `LoopHalted`/operator stop -> `blocked` with the stop's own message. An injected `propose` keeps its four-argument contract.
 - A cancelled planner call is abandoned, not retried (G1-KERNEL-02 contract); the proposal intent is marked failed by the existing handler.
@@ -48,8 +49,10 @@ In scope: `daedalus/orchestration/ikarus/shell.py` (`_llm` gains `cancelled`; `_
 | Check | Result (2026-09-05, worktree) |
 | --- | --- |
 | ten new tests without the change | 7 failed, 4 passed (the three loop guards and the `/v1` route test) |
-| ten new tests with the change, plus the loop and adversarial files | 56 passed (6.2 s) |
+| twelve new tests with the change (ten plus the explicit-transport pair), plus the loop and adversarial files | 58 passed (6.5 s) |
+| broad verification of the integrated branch (22 suites) | 672 passed, 7 xfailed, 1 failed: the import census pins moved with the lanes' ten new modules (473 to 483 modules, 1905 to 1923 edges), re-measured in this commit; 3 passed |
 | wider suites touching the Ollama route (stream, egress lane, os boundary, desktop runtime, dynamic, room wiring, shells, autonomy, schedule, provider cancellation, CLI boundary, registry doors) | 452 passed, 34 subtests, 120.3 s |
+| transport-switch reloads over a mixed session (`measure-07`, 6e's condition 3): chat `/v1`, planner native, chat `/v1`, planner native, planner native | 3 reloads in 4 switches: every `/v1` call reloads at `context_length` 4096 (19.4 s, 16.7 s for one token) and every native call after it reloads at 6144 (15.7 s, 14.0 s); two consecutive native calls stay warm (0.6 s). The number is not zero, so option A (the native route for schema-less voices too, after a memory measurement on this host) is the follow-up packet. |
 | live `computer-loop-measure-06` on the native route (same objective, tools, bounded policy and stall rule as measure-05) | plan, plan, `browser.navigate` (ok, page observed), plan x3 identical: `stalled` after 4 planner calls in 102.1 s, about 25.5 s per call, against 749 s for 6 calls (about 125 s per call) in measure-05 on the `/v1` route and about 74 s per call in measure-03; the model stayed loaded between calls. Planner behaviour otherwise unchanged: the 7B still never proposes `browser.read` after navigating. |
 
 ## Migration and rollback
@@ -58,7 +61,7 @@ No stored artifact changes shape. Rollback drops the native branch (schema calls
 
 ## Evidence, expected failures, and review
 
-Evidence: the stage-13 and G1-KERNEL-02 evidence directories carry the measurements this packet acts on; the measure-06 run is retained under `docs/evidence/G1-IKARUS-26_COMPUTER_LOOP_LIVE/` next to measure-02..05. Review questions: should the native path also serve schema-less voices once its memory behaviour is measured on this host (option A)? Should `run_cancellable` re-check the probe on the worker before `work()` (Codex's static gap in G1-KERNEL-02)? Neither decided here.
+Evidence: the stage-13 and G1-KERNEL-02 evidence directories carry the measurements this packet acts on; the measure-06 run is retained under `docs/evidence/G1-IKARUS-26_COMPUTER_LOOP_LIVE/` next to measure-02..05. Residual, measured: a mixed session still reloads the model on every transport switch (`measure-07`, 3 of 4); option A closes it and is the follow-up packet once the native path's memory behaviour on this host is measured. Review questions: option A's num_ctx on a 16 GB host? Should `run_cancellable` re-check the probe on the worker before `work()` (Codex's static gap in G1-KERNEL-02)? Neither decided here.
 
 Iron Plan: **ALIGNED**
 

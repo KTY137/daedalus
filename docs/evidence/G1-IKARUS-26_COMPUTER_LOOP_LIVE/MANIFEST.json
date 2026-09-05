@@ -16,6 +16,7 @@
  "measure-06_browser_bounded_native-route.json": "e403e39b7eb54bf6599c416ec99bc97b5bb96d8283da1eabd89b6754236fbf74",
  "measure-06_browser_bounded_native-route.log.txt": "7dff50f4a8c7eddc27603bba34db4be0cf57d18eb5cefc17afd2aa6794635099",
  "measure-06_planner_proposals.json": "b0bd166842fa93a543cdfbdd0edf09a6f9550adbccb7def317f00b8e710499c9",
+ "measure-07_transport-switch_reloads.log.txt": "1e00dc090291f53be0f2a06b5e39faf2acad5e12e9a093b119f6f2f8962ceaf9",
  "measure_script_bounded.py": "f833457417291a20e73ca95e6ba62ece29b105250d6a31fc06cd162f4bc64483",
  "measure_script_native_route.py": "4f4fae1e53bcecb6e4d1693950c70863f7593283f9e5572c3d08bf550902e9a2",
  "measure_script_stall_rule.py": "e52c55dd03543a6cc63e76200c66b3fe8d04dfbef014db9828b07158a37c046f",
