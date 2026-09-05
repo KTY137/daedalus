@@ -4,12 +4,12 @@
   "measured_at": "2026-09-05",
   "host": "Windows 11 Home 10.0.26200, session 1, dpi 240",
   "privacy": "no image of any kind is retained or was ever written; OCR word lists filtered by lane10_redact.py; every spelling of the home directory replaced by <USERPROFILE> by lane10_scrub_paths.py; digests below match the corrected bytes",
-  "digest_basis": "sha256 over the LF bytes as written in this worktree; a fresh checkout converts these files to CRLF until the -text pin for this directory is added to the repository-root .gitattributes at integration",
+  "digest_basis": "sha256 over the committed LF bytes under the docs/evidence/G1-IKARUS-30_DESKTOP_VISION_LIVE/** -text pin; recomputed at integration 2026-09-05 because the lane worktree held CRLF for the entries listed in the integration commit",
   "files": [
     {
       "name": "lane10_launch_probe.json",
-      "bytes": 836,
-      "sha256": "0bb5515e2c14a09a1237008d050fd8619719fd9096223ae439e022e9d3866b46"
+      "bytes": 818,
+      "sha256": "7352d87e675a38be1f96f0dd7aee1ac8988ad51949943a44664239fefce395b9"
     },
     {
       "name": "lane10_launch_probe.py",
@@ -28,13 +28,13 @@
     },
     {
       "name": "lane10_measure_run1.log.txt",
-      "bytes": 463,
-      "sha256": "d997b52bbe500ec5e62dc765a7e09363ab106f311656ca8d5c8816b66298a32e"
+      "bytes": 459,
+      "sha256": "3b7498510fb8099391e5a5d7053b6ed9d984effddd73b0e93792196aca5f2edb"
     },
     {
       "name": "lane10_measure_run2.log.txt",
-      "bytes": 370,
-      "sha256": "1d4455b041d53f4d238857f22045af1ba2d68a8662de16c367081a5b8d51f059"
+      "bytes": 367,
+      "sha256": "65c60cedf42e5b95f1eecd1bf6af4b015ecaca67721ddc97bf5363df3ea1cd94"
     },
     {
       "name": "lane10_measure_run3.log.txt",
@@ -48,13 +48,13 @@
     },
     {
       "name": "lane10_round1_system32_notepad.json",
-      "bytes": 1661,
-      "sha256": "c13a354035de8b89f563e78aacf603f6b42627c180ea5178c1a144f8c5e5dbf7"
+      "bytes": 1623,
+      "sha256": "d44c619b97e39e8a15845d116a55cb2d9191d29a9ea56b776b01e6130b015b0c"
     },
     {
       "name": "lane10_round2_lease_identity_collision.json",
-      "bytes": 998,
-      "sha256": "dc0507b1512b1e09b8fe1d028a135b412ba34d90b747742f2e238a15d15187f1"
+      "bytes": 970,
+      "sha256": "70e53e18bd84d4b7d20c98893475de9cd8f27abe5b688a2a928121e98d185965"
     },
     {
       "name": "lane10_scrub_paths.py",
