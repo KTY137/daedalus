@@ -167,6 +167,19 @@ def _repair_fragment(value: object, *, label: str, allow_empty: bool) -> tuple[s
     return value, payload
 
 
+def _is_domain_failure(failure: BaseException) -> bool:
+    """True for a campaign-domain verdict that the retained failed receipt already carries.
+
+    Cancellation (``LoopHalted``) and foreign exceptions (a crash inside the
+    gate, ``OSError``) are not verdicts about the candidate and keep raising.
+    """
+    from daedalus.spine.killswitch import LoopHalted
+
+    if isinstance(failure, LoopHalted):
+        return False
+    return isinstance(failure, AriadneCampaignError)
+
+
 def _safe_target(root: Path, value: str):
     if type(value) is not str:
         raise AriadneRequestError("target_path must be a strict string")
@@ -1633,6 +1646,13 @@ def run_campaign(
                         "Campaign failure receipt is canonical but its inner Attempt "
                         f"effect needs reconciliation: {terminal_error}"
                     ) from arm_failure
+                if _is_domain_failure(arm_failure):
+                    # G1-ARIADNE-04: an evaluator-contract violation is a retained
+                    # negative outcome. The failed receipt is canonical, settled and
+                    # replayable, so it IS the result of this call, not an error a
+                    # caller has to replay for. Foreign crashes and cancellations
+                    # still raise: those are faults the operator must see as such.
+                    return failed_receipt.to_dict()
                 raise
             receipt_ref = store_contract(store, completion.receipt)
             negative_outcomes = []
