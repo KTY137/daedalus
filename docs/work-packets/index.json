@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 344,
+    "assigned_artifacts": 345,
     "legacy_artifacts": 204,
-    "packet_artifacts": 346,
-    "packet_ids": 281,
-    "post_index_artifacts": 142,
+    "packet_artifacts": 347,
+    "packet_ids": 282,
+    "post_index_artifacts": 143,
     "registry_artifacts": 1,
-    "tracked_files": 347,
+    "tracked_files": 348,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2179,6 +2179,22 @@
       "origin": "post_index",
       "packet_id": "G1-EDA-HOST-STATUS-01",
       "primary_artifact": "docs/work-packets/G1-EDA-HOST-STATUS-01_CHIP_DESIGN_ON_THIS_HOST.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EDA-HOST-STATUS-02_EMITTED_VIVADO_VITIS_TCL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "EXPERIMENT",
+        "dependencies": "`G1-EDA-01` (the read-only Vivado inspection, planning and admitted project runner) and `G1-EDA-HOST-STATUS-01` (the measured host state this packet builds on)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EDA-HOST-STATUS-02",
+      "primary_artifact": "docs/work-packets/G1-EDA-HOST-STATUS-02_EMITTED_VIVADO_VITIS_TCL.md"
     },
     {
       "artifacts": [
@@ -4950,6 +4966,20 @@
       "format": "markdown",
       "packet_id": "G1-EDA-HOST-STATUS-01",
       "path": "docs/work-packets/G1-EDA-HOST-STATUS-01_CHIP_DESIGN_ON_THIS_HOST.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-EDA-HOST-STATUS-02",
+      "path": "docs/work-packets/G1-EDA-HOST-STATUS-02_EMITTED_VIVADO_VITIS_TCL.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
