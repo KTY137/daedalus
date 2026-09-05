@@ -193,6 +193,16 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   commit 9d37ff0d, not merged): a campaign-domain arm failure returns the
   retained `failed` receipt on the first call instead of re-raising; stage
   suites 129 passed; Codex review requested.
+- Stage 4 `G1-ARIADNE-05` (same branch, commit 93ee7507): honest working-tree
+  base binding as a receipt provenance input, read/verify race closed, no
+  dirty-target refusal (raw byte compares lie under line-ending filters);
+  stage suites 143 passed.
+- Stage 5 `G1-SELF-00` (EXPERIMENT, same branch): the canonical Ariadne
+  campaign nominated a one-file repair of Daedalus itself against a clone at
+  the release commit; nomination retained, nothing applied or promoted. Two
+  refusals retained: linked worktrees are not accepted as subjects by the HEAD
+  verifier; an override control root against a repository with an existing
+  spine refuses as partial state.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
