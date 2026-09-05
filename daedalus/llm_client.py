@@ -188,28 +188,32 @@ class IkarusLLMClient:
             return LLMSelection("deterministic", requested_norm, False,
                                 self.timeout_s, 1, "explicit local-index selection")
 
-        # An explicit user choice is a hard preference, never a reason to
-        # silently switch providers. It must still be executable NOW. This is
-        # especially load-bearing for Claude on Windows: runtime_status may
-        # refuse an npm .cmd/.bat shim because the live transport cannot safely
-        # pass caller-controlled argv through cmd.exe. Selection must preserve
-        # that refusal instead of claiming the requested Voice is usable and
-        # discovering the mismatch only at subprocess time.
+        # Explicit provider choice is a hard preference and therefore never
+        # falls back. Keep transport-owned readiness semantics for HTTP/local
+        # lanes: an explicit Ollama request must still reach its egress policy so
+        # a denied endpoint produces the canonical refusal receipt rather than a
+        # generic "unavailable" selection. Claude is the exception because its
+        # runtime probe now includes the exact executable-admission rule used by
+        # the sealed path; preserving that pre-spawn refusal here prevents the
+        # chat picker from claiming an unsafe Windows .cmd/.bat shim is usable.
         if requested_norm != "auto":
             if requested_norm not in _PROVIDER_ALIASES.values():
                 return LLMSelection(None, requested_norm, False,
                                     self.timeout_s, self.max_attempts,
                                     f"unknown Ikarus LLM provider {requested_norm!r}")
-            row = self._probe(requested_norm)
-            if not bool(row.get("available")):
-                return LLMSelection(
-                    None, requested_norm, False, self.timeout_s, self.max_attempts,
-                    "explicit provider is unavailable ("
-                    + self._probe_failure(requested_norm, row) + ")",
-                )
+            if requested_norm == "claude_code_cli":
+                row = self._probe(requested_norm)
+                if not bool(row.get("available")):
+                    return LLMSelection(
+                        None, requested_norm, False, self.timeout_s, self.max_attempts,
+                        "explicit provider is unavailable ("
+                        + self._probe_failure(requested_norm, row) + ")",
+                    )
+                reason = "explicit provider is available"
+            else:
+                reason = "explicit provider; transport owns final readiness"
             return LLMSelection(requested_norm, requested_norm, False,
-                                self.timeout_s, self.max_attempts,
-                                "explicit provider is available")
+                                self.timeout_s, self.max_attempts, reason)
 
         failures: list[str] = []
 
