@@ -153,6 +153,11 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
       setRuntimes(rt.runtimes || []);
       setEnv(e.env);
     } catch (e) {
+      // A failed status read is not evidence that zero runtimes exist. Clear
+      // any previously measured rows so the UI cannot present stale choices as
+      // current, then render the source failure instead of an empty-state claim.
+      setRuntimes([]);
+      setEnv(undefined);
       setError(e instanceof Error ? e.message : 'Der Zustand der Laufzeiten konnte nicht gelesen werden.');
     } finally {
       setLoading(false);
@@ -330,7 +335,7 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
             ))}
           </div>
           {!loaded && <p className="settings-hint">Wird geprüft …</p>}
-          {loaded && !loading && reachable.length === 0 && (
+          {loaded && !loading && !error && reachable.length === 0 && (
             <p className="settings-hint bad">
               Keine Laufzeit ist erreichbar. Ikarus antwortet dann aus dem lokalen Index — gemessen, aber ohne Modell.
             </p>
@@ -643,7 +648,7 @@ export function Settings({ open, onClose, brain, onBrain, autonomy, onAutonomy, 
               );
             })}
             {!loaded && <li className="settings-hint">Laufzeiten werden geprüft …</li>}
-            {loaded && !loading && runtimes.length === 0 && (
+            {loaded && !loading && !error && runtimes.length === 0 && (
               <li className="settings-hint">Keine Laufzeiten gemeldet.</li>
             )}
           </ul>
