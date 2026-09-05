@@ -1,5 +1,5 @@
 {
- "fixture_loopback_server.log.txt": "51376aa6a2009f34bb214b7836a4f5041bf39f5a09fbc2d216c4b81f0a782c6b",
+ "fixture_loopback_server.log.txt": "77b0179f134e5f9431b249fd417edcd1a57cac8b0cfa6173a68ab6dd9463066a",
  "fixture_notes.html": "4188c0fa389a44a5922346f29efeb5c65e08706eeadab472ccb0b57369f318c7",
  "measure-02_file-tools_release-locked.json": "c644be439606772104708ca22038ae576d8a5dedbbbc49a54161561f2e5833a3",
  "measure-02_file-tools_release-locked.log.txt": "34be75c613a4cd875198e8cd259bfd8dc3fc467168fc3ad9db5880a7c698d159",
@@ -13,7 +13,11 @@
  "measure-05_browser_bounded_stall-rule.json": "b365fe271d2aa0b88a4f74b948cdc1eec98100bf95e69c3ad5dddb836c91d869",
  "measure-05_browser_bounded_stall-rule.log.txt": "7b91b14783e19d7fbc03da5dd819440236cd38011f95a2d01718aada191f0b0f",
  "measure-05_planner_proposals.json": "d8fbf72cb9e851d81d903434402faed391aa6c5fcf08d7d17669cdbb1507b78c",
+ "measure-06_browser_bounded_native-route.json": "e403e39b7eb54bf6599c416ec99bc97b5bb96d8283da1eabd89b6754236fbf74",
+ "measure-06_browser_bounded_native-route.log.txt": "7dff50f4a8c7eddc27603bba34db4be0cf57d18eb5cefc17afd2aa6794635099",
+ "measure-06_planner_proposals.json": "b0bd166842fa93a543cdfbdd0edf09a6f9550adbccb7def317f00b8e710499c9",
  "measure_script_bounded.py": "f833457417291a20e73ca95e6ba62ece29b105250d6a31fc06cd162f4bc64483",
+ "measure_script_native_route.py": "4f4fae1e53bcecb6e4d1693950c70863f7593283f9e5572c3d08bf550902e9a2",
  "measure_script_stall_rule.py": "e52c55dd03543a6cc63e76200c66b3fe8d04dfbef014db9828b07158a37c046f",
  "measure_script_unbounded.py": "45608ed14f493797b719c9aba93d15eddf37b79c8034f39976e9ec5788c0f902",
  "room_turn_16-45_question.txt": "90167bde9a95397c7b6155d461b9b9b024f0945f8def6336b29e82dc6c43f178",
