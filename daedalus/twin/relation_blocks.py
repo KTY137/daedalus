@@ -335,19 +335,19 @@ class TypedRelationBlock(Generic[T]):
         columns_not_strict = False
         if len(columns) == entry_count and offsets[-1] == entry_count:
             # Canonical blocks are overwhelmingly on this path. Walk each row span
-            # directly and let valid entries pass through one ordered/range predicate.
-            # Only invalid entries enter classification so Range still outranks Strict;
-            # count-mismatch inputs keep the precedence-preserving fallback below.
+            # directly and let valid exact-int entries pass through one ordered/range
+            # predicate. Only invalid entries enter classification so Range still
+            # outranks Strict; count-mismatch inputs keep the fallback below.
             # Valid column indices are non-negative, so -1 is a safe row-local sentinel.
             for row in range(row_count):
                 previous_column = -1
                 for position in range(offsets[row], offsets[row + 1]):
                     item = columns[position]
-                    if type(item) is not int:
-                        raise ValueError("block.column_indices must contain integers")
-                    if previous_column < item < column_count:
+                    if type(item) is int and previous_column < item < column_count:
                         previous_column = item
                         continue
+                    if type(item) is not int:
+                        raise ValueError("block.column_indices must contain integers")
                     if item < 0 or item >= column_count:
                         columns_out_of_range = True
                     else:
