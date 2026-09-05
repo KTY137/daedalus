@@ -1,0 +1,90 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-31",
+  "title": "Bound exact-int CSR common-path fusion with exhaustive semantic evidence",
+  "classification": "EXPERIMENT",
+  "status": "closed-research",
+  "domain": "tensor-kernel",
+  "date_europe_berlin": "2026-09-05",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "pre_head": "d74f6481d688d5d47556794751c51c5097e4d608",
+    "evidence_head": "c08649a0b34300123a7bc8cff04da5faeae2914d",
+    "branch": "exp/tensor-kernel-contract-01",
+    "production_path": "daedalus/twin/relation_blocks.py",
+    "production_blob": "5911f42485fc1683c02686cdb7af908beab23f07",
+    "production_changed": false
+  },
+  "candidate": {
+    "description": "For the matched-count CSR row-span path only, admit the valid common case with `type(item) is int and previous_column < item < column_count`, then retain the existing type/range/strict classification on failure.",
+    "count_mismatch_fallback_changed": false,
+    "new_runtime_abstraction": false,
+    "promotion_candidate": false
+  },
+  "bounded_semantic_gate": {
+    "probe_path": "experiments/tensor_gpu/csr_exact_int_predicate_gate.py",
+    "probe_blob": "6b7ab5b34a4663029eb316fee357e1238ca0a546",
+    "test_path": "tests/twin/test_tensor_csr_exact_int_predicate_gate.py",
+    "test_blob": "ee8908c8fe1ade83b5483cf086e03ac46dbe9372",
+    "rows": 2,
+    "entry_lengths": [0, 1, 2, 3, 4, 5],
+    "split_policy": "all row splits for every entry length",
+    "domain": ["-1", "0", "1", "2", "3", "'bad'", "True"],
+    "column_count": 3,
+    "classifications": ["ok", "type", "range", "strict"],
+    "cases": 114381,
+    "mismatch_count": 0,
+    "claim": "bounded copied-loop observable-classification equivalence only"
+  },
+  "hosted_evidence": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33980265303,
+    "event": "pull_request",
+    "metadata_head_sha": "c08649a0b34300123a7bc8cff04da5faeae2914d",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "merge_preview_sha": "f16eff4752cd34d4c9c8445db026d17c9348bf22",
+    "conclusion": "success",
+    "real_hosted_steps": true,
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 succeeded",
+    "integrated_surface_includes": "tests/twin",
+    "repository_collection": "success",
+    "isolated_wheel": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "baseline_artifact": {
+      "id": 9973539614,
+      "sha256": "12f462c935d301c64fe1e1d3211158c124110ce87b86aeec0e1c1f77f2251e1f",
+      "expires_at": "2026-09-12T17:13:36Z"
+    },
+    "typed_block_profile_artifact": {
+      "id": 9973540052,
+      "sha256": "0010475e18af0117e75a03192d8f739e8133abbcc1af7f7e0c217fb26876a261",
+      "expires_at": "2026-09-12T17:13:38Z"
+    }
+  },
+  "gardening": {
+    "one_shot_probe_removed_from_live_tree_after_evidence": true,
+    "one_shot_test_removed_from_live_tree_after_evidence": true,
+    "commit_and_blob_evidence_retained": true,
+    "parallel_validator_retained": false,
+    "archive_legacy_used": false
+  },
+  "claim_boundaries": {
+    "performance_claim": false,
+    "constructor_speedup_claim": false,
+    "cpu_gpu_tensor_core_claim": false,
+    "tensor_vs_forest_claim": false,
+    "crewai_alphaevolve_claim": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "decision": "The exact-int predicate fusion is semantically licensed for one later minimal production attempt, subject to preserving the existing count-mismatch fallback and focused error-precedence regressions. GPU-31 itself changes no production behavior.",
+  "next_bounded_packet": "If still prioritized, implement exactly the licensed predicate fusion in-place in the existing matched-count CSR loop; do not add a second validator or helper."
+}
