@@ -177,6 +177,11 @@ def _is_domain_failure(failure: BaseException) -> bool:
 
     if isinstance(failure, LoopHalted):
         return False
+    if isinstance(failure, (AriadneRequestError, AriadneConflictError)):
+        # A refusal (request shape, unsafe target) or a conflict (stale
+        # revision, changed material) raised inside an arm is not a verdict
+        # about the candidate: it keeps raising (council-20260905T134012Z, r1 claim 1).
+        return False
     return isinstance(failure, AriadneCampaignError)
 
 
@@ -859,8 +864,8 @@ def _complete_failed_campaign_receipt(
     started_at: str,
     blocker: str,
     reproducibility_note: str,
+    base_binding_sha256: str,
     additional_negative_outcomes: tuple[str, ...] = (),
-    base_binding_sha256: str | None = None,
 ) -> tuple[CampaignReceipt, ArtifactRef]:
     """Commit an addressable failed CampaignReceipt instead of STATE_FAILED."""
 
@@ -877,7 +882,7 @@ def _complete_failed_campaign_receipt(
         contract.digest,
         spec.digest,
         outer_binding_ref.sha256,
-        *(() if base_binding_sha256 is None else (base_binding_sha256,)),
+        base_binding_sha256,
         *(
             digest
             for trial in trials
@@ -1156,13 +1161,16 @@ def run_campaign(
     )
     if before == after:
         raise AriadneCampaignError("repair must replace before with a different value")
-    root = Path(repo_root).resolve(strict=True)
+    _admit_target_path(target_path)  # pure refusals first: no repository observed yet
     if len(source_revision) != 40 or any(c not in "0123456789abcdef" for c in source_revision):
         raise AriadneCampaignError("source_revision must be the exact lowercase 40-hex Git HEAD")
+    try:
+        root = Path(repo_root).resolve(strict=True)
+    except OSError as exc:
+        raise AriadneRequestError(f"repo_root is unavailable or unsafe: {exc}") from exc
     # HEAD is observed BEFORE and AFTER the target read (G1-ARIADNE-05): a
     # commit or checkout between the two would bind bytes of revision X to a
     # receipt labelled Y, and nothing else here would notice.
-    _admit_target_path(target_path)  # pure refusals first: no repository observed yet
     head_receipt = _verify_head(root, source_revision)
     relative, target_snapshot = _safe_target(root, target_path)
     if _verify_head(root, source_revision).to_dict() != head_receipt.to_dict():
