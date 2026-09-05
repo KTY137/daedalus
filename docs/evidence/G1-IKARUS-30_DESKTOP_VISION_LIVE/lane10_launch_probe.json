@@ -1,0 +1,19 @@
+{
+  "fixture": "<USERPROFILE>\\AppData\\Local\\Temp\\daedalus-lane10\\fixture\\lane10-sentinel.txt",
+  "probes": [
+    {
+      "argv0": "C:\\Windows\\System32\\notepad.exe",
+      "argv0_resolves_to": "C:\\Windows\\System32\\notepad.exe",
+      "launched_pid": 31620,
+      "launched_pid_image": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+      "launched_pid_exit_code": null,
+      "launched_pid_windows": [],
+      "foreground_pid": 19048,
+      "foreground_image": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+      "foreground_is_launched_pid": false,
+      "adapter_would_match": false,
+      "cleanup_launched_gone": true,
+      "cleanup_foreground_gone": true
+    }
+  ]
+}

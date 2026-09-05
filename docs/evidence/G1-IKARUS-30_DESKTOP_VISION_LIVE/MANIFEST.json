@@ -1,0 +1,69 @@
+{
+  "packet": "G1-IKARUS-30",
+  "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+  "measured_at": "2026-09-05",
+  "host": "Windows 11 Home 10.0.26200, session 1, dpi 240",
+  "privacy": "no image of any kind is retained or was ever written; OCR word lists filtered by lane10_redact.py; home paths replaced by <USERPROFILE>",
+  "files": [
+    {
+      "name": "lane10_launch_probe.json",
+      "bytes": 836,
+      "sha256": "0bb5515e2c14a09a1237008d050fd8619719fd9096223ae439e022e9d3866b46"
+    },
+    {
+      "name": "lane10_launch_probe.py",
+      "bytes": 3924,
+      "sha256": "9253b67088e05527e088c8686e79ac26f0e36fac38e020325a58788837ea05ef"
+    },
+    {
+      "name": "lane10_measure.py",
+      "bytes": 19312,
+      "sha256": "7567a761f30fb738a82e0c9bcfbeef481b9de8f2aa30a3ec93d61900d730385e"
+    },
+    {
+      "name": "lane10_measure_result.json",
+      "bytes": 61183,
+      "sha256": "2b4fd6635efb2bc1eea52e86113650e66264a157f053990e380852e2de3743cd"
+    },
+    {
+      "name": "lane10_measure_run1.log.txt",
+      "bytes": 463,
+      "sha256": "d997b52bbe500ec5e62dc765a7e09363ab106f311656ca8d5c8816b66298a32e"
+    },
+    {
+      "name": "lane10_measure_run2.log.txt",
+      "bytes": 370,
+      "sha256": "1d4455b041d53f4d238857f22045af1ba2d68a8662de16c367081a5b8d51f059"
+    },
+    {
+      "name": "lane10_measure_run3.log.txt",
+      "bytes": 2353,
+      "sha256": "7effe412875af010a1fa0c8b45cff5170ba20ae358b74c46796e9d8c05ebcd87"
+    },
+    {
+      "name": "lane10_redact.py",
+      "bytes": 3660,
+      "sha256": "d8c21f8fbecb228a5e7803fc9fae243de81d85c56bb3afa9d94ea94ed71f4323"
+    },
+    {
+      "name": "lane10_round1_system32_notepad.json",
+      "bytes": 1661,
+      "sha256": "c13a354035de8b89f563e78aacf603f6b42627c180ea5178c1a144f8c5e5dbf7"
+    },
+    {
+      "name": "lane10_round2_lease_identity_collision.json",
+      "bytes": 998,
+      "sha256": "dc0507b1512b1e09b8fe1d028a135b412ba34d90b747742f2e238a15d15187f1"
+    },
+    {
+      "name": "lane10_setup.py",
+      "bytes": 3312,
+      "sha256": "813278d745bbed6a51788f0d6f9deed700d66cc5fa76ec408ca84d4dc03b3e0b"
+    },
+    {
+      "name": "lane10_setup_round2.log.txt",
+      "bytes": 2190,
+      "sha256": "764039d7134faa63625dc7565504006b616959ad72d74d231f021f4f558beeef"
+    }
+  ]
+}

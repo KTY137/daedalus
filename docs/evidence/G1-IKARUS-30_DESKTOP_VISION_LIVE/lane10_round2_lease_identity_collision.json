@@ -1,0 +1,29 @@
+{
+  "authority_root": "<USERPROFILE>\\AppData\\Local\\Temp\\daedalus-lane10\\authority",
+  "mission_id": "lane10-desktop-live",
+  "started_at": "2026-09-05T20:22:46+0200",
+  "policy_sha256": "a47e3b4fc8e6da66a8a501cb314f772882c7ee6f4d5e0f7985462c1007752ace",
+  "limit_policy_mode": "bounded",
+  "control_root": "<USERPROFILE>\\.daedalus\\control\\f03a8ab03a51",
+  "ledger_states_before": {
+    "COMPLETED": 1,
+    "STARTED": 3
+  },
+  "control_root_image_files_before": [],
+  "foreground_before_launch": {
+    "foreground_window_class": "Shell_TrayWnd",
+    "foreground_executable": "C:\\Windows\\explorer.exe",
+    "foreground_pid": 17188
+  },
+  "preexisting_authorized_windows": 0,
+  "launched_pid_recorded": false,
+  "abort": "app.launch produced no process id",
+  "cleanup_taskkill_rcs": [],
+  "cleanup_windows_remaining": null,
+  "fixture_unchanged": true,
+  "ledger_states_after": {
+    "COMPLETED": 1,
+    "STARTED": 3
+  },
+  "control_root_image_files_after": []
+}
