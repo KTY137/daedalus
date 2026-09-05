@@ -69,9 +69,15 @@
                                         create, test and retain one isolated
                                         zero-base product candidate; no publish
     daedalus ariadne --source-revision SHA --campaign-id ID --target PATH
-                     --before TEXT --after TEXT
+                     --before TEXT --after TEXT [--json]
                                         run one bounded controlled-repair
-                                        campaign; nomination only, no merge
+                                        campaign; nomination only, no merge.
+                                        JSON on stdout for every outcome, and
+                                        the exit code says which: 0 nominated,
+                                        1 a settled receipt that nominates
+                                        nothing, 2 request refused, 3 revision
+                                        conflict, 4 kill switch, 5 other
+                                        campaign refusal, 64 usage, 70 internal
     daedalus web                         run the local Agent OS web API/app
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
@@ -1191,34 +1197,20 @@ def _genesis(argv: list[str]) -> int:
 
 
 def _ariadne(argv: list[str]) -> int:
-    """Run one explicitly requested, bounded Ariadne repair campaign."""
-    import argparse
-    import json
-    from pathlib import Path
+    """Run one explicitly requested, bounded Ariadne repair campaign.
 
-    from ...ariadne import AriadneCampaignError, run_campaign
-    from ...spine.killswitch import LoopHalted
+    The exit-code and stdout contract lives in ``daedalus.ariadne.__main__``
+    and is shared verbatim with ``python -m daedalus.ariadne``, so the two
+    doors cannot drift apart: 0 a nomination, 1 a settled receipt that
+    nominates nothing, 2 a request refusal, 3 a revision conflict, 4 the kill
+    switch, 5 any other campaign refusal, 64 a usage error, 70 an internal
+    defect.  Receipts and error documents are JSON on stdout; the previous
+    ``{"ok": true, "ariadne": ...}`` wrapper is gone -- it had no consumer
+    (measured) and its ``ok`` was true for a settled ``failed`` receipt.
+    """
+    from ...ariadne.__main__ import run_cli
 
-    parser = argparse.ArgumentParser(prog="daedalus ariadne")
-    parser.add_argument("--repo-root", default=str(Path.cwd()))
-    parser.add_argument("--source-revision", required=True)
-    parser.add_argument("--campaign-id", required=True)
-    parser.add_argument("--target", required=True)
-    parser.add_argument("--before", required=True)
-    parser.add_argument("--after", required=True)
-    parser.add_argument("--timeout-s", type=int, default=30)
-    args = parser.parse_args(argv)
-    try:
-        result = run_campaign(
-            repo_root=args.repo_root, source_revision=args.source_revision,
-            campaign_id=args.campaign_id, target_path=args.target,
-            before=args.before, after=args.after, timeout_s=args.timeout_s,
-        )
-    except (AriadneCampaignError, LoopHalted, OSError, TypeError, ValueError) as exc:
-        print(f"Ariadne refused: {exc}", file=sys.stderr)
-        return 2
-    print(json.dumps({"ok": True, "ariadne": result}, indent=2, ensure_ascii=False))
-    return 0
+    return run_cli(argv, prog="daedalus ariadne")
 
 
 def main() -> None:
