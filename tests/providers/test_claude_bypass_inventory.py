@@ -7,8 +7,8 @@ import daedalus
 from daedalus.spine.effect_boundary import REGISTRY_BY_ID, Wiring
 
 
-_ALLOWED_PRIVATE_IMPORT = Path("providers/claude_cli.py")
-_ALLOWED_PRIVATE_CALL = Path("providers/claude_cli.py")
+_ALLOWED_PRIVATE_IMPORT = Path("providers/claude_sealed_operation.py")
+_ALLOWED_PRIVATE_CALL = Path("providers/claude_sealed_operation.py")
 _ALLOWED_SUBPROCESS_OWNER = (Path("claude_bridge.py"), "_invoke_claude_cli")
 
 
@@ -16,7 +16,7 @@ def _package_root() -> Path:
     return Path(daedalus.__file__).resolve().parent
 
 
-def test_private_claude_subprocess_helper_has_one_package_caller() -> None:
+def test_private_claude_subprocess_helper_has_one_sealed_operation_caller() -> None:
     imports: list[Path] = []
     calls: list[Path] = []
     for path in sorted(_package_root().rglob("*.py")):
@@ -58,13 +58,18 @@ def test_claude_subprocess_run_is_owned_only_by_private_helper() -> None:
     claude_owners = [
         owner
         for owner in owners
-        if owner[0] in {Path("claude_bridge.py"), Path("providers/claude_cli.py")}
+        if owner[0]
+        in {
+            Path("claude_bridge.py"),
+            Path("providers/claude_cli.py"),
+            Path("providers/claude_sealed_operation.py"),
+        }
     ]
     assert claude_owners == [_ALLOWED_SUBPROCESS_OWNER]
 
 
 def test_canonical_registry_activation_remains_an_explicit_blocker() -> None:
-    # This packet removes the public bypass first.  Default lease issuance must
-    # remain impossible until caller injection and exact-head verification are
-    # complete in the next activation packet.
+    # Sealed provider execution is now the only live provider seam.  Default
+    # lease issuance remains blocked until canonical registry activation is
+    # completed and proven on exact-head evidence.
     assert REGISTRY_BY_ID["provider.claude"].wiring is Wiring.INVENTORY_ONLY
