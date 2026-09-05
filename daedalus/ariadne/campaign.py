@@ -186,7 +186,30 @@ def _verify_head(root: Path, source_revision: str):
     except (RepositoryHeadRevisionBindingError, RepositoryHeadRevisionRaceError) as exc:
         raise AriadneConflictError(f"source_revision conflict: {exc}") from exc
     except RepositoryHeadRevisionShapeError as exc:
-        raise AriadneRequestError(f"repository HEAD is unavailable or unsafe: {exc}") from exc
+        message = f"repository HEAD is unavailable or unsafe: {exc}"
+        if _is_gitdir_pointer_file(root / ".git"):
+            # Deliberately unsupported subject layout (G1-ARIADNE-06): a gitdir
+            # pointer is bytes a candidate can rewrite, so the gate never
+            # follows it (tests/test_git_is_a_process_launcher.py measured the
+            # attack). Name the layout and the remedy instead of the bare
+            # shape error.
+            message += (
+                "; the subject is a linked git worktree (.git is a gitdir pointer "
+                "file), a deliberately unsupported subject layout: clone the "
+                "repository or use its common checkout"
+            )
+        raise AriadneRequestError(message) from exc
+
+
+def _is_gitdir_pointer_file(path: Path) -> bool:
+    """True when ``.git`` is a regular file whose first line is ``gitdir:``."""
+    try:
+        if path.is_symlink() or not path.is_file():
+            return False
+        with path.open("rb") as stream:
+            return stream.read(7) == b"gitdir:"
+    except OSError:
+        return False
 
 
 _BASE_BINDING_SCHEMA = "daedalus-ariadne-base-tree-binding/1"

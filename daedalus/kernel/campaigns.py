@@ -283,7 +283,13 @@ def lookup_campaign_read_only(
     if not database.is_file():
         return None
     if not cas.is_dir():
-        raise CampaignLifecycleError("partial persisted Campaign state is unsafe")
+        raise CampaignLifecycleError(
+            "partial persisted Campaign state is unsafe: the spine database "
+            f"exists ({database}) but its source-tree CAS is missing ({cas}); "
+            "the spine is repository-local while the CAS lives under the "
+            "control root, so a different control root (DAEDALUS_KILLSWITCH) "
+            "against a repository with an existing spine produces exactly this"
+        )
     store = SourceTreeStore.open_existing(cas)
     spine = SpineLedger(database, read_only=True)
     try:
