@@ -5,17 +5,21 @@ remaining cost is dominated by canonical ``TypedRelationBlock`` construction.
 GPU-11/12 identified and fused repeated structural validation scans. GPU-13
 separated persisted-scalar ``_stored`` cost, while GPU-14/15 then narrowed and
 reduced packed-support decoding overhead. GPU-16 removed the duplicate scalar
-wall-time path and kept only constructor-native attribution. GPU-17 now prunes
-the retired ``builtins.any`` and validation-generator metrics: both were useful
-while GPU-11/12 removed those scans, but the frozen post-GPU-12 evidence keeps
-them at zero and they no longer explain an active constructor cost.
+wall-time path and kept only constructor-native attribution. GPU-17 pruned the
+retired zero-only profiler metrics. GPU-19 replaced the canonical common-case
+per-entry CSR row-state walk with exact row-span validation.
 
-The profiler executes the real support decoder and canonical constructor and
-reports only active in-path cProfile functions. It does not duplicate structural
-or scalar validation, add a trusted constructor, alternate relation type, cache,
-backend, or semantic authority. Independently sampled wall timings are
-diagnostic and non-additive; profiler timings are attribution evidence only.
-Neither mints a speedup or promotion claim.
+GPU-20 adds one bounded same-process A/B for that GPU-19 algorithmic change.
+The control is the retired pre-GPU-19 column/order loop from relation-block blob
+``e48c26180597de7ff94da3b8b10cef57b15b2424``; the candidate is the current
+matched-count row-span algorithm. They operate only on already decoded CSR
+support, alternate AB/BA order, and must agree on valid and invalid outcomes.
+This is experiment-only comparison code, not a second product validator.
+
+The profiler still executes the real support decoder and canonical constructor
+and reports only active in-path cProfile functions. Independently sampled wall
+timings and the CSR microstage A/B are diagnostic only; neither mints a
+constructor-wide speedup or promotion claim.
 """
 from __future__ import annotations
 
@@ -52,8 +56,9 @@ else:  # direct ``python experiments/tensor_gpu/typed_block_validation_profile.p
         pack_rows,
     )
 
-SCHEMA = "daedalus-tensor-typed-block-validation-profile/5"
+SCHEMA = "daedalus-tensor-typed-block-validation-profile/6"
 MAX_PROFILE_REPEATS = 5
+PRE_GPU19_RELATION_BLOCK_BLOB = "e48c26180597de7ff94da3b8b10cef57b15b2424"
 
 
 @dataclass(frozen=True)
@@ -149,6 +154,124 @@ def _ratio(numerator: float, denominator: float) -> float | None:
     return None if denominator <= 0.0 else numerator / denominator
 
 
+def _pre_gpu19_column_validation(
+    row_offsets: Sequence[int],
+    column_indices: Sequence[Any],
+    *,
+    row_count: int,
+    column_count: int,
+    entry_count: int,
+) -> None:
+    """Retired pre-GPU-19 column/order loop, retained only as an A/B control."""
+    row = 0
+    row_stop = row_offsets[1] if row_count else 0
+    previous_column: int | None = None
+    columns_out_of_range = False
+    columns_not_strict = False
+    for position, item in enumerate(column_indices):
+        if type(item) is not int:
+            raise ValueError("block.column_indices must contain integers")
+        if not 0 <= item < column_count:
+            columns_out_of_range = True
+        while row < row_count and position >= row_stop:
+            row += 1
+            previous_column = None
+            if row < row_count:
+                row_stop = row_offsets[row + 1]
+        if row < row_count:
+            if previous_column is not None and previous_column >= item:
+                columns_not_strict = True
+            previous_column = item
+    if columns_out_of_range:
+        raise ValueError("block.column_indices contains an out-of-range index")
+    if len(column_indices) != entry_count or row_offsets[-1] != entry_count:
+        raise ValueError("CSR arrays must terminate at the common entry count")
+    if columns_not_strict:
+        raise ValueError("column indices must be strictly increasing inside each row")
+
+
+def _gpu19_column_validation(
+    row_offsets: Sequence[int],
+    column_indices: Sequence[Any],
+    *,
+    row_count: int,
+    column_count: int,
+    entry_count: int,
+) -> None:
+    """GPU-19 matched-count row-span algorithm, mirrored for bounded A/B timing."""
+    columns_out_of_range = False
+    columns_not_strict = False
+    if len(column_indices) == entry_count and row_offsets[-1] == entry_count:
+        for row in range(row_count):
+            previous_column: int | None = None
+            for position in range(row_offsets[row], row_offsets[row + 1]):
+                item = column_indices[position]
+                if type(item) is not int:
+                    raise ValueError("block.column_indices must contain integers")
+                if not 0 <= item < column_count:
+                    columns_out_of_range = True
+                if previous_column is not None and previous_column >= item:
+                    columns_not_strict = True
+                previous_column = item
+    else:
+        for item in column_indices:
+            if type(item) is not int:
+                raise ValueError("block.column_indices must contain integers")
+            if not 0 <= item < column_count:
+                columns_out_of_range = True
+    if columns_out_of_range:
+        raise ValueError("block.column_indices contains an out-of-range index")
+    if len(column_indices) != entry_count or row_offsets[-1] != entry_count:
+        raise ValueError("CSR arrays must terminate at the common entry count")
+    if columns_not_strict:
+        raise ValueError("column indices must be strictly increasing inside each row")
+
+
+def _measure_validation_ab(
+    control: Callable[[], None],
+    candidate: Callable[[], None],
+    *,
+    repeats: int,
+    warmup: int,
+) -> dict[str, Any]:
+    if not callable(control) or not callable(candidate):
+        raise ValueError("A/B validators must be callable")
+    if type(repeats) is not int or not 1 <= repeats <= MAX_REPEATS:
+        raise ValueError(f"repeats must be an integer from 1 to {MAX_REPEATS}")
+    if type(warmup) is not int or not 0 <= warmup <= MAX_WARMUP:
+        raise ValueError(f"warmup must be an integer from 0 to {MAX_WARMUP}")
+
+    for index in range(warmup):
+        first, second = (control, candidate) if index % 2 == 0 else (candidate, control)
+        first()
+        second()
+
+    control_samples: list[float] = []
+    candidate_samples: list[float] = []
+
+    def sample(factory: Callable[[], None], target: list[float]) -> None:
+        started = time.perf_counter_ns()
+        factory()
+        target.append((time.perf_counter_ns() - started) / 1_000_000.0)
+
+    for index in range(repeats):
+        if index % 2 == 0:
+            sample(control, control_samples)
+            sample(candidate, candidate_samples)
+        else:
+            sample(candidate, candidate_samples)
+            sample(control, control_samples)
+
+    control_median = float(statistics.median(control_samples))
+    candidate_median = float(statistics.median(candidate_samples))
+    return {
+        "control_ms": _timing_summary(control_samples),
+        "candidate_ms": _timing_summary(candidate_samples),
+        "candidate_to_control_ratio": _ratio(candidate_median, control_median),
+        "ordering": "alternating AB/BA in one process",
+    }
+
+
 def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
     if not isinstance(case, ProbeCase):
         raise ValueError("case must be ProbeCase")
@@ -163,6 +286,33 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
         warmup=case.warmup,
     )
     row_offsets, column_indices = support
+    row_count = len(row_offsets) - 1
+    column_count = len(right.column_axis.labels)
+    entry_count = len(column_indices)
+
+    validation_args = {
+        "row_count": row_count,
+        "column_count": column_count,
+        "entry_count": entry_count,
+    }
+    control = lambda: _pre_gpu19_column_validation(
+        row_offsets,
+        column_indices,
+        **validation_args,
+    )
+    candidate = lambda: _gpu19_column_validation(
+        row_offsets,
+        column_indices,
+        **validation_args,
+    )
+    control()
+    candidate()
+    validation_ab = _measure_validation_ab(
+        control,
+        candidate,
+        repeats=case.repeats,
+        warmup=case.warmup,
+    )
 
     factory = lambda: _block_from_csr_support(
         left,
@@ -208,9 +358,25 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
         },
         "output_entries": canonical.entry_count,
         "canonical_digest": canonical.digest,
+        "csr_column_validation_ab": {
+            "authority": "microstage-diagnostic-only",
+            "control": (
+                "retired pre-GPU-19 per-entry row-state column/order validation from "
+                f"relation-block blob {PRE_GPU19_RELATION_BLOCK_BLOB}"
+            ),
+            "candidate": "GPU-19 matched-count row-span column/order validation algorithm",
+            "valid_outcome_parity": True,
+            **validation_ab,
+            "interpretation": (
+                "Same-process microstage timing on already decoded canonical CSR support. "
+                "The control and candidate alternate AB/BA order. This does not measure the "
+                "complete TypedRelationBlock constructor and cannot mint a constructor-wide "
+                "or general CPU speedup claim."
+            ),
+        },
         "support_decode": {
             "contract": "experiments.tensor_gpu.cpu_bitset_baseline._csr_support_from_masks",
-            "row_count": len(row_offsets) - 1,
+            "row_count": row_count,
             "entry_count": len(column_indices),
             "unprofiled_ms": _timing_summary(support_decode_samples),
         },
@@ -265,11 +431,11 @@ def run_probe(
         "semantic_scope": "canonical Boolean TypedRelationBlock materialization only",
         "measurement_contract": (
             "Run the unchanged packed-support decoder and canonical constructor with one "
-            "warmup/repeat policy, retain only active constructor-native cProfile attribution "
-            "for the existing Boolean materialization path, and do not execute standalone "
-            "scalar or retired zero-only validation metrics. Structural or scalar validation "
-            "is not duplicated or bypassed. Independently measured wall timings are "
-            "diagnostic and non-additive."
+            "warmup/repeat policy, retain only active constructor-native cProfile attribution, "
+            "and add one bounded alternating same-process A/B for the retired pre-GPU-19 "
+            "per-entry CSR column/order loop versus the GPU-19 matched-count row-span loop. "
+            "The A/B operates only on already decoded canonical CSR and is microstage-only; "
+            "it does not bypass product validation or establish a constructor-wide speedup."
         ),
         "runtime": {
             "python_implementation": platform.python_implementation(),
