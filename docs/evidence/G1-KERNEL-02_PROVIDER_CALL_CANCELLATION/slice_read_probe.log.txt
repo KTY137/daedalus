@@ -1,0 +1,149 @@
+G1-KERNEL-02 — negative evidence for the REJECTED design
+========================================================
+
+Question
+--------
+Codex (room, 2026-09-05 16:49) and the packet brief both suggested reading the
+response body in bounded slices under a short socket timeout, polling the
+cancellation probe between slices. Does that work?
+
+Answer: no, on two counts. It never touches the measured hang (which is inside
+urlopen, before a response object exists), and it does not work at all: after
+the FIRST socket timeout, CPython's response object is permanently unreadable
+and the bytes that had already arrived are gone.
+
+Host
+----
+Windows 11, CPython 3.13.14 (worktree .venv), 2026-09-05.
+
+Script (run from the worktree; kept here rather than as a repo .py so it adds
+no new module to the tree)
+--------------------------------------------------------------------------
+    """Rejected design: slice the body under a short socket timeout."""
+    from __future__ import annotations
+
+    import json
+    import socket
+    import sys
+    import threading
+    import time
+    import urllib.request
+
+    BODY = json.dumps({"choices": [{"message": {"content": "x" * 4000}}]}).encode()
+    GAP_S = 1.0
+    POLL_S = 0.2
+
+
+    def _serve(sock: socket.socket) -> None:
+        conn, _ = sock.accept()
+        with conn:
+            conn.recv(65536)
+            conn.sendall(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: application/json\r\n"
+                b"Content-Length: " + str(len(BODY)).encode() + b"\r\n"
+                b"Connection: close\r\n\r\n"
+            )
+            half = len(BODY) // 2
+            conn.sendall(BODY[:half])   # first half lands immediately
+            time.sleep(GAP_S)           # ... then the server stalls
+            conn.sendall(BODY[half:])
+            time.sleep(0.2)
+
+
+    def main() -> None:
+        print(f"python: {sys.version.split()[0]}")
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        port = sock.getsockname()[1]
+        threading.Thread(target=_serve, args=(sock,), daemon=True).start()
+
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/chat/completions", data=b"{}",
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        # POLL_S is the "cancellation poll interval" the rejected design would
+        # use as the socket timeout.
+        resp = urllib.request.urlopen(request, timeout=POLL_S)
+        declared = int(resp.headers["Content-Length"])
+        time.sleep(0.3)  # make sure the first half is in the socket buffer
+
+        got = bytearray()
+        timeouts = 0
+        fatal = None
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                piece = resp.read(65536)
+            except TimeoutError:
+                timeouts += 1
+                continue        # "no data yet -- poll the probe, then retry"
+            except OSError as exc:
+                fatal = f"{type(exc).__name__}: {exc}"
+                break
+            if not piece:
+                break
+            got += piece
+        resp.close()
+
+        print(f"declared Content-Length : {declared}")
+        print(f"bytes returned by slices: {len(got)}")
+        print(f"socket timeouts observed: {timeouts}")
+        print(f"bytes silently dropped  : {declared - len(got)}")
+        print(f"retry after the timeout : {fatal or 'succeeded'}")
+        try:
+            json.loads(bytes(got).decode("utf-8"))
+        except Exception as exc:
+            print(f"json.loads(body)        : {type(exc).__name__}: {exc}")
+        else:
+            print("json.loads(body)        : parsed")
+
+
+    if __name__ == "__main__":
+        main()
+
+Output
+------
+    python: 3.13.14
+    declared Content-Length : 4043
+    bytes returned by slices: 0
+    socket timeouts observed: 1
+    bytes silently dropped  : 4043
+    retry after the timeout : OSError: cannot read from timed out object
+    json.loads(body)        : JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+First run of the same script, before the OSError branch was added, so the
+traceback is on the record too:
+
+    python: 3.13.14
+    Traceback (most recent call last):
+      File "...lane2_slice_read_probe.py", line 86, in <module>
+        main()
+      File "...lane2_slice_read_probe.py", line 64, in main
+        piece = resp.read(65536)
+      File "...\Lib\http\client.py", line 484, in read
+        s = self.fp.read(amt)
+      File "...\Lib\socket.py", line 721, in readinto
+        raise OSError("cannot read from timed out object")
+    OSError: cannot read from timed out object
+
+Reading
+-------
+Two independent defects, both fatal for the rejected design:
+
+1. The first half of the body HAD arrived and was buffered, and the slice loop
+   still returned zero bytes. CPython's BufferedReader copies what it holds into
+   the caller's result and advances its position BEFORE it attempts the raw read
+   that raises; the partial result is then discarded with the exception. Data
+   loss is silent -- a shorter body just fails to parse later.
+
+2. Recovery is impossible anyway. socket.SocketIO.readinto latches
+   `_timeout_occurred`, and Lib/socket.py:721 refuses every subsequent read on
+   that object for good. So "treat TimeoutError as 'not yet' and retry" cannot
+   be written against urllib's response at all.
+
+And neither defect is the main point: the hang measured in G1-IKARUS-26 is
+INSIDE urlopen, before any response object exists, because a non-streaming
+completion sends its status line only when generation has finished. A slice loop
+over the body would not have touched the measured case even if it worked.
