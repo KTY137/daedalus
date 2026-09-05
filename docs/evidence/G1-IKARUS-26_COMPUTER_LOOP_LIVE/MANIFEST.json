@@ -1,0 +1,21 @@
+{
+ "fixture_loopback_server.log.txt": "51376aa6a2009f34bb214b7836a4f5041bf39f5a09fbc2d216c4b81f0a782c6b",
+ "fixture_notes.html": "4188c0fa389a44a5922346f29efeb5c65e08706eeadab472ccb0b57369f318c7",
+ "measure-02_file-tools_release-locked.json": "c644be439606772104708ca22038ae576d8a5dedbbbc49a54161561f2e5833a3",
+ "measure-02_file-tools_release-locked.log.txt": "34be75c613a4cd875198e8cd259bfd8dc3fc467168fc3ad9db5880a7c698d159",
+ "measure-03_browser_unbounded_plan-loop.json": "da5e86e2fbb7f6bcc1eedb7207507e35a1d40518d483819e5c426371740fb5bf",
+ "measure-03_browser_unbounded_plan-loop.log.txt": "c265c5be3e1ec4a927a0790972dd7612caa0fcc2d2b64ab9b9904fd5b32a1b8d",
+ "measure-03_planner_proposals.json": "f2a441096c250844a2f26aa67592948fb7a8902deb209979223c2230b25696a6",
+ "measure-03_pyspy_dump_16-38.txt": "ca68aa4852d498d6ce6dd997cd337041b1f2e32de4c8f617118ca70fa20b3d63",
+ "measure-04_browser_bounded_timeout.json": "812ee8f1e19454a22d26281d9b037c0c06d508a042b32fb6b9f95311f3eef75b",
+ "measure-04_browser_bounded_timeout.log.txt": "d49223b79696132a3a628cad77a57fd6cd683e394855b000c27fbeae872fe3b6",
+ "measure-04_planner_proposals.json": "b5943f8d78c3e1b9f7b1e9a10f83cf948076813d0df9a2da1ab6d3e838c2f8eb",
+ "measure-05_browser_bounded_stall-rule.json": "b365fe271d2aa0b88a4f74b948cdc1eec98100bf95e69c3ad5dddb836c91d869",
+ "measure-05_browser_bounded_stall-rule.log.txt": "7b91b14783e19d7fbc03da5dd819440236cd38011f95a2d01718aada191f0b0f",
+ "measure-05_planner_proposals.json": "d8fbf72cb9e851d81d903434402faed391aa6c5fcf08d7d17669cdbb1507b78c",
+ "measure_script_bounded.py": "f833457417291a20e73ca95e6ba62ece29b105250d6a31fc06cd162f4bc64483",
+ "measure_script_stall_rule.py": "e52c55dd03543a6cc63e76200c66b3fe8d04dfbef014db9828b07158a37c046f",
+ "measure_script_unbounded.py": "45608ed14f493797b719c9aba93d15eddf37b79c8034f39976e9ec5788c0f902",
+ "room_turn_16-45_question.txt": "90167bde9a95397c7b6155d461b9b9b024f0945f8def6336b29e82dc6c43f178",
+ "room_turn_16-55_correction.txt": "0881bfd3bdd42b37cb0b885c5a5b17323be854032ef3ed5032fd8542ec75eb79"
+}

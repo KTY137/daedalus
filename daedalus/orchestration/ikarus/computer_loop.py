@@ -328,6 +328,16 @@ def computer_events(
                 service.close()
 
 
+def _unavailable_summary(capabilities: Mapping[str, Any]) -> str:
+    """Name what is missing: no owner policy, or a policy whose every tool is unavailable here."""
+    unavailable = capabilities.get("unavailable")
+    if isinstance(unavailable, dict) and unavailable:
+        reasons = "; ".join(f"{name}: {reason}" for name, reason in sorted(unavailable.items()))
+        return ("Computer assistance is configured, but every configured tool is unavailable "
+                f"on this host: {reasons}")
+    return "Computer assistance needs an owner-configured computer policy."
+
+
 def _computer_events_admitted(
     root: Path, objective: str, *, mission_id: str | None, service: Any,
     propose: Callable[[str, Mapping[str, Any], ExecutionLimitPolicy, float | None], str] | None,
@@ -340,7 +350,7 @@ def _computer_events_admitted(
     capabilities = json.loads(json.dumps(service.capabilities(), allow_nan=False))
     if capabilities.get("enabled") is not True:
         yield "final", {"ok": False, "state": "unavailable", "steps": [],
-                        "summary": "Computer assistance needs an owner-configured computer policy.",
+                        "summary": _unavailable_summary(capabilities),
                         "capabilities": capabilities, "planner_calls": 0, "tool_steps": 0,
                         "replans": 0, "repair_calls": 0, "plan": None,
                         "task_success_verified": False}
@@ -419,6 +429,8 @@ def _computer_events_admitted(
         repeated_observations = 0
         prior_invalid_response = None
         repeated_invalid_responses = 0
+        prior_plan_steps: list[str] | None = None
+        repeated_plans = 0
         proposals: list[dict[str, Any]] = []
 
         def checkpoint() -> None:
@@ -495,6 +507,7 @@ def _computer_events_admitted(
                     invalid_signature = hashlib.sha256(response_text.encode("utf-8")).hexdigest()
                     repeated_invalid_responses = repeated_invalid_responses + 1 if invalid_signature == prior_invalid_response else 1
                     prior_invalid_response = invalid_signature
+                    prior_plan_steps, repeated_plans = None, 0  # a non-plan response ends the plan sequence
                     if repeated_invalid_responses >= _STALL_OBSERVATIONS:
                         state, summary = "stalled", "Three identical invalid planner responses established no correction progress."
                         break
@@ -512,13 +525,26 @@ def _computer_events_admitted(
                 prior_invalid_response = None
                 repeated_invalid_responses = 0
                 if proposal["type"] == "plan":
+                    steps = list(proposal["steps"])
+                    # Exact comparison of the parsed, ordered steps; any literal
+                    # difference is a different plan (Codex, room 2026-09-05 16:49).
+                    repeated_plans = repeated_plans + 1 if steps == prior_plan_steps else 1
+                    prior_plan_steps = steps
                     if plan is not None:
                         replans += 1
                     plan = {"advisory": True, "revision": replans + 1, "steps": proposal["steps"],
                             "artifact": proposal_artifact.to_dict()}
                     yield "progress", {"mission_id": mission_id, "phase": "plan", "plan": plan,
                                        "planner_call": planner_calls}
+                    if repeated_plans >= _STALL_OBSERVATIONS:
+                        # A progress criterion like the identical-observation rule
+                        # below, so it holds under every execution-limit mode: measured
+                        # 2026-09-05 (mission computer-loop-measure-03), eleven identical
+                        # plans under unbounded_execution until the kill switch.
+                        state, summary = "stalled", "Three consecutive identical advisory plans established no progress."
+                        break
                     continue
+                prior_plan_steps, repeated_plans = None, 0  # a tool or finish proposal ends the plan sequence
                 if proposal["type"] == "finish":
                     planner_summary = proposal["summary"]
                     state = "completed" if history else "no_actions"
@@ -765,7 +791,10 @@ def conversation_events(project: str | None, message: str, *,
             caps = computer_status(root)
             enabled = caps.get("enabled") is True
             summary = ("Computer assistance is configured. Use /computer followed by your task."
-                       if enabled else "Computer assistance is unavailable until its owner policy is configured. Use /computer setup to create a separate local workspace.")
+                       if enabled else
+                       "Computer assistance is configured, but every configured tool is unavailable on this host; see Unavailable below."
+                       if caps.get("unavailable") else
+                       "Computer assistance is unavailable until its owner policy is configured. Use /computer setup to create a separate local workspace.")
             if enabled:
                 names = ", ".join(tool["name"] for tool in caps.get("tools", []))
                 summary += f"\n\nWorkspace: `{caps.get('workspace', '')}`\n\nAvailable tools: {names}."

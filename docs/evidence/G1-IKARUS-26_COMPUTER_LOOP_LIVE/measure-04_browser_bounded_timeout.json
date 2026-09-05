@@ -1,0 +1,67 @@
+{
+ "port": "65094",
+ "objective": "Open http://127.0.0.1:65094/notes.html in the browser, read the page, and report the page title, the three items listed under Today, and the sentinel code.",
+ "elapsed_s": 309.6543209552765,
+ "policy_sha256": "0d93817768772471b973631b3e0e51130bfb18387b3d9d0c18c1579b33a3a7a2",
+ "report": {
+  "ok": false,
+  "state": "blocked",
+  "mission_id": "computer-loop-measure-04",
+  "mission_sha256": "40c652c104e4f61b76ecde7aaa0814d4527341e7b00478f3f4f8d58f210ada1d",
+  "mission_artifact": {
+   "sha256": "7b1438a9968a2293d80df573bc3917151feca8824810e25868ed9dea81bcb3b6",
+   "locator": "artifact-locator:sha256:7b1438a9968a2293d80df573bc3917151feca8824810e25868ed9dea81bcb3b6"
+  },
+  "steps": [
+   {
+    "step": 1,
+    "tool": "browser.navigate",
+    "outcome": {
+     "ok": false,
+     "state": "reconciliation_required",
+     "error": "browser initialization unavailable: ComputerRefused",
+     "error_type": "ComputerRefused"
+    },
+    "artifact": {
+     "sha256": "340024b7d9aacb869a61769815899c2fb185575b658f6e9c5dd20c3eb6083192",
+     "locator": "artifact-locator:sha256:340024b7d9aacb869a61769815899c2fb185575b658f6e9c5dd20c3eb6083192"
+    }
+   }
+  ],
+  "summary": "The tool refused or failed; no uncertain effect was repeated.",
+  "planner_summary": null,
+  "authority_root": "<SCRATCH>/self-renovation\\subject",
+  "planner_calls": 2,
+  "tool_steps": 1,
+  "replans": 0,
+  "repair_calls": 0,
+  "plan": {
+   "advisory": true,
+   "revision": 1,
+   "steps": [
+    "Navigate to http://127.0.0.1:65094/notes.html in the browser.",
+    "Read the page and report the page title, the three items listed under Today, and the sentinel code."
+   ],
+   "artifact": {
+    "sha256": "4cb29cebab470b42152557a7e316fff6c42c9daf36e922e08543575fa0fa7b50",
+    "locator": "artifact-locator:sha256:4cb29cebab470b42152557a7e316fff6c42c9daf36e922e08543575fa0fa7b50"
+   }
+  },
+  "proposals": [
+   {
+    "sha256": "4cb29cebab470b42152557a7e316fff6c42c9daf36e922e08543575fa0fa7b50",
+    "locator": "artifact-locator:sha256:4cb29cebab470b42152557a7e316fff6c42c9daf36e922e08543575fa0fa7b50"
+   },
+   {
+    "sha256": "afdcb38fe64ca4dd747da6133b8908eee5512c5499e314354e708e2d73afcd6b",
+    "locator": "artifact-locator:sha256:afdcb38fe64ca4dd747da6133b8908eee5512c5499e314354e708e2d73afcd6b"
+   }
+  ],
+  "task_success_verified": false,
+  "elapsed_s": 309.4636401000025,
+  "report_artifact": {
+   "sha256": "f5d5b09b157b3f9b26e3770d3717deef990ca850ff6eea24d5b5acda5b8ec2d5",
+   "locator": "artifact-locator:sha256:f5d5b09b157b3f9b26e3770d3717deef990ca850ff6eea24d5b5acda5b8ec2d5"
+  }
+ }
+}

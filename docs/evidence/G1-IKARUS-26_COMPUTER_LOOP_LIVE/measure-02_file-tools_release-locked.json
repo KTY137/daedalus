@@ -1,0 +1,34 @@
+{
+  "elapsed_s": 0.005607300001429394,
+  "report": {
+    "ok": false,
+    "state": "unavailable",
+    "steps": [],
+    "summary": "Computer assistance needs an owner-configured computer policy.",
+    "capabilities": {
+      "enabled": false,
+      "tools": [],
+      "unavailable": {},
+      "path_io_release_lock": "workspace path tools are disabled in v0.1.6 until handle-relative, reparse-safe I/O is independently verified",
+      "workspace": "<USERPROFILE>/.daedalus\\computer-workspaces\\383cc917d869",
+      "policy_sha256": "d8c8cd75acb13856df96334f041c95e31136b0e117eefb753d9007bd89fc3c4d",
+      "planner_provider": "ollama_http",
+      "planner_model": "qwen2.5-coder:7b",
+      "allow_remote_context": false,
+      "max_steps": 8,
+      "timeout_s": 300,
+      "persistent_goals": "canonical mission receipts; interrupted effects require reconciliation",
+      "scheduled_tasks": "durable queue and finite repeated jobs with cancellation; matching File Bridge watcher or /computer run-due required",
+      "planning": "advisory plans, bounded proposal correction and repeated-observation stall detection; existing policy limits apply",
+      "product_context": "explicit owner notes; retained skill metadata is unavailable under the v0.1.6 path-I/O release lock",
+      "browser_limits": "static pages only; JavaScript, submission and downloads unavailable",
+      "desktop_validation": "live foreground input not yet measured; application support requires verification"
+    },
+    "planner_calls": 0,
+    "tool_steps": 0,
+    "replans": 0,
+    "repair_calls": 0,
+    "plan": null,
+    "task_success_verified": false
+  }
+}

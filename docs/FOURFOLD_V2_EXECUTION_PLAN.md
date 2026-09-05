@@ -225,8 +225,22 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   refuted claim found lives in CLAUDE.md, a protected file a candidate may
   not touch.
 - Owner lifted the budget at 15:15 (unbounded_execution policy for this
-  session's processes); the live cross-vendor council over stages 3-11 waits
-  on a harness permission the owner must grant.
+  session's processes). Stage 12 `G1-ARIADNE-07`: the live two-seat council
+  (Codex, Claude; 24 checkable claims, two rounds, through the registered
+  `cli.council` door, both seats in the ledger) over the stage 3-6 diff is
+  answered in code and eleven tests (commit dda7f41d, same branch).
+- Stage 13 `G1-IKARUS-26`: the general computer loop of section 7.2 was run
+  live for the first time (local Ollama 7B planner, scratch clone, fresh
+  control root, static page on a loopback origin). Two defects measured and
+  fixed with six tests: a configured policy whose every tool is release-locked
+  (v0.1.6 path-I/O lock) was reported as a missing policy; and identical
+  advisory plans were no stall, so under the owner's unbounded policy the
+  planner repeated one plan eleven times until the kill switch ended the run
+  (55 s after the stop; verified). No run reached `finish`: the 7B planner
+  never proposed `browser.read` after navigating; on this host two planner
+  calls consume a 300 s bounded mission. Codex reviewed statically (room,
+  16:49): both fixes ALIGNED; paraphrased plans and cancellation inside a
+  running provider call stay open.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
