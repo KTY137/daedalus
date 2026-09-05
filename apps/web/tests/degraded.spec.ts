@@ -18,7 +18,8 @@ import { GIBBERISH, TROUBLE, collect, dockSpaces, failJson, newLines, openApp, o
 
 /** Phrasings that mean "there is nothing here" -- fine on their own, a lie
  *  when the reason is actually "we could not look". */
-const READS_AS_EMPTY = /no runtimes|none detected|nothing (yet|here|to)|no results|empty|0 of 0/i;
+const READS_AS_EMPTY = /no runtimes|none detected|nothing (yet|here|to)|no results|empty|0 of 0|keine laufzeit(?:en)? (?:ist erreichbar|gemeldet)/i;
+const RUNTIME_EMPTY_STATE = /keine laufzeit ist erreichbar|keine laufzeiten gemeldet/i;
 
 test('a source that FAILED is visible, and does not read as "nothing here"', async ({ page }) => {
   // --- control: what a healthy cockpit says -------------------------------
@@ -71,6 +72,26 @@ test('a source that FAILED is visible, and does not read as "nothing here"', asy
     const heading = await openSpace(page, somewhere);
     expect(heading, `the cockpit became unnavigable after one source failed (${somewhere} opened nothing)`).not.toEqual('');
   }
+});
+
+test('runtime settings distinguish a failed status read from a measured empty inventory', async ({ page }) => {
+  await page.route('**/api/runtimes/status*', (r) => r.fulfill(failJson('runtimes status is down')));
+  const seen = collect(page);
+  await openApp(page);
+
+  // Ctrl+, is the cockpit's documented settings chord and avoids depending on
+  // theme-specific button placement.
+  await page.keyboard.press('Control+,');
+  const settings = page.getByRole('complementary', { name: 'Einstellungen' });
+  await expect(settings).toBeVisible({ timeout: 20_000 });
+  await expect(settings.getByText(/runtimes status is down/i)).toBeVisible({ timeout: 20_000 });
+
+  const text = await settings.innerText();
+  expect(
+    text,
+    'the runtime status endpoint failed, but Settings converted "unknown" into a zero-runtime claim',
+  ).not.toMatch(RUNTIME_EMPTY_STATE);
+  expect(seen.pageErrors, `Settings threw while rendering a failed runtime source: ${seen.pageErrors.join(' || ')}`).toEqual([]);
 });
 
 test('the failure notice is written for a human, not printed from a variable', async ({ page }) => {
