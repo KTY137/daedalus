@@ -1685,3 +1685,249 @@ def test_partial_campaign_state_refusal_names_the_spine_cas_split(tmp_path):
     message = str(caught.value)
     assert message.startswith("partial persisted Campaign state is unsafe"), message
     assert "source-tree CAS is missing" in message and "control root" in message, message
+
+
+# --------------------------------------------------------------------------
+# G1-ARIADNE-07: council-driven hardening of 04/05/06 (council-20260905T134012Z-1eb0b866)
+# --------------------------------------------------------------------------
+
+
+def test_request_and_conflict_errors_inside_an_arm_still_raise_on_the_first_call(tmp_path, monkeypatch):
+    """Council r1 claim 1: a refusal or conflict raised inside the arm is not a verdict
+    about the candidate, so it must not surface as a returned failed receipt."""
+    import daedalus.ariadne.campaign as module
+
+    assert module._is_domain_failure(AriadneCampaignError("frozen evaluator output is invalid"))
+    assert not module._is_domain_failure(AriadneRequestError("target_path is unavailable"))
+    assert not module._is_domain_failure(AriadneConflictError("source_revision conflict"))
+    assert not module._is_domain_failure(RuntimeError("crash"))
+    from daedalus.spine.killswitch import LoopHalted
+
+    assert not module._is_domain_failure(LoopHalted("stop"))
+
+
+def test_failed_first_call_is_terminal_and_does_not_block_the_next_campaign(tmp_path, monkeypatch):
+    """Council r1 claim 2 (runtime discriminator): after the first call returned the
+    failed receipt, the campaign row is terminal, the binding is attached, and a
+    different id runs without a lease-held or lifecycle error."""
+    import hashlib as _hashlib
+
+    import daedalus.ariadne.campaign as module
+
+    root, git = _git_repo(tmp_path, monkeypatch)
+    head = git("rev-parse", "HEAD")
+    expected_base = _hashlib.sha256((root / "sample.txt").read_bytes()).hexdigest()
+    # a gate whose output violates the one-line contract (the measured defect shape)
+    _passing_fake_gate(module, monkeypatch)
+    real_gate = module.command_gate
+
+    def polluted_gate(argv, **kwargs):
+        evaluate = real_gate(argv, **kwargs)
+
+        def wrapped(context):
+            result = evaluate(context)
+            result.output = "warning: Making stdin inheritable failed" + chr(10) + result.output
+            result.output_sha256 = _hashlib.sha256(result.output.encode("ascii")).hexdigest()
+            return result
+
+        return wrapped
+
+    monkeypatch.setattr(module, "command_gate", polluted_gate)
+    first = _run(module, root, head, "wt-fail-a")
+    assert first["outcome"] == "failed"
+    assert _base_binding(tmp_path, first)["base_file_sha256"] == expected_base, "the failed receipt carries the base binding"
+
+    # whichever spine location the facade used, a replay through the facade is terminal
+    again = _run(module, root, head, "wt-fail-a")
+    assert again == first
+
+    second = _run(module, root, head, "wt-fail-b")
+    assert second["outcome"] == "failed" and second["campaign_id"] == "wt-fail-b"
+
+
+def test_reconciliation_failure_after_the_failed_receipt_raises_instead_of_returning(tmp_path, monkeypatch):
+    """Codex r2: the domain return must not bypass the inner-terminal reconciliation check."""
+    import daedalus.ariadne.campaign as module
+
+    root, git = _git_repo(tmp_path, monkeypatch)
+    head = git("rev-parse", "HEAD")
+    _passing_fake_gate(module, monkeypatch)
+    real_gate = module.command_gate
+
+    def polluted_gate(argv, **kwargs):
+        evaluate = real_gate(argv, **kwargs)
+
+        def wrapped(context):
+            result = evaluate(context)
+            result.output = "noise" + chr(10) + result.output
+            return result
+
+        return wrapped
+
+    monkeypatch.setattr(module, "command_gate", polluted_gate)
+
+    def broken_terminals(*_args, **_kwargs):
+        raise AriadneCampaignError("inner attempt effect needs reconciliation (injected)")
+
+    monkeypatch.setattr(module, "_require_campaign_inner_effect_terminals", broken_terminals)
+    with pytest.raises(AriadneCampaignError, match="reconciliation"):
+        _run(module, root, head, "wt-fail-reconcile")
+
+
+def test_head_ref_change_with_the_same_revision_is_a_conflict(tmp_path, monkeypatch):
+    """Council r1 claim 3: the receipt-equality branch is reachable (a ref switch that
+    keeps the revision), and its message names the window."""
+    import daedalus.ariadne.campaign as module
+
+    root, git = _git_repo(tmp_path, monkeypatch)
+    head = git("rev-parse", "HEAD")
+    observations = iter([
+        SimpleNamespace(to_dict=lambda: {"head": head, "head_ref": "refs/heads/main"}),
+        SimpleNamespace(to_dict=lambda: {"head": head, "head_ref": "refs/heads/other"}),
+    ])
+    monkeypatch.setattr(module, "verify_repository_head_revision", lambda *_a: next(observations))
+    with pytest.raises(AriadneConflictError, match="changed while the target was read"):
+        _run(module, root, head, "wt-ref-switch")
+    assert not (tmp_path / "control" / "ariadne").exists()
+
+
+@pytest.mark.parametrize("failing_observation", [1, 2])
+def test_head_binding_error_on_either_observation_is_a_conflict_before_state(tmp_path, monkeypatch, failing_observation):
+    """Codex r2: both HEAD observations precede candidate capture; a binding error on
+    either is a conflict and creates no campaign state."""
+    import daedalus.ariadne.campaign as module
+    from daedalus.runtimes.contracts.repository import RepositoryHeadRevisionBindingError
+
+    root, git = _git_repo(tmp_path, monkeypatch)
+    head = git("rev-parse", "HEAD")
+    calls = {"n": 0}
+
+    def observe(*_a):
+        calls["n"] += 1
+        if calls["n"] == failing_observation:
+            raise RepositoryHeadRevisionBindingError("repository HEAD differs from expected revision")
+        return SimpleNamespace(to_dict=lambda: {"head": head})
+
+    monkeypatch.setattr(module, "verify_repository_head_revision", observe)
+    with pytest.raises(AriadneConflictError, match="source_revision conflict"):
+        _run(module, root, head, f"wt-head-{failing_observation}")
+    assert not (tmp_path / "control" / "ariadne").exists()
+
+
+def test_aba_head_move_during_the_read_stays_honest_in_the_binding(tmp_path, monkeypatch):
+    """Council r1 claim 5: X -> Y -> X during the read is not detected by the bracket;
+    the receipt stays honest because the base is declared working-tree with
+    head_content_verified false, and the binding carries the bytes actually read."""
+    import hashlib as _hashlib
+
+    import daedalus.ariadne.campaign as module
+
+    root, git = _git_repo(tmp_path, monkeypatch)
+    x = git("rev-parse", "HEAD")
+    (root / "sample.txt").write_bytes(b"other broken" + chr(10).encode())
+    git("commit", "-q", "-am", "y")
+    y = git("rev-parse", "HEAD")
+    git("checkout", "-q", x)
+    _passing_fake_gate(module, monkeypatch)
+    real_safe_target = module._safe_target
+
+    def aba_read(repo_root, value):
+        git("checkout", "-q", y)
+        try:
+            return real_safe_target(repo_root, value)
+        finally:
+            git("checkout", "-q", x)
+
+    monkeypatch.setattr(module, "_safe_target", aba_read)
+    receipt = _run(module, root, x, "wt-aba", before="other broken", after="fixed")
+    assert receipt["outcome"] == "nominated"
+    binding = _base_binding(tmp_path, receipt)
+    assert binding["source_revision"] == x
+    assert binding["base_file_sha256"] == _hashlib.sha256(b"other broken" + chr(10).encode()).hexdigest()
+    assert binding["head_content_verified"] is False
+
+
+def test_nested_target_path_is_posix_in_the_binding(tmp_path, monkeypatch):
+    """Council r1 claim 8: the binding digest must not depend on OS separators."""
+    import daedalus.ariadne.campaign as module
+
+    root, git = _git_repo(tmp_path, monkeypatch)
+    (root / "src").mkdir()
+    (root / "src" / "sample.txt").write_bytes(b"broken" + chr(10).encode())
+    git("add", "-A")
+    git("commit", "-q", "-m", "nested")
+    head = git("rev-parse", "HEAD")
+    _passing_fake_gate(module, monkeypatch)
+    from daedalus.spine.killswitch import KillSwitch
+
+    switch = KillSwitch(repo_root=root)
+    assert switch.arm(force=True, note="nested").running
+    try:
+        receipt = module.run_campaign(
+            repo_root=root, source_revision=head, campaign_id="wt-nested",
+            target_path="src/sample.txt", before="broken", after="fixed", timeout_s=5,
+        )
+    finally:
+        switch.stop()
+    assert _base_binding(tmp_path, receipt)["target_path"] == "src/sample.txt"
+
+
+def test_two_fresh_campaigns_bind_identically_across_a_staging_change(tmp_path, monkeypatch):
+    """Codex r2: fresh construction, not replay, is index-independent."""
+    import daedalus.ariadne.campaign as module
+
+    root, git = _git_repo(tmp_path, monkeypatch)
+    head = git("rev-parse", "HEAD")
+    _passing_fake_gate(module, monkeypatch)
+    (root / "sample.txt").write_bytes(b"still broken" + chr(10).encode())
+    a = _run(module, root, head, "wt-fresh-a", before="still broken", after="fixed")
+    git("add", "sample.txt")
+    b = _run(module, root, head, "wt-fresh-b", before="still broken", after="fixed")
+    ba, bb = _base_binding(tmp_path, a), _base_binding(tmp_path, b)
+    ba.pop("campaign_id"); bb.pop("campaign_id")
+    assert ba == bb
+
+
+def test_replay_after_the_working_tree_changed_returns_the_stored_receipt_unchanged(tmp_path, monkeypatch):
+    """Council r1 claim 13: replay by identity serves the stored receipt; the binding is
+    not recomputed against new working-tree bytes."""
+    import daedalus.ariadne.campaign as module
+
+    root, git = _git_repo(tmp_path, monkeypatch)
+    head = git("rev-parse", "HEAD")
+    _passing_fake_gate(module, monkeypatch)
+    first = _run(module, root, head, "wt-replay-drift")
+    (root / "sample.txt").write_bytes(b"different" + chr(10).encode())
+    # Measured: the base bytes are part of the operation identity, and the
+    # `before` fragment no longer occurs in the drifted file, so the identical
+    # request is refused BEFORE any replay ("before text must occur exactly
+    # once"), never served a recomputed binding. The stored receipt is still
+    # the one retained under its identity.
+    with pytest.raises(AriadneCampaignError, match="exactly once|changed repair inputs|conflict"):
+        _run(module, root, head, "wt-replay-drift")
+    (root / "sample.txt").write_bytes(b"broken" + chr(10).encode())
+    replay = _run(module, root, head, "wt-replay-drift")
+    assert replay == first
+    digests = list(replay["provenance"]["input_digests"])
+    assert len(digests) == len(set(digests))
+
+
+def test_missing_repo_root_is_a_typed_pre_observation_refusal(tmp_path, monkeypatch):
+    """Council r1 claim 11 / r2: a missing repo_root refuses as a typed request error, and
+    target-path admission is the first refusal, before the revision shape check."""
+    import daedalus.ariadne.campaign as module
+
+    monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(tmp_path / "control" / "killswitch"))
+    with pytest.raises(AriadneRequestError, match="repo_root"):
+        module.run_campaign(
+            repo_root=tmp_path / "nope", source_revision=REV, campaign_id="no-root",
+            target_path="sample.txt", before="a", after="b", timeout_s=5,
+        )
+    root = tmp_path / "repo"
+    root.mkdir()
+    with pytest.raises(AriadneRequestError, match="mandatory ignored root"):
+        module.run_campaign(
+            repo_root=root, source_revision="zz", campaign_id="bad-both",
+            target_path=".git/HEAD", before="a", after="b", timeout_s=5,
+        )
+    assert not (tmp_path / "control").exists()
