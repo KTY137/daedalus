@@ -97,6 +97,24 @@ TOOLS: tuple[EdaToolSpec, ...] = (
         ),
     ),
     EdaToolSpec(
+        id="vitis_hls", label="AMD Vitis HLS", command="vitis_hls",
+        roles=("high_level_synthesis", "tcl"), languages=("cpp", "c"),
+        version_args=("-version",), tcl_backend="vitis_hls", proprietary=True,
+        notes=(
+            "Batch C synthesis runs as 'vitis_hls -f <script>'. Discovery only; "
+            "no admitted HLS execution adapter exists in this slice."
+        ),
+    ),
+    EdaToolSpec(
+        id="vpp", label="AMD Vitis v++ compiler", command="v++",
+        roles=("acceleration", "compile", "link"), languages=("cpp", "c"),
+        version_args=("--version",), proprietary=True,
+        notes=(
+            "Kernel compile/link for Vitis acceleration targets. Discovery "
+            "only; the environment override is DAEDALUS_VPP_COMMAND."
+        ),
+    ),
+    EdaToolSpec(
         id="xsct", label="AMD XSCT", command="xsct",
         roles=("embedded_software", "tcl"), version_args=("-version",),
         proprietary=True,
@@ -127,6 +145,14 @@ _WINDOWS_TOOL_GLOBS: Mapping[str, tuple[str, ...]] = {
         "C:/Xilinx/*/Vitis/bin/xsct.bat",
         "C:/Xilinx/Vitis/*/bin/xsct.bat",
     ),
+    "vitis_hls": (
+        "C:/Xilinx/*/Vitis_HLS/bin/vitis_hls.bat",
+        "C:/Xilinx/Vitis_HLS/*/bin/vitis_hls.bat",
+    ),
+    "vpp": (
+        "C:/Xilinx/*/Vitis/bin/v++.bat",
+        "C:/Xilinx/Vitis/*/bin/v++.bat",
+    ),
     "quartus": (
         "C:/intelFPGA*/*/quartus/bin64/quartus_sh.exe",
         "C:/altera/*/quartus/bin64/quartus_sh.exe",
@@ -144,7 +170,15 @@ _POSIX_TOOL_GLOBS: Mapping[str, tuple[str, ...]] = {
 
 _VIVADO_VERSION_RE = re.compile(r"\bVivado\s+v(?P<version>\d{4}\.\d+(?:\.\d+)?)\b", re.IGNORECASE)
 _NUMERIC_INSTALL_VERSION_RE = re.compile(r"[0-9]+(?:\.[0-9]+)*\Z")
-_NUMERIC_AMD_INSTALL_TOOLS = frozenset({"vivado", "vitis", "xsct"})
+_NUMERIC_AMD_INSTALL_TOOLS = frozenset({"vivado", "vitis", "xsct", "vitis_hls", "vpp"})
+#: Vendor product directory that owns each AMD launcher layout.
+_AMD_INSTALL_PRODUCT: Mapping[str, str] = {
+    "vitis": "vitis",
+    "xsct": "vitis",
+    "vpp": "vitis",
+    "vitis_hls": "vitis_hls",
+    "vivado": "vivado",
+}
 
 
 def get_tool(tool_id: str) -> EdaToolSpec:
@@ -213,7 +247,7 @@ def _vendor_install_version(tool_id: str, path: str | Path) -> tuple[int, ...] |
     """
 
     launcher = Path(path)
-    product = "vitis" if tool_id in {"vitis", "xsct"} else tool_id
+    product = _AMD_INSTALL_PRODUCT.get(tool_id, tool_id)
     install_dir = launcher.parent.parent
     if install_dir.name.casefold() == product:
         release = install_dir.parent.name
