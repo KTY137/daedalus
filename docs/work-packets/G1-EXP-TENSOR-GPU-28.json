@@ -1,0 +1,141 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-28",
+  "title": "Bound the next CSR common-path optimization with semantic equivalence and paired predicate A/B evidence",
+  "status": "closed-research",
+  "date_europe_berlin": "2026-09-05",
+  "authority": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "semantic_authority": "masterplan-only"
+  },
+  "scope": {
+    "issue": 239,
+    "pull_request": 314,
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "c10329fe6373210551c432e0f93dc55082468f87",
+    "production_source": "daedalus/twin/relation_blocks.py",
+    "production_blob": "47c21b5523fe2e96f9c7539cbcf6be2b24a2cb95",
+    "production_code_changed": false,
+    "live_experiment_harness_added": false
+  },
+  "gardener_decision": {
+    "problem": "Profile-v8 still attributes most observed constructor cost to TypedRelationBlock.__post_init__, but GPU-27 did not provide a controlled reason to keep shaving arbitrary branches. The matched-count canonical column loop currently evaluates range and strict-order predicates separately for every valid entry.",
+    "bounded_candidate": "On the already canonical matched-count path only, fuse the valid common case to previous_column < item < column_count and enter the existing error-classification path only when that predicate fails. Keep the count-mismatch fallback unchanged.",
+    "why_research_first": "The campaign requires deletion/consolidation before new abstraction and honest evidence. This packet therefore measures the existing loop against one in-place candidate before touching production code; it adds no second validator, backend, cache, registry, trusted constructor, workflow path, relation type, or permanent benchmark harness.",
+    "decision": "Candidate is eligible for one later minimal in-place implementation packet because semantic classification matched exhaustively on the bounded oracle and the candidate median was lower in every measured canonical workload. This packet itself makes no production change and claims no constructor-wide speedup."
+  },
+  "semantic_oracle": {
+    "kind": "copied-loop decision oracle pinned to the current production blob",
+    "harness_sha256": "4267521ad9714b4739b4ec61dc236f11c3d3848db57af4761b535888ef98ba57",
+    "matched_count_shape": "two CSR rows; row split varied over every position; column_count=3",
+    "column_domain": [-1, 0, 1, 2, 3, "bad"],
+    "sequence_lengths": [0, 1, 2, 3, 4, 5],
+    "cases_checked": 54121,
+    "classification_surface": ["ok", "type", "range", "count", "strict"],
+    "mismatches": 0,
+    "boundary": "This is a bounded semantic oracle for the matched-count column loop only. Existing row-offset validation and the count-mismatch fallback are intentionally outside the proposed change and remain unchanged."
+  },
+  "paired_microstage_probe": {
+    "authority": "decision-only",
+    "runtime": {
+      "python_implementation": "CPython",
+      "python_version": "3.13.5",
+      "platform": "Linux-6.18.35-x86_64-with-glibc2.41"
+    },
+    "method": "For each valid synthetic CSR workload, run seven warmups followed by 31 paired measurements, alternating baseline/candidate order AB then BA. Both functions execute the complete matched-count validation/classification loop copied from the pinned production source; output must be 'ok'.",
+    "workloads": [
+      {
+        "label": "64/0.01-shape",
+        "rows": 64,
+        "entries_per_row": 1,
+        "entries": 64,
+        "baseline_median_ms": 0.00952,
+        "candidate_median_ms": 0.008711,
+        "candidate_over_baseline": 0.9150210084
+      },
+      {
+        "label": "64/0.05-shape",
+        "rows": 64,
+        "entries_per_row": 9,
+        "entries": 576,
+        "baseline_median_ms": 0.055569,
+        "candidate_median_ms": 0.048743,
+        "candidate_over_baseline": 0.8771617269
+      },
+      {
+        "label": "128/0.01-shape",
+        "rows": 128,
+        "entries_per_row": 1,
+        "entries": 128,
+        "baseline_median_ms": 0.01855,
+        "candidate_median_ms": 0.017005,
+        "candidate_over_baseline": 0.9167115903
+      },
+      {
+        "label": "128/0.05-shape",
+        "rows": 128,
+        "entries_per_row": 36,
+        "entries": 4608,
+        "baseline_median_ms": 0.435282,
+        "candidate_median_ms": 0.380873,
+        "candidate_over_baseline": 0.8750028717
+      },
+      {
+        "label": "256/0.01-shape",
+        "rows": 256,
+        "entries_per_row": 9,
+        "entries": 2304,
+        "baseline_median_ms": 0.225327,
+        "candidate_median_ms": 0.206764,
+        "candidate_over_baseline": 0.9176175070
+      },
+      {
+        "label": "256/0.05-shape",
+        "rows": 256,
+        "entries_per_row": 169,
+        "entries": 43264,
+        "baseline_median_ms": 4.158201,
+        "candidate_median_ms": 3.849904,
+        "candidate_over_baseline": 0.9258580814
+      }
+    ],
+    "interpretation": "The copied-loop candidate had a lower median in all six bounded workloads, with candidate/baseline ratios from about 0.875 to 0.926. These timings come from a local CPython 3.13 decision probe, not the repository CI runtime and not the full TypedRelationBlock constructor. They justify only a later minimal production trial, not a performance claim."
+  },
+  "claim_boundary": {
+    "allowed": "GPU-28 establishes bounded semantic-equivalence evidence for one matched-count CSR predicate fusion and records a consistent local microstage signal sufficient to justify a later minimal in-place trial.",
+    "not_claimed": [
+      "production implementation",
+      "constructor-wide speedup",
+      "general CPU speedup",
+      "GitHub-hosted runtime speedup",
+      "GPU, CUDA, Tensor-Core or memory win",
+      "Tensor-vs-Forest superiority",
+      "CrewAI superiority",
+      "AlphaEvolve superiority",
+      "complete repository suite pass",
+      "promotion or gate closure"
+    ]
+  },
+  "branch_hygiene": {
+    "canonical_branch_used": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "force_update": false,
+    "archive_legacy_20260830_observed_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_used_as_work_or_storage_target": false,
+    "branch_deleted_for_cosmetic_count_reduction": false,
+    "unique_evidence_deleted": false
+  },
+  "promotion": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "closure": {
+    "next_narrow_step": "If still before 2026-09-29, implement the predicate fusion only in the existing matched-count TypedRelationBlock loop, retain the current error-classification slow path and count-mismatch fallback, add focused precedence regressions, and require repository CI evidence before keeping the production change. Do not introduce a second validator or benchmark subsystem."
+  }
+}
