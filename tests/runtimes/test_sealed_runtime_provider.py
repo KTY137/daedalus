@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import inspect
 import sys
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -229,17 +230,26 @@ def test_sealed_output_evidence_failure_stays_started_for_reconciliation(
     assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"
 
 
-def test_public_ask_claude_surface_no_longer_exposes_legacy_observation_authority() -> None:
+def test_public_ask_claude_surface_accepts_one_exact_bundle_only() -> None:
     parameters = inspect.signature(claude_bridge.ask_claude).parameters
-    assert "observation_authority" not in parameters
-    assert {
+    old_authority_fields = {
+        "runtime_authorization",
+        "effect_execution",
+        "workspace_grant",
         "invocation_authority",
         "invocation_payload",
         "invocation_abi",
         "observation_binding_ledger",
         "executable_registry",
         "pre_admission",
-    } <= set(parameters)
+        "observation_authority",
+    }
+    assert "sealed_bundle" in parameters
+    assert parameters["sealed_bundle"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert old_authority_fields.isdisjoint(parameters)
+    assert {field.name for field in fields(claude_bridge.ClaudeSealedInvocationBundle)} == (
+        old_authority_fields - {"observation_authority"}
+    )
 
 
 def test_claude_provider_has_a_callback_free_sealed_callsite() -> None:
