@@ -241,6 +241,26 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   calls consume a 300 s bounded mission. Codex reviewed statically (room,
   16:49): both fixes ALIGNED; paraphrased plans and cancellation inside a
   running provider call stay open.
+- Stage 14 (owner order 17:33, "starte 10 opus agenten"): ten Opus lane
+  agents in isolated worktrees, exclusive paths, each with a packet; verified
+  one by one and stacked on this branch by cherry-pick with the registry
+  re-derived once per batch. Integrated: `G1-IKARUS-29` (plan budget of four
+  plans per step, wall-time check before the effect), `G1-ARIADNE-08` (blob
+  bytes at a commit without the git binary, pure stdlib, not wired; two
+  Odysseus defects, REF_DELTA depth reset and NTFS-junction `.git`, in
+  fix-forward), `G1-ARIADNE-09` (one exit-code contract for both Ariadne CLI
+  doors, sysexits 64/70, JSON error line), `G1-TESTS-01` (the flaky shell
+  test spawned a real vendor CLI; pinned voice, 259 s to 8.6 s), `G1-SELF-01`
+  (EXPERIMENT: second self-Renovation nomination, `daedalus/build.py`
+  docstring names a class that does not exist, repo-own resolver as frozen
+  gate; nothing applied), `G1-HW-01` (EXPERIMENT: effect-free KiCad
+  status/scan/inspect/plan, 148 tests, all toolchains honestly absent on this
+  host), `G1-IKARUS-30` (desktop and OCR adapters measured live through
+  `ComputerService`, 17 effects, four adapter findings, no image retained),
+  and the adversarial review of stage 13 (both claims hold; manifest digests
+  were unpinned against CRLF checkouts, now `-text` pinned with a test over
+  every evidence manifest). Pending: `G1-KERNEL-02` (interruptible provider
+  calls) and `G1-EDA-HOST-STATUS-02` (Vivado Tcl emission).
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
