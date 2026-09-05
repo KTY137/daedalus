@@ -250,7 +250,13 @@ def test_evidence_digest_manifests_match_the_checked_out_bytes():
     manifests = sorted((ROOT / "docs" / "evidence").glob("*/MANIFEST.json"))
     assert manifests, "no evidence manifest found; the glob or the layout changed"
     for manifest in manifests:
-        entries = json.loads(manifest.read_text(encoding="utf-8"))
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        # Two manifest shapes exist: a flat {name: sha256} map (G1-IKARUS-26)
+        # and a {"files": [{"name", "bytes", "sha256"}, ...]} list (G1-IKARUS-30).
+        entries = ({row["name"]: row["sha256"] for row in payload["files"]}
+                   if isinstance(payload.get("files"), list) else
+                   {name: digest for name, digest in payload.items() if isinstance(digest, str) and len(digest) == 64})
+        assert entries, f"{manifest} names no digests"
         directory = manifest.parent
         attr = subprocess.run(
             ["git", "check-attr", "text", "--", str(manifest.relative_to(ROOT)).replace("\\", "/")],
