@@ -1,0 +1,224 @@
+{
+  "ok": true,
+  "genesis": {
+    "run_id": "genesis-c4b987ce12c2530ab365b5d6",
+    "request_key": "loop-genesis-rehearsal-01",
+    "status": "preview-ready",
+    "target": "web",
+    "defaults": {
+      "accessibility": "WCAG 2.2 AA",
+      "authentication": false,
+      "audience": "one local user",
+      "base_repository": null,
+      "capability_scope": "card CRUD with fixed backlog/in-progress/done columns, keyboard move controls, and optional search/filter",
+      "language": "English UI generated from the supplied objective",
+      "product_class": "local-first kanban board",
+      "requested_stack": null,
+      "requested_target": "web",
+      "stack": "python-stdlib",
+      "stack_required": false,
+      "storage": "local-only",
+      "target": "web",
+      "target_required": true,
+      "telemetry": false,
+      "blueprint": "kanban-board-v1"
+    },
+    "blockers": [],
+    "mission": {
+      "mission_id": "mission-c4b987ce12c2530ab365b5d6",
+      "objective": "Materialize and verify an isolated web product: kanban board",
+      "work_items": [
+        "wi-001-2a6065aca039",
+        "wi-002-118e054e830c",
+        "wi-003-3d63b22eee4e",
+        "wi-004-12c73746bbd4",
+        "wi-005-f9316abd6f17",
+        "wi-006-b27f5b3ef9fd",
+        "wi-007-60ca9c80f524",
+        "wi-008-fe326f279940",
+        "wi-009-4e9e74285db3"
+      ],
+      "success_criteria": [
+        "Card model and schema match their independently pinned identities",
+        "app.js matches the pinned kanban-board-v1 template after exact CONFIG normalization",
+        "browser behavior is not claimed by certified-template conformance",
+        "candidate-executing checks report effective OS write containment",
+        "deterministic syntax check passes",
+        "generated unit tests pass",
+        "package smoke check passes",
+        "rebuilt Fourfold snapshot is complete",
+        "runtime smoke check passes"
+      ],
+      "policy_sha256": "d10a173bd7402ac4a9e61cd01ce99f903ce71a00ed401f685cd90f3aa0d2557a"
+    },
+    "candidate": {
+      "kind": "candidate source tree",
+      "sha256": "e3aa5901a6ef3274e3ee709f0a751faf08a5d9f99a90d5f8b24895a619543180",
+      "locator": "artifact-locator:sha256:e3aa5901a6ef3274e3ee709f0a751faf08a5d9f99a90d5f8b24895a619543180",
+      "files": [
+        "README.md",
+        "app.js",
+        "fourfold.json",
+        "icons/icon-192.svg",
+        "icons/icon-512.svg",
+        "index.html",
+        "manifest.webmanifest",
+        "model.py",
+        "schemas/card.schema.json",
+        "server.py",
+        "service-worker.js",
+        "styles.css",
+        "tests/test_project.py"
+      ]
+    },
+    "evidence": {
+      "kind": "evidence packet",
+      "sha256": "243120fa752492eb62b1d922b30beaa5e57479a65c1236509b2f9ddca3a465f6",
+      "locator": "artifact-locator:sha256:243120fa752492eb62b1d922b30beaa5e57479a65c1236509b2f9ddca3a465f6",
+      "status": "passed",
+      "checks": [
+        "attempt-c4b987ce12c2530ab365b5d6:build",
+        "attempt-c4b987ce12c2530ab365b5d6:fourfold",
+        "attempt-c4b987ce12c2530ab365b5d6:kanban_template_conformance",
+        "attempt-c4b987ce12c2530ab365b5d6:package",
+        "attempt-c4b987ce12c2530ab365b5d6:runtime",
+        "attempt-c4b987ce12c2530ab365b5d6:test"
+      ],
+      "candidate_tree_sha256": "e3aa5901a6ef3274e3ee709f0a751faf08a5d9f99a90d5f8b24895a619543180"
+    },
+    "roundtrip": {
+      "kind": "round-trip report",
+      "sha256": "02cad92eed445200a0142313623a736dae00161172630054b8bf61d7ec4993e2",
+      "locator": "artifact-locator:sha256:02cad92eed445200a0142313623a736dae00161172630054b8bf61d7ec4993e2",
+      "status": "passed",
+      "checks": {
+        "build": true,
+        "code": true,
+        "containment": true,
+        "data": true,
+        "kanban_template_conformance": true,
+        "knowledge": true,
+        "package": true,
+        "runtime": true,
+        "test": true,
+        "type": true
+      },
+      "feature_assurance": {
+        "approved_kanban_app_template_sha256": "66244182208b8bae5777d16d71f859724f8f37d71abb4decf5c84834d023d941",
+        "approved_kanban_model_sha256": "dbebac7873d9b9853b8ba5275a8c489bca2dc873dd710becae5b8f6bced6f647",
+        "approved_kanban_schema_sha256": "bb12c29e79a3767e578b7c126062669ddccc21b3b23ec76730bcf41bd729f054",
+        "blueprint": "kanban-board-v1",
+        "browser_behavior_verified": false,
+        "candidate_owned": false,
+        "kanban_template_verified": true,
+        "mechanism": "kernel-owned certified kanban template plus pinned model/schema conformance",
+        "runtime_behavior_verified_by_this_check": false,
+        "limitation": "Exact generated source identities and fixed-column wiring are checked, but browser interactions are not executed; behavioral browser verification remains a separate release gap."
+      }
+    },
+    "preview": {
+      "kind": "read-only-cas-preview",
+      "path": "/api/genesis/genesis-c4b987ce12c2530ab365b5d6/preview/"
+    },
+    "artifacts": {
+      "actual_fourfold": {
+        "kind": "actual fourfold",
+        "sha256": "23f59e25d40bd262447780ece8111a6b8698fba300461e6cedb2e5ea38a9cd43",
+        "locator": "artifact-locator:sha256:23f59e25d40bd262447780ece8111a6b8698fba300461e6cedb2e5ea38a9cd43"
+      },
+      "attempt": {
+        "kind": "attempt",
+        "sha256": "0834fc521c8c46564d725092128b09ce654897ea6d0828ef53b7419fca77e7e1",
+        "locator": "artifact-locator:sha256:0834fc521c8c46564d725092128b09ce654897ea6d0828ef53b7419fca77e7e1"
+      },
+      "autonomy_policy": {
+        "kind": "autonomy policy",
+        "sha256": "d10a173bd7402ac4a9e61cd01ce99f903ce71a00ed401f685cd90f3aa0d2557a",
+        "locator": "artifact-locator:sha256:d10a173bd7402ac4a9e61cd01ce99f903ce71a00ed401f685cd90f3aa0d2557a"
+      },
+      "build_intent": {
+        "kind": "build intent",
+        "sha256": "1d3090198f438294770975e9a6765cee471ce2409943ae4a2c6a3b8db65fa057",
+        "locator": "artifact-locator:sha256:1d3090198f438294770975e9a6765cee471ce2409943ae4a2c6a3b8db65fa057"
+      },
+      "design_contract": {
+        "kind": "design contract",
+        "sha256": "ddf16f397c0c286954cb11fe49cfbfc042a81e8efd3ec35001d75d09b4117bd5",
+        "locator": "artifact-locator:sha256:ddf16f397c0c286954cb11fe49cfbfc042a81e8efd3ec35001d75d09b4117bd5"
+      },
+      "evidence": {
+        "kind": "evidence",
+        "sha256": "243120fa752492eb62b1d922b30beaa5e57479a65c1236509b2f9ddca3a465f6",
+        "locator": "artifact-locator:sha256:243120fa752492eb62b1d922b30beaa5e57479a65c1236509b2f9ddca3a465f6"
+      },
+      "graph_proposal": {
+        "kind": "graph proposal",
+        "sha256": "30ea85be0cbb9ba7b6dfb83e6059fa0695f0e184393e81e56bfb29c30ef0d53c",
+        "locator": "artifact-locator:sha256:30ea85be0cbb9ba7b6dfb83e6059fa0695f0e184393e81e56bfb29c30ef0d53c"
+      },
+      "materialization_plan": {
+        "kind": "materialization plan",
+        "sha256": "426211e655930a46fbcec2ae86753a33eb7ca70cc43d3b960a4de2e4d2e274ab",
+        "locator": "artifact-locator:sha256:426211e655930a46fbcec2ae86753a33eb7ca70cc43d3b960a4de2e4d2e274ab"
+      },
+      "mission": {
+        "kind": "mission",
+        "sha256": "c609e8949093489de82d3ae33a39e0c26269887e37b2d360519d3ea4e377f6d6",
+        "locator": "artifact-locator:sha256:c609e8949093489de82d3ae33a39e0c26269887e37b2d360519d3ea4e377f6d6"
+      },
+      "policy_decision": {
+        "kind": "policy decision",
+        "sha256": "cad9f94d8be20e0467809842754d307cf345d32713763c9ca75eb93b845dcf13",
+        "locator": "artifact-locator:sha256:cad9f94d8be20e0467809842754d307cf345d32713763c9ca75eb93b845dcf13"
+      },
+      "product_spec": {
+        "kind": "product spec",
+        "sha256": "ffec8774351c13acc8e33fee3bcd2f507475f6894e839d60e4179da9f11d81d9",
+        "locator": "artifact-locator:sha256:ffec8774351c13acc8e33fee3bcd2f507475f6894e839d60e4179da9f11d81d9"
+      },
+      "roundtrip": {
+        "kind": "roundtrip",
+        "sha256": "02cad92eed445200a0142313623a736dae00161172630054b8bf61d7ec4993e2",
+        "locator": "artifact-locator:sha256:02cad92eed445200a0142313623a736dae00161172630054b8bf61d7ec4993e2"
+      },
+      "run_record": {
+        "kind": "run record",
+        "sha256": "2879a3ea9640b0869e5f9f6c8a72717f3033b30f0c22395da55b68bb2acf0558",
+        "locator": "artifact-locator:sha256:2879a3ea9640b0869e5f9f6c8a72717f3033b30f0c22395da55b68bb2acf0558"
+      },
+      "runtime_manifest": {
+        "kind": "runtime manifest",
+        "sha256": "5ca1f2f93d343d3eda0cd2db8d4fc47133e7272e4d67b6c40090ccffef8a21b8",
+        "locator": "artifact-locator:sha256:5ca1f2f93d343d3eda0cd2db8d4fc47133e7272e4d67b6c40090ccffef8a21b8"
+      },
+      "target_fourfold": {
+        "kind": "target fourfold",
+        "sha256": "c067ec07eced111892f7f287f8495838e1bc16466bad4149c6a4ccbe2c9255b0",
+        "locator": "artifact-locator:sha256:c067ec07eced111892f7f287f8495838e1bc16466bad4149c6a4ccbe2c9255b0"
+      },
+      "toolchain_manifest": {
+        "kind": "toolchain manifest",
+        "sha256": "0acfd3675db80b97bd33e36d5bde6cc9b2748c0d411ef3859278307a3288f1a8",
+        "locator": "artifact-locator:sha256:0acfd3675db80b97bd33e36d5bde6cc9b2748c0d411ef3859278307a3288f1a8"
+      }
+    },
+    "invocation_effect": {
+      "schema": "daedalus-genesis-invocation-effect-binding/1",
+      "entrypoint_id": "python.genesis",
+      "source_revision": "2a2958ea5459a3d40944d488e2317714e331c7e3",
+      "attempt_id": "attempt-c4b987ce12c2530ab365b5d6",
+      "operation_sha256": "154e0495c88658dd9488b251b6453188671fc9fa6b084f2012176b16bb9caae2",
+      "lease_sha256": "9d02dcedf83cf3009a3a8aff4327d9f3e7e1532c877ac3abf73713f569f69ad8",
+      "execution_id": "mission-c4b987ce12c2530ab365b5d6-python.genesis-attempt-c4b987ce12c2530ab365b5d6-776f7f45-exec-0",
+      "execution_request_sha256": "65d41b3ab538b5044056a37108a69180c9b1dc038f2036b1b546722b6564f359",
+      "lease_subject_record_sha256": "f2eb06d823557696030d46bd16de38ecb10be606a90e4c5102580f5aba316f4a",
+      "lease_execution_record_sha256": "02a4ae847c2350a1e96ccbac1253c0b7dd26828157330581c00c31d48f444b4d",
+      "expected_terminal_state": "completed"
+    },
+    "publication": {
+      "status": "not-requested",
+      "owner_approval_required": true,
+      "automatic_promotion": false
+    }
+  }
+}

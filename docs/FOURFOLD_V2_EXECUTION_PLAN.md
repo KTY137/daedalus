@@ -203,6 +203,13 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   refusals retained: linked worktrees are not accepted as subjects by the HEAD
   verifier; an override control root against a repository with an existing
   spine refuses as partial state.
+- Stage 6 `G1-ARIADNE-06`: the two refusals above name cause and remedy;
+  the worktree exclusion is recorded as deliberate (measured pointer-rewrite
+  attack; Momus critique).
+- Stage 7 `G1-GENESIS-REHEARSAL-01` (EXPERIMENT): `daedalus genesis "kanban
+  board"` on this host reaches preview-ready with all gates passing in 0.5 to
+  1.2 s each and no launcher warning, against the morning's 16 to 31 s and a
+  runtime timeout with the launcher stub; single run, A/B pending.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
