@@ -189,6 +189,10 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   three Ariadne-02 review findings closed; council live path now installs the
   budget net first (an unpriced bypass by this session is disclosed there).
 - Stage 2b `G1-COUNCIL-01`: `cli.council` registered as an effectful door.
+- Stage 3 `G1-ARIADNE-04` (isolated worktree branch `loop/stage3-failed-receipt`,
+  commit 9d37ff0d, not merged): a campaign-domain arm failure returns the
+  retained `failed` receipt on the first call instead of re-raising; stage
+  suites 129 passed; Codex review requested.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
