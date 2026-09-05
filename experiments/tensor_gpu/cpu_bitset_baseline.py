@@ -59,6 +59,10 @@ else:  # direct ``python experiments/tensor_gpu/cpu_bitset_baseline.py``
 
 SCHEMA = "daedalus-tensor-cpu-bitset-baseline/3"
 T = TypeVar("T")
+_BYTE_BIT_OFFSETS = tuple(
+    tuple(bit for bit in range(8) if byte & (1 << bit))
+    for byte in range(256)
+)
 
 
 @dataclass(frozen=True)
@@ -203,14 +207,20 @@ def _csr_support_from_masks(
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """Decode packed Boolean support into canonical CSR offsets and indices.
 
-    The packed representation already implies every stored value is ``True``.
-    Keep value materialization out of this scan so the experiment can measure
-    support decoding separately from constructing the canonical typed block.
+    Sparse rows retain the direct set-bit walk. Denser rows scan a fixed-width
+    little-endian byte view and reuse a 256-entry lookup table, avoiding one
+    ``bit_length`` call per output entry while preserving strictly increasing
+    canonical column order. The crossover is derived only from row geometry:
+    use the byte path once the set-bit count exceeds half the encoded byte
+    width. This remains a physical experiment helper, not a second relation
+    representation or semantic authority.
     """
 
     if len(masks) != len(left.row_axis.labels):
         raise ValueError("bitset output must contain every result row")
     column_count = len(right.column_axis.labels)
+    byte_width = (column_count + 7) // 8
+    byte_crossover = max(1, byte_width // 2)
     offsets = [0]
     indices: list[int] = []
     for mask in masks:
@@ -218,15 +228,23 @@ def _csr_support_from_masks(
             raise ValueError("bitset output rows must be non-negative integers")
         if mask.bit_length() > column_count:
             raise ValueError("bitset output references an out-of-range result column")
-        remaining = mask
-        while remaining:
-            least = remaining & -remaining
-            indices.append(least.bit_length() - 1)
-            if len(indices) > MAX_BLOCK_ENTRIES:
-                raise ValueError(
-                    f"bitset output exceeds TypedRelationBlock limit {MAX_BLOCK_ENTRIES}"
-                )
-            remaining ^= least
+        entry_count = mask.bit_count()
+        if len(indices) + entry_count > MAX_BLOCK_ENTRIES:
+            raise ValueError(
+                f"bitset output exceeds TypedRelationBlock limit {MAX_BLOCK_ENTRIES}"
+            )
+        if entry_count <= byte_crossover:
+            remaining = mask
+            while remaining:
+                least = remaining & -remaining
+                indices.append(least.bit_length() - 1)
+                remaining ^= least
+        else:
+            base = 0
+            for byte in mask.to_bytes(byte_width, "little"):
+                for bit in _BYTE_BIT_OFFSETS[byte]:
+                    indices.append(base + bit)
+                base += 8
         offsets.append(len(indices))
     return tuple(offsets), tuple(indices)
 
