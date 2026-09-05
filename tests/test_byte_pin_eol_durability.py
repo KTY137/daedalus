@@ -231,3 +231,32 @@ def test_gitattributes_records_why_the_lines_exist():
     text = GITATTRIBUTES.read_text(encoding="utf-8")
     assert "D7" in text
     assert "autocrlf" in text
+
+
+def test_evidence_digest_manifests_match_the_checked_out_bytes():
+    """Every docs/evidence/**/MANIFEST.json pins the sha256 of its sibling files.
+
+    The digests are over the committed LF bytes, so the directory needs a
+    ``-text`` pin or a translating checkout (Windows, ``core.autocrlf=true``)
+    makes every entry mismatch; the G1-IKARUS-26 adversarial review measured
+    19/19 mismatches on a fresh checkout (F1). The ``_census`` above only walks
+    ``*.py`` under daedalus/, tests/ and tools/, which is why it could not see
+    this. Checked on every platform: the on-disk bytes must hash to the manifest.
+    """
+    import hashlib
+    import json
+    import subprocess
+
+    manifests = sorted((ROOT / "docs" / "evidence").glob("*/MANIFEST.json"))
+    assert manifests, "no evidence manifest found; the glob or the layout changed"
+    for manifest in manifests:
+        entries = json.loads(manifest.read_text(encoding="utf-8"))
+        directory = manifest.parent
+        attr = subprocess.run(
+            ["git", "check-attr", "text", "--", str(manifest.relative_to(ROOT)).replace("\\", "/")],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+        assert attr.rstrip().endswith("text: unset"), f"{directory.name} is not pinned -text: {attr.strip()}"
+        for name, digest in entries.items():
+            actual = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+            assert actual == digest, f"{directory.name}/{name} on disk does not match its manifest digest"

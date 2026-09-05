@@ -452,3 +452,9 @@ daedalus/twin/relation_projection.py -text
 daedalus/twin/semiring.py -text
 daedalus/twin/tensor.py -text
 daedalus/twin/two_category.py -text
+
+# Evidence directories that carry a digest manifest (MANIFEST.json pins the
+# sha256 of every sibling file): the digests are over the committed LF bytes,
+# so a translating checkout would make 19/19 of them mismatch on Windows
+# (measured 2026-09-05 by the G1-IKARUS-26 adversarial review, F1).
+docs/evidence/G1-IKARUS-26_COMPUTER_LOOP_LIVE/** -text
