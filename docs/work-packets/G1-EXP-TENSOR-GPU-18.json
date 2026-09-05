@@ -1,0 +1,118 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-18",
+  "title": "Freeze constructor self-time as the next optimization gate without new instrumentation",
+  "date": "2026-09-05",
+  "status": "verification-pending",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "blob_sha": "b16cd697b5f263be81cc0889f0d803ad696a8b84",
+    "authority": "sole semantic authority"
+  },
+  "main_revision": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "d2ac75daac8d53d82c97e916b56340080741638c",
+  "question": "After pruning retired profiler metrics in GPU-17, is another profiler or constructor bypass justified, or does existing exact-blob evidence already identify one concrete in-path cost strongly enough to gate the next production experiment?",
+  "evidence_reuse": {
+    "current_relation_blocks_blob": "e48c26180597de7ff94da3b8b10cef57b15b2424",
+    "same_blob_source_packet": "G1-EXP-TENSOR-GPU-13",
+    "same_blob_profile_artifact_id": 9956234705,
+    "same_blob_profile_archive_sha256": "92eb809b2012aede60f368bc4dc78d105c0040d3bab56367c73cbd746a020c39",
+    "current_profiler_packet": "G1-EXP-TENSOR-GPU-17",
+    "current_profiler_schema": "daedalus-tensor-typed-block-validation-profile/5",
+    "current_profiler_artifact_id": 9960836042,
+    "current_profiler_archive_sha256": "636f46d916dbe7183a941058219f430e86dc145cbae1717effcc79b0a7681956",
+    "identity_argument": "The canonical daedalus/twin/relation_blocks.py blob is unchanged between the frozen GPU-13 constructor profile and the GPU-17 branch head, so the older profile measures the same production constructor implementation even though hosted-run wall times must not be compared as a controlled A/B benchmark."
+  },
+  "frozen_same_blob_diagnostic": {
+    "case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264
+    },
+    "typed_block_post_init_cumulative_ms_median_profiled": 23.084186,
+    "typed_block_post_init_self_ms_median_profiled": 16.787704,
+    "stored_scalar_calls": 43264,
+    "stored_scalar_cumulative_ms_median_profiled": 6.273883,
+    "post_init_self_share_of_profiled_post_init": 0.7272382920498043,
+    "stored_share_of_profiled_post_init": 0.2717827260619023,
+    "post_init_self_to_stored_ratio": 2.6758076298203206,
+    "measurement_caveat": "cProfile timings include observer overhead and the shares are attribution diagnostics only. They do not equal unprofiled wall-time shares and do not mint a speedup claim."
+  },
+  "decision": {
+    "next_active_cost": "TypedRelationBlock.__post_init__ self/body work outside child helper frames is the strongest already-measured in-path constructor cost on the unchanged production blob.",
+    "do_not_add_profiler": true,
+    "do_not_add_trusted_constructor": true,
+    "do_not_bypass_stored_scalar_admission": true,
+    "do_not_add_cache_backend_or_relation_type": true,
+    "next_experiment_gate": "Any production optimization candidate must target existing __post_init__ body/CSR structural work, preserve exact fail-closed error precedence and canonical digests, and be evaluated against the unchanged constructor on frozen cases before broader claims."
+  },
+  "gardener_boundary": {
+    "production_runtime_changed": false,
+    "experiment_runtime_changed": false,
+    "new_probe_file_added": false,
+    "parallel_benchmark_harness_added": false,
+    "workflow_changed": false,
+    "trusted_constructor_added": false,
+    "alternate_relation_type_added": false,
+    "cache_added": false,
+    "backend_added": false,
+    "registry_added": false,
+    "store_added": false,
+    "scheduler_added": false,
+    "semantic_plane_added": false,
+    "runtime_dependency_added": false,
+    "public_api_added": false,
+    "reason_for_no_code_change": "Existing content-addressed evidence already answers the bounded research question. Adding another diagnostic or abstraction would increase bloat without changing the decision."
+  },
+  "verification": {
+    "source_exact_head": "8570ea93c1c7ade62f4b5cdc979d5f6b328d046f",
+    "source_run_id": 33938055745,
+    "source_run_conclusion": "success",
+    "source_final_head": "d2ac75daac8d53d82c97e916b56340080741638c",
+    "source_final_run_id": 33938222921,
+    "source_final_run_conclusion": "success",
+    "packet_record_head": null,
+    "packet_record_run_id": null,
+    "packet_record_run_conclusion": null,
+    "repository_collection": "source run success; collection-only",
+    "full_repository_execution": "manual-only and skipped",
+    "nvidia_gpu_executed": false
+  },
+  "finding": {
+    "summary": "No new instrumentation is justified. On the unchanged canonical relation-block implementation, frozen cProfile evidence already attributes about 72.7% of profiled __post_init__ cumulative time in the largest bounded Boolean case to __post_init__ self/body work, versus about 27.2% to constructor-native _stored. The next bounded production experiment should therefore target existing CSR/body work rather than scalar bypasses, support decoding, caches, or another backend.",
+    "negative_result": "The evidence does not prove a wall-time speedup opportunity of the same magnitude, does not justify weakening validation, and does not authorize a trusted constructor or production promotion.",
+    "next_implication": "A later packet may test one minimal in-place __post_init__ structural optimization with exact error-precedence, digest, hash-seed, and same-case controls; until then no production constructor code is changed."
+  },
+  "issue_scope": {
+    "campaign_issue": 239,
+    "priority": "continue bounded Fourfold/Tensor kernel research without parallel abstractions"
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "archive_branch_used_as_work_target": false,
+    "archive_anchor_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "claim_boundary": {
+    "general_cpu_speedup": false,
+    "cross_run_speedup_claim": false,
+    "cuda_or_tensor_core_speedup": false,
+    "memory_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "gate_transition": false,
+    "merge": false
+  }
+}
