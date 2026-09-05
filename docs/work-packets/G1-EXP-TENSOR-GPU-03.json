@@ -1,0 +1,132 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-03",
+  "title": "Add a packed CPU bitset baseline before escalating CUDA complexity",
+  "status": "closed",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+  "implementation_commit": "dd17bb25096f5a59ad8854706930f092216ff926",
+  "test_commit": "dcab3709725be354e4dee8569462ab0eb2a87264",
+  "workflow_commit": "02f29654ff72c59c0927c05683a2314350cafedb",
+  "exact_tested_head": "02f29654ff72c59c0927c05683a2314350cafedb",
+  "hypothesis": "Before CUDA/Tensor-Core complexity is considered useful for Boolean Fourfold composition, a packed CPU representation should be measured under the same exact revision-bound subject. Python bigint row bitsets may remove enough interpreter overhead that the CUDA crossover moves materially upward or disappears for sparse/small workloads.",
+  "design": {
+    "authority": "TypedRelationBlock plus BooleanSemiring remains the executable semantic oracle",
+    "physical_baseline": "one Python integer bitset per CSR row",
+    "composition": "for each set middle bit in the left row, OR the corresponding packed right-row support",
+    "output": "reconstruct one canonical Boolean TypedRelationBlock with the same subject, typed axes and relation semantics",
+    "reuse": "ProbeCase, deterministic Fourfold fixture, reference operation count, CUDA memory estimator and atomic report writer are reused from cuda_boolean_probe.py",
+    "new_production_backend": false,
+    "new_runtime_dependency": false,
+    "new_semantic_authority": false
+  },
+  "measurements": [
+    "typed CSR fixture construction",
+    "CSR-to-bigint row packing",
+    "resident packed-bitset kernel median/min/max",
+    "canonical TypedRelationBlock reconstruction",
+    "one-shot pack+kernel+canonicalization cost",
+    "exact stdlib CSR oracle cost when inside the reference operation bound",
+    "CSR-over-resident-bitset and CSR-over-one-shot-bitset diagnostic ratios",
+    "CUDA dense-memory estimate for the same case as a complexity/context comparison"
+  ],
+  "bounds": {
+    "case_contract": "reuses ProbeCase bounds from the CUDA experiment",
+    "max_cases": 32,
+    "max_axis": 8192,
+    "max_input_entries_per_block": 1000000,
+    "max_reference_operations": 5000000,
+    "output_entry_limit": 1000000,
+    "ci_calibration_sizes": [64, 128, 256],
+    "ci_calibration_densities": [0.01, 0.05],
+    "ci_calibration_repeats": 5,
+    "ci_calibration_warmup": 2
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "blob": "38060c8edde878f3d58ac1dc5dac7cddab313cb0"
+    },
+    {
+      "path": "tests/twin/test_tensor_cpu_bitset_baseline.py",
+      "blob": "92af18000ce33f8306b0400c898fd59683016d19"
+    },
+    {
+      "path": ".github/workflows/fourfold-v2.yml",
+      "blob": "e66f16062cefbbe5089b97c25e5cf1d9ed08267b"
+    }
+  ],
+  "delta_before_record": {
+    "commits": 3,
+    "files": 3,
+    "additions": 493,
+    "deletions": 2
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33876186228,
+    "head_sha": "02f29654ff72c59c0927c05683a2314350cafedb",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "integrated_contract_surface": "success in all four matrix jobs",
+    "bitset_calibration_step": "success on Python 3.12 / PYTHONHASHSEED 0 for all six bounded cases",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a complete repository execution claim",
+    "full_suite": "manual-only and not executed by this pull-request run",
+    "gpu_execution": "not part of this packet and not claimed"
+  },
+  "acceptance": [
+    "packed row masks preserve exact CSR support",
+    "packed Boolean composition matches the stdlib CSR oracle exactly on the focused verified case",
+    "canonical output digest matches the oracle when the same relation name is used",
+    "out-of-range packed references fail closed",
+    "the report remains authority=diagnostic-only and claim=none",
+    "the existing workflow executes the bounded CPU baseline without adding another workflow family"
+  ],
+  "interpretation": {
+    "speedup_claim": false,
+    "reason": "The CI step proves the calibration executes and remains semantically exact; timing values are environment-specific diagnostics and were not promoted into a comparative claim in this packet.",
+    "decision_use": "A future GPU/Rust experiment must compare against this simpler packed-CPU arm, not only against the high-overhead stdlib CSR reference path."
+  },
+  "kill_or_redesign": [
+    "packed support ever differs from the stdlib Boolean oracle",
+    "packing/canonicalization dominates so strongly that repeated-query residency has no plausible break-even",
+    "a simpler existing preindexed Forest/relation-dictionary path remains equally expressive and cheaper for the target workload",
+    "a Rust bitset implementation cannot improve materially over the Python-bigint calibration while adding maintenance cost"
+  ],
+  "claims": {
+    "cpu_bitset_code_present": true,
+    "exact_support_contract_green": true,
+    "hosted_calibration_executed": true,
+    "latency_speedup": false,
+    "memory_speedup": false,
+    "gpu_speedup": false,
+    "tensor_core_usage_proven": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 314
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "note": "Only the existing exp/tensor-kernel-contract-01 line was advanced. No ref was created, deleted, renamed, force-updated or moved into the archive anchor."
+  }
+}

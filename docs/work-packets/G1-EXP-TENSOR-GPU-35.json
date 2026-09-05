@@ -1,0 +1,120 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-35",
+  "title": "Bound same-plane Forest projection reuse before production change",
+  "classification": "RESEARCH",
+  "status": "closed-research",
+  "domain": "tensor-kernel/fourfold-projection",
+  "date_europe_berlin": "2026-09-05",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "pre_head": "dc056c564850f5b539aef3337fa54815a3b56123",
+    "experiment_head": "dac8290299f9ef0b0ef4f3db4197056773bff774",
+    "branch": "exp/tensor-kernel-contract-01",
+    "production_changed": false,
+    "production_adapter": "daedalus/twin/relation_projection.py",
+    "production_blob_before_and_after": "43f17f09dc3bc3bbcb0f3d09a291edf5e1cbd28f",
+    "canonical_block_owner": "daedalus/twin/relation_blocks.py::TypedRelationBlock._from_indexed",
+    "temporary_probe": {
+      "path": "experiments/tensor_gpu/fourfold_same_plane_index_probe.py",
+      "blob": "2f0c88ded5df237f4637a47c7dbf6c864327de2c",
+      "add_commit": "03b594e6bbb6b84c4ce47493dab61022701cafc2",
+      "delete_commit": "f11fb9f4744bec1929d2ffa6b8c9dcd72b10bbc4"
+    },
+    "temporary_test": {
+      "path": "tests/twin/test_fourfold_same_plane_index_probe.py",
+      "blob": "e25ee7a6d11398247c88f4a01c7506c07082c487",
+      "add_commit": "dac8290299f9ef0b0ef4f3db4197056773bff774",
+      "delete_commit": "3f63c750d640f25c9202f5c3e7843567974465d1"
+    },
+    "workflow_blob_unchanged": "ca0c1b5df2c73a851b4dcaacb767c3ddd82411f3"
+  },
+  "research_question": {
+    "observation": "The same-plane Fourfold adapter retains exact Forest relation digests, but relation retention does not itself establish that every retained edge endpoint belongs to the selected plane. The current path therefore scans/refuses retained hyperedges and undirected edges, then delegates labels to TypedRelationBlock.from_coordinates for endpoint membership and label-position admission before reaching the existing indexed owner.",
+    "candidate": "Preserve the current retained-hyperedge/undirected scan and bounded-entry refusal order, collect valid directed endpoints, then perform explicit plane-membership position mapping with the existing unknown-row/unknown-column messages and delegate to TypedRelationBlock._from_indexed. No second validator or trusted constructor is introduced.",
+    "parallel_abstraction_added": false,
+    "trusted_constructor_added": false,
+    "second_validator_added": false
+  },
+  "bounded_probe": {
+    "runtime": "CPython 3.12.14 on GitHub-hosted Ubuntu 24.04 / Linux Azure",
+    "measurement": "11 paired same-process AB/BA observations after 3 warmups for each of six deterministic valid complete same-plane fixtures",
+    "semantic_check": "Candidate and baseline had to be equal as TypedRelationBlock values, canonical digests and canonical JSON before timing; every timed candidate result had to retain the baseline digest. Six selected semantic cases also required exact outcome/exception-type/message equality.",
+    "semantic_cases": [
+      {"name": "valid", "outcome": "ok"},
+      {"name": "unknown-column", "outcome": "error", "message": "unknown column label 'src/b.py'"},
+      {"name": "unknown-row", "outcome": "error", "message": "unknown row label 'src/a.py'"},
+      {"name": "undirected", "outcome": "error", "message": "binary relation projection requires an explicitly directed ForestEdge"},
+      {"name": "retained-hyperedge", "outcome": "error", "message": "binary relation projection cannot flatten a retained ForestHyperedge"},
+      {"name": "empty-retention", "outcome": "ok"}
+    ],
+    "semantic_case_count": 6,
+    "semantic_mismatches": 0,
+    "cases": [
+      {"size": 64, "density": 0.01, "edges": 64, "baseline_median_ms": 1.363263, "candidate_median_ms": 1.181764, "candidate_to_baseline_ratio": 0.8668642807734092},
+      {"size": 64, "density": 0.05, "edges": 192, "baseline_median_ms": 3.338574, "candidate_median_ms": 2.843089, "candidate_to_baseline_ratio": 0.8515878336080015},
+      {"size": 128, "density": 0.01, "edges": 128, "baseline_median_ms": 2.596654, "candidate_median_ms": 2.255236, "candidate_to_baseline_ratio": 0.8685161750468102},
+      {"size": 128, "density": 0.05, "edges": 768, "baseline_median_ms": 12.955566, "candidate_median_ms": 10.998262, "candidate_to_baseline_ratio": 0.8489217684507185},
+      {"size": 256, "density": 0.01, "edges": 768, "baseline_median_ms": 13.268651, "candidate_median_ms": 11.310125, "candidate_to_baseline_ratio": 0.8523944898392458},
+      {"size": 256, "density": 0.05, "edges": 3328, "baseline_median_ms": 56.260993, "candidate_median_ms": 47.661401, "candidate_to_baseline_ratio": 0.8471482364344334}
+    ],
+    "interpretation": "All six bounded valid fixture shapes had a lower candidate median in this one hosted process, while the six selected semantic cases had zero observed mismatches. This is decision evidence for a later same-plane in-place experiment only, not an exhaustive semantic proof or a production/repository-wide speedup claim."
+  },
+  "hosted_evidence": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33992012265,
+    "event": "pull_request",
+    "metadata_head_sha": "dac8290299f9ef0b0ef4f3db4197056773bff774",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "merge_preview_sha": "643c0d066ec1423fc52b93f160fe0ef26815897a",
+    "conclusion": "success",
+    "checkout_semantics": "GitHub pull-request merge preview; not a raw-head checkout claim",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 succeeded",
+    "designated_python_3_12_hash_0": "366 passed, 2 skipped, 1 intentional GPU35 evidence warning",
+    "repository_collection": "success",
+    "isolated_wheel": "success",
+    "public_api": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "baseline_artifact": {
+      "id": 9976915699,
+      "sha256": "7af1a7480946deb283da09b0bc568d1ed93e3428919ee3168f7a1b1c9078640d",
+      "expires_at": "2026-09-12T21:06:10Z"
+    },
+    "typed_block_profile_artifact": {
+      "id": 9976915957,
+      "sha256": "1efac2b3857242f0aa9782bb1f69b1de268ccae06111528165d3349523cfc6f9",
+      "expires_at": "2026-09-12T21:06:11Z"
+    }
+  },
+  "gardening": {
+    "temporary_probe_pruned": true,
+    "temporary_test_pruned": true,
+    "workflow_modified": false,
+    "production_changed": false,
+    "live_experiment_surface_added": false,
+    "evidence_preserved_in_commits_and_workflow_logs": true,
+    "archive_legacy_used": false,
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "unique_evidence_deleted": false
+  },
+  "claim_boundaries": {
+    "performance_claim": false,
+    "production_speedup_claim": false,
+    "cpu_gpu_tensor_core_claim": false,
+    "tensor_vs_forest_claim": false,
+    "crewai_alphaevolve_claim": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "decision": "The bounded evidence licenses one later minimal in-place same-plane production experiment only if it preserves the current retained-hyperedge/undirected refusal order, bounded-entry behavior, explicit unknown row/column membership semantics, canonical TypedRelationBlock identity and exact Fourfold subject binding while reusing the existing _from_indexed owner. It does not license a second validator, trusted constructor, or new public API.",
+  "next_bounded_packet": "If no higher-priority issue supersedes it, implement only the licensed same-plane path in relation_projection.py, add focused precedence and canonical-identity regressions, and reject the change if exact-head integration or bounded evidence does not support it."
+}

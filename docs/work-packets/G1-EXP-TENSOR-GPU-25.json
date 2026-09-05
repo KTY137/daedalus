@@ -1,0 +1,140 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-25",
+  "title": "Make exact True the canonical Boolean admission common path",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-05",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority": "sole semantic authority"
+  },
+  "campaign_issue": 239,
+  "pull_request": 314,
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "09f56ddd366696d0cada06efa49f65bc9d1132a3",
+  "research_basis": {
+    "gpu24_work_packet": "docs/work-packets/G1-EXP-TENSOR-GPU-24.json",
+    "gpu24_final_evidence_head": "09f56ddd366696d0cada06efa49f65bc9d1132a3",
+    "decision": "GPU-24 reduced persisted scalar admission to one sequence owner. In the Boolean persisted contract, exact True is the only admissible non-zero scalar, so the valid common path can use identity directly without retaining a second validator or helper."
+  },
+  "implementation": {
+    "production_and_test_commit": "ae85f2af5c3dc95603eaaa7357ba0a4965581a8c",
+    "profiler_narrative_commit": "49453df14895ac698e43415cc079f17801fd9922",
+    "blobs": {
+      "daedalus/twin/relation_blocks.py": "38b5757d14dbc23d4fdd8b9d5cc1121c950cc51d",
+      "tests/twin/test_relation_scalar_sequence_admission.py": "7fd6e0d6a6f60a6f32c344bd74c764f39c9c628c",
+      "experiments/tensor_gpu/typed_block_validation_profile.py": "1f63bf20e29eefcc5e3815b636e84d46d4d500d3"
+    },
+    "production_change": "In the existing _stored_values Boolean branch, exact True is now the valid common path. False still fails as semiring zero, while every non-bool still fails the exact-bool contract. The old generic type-check-plus-truthiness sequence is not retained beside it.",
+    "gardening": "No new helper, validator, cache, registry, trusted constructor, backend, relation type, workflow path, profiler schema, or benchmark harness was added. The existing sequence owner remains the sole persisted scalar authority.",
+    "profiler_contract": "The existing daedalus-tensor-typed-block-validation-profile/8 schema remains unchanged; only its explanatory narrative was bound to the GPU-25 production common path."
+  },
+  "focused_semantic_evidence": {
+    "boolean_valid_path": "Exact True remains admissible and existing Boolean tuples remain reusable without rematerialization.",
+    "boolean_zero": "Exact False retains the relation-block semiring-zero refusal.",
+    "boolean_foreign_type": "Non-bool inputs retain the exact bool-type refusal; a focused exploding-truthiness regression proves foreign __bool__ is not invoked.",
+    "other_semirings": "Natural, Tropical, EvidenceDag and unsupported-semiring behavior remain on the existing GPU-24 paths and focused regression surface.",
+    "hash_seed_matrix": [
+      "CPython 3.10 / PYTHONHASHSEED=0",
+      "CPython 3.10 / PYTHONHASHSEED=123456",
+      "CPython 3.12 / PYTHONHASHSEED=0",
+      "CPython 3.12 / PYTHONHASHSEED=123456"
+    ]
+  },
+  "verification": {
+    "code_test_head": "ae85f2af5c3dc95603eaaa7357ba0a4965581a8c",
+    "workflow_run": 33962532557,
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "conclusion": "success",
+    "contract_matrix": "success",
+    "designated_python_312_hash_0": {
+      "integrated_contract_surface_passed": 356,
+      "integrated_contract_surface_skipped": 2,
+      "compile": "success",
+      "packed_cpu_diagnostic": "success",
+      "typed_block_profile_v8": "success",
+      "residency_diagnostic": "success",
+      "fanout_diagnostic": "success",
+      "public_api": "success"
+    },
+    "isolated_wheel_imports": "success",
+    "complete_repository_collection": "success",
+    "complete_repository_suite": "manual-only-skipped",
+    "artifacts": {
+      "cpu_bitset_baseline": {
+        "id": 9968380860,
+        "sha256": "1185d8fdcdd1b2caf6214bbf953ed4559500bf126ca8e5b8a76064872d8bb5ec",
+        "expires_at": "2026-09-12T11:09:06Z"
+      },
+      "typed_block_validation_profile_v8": {
+        "id": 9968381194,
+        "sha256": "27a44c4e262e805f9fb3448ab377c34511da9ec499f6d907bc9a27420d815c62",
+        "expires_at": "2026-09-12T11:09:08Z"
+      },
+      "cpu_bitset_residency": {
+        "id": 9968382275,
+        "sha256": "811a2dcd43c284dd0758b51c0c81d4ce3943bbf840318cd1c7078098f10f005c",
+        "expires_at": "2026-09-12T11:09:12Z"
+      },
+      "cpu_bitset_fanout": {
+        "id": 9968383277,
+        "sha256": "b2346083069a20f517482024dd7c9d8f9e5e7252c00e11c749f9db946faddcc3",
+        "expires_at": "2026-09-12T11:09:17Z"
+      }
+    }
+  },
+  "post_change_diagnostic": {
+    "schema": "daedalus-tensor-typed-block-validation-profile/8",
+    "authority": "diagnostic-only",
+    "claim": "none",
+    "largest_case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264,
+      "canonical_digest": "6db1c26e097bcb2f9c5b7f35fa69d5051d1de4502e196c858272d480627c21fa",
+      "unprofiled_constructor_median_ms": 2.936005,
+      "support_decode_median_ms": 1.289657,
+      "stored_sequence_profile_calls": 1,
+      "stored_sequence_cprofile_cumulative_median_ms": 0.350799,
+      "post_init_cprofile_cumulative_median_ms": 6.741873
+    },
+    "interpretation": "These are post-change diagnostics from the exact code/test-head run. GPU-25 did not run a same-process pre/post constructor A/B, and cProfile contains observer overhead, so cross-run differences from GPU-24 are not treated as a speedup claim."
+  },
+  "claim_boundary": {
+    "allowed": "GPU-25 establishes a smaller exact-Boolean valid common path inside the existing single scalar-admission owner, with focused semantic regression, hash-seed matrix, integrated-contract, wheel, repository-collection and retained post-change diagnostic evidence.",
+    "not_claimed": [
+      "constructor-wide speedup",
+      "general CPU speedup",
+      "CUDA or Tensor-Core win",
+      "GPU or memory win",
+      "Tensor-vs-Forest superiority",
+      "CrewAI superiority",
+      "AlphaEvolve superiority",
+      "complete repository suite pass",
+      "promotion or gate closure"
+    ]
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "work_line": "exp/tensor-kernel-contract-01",
+    "archive_legacy_20260830_observed_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_used_as_work_or_storage_target": false,
+    "branch_deleted_for_count_reduction": false
+  },
+  "promotion": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "closure": {
+    "evidence_seed_head": "d87b795ac1bd3fe2f32485bc8701691367d3b1cb",
+    "note": "This seed head first introduced the closed Work Packet record after the verified code/test and profiler-narrative commits. The final branch head is verified independently after this metadata binding commit."
+  },
+  "next_narrow_step": "If still before 2026-09-29, use active v8 attribution to select a remaining end-to-end canonical materialization cost or a higher-priority bounded Fourfold/Tensor issue. Do not add a second Boolean validator or restore the deleted per-entry scalar authority."
+}

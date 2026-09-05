@@ -54,39 +54,60 @@ def _label_position(labels: Sequence[str], label: str) -> int | None:
     return position
 
 
-def _stored(value: Any, semiring_name: str) -> Any:
+def _stored_values(raw_values: Sequence[Any], semiring_name: str) -> tuple[Any, ...]:
+    """Validate and canonicalize one persisted scalar sequence.
+
+    Persisted semiring selection is owned once per relation block rather than by
+    one helper call per stored entry. Non-normalizing semirings keep an existing
+    tuple intact; mutable sequence inputs are materialized exactly once.
+    """
+
     if semiring_name == "boolean":
-        if type(value) is not bool:
-            raise ValueError("boolean relation blocks must contain bool values")
-        if not value:
+        for item in raw_values:
+            # ``True`` is the only persistable Boolean scalar. Make that exact
+            # identity the common path so canonical support does not pay a
+            # generic type check plus truthiness conversion for every entry.
+            if item is True:
+                continue
+            if type(item) is not bool:
+                raise ValueError("boolean relation blocks must contain bool values")
             raise ValueError("relation blocks must not store semiring zero values")
-        return value
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
     if semiring_name == "natural":
-        if type(value) is not int or value < 0:
-            raise ValueError("natural relation blocks must contain non-negative integers")
-        if value.bit_length() > MAX_NATURAL_BITS:
-            raise ValueError(
-                f"natural relation-block values exceed bounded bit length {MAX_NATURAL_BITS}"
-            )
-        if value == 0:
-            raise ValueError("relation blocks must not store semiring zero values")
-        return value
+        for item in raw_values:
+            if type(item) is not int or item < 0:
+                raise ValueError("natural relation blocks must contain non-negative integers")
+            if item.bit_length() > MAX_NATURAL_BITS:
+                raise ValueError(
+                    f"natural relation-block values exceed bounded bit length {MAX_NATURAL_BITS}"
+                )
+            if item == 0:
+                raise ValueError("relation blocks must not store semiring zero values")
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
     if semiring_name == "tropical":
-        if type(value) not in (int, float):
-            raise ValueError("tropical relation blocks must contain numeric costs")
-        try:
-            value = float(value)
-        except OverflowError as exc:
-            raise ValueError("tropical relation-block costs must be finite") from exc
-        if not math.isfinite(value) or value < 0:
-            raise ValueError("tropical relation-block costs must be finite and non-negative")
-        return 0.0 if value == 0.0 else value
+        values: list[float] = []
+        for item in raw_values:
+            if type(item) not in (int, float):
+                raise ValueError("tropical relation blocks must contain numeric costs")
+            try:
+                stored = float(item)
+            except OverflowError as exc:
+                raise ValueError("tropical relation-block costs must be finite") from exc
+            if not math.isfinite(stored) or stored < 0:
+                raise ValueError("tropical relation-block costs must be finite and non-negative")
+            values.append(0.0 if stored == 0.0 else stored)
+        return tuple(values)
+
     if semiring_name == "evidence-dag":
-        if not isinstance(value, EvidenceValue):
-            raise ValueError("evidence-dag relation blocks require EvidenceValue values")
-        if not value.alternatives:
-            raise ValueError("relation blocks must not store semiring zero values")
-        return value
+        for item in raw_values:
+            if not isinstance(item, EvidenceValue):
+                raise ValueError("evidence-dag relation blocks require EvidenceValue values")
+            if not item.alternatives:
+                raise ValueError("relation blocks must not store semiring zero values")
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
     raise ValueError(
         f"unsupported persisted semiring {semiring_name!r}; add an explicit scalar contract first"
     )
@@ -292,33 +313,58 @@ class TypedRelationBlock(Generic[T]):
         if type(columns) is not tuple:
             columns = tuple(columns)
         raw_values = _sequence(self.values, "block.values", MAX_BLOCK_ENTRIES)
-        values = None if type(raw_values) is tuple else []
-        for index, item in enumerate(raw_values):
-            stored = _stored(item, self.semiring_name)
-            if values is None and stored is not item:
-                values = [raw_values[position] for position in range(index)]
-            if values is not None:
-                values.append(stored)
-        if values is None:
-            values = raw_values
-        else:
-            values = tuple(values)
-        if any(type(item) is not int for item in offsets):
-            raise ValueError("block.row_offsets must contain integers")
+        values = _stored_values(raw_values, self.semiring_name)
+
+        offsets_monotone = True
+        previous_offset = -1
+        for item in offsets:
+            if type(item) is not int:
+                raise ValueError("block.row_offsets must contain integers")
+            if previous_offset > item:
+                offsets_monotone = False
+            previous_offset = item
         if len(offsets) != len(self.row_axis.labels) + 1 or not offsets or offsets[0] != 0:
             raise ValueError("block.row_offsets must contain every row boundary and start at zero")
-        if any(left > right for left, right in zip(offsets, offsets[1:])):
+        if not offsets_monotone:
             raise ValueError("block.row_offsets must be monotone")
-        if any(type(item) is not int for item in columns):
-            raise ValueError("block.column_indices must contain integers")
-        if any(not 0 <= item < len(self.column_axis.labels) for item in columns):
+
+        row_count = len(self.row_axis.labels)
+        column_count = len(self.column_axis.labels)
+        entry_count = len(values)
+        columns_out_of_range = False
+        columns_not_strict = False
+        if len(columns) == entry_count and offsets[-1] == entry_count:
+            # Canonical blocks are overwhelmingly on this path. Walk each row span
+            # directly and let valid exact-int entries pass through one ordered/range
+            # predicate. Only invalid entries enter classification so Range still
+            # outranks Strict; count-mismatch inputs keep the fallback below.
+            # Valid column indices are non-negative, so -1 is a safe row-local sentinel.
+            for row in range(row_count):
+                previous_column = -1
+                for position in range(offsets[row], offsets[row + 1]):
+                    item = columns[position]
+                    if type(item) is int and previous_column < item < column_count:
+                        previous_column = item
+                        continue
+                    if type(item) is not int:
+                        raise ValueError("block.column_indices must contain integers")
+                    if item < 0 or item >= column_count:
+                        columns_out_of_range = True
+                    else:
+                        columns_not_strict = True
+                    previous_column = item
+        else:
+            for item in columns:
+                if type(item) is not int:
+                    raise ValueError("block.column_indices must contain integers")
+                if not 0 <= item < column_count:
+                    columns_out_of_range = True
+        if columns_out_of_range:
             raise ValueError("block.column_indices contains an out-of-range index")
-        if len(columns) != len(values) or offsets[-1] != len(values):
+        if len(columns) != entry_count or offsets[-1] != entry_count:
             raise ValueError("CSR arrays must terminate at the common entry count")
-        for row in range(len(self.row_axis.labels)):
-            selected = columns[offsets[row] : offsets[row + 1]]
-            if any(left >= right for left, right in zip(selected, selected[1:])):
-                raise ValueError("column indices must be strictly increasing inside each row")
+        if columns_not_strict:
+            raise ValueError("column indices must be strictly increasing inside each row")
         object.__setattr__(self, "row_offsets", offsets)
         object.__setattr__(self, "column_indices", columns)
         object.__setattr__(self, "values", values)

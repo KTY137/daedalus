@@ -1,0 +1,104 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-32",
+  "title": "Fuse exact-int admission into the matched-count CSR common predicate",
+  "classification": "IMPLEMENTATION",
+  "status": "closed",
+  "domain": "tensor-kernel",
+  "date_europe_berlin": "2026-09-05",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "pre_head": "4bc28d677fa7d2a57ee2c7661fc17dcd80b97727",
+    "implementation_head": "8b520a09c94e1ce6d9d2b37a901f702b43119ed7",
+    "branch": "exp/tensor-kernel-contract-01",
+    "production_path": "daedalus/twin/relation_blocks.py",
+    "production_blob_before": "5911f42485fc1683c02686cdb7af908beab23f07",
+    "production_blob_after": "1eb82f5a3ecf0ef163935919460e84e1f6319737",
+    "focused_test_path": "tests/twin/test_relation_block_validation_fusion.py",
+    "focused_test_blob_before": "131a8202f591d68622340b1fc64d481be4e3fa56",
+    "focused_test_blob_after": "7eb04dd5ebcdda2aaa37b999baf8fab145a1e6b9"
+  },
+  "licensed_basis": {
+    "prior_packet": "G1-EXP-TENSOR-GPU-31",
+    "candidate": "type(item) is int and previous_column < item < column_count",
+    "bounded_cases": 114381,
+    "mismatch_count": 0,
+    "claim": "bounded copied-loop observable-classification equivalence only"
+  },
+  "implementation": {
+    "description": "On the existing matched-count CSR row-span path, fuse exact-int admission with the valid ordered/range common predicate; only failures enter the existing type/range/strict classifier.",
+    "count_mismatch_fallback_changed": false,
+    "error_precedence_changed": false,
+    "new_runtime_abstraction": false,
+    "parallel_validator_added": false,
+    "new_helper_added": false,
+    "production_diff": "6 additions / 6 deletions",
+    "focused_test_diff": "1 addition / 1 deletion"
+  },
+  "hosted_evidence": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33982957669,
+    "event": "pull_request",
+    "metadata_head_sha": "8b520a09c94e1ce6d9d2b37a901f702b43119ed7",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "merge_preview_sha": "4091b177e53b6225cfd098b50dc9ed07da9010e1",
+    "conclusion": "success",
+    "real_hosted_steps": true,
+    "checkout_semantics": "GitHub pull-request merge preview; not a raw-head checkout claim",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 succeeded",
+    "designated_python_3_12_hash_0": "359 passed, 2 skipped",
+    "repository_collection": "success",
+    "isolated_wheel": "success",
+    "public_api": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "baseline_artifact": {
+      "id": 9974285429,
+      "sha256": "31c16db4eb37046d48bda9660bfc07bf2e0d7190aec71d0ae3023725d65a063b",
+      "expires_at": "2026-09-12T18:05:45Z"
+    },
+    "typed_block_profile_artifact": {
+      "id": 9974285725,
+      "sha256": "5028c5f41ca1560c4894868aafa12aff73e6bacee47948d5da7b4ac2dea05404",
+      "expires_at": "2026-09-12T18:05:46Z"
+    },
+    "post_change_profile_largest_case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "entries": 43264,
+      "unprofiled_constructor_median_ms": 3.443868,
+      "support_decode_median_ms": 1.644123,
+      "post_init_cprofile_cumulative_median_ms": 7.213066,
+      "post_init_cprofile_self_median_ms": 6.608775,
+      "stored_sequence_calls": 1,
+      "stored_sequence_cprofile_cumulative_median_ms": 0.574538,
+      "interpretation": "post-change diagnostic only; no controlled same-process pre/post constructor A/B and cProfile contains observer overhead"
+    }
+  },
+  "gardening": {
+    "licensed_change_implemented_in_place": true,
+    "second_validator_created": false,
+    "parallel_abstraction_created": false,
+    "archive_legacy_used": false,
+    "new_remote_branch_created": false,
+    "force_update_used": false
+  },
+  "claim_boundaries": {
+    "performance_claim": false,
+    "constructor_speedup_claim": false,
+    "cpu_gpu_tensor_core_claim": false,
+    "tensor_vs_forest_claim": false,
+    "crewai_alphaevolve_claim": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "decision": "Retain the exact-int matched-count CSR predicate fusion. GPU-31 supplied the bounded semantic license and GPU-32 implements only that licensed in-place change while preserving the existing fallback and error classification.",
+  "next_bounded_packet": "Reselect from the active Tensor/Fourfold profile or a higher-priority open issue; do not continue blind CSR micro-refactoring or introduce another validation abstraction."
+}

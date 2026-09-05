@@ -1,0 +1,123 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-36",
+  "title": "Reuse retained same-plane Forest endpoints through the canonical indexed block owner",
+  "classification": "IMPLEMENTATION",
+  "status": "closed-implementation",
+  "domain": "tensor-kernel/fourfold-projection",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "f3a5fcd67c08db73509f763eb5eadd1989538224",
+    "implementation_head": "3340dd80f5086e8630106eb7f9607ba894ec5d4d",
+    "implementation_tree": "be1ff4f52c8b624a9087cdeb76e9723d2c7a1f9a",
+    "production_file": "daedalus/twin/relation_projection.py",
+    "production_pre_blob": "43f17f09dc3bc3bbcb0f3d09a291edf5e1cbd28f",
+    "production_post_blob": "c399d872c22b1b012930a107a48e6ab47bb9814a",
+    "test_file": "tests/twin/test_fourfold_relation_projection.py",
+    "test_pre_blob": "9f3ecac01d235a6b557646d195b23bd078bdded6",
+    "test_post_blob": "ea17518e7c16415b434d2db0530a0343d6e7b2b1",
+    "production_additions": 26,
+    "production_deletions": 18,
+    "test_additions": 95,
+    "test_deletions": 0,
+    "cross_plane_projection_changed": false,
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "archive_legacy_used": false
+  },
+  "predecessor_gate": {
+    "work_packet": "G1-EXP-TENSOR-GPU-35",
+    "record_blob": "8bd3cccdbff8d8fe4f2e9ddbbc47198542a63e5d",
+    "decision": "GPU-35 licensed one later minimal in-place same-plane production experiment preserving retained-hyperedge/undirected refusal order, bounded-entry behavior, explicit unknown row/column membership errors, canonical block identity and exact Fourfold subject binding while reusing the existing TypedRelationBlock._from_indexed owner.",
+    "production_speedup_claim": false
+  },
+  "implementation": {
+    "observation": "Same-plane Fourfold retention identifies exact Forest relation payloads but does not independently establish endpoint membership, while the existing adapter preserved correct refusal ordering and then readmitted labels through TypedRelationBlock.from_coordinates before reaching the already-existing indexed owner.",
+    "change": "Preserve retained-hyperedge and undirected scans/refusals plus MAX_BLOCK_ENTRIES while collecting retained directed endpoints; only after those scans map endpoint labels explicitly to the canonical same-plane axis, preserve the exact unknown-row/unknown-column errors, and delegate to TypedRelationBlock._from_indexed.",
+    "cross_plane_path": "unchanged",
+    "duplicate_coordinate_readmission_removed": true,
+    "nested_append_helper_removed": true,
+    "parallel_abstraction_added": false,
+    "trusted_constructor_added": false,
+    "second_validator_added": false,
+    "new_backend_added": false,
+    "new_public_api_added": false,
+    "new_experiment_surface_added": false
+  },
+  "focused_regressions": [
+    {
+      "name": "test_same_plane_projection_reuses_retained_endpoints_without_coordinate_readmission",
+      "method": "Monkeypatch TypedRelationBlock.from_coordinates to fail, then require the retained same-plane imports projection to preserve the exact expected entry and Fourfold subject digest.",
+      "purpose": "Pins removal of duplicate same-plane coordinate readmission without adding a second validation owner."
+    },
+    {
+      "name": "test_same_plane_projection_preserves_explicit_plane_membership_errors",
+      "method": "Use bounded same-plane snapshots with one retained endpoint absent from the selected plane and require exact unknown-column and unknown-row ValueError messages.",
+      "purpose": "Pins the endpoint-membership semantics that Fourfold relation retention alone does not establish."
+    },
+    {
+      "existing_surface": "Retained hyperedge refusal, undirected-edge refusal, empty retention, exact typed-axis reuse and exact Forest/Fourfold subject binding remain exercised by the existing focused projection suite."
+    }
+  ],
+  "hosted_evidence": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33994906720,
+    "event": "pull_request",
+    "metadata_head_sha": "3340dd80f5086e8630106eb7f9607ba894ec5d4d",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "merge_preview_sha": "75e8a20e6f8f9b595f1a57fe53c549deebb3160f",
+    "conclusion": "success",
+    "checkout_semantics": "GitHub pull-request merge preview; PR-integration evidence, not a raw-head checkout claim",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 jobs completed successfully",
+    "designated_python_3_12_hash_0": "363 passed, 2 skipped",
+    "integrated_contract_surface": "success; includes tests/twin and the focused GPU-36 regressions",
+    "repository_collection": "success",
+    "isolated_wheel": "success",
+    "public_api": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "baseline_artifact": {
+      "id": 9977751726,
+      "sha256": "8590c2f7f35a9882c51e5dbc918bd66b2409816dcb35a762221592c8513be345",
+      "expires_at": "2026-09-12T22:06:00Z"
+    },
+    "typed_block_profile_artifact": {
+      "id": 9977752090,
+      "sha256": "c64bb60eb38589df11b652618ef7b31b827caf697b1786df9c678922508f0c57",
+      "expires_at": "2026-09-12T22:06:02Z"
+    }
+  },
+  "claim_boundaries": {
+    "new_controlled_pre_post_benchmark_in_gpu36": false,
+    "performance_claim": false,
+    "production_speedup_claim": false,
+    "constructor_speedup_claim": false,
+    "cpu_gpu_tensor_core_claim": false,
+    "tensor_vs_forest_claim": false,
+    "crewai_alphaevolve_claim": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "gardening": {
+    "duplicate_same_plane_coordinate_readmission_removed": true,
+    "nested_production_append_helper_removed": true,
+    "existing_indexed_owner_reused": true,
+    "cross_plane_scope_unchanged": true,
+    "new_production_helper_added": false,
+    "new_registry_added": false,
+    "new_cache_added": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_written": false
+  },
+  "decision": "Keep the same-plane indexed projection as the single in-place implementation licensed by GPU-35. Hosted integration evidence supports compatibility on the exercised semantic surface; GPU-36 has no new controlled production pre/post A/B and therefore makes no performance claim.",
+  "next_bounded_packet": "Re-evaluate prioritized Tensor/Fourfold issues and the current cost surface. Prefer deletion/consolidation or a separately evidenced bottleneck; do not add another projection validator, trusted constructor, or parallel block-building abstraction."
+}

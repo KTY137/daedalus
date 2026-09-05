@@ -1,0 +1,111 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-34",
+  "title": "Reuse verified Fourfold endpoints through the canonical indexed block owner",
+  "classification": "IMPLEMENTATION",
+  "status": "closed-implementation",
+  "domain": "tensor-kernel/fourfold-projection",
+  "date_europe_berlin": "2026-09-05",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "8967859864d927c0bd0da0a7b0fafef3e4270375",
+    "implementation_head": "a6653faa4d50358f15d895ef4153726fe2fc62c7",
+    "implementation_tree": "b6adb03a065c53203d709f680f2ef4c98fbf2067",
+    "production_file": "daedalus/twin/relation_projection.py",
+    "production_pre_blob": "a9c99df62fc5c2d2a82dd7db4dc46b0a5bf9c0ea",
+    "production_post_blob": "43f17f09dc3bc3bbcb0f3d09a291edf5e1cbd28f",
+    "test_file": "tests/twin/test_fourfold_relation_projection.py",
+    "test_pre_blob": "4375d67e1405d79568f5a849b0f0fec95ac84663",
+    "test_post_blob": "9f3ecac01d235a6b557646d195b23bd078bdded6",
+    "production_additions": 71,
+    "production_deletions": 34,
+    "test_additions": 28,
+    "test_deletions": 1,
+    "same_plane_projection_changed_semantically": false,
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "archive_legacy_used": false
+  },
+  "predecessor_gate": {
+    "work_packet": "G1-EXP-TENSOR-GPU-33",
+    "record_blob": "2a8294fa3b350d1d52c790676b54292003973cd7",
+    "decision": "GPU-33 licensed one later minimal in-place cross-plane production change using the existing TypedRelationBlock._from_indexed owner; same-plane Forest projection remained out of scope.",
+    "bounded_valid_path_evidence_only": true,
+    "production_speedup_claim": false
+  },
+  "implementation": {
+    "observation": "FourfoldSnapshot already validates every retained cross-plane binding against the snapshot revision and declared endpoint-plane membership, while the adapter previously converted those verified endpoints back into coordinate labels that TypedRelationBlock.from_coordinates validated and resolved again.",
+    "change": "For cross-plane signatures only, boolean_relation_block_from_fourfold now maps matching already-verified binding endpoints to local TypedAxis indices and delegates to the existing TypedRelationBlock._from_indexed owner. The exact Forest/Fourfold subject check, complete endpoint-plane requirement, Boolean existence semantics, MAX_BLOCK_ENTRIES bound and final TypedRelationBlock canonical validation remain in force.",
+    "same_plane_path": "Same-plane ForestEdge/ForestHyperedge retention and refusal semantics continue to use the existing coordinate-admission path and were not migrated in this packet.",
+    "parallel_abstraction_added": false,
+    "trusted_constructor_added": false,
+    "second_validator_added": false,
+    "new_backend_added": false,
+    "new_public_api_added": false,
+    "new_experiment_surface_added": false
+  },
+  "focused_regression": {
+    "name": "test_cross_plane_projection_reuses_verified_endpoints_without_coordinate_readmission",
+    "method": "Monkeypatch TypedRelationBlock.from_coordinates to fail, then project the verified code->knowledge 'documents' binding and require the exact expected entry plus the exact Fourfold subject digest.",
+    "purpose": "Pins removal of duplicate cross-plane coordinate readmission without introducing a second validation authority."
+  },
+  "hosted_evidence": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33988988275,
+    "event": "pull_request",
+    "metadata_head_sha": "a6653faa4d50358f15d895ef4153726fe2fc62c7",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "merge_preview_sha": "712fb468633b88707967675c3b95dbaf522e0fde",
+    "conclusion": "success",
+    "checkout_semantics": "GitHub pull-request merge preview; PR-integration evidence, not a raw-head checkout claim",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 jobs completed successfully",
+    "integrated_contract_surface": "success; includes tests/twin, which contains the focused GPU-34 regression",
+    "repository_collection": "success",
+    "isolated_wheel": "success",
+    "public_api": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "test_count_claimed": false,
+    "baseline_artifact": {
+      "id": 9976033844,
+      "sha256": "438d281bccd91f5beb50e11b80e1ca79d5b3122c9c8a394cc1e8f2fca7951d4f",
+      "expires_at": "2026-09-12T20:04:34Z"
+    },
+    "typed_block_profile_artifact": {
+      "id": 9976034121,
+      "sha256": "5956e7e142f1db0d08d9bf5911d0064235fbd44f03939ddec832aa075f5d4fe3",
+      "expires_at": "2026-09-12T20:04:35Z"
+    }
+  },
+  "claim_boundaries": {
+    "new_same_process_pre_post_benchmark_in_gpu34": false,
+    "performance_claim": false,
+    "production_speedup_claim": false,
+    "constructor_speedup_claim": false,
+    "cpu_gpu_tensor_core_claim": false,
+    "tensor_vs_forest_claim": false,
+    "crewai_alphaevolve_claim": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "gardening": {
+    "duplicate_cross_plane_label_admission_removed": true,
+    "existing_indexed_owner_reused": true,
+    "same_plane_scope_left_unchanged": true,
+    "new_helper_added": false,
+    "new_registry_added": false,
+    "new_cache_added": false,
+    "unique_evidence_deleted": false,
+    "archive_legacy_written": false
+  },
+  "decision": "Keep the cross-plane indexed projection as the single in-place implementation licensed by GPU-33. GPU-34 has focused integration evidence but no new controlled production A/B, so it makes no performance claim. Do not extend this optimization to same-plane Forest projection without a separate bounded semantic/evidence gate.",
+  "next_bounded_packet": "Re-evaluate the active Fourfold/Tensor cost and prioritized issue surface after GPU-34. Prefer a deletion/consolidation or a separately evidenced semantic bottleneck; do not add another projection validator, trusted constructor, or parallel block-building abstraction."
+}

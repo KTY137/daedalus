@@ -1,0 +1,172 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-20",
+  "title": "Measure matched-count CSR row-order validation against the pre-GPU-19 row-state control in one process",
+  "status": "closed-experiment",
+  "date": "2026-09-05",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority": "sole semantic authority"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "9e21142919b73b15e7627a1c0bcdaf485fffec7e",
+  "commits": {
+    "experiment": "9846de3a52203bb7c6a0867894f16fec7dae2d73",
+    "tests": "e9848fbb68261f44cc5b46c3ac84c1b683e63f7a"
+  },
+  "code_test_head": "e9848fbb68261f44cc5b46c3ac84c1b683e63f7a",
+  "files": {
+    "experiments/tensor_gpu/typed_block_validation_profile.py": "000641d25cfcb48c082c1cacccdac32388462571",
+    "tests/twin/test_tensor_typed_block_validation_profile.py": "3eef1e4a914b1ded3e098dfbe1b5f8a9851e3ff1"
+  },
+  "production_runtime_changed": false,
+  "workflow_changed": false,
+  "new_backend": false,
+  "new_cache": false,
+  "new_relation_type": false,
+  "new_remote_branch": false,
+  "profiler_schema": "daedalus-tensor-typed-block-validation-profile/6",
+  "control": {
+    "relation_block_blob": "e48c26180597de7ff94da3b8b10cef57b15b2424",
+    "description": "Retired pre-GPU-19 per-entry row-state column/order validation loop, copied into the existing experiment profiler as a diagnostic-only control."
+  },
+  "candidate": {
+    "description": "GPU-19 matched-count direct CSR row-span column/order validation algorithm, mirrored in the same experiment profiler for bounded A/B timing."
+  },
+  "measurement_contract": {
+    "scope": "already decoded canonical CSR support only",
+    "process": "same CPython process",
+    "ordering": "alternating AB/BA",
+    "repeats": 5,
+    "warmup": 2,
+    "profile_repeats": 3,
+    "semantic_oracle": "the real canonical TypedRelationBlock constructor and existing Boolean CPU oracle remain unchanged",
+    "claim": "microstage diagnostic only; not a constructor-wide or general CPU performance claim"
+  },
+  "cases": [
+    {
+      "size": 64,
+      "requested_density": 0.01,
+      "output_entries": 64,
+      "control_ms_median": 0.009975,
+      "candidate_ms_median": 0.012018,
+      "candidate_to_control_ratio": 1.204812030075188,
+      "valid_outcome_parity": true
+    },
+    {
+      "size": 64,
+      "requested_density": 0.05,
+      "output_entries": 576,
+      "control_ms_median": 0.062762,
+      "candidate_ms_median": 0.051375,
+      "candidate_to_control_ratio": 0.81856856059399,
+      "valid_outcome_parity": true
+    },
+    {
+      "size": 128,
+      "requested_density": 0.01,
+      "output_entries": 128,
+      "control_ms_median": 0.018967,
+      "candidate_ms_median": 0.021802,
+      "candidate_to_control_ratio": 1.1494701323351082,
+      "valid_outcome_parity": true
+    },
+    {
+      "size": 128,
+      "requested_density": 0.05,
+      "output_entries": 4608,
+      "control_ms_median": 0.500291,
+      "candidate_ms_median": 0.392053,
+      "candidate_to_control_ratio": 0.783649915749034,
+      "valid_outcome_parity": true
+    },
+    {
+      "size": 256,
+      "requested_density": 0.01,
+      "output_entries": 2304,
+      "control_ms_median": 0.270806,
+      "candidate_ms_median": 0.214493,
+      "candidate_to_control_ratio": 0.7920540903820447,
+      "valid_outcome_parity": true
+    },
+    {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264,
+      "control_ms_median": 4.597987,
+      "candidate_ms_median": 3.534113,
+      "candidate_to_control_ratio": 0.7686217903617388,
+      "valid_outcome_parity": true,
+      "unchanged_constructor_ms_median": 8.246539,
+      "support_decode_ms_median": 1.698402,
+      "canonical_digest": "6db1c26e097bcb2f9c5b7f35fa69d5051d1de4502e196c858272d480627c21fa"
+    }
+  ],
+  "invalid_outcome_regressions": [
+    "column type error remains prior to structural errors",
+    "out-of-range column remains prior to common-entry-count mismatch",
+    "common-entry-count mismatch remains prior to strict-order rejection",
+    "strict ordering is rejected inside a row",
+    "valid canonical CSR is accepted by both algorithms"
+  ],
+  "observations": [
+    "The candidate has a lower microstage median in four of six bounded cases.",
+    "The retired control has a lower microstage median in the two smallest sparse cases (64/0.01 and 128/0.01).",
+    "The largest bounded case reports candidate/control 0.7686217903617388 for the column/order microstage only.",
+    "The result is workload-sensitive and does not justify a blanket speedup claim.",
+    "No second product validator was introduced; both comparison functions live only in the existing experiment profiler."
+  ],
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33948968643,
+    "head_sha": "e9848fbb68261f44cc5b46c3ac84c1b683e63f7a",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 succeeded",
+    "designated_job": {
+      "job_id": 101260064443,
+      "python": "CPython 3.12.14",
+      "hashseed": 0,
+      "focused_integrated_contract_surface": "344 passed, 2 skipped in 6.72s"
+    },
+    "isolated_wheel_imports": "success",
+    "repository_collection": "success",
+    "complete_suite": "manual-only/skipped"
+  },
+  "artifacts": {
+    "typed_block_validation_profile": {
+      "artifact_id": 9964196854,
+      "sha256": "b81ac7b4fdd08152ad68a24919496732eecc3717cefd3a977c01b00005fd286c",
+      "expires_at": "2026-09-12T06:08:14Z",
+      "workflow_run_head_sha": "e9848fbb68261f44cc5b46c3ac84c1b683e63f7a"
+    },
+    "cpu_bitset_baseline": {
+      "artifact_id": 9964196535,
+      "sha256": "9a5dbd128b725bfc0746eb2b942937d3dc433eed6af2e70253487f37f0bfdf41"
+    },
+    "cpu_bitset_residency": {
+      "artifact_id": 9964197850,
+      "sha256": "ad63d6f69538e6b65a524c5d1469b3a110d44e3d790f1daef98c65a53d5e9b90"
+    },
+    "cpu_bitset_fanout": {
+      "artifact_id": 9964198921,
+      "sha256": "a7156808e9c899cadd5bc131b6b5f87f4fb4bb86b67dc3a02e8a71bc2127c9e6"
+    }
+  },
+  "claim_boundaries": [
+    "No whole-constructor speedup is claimed.",
+    "No general CPU speedup is claimed.",
+    "No CUDA, Tensor Core, GPU, or memory-performance win is claimed.",
+    "No Tensor-vs-Forest, CrewAI, or AlphaEvolve benchmark win is claimed.",
+    "Repository collection success is not represented as a complete-suite test pass.",
+    "The synthetic pull-request merge checkout SHA used inside GitHub Actions is not represented as the branch head SHA."
+  ],
+  "promotion_state": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merged": false,
+    "gate_transition": false
+  }
+}

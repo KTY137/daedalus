@@ -1,0 +1,130 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-21",
+  "title": "Retire the one-shot GPU-20 CSR A/B control after evidence capture",
+  "status": "closed-experiment",
+  "date": "2026-09-05",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority": "sole semantic authority"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "def8a74b37115131b2a4201e87a3d997ff23bb5b",
+  "code_test_head": "6d8960a24692b21a67f93e66cdfa64b9527989c4",
+  "commits": {
+    "gardening": "6d8960a24692b21a67f93e66cdfa64b9527989c4"
+  },
+  "files": {
+    "experiments/tensor_gpu/typed_block_validation_profile.py": "2e8661544ff657f5bcd7bf765d74100bcaabe8bf",
+    "tests/twin/test_tensor_typed_block_validation_profile.py": "79aac0c51674b1f1e2e7370c7658de9e90c8208a"
+  },
+  "diff": {
+    "files_changed": 2,
+    "additions": 51,
+    "deletions": 287,
+    "net_lines": -236
+  },
+  "production_runtime_changed": false,
+  "workflow_changed": false,
+  "new_backend": false,
+  "new_cache": false,
+  "new_relation_type": false,
+  "new_remote_branch": false,
+  "profiler_schema": "daedalus-tensor-typed-block-validation-profile/7",
+  "gardening_decision": {
+    "reason": "GPU-20 already froze the workload-sensitive same-process CSR validation A/B as content-addressed evidence. Keeping the retired control and candidate mirror in the live profiler would preserve a parallel validator-shaped abstraction after its decision purpose was complete.",
+    "removed_live_diagnostics": [
+      "PRE_GPU19_RELATION_BLOCK_BLOB",
+      "_pre_gpu19_column_validation",
+      "_gpu19_column_validation",
+      "_measure_validation_ab",
+      "csr_column_validation_ab report surface"
+    ],
+    "retained_live_diagnostics": [
+      "existing packed-support decoder timing",
+      "real canonical TypedRelationBlock constructor timing",
+      "constructor-native cProfile attribution"
+    ],
+    "preserved_evidence": {
+      "work_packet": "docs/work-packets/G1-EXP-TENSOR-GPU-20.json",
+      "evidence_commit": "def8a74b37115131b2a4201e87a3d997ff23bb5b",
+      "control_relation_block_blob": "e48c26180597de7ff94da3b8b10cef57b15b2424"
+    }
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33951653693,
+    "head_sha": "6d8960a24692b21a67f93e66cdfa64b9527989c4",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 succeeded",
+    "designated_job": {
+      "job_id": 101267468340,
+      "python": "CPython 3.12.14",
+      "hashseed": 0,
+      "focused_integrated_contract_surface": "342 passed, 2 skipped in 6.53s",
+      "profile_schema": "daedalus-tensor-typed-block-validation-profile/7",
+      "public_api": "success"
+    },
+    "isolated_wheel_imports": "success",
+    "repository_collection": "success",
+    "complete_suite": "manual-only/skipped"
+  },
+  "diagnostic_checkpoint": {
+    "case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264
+    },
+    "canonical_digest": "6db1c26e097bcb2f9c5b7f35fa69d5051d1de4502e196c858272d480627c21fa",
+    "support_decode_ms_median": 1.590094,
+    "unprofiled_constructor_ms_median": 7.96067,
+    "typed_block_post_init_cprofile_cumulative_ms_median": 22.158798,
+    "typed_block_post_init_cprofile_self_ms_median": 15.687986,
+    "stored_scalar_admission_cprofile_ms_median": 6.441264,
+    "stored_scalar_admission_calls": 43264,
+    "interpretation": "Diagnostic checkpoint only. cProfile contains observer overhead; independently sampled decoder and constructor timings are non-additive. GPU-21 makes no performance claim."
+  },
+  "artifacts": {
+    "cpu_bitset_baseline": {
+      "artifact_id": 9965016492,
+      "sha256": "46333508a86a4746d3ddd7a94f1ffba241f590a3b8752da2e0a9211f10fa813d",
+      "expires_at": "2026-09-12T07:07:17Z",
+      "workflow_run_head_sha": "6d8960a24692b21a67f93e66cdfa64b9527989c4"
+    },
+    "typed_block_validation_profile": {
+      "artifact_id": 9965016713,
+      "sha256": "664a388ca365211422974b5179df8237fc62542decd9608eb03d4fb29283abe3",
+      "expires_at": "2026-09-12T07:07:18Z",
+      "workflow_run_head_sha": "6d8960a24692b21a67f93e66cdfa64b9527989c4"
+    },
+    "cpu_bitset_residency": {
+      "artifact_id": 9965017840,
+      "sha256": "12f513a3715b90a5f1cc99c1c132e0971b531859e7944606408fa452220eb81b",
+      "expires_at": "2026-09-12T07:07:23Z",
+      "workflow_run_head_sha": "6d8960a24692b21a67f93e66cdfa64b9527989c4"
+    },
+    "cpu_bitset_fanout": {
+      "artifact_id": 9965019026,
+      "sha256": "18e6619f45f05fac774c84b57b40cbb0265a41a4f1030b3ca36a16452250f83b",
+      "expires_at": "2026-09-12T07:07:29Z",
+      "workflow_run_head_sha": "6d8960a24692b21a67f93e66cdfa64b9527989c4"
+    }
+  },
+  "claim_boundaries": [
+    "GPU-21 is a gardening/pruning packet and makes no performance improvement claim.",
+    "No whole-constructor or general CPU speedup is claimed.",
+    "No CUDA, Tensor Core, GPU, or memory-performance win is claimed.",
+    "No Tensor-vs-Forest, CrewAI, or AlphaEvolve benchmark win is claimed.",
+    "Repository collection success is not represented as a complete-suite test pass.",
+    "The synthetic pull-request merge checkout SHA is not represented as the branch head SHA."
+  ],
+  "promotion_state": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merged": false,
+    "gate_transition": false
+  }
+}

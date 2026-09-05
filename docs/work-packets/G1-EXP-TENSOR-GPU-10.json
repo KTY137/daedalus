@@ -1,0 +1,203 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-10",
+  "title": "Decompose packed-support canonicalization and remove redundant Boolean-value assembly",
+  "status": "closed-measurement",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority_path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "authority_blob": "b16cd697b5f263be81cc0889f0d803ad696a8b84"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "b5f5be8a2feec8621a0dcfdfe47df48ad1458f6c",
+  "implementation_commit": "e6d779af0b82fbaa2cb830ece03da09f4efc53b4",
+  "test_commit": "6507baf0f6d05106a12c86a49f2428a2aa4d205d",
+  "tested_head": "6507baf0f6d05106a12c86a49f2428a2aa4d205d",
+  "hypothesis": "GPU-09 showed that final canonical TypedRelationBlock materialization dominates the packed Boolean one-shot path. Split that boundary into packed-support decoding and canonical block construction before adding another backend or cache, and remove the redundant per-entry Boolean values list because packed support already implies True.",
+  "finding": {
+    "classification": "materialization remains dominant; constructor validation is material",
+    "summary": "The existing baseline now measures packed-support decode separately from canonical TypedRelationBlock construction while preserving total canonicalize_ms. Across all six frozen cases, canonicalization consumed about 56-93 percent of the packed one-shot path. At 256 nodes / requested density 0.05, support decode took 9.355059 ms and block construction 11.224812 ms, for 20.579871 ms canonicalization inside a 22.189957 ms one-shot path. Therefore the boundary cost is not only bit scanning; canonical block validation/construction is itself material.",
+    "next_architectural_implication": "Do not add a cache, alternate relation object, trusted constructor, or another arithmetic backend yet. First measure which existing TypedRelationBlock validation/canonicalization checks account for construction cost and determine whether safe reuse can avoid duplicate work without weakening the canonical oracle."
+  },
+  "scope": {
+    "updated": [
+      "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "tests/twin/test_tensor_cpu_bitset_baseline.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-EXP-TENSOR-GPU-10.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_backend": false,
+    "adds_cache": false,
+    "adds_registry": false,
+    "adds_store": false,
+    "adds_scheduler": false,
+    "adds_semantic_plane": false,
+    "adds_runtime_dependency": false,
+    "new_workflow_family": false
+  },
+  "gardener": {
+    "schema_bump": "daedalus-tensor-cpu-bitset-baseline/2 -> /3",
+    "reason": "measurement wire semantics gained an explicit canonicalization phase split",
+    "redundancy_removed": "packed-support decoding no longer accumulates a values list with one True per output edge; the canonical Boolean values tuple is constructed once from the decoded entry count",
+    "parallel_abstraction_added": false,
+    "existing_workflow_reused": ".github/workflows/fourfold-v2.yml"
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "blob": "cebd2300ec39a6c59dfbc472a112fc292687b489"
+    },
+    {
+      "path": "tests/twin/test_tensor_cpu_bitset_baseline.py",
+      "blob": "37df4b08f8b84fc21189644be6c9f61b9d7ac508"
+    }
+  ],
+  "delta_to_tested_head": {
+    "commits": 2,
+    "files": 2,
+    "additions": 104,
+    "deletions": 14,
+    "net": 90
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33914989884,
+    "head_sha": "6507baf0f6d05106a12c86a49f2428a2aa4d205d",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "python_312_hash_0": "integrated contract surface, bounded bitset baseline, residency diagnostic, fanout diagnostic, all three artifact uploads and public API smoke succeeded",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "full_repository_execution": "skipped; manual-only",
+    "gpu_execution": "not executed",
+    "tensor_core_usage": "not profiled or claimed"
+  },
+  "artifact": {
+    "id": 9952799367,
+    "name": "tensor-cpu-bitset-baseline-fc2d85565db767bb081f1d97c6f8be45c69d053e",
+    "output_path": "runs/tensor_gpu/cpu_bitset_ci.json",
+    "retention_days": 7,
+    "archive_sha256": "845c7fca08ba5516c24c97c8f50aaa839ac6df795165aaf9544498b28a925650",
+    "workflow_head_sha": "6507baf0f6d05106a12c86a49f2428a2aa4d205d",
+    "note": "The artifact name contains the pull-request merge checkout SHA; the workflow run and artifact metadata bind the diagnostic to branch head 6507baf0f6d05106a12c86a49f2428a2aa4d205d."
+  },
+  "frozen_diagnostic": [
+    {
+      "size": 64,
+      "requested_density": 0.01,
+      "output_entries": 64,
+      "kernel_ms_median": 0.013395,
+      "support_decode_ms": 0.024546,
+      "block_construct_ms": 0.083947,
+      "canonicalize_ms": 0.10849299999999999,
+      "one_shot_end_to_end_ms": 0.192791,
+      "canonicalize_fraction_of_one_shot": 0.5627492984631025,
+      "block_construct_fraction_of_canonicalize": 0.7737549888011208,
+      "correctness": "exact"
+    },
+    {
+      "size": 64,
+      "requested_density": 0.05,
+      "output_entries": 576,
+      "kernel_ms_median": 0.040676,
+      "support_decode_ms": 0.126357,
+      "block_construct_ms": 0.226725,
+      "canonicalize_ms": 0.353082,
+      "one_shot_end_to_end_ms": 0.463729,
+      "canonicalize_fraction_of_one_shot": 0.7613972816019702,
+      "block_construct_fraction_of_canonicalize": 0.6421312896154434,
+      "correctness": "exact"
+    },
+    {
+      "size": 128,
+      "requested_density": 0.01,
+      "output_entries": 128,
+      "kernel_ms_median": 0.028393,
+      "support_decode_ms": 0.041488,
+      "block_construct_ms": 0.152326,
+      "canonicalize_ms": 0.193814,
+      "one_shot_end_to_end_ms": 0.312025,
+      "canonicalize_fraction_of_one_shot": 0.6211489463985257,
+      "block_construct_fraction_of_canonicalize": 0.7859390962469172,
+      "correctness": "exact"
+    },
+    {
+      "size": 128,
+      "requested_density": 0.05,
+      "output_entries": 4608,
+      "kernel_ms_median": 0.164157,
+      "support_decode_ms": 0.972412,
+      "block_construct_ms": 1.333118,
+      "canonicalize_ms": 2.30553,
+      "one_shot_end_to_end_ms": 2.707914,
+      "canonicalize_fraction_of_one_shot": 0.8514044389888304,
+      "block_construct_fraction_of_canonicalize": 0.5782262646766687,
+      "correctness": "exact"
+    },
+    {
+      "size": 256,
+      "requested_density": 0.01,
+      "output_entries": 2304,
+      "kernel_ms_median": 0.175139,
+      "support_decode_ms": 0.534772,
+      "block_construct_ms": 0.81655,
+      "canonicalize_ms": 1.3513220000000001,
+      "one_shot_end_to_end_ms": 1.8149510000000002,
+      "canonicalize_fraction_of_one_shot": 0.7445501283505725,
+      "block_construct_fraction_of_canonicalize": 0.6042601245299047,
+      "correctness": "exact"
+    },
+    {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264,
+      "kernel_ms_median": 0.736049,
+      "support_decode_ms": 9.355059,
+      "block_construct_ms": 11.224812,
+      "canonicalize_ms": 20.579871,
+      "one_shot_end_to_end_ms": 22.189957,
+      "canonicalize_fraction_of_one_shot": 0.9274407787270611,
+      "block_construct_fraction_of_canonicalize": 0.5454267424708347,
+      "correctness": "exact"
+    }
+  ],
+  "interpretation": [
+    "All six baseline cases retained exact Boolean support and canonical digest equality against the stdlib CSR oracle.",
+    "Canonicalization remains the dominant one-shot cost in the larger/dense cases even after removing redundant Boolean-value list assembly.",
+    "TypedRelationBlock construction is a material part of canonicalization, so optimizing only packed-bit scanning cannot remove the boundary cost.",
+    "Cross-run timing differences versus older artifacts are not treated as a speedup because hosted-run noise was not controlled as a paired experiment."
+  ],
+  "claim_boundary": {
+    "general_speedup": false,
+    "cpu_bitset_superiority": false,
+    "cuda_speedup": false,
+    "tensor_core_usage_proven": false,
+    "memory_win": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 314
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "archive_observed_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "note": "Only the existing exp/tensor-kernel-contract-01 line was advanced. No branch was created, deleted, renamed, force-moved, or used as an archive sink."
+  }
+}

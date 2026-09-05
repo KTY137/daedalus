@@ -10,7 +10,7 @@ from daedalus.structcore.forest import (
     KnowledgeForest,
 )
 from daedalus.twin import FourfoldSnapshot, PlaneSnapshot, fourfold_from_knowledge_forest
-from daedalus.twin.relation_blocks import RelationSignature
+from daedalus.twin.relation_blocks import RelationSignature, TypedRelationBlock
 from daedalus.twin.relation_projection import boolean_relation_block_from_fourfold
 from daedalus.twin.semiring import BooleanSemiring
 
@@ -149,6 +149,50 @@ def _complete_snapshot_without_code_relations(forest: KnowledgeForest) -> Fourfo
     )
 
 
+def _same_plane_snapshot(
+    forest: KnowledgeForest,
+    *,
+    code_node_ids: tuple[str, ...],
+) -> FourfoldSnapshot:
+    legacy = _legacy_snapshot(forest)
+    code_plane = next(plane for plane in legacy.planes if plane.plane == "code")
+    planes = tuple(
+        (
+            PlaneSnapshot(
+                plane="code",
+                source_revision=REVISION,
+                status="complete",
+                node_ids=code_node_ids,
+                relation_sha256s=code_plane.relation_sha256s,
+                evidence_sha256s=code_plane.evidence_sha256s,
+            )
+            if plane.plane == "code"
+            else PlaneSnapshot(
+                plane=plane.plane,
+                source_revision=REVISION,
+                status="absent",
+                reason="not required by same-plane fixture",
+            )
+        )
+        for plane in legacy.planes
+    )
+    provenance = ContractProvenance(
+        origin="test.fourfold-relation-projection.same-plane-fixture",
+        source_revision=REVISION,
+        created_at=NOW,
+        input_digests=(forest.content_sha256, *(plane.digest for plane in planes)),
+        trace_id="fourfold-relation-projection-same-plane",
+    )
+    return FourfoldSnapshot(
+        repository_id=legacy.repository_id,
+        source_revision=legacy.source_revision,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=(),
+        provenance=provenance,
+    )
+
+
 def test_projection_matches_direct_forest_relations_and_composes() -> None:
     forest = _forest()
     snapshot = _complete_snapshot(forest)
@@ -237,6 +281,84 @@ def test_projection_reuses_canonical_plane_tuple_without_materializing_plane_map
 
     assert tuple(imports.iter_entries()) == (("src/a.py", "src/b.py", True),)
     assert tuple(documents.iter_entries()) == (("src/b.py", "docs/b.md", True),)
+
+
+def test_cross_plane_projection_reuses_verified_endpoints_without_coordinate_readmission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest = _forest()
+    snapshot = _complete_snapshot(forest)
+
+    def unexpected_coordinate_admission(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError(
+            "verified cross-plane bindings must reuse the canonical indexed block owner"
+        )
+
+    monkeypatch.setattr(
+        TypedRelationBlock,
+        "from_coordinates",
+        classmethod(unexpected_coordinate_admission),
+    )
+
+    documents = boolean_relation_block_from_fourfold(
+        forest,
+        snapshot,
+        RelationSignature("code", "documents", "knowledge"),
+    )
+
+    assert tuple(documents.iter_entries()) == (("src/b.py", "docs/b.md", True),)
+    assert documents.subject.source_fourfold_sha256 == snapshot.digest
+
+
+def test_same_plane_projection_reuses_retained_endpoints_without_coordinate_readmission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest = _forest()
+    snapshot = _complete_snapshot(forest)
+
+    def unexpected_coordinate_admission(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError(
+            "retained same-plane endpoints must reuse the canonical indexed block owner"
+        )
+
+    monkeypatch.setattr(
+        TypedRelationBlock,
+        "from_coordinates",
+        classmethod(unexpected_coordinate_admission),
+    )
+
+    imports = boolean_relation_block_from_fourfold(
+        forest,
+        snapshot,
+        RelationSignature("code", "imports", "code"),
+    )
+
+    assert tuple(imports.iter_entries()) == (("src/a.py", "src/b.py", True),)
+    assert imports.subject.source_fourfold_sha256 == snapshot.digest
+
+
+@pytest.mark.parametrize(
+    ("code_node_ids", "message"),
+    (
+        (("src/a.py",), "unknown column label 'src/b.py'"),
+        (("src/b.py",), "unknown row label 'src/a.py'"),
+    ),
+)
+def test_same_plane_projection_preserves_explicit_plane_membership_errors(
+    code_node_ids: tuple[str, ...],
+    message: str,
+) -> None:
+    forest = _forest()
+    snapshot = _same_plane_snapshot(forest, code_node_ids=code_node_ids)
+
+    with pytest.raises(ValueError) as exc_info:
+        boolean_relation_block_from_fourfold(
+            forest,
+            snapshot,
+            RelationSignature("code", "imports", "code"),
+        )
+
+    assert str(exc_info.value) == message
 
 
 def test_projection_refuses_legacy_partial_endpoint_planes() -> None:
