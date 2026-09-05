@@ -113,9 +113,13 @@ export function Composer({ value, onChange, onSend, chips, onChip, busy, placeho
           onBlur={() => setFocused(false)}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
+            // Enter confirms an IME candidate while text is composing. Treating
+            // that key as "send" drops or prematurely submits CJK and other IME
+            // input, so only plain Enter may cross the chat action boundary.
+            if (event.nativeEvent.isComposing) return;
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault();
-              if (!busy) onSend();
+              if (armed) onSend();
             }
           }}
         />
@@ -125,7 +129,7 @@ export function Composer({ value, onChange, onSend, chips, onChip, busy, placeho
           data-motion="send"
           aria-label="Send"
           onClick={onSend}
-          disabled={busy}
+          disabled={!armed}
           variants={arm}
           initial={false}
           animate={armed ? 'armed' : 'idle'}
