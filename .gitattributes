@@ -99,6 +99,13 @@ runs/watchdog/mission-20260823/pathsens_files.txt -text
 runs/watchdog/mission-20260823/redfiles.txt -text
 runs/watchdog/mission-20260823/suite-run2-head-at-start.txt -text
 
+# The portable Blender archive stores the exact bytes of every source below
+# this directory. Without an explicit pin, core.autocrlf produced a mixed-EOL
+# ZIP on Windows and made `package.py --check` disagree with the same commit on
+# Linux. Keep the complete archive input byte-stable, including future files.
+docs/design/blender-scenes/** -text
+docs/design/Daedalus-Blender-Scenes.zip -text -diff
+
 # The head-revision integration review (tests/gates/
 # test_repository_head_revision_integration_review.py) pins these two by RAW
 # byte blob sha. Unpinned, core.autocrlf=true materialised them with CRLF in
