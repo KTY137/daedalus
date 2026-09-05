@@ -1,0 +1,134 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-30",
+  "title": "Contain settled residency and fanout probes from per-PR CI after evidence capture",
+  "status": "closed-gardened",
+  "date_europe_berlin": "2026-09-05",
+  "authority": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "semantic_authority": "masterplan-only"
+  },
+  "scope": {
+    "issue": 239,
+    "pull_request": 314,
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "8e84b3e407a5fdc487be1eaafe6115b8029b7aad",
+    "implementation_commit": "301fbd866a5fcc2ae93f7b933447eddd02e92bad",
+    "workflow": ".github/workflows/fourfold-v2.yml",
+    "workflow_blob_before": "93a461c1d7f81336b03a0a40249f4001a268eebf",
+    "workflow_blob_after": "ca0c1b5df2c73a851b4dcaacb767c3ddd82411f3"
+  },
+  "gardener_change": {
+    "problem": "The residency and frozen-prefix fanout probes had already produced retained decision evidence across the Tensor campaign, but both were still executed and uploaded on every qualifying pull-request run. That repeated settled diagnostics, generated two extra short-lived artifacts per run and expanded the live CI surface without changing semantic authority.",
+    "implementation": "Remove only the four automatic emit/upload workflow blocks for the residency and fanout diagnostics. Keep the probe implementations and their focused tests in the repository, keep them compiled and exercised through tests/twin, and preserve all prior artifact/commit evidence. The packed CPU baseline and the active TypedRelationBlock profile remain the two automatic bounded diagnostics.",
+    "workflow_lines_deleted": 48,
+    "production_code_changed": false,
+    "experiment_code_deleted": false,
+    "focused_tests_deleted": false,
+    "prior_artifacts_deleted": false,
+    "parallel_abstraction_added": false,
+    "new_backend_or_cache_added": false,
+    "semantic_contract_changed": false
+  },
+  "evidence_preserved": {
+    "last_precontainment_closure_run": 33973881258,
+    "residency": {
+      "artifact_id": 9971729443,
+      "sha256": "f5cff3ab7b41abde84015b7fb1232299c7fe9a375d241159b5d384f36613652d",
+      "expires_at": "2026-09-12T15:08:57Z"
+    },
+    "fanout": {
+      "artifact_id": 9971730707,
+      "sha256": "5c8e80ec0954aca515f41829ddacb5404a3c4d18585cb2133160f4367b58434a",
+      "expires_at": "2026-09-12T15:09:02Z"
+    },
+    "retained_sources": [
+      "experiments/tensor_gpu/cpu_bitset_residency_probe.py",
+      "experiments/tensor_gpu/cpu_bitset_fanout_probe.py"
+    ],
+    "retained_tests": [
+      "tests/twin/test_tensor_cpu_bitset_residency_probe.py",
+      "tests/twin/test_tensor_cpu_bitset_fanout_probe.py"
+    ]
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33976970988,
+    "run_event": "pull_request",
+    "metadata_head_sha": "301fbd866a5fcc2ae93f7b933447eddd02e92bad",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "checkout_kind": "GitHub pull-request merge preview",
+    "checkout_sha": "39866d6e5bdfea7874e8cfe5b933489c1dce0a3a",
+    "conclusion": "success",
+    "contract_matrix": {
+      "python_versions": ["3.10", "3.12"],
+      "hash_seeds": [0, 123456],
+      "all_jobs_conclusion": "success"
+    },
+    "designated_python_3_12_hash_0": {
+      "python_runtime": "CPython 3.12.14",
+      "focused_and_integrated_tests": "359 passed, 2 skipped",
+      "compile_includes_all_tensor_gpu_experiments": true,
+      "public_api": "success"
+    },
+    "isolated_wheel_imports": "success",
+    "complete_repository_collection": "success",
+    "complete_repository_suite": "manual-only/skipped",
+    "automatic_diagnostic_artifacts": {
+      "count": 2,
+      "baseline": {
+        "artifact_id": 9972599979,
+        "sha256": "31d30fd59978be21fe4e32f9d8952c9573ea3cf7fb7351cb835235d4c499a414"
+      },
+      "typed_block_profile_v8": {
+        "artifact_id": 9972600270,
+        "sha256": "2c25244ce0eac533cf8c1b87f23a3df81239080bde4af1dd277be68ecc1d4158"
+      },
+      "residency_artifact_emitted": false,
+      "fanout_artifact_emitted": false
+    }
+  },
+  "decision_boundary": {
+    "automatic_now": [
+      "packed CPU bitset baseline",
+      "canonical TypedRelationBlock profile-v8"
+    ],
+    "retained_but_not_per_pr": [
+      "packed intermediate residency probe",
+      "frozen packed-prefix fanout probe"
+    ],
+    "reason": "The removed jobs are settled diagnostic repetitions, not correctness owners. Their implementations and tests remain available for a future explicitly scoped decision packet, while the automatic contract matrix still compiles all tensor_gpu experiments and runs tests/twin.",
+    "not_claimed": [
+      "residency or fanout experiment deletion",
+      "performance regression absence outside the tested contract surface",
+      "complete repository suite pass",
+      "CPU, GPU, CUDA, Tensor-Core or memory superiority",
+      "Tensor-vs-Forest superiority",
+      "CrewAI superiority",
+      "AlphaEvolve superiority",
+      "promotion or gate closure"
+    ]
+  },
+  "branch_hygiene": {
+    "canonical_branch_used": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "force_update": false,
+    "archive_legacy_20260830_expected_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_used_as_work_or_storage_target": false,
+    "branch_deleted_for_cosmetic_count_reduction": false,
+    "unique_evidence_deleted": false
+  },
+  "promotion": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "closure": {
+    "next_narrow_step": "Choose the next bounded Tensor/Fourfold packet from the active baseline/profile or a prioritized issue. Re-run residency or fanout only when a concrete decision requires them; do not restore them as unconditional per-PR artifact churn."
+  }
+}
