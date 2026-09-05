@@ -19,7 +19,8 @@ import sys
 import threading
 import time
 
-SCRATCH = Path(r"C:\Users\nukei\AppData\Local\Temp\daedalus-lane10")
+SCRATCH = Path(os.environ.get("DAEDALUS_LANE10_SCRATCH")
+               or Path(os.environ["LOCALAPPDATA"]) / "Temp" / "daedalus-lane10")
 AUTHORITY = SCRATCH / "authority"
 # The effect-lease identity is canonical_sha({mission, attempt})[:32], so a
 # re-run that reuses a mission/attempt pair is refused as a replay of different
@@ -171,10 +172,14 @@ def run(service, label: str, tool: str, args: dict, note: str = "") -> dict:
     started = time.monotonic()
     result = service.execute(tool, args, mission_id=MISSION, attempt_id=attempt)
     elapsed = round(time.monotonic() - started, 3)
+    # Refusal text is adapter-authored and embeds absolute paths -- the kill
+    # switch names its own permit file -- so it needs the same pass as the
+    # structured result. Missing this leaked the home path once (G1-IKARUS-30).
     record = {"step": label, "attempt_id": attempt, "tool": tool,
               "arguments": sanitize(args), "seconds": elapsed,
               "ok": result.get("ok"), "state": result.get("state"),
-              "error": result.get("error"), "error_type": result.get("error_type"),
+              "error": sanitize(result.get("error")),
+              "error_type": result.get("error_type"),
               "result": sanitize(result.get("result")), "note": note}
     if result.get("ok"):
         evidence = result["evidence"]

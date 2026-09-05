@@ -13,7 +13,8 @@ import os
 from pathlib import Path
 import sys
 
-SCRATCH = Path(r"C:\Users\nukei\AppData\Local\Temp\daedalus-lane10")
+SCRATCH = Path(os.environ.get("DAEDALUS_LANE10_SCRATCH")
+               or Path(os.environ["LOCALAPPDATA"]) / "Temp" / "daedalus-lane10")
 AUTHORITY = SCRATCH / "authority"
 FIXTURE = SCRATCH / "fixture" / "lane10-sentinel.txt"
 # Round 1 used the owner-obvious spelling. Windows 11 redirects it at process
@@ -21,7 +22,20 @@ FIXTURE = SCRATCH / "fixture" / "lane10-sentinel.txt"
 # actually verify. Pass the executable as argv[1] to switch rounds.
 NOTEPAD = Path(sys.argv[1] if len(sys.argv) > 1 else r"C:\Windows\System32\notepad.exe")
 
+HOME = str(Path.home())
 SENTINELS = ["DAEDALUS", "ZINNOBER", "LANE10", "SENTINEL", "739104"]
+
+
+def sanitized(value: dict) -> str:
+    """Every retained spelling of the home directory becomes <USERPROFILE>.
+
+    All three forms matter: the plain path, the forward-slash form, and the
+    JSON-escaped doubled-backslash form this very dump produces.
+    """
+    text = json.dumps(value, indent=2, ensure_ascii=False, default=str)
+    for spelling in (HOME.replace("\\", "\\\\"), HOME.replace("\\", "/"), HOME):
+        text = text.replace(spelling, "<USERPROFILE>")
+    return text
 FIXTURE_TEXT = (
     "DAEDALUS ZINNOBER\n"
     "LANE10 SENTINEL 739104\n"
@@ -79,7 +93,7 @@ def main() -> int:
     report["capability_unavailable"] = after["unavailable"]
     report["desktop_validation_note"] = after["desktop_validation"]
 
-    print(json.dumps(report, indent=2, ensure_ascii=False))
+    print(sanitized(report))
     return 0
 
 

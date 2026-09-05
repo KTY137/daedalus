@@ -19,7 +19,7 @@
 [m12_vision_ocr_after_backspace] vision.ocr -> ok=True state=completed 5.353s 
 [m13_observe_while_minimized] desktop.observe -> ok=False state=reconciliation_required 1.193s foreground executable is not owner-authorized
 [m14_observe_before_kill] desktop.observe -> ok=True state=completed 1.939s 
-[m15_vision_ocr_during_kill] vision.ocr -> ok=False state=blocked 0.38s kill switch engaged: a stop marker is present beside the permit [C:\Users\nukei\.daedalus\control\f03a8ab03a51\killswitch]
-[m16_observe_after_kill] desktop.observe -> ok=False state=blocked 0.0s kill switch engaged: a stop marker is present beside the permit [C:\Users\nukei\.daedalus\control\f03a8ab03a51\killswitch]
+[m15_vision_ocr_during_kill] vision.ocr -> ok=False state=blocked 0.38s kill switch engaged: a stop marker is present beside the permit [<USERPROFILE>\.daedalus\control\f03a8ab03a51\killswitch]
+[m16_observe_after_kill] desktop.observe -> ok=False state=blocked 0.0s kill switch engaged: a stop marker is present beside the permit [<USERPROFILE>\.daedalus\control\f03a8ab03a51\killswitch]
 [m17_observe_after_rearm] desktop.observe -> ok=True state=completed 1.737s 
 [redacted] the JSON body of this run was moved into lane10_measure_result.json and filtered by lane10_redact.py

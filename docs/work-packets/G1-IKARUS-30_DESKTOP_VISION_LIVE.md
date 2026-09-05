@@ -246,7 +246,8 @@ and `lane10_launch_probe.json` (the redirection reproduction),
 `lane10_measure.py` (the live driver), `lane10_measure_result.json` (round 3,
 every step with its timings and receipt digests), `lane10_measure_run1/2/3.log.txt`
 (step lines), `lane10_round1_system32_notepad.json`,
-`lane10_round2_lease_identity_collision.json`, `lane10_redact.py`, `MANIFEST.json`.
+`lane10_round2_lease_identity_collision.json`, `lane10_redact.py`,
+`lane10_scrub_paths.py`, `MANIFEST.json`.
 
 **Privacy.** No screenshot and no image of any kind is retained in this packet or
 its evidence directory, and none was ever written to disk: the adapter keeps the
@@ -263,6 +264,38 @@ recorded here, and the control root was re-scanned: 0 remaining occurrences of
 owner content, 0 image files of any kind. Notepad was closed by force
 termination, which is the only exit that cannot write the modified buffer back;
 the fixture on disk is byte-identical to what the setup wrote.
+
+**The first privacy pass was incomplete, and the correction is part of the
+record.** Verification of commit `e3fcfb6f` found the owner's home path still
+present in six files. Three causes, each fixed at its source rather than only in
+the output: the three harness scripts carried the scratch root as a literal (they
+now derive it from `DAEDALUS_LANE10_SCRATCH` or `%LOCALAPPDATA%\Temp`);
+`run()` sanitized `arguments` and `result` but not `error`, and adapter refusal
+text embeds absolute paths — the kill switch names its own permit file — which
+put the path into `lane10_measure_result.json` and `lane10_measure_run3.log.txt`;
+and `lane10_setup.py` dumped its report with no filter at all, which put it into
+`lane10_setup_round2.log.txt`. `lane10_redact.py` had also replaced only one
+spelling of the home directory. `lane10_scrub_paths.py` now rewrites all three
+spellings — the plain path, the forward-slash form, and the JSON-escaped
+doubled-backslash form — over every retained file and this packet; it made 12
+replacements (2 + 2 + 8) and a second run made 0, so it is idempotent. Every
+JSON file still parses and `MANIFEST.json` was regenerated so each digest matches
+the corrected bytes. The confirming search, with the owner's account name written
+here as a placeholder so that quoting the check cannot itself reintroduce what
+the check looks for:
+
+```
+$ grep -rn <owner-username> docs/evidence/G1-IKARUS-30_DESKTOP_VISION_LIVE/ \
+      docs/work-packets/G1-IKARUS-30_DESKTOP_VISION_LIVE.md
+$ echo $?
+1
+```
+
+No output, exit status 1 — grep found nothing. A shape-based search that names
+no account, `grep -rnE 'C:.?.?[\\/]Users[\\/][A-Za-z]'` over the same two
+targets, is likewise empty. The `-text` byte pin for this evidence directory
+belongs in the repository-root `.gitattributes`, which is outside this lane and
+is left to integration.
 
 Expected failures retained on purpose: round 1 (unobservable authorized
 application), round 2 (lease identity replay), m00/m13 (foreground refusals), m05
