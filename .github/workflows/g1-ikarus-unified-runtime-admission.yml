@@ -34,6 +34,7 @@ on:
       - "daedalus/runtimes/provider_runtime_invocation_binding.py"
       - "daedalus/runtimes/sealed_broker.py"
       - "tools/gui_check.py"
+      - "tests/providers/test_claude_bypass_inventory.py"
       - "tests/providers/test_claude_sealed_cutover.py"
       - "tests/test_claude_bridge_cmd_shim.py"
       - "tests/test_gui_check_budget.py"
@@ -115,6 +116,7 @@ jobs:
           daedalus/runtimes/provider_runtime_invocation_binding.py
           daedalus/runtimes/sealed_broker.py
           tools/gui_check.py
+          tests/providers/test_claude_bypass_inventory.py
           tests/providers/test_claude_sealed_cutover.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
@@ -139,6 +141,7 @@ jobs:
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
       - run: >-
           python -m pytest -q -p no:cacheprovider
+          tests/providers/test_claude_bypass_inventory.py
           tests/providers/test_claude_sealed_cutover.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
