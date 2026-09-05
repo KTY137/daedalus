@@ -11,6 +11,21 @@ from daedalus.providers.claude_cli import claude_invocation_sha256
 from daedalus.spine.envelope import canonical_sha
 
 
+def test_bridge_command_admission_delegates_to_runtime_policy() -> None:
+    with mock.patch.object(
+        bridge,
+        "claude_command_for_spawn",
+        return_value=r"C:\tools\claude.exe",
+    ) as admission:
+        assert bridge._command_for_spawn(
+            r"C:\candidate\claude.exe", platform_name="nt"
+        ) == r"C:\tools\claude.exe"
+
+    admission.assert_called_once_with(
+        r"C:\candidate\claude.exe", platform_name="nt"
+    )
+
+
 def test_windows_native_claude_executable_is_admitted() -> None:
     resolved = r"C:\tools\claude.exe"
     assert bridge._command_for_spawn(resolved, platform_name="nt") == resolved
