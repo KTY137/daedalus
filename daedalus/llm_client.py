@@ -14,6 +14,7 @@ language-model work.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
@@ -122,6 +123,22 @@ class LLMResponse:
 
 class LLMUnavailable(RuntimeError):
     pass
+
+
+def _is_authoritative_refusal(exc: Exception) -> bool:
+    """Return True when an adapter already produced a canonical deny receipt.
+
+    The provider/effect layers own authority and produce content-addressed
+    refusal receipts. Retrying such an exception is not resilience: it repeats
+    a decision that already said the effect may not start, and wrapping it in
+    ``LLMUnavailable`` discards the evidence callers need to explain the denial.
+    Keep the client decoupled from concrete provider exception classes by
+    recognising the receipt contract instead of importing their modules.
+    """
+    receipt = getattr(exc, "receipt", None)
+    if not isinstance(receipt, MappingABC):
+        return False
+    return str(receipt.get("verdict") or "").strip().lower() in {"deny", "denied", "refuse", "refused"}
 
 
 StatusProbe = Callable[[str], Mapping[str, Any]]
@@ -256,7 +273,9 @@ class IkarusLLMClient:
         """Run a blocking transport under this client's retry policy.
 
         This method does not open sockets or spawn processes; ``invoke`` is the
-        effect-guarded adapter supplied by the caller.
+        effect-guarded adapter supplied by the caller. An adapter refusal that
+        carries a canonical deny receipt is authoritative: it is re-raised
+        immediately, never retried and never collapsed into ``LLMUnavailable``.
         """
         selection = self.resolve(requested)
         if not selection.provider or selection.provider == "deterministic":
@@ -272,6 +291,8 @@ class IkarusLLMClient:
                     return LLMResponse(result.strip(), selection.provider,
                                        request.model, attempts=attempt)
             except Exception as exc:  # caller still owns the typed provider error
+                if _is_authoritative_refusal(exc):
+                    raise
                 last_error = f"{type(exc).__name__}: {exc}"
         raise LLMUnavailable(f"{selection.provider} produced no usable response after "
                              f"{selection.max_attempts} attempt(s): {last_error}")
