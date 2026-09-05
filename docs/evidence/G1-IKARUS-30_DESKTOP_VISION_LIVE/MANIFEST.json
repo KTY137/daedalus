@@ -3,7 +3,8 @@
   "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
   "measured_at": "2026-09-05",
   "host": "Windows 11 Home 10.0.26200, session 1, dpi 240",
-  "privacy": "no image of any kind is retained or was ever written; OCR word lists filtered by lane10_redact.py; home paths replaced by <USERPROFILE>",
+  "privacy": "no image of any kind is retained or was ever written; OCR word lists filtered by lane10_redact.py; every spelling of the home directory replaced by <USERPROFILE> by lane10_scrub_paths.py; digests below match the corrected bytes",
+  "digest_basis": "sha256 over the LF bytes as written in this worktree; a fresh checkout converts these files to CRLF until the -text pin for this directory is added to the repository-root .gitattributes at integration",
   "files": [
     {
       "name": "lane10_launch_probe.json",
@@ -12,18 +13,18 @@
     },
     {
       "name": "lane10_launch_probe.py",
-      "bytes": 3924,
-      "sha256": "9253b67088e05527e088c8686e79ac26f0e36fac38e020325a58788837ea05ef"
+      "bytes": 4003,
+      "sha256": "da9613205dc955d0ed0bb1e61352c7f089a9c7fb9c91b9c024e4918ad7287744"
     },
     {
       "name": "lane10_measure.py",
-      "bytes": 19312,
-      "sha256": "7567a761f30fb738a82e0c9bcfbeef481b9de8f2aa30a3ec93d61900d730385e"
+      "bytes": 19637,
+      "sha256": "248c0ae06d20fbdd6987dbc19f8c667aa43b078002e1f425f927e0570f1801b1"
     },
     {
       "name": "lane10_measure_result.json",
-      "bytes": 61183,
-      "sha256": "2b4fd6635efb2bc1eea52e86113650e66264a157f053990e380852e2de3743cd"
+      "bytes": 59205,
+      "sha256": "f83e4f925fdc9b48278954cf598d1b7f10b081a15c1d920c27a4b1a12512a712"
     },
     {
       "name": "lane10_measure_run1.log.txt",
@@ -37,8 +38,8 @@
     },
     {
       "name": "lane10_measure_run3.log.txt",
-      "bytes": 2353,
-      "sha256": "7effe412875af010a1fa0c8b45cff5170ba20ae358b74c46796e9d8c05ebcd87"
+      "bytes": 2326,
+      "sha256": "5878f0b9a4120112f29fe3a360f403a211d1ea13afff55f4bbd77b3cd2fc3c70"
     },
     {
       "name": "lane10_redact.py",
@@ -56,14 +57,19 @@
       "sha256": "dc0507b1512b1e09b8fe1d028a135b412ba34d90b747742f2e238a15d15187f1"
     },
     {
+      "name": "lane10_scrub_paths.py",
+      "bytes": 2436,
+      "sha256": "4074af449421dc9e741618a3b2a72b67e24f803ca538d723384db1138c7c03b3"
+    },
+    {
       "name": "lane10_setup.py",
-      "bytes": 3312,
-      "sha256": "813278d745bbed6a51788f0d6f9deed700d66cc5fa76ec408ca84d4dc03b3e0b"
+      "bytes": 3861,
+      "sha256": "90dbfb1f8e91e467b6675d00dd8df90ca20a9670ccf6682a838d09e36af909b3"
     },
     {
       "name": "lane10_setup_round2.log.txt",
-      "bytes": 2190,
-      "sha256": "764039d7134faa63625dc7565504006b616959ad72d74d231f021f4f558beeef"
+      "bytes": 2109,
+      "sha256": "91d70015ea993f9b385bc947b596a302dd1dffe81b5e06c972cee641fe23e42a"
     }
   ]
 }

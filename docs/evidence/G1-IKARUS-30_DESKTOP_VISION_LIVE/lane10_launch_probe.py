@@ -9,12 +9,14 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import time
 
-SCRATCH = Path(r"C:\Users\nukei\AppData\Local\Temp\daedalus-lane10")
+SCRATCH = Path(os.environ.get("DAEDALUS_LANE10_SCRATCH")
+               or Path(os.environ["LOCALAPPDATA"]) / "Temp" / "daedalus-lane10")
 FIXTURE = SCRATCH / "fixture" / "lane10-sentinel.txt"
 CANDIDATES = [r"C:\Windows\System32\notepad.exe"]
 HOME = str(Path.home())

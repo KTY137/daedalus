@@ -1906,7 +1906,7 @@
       "seconds": 0.38,
       "ok": false,
       "state": "blocked",
-      "error": "kill switch engaged: a stop marker is present beside the permit [C:\\Users\\nukei\\.daedalus\\control\\f03a8ab03a51\\killswitch]",
+      "error": "kill switch engaged: a stop marker is present beside the permit [<USERPROFILE>\\.daedalus\\control\\f03a8ab03a51\\killswitch]",
       "error_type": "WaveLeaseKillSwitchEngaged",
       "result": null,
       "note": "the kill switch is engaged from another thread while OCR polls its checkpoint"
@@ -1919,7 +1919,7 @@
       "seconds": 0.0,
       "ok": false,
       "state": "blocked",
-      "error": "kill switch engaged: a stop marker is present beside the permit [C:\\Users\\nukei\\.daedalus\\control\\f03a8ab03a51\\killswitch]",
+      "error": "kill switch engaged: a stop marker is present beside the permit [<USERPROFILE>\\.daedalus\\control\\f03a8ab03a51\\killswitch]",
       "error_type": "LoopHalted",
       "result": null,
       "note": "the latched switch must refuse every further step in this service"
