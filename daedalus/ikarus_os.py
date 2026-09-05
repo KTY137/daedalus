@@ -1264,11 +1264,34 @@ def _neutral_cwd() -> str:
     return str(d)
 
 
+def _claude_command_for_chat() -> str:
+    """Resolve Claude through the one executable-admission rule.
+
+    Runtime readiness and the sealed Claude bridge already reject unsafe
+    Windows ``.cmd``/``.bat`` relays via
+    :func:`runtime_registry.claude_command_for_spawn`.  The Voice path must not
+    invent a third answer to the same question.  Convert that admission result
+    into Ikarus' existing refusal-receipt shape so both blocking and streaming
+    chat fail loudly before a provider effect or subprocess can start.
+    """
+    from .runtime_registry import claude_command_for_spawn
+
+    try:
+        return claude_command_for_spawn()
+    except RuntimeError as exc:
+        raise ProviderStartRefused(_deny_receipt(
+            PROVIDER_ENTRYPOINT_ID,
+            contract="provider.executable_admission",
+            endpoint="claude",
+            lane="untrusted",
+            provider="claude",
+            reason=str(exc),
+        )) from exc
+
+
 def _claude(message: str, effort: str | None = None, model: str | None = None,
             context: str = "", *, timeout_s: float = 150.0) -> str | None:
-    path = shutil.which("claude")
-    if not path:
-        return None
+    path = _claude_command_for_chat()
     # Before the argv exists: a refused start costs zero spawns.
     _provider_start("claude", endpoint=path, model=model)
     prompt = _claude_prompt(message, effort, context)
@@ -1613,13 +1636,12 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     --include-partial-messages`.
 
     Both flags are verified present on the installed CLI (2.1.201);
-    ``--verbose`` is required alongside stream-json in --print mode. If the
-    process dies or emits no deltas the generator simply ends, and the caller
-    falls back to the blocking path.
+    ``--verbose`` is required alongside stream-json in --print mode. Executable
+    admission is shared with readiness and the sealed bridge; an unsafe or
+    missing Claude launcher is a loud pre-spawn refusal rather than an empty
+    stream.
     """
-    path = shutil.which("claude")
-    if not path:
-        return
+    path = _claude_command_for_chat()
     _provider_start("claude", endpoint=path, model=model)
     prompt = _claude_prompt(message, effort, context)
     args = [path, "-p", "--output-format", "stream-json",
