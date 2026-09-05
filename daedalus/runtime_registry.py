@@ -101,10 +101,27 @@ RUNTIMES: tuple[RuntimeSpec, ...] = (
 )
 
 
-def _run_version(command: str) -> tuple[bool, str, str]:
+_WINDOWS_BATCH_SUFFIXES = (".cmd", ".bat")
+
+
+def _run_version(
+    command: str,
+    *,
+    refuse_windows_batch_shim: bool = False,
+) -> tuple[bool, str, str]:
     path = shutil.which(command)
     if not path:
         return False, "", f"{command} not found on PATH"
+    if (
+        refuse_windows_batch_shim
+        and os.name == "nt"
+        and path.casefold().endswith(_WINDOWS_BATCH_SUFFIXES)
+    ):
+        return (
+            False,
+            path,
+            f"{command} runtime refused: Windows .cmd/.bat launcher reparses argv",
+        )
     try:
         completed = subprocess.run(
             # Spawn the RESOLVED path, not the bare name: npm ships `codex` as a
@@ -168,7 +185,15 @@ def runtime_status(runtime_id: str) -> dict[str, Any]:
     if spec.id == "ollama_http":
         return {**base, **_ollama_http_status()}
     if spec.mode == "cli":
-        ok, path, detail = _run_version(spec.command)
+        # Claude's live provider path intentionally refuses Windows .cmd/.bat
+        # shims because cmd.exe reparses caller-controlled argv even with
+        # shell=False. The readiness surface must describe that executable
+        # reality rather than merely proving that `claude --version` can run.
+        # Other CLI providers retain their own transport policy here.
+        ok, path, detail = _run_version(
+            spec.command,
+            refuse_windows_batch_shim=(spec.id == "claude_code_cli"),
+        )
         return {
             **base,
             "available": ok,
