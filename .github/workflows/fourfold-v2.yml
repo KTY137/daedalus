@@ -132,6 +132,16 @@ jobs:
           path: runs/tensor_gpu/typed_block_validation_profile_ci.json
           if-no-files-found: error
           retention-days: 7
+      - name: Run one-shot Fourfold indexed-projection decision probe
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python experiments/tensor_gpu/fourfold_projection_index_probe.py \
+            --sizes 64 128 256 \
+            --densities 0.01 0.05 \
+            --pairs 11 \
+            --warmup 3
       - name: Verify public package API
         run: |
           python - <<'PY'
