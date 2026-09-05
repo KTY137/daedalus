@@ -163,8 +163,10 @@ export function MissionControl({
   refreshing
 }: MissionControlProps) {
   const now = useClock();
-  const healthState = overallState(health, healthError);
   const healthCounts = health?.health.counts;
+  const healthSampleStale = healthLoadedAt != null && isStale(healthLoadedAt, now);
+  const healthSampleUnknown = Boolean(healthError) || !healthLoadedAt || healthSampleStale;
+  const healthState: HealthState = healthSampleUnknown ? 'unknown' : overallState(health, '');
   const queue = loop.queue.data?.queue;
   const attempts = loop.attempts.data?.attempts;
   const latest = attempts?.intents?.[0];
@@ -227,8 +229,12 @@ export function MissionControl({
         </div>
         <div className="mc-head-status">
           <StateBadge state={healthState} />
-          <span className={cx('mc-sample', isStale(healthLoadedAt, now) && 'stale')}>
-            {healthError ? 'system sample failed' : ageLabel(healthLoadedAt, now)}
+          <span className={cx('mc-sample', healthSampleStale && 'stale')}>
+            {healthError
+              ? 'system sample failed'
+              : healthSampleStale
+                ? `stale · ${ageLabel(healthLoadedAt, now)}`
+                : ageLabel(healthLoadedAt, now)}
           </span>
         </div>
         <div className="mc-actions">
@@ -258,8 +264,16 @@ export function MissionControl({
         </div>
         <div className="mc-readout">
           <span>system proof</span>
-          <b>{metric(healthCounts?.working)} / {health?.health.subsystems.length ?? '—'}</b>
-          <small>{metric(healthCounts?.degraded)} degraded · {metric(healthCounts?.unknown)} unknown</small>
+          <b>{healthSampleUnknown ? 'unknown' : `${metric(healthCounts?.working)} / ${health?.health.subsystems.length ?? '—'}`}</b>
+          <small>
+            {healthError
+              ? 'endpoint unread'
+              : !healthLoadedAt
+                ? 'never sampled'
+                : healthSampleStale
+                  ? `stale · ${ageLabel(healthLoadedAt, now)}`
+                  : `${metric(healthCounts?.degraded)} degraded · ${metric(healthCounts?.unknown)} unknown`}
+          </small>
         </div>
         <div className="mc-readout">
           <span>provider sample</span>
@@ -408,19 +422,24 @@ export function MissionControl({
           <section>
             <SectionTitle
               icon={<Activity size={14} />}
-              tail={<span className="mc-sample">{ageLabel(healthLoadedAt, now)}</span>}
+              tail={<span className={cx('mc-sample', healthSampleStale && 'stale')}>{ageLabel(healthLoadedAt, now)}</span>}
             >
               unresolved checks
             </SectionTitle>
             {healthError && <p className="mc-inline-error">{healthError}</p>}
             <div className="mc-issues">
+              {healthSampleUnknown && health && (
+                <div className="mc-unknown-copy">
+                  System proof is {healthError ? 'unreadable' : healthSampleStale ? 'stale' : 'unsampled'}; cached subsystem verdicts are UNKNOWN until refreshed.
+                </div>
+              )}
               {issues.map((item) => (
                 <div key={item.name}>
-                  <StateBadge state={coerceState(item.state)} compact />
+                  <StateBadge state={healthSampleUnknown ? 'unknown' : coerceState(item.state)} compact />
                   <span><b>{item.name}</b><small>{item.headline}</small></span>
                 </div>
               ))}
-              {!healthError && issues.length === 0 && health && (
+              {!healthSampleUnknown && issues.length === 0 && health && (
                 <div className="mc-unknown-copy">Every cheap system check was exercised and held.</div>
               )}
               {!health && !healthError && (
