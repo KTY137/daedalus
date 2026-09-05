@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from .fallback import fallback_decision
 from .router import route_task
+from .runtime_registry import claude_command_for_spawn
 from .schemas import REPORT_KEYS, validate_report
 from .token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX, trim_paths
 
@@ -57,9 +58,6 @@ REPORT_SCHEMA: dict[str, Any] = {
     "required": sorted(REPORT_KEYS),
     "additionalProperties": False,
 }
-
-
-_CMD_SHIM_SUFFIXES = (".cmd", ".bat")
 
 
 @dataclass(frozen=True)
@@ -111,24 +109,9 @@ class ClaudeSealedInvocationBundle:
 
 
 def _command_for_spawn(resolved: str | None, *, platform_name: str) -> str:
-    """Return the executable that may receive argv without a shell relay.
+    """Compatibility seam for tests; the runtime registry owns this policy."""
 
-    On Windows, ``subprocess.run(..., shell=False)`` still routes ``.cmd`` and
-    ``.bat`` launchers through ``cmd.exe``. That command interpreter reparses
-    every argv element, so a provider prompt or model value must never cross
-    that boundary. Refuse the launch rather than pretending ``shell=False``
-    makes a shell script behave like a native executable.
-    """
-
-    if platform_name != "nt":
-        return "claude"
-    if not resolved:
-        raise RuntimeError("Claude executable could not be resolved before spawn")
-    if resolved.casefold().endswith(_CMD_SHIM_SUFFIXES):
-        raise RuntimeError(
-            "Claude execution refused: Windows .cmd/.bat launchers reparse argv"
-        )
-    return resolved
+    return claude_command_for_spawn(resolved, platform_name=platform_name)
 
 
 def build_prompt(
