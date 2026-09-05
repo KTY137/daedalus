@@ -147,16 +147,8 @@ def boolean_relation_block_from_fourfold(
             semiring,
         )
 
-    coordinates: list[tuple[str, str, bool]] = []
-
-    def append(source: str, target: str) -> None:
-        if len(coordinates) >= MAX_BLOCK_ENTRIES:
-            raise ValueError(
-                f"relation projection exceeds bounded limit {MAX_BLOCK_ENTRIES}"
-            )
-        coordinates.append((source, target, True))
-
     retained_digests = source_plane.relation_sha256s
+    endpoints: list[tuple[str, str]] = []
     if retained_digests:
         for hyperedge in forest.hyperedges:
             if hyperedge.relation != signature.relation:
@@ -177,15 +169,31 @@ def boolean_relation_block_from_fourfold(
                 raise ValueError(
                     "binary relation projection requires an explicitly directed ForestEdge"
                 )
-            append(edge.source, edge.target)
+            if len(endpoints) >= MAX_BLOCK_ENTRIES:
+                raise ValueError(
+                    f"relation projection exceeds bounded limit {MAX_BLOCK_ENTRIES}"
+                )
+            endpoints.append((edge.source, edge.target))
 
-    return TypedRelationBlock.from_coordinates(
-        subject=subject,
-        signature=signature,
-        row_axis=row_axis,
-        column_axis=column_axis,
-        coordinates=coordinates,
-        semiring=semiring,
+    entries: dict[tuple[int, int], bool] = {}
+    if endpoints:
+        positions = {label: position for position, label in enumerate(row_axis.labels)}
+        for source, target in endpoints:
+            row_position = positions.get(source)
+            if row_position is None:
+                raise ValueError(f"unknown row label {source!r}")
+            column_position = positions.get(target)
+            if column_position is None:
+                raise ValueError(f"unknown column label {target!r}")
+            entries[(row_position, column_position)] = True
+
+    return TypedRelationBlock._from_indexed(
+        subject,
+        signature,
+        row_axis,
+        column_axis,
+        entries,
+        semiring,
     )
 
 
