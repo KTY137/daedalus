@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import ast
 import inspect
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
 
+import daedalus.claude_bridge as claude_bridge
 import daedalus.providers.claude_cli as claude_provider
 from daedalus.providers.claude_cli import (
     ClaudeCLIProvider,
@@ -18,6 +20,9 @@ from daedalus.providers.claude_cli import (
 
 
 SEALED_FIELDS = {
+    "runtime_authorization",
+    "effect_execution",
+    "workspace_grant",
     "invocation_authority",
     "invocation_payload",
     "invocation_abi",
@@ -46,6 +51,79 @@ def _invocation(tmp_path: Path, **changes: object) -> str:
     }
     values.update(changes)
     return claude_invocation_sha256(**values)  # type: ignore[arg-type]
+
+
+def _sealed_bundle(**changes: object) -> claude_bridge.ClaudeSealedInvocationBundle:
+    values = {name: object() for name in SEALED_FIELDS}
+    values.update(changes)
+    return claude_bridge.ClaudeSealedInvocationBundle(**values)  # type: ignore[arg-type]
+
+
+def test_public_claude_bridge_exposes_one_indivisible_sealed_bundle() -> None:
+    parameters = inspect.signature(claude_bridge.ask_claude).parameters
+
+    assert "sealed_bundle" in parameters
+    assert parameters["sealed_bundle"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert SEALED_FIELDS.isdisjoint(parameters)
+    assert {field.name for field in fields(claude_bridge.ClaudeSealedInvocationBundle)} == SEALED_FIELDS
+
+
+def test_public_claude_bridge_rejects_duck_typed_bundle_before_member_access() -> None:
+    class AmbientBundle:
+        @property
+        def runtime_authorization(self):
+            raise AssertionError("duck-typed capability member was evaluated")
+
+    with pytest.raises(
+        ClaudeProviderAuthorizationRequired,
+        match="one exact ClaudeSealedInvocationBundle",
+    ):
+        claude_bridge.ask_claude(
+            "review",
+            "unused",
+            [],
+            sealed_bundle=AmbientBundle(),  # type: ignore[arg-type]
+        )
+
+
+def test_sealed_bundle_rejects_empty_member_at_construction() -> None:
+    with pytest.raises(ValueError, match="pre_admission"):
+        _sealed_bundle(pre_admission=None)
+
+
+def test_public_claude_bridge_unwraps_exact_bundle_only_at_provider_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _sealed_bundle()
+    agent = {"name": "reviewer", "model_tier": "sonnet"}
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(claude_bridge, "route_task", lambda objective, paths: agent)
+
+    def fake_run(self, **kwargs):
+        captured.update(kwargs)
+        return {"report": {"status": "done"}}
+
+    monkeypatch.setattr(ClaudeCLIProvider, "run", fake_run)
+
+    result = claude_bridge.ask_claude(
+        "review exact diff",
+        "/isolated/worktree",
+        ["src/ikarus.py"],
+        model="sonnet",
+        timeout_s=45,
+        sealed_bundle=bundle,
+    )
+
+    assert result == {"report": {"status": "done"}}
+    assert captured["objective"] == "review exact diff"
+    assert captured["repo_root"] == "/isolated/worktree"
+    assert captured["paths"] == ["src/ikarus.py"]
+    assert captured["agent"] is agent
+    assert captured["model"] == "sonnet"
+    assert captured["timeout_s"] == 45
+    for name in SEALED_FIELDS:
+        assert captured[name] is getattr(bundle, name)
 
 
 def test_claude_provider_exposes_only_complete_sealed_runtime_contract() -> None:
@@ -93,9 +171,13 @@ def test_missing_sealed_bundle_refuses_before_runtime_objects_are_touched() -> N
         )
 
 
-@pytest.mark.parametrize("missing", sorted(SEALED_FIELDS))
-def test_partial_sealed_bundle_is_fail_closed(missing: str) -> None:
-    sealed = {name: object() for name in SEALED_FIELDS}
+@pytest.mark.parametrize("missing", sorted(SEALED_FIELDS - {"runtime_authorization", "effect_execution", "workspace_grant"}))
+def test_partial_provider_sealed_bundle_is_fail_closed(missing: str) -> None:
+    sealed = {
+        name: object()
+        for name in SEALED_FIELDS
+        if name not in {"runtime_authorization", "effect_execution", "workspace_grant"}
+    }
     sealed[missing] = None
 
     with pytest.raises(
