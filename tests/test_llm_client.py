@@ -26,6 +26,27 @@ def test_explicit_deterministic_is_still_possible_but_never_auto():
     assert automatic.provider is None
 
 
+def test_environment_can_pin_auto_voice_to_deterministic_without_runtime_probes():
+    seen = []
+
+    def probe(runtime_id):
+        seen.append(runtime_id)
+        return {"available": True}
+
+    client = IkarusLLMClient(
+        environ={"DAEDALUS_IKARUS_PROVIDER": "deterministic"},
+        status_probe=probe,
+    )
+    selection = client.resolve(None)
+
+    assert selection.provider == "deterministic"
+    assert selection.requested == "auto"
+    assert selection.auto_selected is True
+    assert selection.max_attempts == 1
+    assert selection.reason == "configured deterministic Voice policy"
+    assert seen == []
+
+
 def test_environment_can_choose_available_voice_without_code_change():
     client = IkarusLLMClient(
         environ={"DAEDALUS_IKARUS_PROVIDER": "codex", "DAEDALUS_IKARUS_TIMEOUT_S": "44"},
