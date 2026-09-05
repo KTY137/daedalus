@@ -217,6 +217,16 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   web/desktop/mobile preview-ready (PWA labelling retained as blockers), cli
   refuses the kanban blueprint before any effect and succeeds for the
   item-collection product with its black-box gate.
+- Stages 10-11 `G1-EDA-HOST-STATUS-01` (EXPERIMENT): the existing chip-design
+  slice on this host reports only tclsh available (Vivado/Vitis/XSCT/Quartus/
+  Yosys/OpenROAD/simulators honestly unavailable, no fallback); effect-free
+  scan/inspect/plan on a generated minimal XPR bind deterministic identities
+  and leave the fixture unchanged. No second self-Renovation target: the only
+  refuted claim found lives in CLAUDE.md, a protected file a candidate may
+  not touch.
+- Owner lifted the budget at 15:15 (unbounded_execution policy for this
+  session's processes); the live cross-vendor council over stages 3-11 waits
+  on a harness permission the owner must grant.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
