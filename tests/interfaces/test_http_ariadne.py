@@ -503,3 +503,36 @@ def test_post_ariadne_rejects_duplicate_json_field_before_effect(
     assert status == 400
     assert "duplicate JSON field" in payload["error"]
     assert begin_calls == []
+
+
+def test_post_ariadne_returns_the_retained_failed_receipt_with_200(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A failed campaign is a canonical receipt with retained blockers, not a 4xx string."""
+    monkeypatch.setattr(
+        web_api, "resolve_registered_project_root", lambda _project: str(tmp_path)
+    )
+    failed = {
+        **_receipt(),
+        "outcome": "failed",
+        "selected_seed": None,
+        "candidate_tree_sha256": None,
+        "candidate_tree_locator": None,
+        "nomination_receipt_sha256": None,
+        "nomination_receipt_locator": None,
+        "execution_order": [0],
+        "blockers": [
+            "baseline:AriadneCampaignError: frozen evaluator output is invalid"
+        ],
+    }
+    monkeypatch.setattr(web_api, "_run_ariadne_campaign", lambda **_kwargs: failed)
+
+    with _server() as (base, _):
+        status, payload = _post(base, _request_body())
+
+    assert status == 200
+    assert payload["ok"] is True
+    assert payload["ariadne"]["outcome"] == "failed"
+    assert payload["ariadne"]["blockers"] == failed["blockers"]
+    assert payload["ariadne"]["nomination_receipt_sha256"] is None

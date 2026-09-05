@@ -1324,3 +1324,100 @@ def test_source_revision_is_checked_against_the_real_git_head(
         )
     assert not (tmp_path / "control").exists()
     assert (root / "sample.txt").read_text(encoding="utf-8") == "broken\n"
+
+
+def test_first_call_returns_the_retained_failed_receipt_for_an_evaluator_contract_violation(
+    tmp_path, monkeypatch
+):
+    """G1-ARIADNE-04: a domain failure is a retained negative outcome, not an error.
+
+    Before this packet the first call re-raised the arm failure after the
+    failed receipt had already been committed, so an HTTP caller saw a bare
+    400 string and the canonical receipt only on the replay (Odysseus finding
+    on G1-ARIADNE-02). Foreign crashes keep raising (see the RuntimeError
+    case in test_real_outer_leases_allow_exact_campaign_replay).
+    """
+    import hashlib as _hashlib
+
+    import daedalus.ariadne.campaign as module
+    from daedalus.spine.killswitch import KillSwitch
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "sample.txt").write_text("broken\n", encoding="utf-8")
+    switch_path = tmp_path / "control" / "killswitch"
+    monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(switch_path))
+    monkeypatch.setattr(
+        module,
+        "verify_repository_head_revision",
+        lambda *_args: SimpleNamespace(to_dict=lambda: {"head": REV}),
+    )
+
+    class _Contained:
+        @staticmethod
+        def summary() -> dict[str, object]:
+            return {
+                "requested": True,
+                "executes_candidate": True,
+                "contained": True,
+                "platform": "test",
+                "mechanism": "polluted-evaluator-test-double",
+                "inherited_handle_count": 0,
+            }
+
+    evaluations: list[str] = []
+
+    def polluted_command_gate(argv, **_kwargs):
+        expected_sha256 = str(argv[-1])
+
+        def evaluate(context):
+            payload = (context.worktree / "sample.txt").read_bytes()
+            observed = _hashlib.sha256(payload).hexdigest()
+            # The exact shape of the measured Windows defect: a launcher
+            # warning ahead of the one canonical JSON line.
+            output = "warning: Making stdin inheritable failed\n" + canonical_json({
+                "expected_sha256": expected_sha256,
+                "observed_sha256": observed,
+                "passed": observed == expected_sha256,
+            }) + "\n"
+            evaluations.append(context.task.task_id)
+            return SimpleNamespace(
+                passed=observed == expected_sha256,
+                returncode=0 if observed == expected_sha256 else 1,
+                output=output,
+                output_sha256=_hashlib.sha256(output.encode("ascii")).hexdigest(),
+                duration_s=0.001,
+                containment=_Contained(),
+            )
+
+        return evaluate
+
+    monkeypatch.setattr(module, "command_gate", polluted_command_gate)
+    switch = KillSwitch(repo_root=root)
+    assert switch.arm(note="failed receipt first call").running
+    arguments = {
+        "repo_root": root,
+        "source_revision": REV,
+        "campaign_id": "failed-first-call",
+        "target_path": "sample.txt",
+        "before": "broken",
+        "after": "fixed",
+        "timeout_s": 5,
+    }
+    try:
+        first = module.run_campaign(**arguments)
+        second = module.run_campaign(**arguments)
+    finally:
+        switch.stop()
+
+    assert first["outcome"] == "failed"
+    assert first["execution_order"] == [0]
+    assert first["selected_seed"] is None and first["candidate_tree_sha256"] is None
+    assert any("frozen evaluator output is invalid" in b for b in first["blockers"]), first["blockers"]
+    # The faulted baseline Attempt is retained with the "error" trial status;
+    # the campaign outcome is "failed".
+    assert [trial["status"] for trial in first["trials"]] == ["error"]
+    assert evaluations == ["failed-first-call-baseline"], evaluations
+    # The replay is the same canonical receipt and executes nothing.
+    assert second == first
+    assert (root / "sample.txt").read_text(encoding="utf-8") == "broken\n"
