@@ -235,27 +235,51 @@ class ClaudeStreamFrameTest(unittest.TestCase):
                 "delta": {"type": "text_delta", "text": " there"}}}) + "\n",
             json.dumps({"type": "result", "result": "Hi there"}) + "\n",
         ]
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.runtime_registry.claude_command_for_spawn",
+                        return_value="/usr/bin/claude") as admit, \
+             mock.patch.object(ikarus_os, "_provider_start"), \
              mock.patch("subprocess.Popen", return_value=self._fake_proc(lines)):
             out = list(ikarus_os._claude_stream("hello"))
         self.assertEqual(out, ["Hi", " there"])
+        admit.assert_called_once_with()
 
-    def test_uses_stream_json_flags(self):
-        with mock.patch("shutil.which", return_value="claude"), \
+    def test_uses_stream_json_flags_and_admitted_executable(self):
+        with mock.patch("daedalus.runtime_registry.claude_command_for_spawn",
+                        return_value="/safe/claude") as admit, \
+             mock.patch.object(ikarus_os, "_provider_start"), \
              mock.patch("subprocess.Popen", return_value=self._fake_proc([])) as pop:
             list(ikarus_os._claude_stream("hello"))
+        admit.assert_called_once_with()
         args = pop.call_args[0][0]
+        self.assertEqual(args[0], "/safe/claude")
         self.assertIn("--output-format", args)
         self.assertIn("stream-json", args)
         self.assertIn("--include-partial-messages", args)
         self.assertIn("--verbose", args)  # required with stream-json in -p mode
 
-    def test_missing_cli_yields_nothing(self):
-        with mock.patch("shutil.which", return_value=None):
-            self.assertEqual(list(ikarus_os._claude_stream("hello")), [])
+    def test_executable_admission_refusal_is_loud_before_spawn(self):
+        reason = "Claude execution refused: Windows .cmd/.bat launchers reparse argv"
+        with mock.patch("daedalus.runtime_registry.claude_command_for_spawn",
+                        side_effect=RuntimeError(reason)), \
+             mock.patch.object(ikarus_os, "_provider_start") as start, \
+             mock.patch("subprocess.Popen") as pop:
+            with self.assertRaises(ikarus_os.ProviderStartRefused) as caught:
+                list(ikarus_os._claude_stream("hello"))
+        start.assert_not_called()
+        pop.assert_not_called()
+        receipt = caught.exception.receipt
+        self.assertEqual(receipt["contract"], "provider.executable_admission")
+        self.assertEqual(receipt["provider"], "claude")
+        self.assertEqual(receipt["host"], "claude")
+        self.assertEqual(receipt["reason"], reason)
+        self.assertIs(receipt["spawned"], False)
+        self.assertIs(receipt["connected"], False)
+        self.assertEqual(len(receipt["receipt_sha256"]), 64)
 
     def test_spawn_failure_yields_nothing(self):
-        with mock.patch("shutil.which", return_value="claude"), \
+        with mock.patch("daedalus.runtime_registry.claude_command_for_spawn",
+                        return_value="/usr/bin/claude"), \
+             mock.patch.object(ikarus_os, "_provider_start"), \
              mock.patch("subprocess.Popen", side_effect=OSError("no exec")):
             self.assertEqual(list(ikarus_os._claude_stream("hello")), [])
 
@@ -268,6 +292,34 @@ class NonStreamingUnchangedTest(unittest.TestCase):
         self.assertEqual(res["provider_used"], "unavailable")
         self.assertEqual(res["intent"], "error")
         self.assertIn("no available LLM voice", res["assistant"])
+
+    def test_blocking_claude_uses_shared_executable_admission(self):
+        completed = mock.Mock(stdout="  hi  ")
+        with mock.patch("daedalus.runtime_registry.claude_command_for_spawn",
+                        return_value="/safe/claude") as admit, \
+             mock.patch.object(ikarus_os, "_provider_start") as start, \
+             mock.patch("subprocess.run", return_value=completed) as run:
+            out = ikarus_os._claude("hello", model="sonnet")
+        self.assertEqual(out, "hi")
+        admit.assert_called_once_with()
+        start.assert_called_once_with("claude", endpoint="/safe/claude", model="sonnet")
+        self.assertEqual(run.call_args.args[0][0], "/safe/claude")
+        self.assertIn("--model", run.call_args.args[0])
+
+    def test_blocking_claude_admission_refuses_before_effect_or_spawn(self):
+        reason = "Claude executable could not be resolved before spawn"
+        with mock.patch("daedalus.runtime_registry.claude_command_for_spawn",
+                        side_effect=RuntimeError(reason)), \
+             mock.patch.object(ikarus_os, "_provider_start") as start, \
+             mock.patch("subprocess.run") as run:
+            with self.assertRaises(ikarus_os.ProviderStartRefused) as caught:
+                ikarus_os._claude("hello")
+        start.assert_not_called()
+        run.assert_not_called()
+        self.assertEqual(caught.exception.receipt["contract"],
+                         "provider.executable_admission")
+        self.assertEqual(caught.exception.receipt["reason"], reason)
+        self.assertIs(caught.exception.receipt["spawned"], False)
 
     def test_blocking_ollama_is_one_guarded_native_transport(self):
         with mock.patch.object(ikarus_os, "_provider_start") as start, \
