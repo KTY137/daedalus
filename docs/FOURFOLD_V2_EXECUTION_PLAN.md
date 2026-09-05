@@ -259,8 +259,14 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   `ComputerService`, 17 effects, four adapter findings, no image retained),
   and the adversarial review of stage 13 (both claims hold; manifest digests
   were unpinned against CRLF checkouts, now `-text` pinned with a test over
-  every evidence manifest). Pending: `G1-KERNEL-02` (interruptible provider
-  calls) and `G1-EDA-HOST-STATUS-02` (Vivado Tcl emission).
+  every evidence manifest), and `G1-KERNEL-02` (an in-flight provider call
+  runs on a daemon worker so the caller can stop waiting on a cancellation
+  probe; no socket teardown, `timeout_s` untouched, no new cap axis; the
+  budget interposer's per-thread mark is carried to the worker; measured on
+  the way: Ollama's `/v1` endpoint ignores `keep_alive` and pins
+  `context_length` 4096, evicting a natively warmed instance, so routing the
+  computer planner through the native path is the next packet). Pending:
+  `G1-EDA-HOST-STATUS-02` (Vivado Tcl emission) and the lane-3 fix-forward.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
