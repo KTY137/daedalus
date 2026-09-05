@@ -51,6 +51,39 @@ later packet would, and why the flip is one-directional.
 - Tests against a stub whose functions raise `NotImplementedError`:
   `58 failed in 229.36s` — every one of the 58 discriminates.
 
+## Adversarial review and fix-forward (2026-09-05, after b00665dd)
+
+A peer session's Odysseus attacked the first commit and confirmed two defects.
+Both are fixed forward in a second commit on this branch; the history keeps the
+defective revision so the attack stays reproducible.
+
+- **D1 — the delta-chain bound existed only on one branch.** `_MAX_DELTA_DEPTH`
+  was passed through the `OFS_DELTA` recursion, but the `REF_DELTA` branch
+  resolved its base through `_Store.load`, which restarted the depth at zero. A
+  reference chain of any length resolved, and a cycle `A <-> B` ended in
+  `RecursionError` — outside the `GitObjectError` contract. Odysseus's mutation
+  "depth limit removed" turned **0 of 58** tests red, which is the real defect:
+  the bound was untested on both branches. Fixed by threading `depth` and a
+  `visiting` set through `load` / `_load_packed` / `_load_from_pack`, with a
+  cycle raising `GitObjectIntegrityError`.
+- **D2 — a `.git` NTFS junction was followed.** `_admit_repository` refused
+  symlinks (`S_ISLNK`) and gitdir pointer files, but a junction (`mklink /J`,
+  **no elevation required**) reports as an ordinary directory: `is_symlink()`
+  is false and `S_ISLNK` is unset. Measured: a junction `.git` served bytes
+  from a *different* repository while `to_dict()` reported
+  `object_id_verified: true, working_tree_read: false`. The docstring sentence
+  "Nothing here opens a file outside `<root>/.git`" was defeated by the
+  cheapest Windows redirect. Fixed by `_refuse_redirected_git_dir`: any
+  non-zero `st_reparse_tag`, plus the `(st_dev, st_ino)`-versus-`resolve()`
+  identity check the repository root already had.
+
+Held under the same attack, unchanged: zlib bombs (loose and packed, header
+lying in both directions), delta expansion past the declared size, copies
+outside the base, OFS offsets pointing at themselves or forward, idx offsets
+past EOF, non-monotonic fanout, a duplicate id across two packs (the bad copy
+refuses and is never served), a loose object shadowing a packed one, and the
+byte-exact tree walk. Peak memory stayed at 0.2–0.8 MiB.
+
 ## Scope
 
 In scope, both files new:
@@ -106,8 +139,10 @@ Bounds: `max_bytes` is a strict positive `int` up to a 64 MiB reader ceiling; a
 blob whose declared size exceeds it refuses *before* the payload is
 materialized (loose: from the object header; packed: from the pack header or
 the delta's declared result size). Commits, trees and delta bases use
-`max(max_bytes, 64 MiB)`. Delta chains are bounded at 64 links and an
-`OFS_DELTA` base must lie earlier in the pack, so a cycle cannot exist.
+`max(max_bytes, 64 MiB)`. Delta chains are bounded at 64 links **on both the
+offset and the reference branch** (`depth` and a `visiting` set travel with the
+resolution), an `OFS_DELTA` base must lie earlier in the pack, and a reference
+cycle is a typed `GitObjectIntegrityError` rather than a `RecursionError`.
 
 ### How `G1-ARIADNE-05` could set `head_content_verified: true` (not done here)
 
@@ -196,6 +231,23 @@ subject never spawns one.
 | `tests/runtimes/test_runtime_gate_contract_boundaries.py` (runtimes must not import `daedalus.gates`) | passed |
 | `tests/test_architecture_boundaries.py`, `tests/kernel/test_contract_hierarchy.py`, `tests/gates/test_repository_head_revision*.py`, `tests/test_ariadne_campaign_v0.py` | see the evidence log |
 
+Fix-forward for D1 and D2 (second commit; forged packs, no git binary in these
+fixtures):
+
+| Check | Result (2026-09-05, worktree) |
+| --- | --- |
+| the 7 new tests before the fix | 3 failed, 4 passed — `[ref]` chain over the limit, the `A <-> B` cycle, and the junction; the `[ofs]` variant already passed, which is D1's exact shape |
+| the 7 new tests after the fix | 7 passed |
+| reference and offset chain of exactly `_MAX_DELTA_DEPTH` links | resolves, bytes correct, `delta_kinds` 64 long |
+| reference and offset chain of `_MAX_DELTA_DEPTH + 1` | `GitObjectIntegrityError` naming the delta chain |
+| `REF_DELTA` cycle `A <-> B` | `GitObjectIntegrityError` naming the cycle and the object |
+| `.git` as an NTFS junction (`mklink /J`, no elevation; skips honestly elsewhere) | `GitObjectLayoutError` naming the reparse point, while the real checkout still reads |
+| mutation "depth check disabled" | 2 red (was 0 of 58 under Odysseus) |
+| mutation "cycle set disabled" | 1 red |
+| mutation "junction guard disabled" | 1 red |
+| whole lane suite after the fix | **65 passed** (7.4 s) |
+| boundary suites after the fix (runtime/gate contract boundaries, contract hierarchy, repository head revision + review, ariadne campaign v0, architecture boundaries) | **251 passed, 2 skipped** (59.3 s) |
+
 ## Migration and rollback
 
 Nothing imports the module, so rollback is `git rm` of two files. No contract,
@@ -217,8 +269,15 @@ Expected failures and honest residuals:
   built in a test, so the 8-byte offset table is exercised through a
   hand-written `.idx` against `_PackIndex`. The `.pack` side of that path is
   untested.
-- **Chain-depth and pack-count bounds are unexercised.** `_MAX_DELTA_DEPTH`
-  (64) and `_MAX_PACK_FILES` (1024) are refusals no fixture reaches.
+- **`_MAX_PACK_FILES` (1024) is a refusal no fixture reaches.** The delta-depth
+  bound was in this list until Odysseus proved it was not merely untested but
+  absent on the reference branch; it is now tested on both branches at the
+  boundary, and `_MAX_PACK_FILES` is the only unexercised bound left.
+- **"Verified" still means the object SHA-1 only.** Odysseus corrupted the idx
+  trailer, the idx self-checksum, the pack trailer and CRC entries: correct
+  bytes were still served and nothing was reported. That is the documented
+  boundary, not a defect, but a reviewer should read it as narrower than
+  "the pack is intact".
 - **Only what was read is verified.** A repository can be corrupt in objects
   this reader never touches and still answer. The claim is per-object, not
   per-repository; it is not `git fsck`.
@@ -230,7 +289,7 @@ Expected failures and honest residuals:
 - **`git` in the fixtures.** If the review wants the subject proven against a
   repository no `git` binary produced, that is a separate fixture packet.
 
-Review questions: (1) does the per-object verification boundary as stated cover
+Review questions: (0) the fix-forward changed a signature that nothing outside the module calls (`_Store.load` gained `depth`/`visiting`); is a keyword-only form preferred? (1) does the per-object verification boundary as stated cover
 what a reviewer would call "verified", given the pack trailer is not checked?
 (2) is a leaf module with no caller acceptable at Gate 1, or should the flip in
 `G1-ARIADNE-05` be one packet with it? (3) is the one-directional reading of

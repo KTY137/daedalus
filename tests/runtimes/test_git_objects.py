@@ -770,3 +770,248 @@ def test_observation_projection_carries_provenance_without_bytes(
     assert payload["process_spawned"] is False
     assert payload["working_tree_read"] is False
     assert "data" not in payload
+
+
+# --------------------------------------------------------------------------
+# delta-chain bounds (D1, Odysseus 2026-09-05)
+#
+# Real git will not produce a chain past its own pack.depth and cannot be made
+# to write a cycle at all, so these fixtures forge the pack: a PACK header, one
+# record per object, an .idx v2 beside it. No git binary is involved.
+# --------------------------------------------------------------------------
+
+
+def _object_id(kind: str, content: bytes) -> str:
+    return hashlib.sha1(
+        f"{kind} {len(content)}\x00".encode("ascii") + content
+    ).hexdigest()
+
+
+def _pack_object_header(type_code: int, size: int) -> bytes:
+    byte = (type_code << 4) | (size & 0x0F)
+    size >>= 4
+    out = bytearray()
+    while size:
+        out.append(byte | 0x80)
+        byte = size & 0x7F
+        size >>= 7
+    out.append(byte)
+    return bytes(out)
+
+
+def _offset_distance(distance: int) -> bytes:
+    out = bytearray([distance & 0x7F])
+    distance >>= 7
+    while distance:
+        distance -= 1
+        out.insert(0, 0x80 | (distance & 0x7F))
+        distance >>= 7
+    return bytes(out)
+
+
+def _delta_varint(value: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        if value:
+            out.append(byte | 0x80)
+            continue
+        out.append(byte)
+        return bytes(out)
+
+
+def _append_delta(base: bytes, suffix: bytes) -> bytes:
+    """Copy the whole base, then insert ``suffix``."""
+
+    payload = bytearray()
+    payload += _delta_varint(len(base))
+    payload += _delta_varint(len(base) + len(suffix))
+    opcode = 0x80
+    operands = bytearray()
+    for index in range(3):
+        byte = (len(base) >> (index * 8)) & 0xFF
+        if byte:
+            opcode |= 0x10 << index
+            operands.append(byte)
+    payload.append(opcode)
+    payload += operands
+    payload.append(len(suffix))
+    payload += suffix
+    return bytes(payload)
+
+
+def _forge_pack(
+    directory: Path,
+    records: list[tuple[str, int, bytes, tuple[str, str] | None]],
+) -> None:
+    """Write one ``.pack``/``.idx`` v2 pair from explicit object records."""
+
+    body = bytearray(b"PACK" + struct.pack(">II", 2, len(records)))
+    offsets: dict[str, int] = {}
+    crcs: dict[str, int] = {}
+    for object_id, type_code, payload, base in records:
+        start = len(body)
+        offsets[object_id] = start
+        body += _pack_object_header(type_code, len(payload))
+        if base is not None:
+            kind, reference = base
+            if kind == "ref":
+                body += bytes.fromhex(reference)
+            else:
+                body += _offset_distance(start - offsets[reference])
+        body += zlib.compress(payload)
+        crcs[object_id] = zlib.crc32(bytes(body[start:])) & 0xFFFFFFFF
+    checksum = hashlib.sha1(bytes(body)).digest()
+    body += checksum
+
+    directory.mkdir(parents=True, exist_ok=True)
+    name = f"pack-{checksum.hex()}"
+    (directory / f"{name}.pack").write_bytes(bytes(body))
+
+    ids = sorted(offsets)
+    fanout = [0] * 256
+    for object_id in ids:
+        fanout[int(object_id[:2], 16)] += 1
+    running = 0
+    for position in range(256):
+        running += fanout[position]
+        fanout[position] = running
+    index = bytearray(b"\xfftOc" + struct.pack(">I", 2))
+    index += b"".join(struct.pack(">I", value) for value in fanout)
+    index += b"".join(bytes.fromhex(object_id) for object_id in ids)
+    index += b"".join(struct.pack(">I", crcs[object_id]) for object_id in ids)
+    index += b"".join(struct.pack(">I", offsets[object_id]) for object_id in ids)
+    index += checksum
+    index += hashlib.sha1(bytes(index)).digest()
+    (directory / f"{name}.idx").write_bytes(bytes(index))
+
+
+def _forge_commit(
+    records: list[tuple[str, int, bytes, tuple[str, str] | None]],
+    name: str,
+    blob_id: str,
+) -> str:
+    tree = b"100644 " + name.encode("ascii") + b"\x00" + bytes.fromhex(blob_id)
+    tree_id = _object_id("tree", tree)
+    commit = (
+        f"tree {tree_id}\n".encode("ascii")
+        + b"author Lane Three <lane3@daedalus.test> 0 +0000\n"
+        + b"committer Lane Three <lane3@daedalus.test> 0 +0000\n\nforged\n"
+    )
+    commit_id = _object_id("commit", commit)
+    records.append((tree_id, 2, tree, None))
+    records.append((commit_id, 1, commit, None))
+    return commit_id
+
+
+def _delta_chain_repository(root: Path, links: int, kind: str) -> tuple[str, bytes]:
+    """A repository whose ``chain.txt`` sits at the end of ``links`` deltas."""
+
+    contents = [b"forged chain base\n" + b"x" * step for step in range(links + 1)]
+    records: list[tuple[str, int, bytes, tuple[str, str] | None]] = []
+    previous = _object_id("blob", contents[0])
+    records.append((previous, 3, contents[0], None))
+    for step in range(1, links + 1):
+        object_id = _object_id("blob", contents[step])
+        records.append(
+            (
+                object_id,
+                7 if kind == "ref" else 6,
+                _append_delta(contents[step - 1], b"x"),
+                (kind, previous),
+            )
+        )
+        previous = object_id
+    commit_id = _forge_commit(records, "chain.txt", previous)
+    _forge_pack(root / ".git" / "objects" / "pack", records)
+    return commit_id, contents[links]
+
+
+def test_a_short_reference_delta_chain_still_resolves(tmp_path: Path) -> None:
+    """The forge is only evidence if a legal chain through it reads correctly."""
+
+    root = tmp_path / "short"
+    commit_id, expected = _delta_chain_repository(root, 3, "ref")
+    observation = read_blob_at(root, commit_id, "chain.txt", MAX)
+    assert observation.data == expected
+    assert observation.delta_kinds == ("ref_delta", "ref_delta", "ref_delta")
+    assert observation.source == "pack"
+
+
+@pytest.mark.parametrize("kind", ("ref", "ofs"))
+def test_delta_chain_at_the_depth_limit_resolves(tmp_path: Path, kind: str) -> None:
+    from daedalus.runtimes.contracts.git_objects import _MAX_DELTA_DEPTH
+
+    root = tmp_path / f"limit-{kind}"
+    commit_id, expected = _delta_chain_repository(root, _MAX_DELTA_DEPTH, kind)
+    observation = read_blob_at(root, commit_id, "chain.txt", MAX)
+    assert observation.data == expected
+    assert len(observation.delta_kinds) == _MAX_DELTA_DEPTH
+    assert set(observation.delta_kinds) == {f"{kind}_delta"}
+
+
+@pytest.mark.parametrize("kind", ("ref", "ofs"))
+def test_delta_chain_beyond_the_depth_limit_is_refused(
+    tmp_path: Path, kind: str
+) -> None:
+    """The bound must hold for both branches; it held only for OFS before."""
+
+    from daedalus.runtimes.contracts.git_objects import _MAX_DELTA_DEPTH
+
+    root = tmp_path / f"beyond-{kind}"
+    commit_id, _ = _delta_chain_repository(root, _MAX_DELTA_DEPTH + 1, kind)
+    with pytest.raises(GitObjectIntegrityError) as error:
+        blob_at(root, commit_id, "chain.txt", MAX)
+    assert "delta chain" in str(error.value)
+
+
+def test_reference_delta_cycle_is_a_typed_refusal(tmp_path: Path) -> None:
+    """A <-> B must refuse, not exhaust the interpreter stack."""
+
+    root = tmp_path / "cycle"
+    first = _object_id("blob", b"cycle-a")
+    second = _object_id("blob", b"cycle-b")
+    payload = _append_delta(b"forged chain base\n", b"x")
+    records: list[tuple[str, int, bytes, tuple[str, str] | None]] = [
+        (first, 7, payload, ("ref", second)),
+        (second, 7, payload, ("ref", first)),
+    ]
+    commit_id = _forge_commit(records, "cycle.txt", first)
+    _forge_pack(root / ".git" / "objects" / "pack", records)
+    with pytest.raises(GitObjectIntegrityError) as error:
+        blob_at(root, commit_id, "cycle.txt", MAX)
+    assert "cycle" in str(error.value)
+    assert first in str(error.value) or second in str(error.value)
+
+
+# --------------------------------------------------------------------------
+# .git redirection (D2, Odysseus 2026-09-05)
+# --------------------------------------------------------------------------
+
+
+def test_git_directory_junction_is_refused(
+    tmp_path: Path, loose_repo: tuple[Path, list[str]]
+) -> None:
+    """An NTFS junction needs no elevation and is not a symlink to lstat."""
+
+    if os.name != "nt":
+        pytest.skip("directory junctions are a Windows layout")
+    real = _copy(loose_repo[0], tmp_path / "real")
+    head = _git(real, "rev-parse", "HEAD").strip()
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    created = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(decoy / ".git"), str(real / ".git")],
+        capture_output=True,
+        timeout=180,
+    )
+    if created.returncode != 0 or not (decoy / ".git").exists():
+        pytest.skip("mklink /J is unavailable on this host")
+    assert not (decoy / ".git").is_symlink()
+    assert (decoy / ".git" / "HEAD").is_file()
+    with pytest.raises(GitObjectLayoutError) as error:
+        blob_at(decoy, head, "pkg/big.txt", MAX)
+    message = str(error.value)
+    assert "junction" in message or "reparse" in message
+    assert blob_at(real, head, "pkg/big.txt", MAX)

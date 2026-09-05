@@ -26,8 +26,10 @@ This module is the missing half, kept to the same rules:
 * honest about layouts it does not support. A ``.git`` that is a *gitdir
   pointer file* (a linked worktree) refuses with the same reasoning the HEAD
   verifier uses: the pointer is bytes a candidate could rewrite, so the reader
-  never follows it. Object *alternates* refuse rather than silently reporting a
-  reachable object as missing.
+  never follows it. The same reasoning covers every other redirection --
+  symlink, NTFS junction, mount point -- see ``_refuse_redirected_git_dir``.
+  Object *alternates* refuse rather than silently reporting a reachable object
+  as missing.
 
 What this module is not: it is not a git implementation. It has no index, no
 refs, no filters, no merge, no write path. In particular it returns the bytes
@@ -221,6 +223,7 @@ def _admit_repository(root: object) -> Path:
         raise GitObjectLayoutError(".git is a file but not a gitdir pointer")
     if not stat.S_ISDIR(git_metadata.st_mode):
         raise GitObjectLayoutError(".git must be a real directory")
+    _refuse_redirected_git_dir(git_dir, git_metadata)
 
     alternates = git_dir / "objects" / "info" / "alternates"
     try:
@@ -233,6 +236,40 @@ def _admit_repository(root: object) -> Path:
             "missing object here would not mean the object is absent"
         )
     return git_dir
+
+
+def _refuse_redirected_git_dir(git_dir: Path, metadata: os.stat_result) -> None:
+    """Refuse a ``.git`` that is any kind of redirection, not only a symlink.
+
+    ``stat.S_ISLNK`` is not enough on Windows. An NTFS *directory junction*
+    (``mklink /J``, no elevation required) carries the reparse tag
+    ``IO_REPARSE_TAG_MOUNT_POINT``, and CPython reports it as an ordinary
+    directory: ``Path.is_symlink()`` is false and ``S_ISLNK`` is unset, so the
+    reader would happily serve bytes out of whatever repository the junction
+    points at while reporting them as this root's committed content
+    (measured 2026-09-05, Odysseus D2). Two independent checks close it: any
+    non-zero reparse tag where the platform exposes one, and -- portably --
+    the same identity comparison the repository root already gets, because
+    ``resolve()`` follows the redirection and lands on a different inode.
+    """
+
+    if getattr(metadata, "st_reparse_tag", 0):
+        raise GitObjectLayoutError(
+            ".git is a reparse point (a junction or link), a deliberately "
+            "unsupported subject layout: use the checkout that owns the "
+            "object store"
+        )
+    try:
+        resolved = git_dir.resolve(strict=True)
+        final = resolved.lstat()
+    except OSError as exc:
+        raise GitObjectLayoutError(".git cannot be resolved") from exc
+    if (metadata.st_dev, metadata.st_ino) != (final.st_dev, final.st_ino):
+        raise GitObjectLayoutError(
+            ".git resolves to a different directory (a junction, link or mount "
+            "point), a deliberately unsupported subject layout: use the "
+            "checkout that owns the object store"
+        )
 
 
 def _is_gitdir_pointer(path: Path) -> bool:
@@ -484,12 +521,33 @@ class _Store:
             self._packs = [_Pack(index) for index in indexes]
         return self._packs
 
-    def load(self, object_id: str, budget: int) -> _Loaded | None:
-        """One object by id, verified against that id, or ``None`` if absent."""
+    def load(
+        self,
+        object_id: str,
+        budget: int,
+        depth: int = 0,
+        visiting: frozenset[str] = frozenset(),
+    ) -> _Loaded | None:
+        """One object by id, verified against that id, or ``None`` if absent.
 
+        ``depth`` and ``visiting`` travel with the call because a ``REF_DELTA``
+        base is resolved *by id*, which re-enters here. Before this was
+        threaded through, the depth restarted at zero on every reference link:
+        the bound existed only on the ``OFS_DELTA`` path, a reference chain of
+        any length resolved, and a cycle ended in ``RecursionError`` --
+        outside the ``GitObjectError`` contract (measured 2026-09-05,
+        Odysseus D1).
+        """
+
+        if object_id in visiting:
+            raise GitObjectIntegrityError(
+                f"delta base cycle: object {object_id} is reachable from itself"
+            )
         loaded = self._load_loose(object_id, budget)
         if loaded is None:
-            loaded = self._load_packed(object_id, budget)
+            loaded = self._load_packed(
+                object_id, budget, depth, visiting | {object_id}
+            )
         if loaded is None:
             return None
         _verify_object_id(loaded.type_name, loaded.data, object_id)
@@ -536,17 +594,30 @@ class _Store:
             )
         return _Loaded(type_name, payload[header_length:], "loose", None, ())
 
-    def _load_packed(self, object_id: str, budget: int) -> _Loaded | None:
+    def _load_packed(
+        self,
+        object_id: str,
+        budget: int,
+        depth: int,
+        visiting: frozenset[str],
+    ) -> _Loaded | None:
         for pack in self.packs():
             offset = pack.index.offset_of(object_id)
             if offset is None:
                 continue
-            type_name, data, kinds = self._load_from_pack(pack, offset, budget, 0)
+            type_name, data, kinds = self._load_from_pack(
+                pack, offset, budget, depth, visiting
+            )
             return _Loaded(type_name, data, "pack", pack.name, kinds)
         return None
 
     def _load_from_pack(
-        self, pack: _Pack, offset: int, budget: int, depth: int
+        self,
+        pack: _Pack,
+        offset: int,
+        budget: int,
+        depth: int,
+        visiting: frozenset[str],
     ) -> tuple[str, bytes, tuple[str, ...]]:
         if depth > _MAX_DELTA_DEPTH:
             raise GitObjectIntegrityError(
@@ -578,8 +649,13 @@ class _Store:
                     f"{pack.name}: delta base offset {base_offset} is not an "
                     "object this index knows"
                 )
+            marker = f"{pack.name}@{base_offset}"
+            if marker in visiting:
+                raise GitObjectIntegrityError(
+                    f"delta base cycle: object {base_id} is reachable from itself"
+                )
             base_type, base_data, base_kinds = self._load_from_pack(
-                pack, base_offset, base_budget, depth + 1
+                pack, base_offset, base_budget, depth + 1, visiting | {marker}
             )
             _verify_object_id(base_type, base_data, base_id)
             kind = "ofs_delta"
@@ -590,7 +666,7 @@ class _Store:
                 )
             base_id = head[position : position + 20].hex()
             position += 20
-            base = self.load(base_id, base_budget)
+            base = self.load(base_id, base_budget, depth + 1, visiting)
             if base is None:
                 raise GitObjectNotFoundError(
                     f"{pack.name}: delta base {base_id} is not in this object store"
