@@ -103,6 +103,10 @@ def test_fused_validation_retains_canonical_block_identity_and_digest() -> None:
             "block.column_indices must contain integers",
         ),
         (
+            {"column_indices": (0, True, 2)},
+            "block.column_indices must contain integers",
+        ),
+        (
             {"column_indices": (-1, 1, 2)},
             "block.column_indices contains an out-of-range index",
         ),
@@ -172,3 +176,5 @@ def test_constructor_uses_row_spans_without_generic_any_or_per_entry_row_state()
     assert "previous_column is not None" not in source
     assert "previous_column = -1" in source
     assert "range(offsets[row], offsets[row + 1])" in source
+    assert "previous_column < item < column_count" in source
+    assert "if previous_column >= item:" not in source
