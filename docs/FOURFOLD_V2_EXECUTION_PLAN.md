@@ -265,9 +265,12 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   budget interposer's per-thread mark is carried to the worker; measured on
   the way: Ollama's `/v1` endpoint ignores `keep_alive` and pins
   `context_length` 4096, evicting a natively warmed instance, so routing the
-  computer planner through the native path is the next packet). Pending:
-  `G1-EDA-HOST-STATUS-02` (Vivado Tcl emission, fix-forward: no file write
-  from `plan`).
+  computer planner through the native path is the next packet). Also integrated: `G1-EDA-HOST-STATUS-02` (EXPERIMENT: deterministic
+  Vivado batch and Vitis HLS Tcl emitted inline or to stdout from the effect-free
+  `plan`, pure-Python `info complete` check agreeing 35/35 with tclsh 8.6, all
+  vendor tools honestly absent; a first version wrote a file from `plan` beside
+  the door's anchor and was fixed forward with an isolation suite). All ten
+  lanes are integrated.
 - Stage 15 `G1-IKARUS-31`: schema-constrained Ollama calls (the computer
   planner) take the native `/api/chat` route with keep_alive, num_ctx and the
   output cap as num_predict; the loop hands the planner a cancellation probe
