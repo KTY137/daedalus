@@ -246,9 +246,9 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   one by one and stacked on this branch by cherry-pick with the registry
   re-derived once per batch. Integrated: `G1-IKARUS-29` (plan budget of four
   plans per step, wall-time check before the effect), `G1-ARIADNE-08` (blob
-  bytes at a commit without the git binary, pure stdlib, not wired; two
-  Odysseus defects, REF_DELTA depth reset and NTFS-junction `.git`, in
-  fix-forward), `G1-ARIADNE-09` (one exit-code contract for both Ariadne CLI
+  bytes at a commit without the git binary, pure stdlib, not wired; the two
+  Odysseus defects, REF_DELTA depth reset and NTFS-junction `.git`, fixed
+  forward with forged-pack tests, 65 passed), `G1-ARIADNE-09` (one exit-code contract for both Ariadne CLI
   doors, sysexits 64/70, JSON error line), `G1-TESTS-01` (the flaky shell
   test spawned a real vendor CLI; pinned voice, 259 s to 8.6 s), `G1-SELF-01`
   (EXPERIMENT: second self-Renovation nomination, `daedalus/build.py`
@@ -266,7 +266,8 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   the way: Ollama's `/v1` endpoint ignores `keep_alive` and pins
   `context_length` 4096, evicting a natively warmed instance, so routing the
   computer planner through the native path is the next packet). Pending:
-  `G1-EDA-HOST-STATUS-02` (Vivado Tcl emission) and the lane-3 fix-forward.
+  `G1-EDA-HOST-STATUS-02` (Vivado Tcl emission, fix-forward: no file write
+  from `plan`).
 - Stage 15 `G1-IKARUS-31`: schema-constrained Ollama calls (the computer
   planner) take the native `/api/chat` route with keep_alive, num_ctx and the
   output cap as num_predict; the loop hands the planner a cancellation probe
