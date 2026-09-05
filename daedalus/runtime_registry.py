@@ -14,6 +14,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -350,16 +351,49 @@ def cached_runtime_status(
         return {**row, "measured_at": iso_at, "measured_age_s": 0.0}
 
 
-def all_status(*, use_cache: bool = False, ttl_s: float | None = None) -> dict[str, Any]:
-    rows = []
-    for spec in RUNTIMES:
+def _status_row(
+    spec: RuntimeSpec,
+    *,
+    use_cache: bool,
+    ttl_s: float | None,
+) -> dict[str, Any]:
+    """Probe one runtime without allowing one broken source to poison the set."""
+    try:
         if use_cache:
-            rows.append(cached_runtime_status(spec.id, ttl_s=ttl_s))
-            continue
-        try:
-            rows.append(runtime_status(spec.id))
-        except Exception as exc:
-            rows.append({**asdict(spec), "available": False, "auth_status": "error", "last_error": str(exc)})
+            return cached_runtime_status(spec.id, ttl_s=ttl_s)
+        return runtime_status(spec.id)
+    except Exception as exc:  # noqa: BLE001 - status is observational and fail-closed
+        return {
+            **asdict(spec),
+            "available": False,
+            "auth_status": "error",
+            "last_error": str(exc),
+        }
+
+
+def all_status(*, use_cache: bool = False, ttl_s: float | None = None) -> dict[str, Any]:
+    """Return all runtime observations without serialising independent probes.
+
+    CLI version checks and the local Ollama HTTP check have independent timeout
+    budgets. Serial execution makes a cold/expired cockpit poll pay their sum,
+    even though the cache and its per-runtime locks are explicitly designed for
+    unrelated runtimes to proceed independently. ``Executor.map`` keeps registry
+    order stable while the probes themselves run concurrently; per-row failures
+    remain fail-closed observations rather than aborting the whole status view.
+    """
+    specs = RUNTIMES
+    if not specs:
+        return {"runtimes": []}
+    with ThreadPoolExecutor(
+        max_workers=len(specs),
+        thread_name_prefix="daedalus-runtime-status",
+    ) as executor:
+        rows = list(
+            executor.map(
+                lambda spec: _status_row(spec, use_cache=use_cache, ttl_s=ttl_s),
+                specs,
+            )
+        )
     return {"runtimes": rows}
 
 
