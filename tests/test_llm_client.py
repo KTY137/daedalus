@@ -108,6 +108,55 @@ def test_complete_retries_only_when_operator_opted_in():
     assert len(calls) == 2
 
 
+def test_complete_preserves_authoritative_refusal_without_retrying():
+    class Refused(RuntimeError):
+        def __init__(self):
+            super().__init__("effect denied")
+            self.receipt = {
+                "verdict": "deny",
+                "receipt_sha256": "deadbeef",
+                "connected": False,
+                "spawned": False,
+            }
+
+    calls = []
+    client = IkarusLLMClient(
+        environ={"DAEDALUS_IKARUS_PROVIDER": "claude", "DAEDALUS_IKARUS_RETRIES": "2"},
+        status_probe=lambda _: {"available": True},
+    )
+
+    def invoke(provider, request, timeout):
+        calls.append(provider)
+        raise Refused()
+
+    with pytest.raises(Refused) as caught:
+        client.complete(LLMRequest("hello"), invoke)
+
+    assert calls == ["claude_code_cli"]
+    assert caught.value.receipt["receipt_sha256"] == "deadbeef"
+    assert caught.value.receipt["spawned"] is False
+
+
+def test_complete_still_retries_non_authoritative_transport_errors_when_opted_in():
+    calls = []
+    client = IkarusLLMClient(
+        environ={"DAEDALUS_IKARUS_PROVIDER": "claude", "DAEDALUS_IKARUS_RETRIES": "1"},
+        status_probe=lambda _: {"available": True},
+    )
+
+    def invoke(provider, request, timeout):
+        calls.append(provider)
+        if len(calls) == 1:
+            raise RuntimeError("temporary transport failure")
+        return "recovered"
+
+    response = client.complete(LLMRequest("hello"), invoke)
+
+    assert response.text == "recovered"
+    assert response.attempts == 2
+    assert calls == ["claude_code_cli", "claude_code_cli"]
+
+
 def test_tool_shapes_are_data_not_implicit_execution():
     request = LLMRequest("plan", tools=({"name": "queue_task"},))
     called = []
