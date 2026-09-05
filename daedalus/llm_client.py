@@ -29,19 +29,25 @@ _PROVIDER_ALIASES = {
     "codex_cli": "codex_cli",
     "ollama": "ollama_http",
     "ollama_http": "ollama_http",
-    "ollama_cli": "ollama_cli",
+    # Ikarus Voice does not have a separate Ollama CLI chat transport: every
+    # local branch in ikarus_os ultimately speaks to the native HTTP daemon.
+    # Keep accepting the historical/UI alias, but canonicalise it to the
+    # transport that will actually carry the turn so readiness can never be
+    # inferred from "ollama --version" while the daemon itself is down.
+    "ollama_cli": "ollama_http",
     "deepseek": "deepseek",
     "deterministic": "deterministic",
 }
 
 # Primary frontier voice first, then local/free, then the other connected
-# runtimes. Operators can change this without changing code.
-_DEFAULT_ORDER = ("claude_code_cli", "ollama_http", "codex_cli", "ollama_cli", "deepseek")
+# runtimes. Operators can change this without changing code. Only transports
+# that Ikarus Voice can actually invoke belong here; ``ollama_cli`` normalises
+# to ``ollama_http`` above rather than creating a second, fictitious transport.
+_DEFAULT_ORDER = ("claude_code_cli", "ollama_http", "codex_cli", "deepseek")
 _RUNTIME_STATUS_ID = {
     "claude_code_cli": "claude_code_cli",
     "codex_cli": "codex_cli",
     "ollama_http": "ollama_http",
-    "ollama_cli": "ollama_cli",
 }
 
 
