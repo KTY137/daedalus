@@ -93,6 +93,18 @@ from .manifest import (
 from .publication import derive_chip_publication
 from .publication_verifier import verify_chip_eda_publication_graph
 from .sources import classify_source, discover_sources
+from .tcl_emit import (
+    TCL_EMIT_SCHEMA,
+    VITIS_HLS_TARGET,
+    VIVADO_TARGET,
+    EmittedTclScript,
+    TclEmitError,
+    emitted_script_payload,
+    expected_emitted_outputs,
+    render_parse_harness,
+    render_vitis_hls_flow,
+    render_vivado_project_flow,
+)
 from .toolchains import (
     all_tool_status,
     build_rtl_lint_argv,
@@ -108,7 +120,9 @@ from .vivado_tcl import (
 
 
 PLAN_SCHEMA = "daedalus-chip-vivado-plan/1"
+HLS_PLAN_SCHEMA = "daedalus-chip-vitis-hls-plan/1"
 RUN_SCHEMA = "daedalus-chip-vivado-run-result/1"
+_MAX_HLS_KERNEL_BYTES = 4 * 1024 * 1024
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
 _PHASES = ("inspect", "synth", "impl")
@@ -799,6 +813,262 @@ def _planned_step(
         "promotion": False,
         "security_boundary_claimed": False,
     }
+
+
+def _plan_digest(payload: Mapping[str, Any]) -> str:
+    """Digest of one plan payload before an emitted script is attached.
+
+    The emitted script embeds this digest, so the digest is deliberately taken
+    over the payload *without* its ``emitted_*`` rows; otherwise the two would
+    be mutually recursive and neither could be reproduced.
+    """
+
+    body = json.dumps(
+        {key: value for key, value in payload.items() if not key.startswith("emitted_")},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def _emitted_source_lists(
+    manifest: VivadoProjectManifest,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Project-relative design and constraint inputs for an emitted script.
+
+    Only inputs the manifest already resolved as present project files enter
+    the emitted lists, so an emitted ``create_project`` branch can never widen
+    the inspected file set.
+    """
+
+    fileset_kinds = {fileset.name: fileset.kind for fileset in manifest.filesets}
+    design: list[str] = []
+    constraints: list[str] = []
+    for reference in manifest.file_references:
+        if reference.reference_type != "file" or reference.status != "present":
+            continue
+        if not reference.inside_project or reference.origin != "project":
+            continue
+        kind = fileset_kinds.get(reference.fileset, "")
+        if reference.kind == "constraint":
+            constraints.append(reference.path)
+        elif kind == "DesignSrcs" and reference.kind in {
+            "rtl",
+            "rtl_header",
+            "vivado_block_design",
+            "vivado_ip_configuration",
+        }:
+            design.append(reference.path)
+    return tuple(dict.fromkeys(design)), tuple(dict.fromkeys(constraints))
+
+
+def _emission_target_path(
+    value: str,
+    *,
+    label: str,
+    forbidden_root: Path | None,
+    forbidden_paths: Sequence[Path] = (),
+) -> Path:
+    """Validate one operator-named emission path without writing anything."""
+
+    text = str(value).strip()
+    if not text:
+        raise ValueError(f"{label} must be a non-empty path")
+    target = canonical_path(text)
+    if target.suffix.lower() != ".tcl":
+        raise ValueError(f"{label} must name a .tcl file: {target}")
+    if forbidden_root is not None and _path_within(forbidden_root, target):
+        raise ValueError(
+            f"{label} must not write inside the inspected project root "
+            f"{forbidden_root}; planning never mutates the authoritative project"
+        )
+    for forbidden in forbidden_paths:
+        if canonical_path_identity(target) == canonical_path_identity(forbidden):
+            raise ValueError(f"{label} must not overwrite an inspected input: {target}")
+    parent = target.parent
+    if not parent.is_dir():
+        raise ValueError(f"{label} parent directory does not exist: {parent}")
+    if target.is_symlink():
+        raise ValueError(f"{label} must not be a symbolic link: {target}")
+    if target.exists() and not target.is_file():
+        raise ValueError(f"{label} exists and is not a regular file: {target}")
+    return target
+
+
+def _write_emitted_script(script: EmittedTclScript, target: Path) -> bool:
+    """Write one canonical script, refusing to clobber different content.
+
+    Returns whether bytes were written.  Re-emitting an unchanged script is a
+    no-op, so a reviewer can re-run planning without touching mtimes, and an
+    existing file with different bytes is refused instead of overwritten.
+    """
+
+    payload = script.data
+    if target.exists():
+        current = target.read_bytes()
+        if current == payload:
+            return False
+        raise ValueError(
+            f"refusing to overwrite different content at {target}; "
+            "delete it deliberately or emit to a new path"
+        )
+    with target.open("xb") as handle:
+        handle.write(payload)
+    return True
+
+
+def _emit_scripts(
+    script: EmittedTclScript,
+    *,
+    emit_tcl: str | None,
+    emit_harness: str | None,
+    forbidden_root: Path | None,
+    forbidden_paths: Sequence[Path] = (),
+) -> dict[str, Any]:
+    """Emit the requested review artifacts and return their payload rows.
+
+    This function writes files and starts nothing.  The Tcl syntax evidence in
+    the returned rows is the package's own completeness check; no interpreter,
+    Vivado or Vitis HLS ran, and none is claimed to have accepted the text.
+    """
+
+    rows: dict[str, Any] = {}
+    if emit_harness and not emit_tcl:
+        raise ValueError("--emit-harness requires --emit-tcl because the harness reads it")
+    if not emit_tcl:
+        return rows
+    script_path = _emission_target_path(
+        emit_tcl,
+        label="--emit-tcl",
+        forbidden_root=forbidden_root,
+        forbidden_paths=forbidden_paths,
+    )
+    written = _write_emitted_script(script, script_path)
+    rows["emitted_tcl"] = emitted_script_payload(
+        script,
+        path=str(script_path),
+        written=written,
+        extra={"expected_outputs": list(expected_emitted_outputs(script.scope))}
+        if script.target == VIVADO_TARGET
+        else {"expected_outputs": ["csynth.rpt", "hls_summary.txt"]},
+    )
+    if emit_harness:
+        harness = render_parse_harness(script, script_path=str(script_path))
+        harness_path = _emission_target_path(
+            emit_harness,
+            label="--emit-harness",
+            forbidden_root=forbidden_root,
+            forbidden_paths=(*forbidden_paths, script_path),
+        )
+        harness_written = _write_emitted_script(harness, harness_path)
+        rows["emitted_harness"] = emitted_script_payload(
+            harness,
+            path=str(harness_path),
+            written=harness_written,
+            extra={"subject_sha256": script.sha256, "runner": "tclsh"},
+        )
+    return rows
+
+
+def _hls_kernel_identity(value: str) -> tuple[Path, str, int]:
+    """Read one C/C++ kernel and return its canonical path and identity."""
+
+    kernel = canonical_path(value)
+    if kernel.is_symlink() or not kernel.is_file():
+        raise ValueError(f"HLS kernel is not a regular file: {kernel}")
+    if kernel.suffix.lower() not in {".cpp", ".cc", ".cxx", ".c"}:
+        raise ValueError(f"HLS kernel is not a C/C++ translation unit: {kernel}")
+    payload = kernel.read_bytes()
+    if not payload or len(payload) > _MAX_HLS_KERNEL_BYTES:
+        raise ValueError(f"HLS kernel has an unsupported byte length: {kernel}")
+    return kernel, hashlib.sha256(payload).hexdigest(), len(payload)
+
+
+def _vitis_hls_plan(args: argparse.Namespace) -> dict[str, Any]:
+    """Plan one Vitis HLS C-synthesis script; this function starts nothing.
+
+    There is no admitted Vitis HLS runner in this slice: ``daedalus-chip run``
+    still knows only the package-owned Vivado project flow.  The emitted script
+    and its invocation template are review inputs for a later effectful packet,
+    and ``status`` remains the honest report of whether ``vitis_hls`` exists on
+    the host at all.
+    """
+
+    for flag, value, default in (
+        ("--phase", args.phase, "full"),
+        ("--vivado", args.vivado, None),
+        ("--synth-run", args.synth_run, "synth_1"),
+        ("--impl-run", args.impl_run, "impl_1"),
+        ("--jobs", args.jobs, 1),
+    ):
+        if value != default:
+            raise ValueError(f"{flag} applies only to --target {VIVADO_TARGET}")
+    if not args.top or not str(args.top).strip():
+        raise ValueError(f"--top is required for --target {VITIS_HLS_TARGET}")
+    if not args.part or not str(args.part).strip():
+        raise ValueError(f"--part is required for --target {VITIS_HLS_TARGET}")
+    kernel, kernel_sha256, kernel_bytes = _hls_kernel_identity(args.project)
+    root = canonical_path(args.project_root) if args.project_root else kernel.parent
+    if not root.is_dir():
+        raise ValueError(f"project root is not a directory: {root}")
+    if not _path_within(root, kernel):
+        raise ValueError(f"HLS kernel escapes the declared project root: {kernel}")
+    top = str(args.top).strip()
+    work_root = _output_dir(root, args.output_dir, "hls", top)
+    project_dir = work_root / "hls_project"
+    output_dir = work_root / "reports"
+    payload: dict[str, Any] = {
+        "schema": HLS_PLAN_SCHEMA,
+        "target": VITIS_HLS_TARGET,
+        "scope": "csynth",
+        "kernel": str(kernel),
+        "kernel_sha256": kernel_sha256,
+        "kernel_byte_length": kernel_bytes,
+        "project_root": str(root),
+        "top": top,
+        "part": str(args.part).strip(),
+        "solution": str(args.solution).strip(),
+        "clock_period": str(args.clock_period).strip(),
+        "project_dir": str(project_dir),
+        "output_dir": str(output_dir),
+        "invocation_template": ["vitis_hls", "-f", "<emitted script>"],
+        "effects": ["filesystem_write", "process_control", "process_spawn"],
+        "network_capability_requested": False,
+        "secret_capability_requested": False,
+        "os_network_confinement_claimed": False,
+        "os_secret_isolation_claimed": False,
+        "live_runner_available": False,
+        "promotion": False,
+        "security_boundary_claimed": False,
+    }
+    script = render_vitis_hls_flow(
+        kernel_file=str(kernel),
+        kernel_sha256=kernel_sha256,
+        top=top,
+        part=payload["part"],
+        solution=payload["solution"],
+        clock_period=payload["clock_period"],
+        project_dir=str(project_dir),
+        output_dir=str(output_dir),
+        plan_sha256=_plan_digest(payload),
+    )
+    payload["emitted_tcl_sha256"] = script.sha256
+    payload.update(
+        _emit_scripts(
+            script,
+            emit_tcl=args.emit_tcl,
+            emit_harness=args.emit_harness,
+            # Symmetric with the Vivado target: planning never writes into the
+            # inspected source tree, so a review artifact goes somewhere else.
+            forbidden_root=root,
+            forbidden_paths=(kernel,),
+        )
+    )
+    emitted = payload.get("emitted_tcl")
+    if isinstance(emitted, dict):
+        payload["argv"] = ["vitis_hls", "-f", emitted["path"]]
+    return payload
 
 
 def _output_dir(root: Path, base: str, run_id: str, phase: str) -> Path:
@@ -1817,14 +2087,43 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("--json", action="store_true")
 
     plan = sub.add_parser("plan", help="build the trusted Vivado argv without execution")
-    plan.add_argument("project")
+    plan.add_argument(
+        "project",
+        help=(
+            "Vivado .xpr for --target vivado-project, or the C/C++ kernel "
+            "translation unit for --target vitis-hls"
+        ),
+    )
     plan.add_argument("--project-root")
+    plan.add_argument(
+        "--target",
+        choices=(VIVADO_TARGET, VITIS_HLS_TARGET),
+        default=VIVADO_TARGET,
+    )
     plan.add_argument("--phase", choices=(*_PHASES, "full"), default="full")
     plan.add_argument("--output-dir", default=".daedalus-chip/plans")
     plan.add_argument("--vivado")
     plan.add_argument("--jobs", type=int, default=1)
     plan.add_argument("--synth-run", default="synth_1")
     plan.add_argument("--impl-run", default="impl_1")
+    plan.add_argument(
+        "--emit-tcl",
+        help=(
+            "write the canonical batch-mode Tcl script for this plan to a .tcl "
+            "path outside the inspected project; nothing is executed"
+        ),
+    )
+    plan.add_argument(
+        "--emit-harness",
+        help=(
+            "also write the contained tclsh parse harness for the emitted "
+            "script; running it is an operator action, never this command's"
+        ),
+    )
+    plan.add_argument("--top", help="required top function for --target vitis-hls")
+    plan.add_argument("--part", help="required part for --target vitis-hls")
+    plan.add_argument("--solution", default="solution1")
+    plan.add_argument("--clock-period", default="10")
     plan.add_argument("--json", action="store_true")
 
     run = sub.add_parser("run", help="execute package-owned Vivado Tcl in a disjoint workspace")
@@ -1972,7 +2271,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0 if manifest.complete else 1
 
     if args.command == "plan":
+        if args.target == VITIS_HLS_TARGET:
+            try:
+                payload = _vitis_hls_plan(args)
+            except (ValueError, TclEmitError) as exc:
+                parser.error(str(exc))
+            _emit(payload, as_json=args.json)
+            return 0
         try:
+            for flag, value, default in (
+                ("--top", args.top, None),
+                ("--part", args.part, None),
+                ("--solution", args.solution, "solution1"),
+                ("--clock-period", args.clock_period, "10"),
+            ):
+                if value != default:
+                    raise ValueError(f"{flag} applies only to --target {VITIS_HLS_TARGET}")
             manifest = build_vivado_project_manifest(
                 args.project, project_root=args.project_root
             )
@@ -2001,6 +2315,45 @@ def main(argv: Sequence[str] | None = None) -> int:
             "steps": steps,
             "security_boundary_claimed": False,
         }
+        if args.emit_tcl or args.emit_harness:
+            try:
+                design, constraints = _emitted_source_lists(manifest)
+                scope = args.phase
+                script = render_vivado_project_flow(
+                    scope=scope,
+                    project_file=str(
+                        manifest.project_root / Path(manifest.project.path)
+                    ),
+                    project_root=str(manifest.project_root),
+                    output_dir=str(
+                        _output_dir(
+                            manifest.project_root, args.output_dir, "emitted", scope
+                        )
+                    ),
+                    part=manifest.part,
+                    board_part=manifest.board_part,
+                    top=manifest.top,
+                    synth_run=args.synth_run,
+                    impl_run=args.impl_run,
+                    jobs=args.jobs,
+                    design_sources=design,
+                    constraint_sources=constraints,
+                    project_sha256=manifest.project.sha256,
+                    manifest_sha256=manifest.sha256,
+                    source_identity_sha256=manifest.source_identity_sha256,
+                    plan_sha256=_plan_digest(payload),
+                    trusted_tcl_sha256=trusted_vivado_tcl().sha256,
+                )
+                payload.update(
+                    _emit_scripts(
+                        script,
+                        emit_tcl=args.emit_tcl,
+                        emit_harness=args.emit_harness,
+                        forbidden_root=manifest.project_root,
+                    )
+                )
+            except (ValueError, TclEmitError, OSError) as exc:
+                parser.error(str(exc))
         _emit(payload, as_json=args.json)
         return 0
 

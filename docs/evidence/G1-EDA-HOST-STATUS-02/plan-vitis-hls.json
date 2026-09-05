@@ -1,0 +1,75 @@
+{
+  "argv": [
+    "vitis_hls",
+    "-f",
+    "<FIXTURE>\\review\\csynth.tcl"
+  ],
+  "clock_period": "10",
+  "effects": [
+    "filesystem_write",
+    "process_control",
+    "process_spawn"
+  ],
+  "emitted_tcl": {
+    "bound_identities": {
+      "kernel_sha256": "9c4b5a7dfccbb0d1447045abf748861669c880ffa9e7bebd1942188c51ccb689",
+      "plan_sha256": "5198cd6cf5380b98122d9326a02e31a001ecdeb768f82ae09811685feeca37bd"
+    },
+    "byte_length": 2999,
+    "commands": [
+      "add_files",
+      "close_project",
+      "create_clock",
+      "csynth_design",
+      "open_project",
+      "open_solution",
+      "set_part",
+      "set_top"
+    ],
+    "expected_outputs": [
+      "csynth.rpt",
+      "hls_summary.txt"
+    ],
+    "line_count": 72,
+    "path": "<FIXTURE>\\review\\csynth.tcl",
+    "schema": "daedalus-chip-tcl-emit/1",
+    "scope": "csynth",
+    "sha256": "93590bb725b4311871f20e29ee6ae74d79a698da746c47148c1120dd25c86bec",
+    "syntax_check": {
+      "checker": "daedalus-tcl-info-complete/1",
+      "complete": true,
+      "detail": "",
+      "executed": false,
+      "open_construct": "",
+      "open_offset": null,
+      "vendor_acceptance_claimed": false
+    },
+    "target": "vitis-hls",
+    "written": true
+  },
+  "emitted_tcl_sha256": "93590bb725b4311871f20e29ee6ae74d79a698da746c47148c1120dd25c86bec",
+  "invocation_template": [
+    "vitis_hls",
+    "-f",
+    "<emitted script>"
+  ],
+  "kernel": "<FIXTURE>\\kernel\\vadd.cpp",
+  "kernel_byte_length": 239,
+  "kernel_sha256": "9c4b5a7dfccbb0d1447045abf748861669c880ffa9e7bebd1942188c51ccb689",
+  "live_runner_available": false,
+  "network_capability_requested": false,
+  "os_network_confinement_claimed": false,
+  "os_secret_isolation_claimed": false,
+  "output_dir": "<FIXTURE>\\kernel\\.daedalus-chip\\plans\\hls\\vadd\\reports",
+  "part": "xcu250-figd2104-2L-e",
+  "project_dir": "<FIXTURE>\\kernel\\.daedalus-chip\\plans\\hls\\vadd\\hls_project",
+  "project_root": "<FIXTURE>\\kernel",
+  "promotion": false,
+  "schema": "daedalus-chip-vitis-hls-plan/1",
+  "scope": "csynth",
+  "secret_capability_requested": false,
+  "security_boundary_claimed": false,
+  "solution": "solution1",
+  "target": "vitis-hls",
+  "top": "vadd"
+}
