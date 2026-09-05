@@ -17,6 +17,11 @@ REVISION = "a" * 40
 FOURFOLD = "b" * 64
 
 
+class _ExplodingTruth:
+    def __bool__(self) -> bool:
+        raise AssertionError("boolean scalar admission must not coerce foreign truthiness")
+
+
 def _subject() -> ProjectionSubject:
     return ProjectionSubject(
         repository_id="KTY137/daedalus",
@@ -68,6 +73,11 @@ def test_non_normalizing_admission_materializes_mutable_sequences_once() -> None
 
     assert block.values == (True, True)
     assert type(block.values) is tuple
+
+
+def test_boolean_admission_rejects_foreign_truthiness_without_coercion() -> None:
+    with pytest.raises(ValueError, match="must contain bool values"):
+        _block((True, _ExplodingTruth()), "boolean")
 
 
 @pytest.mark.parametrize(

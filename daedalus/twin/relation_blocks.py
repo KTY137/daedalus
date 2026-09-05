@@ -64,10 +64,14 @@ def _stored_values(raw_values: Sequence[Any], semiring_name: str) -> tuple[Any, 
 
     if semiring_name == "boolean":
         for item in raw_values:
+            # ``True`` is the only persistable Boolean scalar. Make that exact
+            # identity the common path so canonical support does not pay a
+            # generic type check plus truthiness conversion for every entry.
+            if item is True:
+                continue
             if type(item) is not bool:
                 raise ValueError("boolean relation blocks must contain bool values")
-            if not item:
-                raise ValueError("relation blocks must not store semiring zero values")
+            raise ValueError("relation blocks must not store semiring zero values")
         return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
 
     if semiring_name == "natural":
