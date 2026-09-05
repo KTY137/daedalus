@@ -37,6 +37,7 @@ on:
       - "tools/gui_check.py"
       - "tests/providers/test_claude_bypass_inventory.py"
       - "tests/providers/test_claude_sealed_cutover.py"
+      - "tests/providers/test_claude_sealed_output_evidence.py"
       - "tests/test_claude_bridge_cmd_shim.py"
       - "tests/test_gui_check_budget.py"
       - "tests/test_ikarus_bridge_progress.py"
@@ -123,6 +124,7 @@ jobs:
           tools/gui_check.py
           tests/providers/test_claude_bypass_inventory.py
           tests/providers/test_claude_sealed_cutover.py
+          tests/providers/test_claude_sealed_output_evidence.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
@@ -151,6 +153,7 @@ jobs:
           python -m pytest -q -p no:cacheprovider
           tests/providers/test_claude_bypass_inventory.py
           tests/providers/test_claude_sealed_cutover.py
+          tests/providers/test_claude_sealed_output_evidence.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
