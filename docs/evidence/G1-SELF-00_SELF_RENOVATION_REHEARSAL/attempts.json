@@ -1,0 +1,30 @@
+{
+  "schema": "daedalus-self-renovation-rehearsal-refusals/1",
+  "measured": "2026-09-05",
+  "attempts": [
+    {
+      "campaign_id": "self-renovation-01",
+      "subject": "linked git worktree .claude/worktrees/stage3-failed-receipt at 93ee7507",
+      "result": "refused before any state",
+      "message": "repository HEAD is unavailable or unsafe: Git metadata directory must be a real directory",
+      "reading": "head_revision._identity requires .git to be a directory; a linked worktree has a .git file with a gitdir pointer; follow-up: worktree subjects for Ariadne"
+    },
+    {
+      "campaign_id": "self-renovation-01 (reused id) and self-renovation-02",
+      "subject": "main checkout at b59b2628 with a scratch DAEDALUS_KILLSWITCH control root",
+      "result": "refused after the outer lease, terminalised",
+      "message": "partial persisted Campaign state is unsafe",
+      "reading": "the spine database is repo-local (runs/spine/spine.sqlite3) while the source-tree CAS lives under the control root; an override control root against a repository with an existing spine finds a database without a CAS and refuses fail-closed (kernel/campaigns.py:283-286); follow-up: name the split in the refusal text"
+    }
+  ],
+  "successful_attempt": {
+    "campaign_id": "self-renovation-03",
+    "subject": "local clone of the repository at b59b2628ad6ed85a8b5e729a12c58512543e2e73 (.git is a directory, fresh spine)",
+    "outcome": "nominated",
+    "nomination_receipt_sha256": "1b2fb0bb0ea569910a3f8edeb856b24778b0d78b112c9d9b1adcb25a0ae9cc1b",
+    "candidate_tree_sha256": "49f7abe2b5a290775fdc12d4954f1a211953bd0395f76c8d9653be38f09e4392",
+    "base_source_tree_sha256": "2b63376bf4b0d357b7f0510e27b8530a8535685534525b6481547f754d8baa6b",
+    "wall_time_ms": 1587,
+    "cost_microusd": 0
+  }
+}

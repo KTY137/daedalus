@@ -1,0 +1,270 @@
+{
+  "ok": true,
+  "ariadne": {
+    "contract_type": "daedalus.campaign-receipt",
+    "contract_version": "1.0.0",
+    "campaign_id": "self-renovation-03",
+    "source_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+    "campaign_contract_sha256": "8280a0c32abbdf948766bebb91bd46f33d5aa074a5217d143921d6d3b6650722",
+    "campaign_contract_locator": "artifact-locator:sha256:8280a0c32abbdf948766bebb91bd46f33d5aa074a5217d143921d6d3b6650722",
+    "experiment_spec_sha256": "e3a13156cca243d98508bdcc5e6237aa88319e059c6d0dd6e8c6178c7ce72539",
+    "experiment_spec_locator": "artifact-locator:sha256:e3a13156cca243d98508bdcc5e6237aa88319e059c6d0dd6e8c6178c7ce72539",
+    "metric_names": [
+      "exact_match"
+    ],
+    "trials": [
+      {
+        "campaign_id": "self-renovation-03",
+        "seed": 0,
+        "replay_role": "origin",
+        "stage": "complete",
+        "status": "failed",
+        "base_source_tree_sha256": "2b63376bf4b0d357b7f0510e27b8530a8535685534525b6481547f754d8baa6b",
+        "base_source_tree_locator": "artifact-locator:sha256:2b63376bf4b0d357b7f0510e27b8530a8535685534525b6481547f754d8baa6b",
+        "mission_sha256": null,
+        "mission_locator": null,
+        "attempt_ids": [
+          "self-renovation-03-baseline"
+        ],
+        "attempt_contract_sha256s": [
+          "0a7dc7e0abc9e16150a49f237b9e5d0db06590207242cb01732703c5695c8535"
+        ],
+        "attempt_contract_locators": [
+          "artifact-locator:sha256:0a7dc7e0abc9e16150a49f237b9e5d0db06590207242cb01732703c5695c8535"
+        ],
+        "attempt_receipt_sha256s": [
+          "68ec82b6babd6dee275a98126faefc0060ee2fb671ac88735302692c6f6da174"
+        ],
+        "attempt_receipt_locators": [
+          "artifact-locator:sha256:68ec82b6babd6dee275a98126faefc0060ee2fb671ac88735302692c6f6da174"
+        ],
+        "gate1_receipt_sha256": null,
+        "gate1_receipt_locator": null,
+        "candidate_tree_sha256": "5e6eaff33110ba772042a90aae7bfae1698e2f229ce1b63725a10580f74b0a30",
+        "candidate_tree_locator": "artifact-locator:sha256:5e6eaff33110ba772042a90aae7bfae1698e2f229ce1b63725a10580f74b0a30",
+        "candidate_source_bundle_sha256": null,
+        "candidate_snapshot_sha256": null,
+        "candidate_snapshot_locator": null,
+        "graph_delta_sha256": null,
+        "evidence_packet_sha256": "e795334f3e7c447946efff65baa44e09bd47c4e84a8d4334826af20a943a220b",
+        "evidence_packet_locator": "artifact-locator:sha256:e795334f3e7c447946efff65baa44e09bd47c4e84a8d4334826af20a943a220b",
+        "metrics": {
+          "exact_match": 0
+        },
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_microusd": 0,
+          "wall_time_ms": 604,
+          "est_input_tokens": 0
+        },
+        "negative_outcomes": [
+          "frozen-evaluator-rejected"
+        ],
+        "blockers": [
+          "exact-match-failed"
+        ],
+        "started_at": "2026-09-05T12:43:32.968375+00:00",
+        "finished_at": "2026-09-05T12:43:34.055319+00:00",
+        "variant_id": "baseline",
+        "arm_role": "baseline",
+        "configured_budget_sha256": "508b0a0c43aa025d5fa3b326466c4e582d81a0aa09fb8373e04b3a84aa3468a3",
+        "receipt_profile": "controlled-repair-v1"
+      },
+      {
+        "campaign_id": "self-renovation-03",
+        "seed": 1,
+        "replay_role": "origin",
+        "stage": "complete",
+        "status": "failed",
+        "base_source_tree_sha256": "2b63376bf4b0d357b7f0510e27b8530a8535685534525b6481547f754d8baa6b",
+        "base_source_tree_locator": "artifact-locator:sha256:2b63376bf4b0d357b7f0510e27b8530a8535685534525b6481547f754d8baa6b",
+        "mission_sha256": null,
+        "mission_locator": null,
+        "attempt_ids": [
+          "self-renovation-03-negative-control"
+        ],
+        "attempt_contract_sha256s": [
+          "80475f1c3957dc211d7e1273894aafc1024d388f17c91a77dcf58425ee01e3cb"
+        ],
+        "attempt_contract_locators": [
+          "artifact-locator:sha256:80475f1c3957dc211d7e1273894aafc1024d388f17c91a77dcf58425ee01e3cb"
+        ],
+        "attempt_receipt_sha256s": [
+          "1bb145e491a8828c25d95bf9640275a26c6f67b3fee6c8f8665843f6b188c1b4"
+        ],
+        "attempt_receipt_locators": [
+          "artifact-locator:sha256:1bb145e491a8828c25d95bf9640275a26c6f67b3fee6c8f8665843f6b188c1b4"
+        ],
+        "gate1_receipt_sha256": null,
+        "gate1_receipt_locator": null,
+        "candidate_tree_sha256": "15dde6beadb0643c719970f2d332094e14e002529f85f111b11e5060f0a616f0",
+        "candidate_tree_locator": "artifact-locator:sha256:15dde6beadb0643c719970f2d332094e14e002529f85f111b11e5060f0a616f0",
+        "candidate_source_bundle_sha256": null,
+        "candidate_snapshot_sha256": null,
+        "candidate_snapshot_locator": null,
+        "graph_delta_sha256": null,
+        "evidence_packet_sha256": "b1bf3ebd0cf7c4a41ff851a0c89593255eb766ddff511da37f18f2a62e771cbd",
+        "evidence_packet_locator": "artifact-locator:sha256:b1bf3ebd0cf7c4a41ff851a0c89593255eb766ddff511da37f18f2a62e771cbd",
+        "metrics": {
+          "exact_match": 0
+        },
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_microusd": 0,
+          "wall_time_ms": 595,
+          "est_input_tokens": 0
+        },
+        "negative_outcomes": [
+          "frozen-evaluator-rejected"
+        ],
+        "blockers": [
+          "exact-match-failed"
+        ],
+        "started_at": "2026-09-05T12:43:34.221860+00:00",
+        "finished_at": "2026-09-05T12:43:35.098779+00:00",
+        "variant_id": "negative-control",
+        "arm_role": "candidate",
+        "configured_budget_sha256": "508b0a0c43aa025d5fa3b326466c4e582d81a0aa09fb8373e04b3a84aa3468a3",
+        "receipt_profile": "controlled-repair-v1"
+      },
+      {
+        "campaign_id": "self-renovation-03",
+        "seed": 2,
+        "replay_role": "origin",
+        "stage": "complete",
+        "status": "passed",
+        "base_source_tree_sha256": "2b63376bf4b0d357b7f0510e27b8530a8535685534525b6481547f754d8baa6b",
+        "base_source_tree_locator": "artifact-locator:sha256:2b63376bf4b0d357b7f0510e27b8530a8535685534525b6481547f754d8baa6b",
+        "mission_sha256": null,
+        "mission_locator": null,
+        "attempt_ids": [
+          "self-renovation-03-repair"
+        ],
+        "attempt_contract_sha256s": [
+          "6ef2f8121c4d5b77f3ff9d54f0c2a21f9cf535f40773c1266a2219afb0374928"
+        ],
+        "attempt_contract_locators": [
+          "artifact-locator:sha256:6ef2f8121c4d5b77f3ff9d54f0c2a21f9cf535f40773c1266a2219afb0374928"
+        ],
+        "attempt_receipt_sha256s": [
+          "0a18ab956d20dfa3de5c90767b0155cbc9bc28168273ae706ce8074dcc0fd9f6"
+        ],
+        "attempt_receipt_locators": [
+          "artifact-locator:sha256:0a18ab956d20dfa3de5c90767b0155cbc9bc28168273ae706ce8074dcc0fd9f6"
+        ],
+        "gate1_receipt_sha256": null,
+        "gate1_receipt_locator": null,
+        "candidate_tree_sha256": "49f7abe2b5a290775fdc12d4954f1a211953bd0395f76c8d9653be38f09e4392",
+        "candidate_tree_locator": "artifact-locator:sha256:49f7abe2b5a290775fdc12d4954f1a211953bd0395f76c8d9653be38f09e4392",
+        "candidate_source_bundle_sha256": null,
+        "candidate_snapshot_sha256": null,
+        "candidate_snapshot_locator": null,
+        "graph_delta_sha256": null,
+        "evidence_packet_sha256": "a104ca379d2e2558e53145dc7384e6071cfdab46c3a2c983c92e05982d13ccd7",
+        "evidence_packet_locator": "artifact-locator:sha256:a104ca379d2e2558e53145dc7384e6071cfdab46c3a2c983c92e05982d13ccd7",
+        "metrics": {
+          "exact_match": 1
+        },
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cost_microusd": 0,
+          "wall_time_ms": 388,
+          "est_input_tokens": 0
+        },
+        "negative_outcomes": [],
+        "blockers": [],
+        "started_at": "2026-09-05T12:43:35.293459+00:00",
+        "finished_at": "2026-09-05T12:43:36.342169+00:00",
+        "variant_id": "repair",
+        "arm_role": "candidate",
+        "configured_budget_sha256": "508b0a0c43aa025d5fa3b326466c4e582d81a0aa09fb8373e04b3a84aa3468a3",
+        "receipt_profile": "controlled-repair-v1"
+      }
+    ],
+    "execution_order": [
+      0,
+      1,
+      2
+    ],
+    "outcome": "nominated",
+    "selected_seed": 2,
+    "candidate_tree_sha256": "49f7abe2b5a290775fdc12d4954f1a211953bd0395f76c8d9653be38f09e4392",
+    "candidate_tree_locator": "artifact-locator:sha256:49f7abe2b5a290775fdc12d4954f1a211953bd0395f76c8d9653be38f09e4392",
+    "nomination_receipt_sha256": "1b2fb0bb0ea569910a3f8edeb856b24778b0d78b112c9d9b1adcb25a0ae9cc1b",
+    "nomination_receipt_locator": "artifact-locator:sha256:1b2fb0bb0ea569910a3f8edeb856b24778b0d78b112c9d9b1adcb25a0ae9cc1b",
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_microusd": 0,
+      "wall_time_ms": 1587,
+      "est_input_tokens": 0
+    },
+    "overhead_usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost_microusd": 0,
+      "wall_time_ms": 0,
+      "est_input_tokens": 0
+    },
+    "negative_outcomes": [
+      "baseline:frozen-evaluator-rejected",
+      "negative-control:frozen-evaluator-rejected"
+    ],
+    "reproducibility_note": "The exact working-tree bytes are identified by base_source_tree_sha256; source_revision is independently verified HEAD provenance. Replay uses that base CAS, frozen evaluator, ordered arms, and equal ceilings.",
+    "blockers": [],
+    "started_at": "2026-09-05T12:43:32.846847+00:00",
+    "finished_at": "2026-09-05T12:43:36.606525+00:00",
+    "provenance": {
+      "origin": "ariadne.controlled-repair.receipt",
+      "source_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+      "created_at": "2026-09-05T12:43:36.606525+00:00",
+      "input_digests": [
+        "0a18ab956d20dfa3de5c90767b0155cbc9bc28168273ae706ce8074dcc0fd9f6",
+        "0a7dc7e0abc9e16150a49f237b9e5d0db06590207242cb01732703c5695c8535",
+        "15dde6beadb0643c719970f2d332094e14e002529f85f111b11e5060f0a616f0",
+        "1b2fb0bb0ea569910a3f8edeb856b24778b0d78b112c9d9b1adcb25a0ae9cc1b",
+        "1bb145e491a8828c25d95bf9640275a26c6f67b3fee6c8f8665843f6b188c1b4",
+        "2b63376bf4b0d357b7f0510e27b8530a8535685534525b6481547f754d8baa6b",
+        "36d327bca1bcc20e171d93a79c60f1718308d0732332f0520bb456af726f49e4",
+        "49f7abe2b5a290775fdc12d4954f1a211953bd0395f76c8d9653be38f09e4392",
+        "5e6eaff33110ba772042a90aae7bfae1698e2f229ce1b63725a10580f74b0a30",
+        "68ec82b6babd6dee275a98126faefc0060ee2fb671ac88735302692c6f6da174",
+        "6ef2f8121c4d5b77f3ff9d54f0c2a21f9cf535f40773c1266a2219afb0374928",
+        "80475f1c3957dc211d7e1273894aafc1024d388f17c91a77dcf58425ee01e3cb",
+        "8280a0c32abbdf948766bebb91bd46f33d5aa074a5217d143921d6d3b6650722",
+        "a104ca379d2e2558e53145dc7384e6071cfdab46c3a2c983c92e05982d13ccd7",
+        "abfec90d4a547378bfea300a896a862859d2510d3f9004cb846fcb35d9b9859a",
+        "b1bf3ebd0cf7c4a41ff851a0c89593255eb766ddff511da37f18f2a62e771cbd",
+        "e3a13156cca243d98508bdcc5e6237aa88319e059c6d0dd6e8c6178c7ce72539",
+        "e795334f3e7c447946efff65baa44e09bd47c4e84a8d4334826af20a943a220b"
+      ],
+      "trace_id": "self-renovation-03"
+    },
+    "selection_mode": "best-passed-trial",
+    "selected_variant_id": "repair",
+    "budget_equality": {
+      "configured_budget_sha256": "508b0a0c43aa025d5fa3b326466c4e582d81a0aa09fb8373e04b3a84aa3468a3",
+      "trial_keys": [
+        "baseline:0",
+        "negative-control:1",
+        "repair:2"
+      ],
+      "trial_budget_sha256s": [
+        "508b0a0c43aa025d5fa3b326466c4e582d81a0aa09fb8373e04b3a84aa3468a3",
+        "508b0a0c43aa025d5fa3b326466c4e582d81a0aa09fb8373e04b3a84aa3468a3",
+        "508b0a0c43aa025d5fa3b326466c4e582d81a0aa09fb8373e04b3a84aa3468a3"
+      ],
+      "realized_usage_sha256s": [
+        "ba739d426e943305a2629534a083ef9b0d19b26275ef4414e7dd805216abaeb5",
+        "af7c433457b290de234b38a8f6388eb6ef0c591298726d8dbfb7530618db75f4",
+        "d2e2cceb5e777a3d4beea0d80b604900a4655f538872aea7d735249160324ab8"
+      ],
+      "configured_equal": true,
+      "realized_usage_recorded": true,
+      "within_budget": true
+    }
+  }
+}
