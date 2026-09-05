@@ -1,0 +1,226 @@
+{
+  "ok": true,
+  "genesis": {
+    "run_id": "genesis-1264fa9156a8f239fed80d0a",
+    "request_key": "loop-genesis-rehearsal-03-desktop",
+    "status": "preview-ready",
+    "target": "desktop",
+    "defaults": {
+      "accessibility": "WCAG 2.2 AA",
+      "authentication": false,
+      "audience": "one local user",
+      "base_repository": null,
+      "capability_scope": "card CRUD with fixed backlog/in-progress/done columns, keyboard move controls, and optional search/filter",
+      "language": "English UI generated from the supplied objective",
+      "product_class": "local-first kanban board",
+      "requested_stack": null,
+      "requested_target": "desktop",
+      "stack": "pwa-python-stdlib",
+      "stack_required": false,
+      "storage": "local-only",
+      "target": "desktop",
+      "target_required": true,
+      "telemetry": false,
+      "blueprint": "kanban-board-v1"
+    },
+    "blockers": [
+      "Desktop is delivered as an installable offline PWA, not as a native store package."
+    ],
+    "mission": {
+      "mission_id": "mission-1264fa9156a8f239fed80d0a",
+      "objective": "Materialize and verify an isolated desktop product: kanban board",
+      "work_items": [
+        "wi-001-08145264317a",
+        "wi-002-2b6b15cd021d",
+        "wi-003-f7c935274e8e",
+        "wi-004-1eed24802098",
+        "wi-005-b6c28260f5e7",
+        "wi-006-6dbe893f23a8",
+        "wi-007-4d57dfec75aa",
+        "wi-008-4ea72598ea99",
+        "wi-009-cedbb618e9fe"
+      ],
+      "success_criteria": [
+        "Card model and schema match their independently pinned identities",
+        "app.js matches the pinned kanban-board-v1 template after exact CONFIG normalization",
+        "browser behavior is not claimed by certified-template conformance",
+        "candidate-executing checks report effective OS write containment",
+        "deterministic syntax check passes",
+        "generated unit tests pass",
+        "package smoke check passes",
+        "rebuilt Fourfold snapshot is complete",
+        "runtime smoke check passes"
+      ],
+      "policy_sha256": "180697221bd627e5022b22e6c42d865c248a1ccd05d360e6b621c990309b3935"
+    },
+    "candidate": {
+      "kind": "candidate source tree",
+      "sha256": "b7dd86fe936eb046f997501e15977d8ee5b012ec475298e2c4b50621d18e0a02",
+      "locator": "artifact-locator:sha256:b7dd86fe936eb046f997501e15977d8ee5b012ec475298e2c4b50621d18e0a02",
+      "files": [
+        "README.md",
+        "app.js",
+        "fourfold.json",
+        "icons/icon-192.svg",
+        "icons/icon-512.svg",
+        "index.html",
+        "manifest.webmanifest",
+        "model.py",
+        "schemas/card.schema.json",
+        "server.py",
+        "service-worker.js",
+        "styles.css",
+        "tests/test_project.py"
+      ]
+    },
+    "evidence": {
+      "kind": "evidence packet",
+      "sha256": "920a20d9de3432962ae7a4683f9dcc69ce56054845e38e56eae4fea39526f4e8",
+      "locator": "artifact-locator:sha256:920a20d9de3432962ae7a4683f9dcc69ce56054845e38e56eae4fea39526f4e8",
+      "status": "passed",
+      "checks": [
+        "attempt-1264fa9156a8f239fed80d0a:build",
+        "attempt-1264fa9156a8f239fed80d0a:fourfold",
+        "attempt-1264fa9156a8f239fed80d0a:kanban_template_conformance",
+        "attempt-1264fa9156a8f239fed80d0a:package",
+        "attempt-1264fa9156a8f239fed80d0a:runtime",
+        "attempt-1264fa9156a8f239fed80d0a:test"
+      ],
+      "candidate_tree_sha256": "b7dd86fe936eb046f997501e15977d8ee5b012ec475298e2c4b50621d18e0a02"
+    },
+    "roundtrip": {
+      "kind": "round-trip report",
+      "sha256": "defd871cf3a052b7a5ae84783b72a4be5761a523fe06a9a07cd3a5deb0c0275d",
+      "locator": "artifact-locator:sha256:defd871cf3a052b7a5ae84783b72a4be5761a523fe06a9a07cd3a5deb0c0275d",
+      "status": "passed",
+      "checks": {
+        "build": true,
+        "code": true,
+        "containment": true,
+        "data": true,
+        "kanban_template_conformance": true,
+        "knowledge": true,
+        "package": true,
+        "runtime": true,
+        "test": true,
+        "type": true
+      },
+      "feature_assurance": {
+        "approved_kanban_app_template_sha256": "66244182208b8bae5777d16d71f859724f8f37d71abb4decf5c84834d023d941",
+        "approved_kanban_model_sha256": "dbebac7873d9b9853b8ba5275a8c489bca2dc873dd710becae5b8f6bced6f647",
+        "approved_kanban_schema_sha256": "bb12c29e79a3767e578b7c126062669ddccc21b3b23ec76730bcf41bd729f054",
+        "blueprint": "kanban-board-v1",
+        "browser_behavior_verified": false,
+        "candidate_owned": false,
+        "kanban_template_verified": true,
+        "mechanism": "kernel-owned certified kanban template plus pinned model/schema conformance",
+        "runtime_behavior_verified_by_this_check": false,
+        "limitation": "Exact generated source identities and fixed-column wiring are checked, but browser interactions are not executed; behavioral browser verification remains a separate release gap."
+      }
+    },
+    "preview": {
+      "kind": "read-only-cas-preview",
+      "path": "/api/genesis/genesis-1264fa9156a8f239fed80d0a/preview/"
+    },
+    "artifacts": {
+      "actual_fourfold": {
+        "kind": "actual fourfold",
+        "sha256": "5f1622dd928f3c5285f8c74793c6c44600dd1304299d646a83b91d2b83d94b73",
+        "locator": "artifact-locator:sha256:5f1622dd928f3c5285f8c74793c6c44600dd1304299d646a83b91d2b83d94b73"
+      },
+      "attempt": {
+        "kind": "attempt",
+        "sha256": "a826d5ac91fb04c875562315f386dbf1076d9df731826c0dfffbbf45c99e9c11",
+        "locator": "artifact-locator:sha256:a826d5ac91fb04c875562315f386dbf1076d9df731826c0dfffbbf45c99e9c11"
+      },
+      "autonomy_policy": {
+        "kind": "autonomy policy",
+        "sha256": "180697221bd627e5022b22e6c42d865c248a1ccd05d360e6b621c990309b3935",
+        "locator": "artifact-locator:sha256:180697221bd627e5022b22e6c42d865c248a1ccd05d360e6b621c990309b3935"
+      },
+      "build_intent": {
+        "kind": "build intent",
+        "sha256": "16141435905769601539d70562d4240e2a76625ab91c9a51b21efad44bcd266a",
+        "locator": "artifact-locator:sha256:16141435905769601539d70562d4240e2a76625ab91c9a51b21efad44bcd266a"
+      },
+      "design_contract": {
+        "kind": "design contract",
+        "sha256": "646ad2afeeeabe38699a460304b69d6bfcdbe9a37e0342ce840134c1c8c3cb46",
+        "locator": "artifact-locator:sha256:646ad2afeeeabe38699a460304b69d6bfcdbe9a37e0342ce840134c1c8c3cb46"
+      },
+      "evidence": {
+        "kind": "evidence",
+        "sha256": "920a20d9de3432962ae7a4683f9dcc69ce56054845e38e56eae4fea39526f4e8",
+        "locator": "artifact-locator:sha256:920a20d9de3432962ae7a4683f9dcc69ce56054845e38e56eae4fea39526f4e8"
+      },
+      "graph_proposal": {
+        "kind": "graph proposal",
+        "sha256": "9ba6d51c585d9c7c3abbc29b3d8082c12a0f0857592410f917e670ae826a63a9",
+        "locator": "artifact-locator:sha256:9ba6d51c585d9c7c3abbc29b3d8082c12a0f0857592410f917e670ae826a63a9"
+      },
+      "materialization_plan": {
+        "kind": "materialization plan",
+        "sha256": "4230d88697c9095c3a6943905dd9741e5e1a77f94608736cc24e46f40091f169",
+        "locator": "artifact-locator:sha256:4230d88697c9095c3a6943905dd9741e5e1a77f94608736cc24e46f40091f169"
+      },
+      "mission": {
+        "kind": "mission",
+        "sha256": "0c539c6d1141ff8e069cd96b3cde27e0336ba6af7579aa4f70e6c03cf9dbee72",
+        "locator": "artifact-locator:sha256:0c539c6d1141ff8e069cd96b3cde27e0336ba6af7579aa4f70e6c03cf9dbee72"
+      },
+      "policy_decision": {
+        "kind": "policy decision",
+        "sha256": "5b3a736cde4ad1f52f328f59b3f27686bb551beb107cd82b0c8b2fd6509f8a0f",
+        "locator": "artifact-locator:sha256:5b3a736cde4ad1f52f328f59b3f27686bb551beb107cd82b0c8b2fd6509f8a0f"
+      },
+      "product_spec": {
+        "kind": "product spec",
+        "sha256": "de61a26e7e9cc396133282c6ef7d7d9eefed9f6dcc51af7dcca4f2dd4555cbac",
+        "locator": "artifact-locator:sha256:de61a26e7e9cc396133282c6ef7d7d9eefed9f6dcc51af7dcca4f2dd4555cbac"
+      },
+      "roundtrip": {
+        "kind": "roundtrip",
+        "sha256": "defd871cf3a052b7a5ae84783b72a4be5761a523fe06a9a07cd3a5deb0c0275d",
+        "locator": "artifact-locator:sha256:defd871cf3a052b7a5ae84783b72a4be5761a523fe06a9a07cd3a5deb0c0275d"
+      },
+      "run_record": {
+        "kind": "run record",
+        "sha256": "b96066973a30c3dd4759a6370e8f7d52cb9ddbd2bacd2ecb269cbe24a9808ee4",
+        "locator": "artifact-locator:sha256:b96066973a30c3dd4759a6370e8f7d52cb9ddbd2bacd2ecb269cbe24a9808ee4"
+      },
+      "runtime_manifest": {
+        "kind": "runtime manifest",
+        "sha256": "38aee76a43a7da5742a3ab454cde109cd0477446339d51942dd6237ccd3f4f6d",
+        "locator": "artifact-locator:sha256:38aee76a43a7da5742a3ab454cde109cd0477446339d51942dd6237ccd3f4f6d"
+      },
+      "target_fourfold": {
+        "kind": "target fourfold",
+        "sha256": "43f7e28c63cbc7b50da17af5ba4686e242aa477c79132d142a67e7b2e17ba598",
+        "locator": "artifact-locator:sha256:43f7e28c63cbc7b50da17af5ba4686e242aa477c79132d142a67e7b2e17ba598"
+      },
+      "toolchain_manifest": {
+        "kind": "toolchain manifest",
+        "sha256": "4d6cddcb2e546de8effcdab5cfd867aeeb539bd60d5d0db69b1e40805ed15c26",
+        "locator": "artifact-locator:sha256:4d6cddcb2e546de8effcdab5cfd867aeeb539bd60d5d0db69b1e40805ed15c26"
+      }
+    },
+    "invocation_effect": {
+      "schema": "daedalus-genesis-invocation-effect-binding/1",
+      "entrypoint_id": "python.genesis",
+      "source_revision": "f93a2b613002054dad8f8a671e02592375a4595c",
+      "attempt_id": "attempt-1264fa9156a8f239fed80d0a",
+      "operation_sha256": "88aa138d08b6dd9795e881ad045018f7b62b0499b15b044ab6aa698f7464ebf8",
+      "lease_sha256": "823ac83ac28870f30060c519bab3fb86120588c7d7329af2ff472eca724d5e5f",
+      "execution_id": "mission-1264fa9156a8f239fed80d0a-python.genesis-attempt-1264fa9156a8f239fed80d0a-9bdb33ff-exec-0",
+      "execution_request_sha256": "abb16fe280e67a48303bb38d4f27f7bad6f2d3cfc00381df9d36e3a12e42301f",
+      "lease_subject_record_sha256": "9e8a8cb13db69a88aaf3ff5af49a419d98833335d9fa443d94bdcd1c1041e1af",
+      "lease_execution_record_sha256": "0d114e50dce3c6642149bdb9fb4789851f25541d23ca2a6a9546fbef6af7fe08",
+      "expected_terminal_state": "completed"
+    },
+    "publication": {
+      "status": "not-requested",
+      "owner_approval_required": true,
+      "automatic_promotion": false
+    }
+  }
+}
