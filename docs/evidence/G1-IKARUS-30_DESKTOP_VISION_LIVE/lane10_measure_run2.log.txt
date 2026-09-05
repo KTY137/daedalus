@@ -1,0 +1,3 @@
+[m00_observe_without_foreground_app] desktop.observe -> ok=False state=blocked 0.318s lease identity was already used for different content
+[m01_app_launch] app.launch -> ok=False state=blocked 0.074s lease identity was already used for different content
+[redacted] the JSON body of this run was moved into lane10_measure_result.json and filtered by lane10_redact.py
