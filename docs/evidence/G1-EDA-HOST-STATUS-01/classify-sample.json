@@ -1,0 +1,55 @@
+[
+  {
+    "path": "top.v",
+    "kind": "rtl",
+    "language": "verilog",
+    "role": "design/source",
+    "synthesizable": true
+  },
+  {
+    "path": "top.sv",
+    "kind": "rtl",
+    "language": "systemverilog",
+    "role": "design/source",
+    "synthesizable": true
+  },
+  {
+    "path": "pkg.vhd",
+    "kind": "rtl",
+    "language": "vhdl",
+    "role": "design/source",
+    "synthesizable": true
+  },
+  {
+    "path": "constraints.xdc",
+    "kind": "constraint",
+    "language": "xdc",
+    "role": "fpga/constraints",
+    "synthesizable": false
+  },
+  {
+    "path": "design.xpr",
+    "kind": "project",
+    "language": "vivado-xpr",
+    "role": "vivado/project",
+    "synthesizable": false
+  },
+  {
+    "path": "bd.bd",
+    "kind": "block_design",
+    "language": "vivado-bd",
+    "role": "vivado/source",
+    "synthesizable": true
+  },
+  {
+    "path": "ip.xci",
+    "kind": "ip_config",
+    "language": "vivado-xci",
+    "role": "vivado/source",
+    "synthesizable": true
+  },
+  {
+    "path": "top.kicad_pcb",
+    "kind": "unknown"
+  }
+]
