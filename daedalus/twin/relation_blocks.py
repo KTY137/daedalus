@@ -337,16 +337,17 @@ class TypedRelationBlock(Generic[T]):
             # Canonical blocks are overwhelmingly on this path. Walk each row span
             # directly instead of checking/advancing a row-boundary state machine for
             # every stored entry. Count-mismatch inputs keep the precedence-preserving
-            # fallback below.
+            # fallback below. Valid column indices are non-negative, so -1 is a safe
+            # row-local sentinel and removes an impossible None branch from each entry.
             for row in range(row_count):
-                previous_column: int | None = None
+                previous_column = -1
                 for position in range(offsets[row], offsets[row + 1]):
                     item = columns[position]
                     if type(item) is not int:
                         raise ValueError("block.column_indices must contain integers")
-                    if not 0 <= item < column_count:
+                    if item < 0 or item >= column_count:
                         columns_out_of_range = True
-                    if previous_column is not None and previous_column >= item:
+                    if previous_column >= item:
                         columns_not_strict = True
                     previous_column = item
         else:

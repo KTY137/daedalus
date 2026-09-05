@@ -99,6 +99,10 @@ def test_fused_validation_retains_canonical_block_identity_and_digest() -> None:
             "block.column_indices must contain integers",
         ),
         (
+            {"column_indices": (-1, 1, 2)},
+            "block.column_indices contains an out-of-range index",
+        ),
+        (
             {"column_indices": (2, 1, 3)},
             "block.column_indices contains an out-of-range index",
         ),
@@ -159,4 +163,6 @@ def test_constructor_uses_row_spans_without_generic_any_or_per_entry_row_state()
     assert "any(" not in source
     assert "columns[offsets[row]" not in source
     assert "while row < row_count" not in source
+    assert "previous_column is not None" not in source
+    assert "previous_column = -1" in source
     assert "range(offsets[row], offsets[row + 1])" in source
