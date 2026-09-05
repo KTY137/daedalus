@@ -1,0 +1,207 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-GARDEN-BRANCH-03",
+  "title": "Classify remote branch drift against the canonical 11-branch topology without evidence loss",
+  "status": "closed-research",
+  "date_europe_berlin": "2026-09-06",
+  "classification": "ALIGNED_GARDENING",
+  "domain": "repository-topology/fourfold-tensor-evidence",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority_file": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "authority_blob": "b16cd697b5f263be81cc0889f0d803ad696a8b84"
+  },
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "d302b7f13293b83640cb8fa38451d6240d00dedf",
+  "target": {
+    "source": "docs/recovery/BRANCH_CONSOLIDATION_TARGET_20260830.json",
+    "source_blob": "4f0feab94def1a25d63ddc096af36244edbe79c2",
+    "target_branch_count": 11,
+    "canonical_branches": [
+      "main",
+      "g1/ikarus-runtime-invocation-binding-07d3",
+      "nemesis/20260830-tier2-evidence-hardening-r2",
+      "g1/gardener-post-release-containment-03",
+      "exp/tensor-latent-ceiling-01",
+      "exp/tensor-kernel-contract-01",
+      "feature/chip-design-rtl-tcl",
+      "experiment/deepseek-lab",
+      "ops/gardener-campaign-20260929",
+      "g2/knowledge-correlation-bootstrap",
+      "archive/legacy-20260830"
+    ]
+  },
+  "observed_remote_state": {
+    "branch_count": 18,
+    "canonical_count": 11,
+    "noncanonical_count": 7,
+    "snapshot_heads": {
+      "archive/legacy-20260830": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+      "chore/source-provenance-watermark-20260830": "cfdd83b1755a0768e6638e5f2d239d10d2924922",
+      "exp/fourfold-hybrid-retrieval-01": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "exp/fourfold-hybrid-retrieval-kernel-01": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "exp/tensor-kernel-contract-01": "872a537d2e9490dc86cfd7379a9567e00bc7ce2d",
+      "exp/tensor-latent-ceiling-01": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "experiment/deepseek-lab": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "feature/chip-design-rtl-tcl": "d38ec34c9a525dc4b6a960a90bc4da04254bbed4",
+      "g1/gardener-post-release-containment-03": "d302b7f13293b83640cb8fa38451d6240d00dedf",
+      "g1/ikarus-runtime-invocation-binding-07d3": "027a985ea294740503f79f7b2a317062856c8be9",
+      "g2/knowledge-correlation-bootstrap": "6e8264be25dac91606e962a070ba786e79bf48fa",
+      "main": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "nemesis/20260830-tier2-evidence-hardening-r2": "1fc2ff885669ba36c70022a1fb1f572afa308eaf",
+      "ops/gardener-campaign-20260929": "d96c41c8f64354dd7658611511ddd5a25854a3ce",
+      "packet/g1-iso-02": "afd28c7e3b0c9f941aae7b2341eb9e715f332f06",
+      "packet/g1-map-02": "ce4bcfd4829b981cd57618201e6a73d70824fc64",
+      "rescue/tensor-kernel-contract-01-prerewrite": "35f6a0172e5cd9d259619c4685d85aa937c5f6d1",
+      "worktree-g1-ui-ikarus": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0"
+    }
+  },
+  "archive_rule": {
+    "branch": "archive/legacy-20260830",
+    "frozen_head_observed": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "write_permitted": false,
+    "new_work_permitted": false,
+    "legacy_reintegration_target": "the domain-appropriate canonical line, never the archive branch",
+    "historical_target_note": "BRANCH_CONSOLIDATION_TARGET_20260830.json records an older recovery-snapshot archive head; this packet treats that file as historical evidence and does not rewrite it."
+  },
+  "noncanonical_classification": [
+    {
+      "branch": "exp/fourfold-hybrid-retrieval-01",
+      "head": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "classification": "redundant_ref_main_equivalent",
+      "evidence": "head equals main exactly",
+      "unique_evidence_on_ref": false,
+      "disposition": "ref deletion is evidence-safe; no merge, archive move, or content reintegration is required"
+    },
+    {
+      "branch": "exp/fourfold-hybrid-retrieval-kernel-01",
+      "head": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "classification": "redundant_ref_main_equivalent",
+      "evidence": "head equals main exactly",
+      "unique_evidence_on_ref": false,
+      "disposition": "ref deletion is evidence-safe; PR/commit/blob history already lives outside this alias"
+    },
+    {
+      "branch": "worktree-g1-ui-ikarus",
+      "head": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "classification": "redundant_ref_main_equivalent",
+      "evidence": "head equals main exactly",
+      "unique_evidence_on_ref": false,
+      "disposition": "ref deletion is evidence-safe; no archive move"
+    },
+    {
+      "branch": "rescue/tensor-kernel-contract-01-prerewrite",
+      "head": "35f6a0172e5cd9d259619c4685d85aa937c5f6d1",
+      "classification": "redundant_ref_fully_contained_by_canonical_tensor_ancestry",
+      "comparison": {
+        "base": "exp/tensor-kernel-contract-01",
+        "status": "behind",
+        "ahead_by": 0,
+        "behind_by": 671,
+        "merge_base": "35f6a0172e5cd9d259619c4685d85aa937c5f6d1"
+      },
+      "unique_evidence_on_ref": false,
+      "disposition": "canonical tensor branch already contains this commit by ancestry; ref deletion is evidence-safe"
+    },
+    {
+      "branch": "chore/source-provenance-watermark-20260830",
+      "head": "cfdd83b1755a0768e6638e5f2d239d10d2924922",
+      "classification": "historical_evidence_not_yet_contained",
+      "comparison_to_main": {
+        "status": "diverged",
+        "ahead_by": 3,
+        "behind_by": 606,
+        "merge_base": "71a9e3ed19778bf0441b7991be5e8fd2ab2e2218"
+      },
+      "pull_request": {
+        "number": 307,
+        "state": "closed",
+        "merged": false,
+        "recorded_head": "531e8bac53ace41b85f3f910896b19357fdf54b7",
+        "current_ref_head_matches_recorded_pr_head": false
+      },
+      "unique_evidence_on_ref": true,
+      "disposition": "retain ref for now; do not wholesale reintegrate the broad watermark diff; first anchor/review the current post-PR head on the appropriate canonical line"
+    },
+    {
+      "branch": "packet/g1-iso-02",
+      "head": "afd28c7e3b0c9f941aae7b2341eb9e715f332f06",
+      "classification": "uncontained_candidate_evidence",
+      "comparison_to_main": {
+        "status": "diverged",
+        "ahead_by": 7,
+        "behind_by": 395,
+        "merge_base": "c06f872ebd00c6fb873aedc93a9ac513a0e4488d"
+      },
+      "pull_requests_for_current_head_branch": 0,
+      "head_finding": "G1-ISO-03 corrects assurance provenance/criterion paths in ignition evidence and explicitly retains the measured behavior-probe residual rather than overstating it as a bypass.",
+      "unique_evidence_on_ref": true,
+      "disposition": "retain ref until the seven branch-only commits are reviewed one-by-one and valuable changes are selectively reintegrated into the domain-appropriate canonical line"
+    },
+    {
+      "branch": "packet/g1-map-02",
+      "head": "ce4bcfd4829b981cd57618201e6a73d70824fc64",
+      "classification": "uncontained_candidate_evidence",
+      "comparison_to_main": {
+        "status": "diverged",
+        "ahead_by": 15,
+        "behind_by": 371,
+        "merge_base": "f4a623e36cd0c6dfd403e0342719b3d0891ed598"
+      },
+      "pull_requests_for_current_head_branch": 0,
+      "head_finding": "The head records mapping/preflight/coverage-guided dependency work and a stale-lockfile finding; the branch remains materially different from main.",
+      "unique_evidence_on_ref": true,
+      "disposition": "retain ref until selective per-commit review/reintegration into the appropriate canonical gardening/evidence line; do not merge the branch wholesale"
+    }
+  ],
+  "decision": {
+    "safe_ref_deletion_candidates": [
+      "exp/fourfold-hybrid-retrieval-01",
+      "exp/fourfold-hybrid-retrieval-kernel-01",
+      "worktree-g1-ui-ikarus",
+      "rescue/tensor-kernel-contract-01-prerewrite"
+    ],
+    "must_retain_until_contained": [
+      "chore/source-provenance-watermark-20260830",
+      "packet/g1-iso-02",
+      "packet/g1-map-02"
+    ],
+    "evidence_safe_immediate_floor_if_ref_deletion_is_available": 14,
+    "reason_not_to_force_11_now": "Deleting all seven noncanonical refs today would destroy the only durable branch reachability for three materially divergent, currently uncontained histories. That would violate the owner evidence rule. Reach 11 only after those histories are selectively contained/anchored.",
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "archive_branch_written": false,
+    "branch_deleted_in_this_packet": false
+  },
+  "verification": {
+    "method": "GitHub ref snapshot plus commit comparison against main/canonical tensor and PR-head lookup; no benchmark or production-code claim",
+    "main_head": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "canonical_tensor_head": "872a537d2e9490dc86cfd7379a9567e00bc7ce2d",
+    "gardener_pre_head": "d302b7f13293b83640cb8fa38451d6240d00dedf",
+    "ref_count_observed": 18,
+    "target_count": 11,
+    "full_repository_suite": "not applicable; this packet changes no production/test code",
+    "benchmark_claim": false
+  },
+  "claims": {
+    "fourfold_authority_changed": false,
+    "tensor_semantics_changed": false,
+    "benchmark_superiority": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "automatic_merge": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "campaign_issue": 239,
+    "pull_request": 313
+  },
+  "next_bounded_packet": "Inspect packet/g1-iso-02 first because it is only seven commits ahead of its merge base and contains a concrete evidence-assurance correction; selectively port only still-applicable changes into the appropriate canonical line with exact blob/commit provenance. Do not use archive/legacy-20260830 and do not wholesale merge the branch."
+}
