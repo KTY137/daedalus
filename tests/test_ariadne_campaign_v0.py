@@ -1641,3 +1641,47 @@ def test_head_moving_while_the_target_is_read_is_a_conflict(tmp_path, monkeypatc
     with pytest.raises(AriadneConflictError, match="source_revision"):
         _run(module, root, head, "wt-race")
     assert not (tmp_path / "control" / "ariadne").exists(), "a refused start leaves no campaign state"
+
+
+# --------------------------------------------------------------------------
+# G1-ARIADNE-06: refusals that name their cause and the remedy
+# --------------------------------------------------------------------------
+
+
+def test_linked_worktree_subject_is_a_named_actionable_refusal(tmp_path, monkeypatch):
+    """A linked worktree (.git is a gitdir pointer file) is a deliberately
+    unsupported subject (tests/test_git_is_a_process_launcher.py measured the
+    pointer-rewrite attack; tests/gates/test_repository_head_revision.py pins the
+    gate refusal). The facade names the layout and the remedy, creates no state."""
+    import daedalus.ariadne.campaign as module
+
+    root = tmp_path / "wt"
+    root.mkdir()
+    (root / ".git").write_text("gitdir: ../main/.git/worktrees/wt\n", encoding="utf-8")
+    (root / "sample.txt").write_text("broken\n", encoding="utf-8")
+    monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(tmp_path / "control" / "killswitch"))
+
+    with pytest.raises(AriadneRequestError) as caught:
+        run_campaign(
+            repo_root=root, source_revision=REV, campaign_id="wt-subject",
+            target_path="sample.txt", before="broken", after="fixed", timeout_s=5,
+        )
+    message = str(caught.value)
+    assert "linked git worktree" in message and "clone" in message, message
+    assert "must be a real directory" in message, "the gate refusal stays visible"
+    assert not (tmp_path / "control").exists()
+
+
+def test_partial_campaign_state_refusal_names_the_spine_cas_split(tmp_path):
+    """A spine database without its source-tree CAS refuses fail-closed and says which half is missing."""
+    spine = tmp_path / "runs" / "spine" / "spine.sqlite3"
+    spine.parent.mkdir(parents=True)
+    spine.write_bytes(b"not even sqlite")
+    with pytest.raises(CampaignLifecycleError) as caught:
+        lookup_campaign_read_only(
+            str(spine), str(tmp_path / "control" / "ariadne" / "source-cas"),
+            "any-id", expected_operation_sha256="0" * 64,
+        )
+    message = str(caught.value)
+    assert message.startswith("partial persisted Campaign state is unsafe"), message
+    assert "source-tree CAS is missing" in message and "control root" in message, message
