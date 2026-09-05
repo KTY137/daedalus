@@ -458,3 +458,4 @@ daedalus/twin/two_category.py -text
 # so a translating checkout would make 19/19 of them mismatch on Windows
 # (measured 2026-09-05 by the G1-IKARUS-26 adversarial review, F1).
 docs/evidence/G1-IKARUS-26_COMPUTER_LOOP_LIVE/** -text
+docs/evidence/G1-IKARUS-30_DESKTOP_VISION_LIVE/** -text
