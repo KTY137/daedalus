@@ -80,6 +80,19 @@ Arm B also reaches `preview-ready` (run `genesis-f550afe4b15265cf80f4c5d2`, roun
 
 Reading, narrowed by the A/B: the stub is a measurable, consistent cost (one extra process per gate, roughly 0.9 to 1.9 s here) and pollutes every gate output with the warning line; on a quiet host it does not by itself produce the 16 to 31 s gates or the runtime timeout of the morning. Those figures therefore need the stub plus host contention (Codex's own note: competing build/package work); the stub alone is not the proven cause of the timeout. What the base interpreter buys is proven: the cost and the pollution go away, and the exact-output contracts (Ariadne) become satisfiable.
 
+## All four product targets (stage 9, measured 2026-09-05, 15:05 to 15:07)
+
+Same clone, fresh control root, request keys `loop-genesis-rehearsal-03-<target>`, base interpreter on every contained gate. Retained under `docs/evidence/G1-GENESIS-REHEARSAL-01/targets/` (sanitized results and `targets.json`).
+
+| Run | Result | Blockers or notes | Gates (ms, all passed, none timed out, no warning line) |
+| --- | --- | --- | --- |
+| `kanban board`, `--target desktop` | `preview-ready`, round-trip passed, 13 files | "Desktop is delivered as an installable offline PWA, not as a native store package." | build 1780, test 2030, runtime 1861, package 725, conformance 16 |
+| `kanban board`, `--target mobile` | `preview-ready`, round-trip passed, 13 files | "Mobile is delivered as an installable offline PWA, not as a native store package." | build 908, test 1650, runtime 1071, package 755, conformance 26 |
+| `kanban board`, `--target cli` | `blocked`, no candidate, no state | "The kanban-board-v1 blueprint supports browser, desktop, and mobile PWA targets only; CLI is not implemented." (G1-GENESIS-02 refusal, exit 2) | none |
+| `todo list`, `--target cli` | `succeeded`, round-trip passed, 5 files (`README.md`, `app.py`, `fourfold.json`, `schemas/item.schema.json`, `tests/test_app.py`), no preview by design | none | build 681, test 734, runtime 672, package 663, cli_black_box 4115, feature_conformance 8 |
+
+Reading: every target the Gate-1 Genesis strand advertises is reachable on this host through the production path, the two PWA targets carry their honest labelling as blockers in the result, the inadmissible target/blueprint pair refuses before any effect, and the Python-stdlib CLI product passes its black-box gate. Gate wall times vary by a factor of about two between runs of the same blueprint (web 463 ms build versus desktop 1780 ms), which is host noise on a shared machine, not a property of the target; no run approached a ceiling.
+
 ## Scope and boundaries
 
 In scope: one measured run and its retained evidence. Out of scope: any code change, browser end-to-end, the source-download flow, publication, and any claim beyond product availability on this host. Gate-3/Gate-5 obligations are untouched.
@@ -95,6 +108,7 @@ No contract changes. The run used `daedalus genesis` (registered CLI door), the 
 | run reaches `preview-ready` with no blockers | yes |
 | every contained gate passed inside its ceiling without timeout or cancellation | yes (463, 1173, 1096, 462 ms) |
 | A/B with the launcher stub | also preview-ready; 2.2x to 4.0x slower per contained gate, warning line in every contained gate output, no timeout on a quiet host |
+| all four targets (web, desktop, mobile, cli) | web/desktop/mobile preview-ready with honest PWA labelling; cli refuses the kanban blueprint before any effect and succeeds for the item-collection product |
 | launcher warning line absent from every gate output | yes |
 | interpreter provenance recorded, path-free | yes |
 | no publication, no promotion | none requested; flags false/required as recorded |

@@ -209,7 +209,14 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
 - Stage 7 `G1-GENESIS-REHEARSAL-01` (EXPERIMENT): `daedalus genesis "kanban
   board"` on this host reaches preview-ready with all gates passing in 0.5 to
   1.2 s each and no launcher warning, against the morning's 16 to 31 s and a
-  runtime timeout with the launcher stub; single run, A/B pending.
+  runtime timeout with the launcher stub. Stage 8 A/B with the stub: also
+  preview-ready, 2.2x to 4.0x slower per contained gate, warning line in every
+  output, no timeout on a quiet host; the stub is a proven cost, not the
+  proven cause of the morning timeouts.
+- Stage 9 (same packet): all four Genesis targets measured on this host;
+  web/desktop/mobile preview-ready (PWA labelling retained as blockers), cli
+  refuses the kanban blueprint before any effect and succeeds for the
+  item-collection product with its black-box gate.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.

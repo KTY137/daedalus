@@ -1,0 +1,207 @@
+{
+  "ok": true,
+  "genesis": {
+    "run_id": "genesis-83b20849198505b972826293",
+    "request_key": "loop-genesis-rehearsal-03-cli-todo",
+    "status": "succeeded",
+    "target": "cli",
+    "defaults": {
+      "accessibility": "WCAG 2.2 AA",
+      "authentication": false,
+      "audience": "one local user",
+      "base_repository": null,
+      "capability_scope": "item CRUD with title/details, completion, and optional search/filter",
+      "language": "English UI generated from the supplied objective",
+      "product_class": "local-first task collection",
+      "requested_stack": null,
+      "requested_target": "cli",
+      "stack": "python-stdlib",
+      "stack_required": false,
+      "storage": "local-only",
+      "target": "cli",
+      "target_required": true,
+      "telemetry": false
+    },
+    "blockers": [],
+    "mission": {
+      "mission_id": "mission-83b20849198505b972826293",
+      "objective": "Materialize and verify an isolated cli product: todo list",
+      "work_items": [
+        "wi-001-2e89659494a9",
+        "wi-002-b139f80c8f08",
+        "wi-003-3eceac4e5524",
+        "wi-004-d3062b79215d",
+        "wi-005-90d485a91c3c",
+        "wi-006-28b9567cc944",
+        "wi-007-ba43a5b4226e",
+        "wi-008-5b951657026a",
+        "wi-009-de3f28628f79"
+      ],
+      "success_criteria": [
+        "candidate-executing checks report effective OS write containment",
+        "deterministic syntax check passes",
+        "generated unit tests pass",
+        "package smoke check passes",
+        "rebuilt Fourfold snapshot is complete",
+        "requested CLI behavior passes a kernel-owned contained black-box CRUD/search scenario",
+        "runtime smoke check passes"
+      ],
+      "policy_sha256": "f5c5c814f96a0501f8622751bf5e06672e37c0ce82061abb9787e673a49e4ebe"
+    },
+    "candidate": {
+      "kind": "candidate source tree",
+      "sha256": "cfc498e95ff460993c020735d056f607df5775a37896fdd3f2c414b1e36a095b",
+      "locator": "artifact-locator:sha256:cfc498e95ff460993c020735d056f607df5775a37896fdd3f2c414b1e36a095b",
+      "files": [
+        "README.md",
+        "app.py",
+        "fourfold.json",
+        "schemas/item.schema.json",
+        "tests/test_app.py"
+      ]
+    },
+    "evidence": {
+      "kind": "evidence packet",
+      "sha256": "84812b219d605be3cf156682a7d3be4c0c2740ab9f2550c2161a3748148e0465",
+      "locator": "artifact-locator:sha256:84812b219d605be3cf156682a7d3be4c0c2740ab9f2550c2161a3748148e0465",
+      "status": "passed",
+      "checks": [
+        "attempt-83b20849198505b972826293:build",
+        "attempt-83b20849198505b972826293:cli_black_box",
+        "attempt-83b20849198505b972826293:feature_conformance",
+        "attempt-83b20849198505b972826293:fourfold",
+        "attempt-83b20849198505b972826293:package",
+        "attempt-83b20849198505b972826293:runtime",
+        "attempt-83b20849198505b972826293:test"
+      ],
+      "candidate_tree_sha256": "cfc498e95ff460993c020735d056f607df5775a37896fdd3f2c414b1e36a095b"
+    },
+    "roundtrip": {
+      "kind": "round-trip report",
+      "sha256": "4aa4643d6b806168256d53c16a876f34267c7fb3532d2a263f43abab453b931a",
+      "locator": "artifact-locator:sha256:4aa4643d6b806168256d53c16a876f34267c7fb3532d2a263f43abab453b931a",
+      "status": "passed",
+      "checks": {
+        "build": true,
+        "cli_black_box": true,
+        "code": true,
+        "containment": true,
+        "data": true,
+        "feature_conformance": true,
+        "knowledge": true,
+        "package": true,
+        "runtime": true,
+        "test": true,
+        "type": true
+      },
+      "feature_assurance": {
+        "browser_behavior_verified": false,
+        "candidate_owned": false,
+        "cli_black_box_verified": true,
+        "mechanism": "kernel-owned structural source conformance plus contained CLI black-box scenario",
+        "runtime_behavior_verified_by_this_check": true
+      }
+    },
+    "preview": null,
+    "artifacts": {
+      "actual_fourfold": {
+        "kind": "actual fourfold",
+        "sha256": "2f8155f0809375fcd483242e957933a84a32b56dade1c1f315531d245f1b37fc",
+        "locator": "artifact-locator:sha256:2f8155f0809375fcd483242e957933a84a32b56dade1c1f315531d245f1b37fc"
+      },
+      "attempt": {
+        "kind": "attempt",
+        "sha256": "ec130028cfa5054656abe01cdc35e44553a06c8fcbce0d4f0d4922f3a4283941",
+        "locator": "artifact-locator:sha256:ec130028cfa5054656abe01cdc35e44553a06c8fcbce0d4f0d4922f3a4283941"
+      },
+      "autonomy_policy": {
+        "kind": "autonomy policy",
+        "sha256": "f5c5c814f96a0501f8622751bf5e06672e37c0ce82061abb9787e673a49e4ebe",
+        "locator": "artifact-locator:sha256:f5c5c814f96a0501f8622751bf5e06672e37c0ce82061abb9787e673a49e4ebe"
+      },
+      "build_intent": {
+        "kind": "build intent",
+        "sha256": "8d78cbd69f5f9b288d2bd888dec26b70bc6177f55bbb4065ed4a10c123f9c03a",
+        "locator": "artifact-locator:sha256:8d78cbd69f5f9b288d2bd888dec26b70bc6177f55bbb4065ed4a10c123f9c03a"
+      },
+      "design_contract": {
+        "kind": "design contract",
+        "sha256": "ac7056a83cc4a30fdf5890e45d9741254519181f3b01a1bce4e1b8bc826d2230",
+        "locator": "artifact-locator:sha256:ac7056a83cc4a30fdf5890e45d9741254519181f3b01a1bce4e1b8bc826d2230"
+      },
+      "evidence": {
+        "kind": "evidence",
+        "sha256": "84812b219d605be3cf156682a7d3be4c0c2740ab9f2550c2161a3748148e0465",
+        "locator": "artifact-locator:sha256:84812b219d605be3cf156682a7d3be4c0c2740ab9f2550c2161a3748148e0465"
+      },
+      "graph_proposal": {
+        "kind": "graph proposal",
+        "sha256": "52cf7231ea506bd8639ba0425070c062ef51892ef2cfe0b991f025a26dbee1d2",
+        "locator": "artifact-locator:sha256:52cf7231ea506bd8639ba0425070c062ef51892ef2cfe0b991f025a26dbee1d2"
+      },
+      "materialization_plan": {
+        "kind": "materialization plan",
+        "sha256": "150cab3d230d078aada073c7ea931683bce3dde2c22f3d2c38ba0ec62067a282",
+        "locator": "artifact-locator:sha256:150cab3d230d078aada073c7ea931683bce3dde2c22f3d2c38ba0ec62067a282"
+      },
+      "mission": {
+        "kind": "mission",
+        "sha256": "5d518dbb318f17f34d62225d8be99a32e7d5f5e3333faf6ee6b0fbcc1df8dd5e",
+        "locator": "artifact-locator:sha256:5d518dbb318f17f34d62225d8be99a32e7d5f5e3333faf6ee6b0fbcc1df8dd5e"
+      },
+      "policy_decision": {
+        "kind": "policy decision",
+        "sha256": "d270570fe20cda180f043cdbc1f833de7558a96ce5ac7865f4df057c554c81b0",
+        "locator": "artifact-locator:sha256:d270570fe20cda180f043cdbc1f833de7558a96ce5ac7865f4df057c554c81b0"
+      },
+      "product_spec": {
+        "kind": "product spec",
+        "sha256": "3171a8e9dd2bf38adf0394a0dcc4d7090813823f122bae3f91ed2cf839ca652a",
+        "locator": "artifact-locator:sha256:3171a8e9dd2bf38adf0394a0dcc4d7090813823f122bae3f91ed2cf839ca652a"
+      },
+      "roundtrip": {
+        "kind": "roundtrip",
+        "sha256": "4aa4643d6b806168256d53c16a876f34267c7fb3532d2a263f43abab453b931a",
+        "locator": "artifact-locator:sha256:4aa4643d6b806168256d53c16a876f34267c7fb3532d2a263f43abab453b931a"
+      },
+      "run_record": {
+        "kind": "run record",
+        "sha256": "29c0ff44bc55bfb70cddb0665477106c7eaae909071c5f3d4a6c6c5ce36551a0",
+        "locator": "artifact-locator:sha256:29c0ff44bc55bfb70cddb0665477106c7eaae909071c5f3d4a6c6c5ce36551a0"
+      },
+      "runtime_manifest": {
+        "kind": "runtime manifest",
+        "sha256": "815386b750e7c21d8f77505b413757ebc812edadc515cd896598584e516d0c45",
+        "locator": "artifact-locator:sha256:815386b750e7c21d8f77505b413757ebc812edadc515cd896598584e516d0c45"
+      },
+      "target_fourfold": {
+        "kind": "target fourfold",
+        "sha256": "2ee584c1b8cba71470037a001748ba59c99220e05b273e3de156ffdd24a233f2",
+        "locator": "artifact-locator:sha256:2ee584c1b8cba71470037a001748ba59c99220e05b273e3de156ffdd24a233f2"
+      },
+      "toolchain_manifest": {
+        "kind": "toolchain manifest",
+        "sha256": "ee805efb6966fa922e3f63c2f84b8b07938745d76b9fa2f86145b518d507b3f0",
+        "locator": "artifact-locator:sha256:ee805efb6966fa922e3f63c2f84b8b07938745d76b9fa2f86145b518d507b3f0"
+      }
+    },
+    "invocation_effect": {
+      "schema": "daedalus-genesis-invocation-effect-binding/1",
+      "entrypoint_id": "python.genesis",
+      "source_revision": "26497badabc2af6b525c2a7568f066a6a1a0d932",
+      "attempt_id": "attempt-83b20849198505b972826293",
+      "operation_sha256": "e6609205a9c24676abbdf986785613257254490261587fffed05ec6229e38588",
+      "lease_sha256": "5dfd1f1cfccb5af6410a22c2c7f3b60329ba7c81eed73d40542453b5b18e3a68",
+      "execution_id": "mission-83b20849198505b972826293-python.genesis-attempt-83b20849198505b972826293-b8bdc8cd-exec-0",
+      "execution_request_sha256": "9bdc2c34a4977ec274f57e49e82e25de8ecd6a2b0812b2d8131359b3475f9eee",
+      "lease_subject_record_sha256": "0bec59dcc82d3a33acdfec86a7a4792de0bf4759b58a39e1edc7ece77e6ea63f",
+      "lease_execution_record_sha256": "441d459e62ca7998d07ef7df753fcbbfbe32d53766aadb4f37b3ebefdd8f2578",
+      "expected_terminal_state": "completed"
+    },
+    "publication": {
+      "status": "not-requested",
+      "owner_approval_required": true,
+      "automatic_promotion": false
+    }
+  }
+}
