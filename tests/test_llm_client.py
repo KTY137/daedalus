@@ -17,6 +17,40 @@ def test_auto_selects_first_available_model_not_deterministic():
     assert "deterministic" not in seen
 
 
+def test_ollama_cli_alias_names_the_http_transport_ikarus_actually_uses():
+    client = IkarusLLMClient(environ={}, status_probe=lambda _: {"available": True})
+
+    selection = client.resolve("ollama_cli")
+
+    assert selection.provider == "ollama_http"
+    assert selection.requested == "ollama_http"
+    assert selection.auto_selected is False
+
+
+def test_auto_never_treats_cli_installation_as_ollama_chat_readiness():
+    seen = []
+
+    def probe(runtime_id):
+        seen.append(runtime_id)
+        # Reproduce the dangerous real-world split: the `ollama` binary is
+        # installed, but the HTTP daemon Ikarus Voice actually calls is down.
+        if runtime_id == "ollama_cli":
+            return {"available": True}
+        return {"available": runtime_id == "codex_cli", "last_error": "daemon off"}
+
+    client = IkarusLLMClient(
+        environ={"DAEDALUS_IKARUS_PROVIDER": "ollama_cli"},
+        status_probe=probe,
+    )
+    selection = client.resolve(None)
+
+    assert selection.provider == "codex_cli"
+    assert selection.auto_selected is True
+    assert seen[0] == "ollama_http"
+    assert "ollama_cli" not in seen
+    assert "ollama_http" in selection.reason
+
+
 def test_explicit_deterministic_is_still_possible_but_never_auto():
     client = IkarusLLMClient(environ={}, status_probe=lambda _: {"available": False})
     explicit = client.resolve("deterministic")
