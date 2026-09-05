@@ -3,7 +3,7 @@
   "id": "G1-EXP-TENSOR-GPU-18",
   "title": "Freeze constructor self-time as the next optimization gate without new instrumentation",
   "date": "2026-09-05",
-  "status": "verification-pending",
+  "status": "closed-experiment",
   "classification": "EXPERIMENT",
   "domain": "tensor-kernel",
   "masterplan": {
@@ -18,6 +18,7 @@
   "main_revision": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
   "branch": "exp/tensor-kernel-contract-01",
   "pre_head": "d2ac75daac8d53d82c97e916b56340080741638c",
+  "record_commit": "ea25266fb33adaa4072ad7eec704dbcaad0e64aa",
   "question": "After pruning retired profiler metrics in GPU-17, is another profiler or constructor bypass justified, or does existing exact-blob evidence already identify one concrete in-path cost strongly enough to gate the next production experiment?",
   "evidence_reuse": {
     "current_relation_blocks_blob": "e48c26180597de7ff94da3b8b10cef57b15b2424",
@@ -78,12 +79,40 @@
     "source_final_head": "d2ac75daac8d53d82c97e916b56340080741638c",
     "source_final_run_id": 33938222921,
     "source_final_run_conclusion": "success",
-    "packet_record_head": null,
-    "packet_record_run_id": null,
-    "packet_record_run_conclusion": null,
-    "repository_collection": "source run success; collection-only",
+    "packet_record_head": "ea25266fb33adaa4072ad7eec704dbcaad0e64aa",
+    "packet_record_run_id": 33940932267,
+    "packet_record_run_status": "completed",
+    "packet_record_run_conclusion": "success",
+    "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 integrated contract jobs succeeded",
+    "designated_python_312_hash0": "Integrated contract surface, packed CPU baseline, TypedRelationBlock profile /5, residency/fanout diagnostics, artifact uploads, and public API verification succeeded",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only",
     "full_repository_execution": "manual-only and skipped",
     "nvidia_gpu_executed": false
+  },
+  "record_head_artifacts": {
+    "packed_cpu_baseline": {
+      "id": 9961787623,
+      "archive_sha256": "d07d47f753dc13f138b76f5215a6d3dfd74691561c0cb7cb7cf04a8ce957f5bb",
+      "retention_days": 7
+    },
+    "typed_block_validation_profile": {
+      "id": 9961788127,
+      "archive_sha256": "7de395ad09fd734663beba1f14e1b2c8908c1af4e42ce5b463cb077eb82eb986",
+      "schema": "daedalus-tensor-typed-block-validation-profile/5",
+      "retention_days": 7
+    },
+    "packed_residency": {
+      "id": 9961789676,
+      "archive_sha256": "d521817c5212f63db976632efd56f5588812d71b7ac6807d29bdc999c5007566",
+      "retention_days": 7
+    },
+    "packed_fanout": {
+      "id": 9961791295,
+      "archive_sha256": "602d8f4ce7c48279804b52855b91a71e0b7f23230c8c80d6384598f0f0e8653b",
+      "retention_days": 7
+    },
+    "note": "Workflow metadata binds all retained artifacts to exact packet-record head ea25266fb33adaa4072ad7eec704dbcaad0e64aa."
   },
   "finding": {
     "summary": "No new instrumentation is justified. On the unchanged canonical relation-block implementation, frozen cProfile evidence already attributes about 72.7% of profiled __post_init__ cumulative time in the largest bounded Boolean case to __post_init__ self/body work, versus about 27.2% to constructor-native _stored. The next bounded production experiment should therefore target existing CSR/body work rather than scalar bypasses, support decoding, caches, or another backend.",
