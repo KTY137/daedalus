@@ -1,0 +1,42 @@
+# Tcl completeness: pure-Python checker vs the installed tclsh.
+# tclsh: C:\Program Files\Git\mingw64\bin\tclsh.EXE (8.6.12)
+# checker: daedalus.chip_design.tcl_emit.tcl_completeness
+
+case                                tclsh  python  verdict
+simple                                  1       1  agree
+open_brace                              0       0  agree
+balanced                                1       1  agree
+open_bracket                            0       0  agree
+closed_bracket                          1       1  agree
+open_quote                              0       0  agree
+closed_quote                            1       1  agree
+comment_open_brace                      1       1  agree
+comment_open_brace_then_cmd             1       1  agree
+midword_brace                           1       1  agree
+stray_close_brace                       1       1  agree
+trailing_backslash                      1       1  agree
+backslash_newline                       1       1  agree
+brace_in_quote                          1       1  agree
+bracket_in_quote                        0       0  agree
+bracket_in_quote_closed                 1       1  agree
+quote_in_brace                          1       1  agree
+escaped_brace                           1       1  agree
+escaped_brace_in_brace                  1       1  agree
+hash_not_command_pos                    0       0  agree
+comment_in_bracket                      0       0  agree
+semicolon_then_hash                     1       1  agree
+nested_braces                           1       1  agree
+empty                                   1       1  agree
+only_newlines                           1       1  agree
+brace_after_word_chars                  1       1  agree
+unbalanced_in_brace_comment             1       1  agree
+backslash_before_quote                  1       1  agree
+open_bracket_in_brace                   1       1  agree
+close_bracket_toplevel                  1       1  agree
+quote_midword                           1       1  agree
+brace_in_comment_bracket                1       1  agree
+newline_in_quote                        1       1  agree
+double_backslash_eof                    1       1  agree
+bracket_then_brace                      0       0  agree
+
+cases=35 mismatches=0

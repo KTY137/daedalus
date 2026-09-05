@@ -1,0 +1,13 @@
+{
+  "entries": [
+    "demo.srcs",
+    "demo.srcs/constrs_1",
+    "demo.srcs/constrs_1/new",
+    "demo.srcs/constrs_1/new/pins.xdc",
+    "demo.srcs/sources_1",
+    "demo.srcs/sources_1/new",
+    "demo.srcs/sources_1/new/top.sv",
+    "demo.xpr"
+  ],
+  "note": "the inspected project after two --emit-tcl planning runs; emission writes only into the operator-named review directory"
+}

@@ -1,0 +1,377 @@
+[
+  {
+    "accepts_tcl_args": true,
+    "available": true,
+    "command": "tclsh",
+    "command_path": "C:\\Program Files\\Git\\mingw64\\bin\\tclsh.exe",
+    "id": "tclsh",
+    "label": "Tcl shell",
+    "languages": [],
+    "last_error": "",
+    "notes": "Generic Tcl interpreter; use vendor backends for vendor commands.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": false,
+    "roles": [
+      "tcl"
+    ],
+    "tcl_backend": "tclsh",
+    "version": "",
+    "version_args": [],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "verilator",
+    "command_path": "",
+    "id": "verilator",
+    "label": "Verilator",
+    "languages": [
+      "verilog",
+      "systemverilog"
+    ],
+    "last_error": "verilator not found",
+    "notes": "Fast RTL lint/compile/simulation front end.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": false,
+    "roles": [
+      "lint",
+      "simulation"
+    ],
+    "tcl_backend": "",
+    "version": "",
+    "version_args": [
+      "--version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "verible-verilog-lint",
+    "command_path": "",
+    "id": "verible",
+    "label": "Verible SystemVerilog linter",
+    "languages": [
+      "verilog",
+      "systemverilog"
+    ],
+    "last_error": "verible-verilog-lint not found",
+    "notes": "SystemVerilog developer tooling: parser/linter/formatter ecosystem.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": false,
+    "roles": [
+      "style_lint",
+      "syntax"
+    ],
+    "tcl_backend": "",
+    "version": "",
+    "version_args": [
+      "--version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "iverilog",
+    "command_path": "",
+    "id": "iverilog",
+    "label": "Icarus Verilog",
+    "languages": [
+      "verilog",
+      "systemverilog"
+    ],
+    "last_error": "iverilog not found",
+    "notes": "",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": false,
+    "roles": [
+      "simulation",
+      "compile"
+    ],
+    "tcl_backend": "",
+    "version": "",
+    "version_args": [
+      "-V"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "ghdl",
+    "command_path": "",
+    "id": "ghdl",
+    "label": "GHDL",
+    "languages": [
+      "vhdl"
+    ],
+    "last_error": "ghdl not found",
+    "notes": "",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": false,
+    "roles": [
+      "simulation",
+      "compile"
+    ],
+    "tcl_backend": "",
+    "version": "",
+    "version_args": [
+      "--version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "yosys",
+    "command_path": "",
+    "id": "yosys",
+    "label": "Yosys",
+    "languages": [
+      "verilog",
+      "systemverilog"
+    ],
+    "last_error": "yosys not found",
+    "notes": "Tcl is supported with yosys -c; script argv is intentionally not guessed.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": false,
+    "roles": [
+      "synthesis",
+      "formal_frontend",
+      "tcl"
+    ],
+    "tcl_backend": "yosys",
+    "version": "",
+    "version_args": [
+      "-V"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "sby",
+    "command_path": "",
+    "id": "sby",
+    "label": "SymbiYosys",
+    "languages": [
+      "verilog",
+      "systemverilog"
+    ],
+    "last_error": "sby not found",
+    "notes": "",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": false,
+    "roles": [
+      "formal"
+    ],
+    "tcl_backend": "",
+    "version": "",
+    "version_args": [
+      "--version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "openroad",
+    "command_path": "",
+    "id": "openroad",
+    "label": "OpenROAD",
+    "languages": [
+      "verilog"
+    ],
+    "last_error": "openroad not found",
+    "notes": "Runs Tcl command files; Daedalus adds -no_init -exit for reproducibility.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": false,
+    "roles": [
+      "physical_design",
+      "sta",
+      "tcl"
+    ],
+    "tcl_backend": "openroad",
+    "version": "",
+    "version_args": [
+      "-version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": true,
+    "available": false,
+    "command": "vivado",
+    "command_path": "",
+    "id": "vivado",
+    "label": "AMD Vivado",
+    "languages": [
+      "verilog",
+      "systemverilog",
+      "vhdl"
+    ],
+    "last_error": "vivado not found",
+    "notes": "",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": true,
+    "roles": [
+      "fpga",
+      "synthesis",
+      "implementation",
+      "simulation",
+      "tcl"
+    ],
+    "tcl_backend": "vivado",
+    "version": "",
+    "version_args": [
+      "-version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "vitis",
+    "command_path": "",
+    "id": "vitis",
+    "label": "AMD Vitis",
+    "languages": [],
+    "last_error": "vitis not found",
+    "notes": "Discovery only in the Gate-1 Vivado slice; an XSA without a Vitis workspace/application is not an executable software mission.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": true,
+    "roles": [
+      "embedded_software",
+      "hardware_platform",
+      "acceleration"
+    ],
+    "tcl_backend": "",
+    "version": "",
+    "version_args": [
+      "-version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "vitis_hls",
+    "command_path": "",
+    "id": "vitis_hls",
+    "label": "AMD Vitis HLS",
+    "languages": [
+      "cpp",
+      "c"
+    ],
+    "last_error": "vitis_hls not found",
+    "notes": "Batch C synthesis runs as 'vitis_hls -f <script>'. Discovery only; no admitted HLS execution adapter exists in this slice.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": true,
+    "roles": [
+      "high_level_synthesis",
+      "tcl"
+    ],
+    "tcl_backend": "vitis_hls",
+    "version": "",
+    "version_args": [
+      "-version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "v++",
+    "command_path": "",
+    "id": "vpp",
+    "label": "AMD Vitis v++ compiler",
+    "languages": [
+      "cpp",
+      "c"
+    ],
+    "last_error": "v++ not found",
+    "notes": "Kernel compile/link for Vitis acceleration targets. Discovery only; the environment override is DAEDALUS_VPP_COMMAND.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": true,
+    "roles": [
+      "acceleration",
+      "compile",
+      "link"
+    ],
+    "tcl_backend": "",
+    "version": "",
+    "version_args": [
+      "--version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": false,
+    "available": false,
+    "command": "xsct",
+    "command_path": "",
+    "id": "xsct",
+    "label": "AMD XSCT",
+    "languages": [],
+    "last_error": "xsct not found",
+    "notes": "Discovery only; no XSCT execution adapter is admitted by this slice.",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": true,
+    "roles": [
+      "embedded_software",
+      "tcl"
+    ],
+    "tcl_backend": "",
+    "version": "",
+    "version_args": [
+      "-version"
+    ],
+    "version_probe_returncode": null
+  },
+  {
+    "accepts_tcl_args": true,
+    "available": false,
+    "command": "quartus_sh",
+    "command_path": "",
+    "id": "quartus",
+    "label": "Altera/Intel Quartus Prime",
+    "languages": [
+      "verilog",
+      "systemverilog",
+      "vhdl"
+    ],
+    "last_error": "quartus_sh not found",
+    "notes": "",
+    "probe_status": "not_run",
+    "probe_warning": "",
+    "proprietary": true,
+    "roles": [
+      "fpga",
+      "synthesis",
+      "implementation",
+      "sta",
+      "tcl"
+    ],
+    "tcl_backend": "quartus",
+    "version": "",
+    "version_args": [
+      "--version"
+    ],
+    "version_probe_returncode": null
+  }
+]
