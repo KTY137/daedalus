@@ -1,0 +1,134 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-29",
+  "title": "Fuse the matched-count CSR valid predicate after the bounded GPU-28 gate",
+  "status": "closed-implemented",
+  "date_europe_berlin": "2026-09-05",
+  "authority": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "semantic_authority": "masterplan-only"
+  },
+  "scope": {
+    "issue": 239,
+    "pull_request": 314,
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "cc38208a4b715aaa4d44cebc80e22b4fc1d7dcb2",
+    "implementation_commit": "d2998aa70cde0bc4f0bf22e5e6bd554f73284f42",
+    "production_source": "daedalus/twin/relation_blocks.py",
+    "production_blob_before": "47c21b5523fe2e96f9c7539cbcf6be2b24a2cb95",
+    "production_blob_after": "5911f42485fc1683c02686cdb7af908beab23f07",
+    "focused_test": "tests/twin/test_relation_block_validation_fusion.py",
+    "test_blob_before": "1a13a12b949275e1241a6e503c41ba2042f52e04",
+    "test_blob_after": "131a8202f591d68622340b1fc64d481be4e3fa56"
+  },
+  "gardener_change": {
+    "problem": "GPU-28 bounded one exact common-path simplification before production change. The matched-count CSR loop still evaluated valid range and strict-order predicates separately for every stored column.",
+    "implementation": "On the existing matched-count row-span path, exact integers satisfying previous_column < item < column_count now pass through one predicate and continue. Only failed entries enter the existing error classification. The count-mismatch fallback is unchanged.",
+    "precedence_preserved": [
+      "column exact-int type",
+      "column range",
+      "common entry count",
+      "strict within-row ordering"
+    ],
+    "regressions": [
+      "canonical block identity, JSON and digest remain unchanged",
+      "bool column indices remain rejected despite bool being an int subclass",
+      "range still outranks strict ordering when both are present",
+      "count-mismatch fallback keeps type before range before count",
+      "empty rows do not leak ordering state across rows",
+      "scalar admission still precedes structural validation",
+      "source pins the fused predicate and absence of the prior separate strict branch"
+    ],
+    "parallel_abstraction_added": false,
+    "new_validator_added": false,
+    "new_backend_or_cache_added": false,
+    "workflow_changed": false
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33973778799,
+    "run_event": "pull_request",
+    "metadata_head_sha": "d2998aa70cde0bc4f0bf22e5e6bd554f73284f42",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "checkout_kind": "GitHub pull-request merge preview",
+    "checkout_sha": "5a87854c7887af6a589e6be5c4a10001a62a5d4d",
+    "conclusion": "success",
+    "contract_matrix": {
+      "python_versions": ["3.10", "3.12"],
+      "hash_seeds": [0, 123456],
+      "all_jobs_conclusion": "success"
+    },
+    "designated_python_3_12_hash_0": {
+      "python_runtime": "CPython 3.12.14",
+      "focused_and_integrated_tests": "359 passed, 2 skipped",
+      "compile": "success",
+      "public_api": "success"
+    },
+    "isolated_wheel_imports": "success",
+    "complete_repository_collection": "success",
+    "complete_repository_suite": "manual-only/skipped"
+  },
+  "retained_diagnostics": {
+    "expires_2026_09_12": true,
+    "baseline": {
+      "artifact_id": 9971696536,
+      "sha256": "f2ea365d92e1409e8b9fc094b4c45dc75e71df3a3a0a5945140f034e662fc139"
+    },
+    "typed_block_profile_v8": {
+      "artifact_id": 9971696750,
+      "sha256": "c348207059c58aa7f3b4a9985c38f2de228079ba78ce07d3b79b3844a63de127",
+      "largest_case": {
+        "entries": 43264,
+        "unprofiled_constructor_median_ms": 2.81392,
+        "support_decode_median_ms": 1.325839,
+        "profiled_post_init_cumulative_median_ms": 5.966944,
+        "stored_sequence_calls": 1
+      }
+    },
+    "residency": {
+      "artifact_id": 9971697706,
+      "sha256": "2ec448fe299a7fcb8644346fbe3b99156bddf44e723df8fa9f84d11a2c6d4cff"
+    },
+    "fanout": {
+      "artifact_id": 9971698649,
+      "sha256": "78dbb2c15071b89970a54e6a13d89bec53a692fb64952b52930a0e547fa59471"
+    }
+  },
+  "claim_boundary": {
+    "allowed": "GPU-29 implements the GPU-28-gated matched-count predicate fusion in-place and the PR integration contract surface succeeds with focused regressions.",
+    "not_claimed": [
+      "raw-head checkout test",
+      "complete repository suite pass",
+      "constructor-wide speedup",
+      "general CPU speedup",
+      "GPU, CUDA, Tensor-Core or memory win",
+      "Tensor-vs-Forest superiority",
+      "CrewAI superiority",
+      "AlphaEvolve superiority",
+      "promotion or gate closure"
+    ],
+    "performance_note": "GPU-28 supplied local microstage decision evidence. GPU-29 has post-change diagnostics but no controlled same-process pre/post constructor A/B; cross-run timings are therefore not treated as a speedup claim."
+  },
+  "branch_hygiene": {
+    "canonical_branch_used": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "force_update": false,
+    "archive_legacy_20260830_expected_anchor": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_used_as_work_or_storage_target": false,
+    "branch_deleted_for_cosmetic_count_reduction": false,
+    "unique_evidence_deleted": false
+  },
+  "promotion": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "closure": {
+    "next_narrow_step": "If still before 2026-09-29, choose the next bounded Tensor/Fourfold packet from the active profile or prioritized issue evidence. Do not recreate a second CSR validator or treat cross-run timing as causal performance evidence."
+  }
+}
