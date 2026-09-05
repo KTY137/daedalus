@@ -44,6 +44,38 @@ test('a failed provider sample is UNKNOWN, never cached as reachable', async ({ 
   expect(providerFailureState, 'a failed provider sample rendered as a proven state').toBe('unknown');
 });
 
+test('a stale provider sample expires to UNKNOWN instead of staying reachable', async ({ page }) => {
+  let providerSamples = 0;
+  await page.route('**/api/providers/status*', async (route) => {
+    providerSamples += 1;
+    if (providerSamples === 1) {
+      await route.continue();
+    }
+    // Leave subsequent polls pending: this models a sample source that stops
+    // answering without fabricating a new failure receipt. The last good row
+    // must age out of authority on its own.
+  });
+
+  const seen = collect(page);
+  await openApp(page);
+  await settle(page, seen);
+
+  const control = page.getByRole('region', { name: /Evolution control/i });
+  const providerReadout = control.getByText('provider sample', { exact: true }).locator('..');
+  await expect(providerReadout.getByText(/\d+ \/ \d+/)).toBeVisible();
+
+  await page.clock.fastForward(50_000);
+
+  await expect(providerReadout.getByText('unknown', { exact: true })).toBeVisible();
+  await expect(providerReadout.getByText(/stale · sampled \d+s ago/)).toBeVisible();
+
+  await control.getByText('Evidence console', { exact: true }).click();
+  const providerEvidence = control
+    .getByText('declared vs measured providers', { exact: true })
+    .locator('xpath=ancestor::section[1]');
+  await expect(providerEvidence.getByText('unknown', { exact: true }).first()).toBeVisible();
+});
+
 test('loop gate reason, lifecycle gaps and HTTP bounds are visible', async ({ page }) => {
   const queue = {
     ok: true,
