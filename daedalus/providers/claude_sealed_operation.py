@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 from ..claude_bridge import _invoke_claude_cli
-from ..spine.envelope import canonical_sha
 from .claude_cli import _normalize_paths, claude_invocation_sha256
 
 
@@ -119,7 +118,16 @@ def invoke(payload: Any) -> dict[str, Any]:
 
 
 def output_digests(value: Any, payload: Any) -> tuple[str, ...]:
-    """Content-address the exact invocation and structured Claude result."""
+    """Content-address the exact invocation and structured Claude result.
+
+    This is trust-boundary code.  Keep the digest primitive detached from the
+    wider Daedalus helper graph: the broker authenticates this executable
+    object, so its output evidence must not be redirected later by replacing a
+    mutable project-level ``canonical_sha`` helper.
+    """
+
+    import hashlib as local_hashlib
+    import json as local_json
 
     bound = _payload(payload)
     if type(value) is not dict:
@@ -130,7 +138,13 @@ def output_digests(value: Any, payload: Any) -> tuple[str, ...]:
     report_sha256 = value.get("report_sha256")
     if type(report) is not dict or not isinstance(agent, str) or not agent:
         raise ValueError("sealed Claude provider returned malformed structured output")
-    computed_report = canonical_sha(report)
+    report_bytes = local_json.dumps(
+        dict(report),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    computed_report = local_hashlib.sha256(report_bytes).hexdigest()
     if report_sha256 != computed_report:
         raise ValueError("sealed Claude report digest does not match report bytes")
     for name, digest in (
@@ -143,18 +157,20 @@ def output_digests(value: Any, payload: Any) -> tuple[str, ...]:
             or any(char not in "0123456789abcdef" for char in digest)
         ):
             raise ValueError(f"sealed Claude {name} is not lowercase SHA-256")
-    return (
-        canonical_sha(
-            {
-                "provider": "claude_cli",
-                "agent": agent,
-                "invocation_sha256": bound["invocation_sha256"],
-                "prompt_sha256": prompt_sha256,
-                "report_sha256": report_sha256,
-                "report": report,
-            }
-        ),
-    )
+    output_bytes = local_json.dumps(
+        {
+            "provider": "claude_cli",
+            "agent": agent,
+            "invocation_sha256": bound["invocation_sha256"],
+            "prompt_sha256": prompt_sha256,
+            "report_sha256": report_sha256,
+            "report": dict(report),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    return (local_hashlib.sha256(output_bytes).hexdigest(),)
 
 
 __all__ = ["invoke", "output_digests"]
