@@ -33,6 +33,17 @@ def _offer_turn(objective):
                                        "reason": "r", "signal": "s"}}}
 
 
+def _admitted_binding():
+    """These decision-unit tests supply their prior turn as a test double.
+
+    The real canonical admission is covered at the public entrypoints in
+    test_conversation_legacy_entrypoint_binding.py.
+    """
+    return mock.patch.object(
+        ikarus_os, "_require_conversation_project_binding", return_value=None
+    )
+
+
 class _LocalOnlyProject:
     """Keep lane-specific tests independent of the checked-in demo config."""
 
@@ -339,7 +350,9 @@ class HandRefusesInWordsTest(_LocalOnlyProject, unittest.TestCase):
     def test_but_a_confirmation_does_pay_for_one(self):
         ikarus_os._HAND_CACHE.clear()
         with mock.patch.object(ikarus_os, "_prior_turn",
-                               return_value=_offer_turn(self.OBJ)),                 mock.patch.object(health, "hand_state",
+                               return_value=_offer_turn(self.OBJ)), \
+                _admitted_binding(), \
+                mock.patch.object(health, "hand_state",
                                   return_value=_WORKING) as probed:
             res = ikarus_os.ask(PROJECT, "ja", provider=None, conversation_id="c1")
         ikarus_os._HAND_CACHE.clear()
@@ -409,6 +422,7 @@ class GermanActRequestTest(_LocalOnlyProject, unittest.TestCase):
             offered = ikarus_os.ask(PROJECT, self.MSG, provider=None)
         prior = {"envelope": offered}
         with mock.patch.object(ikarus_os, "_prior_turn", return_value=prior), \
+                _admitted_binding(), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             res = ikarus_os.ask(PROJECT, "ja", provider=None, conversation_id="c1")
         self.assertEqual(res["intent"], "enqueue")
@@ -424,6 +438,7 @@ class GermanActRequestTest(_LocalOnlyProject, unittest.TestCase):
             offered = ikarus_os.ask(PROJECT, self.MSG, provider=None)
         with mock.patch.object(ikarus_os, "_prior_turn",
                                return_value={"envelope": offered}), \
+                _admitted_binding(), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             res = ikarus_os.ask(PROJECT, "nein", provider=None, conversation_id="c1")
         self.assertEqual(res["intent"], "chat")
@@ -432,6 +447,7 @@ class GermanActRequestTest(_LocalOnlyProject, unittest.TestCase):
     def test_without_conversation_state_a_confirmation_clears_nothing(self):
         # The degrade direction: no store -> MORE restrictive, never less.
         with mock.patch.object(ikarus_os, "_prior_turn", return_value=None), \
+                _admitted_binding(), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             res = ikarus_os.ask(PROJECT, "ja", provider=None, conversation_id="c1")
         self.assertEqual(res["intent"], "chat")
@@ -444,6 +460,7 @@ class GermanActRequestTest(_LocalOnlyProject, unittest.TestCase):
         self.assertEqual(offered["act_offer"]["objective"], self.MSG)
         with mock.patch.object(ikarus_os, "_prior_turn",
                                return_value={"envelope": offered}), \
+                _admitted_binding(), \
                 mock.patch.object(ikarus_os, "_hand_state", return_value=_WORKING):
             events = list(ikarus_os.ask_stream(PROJECT, "ja", provider=None,
                                                conversation_id="c1"))

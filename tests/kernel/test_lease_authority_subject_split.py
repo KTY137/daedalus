@@ -292,9 +292,16 @@ def test_the_worktree_contract_is_the_sole_check_for_the_rows_that_declare_it_al
         if "containment.worktree" in row.guard_contracts
         and "containment.attempt" in row.guard_contracts
     }
-    # The subsumption is confined to exactly one row; everywhere else the
-    # worktree contract is doing work nothing else does.
-    assert both == {"python.attempt"}
+    # The subsumption is confined to the canonical Attempt door and the two
+    # Gate-1 aggregate campaign doors that create/execute Attempt workspaces.
+    # Everywhere else the worktree contract is doing work no attempt contract
+    # does.  Keep this exact: a fourth overlapping row is another deliberate
+    # registry decision, not something a broad subset assertion may hide.
+    assert both == {
+        "python.ariadne_campaign",
+        "python.attempt",
+        "python.genesis",
+    }
 
 
 # --------------------------------------------------------------------------- #

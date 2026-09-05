@@ -724,7 +724,7 @@ class _FakeProc:
 
 
 def _fake_gate_child(text, monkeypatch):
-    def _factory(argv, worktree, out_path, tmpdir):
+    def _factory(argv, worktree, out_path, tmpdir, *, timeout_s=None):
         out_path.write_bytes(b"")
         return _FakeProc(out_path, text), _NullLog()
     monkeypatch.setattr(attempt_mod, "_contained_gate_child", _factory)

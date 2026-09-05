@@ -155,7 +155,10 @@ test.describe('component catalogue', () => {
   test('the live backend answers the contract this section reads', async ({ page }) => {
     // No stub. Every entry must carry the three fields the reading depends on.
     await page.unroute('**/api/catalogue*');
-    const response = await page.request.get('http://127.0.0.1:8765/api/catalogue');
+    // The harness deliberately allocates a free loopback port for every run.
+    // Resolve through Playwright's configured baseURL instead of escaping to
+    // the historical developer port.
+    const response = await page.request.get('/api/catalogue');
     expect(response.ok()).toBeTruthy();
     const cat = (await response.json()).catalogue;
     expect(cat.schema).toBe('daedalus-gui-catalogue/1');

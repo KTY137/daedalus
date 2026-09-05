@@ -1,0 +1,137 @@
+{
+  "schema": "daedalus-computer-local-smoke/1",
+  "date": "2026-09-05",
+  "classification": "ALIGNED",
+  "kind": "development integration smoke, not a frozen comparative benchmark",
+  "model": "qwen2.5-coder:7b",
+  "model_size_bytes": 4683087561,
+  "runtime": "loopback Ollama",
+  "host": "Windows",
+  "customer_data_used": false,
+  "paid_provider_used": false,
+  "fixture_expected_text": "IKARUS_LOCAL_LIVE_FIXTURE",
+  "fixture_verification": "separate exact UTF-8 file read after each completed invocation",
+  "token_usage": {
+    "input_tokens": null,
+    "output_tokens": null,
+    "measurement": "Existing text-only model transport does not return usage; no token-count claim is made."
+  },
+  "trials": [
+    {
+      "id": "cold-planner-probe",
+      "state": "unavailable",
+      "wall_limit_s": 25,
+      "wall_time_s": null,
+      "tools": [],
+      "independent_fixture_verified": false,
+      "task_success_verified": false,
+      "detail": "No usable response from the cold local planner; elapsed time was not separately retained."
+    },
+    {
+      "id": "unconstrained-proposal",
+      "state": "blocked",
+      "wall_limit_s": 180,
+      "wall_time_s": 37.43699999999808,
+      "tools": [],
+      "independent_fixture_verified": false,
+      "task_success_verified": false,
+      "detail": "ComputerLoopRefused: planner proposal type must be tool or finish",
+      "mission_sha256": "0eb59c10dcb672f6a32707ad99e050b7c560d026fec42b6071341a76202befbe",
+      "report_artifact_sha256": "f627171b8f67086132669c02989c9c31feba4f4113e226279aee81d9415233b5"
+    },
+    {
+      "id": "schema-empty-optional-hash-refused",
+      "state": "blocked",
+      "wall_limit_s": 180,
+      "wall_time_s": 54.875,
+      "tools": [
+        {
+          "tool": "file.write",
+          "ok": false,
+          "state": "reconciliation_required",
+          "postcondition_verified": null,
+          "fixture_sha256": null,
+          "error": "expected file no longer exists",
+          "lease_sha256": null,
+          "step_artifact_sha256": "d22040fd9888dde6199201c47687b093cbbf1756d58736dd6e25845076eb70f5"
+        }
+      ],
+      "independent_fixture_verified": false,
+      "task_success_verified": false,
+      "detail": "The tool refused or failed; no uncertain effect was repeated.",
+      "mission_sha256": "4010dc3bed3b7453da531ecfa860a9ca7f5738aa1196f87960d36fd963c83825",
+      "report_artifact_sha256": "4ee601867f3317ef6f08f5fcd6316a9df9f156d022ade64e4aca5a5cdba7b222"
+    },
+    {
+      "id": "write-read-succeeded-final-response-timeout",
+      "state": "blocked",
+      "wall_limit_s": 180,
+      "wall_time_s": 180.01599999999962,
+      "tools": [
+        {
+          "tool": "file.write",
+          "ok": true,
+          "state": "completed",
+          "postcondition_verified": true,
+          "fixture_sha256": "8fbdaa3c06da860fa7b7567791e64e70944f913f4c899e39f8eba944104c9c49",
+          "error": null,
+          "lease_sha256": "fff328392530415f2e37c2e75d1ed3c59e53cb38fcbf6378ac2b0fb5f1156242",
+          "step_artifact_sha256": "a8727839736fed47651aba45756d6a262cc8418d2528ac50f27056d66c5d65ba"
+        },
+        {
+          "tool": "file.read",
+          "ok": true,
+          "state": "completed",
+          "postcondition_verified": true,
+          "fixture_sha256": "8fbdaa3c06da860fa7b7567791e64e70944f913f4c899e39f8eba944104c9c49",
+          "error": null,
+          "lease_sha256": "255b2d20d7c4cd22d5ccba83f5167c966e1ca2545a3ede04b566fb7aee0a8a86",
+          "step_artifact_sha256": "eb3d611b8fa78fe54bf75f490079fda50a06f0182ee9f3f82e15adbe753a315d"
+        }
+      ],
+      "independent_fixture_verified": true,
+      "task_success_verified": false,
+      "detail": "ComputerLoopRefused: configured computer planner returned no usable response",
+      "mission_sha256": "fcaf35df1dc5218d3b1ba504e189c4e5ab7105abc5987431865637ef7d4046be",
+      "report_artifact_sha256": "e12bbb4e921e9f38d26a6cc8cfa8a68e66d04f72358aca6d58a01f6fc76dcf44"
+    },
+    {
+      "id": "write-read-finish-completed",
+      "state": "completed",
+      "wall_limit_s": 300,
+      "wall_time_s": 248.60899999999674,
+      "tools": [
+        {
+          "tool": "file.write",
+          "ok": true,
+          "state": "completed",
+          "postcondition_verified": true,
+          "fixture_sha256": "8fbdaa3c06da860fa7b7567791e64e70944f913f4c899e39f8eba944104c9c49",
+          "error": null,
+          "lease_sha256": "4f819f518fb82f54febf6ed7d6620aba2e3ec98e3ff37ffb8de6bebcb3110795",
+          "step_artifact_sha256": "f4eb1253bc029821d6915844592da61b6b51458c73c1a6f161103b06135a9936"
+        },
+        {
+          "tool": "file.read",
+          "ok": true,
+          "state": "completed",
+          "postcondition_verified": true,
+          "fixture_sha256": "8fbdaa3c06da860fa7b7567791e64e70944f913f4c899e39f8eba944104c9c49",
+          "error": null,
+          "lease_sha256": "d25e670636c4e005ef6fd9cbe663f5df2888a28bd6cd900fb9ab48f2ce16b411",
+          "step_artifact_sha256": "96f255c478fe1a8abccef9ab7207f7fc704486e36637b8500c7a42e7226a06ca"
+        }
+      ],
+      "independent_fixture_verified": true,
+      "task_success_verified": false,
+      "detail": "2 tool operation(s) completed; evidence is retained. The planner's task-level conclusion remains advisory.",
+      "mission_sha256": "4cc2ba4d99a48e720a6ee8cb432b80347c5820d9b4ce3543b65a2b583ea778c4",
+      "report_artifact_sha256": "b0b39277d490d9930b90350a7b34007765a396e8ae560efbcf52781a3eea116f"
+    }
+  ],
+  "limitations": [
+    "Several fixes and source revisions occurred between trials; these are development checks, not a budget-equal model comparison.",
+    "task_success_verified remains false because the general planner conclusion is advisory; the exact fixture byte equality was separately measured.",
+    "Native desktop input and dynamic JavaScript browser applications are not established by this file task."
+  ]
+}

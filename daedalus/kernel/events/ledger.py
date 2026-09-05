@@ -749,7 +749,10 @@ class SpineLedger:
             return [self._hydrate(r) for r in rows]
 
     def intents_matching_payload(self, key: str, values: Sequence[str], *,
-                                 kind: str | None = None) -> list[Intent]:
+                                 kind: str | None = None,
+                                 open_only: bool = False,
+                                 limit: int | None = None,
+                                 before_id: int | None = None) -> list[Intent]:
         """Intents whose payload records ``key`` as one of ``values``.
 
         The targeted alternative to ``recent_intents(limit=N)``. A row limit is
@@ -765,7 +768,14 @@ class SpineLedger:
         recorded ``key``/``value`` pair always appears verbatim as
         ``"key":"value"``. LIKE metacharacters in either are escaped, so a value
         containing ``%`` matches only a literal ``%``.
+
+        ``open_only`` excludes terminal intents inside SQLite, so a pending
+        work projection need not hydrate the complete resolved history.
+        Explicit ``limit``/``before_id`` support a labelled display page only;
+        execution and recovery callers leave them absent to retain completeness.
         """
+        if limit is not None and int(limit) <= 0:
+            return []
         wanted = [str(v) for v in values if str(v)]
         if not wanted:
             return []
@@ -780,7 +790,17 @@ class SpineLedger:
         if kind is not None:
             sql += " AND kind = ?"
             args.append(str(kind))
+        if open_only:
+            sql += (" AND NOT EXISTS (SELECT 1 FROM intent_events e "
+                    "WHERE e.intent_id = intents.id AND e.state IN (?, ?))")
+            args.extend((STATE_COMPLETED, STATE_FAILED))
+        if before_id is not None:
+            sql += " AND id < ?"
+            args.append(int(before_id))
         sql += " ORDER BY id DESC"
+        if limit is not None:
+            sql += " LIMIT ?"
+            args.append(int(limit))
         with self._lock:
             rows = self._conn.execute(sql, args).fetchall()
             return [self._hydrate(r) for r in rows]

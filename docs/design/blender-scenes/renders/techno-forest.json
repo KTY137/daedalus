@@ -1,0 +1,24 @@
+{
+  "scene": "techno-forest",
+  "title": "Techno Forest",
+  "blender": "4.5.13 LTS",
+  "objects": 1089,
+  "meshes": 160,
+  "vertices_base": 50342,
+  "materials": 10,
+  "cameras": 1,
+  "devices": [
+    "NVIDIA GeForce MX330"
+  ],
+  "resolution": [
+    1600,
+    1000
+  ],
+  "samples_max": 64,
+  "seed": 20260905,
+  "build_seconds": 10.42,
+  "total_seconds": 151.38,
+  "blend": "blend\\techno-forest.blend",
+  "render": "renders\\techno-forest.png",
+  "render_completed": true
+}

@@ -21,6 +21,7 @@ from __future__ import annotations
 import pytest
 
 from daedalus.orchestration import conversation as conv
+from daedalus.spine import ledger as spine_ledger
 
 
 @pytest.fixture()
@@ -35,6 +36,33 @@ def _turn(store, cid, message, *, project, provider="deterministic", intent="cha
         cid, user_message=message, intent=intent, status=conv.STATUS_ANSWERED,
         assistant_text=f"re: {message}", provider_used=provider, project=project,
         envelope={"project": project, "intent": intent})
+
+
+def _legacy_turn(
+    ledger, cid: str, message: str, project, *, effect_cid: str | None = None
+) -> None:
+    payload = {
+        "conversation_id": cid,
+        "user_message": message,
+        "intent": "chat",
+        "status": conv.STATUS_ANSWERED,
+        "assistant_text": f"re: {message}",
+        "provider_used": "deterministic",
+        "model_used": None,
+        "source": None,
+        "strategy": None,
+        "proposed_action": None,
+        "envelope": {},
+    }
+    if project is not ...:
+        payload["project"] = project
+    ledger.record_fact(
+        conv.KIND_TURN,
+        payload,
+        effect_key=conv.conversation_effect_key(effect_cid or cid),
+        effect_id=effect_cid or cid,
+        result={"status": conv.STATUS_ANSWERED, "intent": "chat"},
+    )
 
 
 def test_rows_group_by_conversation_newest_first_and_bounded(store):
@@ -86,6 +114,176 @@ def test_underscore_in_a_project_name_is_literal(store):
     _turn(store, "conv_x", "x", project="agent_env")
     _turn(store, "conv_y", "y", project="agentXenv")
     assert [r["conversation_id"] for r in store.list_conversations("agent_env")] == ["conv_x"]
+
+
+def test_list_refuses_a_historical_mixed_group_instead_of_counting_subsets(tmp_path):
+    db_path = tmp_path / "spine.sqlite3"
+    ledger = spine_ledger.SpineLedger(db_path)
+    try:
+        _legacy_turn(ledger, "conv_mixed", "old A", "A")
+        _legacy_turn(ledger, "conv_mixed", "new B", "B")
+    finally:
+        ledger.close()
+
+    with conv.ConversationStore(db_path) as opened:
+        assert opened.project_binding("conv_mixed").state == conv.BINDING_MIXED
+        assert opened.list_conversations("A") == []
+        assert opened.list_conversations("B") == []
+
+
+def test_list_counts_every_turn_after_unbounded_exact_binding(store):
+    for index in range(45):
+        _turn(store, "conv_long", f"message-{index}", project="A")
+
+    (row,) = store.list_conversations("A")
+    assert row["turn_count"] == 45
+    assert row["first_message"] == "message-0"
+    assert row["last_message"] == "message-44"
+    assert row["project_binding"] == {
+        "state": conv.BINDING_BOUND,
+        "project": "A",
+        "row_count": 45,
+    }
+
+
+def test_limit_is_applied_after_other_project_and_quarantine_filtering(tmp_path):
+    db_path = tmp_path / "spine.sqlite3"
+    ledger = spine_ledger.SpineLedger(db_path)
+    try:
+        _legacy_turn(ledger, "conv_valid", "valid A", "A")
+        _legacy_turn(ledger, "conv_mixed", "mixed A", "A")
+        _legacy_turn(ledger, "conv_mixed", "mixed B", "B")
+        _legacy_turn(ledger, "conv_newest_b", "B", "B")
+    finally:
+        ledger.close()
+
+    with conv.ConversationStore(db_path) as opened:
+        rows = opened.list_conversations("A", limit=1)
+        assert [row["conversation_id"] for row in rows] == ["conv_valid"]
+        assert rows[0]["turn_count"] == 1
+
+
+def test_get_quarantines_mixed_history_even_when_forty_turn_tail_matches(
+    tmp_path, monkeypatch
+):
+    from daedalus.interfaces.http import web_api
+
+    db_path = tmp_path / "spine.sqlite3"
+    ledger = spine_ledger.SpineLedger(db_path)
+    try:
+        _legacy_turn(ledger, "conv_mixed_tail", "old B", "B")
+        for index in range(40):
+            _legacy_turn(
+                ledger, "conv_mixed_tail", f"recent A {index}", "A"
+            )
+    finally:
+        ledger.close()
+
+    with conv.ConversationStore(db_path) as opened:
+        assert [turn.project for turn in opened.turns(
+            "conv_mixed_tail", limit=40
+        )] == ["A"] * 40
+        opened.link_dispatch(
+            "conv_mixed_tail", "secret-dispatch", kind="queue_task"
+        )
+        assert opened._dispatch_summaries("conv_mixed_tail")
+        monkeypatch.setattr(conv, "default_store", lambda: opened)
+        monkeypatch.setattr(
+            opened,
+            "turns",
+            lambda *_args, **_kwargs: pytest.fail(
+                "quarantined GET fetched a bounded transcript tail"
+            ),
+        )
+
+        view = web_api._conversation_view("conv_mixed_tail", limit=40)
+
+    assert view == {
+        "conversation_id": "conv_mixed_tail",
+        "exists": True,
+        "project_binding": {
+            "state": conv.BINDING_MIXED,
+            "project": None,
+            "row_count": 41,
+        },
+        "quarantined": True,
+        "turn_count": 0,
+        "narrative": [],
+        "last_turn": None,
+        "turns": [],
+        "turns_returned": 0,
+        "dispatches": [],
+        "open_dispatches": [],
+    }
+
+
+def test_get_quarantines_corrupt_identity_without_turn_or_dispatch_leak(
+    tmp_path, monkeypatch
+):
+    from daedalus.interfaces.http import web_api
+
+    db_path = tmp_path / "spine.sqlite3"
+    ledger = spine_ledger.SpineLedger(db_path)
+    try:
+        _legacy_turn(
+            ledger,
+            "payload_names_another_conversation",
+            "secret",
+            "A",
+            effect_cid="conv_corrupt",
+        )
+    finally:
+        ledger.close()
+
+    with conv.ConversationStore(db_path) as opened:
+        opened.link_dispatch("conv_corrupt", "corrupt-dispatch")
+        monkeypatch.setattr(conv, "default_store", lambda: opened)
+        monkeypatch.setattr(
+            opened,
+            "turns",
+            lambda *_args, **_kwargs: pytest.fail(
+                "corrupt GET fetched a transcript"
+            ),
+        )
+
+        view = web_api._conversation_view("conv_corrupt")
+
+    assert view is not None
+    assert view["project_binding"] == {
+        "state": conv.BINDING_CORRUPT,
+        "project": None,
+        "row_count": 1,
+    }
+    assert view["quarantined"] is True
+    assert view["turn_count"] == 0
+    assert view["turns"] == []
+    assert view["narrative"] == []
+    assert view["dispatches"] == []
+    assert view["open_dispatches"] == []
+
+
+def test_get_exposes_unbounded_binding_for_more_than_forty_valid_turns(
+    store, monkeypatch
+):
+    from daedalus.interfaces.http import web_api
+
+    for index in range(45):
+        _turn(store, "conv_long_get", f"message-{index}", project="A")
+    monkeypatch.setattr(conv, "default_store", lambda: store)
+
+    view = web_api._conversation_view("conv_long_get", limit=40)
+
+    assert view is not None
+    assert view["project_binding"] == {
+        "state": conv.BINDING_BOUND,
+        "project": "A",
+        "row_count": 45,
+    }
+    assert view["quarantined"] is False
+    assert view["turn_count"] == 45
+    assert view["turns_returned"] == 40
+    assert view["turns"][0]["user_message"] == "message-5"
+    assert view["turns"][-1]["user_message"] == "message-44"
 
 
 # --------------------------------------------------------------------------- #

@@ -302,7 +302,7 @@ def test_registered_locator_anchor_digest_pickle_and_shim_are_unchanged() -> Non
     ]
     assert command_row.target == "daedalus.spine.attempt:command_gate"
     assert registry_sha256() == (
-        "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
+        "7a8fc9442be4d1fff8f576fa951036788ef146c779c5c1145bce21f471f3c605"
     )
     assert pickle.loads(
         b"cdaedalus.spine.attempt\nTaskAttempt\n."

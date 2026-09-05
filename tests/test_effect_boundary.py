@@ -129,6 +129,146 @@ def test_offload_is_central_and_anchored_to_persisted_lease_consumption() -> Non
     assert receipt.entrypoint_id == row.id
 
 
+def test_genesis_is_central_with_only_its_observed_effects_and_guards() -> None:
+    row = next(item for item in ENTRYPOINTS if item.id == "python.genesis")
+
+    assert row.surface is Surface.PYTHON
+    assert row.target == "daedalus.orchestration.genesis.service:run_genesis"
+    assert row.effects == (
+        Effect.FILESYSTEM_WRITE,
+        Effect.PROCESS_SPAWN,
+        Effect.PROCESS_CONTROL,
+    )
+    assert row.guard_contracts == (
+        "provider.write_policy",
+        "budget.process_guard",
+        "containment.attempt",
+        "containment.worktree",
+    )
+    assert row.wiring is Wiring.CENTRAL
+    assert row.runtime_id == ""
+    assert row.anchors == (
+        GuardAnchor(row.target, "begin_effect"),
+    )
+    assert row.migration == "complete for the python.genesis entrypoint"
+
+    receipt = begin_effect(
+        row.id,
+        row.effects,
+        (
+            GuardDecision(contract, True, f"genesis-test:{contract}")
+            for contract in row.guard_contracts
+        ),
+    )
+    assert receipt.entrypoint_id == row.id
+    assert receipt.requested_effects == tuple(
+        sorted(effect.value for effect in row.effects)
+    )
+
+
+def test_genesis_switch_initialisation_is_a_narrow_central_boundary() -> None:
+    row = next(item for item in ENTRYPOINTS if item.id == "python.genesis_switch")
+
+    assert row.surface is Surface.PYTHON
+    assert row.target == (
+        "daedalus.orchestration.genesis.service:_ensure_genesis_switch"
+    )
+    assert row.effects == (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN)
+    assert row.guard_contracts == ("budget.process_guard",)
+    assert row.wiring is Wiring.CENTRAL
+    assert row.anchors == (GuardAnchor(row.target, "begin_effect"),)
+    assert "never uses force" in row.notes
+    assert "shared only by Genesis and Ariadne candidate execution" in row.notes
+    assert "Legacy execution lanes are outside this mutex" in row.notes
+
+    receipt = begin_effect(
+        row.id,
+        row.effects,
+        (GuardDecision("budget.process_guard", True, "test process guard"),),
+    )
+    assert receipt.entrypoint_id == row.id
+
+
+def test_web_rows_are_narrow_outer_boundaries_and_desktop_effects_are_separate() -> None:
+    lifecycle = next(item for item in ENTRYPOINTS if item.id == "cli.web_api")
+    settings = next(item for item in ENTRYPOINTS if item.id == "web.mutations_put")
+    services = next(item for item in ENTRYPOINTS if item.id == "web.mutations")
+    desktop_switch = next(
+        item for item in ENTRYPOINTS if item.id == "python.desktop_switch"
+    )
+    settings_persist = next(
+        item for item in ENTRYPOINTS if item.id == "python.desktop_settings_persist"
+    )
+    ollama_adopt = next(
+        item for item in ENTRYPOINTS if item.id == "python.desktop_ollama_adopt"
+    )
+    assert lifecycle.effects == (Effect.LISTEN_SOCKET,)
+    assert settings.effects == (Effect.FILESYSTEM_WRITE,)
+    assert services.effects == (
+        Effect.FILESYSTEM_WRITE,
+        Effect.PROCESS_SPAWN,
+        Effect.NETWORK_EGRESS,
+        Effect.SPEND,
+    )
+    for row in (lifecycle, settings, services):
+        assert row.wiring is Wiring.CENTRAL
+        assert row.guard_contracts == ("web.authenticated_bind",)
+
+    assert desktop_switch.effects == (
+        Effect.FILESYSTEM_WRITE,
+        Effect.PROCESS_SPAWN,
+    )
+    assert desktop_switch.guard_contracts == ("budget.process_guard",)
+    assert desktop_switch.wiring is Wiring.CENTRAL
+    assert desktop_switch.anchors == (
+        GuardAnchor(desktop_switch.target, "begin_effect"),
+    )
+    assert "never arms, clears, or stops" in desktop_switch.notes
+
+    assert settings_persist.effects == (Effect.FILESYSTEM_WRITE,)
+    assert settings_persist.guard_contracts == (
+        "provider.write_policy",
+        "budget.process_guard",
+    )
+    assert ollama_adopt.effects == (Effect.NETWORK_EGRESS,)
+    assert ollama_adopt.guard_contracts == ("provider.egress_policy",)
+    for row in (settings_persist, ollama_adopt):
+        assert row.wiring is Wiring.CENTRAL
+
+
+def test_packaged_desktop_sidecar_bootstrap_is_centrally_registered() -> None:
+    row = next(item for item in ENTRYPOINTS if item.id == "cli.desktop_sidecar")
+
+    assert row.surface is Surface.CLI
+    assert row.target == "daedalus.interfaces.desktop.sidecar:main"
+    assert row.effects == (
+        Effect.FILESYSTEM_WRITE,
+        Effect.PROCESS_SPAWN,
+        Effect.SECRETS,
+    )
+    assert row.guard_contracts == ("budget.process_guard",)
+    assert row.wiring is Wiring.CENTRAL
+    assert row.anchors == (GuardAnchor(row.target, "begin_effect"),)
+
+    receipt = begin_effect(
+        row.id,
+        row.effects,
+        (GuardDecision("budget.process_guard", True, "test process guard"),),
+    )
+    assert receipt.entrypoint_id == row.id
+
+
+def test_python_shift_compatibility_door_is_centrally_registered() -> None:
+    row = next(item for item in ENTRYPOINTS if item.id == "cli.shift_compat")
+
+    assert row.surface is Surface.CLI
+    assert row.target == "daedalus.shift:main"
+    assert row.effects == (Effect.FILESYSTEM_WRITE,)
+    assert row.guard_contracts == ("budget.process_guard",)
+    assert row.wiring is Wiring.CENTRAL
+    assert row.anchors == (GuardAnchor(row.target, "begin_effect"),)
+
+
 def test_unknown_entrypoint_is_refused() -> None:
     with pytest.raises(UnregisteredEntrypoint, match="not registered"):
         begin_effect("python.unknown", [Effect.FILESYSTEM_WRITE], ())

@@ -25,4 +25,6 @@ autoritativen Artefakt im Repo. Nie kopieren — `docs/` bleibt die Quelle.
 - [[Vet-Review-20260826]] — vet.py hält unter Sondierung; MCP-Filesystem-Grant ist für das Gate unsichtbar (clear bei Wurzel C:/)
 - [[Ikarus-Agent-Surface-20260902]] — Ikarus zeigt, was der Kernel quittiert hat: Protokoll pro Antwort, Verlauf aus der Spine, /-Befehle (G1-UI-05)
 
+- [[Handle-Anchoring-Is-Not-Containment-20260905]] — Datei-Adapter G1-IKARUS-24: Handle-Verankerung schließt Link-Pflanzen, erst Delete-Share-Pinning schließt das Hinausbewegen; Cerberus BLOCK beantwortet, Zaun bleibt
+
 Neue Findings: Template [[../Templates/Finding|Finding]] nutzen.

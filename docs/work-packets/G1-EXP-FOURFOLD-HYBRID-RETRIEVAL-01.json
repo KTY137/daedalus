@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01",
+  "artifact_role": "primary",
   "title": "Compile logical Fourfold retrieval onto BM25 and typed relation indices",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "base_revision": "056ad01c0bfad3982f116010317a20996bd9709c",
+  "dependencies": "the bounded Tensor/Fourfold reference contracts present at base_revision",
   "branch": "exp/fourfold-hybrid-retrieval-01",
   "primary_claim": "The Fourfold/Tensor layer should express typed multi-relation query semantics and compile onto ordinary physical indices; BM25 supplies lexical seeds rather than being replaced by a flattened tensor score.",
   "scope": {
@@ -35,6 +38,11 @@
     "fusion": "deterministic reciprocal-rank fusion",
     "output_authority": "unverified-retrieval-proposal"
   },
+  "contracts": {
+    "authority": "The design and authority_boundary objects in this packet are frozen: KnowledgeForest and FourfoldSnapshot remain authoritative and retrieval output remains proposal-only.",
+    "compatibility": "The logical layer compiles onto deterministic adjacency indices while the existing pure-stdlib BM25 implementation remains the lexical seed path.",
+    "refusal": "Revision or Forest-digest mismatches refuse compilation; no result may mutate authority or promote itself."
+  },
   "acceptance": [
     "compiler refuses a FourfoldSnapshot whose source_forest_sha256 differs",
     "compiler preserves multiple targets for one source without dictionary overwrite",
@@ -55,6 +63,21 @@
     "workflow": ".github/workflows/fourfold-hybrid-retrieval.yml",
     "author_side_smoke": "API-compatible local stubs: py_compile succeeded; focused tests 5 passed. This is not exact-head repository evidence."
   },
+  "evidence": {
+    "status": "author-side smoke only; exact-head repository evidence remains required",
+    "retained_negative_conditions": "The kill_or_redesign array remains authoritative negative evidence and stop criteria.",
+    "admissible_evidence": "Only the requested exact-head compile and pytest runs may support the primary claim."
+  },
+  "expected_failures": [
+    "A source Forest digest mismatch refuses compilation.",
+    "Any gain explained entirely by extra context, or matched by a simpler deterministic relation-index query, triggers redesign under kill_or_redesign.",
+    "No benchmark-superiority, merge, promotion or gate-transition claim is admissible."
+  ],
+  "review_questions": [
+    "Are logical query semantics kept separate from the physical BM25 and adjacency indices?",
+    "Does every result retain revision, Forest, Fourfold and evidence-digest bindings?",
+    "Can any output escape proposal-only status or reach promotion authority?"
+  ],
   "kill_or_redesign": [
     "hybrid does not improve evidence recall or agent task success over BM25 plus four indices",
     "gain disappears when graph paths are permuted or evidence is removed",
@@ -69,5 +92,6 @@
     "benchmark_superiority_claim": false,
     "merge_requested": false
   },
+  "migration": "No production contract or persistent state is migrated; this remains an isolated experiment package.",
   "rollback": "Delete the isolated experiment package, focused test, workflow and this Work Packet; no production contract or persistent state is changed."
 }

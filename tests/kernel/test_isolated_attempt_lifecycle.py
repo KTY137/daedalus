@@ -93,6 +93,135 @@ def _report(store: SourceTreeStore, status: str = "passed"):
     )
 
 
+def _spine_snapshot(ledger: AttemptLedger) -> tuple[tuple[str, tuple[tuple, ...]], ...]:
+    """Read every authoritative row through the already-open writer handle."""
+
+    tables = ("spine_meta", "intents", "intent_events", "sqlite_sequence")
+    with ledger.spine._lock:
+        return tuple(
+            (
+                table,
+                tuple(
+                    tuple(row)
+                    for row in ledger.spine._conn.execute(
+                        f"SELECT * FROM {table} ORDER BY rowid"
+                    ).fetchall()
+                ),
+            )
+            for table in tables
+        )
+
+
+def test_lookup_unknown_attempt_is_none_without_mutating_spine(tmp_path) -> None:
+    _primary_root, _store, _captured, ledger, _coordinator = _environment(tmp_path)
+    before = _spine_snapshot(ledger)
+
+    assert ledger.lookup("attempt-unknown") is None
+
+    assert _spine_snapshot(ledger) == before
+
+
+def test_lookup_pending_attempt_is_read_only_and_never_requests_execution(tmp_path) -> None:
+    _primary_root, store, captured, ledger, coordinator = _environment(tmp_path)
+    prepared = coordinator.prepare(
+        _attempt(),
+        captured,
+        start_id="start-attempt-1",
+        started_at=NOW,
+    )
+    before_spine = _spine_snapshot(ledger)
+    before_cas = digest_file_tree(store.root)
+
+    lookup = ledger.lookup("attempt-1")
+
+    assert lookup is not None
+    assert lookup.start == prepared.begin.start
+    assert lookup.execute is False
+    assert lookup.completion is None
+    assert lookup.pending_reconciliation is True
+    assert _spine_snapshot(ledger) == before_spine
+    assert digest_file_tree(store.root) == before_cas
+
+
+def test_lookup_terminal_attempt_returns_completion_without_mutation(tmp_path) -> None:
+    _primary_root, store, captured, ledger, coordinator = _environment(tmp_path)
+    prepared = coordinator.prepare(
+        _attempt(),
+        captured,
+        start_id="start-attempt-1",
+        started_at=NOW,
+    )
+    assert prepared.workspace is not None
+    prepared.workspace.joinpath("src/event.py").write_text(
+        "class Event:\n    bias_voltage = 5\n",
+        encoding="utf-8",
+    )
+    candidate = store.capture_tree(
+        prepared.workspace,
+        tree_id="candidate-tree-1",
+        source_revision=REVISION,
+        origin="tests.isolated-attempt-candidate",
+        created_at=LATER,
+        trace_id="attempt-1",
+    )
+    completion = ledger.complete(
+        prepared.begin.start,
+        receipt_id="terminal-attempt-1",
+        outcome="succeeded",
+        report=_report(store),
+        candidate_tree=candidate,
+        completed_at=LATER,
+    )
+    before_spine = _spine_snapshot(ledger)
+    before_cas = digest_file_tree(store.root)
+
+    lookup = ledger.lookup("attempt-1")
+
+    assert lookup is not None
+    assert lookup.start == prepared.begin.start
+    assert lookup.execute is False
+    assert lookup.completion == completion
+    assert lookup.pending_reconciliation is False
+    assert _spine_snapshot(ledger) == before_spine
+    assert digest_file_tree(store.root) == before_cas
+
+
+def test_class_lookup_is_read_only_without_constructing_a_writer(tmp_path) -> None:
+    _primary_root, store, captured, ledger, coordinator = _environment(tmp_path)
+    prepared = coordinator.prepare(
+        _attempt(),
+        captured,
+        start_id="start-attempt-1",
+        started_at=NOW,
+    )
+    completion = ledger.complete(
+        prepared.begin.start,
+        receipt_id="terminal-attempt-1",
+        outcome="succeeded",
+        report=_report(store),
+        candidate_tree=store.capture_tree(
+            prepared.workspace,
+            tree_id="candidate-tree",
+            source_revision=prepared.begin.start.source_revision,
+            origin="tests.lookup-read-only",
+            created_at=LATER,
+        ),
+        completed_at=LATER,
+    )
+    database = Path(ledger.path)
+    ledger.spine.close()
+    before_spine = digest_file_tree(database.parent)
+    before_cas = digest_file_tree(store.root)
+
+    lookup = AttemptLedger.lookup_read_only(database, store, "attempt-1")
+
+    assert lookup is not None
+    assert lookup.execute is False
+    assert lookup.completion == completion
+    assert digest_file_tree(database.parent) == before_spine
+    assert digest_file_tree(store.root) == before_cas
+
+
 def test_start_is_persisted_before_external_materialization_and_primary_is_unchanged(tmp_path) -> None:
     primary, _store, captured, ledger, coordinator = _environment(tmp_path)
     before = digest_file_tree(primary)

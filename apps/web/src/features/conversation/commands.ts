@@ -6,8 +6,9 @@ import type { EffortLevel } from '@/shared/contracts';
  * A command is a shortcut to something the surface can already do — never a
  * new capability, and never a hidden effect. Two of them send a fixed word
  * down the deterministic route the backend classifies by itself
- * (`ikarus_os.classify`: `status`, `distill`); the rest are in-page actions
- * that touch no server. A command the surface does not know is sent verbatim:
+ * (`ikarus_os.classify`: `status`, `distill`). `/computer` enters the server's
+ * explicitly configured computer task route. Other commands are in-page
+ * actions. A command the surface does not know is sent verbatim:
  * Ikarus may know it, and the surface does not pretend it did.
  *
  * Pure. The composer decides what to do with the parsed action; this module
@@ -25,6 +26,7 @@ export interface CommandSpec {
 }
 
 export const COMMANDS: readonly CommandSpec[] = [
+  { name: 'computer', arg: 'Aufgabe | queue | every | cancel | tasks | status', argOptional: true, summary: 'Aufgaben ausführen, dauerhaft einreihen, begrenzt wiederholen und ihren Fortschritt prüfen' },
   { name: 'status', summary: 'Projektzustand aus dem lokalen Index, ohne Modell' },
   { name: 'distill', summary: 'Struktur destillieren, ohne Modell' },
   { name: 'plan', arg: 'Frage', summary: 'Zeigt, was für diese Frage gelesen würde. Sendet nichts.' },
@@ -92,6 +94,8 @@ export function parseCommand(draft: string): CommandAction | null {
   const spec = COMMANDS.find((c) => c.name === name);
   if (!spec) return { kind: 'unknown', message: text };
   switch (spec.name) {
+    case 'computer':
+      return { kind: 'send', message: arg ? `/computer ${arg}` : '/computer status' };
     case 'status':
       return { kind: 'send', message: 'status' };
     case 'distill':
@@ -123,7 +127,7 @@ export function parseCommand(draft: string): CommandAction | null {
 export function helpText(): string {
   const rows = COMMANDS.map((c) => `| \`/${c.name}${c.arg ? ` ${c.arg}` : ''}\` | ${c.summary} |`);
   return [
-    'Befehle beginnen mit `/`. Zwei davon senden ein Wort an den lokalen Index; alle anderen bleiben auf dieser Seite.',
+    'Befehle beginnen mit `/`. status und distill lesen den lokalen Index. computer sendet eine Computeraufgabe an Ikarus; die übrigen Befehle bedienen diese Seite.',
     '',
     '| Befehl | Wirkung |',
     '| --- | --- |',

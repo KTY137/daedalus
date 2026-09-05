@@ -26,7 +26,7 @@ from ...kernel.policy.limits import (
 DEFAULT_IDE_DOCKER_IMAGE = "daedalus/openvscode-server:1.109.5"
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    "bridge": {"auto_start": True},
+    "bridge": {"auto_start": False},
     "budget": {
         "period_ceiling_usd": DEFAULT_CEILING_USD,
         "max_calls": DEFAULT_MAX_CALLS,
@@ -41,7 +41,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "ollama": {
         "mode": "local",
-        "auto_start": True,
+        "auto_start": False,
         "model": "qwen2.5-coder:7b",
         "local_host": "http://127.0.0.1:11434",
         "remote": {
@@ -60,12 +60,59 @@ DEFAULT_CONFIG: dict[str, Any] = {
 
 _HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 _USER_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
-_FP_RE = re.compile(r"^SHA256:[A-Za-z0-9+/]{20,}={0,2}$")
+_FP_RE = re.compile(r"^SHA256:[A-Za-z0-9+/]{43}$")
 _IDE_DOCKER_IMAGE_RE = re.compile(
     r"^(?:daedalus|gitpod)/openvscode-server(?:"
     r":[0-9]+\.[0-9]+\.[0-9]+(?:[-.][A-Za-z0-9_.-]+)?"
     r"|@sha256:[0-9a-f]{64})$"
 )
+
+_TOP_LEVEL_KEYS = frozenset(("bridge", "budget", "caps", "ide", "ollama"))
+_BRIDGE_KEYS = frozenset(("auto_start",))
+_BUDGET_KEYS = frozenset(
+    ("period_ceiling_enabled", "period_ceiling_usd", "max_calls")
+)
+_IDE_KEYS = frozenset(
+    ("mode", "auto_start", "endpoint", "executable", "docker_image")
+)
+_OLLAMA_KEYS = frozenset(("mode", "auto_start", "model", "local_host", "remote"))
+_REMOTE_KEYS = frozenset(
+    (
+        "host",
+        "user",
+        "port",
+        "identity_file",
+        "host_key_fingerprint",
+        "local_port",
+        "remote_port",
+        "start_method",
+        "trust_remote_host",
+    )
+)
+
+
+def _object(value: Any, name: str) -> dict[str, Any]:
+    if type(value) is not dict:
+        raise ValueError(f"{name} settings must be a JSON object")
+    return value
+
+
+def _keys(value: dict[str, Any], allowed: frozenset[str], name: str) -> None:
+    unsupported = sorted(str(key) for key in value if key not in allowed)
+    if unsupported:
+        raise ValueError(f"unsupported {name} settings: {', '.join(unsupported)}")
+
+
+def _string(value: Any, name: str) -> str:
+    if type(value) is not str:
+        raise ValueError(f"{name} must be a string")
+    return value.strip()
+
+
+def _boolean(value: Any, name: str) -> bool:
+    if type(value) is not bool:
+        raise ValueError(f"{name} must be a boolean")
+    return value
 
 
 def defaults(
@@ -84,19 +131,15 @@ def defaults(
 
 
 def port(value: Any, name: str, low: int = 1) -> int:
-    if isinstance(value, bool):
+    if type(value) is not int:
         raise ValueError(f"{name} must be a TCP port")
-    try:
-        resolved = int(value)
-    except (TypeError, ValueError):
-        raise ValueError(f"{name} must be a TCP port") from None
-    if not low <= resolved <= 65535:
+    if not low <= value <= 65535:
         raise ValueError(f"{name} must be between {low} and 65535")
-    return resolved
+    return value
 
 
 def loopback_endpoint(value: Any) -> str:
-    raw = str(value or "").strip().rstrip("/")
+    raw = _string(value, "ollama.local_host").rstrip("/")
     try:
         parsed = urlsplit(raw)
         host, resolved_port = parsed.hostname or "", parsed.port
@@ -120,7 +163,7 @@ def loopback_endpoint(value: Any) -> str:
 
 
 def ide_endpoint(value: Any) -> str:
-    raw = str(value or "").strip().rstrip("/")
+    raw = _string(value, "ide.endpoint").rstrip("/")
     try:
         parsed = urlsplit(raw)
         host, resolved_port = parsed.hostname or "", parsed.port
@@ -161,38 +204,39 @@ def normalize_config(
     *,
     budget_defaults: dict[str, Any] | None = None,
     caps_defaults: dict[str, Any] | None = None,
+    allow_legacy_remote: bool = False,
+    current_remote: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Whitelist settings. Passwords, tokens, key bytes and commands are invalid."""
-    if raw is None:
-        raw = {}
-    if not isinstance(raw, dict):
+    if type(raw) is not dict:
         raise ValueError("settings must be a JSON object")
-    if "budget" in raw and not isinstance(raw["budget"], dict):
-        raise ValueError("budget settings must be a JSON object")
-    if "caps" in raw and not isinstance(raw["caps"], dict):
-        raise ValueError("caps settings must be a JSON object")
-    if "ide" in raw and not isinstance(raw["ide"], dict):
-        raise ValueError("ide settings must be a JSON object")
-    b = raw.get("bridge") if isinstance(raw.get("bridge"), dict) else {}
-    budget = raw.get("budget") if isinstance(raw.get("budget"), dict) else {}
-    caps = raw.get("caps") if isinstance(raw.get("caps"), dict) else None
-    i = raw.get("ide") if isinstance(raw.get("ide"), dict) else {}
-    o = raw.get("ollama") if isinstance(raw.get("ollama"), dict) else {}
-    r = o.get("remote") if isinstance(o.get("remote"), dict) else {}
+    _keys(raw, _TOP_LEVEL_KEYS, "top-level")
+    bridge = _object(raw["bridge"], "bridge") if "bridge" in raw else {}
+    budget = _object(raw["budget"], "budget") if "budget" in raw else {}
+    caps = _object(raw["caps"], "caps") if "caps" in raw else None
+    ide = _object(raw["ide"], "ide") if "ide" in raw else {}
+    ollama = _object(raw["ollama"], "ollama") if "ollama" in raw else {}
+    remote = (
+        _object(ollama["remote"], "ollama.remote")
+        if "remote" in ollama
+        else {}
+    )
+    _keys(bridge, _BRIDGE_KEYS, "bridge")
+    _keys(budget, _BUDGET_KEYS, "budget")
+    _keys(ide, _IDE_KEYS, "ide")
+    _keys(ollama, _OLLAMA_KEYS, "ollama")
+    _keys(remote, _REMOTE_KEYS, "ollama.remote")
 
     cfg = defaults(
         budget_defaults=budget_defaults,
         caps_defaults=caps_defaults,
     )
-    cfg["bridge"]["auto_start"] = bool(b.get("auto_start", True))
-    unsupported_budget = sorted(
-        set(budget)
-        - {"period_ceiling_enabled", "period_ceiling_usd", "max_calls"}
-    )
-    if unsupported_budget:
-        raise ValueError(
-            f"unsupported budget settings: {', '.join(unsupported_budget)}"
-        )
+    # v0.1.6 has no desktop-owned bridge process.  Legacy ``true`` values are
+    # migrated to the truthful disabled state; the registered CLI watcher is
+    # still available as an explicit operator action.
+    if "auto_start" in bridge:
+        _boolean(bridge["auto_start"], "bridge.auto_start")
+    cfg["bridge"]["auto_start"] = False
     legacy_enabled = budget.get("period_ceiling_enabled")
     if "period_ceiling_enabled" in budget and not isinstance(
         legacy_enabled, bool
@@ -232,26 +276,26 @@ def normalize_config(
     except LimitPolicyError as exc:
         raise ValueError(f"invalid caps settings: {exc}") from exc
     cfg["caps"] = policy.as_dict()
-    unsupported_ide = sorted(
-        set(i) - {"mode", "auto_start", "endpoint", "executable", "docker_image"}
-    )
-    if unsupported_ide:
-        raise ValueError(f"unsupported ide settings: {', '.join(unsupported_ide)}")
-    ide_mode = str(i.get("mode", cfg["ide"]["mode"])).strip()
+    ide_mode = _string(ide.get("mode", cfg["ide"]["mode"]), "ide.mode")
     if ide_mode not in {"native", "docker"}:
         raise ValueError("ide.mode must be native or docker")
     cfg["ide"]["mode"] = ide_mode
-    cfg["ide"]["auto_start"] = bool(i.get("auto_start", False))
+    if "auto_start" in ide:
+        _boolean(ide["auto_start"], "ide.auto_start")
+    cfg["ide"]["auto_start"] = False
     cfg["ide"]["endpoint"] = ide_endpoint(
-        i.get("endpoint", cfg["ide"]["endpoint"])
+        ide.get("endpoint", cfg["ide"]["endpoint"])
     )
-    executable = str(i.get("executable", "")).strip()
-    if len(executable) > 4096 or any(ord(ch) < 32 for ch in executable):
+    executable = _string(ide.get("executable", ""), "ide.executable")
+    if len(executable) > 4096 or any(not ch.isprintable() for ch in executable):
         raise ValueError("ide.executable must be a valid local path")
     if ide_mode == "docker" and executable:
         raise ValueError("ide.executable is only valid when ide.mode is native")
     cfg["ide"]["executable"] = executable
-    docker_image = str(i.get("docker_image", cfg["ide"]["docker_image"])).strip()
+    docker_image = _string(
+        ide.get("docker_image", cfg["ide"]["docker_image"]),
+        "ide.docker_image",
+    )
     if not _IDE_DOCKER_IMAGE_RE.fullmatch(docker_image):
         raise ValueError(
             "ide.docker_image must be a pinned daedalus/openvscode-server or "
@@ -260,52 +304,78 @@ def normalize_config(
     cfg["ide"]["docker_image"] = docker_image
     if ide_mode == "docker" and cfg["ide"]["endpoint"] != "http://127.0.0.1:3000":
         raise ValueError("docker IDE endpoint must be exactly http://127.0.0.1:3000")
-    mode = str(o.get("mode", "local")).strip()
+    mode = _string(ollama.get("mode", "local"), "ollama.mode")
     if mode not in {"local", "remote_ssh"}:
         raise ValueError("ollama.mode must be local or remote_ssh")
     cfg["ollama"]["mode"] = mode
-    cfg["ollama"]["auto_start"] = bool(o.get("auto_start", True))
+    # Local Ollama may be explicitly probed/adopted, but the desktop never
+    # starts or auto-probes it.  Persisted legacy ``true`` values are inert.
+    if "auto_start" in ollama:
+        _boolean(ollama["auto_start"], "ollama.auto_start")
+    cfg["ollama"]["auto_start"] = False
 
-    model = str(o.get("model", cfg["ollama"]["model"])).strip()
-    if not model or len(model) > 200 or any(ord(ch) < 32 for ch in model):
+    model = _string(ollama.get("model", cfg["ollama"]["model"]), "ollama.model")
+    if not model or len(model) > 200 or any(not ch.isprintable() for ch in model):
         raise ValueError("ollama.model must be 1..200 printable characters")
     cfg["ollama"]["model"] = model
     cfg["ollama"]["local_host"] = loopback_endpoint(
-        o.get("local_host", cfg["ollama"]["local_host"])
+        ollama.get("local_host", cfg["ollama"]["local_host"])
     )
 
     dst = cfg["ollama"]["remote"]
-    host, user = str(r.get("host", "")).strip(), str(r.get("user", "")).strip()
+    host = _string(remote.get("host", ""), "remote.host")
+    user = _string(remote.get("user", ""), "remote.user")
     if host and (host.startswith("-") or not _HOST_RE.fullmatch(host)):
         raise ValueError("remote.host must be a DNS name or IPv4 address")
     if user and not _USER_RE.fullmatch(user):
         raise ValueError("remote.user contains unsupported characters")
     dst["host"], dst["user"] = host, user
-    dst["port"] = port(r.get("port", 22), "remote.port")
-    dst["local_port"] = port(r.get("local_port", 11435), "remote.local_port", 1024)
-    dst["remote_port"] = port(r.get("remote_port", 11434), "remote.remote_port")
+    dst["port"] = port(remote.get("port", 22), "remote.port")
+    dst["local_port"] = port(
+        remote.get("local_port", 11435), "remote.local_port", 1024
+    )
+    dst["remote_port"] = port(
+        remote.get("remote_port", 11434), "remote.remote_port"
+    )
 
-    identity = str(r.get("identity_file", "")).strip()
-    if any(ch in identity for ch in ("\x00", "\n", "\r")):
-        raise ValueError("remote.identity_file is invalid")
+    identity = _string(remote.get("identity_file", ""), "remote.identity_file")
+    if len(identity) > 4096 or any(not ch.isprintable() for ch in identity):
+        raise ValueError("remote.identity_file must be at most 4096 printable characters")
     dst["identity_file"] = identity
 
-    fingerprint = str(r.get("host_key_fingerprint", "")).strip()
+    fingerprint = _string(
+        remote.get("host_key_fingerprint", ""),
+        "remote.host_key_fingerprint",
+    )
+    if len(fingerprint) > 80:
+        raise ValueError("host key fingerprint is too long")
     if fingerprint and not _FP_RE.fullmatch(fingerprint):
         raise ValueError("host key fingerprint must use OpenSSH SHA256:... format")
     dst["host_key_fingerprint"] = fingerprint
 
-    method = str(r.get("start_method", "systemd")).strip()
+    method = _string(remote.get("start_method", "systemd"), "remote.start_method")
     if method not in {"systemd", "windows", "none"}:
         raise ValueError("remote.start_method must be systemd, windows, or none")
     dst["start_method"] = method
-    dst["trust_remote_host"] = bool(r.get("trust_remote_host", False))
+    dst["trust_remote_host"] = _boolean(
+        remote.get("trust_remote_host", False), "remote.trust_remote_host"
+    )
 
     if mode == "remote_ssh":
         if not host or not user:
             raise ValueError("remote SSH mode requires remote.host and remote.user")
         if dst["trust_remote_host"] and numeric_host(host) is None:
             raise ValueError("trusted remote hosts must be numeric IP addresses")
+    elif not allow_legacy_remote:
+        default_remote = defaults()["ollama"]["remote"]
+        unchanged_legacy = (
+            type(current_remote) is dict and dst == current_remote
+        )
+        if dst != default_remote and not unchanged_legacy:
+            raise ValueError(
+                "ollama.remote cannot be modified while ollama.mode is local; "
+                "clear the remote block or select remote_ssh"
+            )
     return cfg
 
 

@@ -1,10 +1,16 @@
 {
   "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-TENSOR-GPU-02",
   "id": "G1-EXP-TENSOR-GPU-02",
+  "artifact_role": "primary",
   "title": "Account CUDA scatter staging in VRAM admission and fail closed on OOM",
   "status": "closed",
   "date": "2026-09-04",
+  "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
+  "base_revision": "8adc894d34fd7bd1ced88b03c8d8d6dbbb70c765",
+  "dependencies": "G1-EXP-TENSOR-GPU-01",
   "domain": "tensor-kernel",
   "masterplan": {
     "revision": 11,
@@ -17,12 +23,28 @@
   "production_commit": "6e8b855b171bfca985852a2ede73cfd7e71042b5",
   "tested_head": "a7f79511f59ee7f476bcf4fd8029dc03873f9e60",
   "finding": "The first CUDA Boolean probe admitted work from a dense-resident-set estimate that omitted the temporary int64 row/column scatter-index tensors used while converting canonical CSR support to dense CUDA matrices. An allocator OOM could also escape as an exception instead of becoming explicit blocked experimental evidence.",
+  "primary_claim": "The bounded CUDA probe accounts for its live scatter-staging tensors before admission and converts only an explicit PyTorch CUDA out-of-memory condition into non-authorizing blocked evidence.",
+  "scope": {
+    "changed": [
+      "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "tests/twin/test_tensor_gpu_probe.py"
+    ],
+    "added": [
+      "docs/work-packets/G1-EXP-TENSOR-GPU-02.json"
+    ],
+    "changes_production_runtime": false,
+    "adds_runtime_dependency": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler_or_evaluator": false,
+    "automatic_promotion": false
+  },
   "change": {
     "device_memory_estimate": "Count padded dense A/B/C plus Boolean support mask and one live pair of int64 scatter-index tensors. The two input blocks are packed sequentially, so only one staging pair is admitted at peak.",
     "workspace_headroom": "Keep the existing min(explicit-case-VRAM-ceiling, half-currently-free-VRAM) rule because cuBLAS workspace is implementation-owned and not exactly predictable by the probe.",
     "oom_semantics": "Translate only PyTorch's explicit OutOfMemoryError into status=blocked, claim=none, reason=cuda-out-of-memory. Unrelated exceptions remain visible and are re-raised.",
     "authority": "No production backend, runtime dependency, store, registry, scheduler, semantic plane or promotion path was added."
   },
+  "contracts": "The change and claims objects are the frozen behavior and authority contract: admission includes one live scatter-index pair, explicit CUDA OOM blocks, and unrelated exceptions remain visible.",
   "files": [
     {
       "path": "experiments/tensor_gpu/cuda_boolean_probe.py",
@@ -46,6 +68,7 @@
     "gpu_execution": "not executed on hosted runners and not claimed",
     "tensor_core_usage": "not profiled and not claimed"
   },
+  "evidence": "The verification and claims objects retain the exact hosted-CPU evidence and explicitly record the absent GPU and Tensor-Core measurements.",
   "acceptance": [
     "the explicit admission estimate includes CUDA scatter staging memory in addition to padded dense resident allocations",
     "the estimate remains bounded by the existing TypedRelationBlock entry ceiling and probe case limits",
@@ -54,6 +77,8 @@
     "the existing deterministic Boolean CPU oracle contract remains executable and green on the exact tested head",
     "no GPU speed, memory, Tensor-Core-use or benchmark-superiority claim is emitted"
   ],
+  "migration": "No production runtime, persisted state or dependency is migrated; only the isolated probe's admission and failure semantics change.",
+  "rollback": "Revert the probe and focused-test changes while retaining the original blocked/negative evidence; no production state requires migration.",
   "claims": {
     "hosted_cpu_contracts_green": true,
     "gpu_run_completed": false,

@@ -72,6 +72,7 @@ def read_attempt_intents(
     path: str | os.PathLike[str],
     *,
     effect_key: str | None = None,
+    immutable: bool = False,
 ) -> list[Intent]:
     """Strictly project lifecycle rows from the canonical spine tables.
 
@@ -81,13 +82,20 @@ def read_attempt_intents(
     sequences, malformed terminal detail, and lifecycle record times detached
     from the Event-Store transitions that retained them. The SQLite handle is
     opened with ``mode=ro`` so inspection cannot create or modify the Event
-    Store, even when a caller supplies a missing path.
+    Store, even when a caller supplies a missing path.  Existing-store HTTP
+    projections may additionally request ``immutable=True`` to prevent SQLite
+    from creating WAL/SHM sidecars beside the authority database.  That mode is
+    deliberately a point-in-time projection; writers use the normal read-only
+    URI so their own uncheckpointed WAL remains visible.
     """
     connection: sqlite3.Connection | None = None
     try:
         database = Path(path).resolve()
+        uri = f"file:{_uri_path(database)}?mode=ro"
+        if immutable:
+            uri += "&immutable=1"
         connection = sqlite3.connect(
-            f"file:{_uri_path(database)}?mode=ro",
+            uri,
             uri=True,
             timeout=30.0,
             isolation_level=None,

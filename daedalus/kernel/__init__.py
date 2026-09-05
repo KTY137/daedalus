@@ -6,9 +6,8 @@ one of its names is requested. This package is not a second contract authority;
 canonical wire contracts are owned by :mod:`daedalus.kernel.contracts` while
 :mod:`daedalus.schemas` remains an object-identical compatibility facade.
 
-The frozen Gate-1 WIP references a Campaign slice that is not present. Its
-compatibility names remain declared so the gap is visible, but requesting one
-fails specifically instead of preventing every unrelated kernel import.
+The Gate-1 Campaign lifecycle is owned by :mod:`daedalus.kernel.campaigns`;
+this facade exposes it without becoming another lifecycle authority.
 """
 
 from importlib import import_module as _import_module
@@ -125,6 +124,7 @@ _EXPORT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "CAMPAIGN_RUN_KIND",
         "CampaignAlreadyTerminal",
         "CampaignBeginResult",
+        "CampaignReplayResult",
         "CampaignLifecycleError",
         "CampaignPendingReconciliation",
         "begin_campaign",
@@ -134,6 +134,7 @@ _EXPORT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "load_campaign_contract",
         "load_campaign_receipt",
         "load_experiment_spec",
+        "lookup_campaign_read_only",
         "store_contract",
         "verify_campaign_chain",
     )),
@@ -186,14 +187,14 @@ def _load_owner(owner: str, requested: str):
     try:
         return _import_module(module_name)
     except ModuleNotFoundError as exc:
-        # Only reinterpret absence of the Campaign module itself. If a future
-        # real campaigns.py has a missing dependency, preserve that dependency's
-        # original name/traceback instead of disguising it as today's WIP gap.
+        # Only reinterpret absence of the Campaign module itself. If the real
+        # module has a missing dependency, preserve that dependency's original
+        # name/traceback rather than disguising it as a facade error.
         if owner == "campaigns" and exc.name == _CAMPAIGN_MODULE:
             raise ModuleNotFoundError(
                 f"Kernel compatibility name {requested!r} is unavailable: "
-                f"{_CAMPAIGN_MODULE} is referenced by the frozen Gate-1 WIP "
-                "but is not present. Land the owning Campaign Work Packet; "
+                f"{_CAMPAIGN_MODULE} owns the Gate-1 Campaign lifecycle but "
+                "is not installed. Land the owning Campaign Work Packet; "
                 "the compatibility facade does not fabricate this slice.",
                 name=_CAMPAIGN_MODULE,
             ) from exc
@@ -217,7 +218,7 @@ def __getattr__(name: str):
 
 
 def __dir__() -> list[str]:
-    """Advertise the compatibility surface, including the honest Campaign gap."""
+    """Advertise the compatibility surface."""
     return sorted(set(globals()) | set(__all__) | set(_LAZY_MODULES))
 
 

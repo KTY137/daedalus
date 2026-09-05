@@ -22,7 +22,7 @@ from . import conversation, editor_context
 from ..spine.ledger import STATE_COMPLETED, STATE_FAILED, STATE_INTENDED, Intent
 
 
-KIND_GENERATION = "conversation.generation"
+KIND_GENERATION = conversation.KIND_GENERATION
 KIND_CANCELLATION = "conversation.generation.cancel"
 _REQUEST_ID_CHARS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.:")
@@ -40,6 +40,10 @@ class ConflictingConversationRequest(ConversationRequestError):
     pass
 
 
+class ConflictingConversationProject(ConflictingConversationRequest):
+    """The durable conversation id belongs to another/invalid project."""
+
+
 @dataclass
 class _Runtime:
     request_id: int
@@ -51,6 +55,22 @@ class _Runtime:
     cancel_intent_ids: list[int] = field(default_factory=list)
     stream: Any = None
     cancel_supported: bool | None = None
+
+
+@dataclass(frozen=True)
+class _RuntimeSnapshot:
+    """One condition-locked view of the process-local stream projection."""
+
+    live: bool = False
+    cancel_set: bool = False
+    cancel_intent_ids: frozenset[int] = frozenset()
+
+    def owns(self, cancellation_id: int) -> bool:
+        return (
+            self.live
+            and self.cancel_set
+            and int(cancellation_id) in self.cancel_intent_ids
+        )
 
 
 def _client_key(conversation_id: str, client_request_id: str) -> str:
@@ -106,6 +126,11 @@ class ConversationRequestManager:
                     "idx_conversation_generation_cancel_key "
                     "ON intents(effect_key) "
                     f"WHERE kind = '{KIND_CANCELLATION}'")
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS "
+                    "idx_conversation_generation_cancel_request "
+                    "ON intents(json_extract(payload, '$.request_id'), id DESC) "
+                    f"WHERE kind = '{KIND_CANCELLATION}'")
         except (sqlite3.DatabaseError, AttributeError) as exc:
             raise ConversationRequestError(
                 "the canonical spine cannot enforce generation identities: "
@@ -122,6 +147,64 @@ class ConversationRequestManager:
     def _runtime_for(self, request_id: int) -> _Runtime | None:
         with self._lock:
             return self._runtime.get(request_id)
+
+    @staticmethod
+    def _runtime_snapshot_locked(runtime: _Runtime | None) -> _RuntimeSnapshot:
+        """Capture ``runtime`` while its condition is held by the caller."""
+        if runtime is None:
+            return _RuntimeSnapshot()
+        worker = runtime.worker
+        return _RuntimeSnapshot(
+            live=bool(
+                worker is not None
+                and worker.is_alive()
+                and not runtime.terminal
+            ),
+            cancel_set=runtime.cancel.is_set(),
+            cancel_intent_ids=frozenset(runtime.cancel_intent_ids),
+        )
+
+    def _durable_snapshot(self, request_id: int) -> tuple[Intent, list[Intent]]:
+        """Read one generation and its cancellations at one durable point.
+
+        The canonical ledger does not expose a compound read facade.  Use its
+        existing re-entrant read lock and connection here, just as this manager
+        already uses the ledger transaction seam to install its identity
+        indexes.  Both SELECTs and hydration therefore observe one SQLite
+        snapshot, and this helper never writes or resolves an intent.
+        """
+        with self.spine._lock:  # canonical connection/read lock
+            connection = self.spine._conn
+            connection.execute("BEGIN")
+            try:
+                row = connection.execute(
+                    "SELECT * FROM intents WHERE id = ?", (int(request_id),)
+                ).fetchone()
+                if row is None:
+                    raise UnknownConversationRequest(str(request_id))
+                generation = self.spine._hydrate(row)
+                if generation.kind != KIND_GENERATION:
+                    raise UnknownConversationRequest(str(request_id))
+                cancellation_rows = connection.execute(
+                    "SELECT * FROM intents "
+                    "WHERE kind = ? "
+                    "AND json_extract(payload, '$.request_id') = ? "
+                    "ORDER BY id DESC",
+                    (KIND_CANCELLATION, int(request_id)),
+                ).fetchall()
+                cancellations = []
+                for cancel_row in cancellation_rows:
+                    cancellation = self.spine._hydrate(cancel_row)
+                    if (
+                        int(cancellation.payload.get("request_id") or 0)
+                        == int(request_id)
+                    ):
+                        cancellations.append(cancellation)
+            except BaseException:
+                connection.execute("ROLLBACK")
+                raise
+            connection.execute("COMMIT")
+        return generation, cancellations
 
     def _existing_by_key(self, key: str) -> Intent | None:
         rows = self.spine.intents_by_effect_key(key, kind=KIND_GENERATION, limit=1)
@@ -161,6 +244,10 @@ class ConversationRequestManager:
                 KIND_GENERATION, payload, effect_key=key)
             created = True
         except sqlite3.IntegrityError as exc:
+            if conversation.is_project_binding_conflict(exc):
+                raise ConflictingConversationProject(
+                    f"conversation {cid!r} is already bound to another project "
+                    "or has a quarantined project history") from exc
             intent = self._existing_by_key(key)
             if intent is None or intent.payload != payload:
                 raise ConflictingConversationRequest(
@@ -203,6 +290,156 @@ class ConversationRequestManager:
                 # informational cancellation projection cannot be closed.
                 continue
 
+    def _complete_cancellation(self, intent: Intent, status: str) -> Intent:
+        """Resolve one cancellation once, absorbing only a proven race."""
+        if intent.state != STATE_INTENDED:
+            return intent
+        try:
+            return self.spine.mark_completed(
+                intent.id,
+                effect_id=str(intent.payload.get("request_id") or ""),
+                result={"status": status},
+            )
+        except Exception:
+            current = self.spine.get(intent.id)
+            if current is None or current.state == STATE_INTENDED:
+                raise
+            return current
+
+    @staticmethod
+    def _stored_cancellation_status(intent: Intent) -> str | None:
+        if intent.state != STATE_COMPLETED or not isinstance(intent.result, dict):
+            return None
+        status = str(intent.result.get("status") or "")
+        if status in {
+            "requested", "confirmed", "already_terminal", "not_supported",
+            "unknown",
+        }:
+            return status
+        return "unknown"
+
+    @classmethod
+    def _has_confirmed_cancellation(cls, cancellations: list[Intent]) -> bool:
+        return any(
+            cls._stored_cancellation_status(cancellation) == "confirmed"
+            for cancellation in cancellations
+        )
+
+    @classmethod
+    def _project_cancellation(
+        cls,
+        cancellation: Intent,
+        generation: Intent,
+        runtime: _RuntimeSnapshot,
+        *,
+        has_confirmed: bool,
+    ) -> dict[str, Any]:
+        """Project one cancellation without mutating the canonical ledger."""
+        stored = cls._stored_cancellation_status(cancellation)
+        if stored is not None and stored != "requested":
+            status = stored
+        elif generation.state == STATE_COMPLETED:
+            status = "already_terminal"
+        elif generation.state == STATE_FAILED and generation.error != "cancelled_by_user":
+            status = "already_terminal"
+        elif cancellation.state == STATE_INTENDED and runtime.owns(cancellation.id):
+            # A durable cancellation is only still "requested" while this
+            # process has a live worker that registered and can act on it.
+            status = "requested"
+        elif generation.state == STATE_FAILED and has_confirmed:
+            # A different, durably confirmed cancellation already stopped the
+            # generation; this later/open request arrived too late.
+            status = "already_terminal"
+        else:
+            # An unresolved generation after restart, or cancelled_by_user
+            # without a durable confirmation, cannot be reconstructed.
+            status = "unknown"
+        return cls._cancel_projection(cancellation, status=status)
+
+    @staticmethod
+    def _request_stream_cancel(stream: Any) -> str:
+        """Call one advertised cancel seam and normalize its support result.
+
+        Legacy/injected cancellable iterators returned ``None``. That remains
+        a supported request. The canonical Ikarus stream returns an explicit
+        local outcome so a final-vs-cancel race is never guessed.
+        """
+        cancel_method = getattr(stream, "cancel", None)
+        if not callable(cancel_method):
+            return "not_supported"
+        outcome = cancel_method()
+        if outcome is None:
+            return "requested"
+        text = str(outcome)
+        if text in {
+            "requested", "confirmed", "already_terminal", "not_supported", "unknown"
+        }:
+            return text
+        return "unknown"
+
+    @staticmethod
+    def _stream_cancellation_status(stream: Any) -> str | None:
+        outcome = getattr(stream, "cancellation_status", None)
+        if outcome in {"requested", "confirmed", "already_terminal"}:
+            return str(outcome)
+        return None
+
+    def _finish_cancelled(self, runtime: _Runtime, request_id: int) -> str:
+        """Durably expose local cancellation without guessing a terminal race."""
+        current = self.spine.get(request_id)
+        if current is not None and current.state == STATE_INTENDED:
+            try:
+                current = self.spine.mark_failed(request_id, "cancelled_by_user")
+            except Exception:
+                # Another process may have resolved the canonical intent after
+                # our read. Only absorb that race when the durable reread proves
+                # it; real storage failures while still open must remain errors.
+                current = self.spine.get(request_id)
+                if current is None or current.state == STATE_INTENDED:
+                    raise
+        if (
+            current is None
+            or current.state != STATE_FAILED
+            or current.error != "cancelled_by_user"
+        ):
+            runtime.cancel.clear()
+            outcome = (
+                "already_terminal"
+                if current is not None
+                and current.state in {STATE_COMPLETED, STATE_FAILED}
+                else "unknown"
+            )
+            self._resolve_cancellations(runtime, outcome)
+            return outcome
+        self._append_event(runtime, "cancelled", {
+            "status": "confirmed",
+            "scope": "local_generation_delivery_persistence",
+            "provider_process_terminated": None,
+            "request_id": request_id,
+        })
+        self._resolve_cancellations(runtime, "confirmed")
+        return "confirmed"
+
+    def _request_snapshot(
+        self, request_id: int
+    ) -> tuple[Intent, list[Intent], _Runtime | None, _RuntimeSnapshot]:
+        """Capture runtime ownership and durable state without a torn view.
+
+        Local final delivery takes ``runtime.condition`` before resolving the
+        generation. Cancellation failure is recorded just before taking that
+        condition. Capturing liveness first and the compound ledger snapshot
+        second while holding the condition therefore admits a linearization
+        point on either side of both local transitions.
+        """
+        runtime = self._runtime_for(request_id)
+        if runtime is None:
+            generation, cancellations = self._durable_snapshot(request_id)
+            return generation, cancellations, None, _RuntimeSnapshot()
+        with runtime.condition:
+            runtime_snapshot = self._runtime_snapshot_locked(runtime)
+            generation, cancellations = self._durable_snapshot(request_id)
+        return generation, cancellations, runtime, runtime_snapshot
+
     def _run(self, request_id: int) -> None:
         runtime = self._runtime_for(request_id)
         if runtime is None:
@@ -235,7 +472,13 @@ class ConversationRequestManager:
                 cancellation_waiting = runtime.cancel.is_set()
             if cancellation_waiting:
                 if callable(cancel_method):
-                    cancel_method()
+                    outcome = self._request_stream_cancel(stream)
+                    if outcome == "already_terminal":
+                        runtime.cancel.clear()
+                        self._resolve_cancellations(runtime, "already_terminal")
+                    elif outcome in {"not_supported", "unknown"}:
+                        runtime.cancel.clear()
+                        self._resolve_cancellations(runtime, outcome)
                 else:
                     runtime.cancel.clear()
                     self._resolve_cancellations(runtime, "not_supported")
@@ -257,33 +500,51 @@ class ConversationRequestManager:
                     self._resolve_cancellations(runtime, "already_terminal")
                     break
                 if runtime.cancel.is_set():
+                    if self._stream_cancellation_status(stream) == "already_terminal":
+                        runtime.cancel.clear()
+                        self._resolve_cancellations(runtime, "already_terminal")
+                        self._append_event(runtime, event, dict(data))
+                        continue
                     close = getattr(stream, "close", None)
                     if callable(close):
                         close()
-                    self.spine.mark_failed(request_id, "cancelled_by_user")
-                    self._append_event(runtime, "cancelled", {
-                        "status": "confirmed", "request_id": request_id})
-                    self._resolve_cancellations(runtime, "confirmed")
+                    self._finish_cancelled(runtime, request_id)
                     break
                 self._append_event(runtime, event, dict(data))
             else:
                 if not saw_final:
                     if runtime.cancel.is_set():
-                        self.spine.mark_failed(request_id, "cancelled_by_user")
-                        self._append_event(runtime, "cancelled", {
-                            "status": "confirmed", "request_id": request_id})
-                        self._resolve_cancellations(runtime, "confirmed")
+                        if self._stream_cancellation_status(stream) == "already_terminal":
+                            runtime.cancel.clear()
+                            self.spine.mark_failed(
+                                request_id, "stream ended without final"
+                            )
+                            self._append_event(runtime, "error", {
+                                "error": "stream ended without final"})
+                            self._resolve_cancellations(
+                                runtime, "already_terminal"
+                            )
+                        else:
+                            self._finish_cancelled(runtime, request_id)
                     else:
                         self.spine.mark_failed(request_id, "stream ended without final")
                         self._append_event(runtime, "error", {
                             "error": "stream ended without final"})
                         self._resolve_cancellations(runtime, "unknown")
         except Exception as exc:
-            current = self.spine.get(request_id)
-            if current is not None and current.state == STATE_INTENDED:
-                self.spine.mark_failed(request_id, str(exc))
-            self._append_event(runtime, "error", {"error": str(exc)})
-            self._resolve_cancellations(runtime, "unknown")
+            cancel_race = self._stream_cancellation_status(stream)
+            if runtime.cancel.is_set() and cancel_race != "already_terminal":
+                self._finish_cancelled(runtime, request_id)
+            else:
+                cancellation_resolution = "unknown"
+                if runtime.cancel.is_set():
+                    runtime.cancel.clear()
+                    cancellation_resolution = "already_terminal"
+                current = self.spine.get(request_id)
+                if current is not None and current.state == STATE_INTENDED:
+                    self.spine.mark_failed(request_id, str(exc))
+                self._append_event(runtime, "error", {"error": str(exc)})
+                self._resolve_cancellations(runtime, cancellation_resolution)
         finally:
             with runtime.condition:
                 runtime.stream = None
@@ -291,8 +552,27 @@ class ConversationRequestManager:
                 runtime.condition.notify_all()
 
     def status(self, request_id: object) -> dict[str, Any]:
-        intent = self._intent(request_id)
-        runtime = self._runtime_for(intent.id)
+        if type(request_id) is not int or request_id <= 0:
+            raise UnknownConversationRequest(str(request_id))
+        intent, cancellations, _runtime, runtime_snapshot = (
+            self._request_snapshot(request_id)
+        )
+        has_confirmed = self._has_confirmed_cancellation(cancellations)
+        active_requested = any(
+            cancellation_intent.state == STATE_INTENDED
+            and runtime_snapshot.owns(cancellation_intent.id)
+            for cancellation_intent in cancellations
+        )
+        cancellation = (
+            self._project_cancellation(
+                cancellations[0],
+                intent,
+                runtime_snapshot,
+                has_confirmed=has_confirmed,
+            )
+            if cancellations
+            else None
+        )
         state = "unknown"
         final = None
         error = None
@@ -301,10 +581,20 @@ class ConversationRequestManager:
             final = intent.result if isinstance(intent.result, dict) else None
         elif intent.state == STATE_FAILED:
             error = intent.error
+            # The durable generation is authoritative.  A crash can land after
+            # this failure is committed but before the informational cancel
+            # row is confirmed; that makes the cancel projection unknown, not
+            # the already-terminal generation.
             state = "cancelled" if error == "cancelled_by_user" else "error"
-        elif runtime is not None and runtime.worker is not None:
-            state = "cancel_requested" if runtime.cancel.is_set() else (
-                "streaming" if runtime.worker.is_alive() else "unknown")
+        elif has_confirmed:
+            # Canonical writers confirm only after cancelling the generation.
+            # If durable evidence ever contradicts that order, expose neither
+            # a live nor a requested generation from the torn/corrupt pair.
+            state = "unknown"
+        elif active_requested:
+            state = "cancel_requested"
+        elif runtime_snapshot.live:
+            state = "streaming"
         return {
             "request_id": intent.id,
             "conversation_id": intent.payload["conversation_id"],
@@ -316,7 +606,7 @@ class ConversationRequestManager:
             "turn_id": (final or {}).get("turn_id"),
             "final": final,
             "error": error,
-            "cancellation": self._cancellation_status(intent.id),
+            "cancellation": cancellation,
         }
 
     def events(self, request_id: object, *, after: int = 0,
@@ -341,90 +631,195 @@ class ConversationRequestManager:
         return {"events": rows, "terminal": terminal,
                 "status": self.status(intent.id)}
 
+    def _reconcile_existing_cancellation(
+        self,
+        request_id: int,
+        existing: Intent,
+    ) -> dict[str, Any]:
+        """Resolve an old/open cancellation on an effectful POST only.
+
+        A GET merely projects an unresolved row. A repeated POST is allowed to
+        close it because it is itself the effectful reconciliation request.
+        It never upgrades ``cancelled_by_user`` to confirmed: only the live
+        responsible worker can write that proof. Existing durable confirmation
+        remains authoritative.
+        """
+        generation, cancellations, _runtime, runtime_snapshot = (
+            self._request_snapshot(request_id)
+        )
+        cancellation = next(
+            (row for row in cancellations if row.id == existing.id), existing
+        )
+        has_confirmed = self._has_confirmed_cancellation(cancellations)
+        if cancellation.state != STATE_INTENDED:
+            return self._project_cancellation(
+                cancellation,
+                generation,
+                runtime_snapshot,
+                has_confirmed=has_confirmed,
+            )
+
+        if generation.state == STATE_COMPLETED:
+            resolution = "already_terminal"
+        elif generation.state == STATE_FAILED and generation.error != "cancelled_by_user":
+            resolution = "already_terminal"
+        elif runtime_snapshot.owns(cancellation.id):
+            return self._project_cancellation(
+                cancellation,
+                generation,
+                runtime_snapshot,
+                has_confirmed=has_confirmed,
+            )
+        elif generation.state == STATE_FAILED and has_confirmed:
+            resolution = "already_terminal"
+        else:
+            resolution = "unknown"
+
+        resolved = self._complete_cancellation(cancellation, resolution)
+        return self._project_cancellation(
+            resolved,
+            generation,
+            runtime_snapshot,
+            has_confirmed=has_confirmed,
+        )
+
     def cancel(self, request_id: object, *, client_cancel_id: object) -> dict[str, Any]:
-        intent = self._intent(request_id)
+        if type(request_id) is not int or request_id <= 0:
+            raise UnknownConversationRequest(str(request_id))
         cancel_id = _check_client_id(client_cancel_id, "client_cancel_id")
-        key = f"generation:{intent.id}:cancel:{cancel_id}"
+        key = f"generation:{request_id}:cancel:{cancel_id}"
         existing_rows = self.spine.intents_by_effect_key(
             key, kind=KIND_CANCELLATION, limit=1)
         if existing_rows:
-            return self._cancel_projection(existing_rows[0])
+            return self._reconcile_existing_cancellation(
+                request_id, existing_rows[0]
+            )
 
-        runtime = self._runtime_for(intent.id)
-        if intent.state in {STATE_COMPLETED, STATE_FAILED}:
-            recorded = self.spine.record_fact(
-                KIND_CANCELLATION,
-                {"request_id": intent.id, "client_cancel_id": cancel_id},
-                effect_key=key, effect_id=str(intent.id),
-                result={"status": "already_terminal"})
-            return self._cancel_projection(recorded)
-        if runtime is None or runtime.worker is None or not runtime.worker.is_alive():
-            recorded = self.spine.record_fact(
-                KIND_CANCELLATION,
-                {"request_id": intent.id, "client_cancel_id": cancel_id},
-                effect_key=key, effect_id=str(intent.id),
-                result={"status": "unknown"})
-            return self._cancel_projection(recorded)
-        with runtime.condition:
-            known_support = runtime.cancel_supported
-        if known_support is False:
-            recorded = self.spine.record_fact(
-                KIND_CANCELLATION,
-                {"request_id": intent.id, "client_cancel_id": cancel_id},
-                effect_key=key, effect_id=str(intent.id),
-                result={"status": "not_supported"})
-            return self._cancel_projection(recorded)
+        payload = {"request_id": request_id, "client_cancel_id": cancel_id}
+        runtime = self._runtime_for(request_id)
+        support: bool | None = None
+        active_stream: Any = None
+        immediate_status: str | None = None
+        recorded: Intent | None = None
         try:
-            recorded = self.spine.record_intent(
-                KIND_CANCELLATION,
-                {"request_id": intent.id, "client_cancel_id": cancel_id},
-                effect_key=key)
+            if runtime is None:
+                generation, _cancellations = self._durable_snapshot(request_id)
+                immediate_status = (
+                    "already_terminal"
+                    if generation.state in {STATE_COMPLETED, STATE_FAILED}
+                    else "unknown"
+                )
+                recorded = self.spine.record_fact(
+                    KIND_CANCELLATION,
+                    payload,
+                    effect_key=key,
+                    effect_id=str(request_id),
+                    result={"status": immediate_status},
+                )
+            else:
+                # Publish the open intent and register its process-local owner
+                # under one condition lock. A duplicate POST cannot observe a
+                # durable row in the gap before the worker owns it.
+                with runtime.condition:
+                    runtime_snapshot = self._runtime_snapshot_locked(runtime)
+                    generation, _cancellations = self._durable_snapshot(request_id)
+                    if generation.state in {STATE_COMPLETED, STATE_FAILED}:
+                        immediate_status = "already_terminal"
+                    elif not runtime_snapshot.live:
+                        immediate_status = "unknown"
+                    elif runtime.cancel_supported is False:
+                        immediate_status = "not_supported"
+
+                    if immediate_status is not None:
+                        recorded = self.spine.record_fact(
+                            KIND_CANCELLATION,
+                            payload,
+                            effect_key=key,
+                            effect_id=str(request_id),
+                            result={"status": immediate_status},
+                        )
+                    else:
+                        recorded = self.spine.record_intent(
+                            KIND_CANCELLATION,
+                            payload,
+                            effect_key=key,
+                        )
+                        runtime.cancel_intent_ids.append(recorded.id)
+                        support = runtime.cancel_supported
+                        active_stream = runtime.stream
+                        runtime.cancel.set()
         except sqlite3.IntegrityError:
             rows = self.spine.intents_by_effect_key(
                 key, kind=KIND_CANCELLATION, limit=1)
             if not rows:
                 raise
-            return self._cancel_projection(rows[0])
-        with runtime.condition:
-            runtime.cancel_intent_ids.append(recorded.id)
-            support = runtime.cancel_supported
-            active_stream = runtime.stream
-            if support is not False:
-                runtime.cancel.set()
-        if support is False:
-            self._resolve_cancellations(runtime, "not_supported")
-        elif support is True:
-            cancel_method = getattr(active_stream, "cancel", None)
+            return self._reconcile_existing_cancellation(request_id, rows[0])
+
+        assert recorded is not None
+        if immediate_status is not None:
+            generation, cancellations = self._durable_snapshot(request_id)
+            return self._project_cancellation(
+                recorded,
+                generation,
+                _RuntimeSnapshot(),
+                has_confirmed=self._has_confirmed_cancellation(cancellations),
+            )
+
+        if support is True:
             try:
-                cancel_method()
+                outcome = self._request_stream_cancel(active_stream)
             except Exception:
                 runtime.cancel.clear()
                 self._resolve_cancellations(runtime, "unknown")
+            else:
+                if outcome in {"already_terminal", "unknown", "not_supported"}:
+                    runtime.cancel.clear()
+                    self._resolve_cancellations(runtime, outcome)
+                # ``confirmed`` from the stream is deliberately left open
+                # until the worker records cancelled_by_user. This keeps the
+                # durable generation authoritative and prevents a confirmed
+                # cancellation from being projected beside streaming work.
 
         # Close the completion race: the worker may have reached final between
         # the first state read and registration of this cancellation intent.
-        current = self.spine.get(intent.id)
-        if current is not None and current.state in {STATE_COMPLETED, STATE_FAILED}:
+        current, _cancellations = self._durable_snapshot(request_id)
+        if current is not None and current.state == STATE_COMPLETED:
             self._resolve_cancellations(runtime, "already_terminal")
-        return self._cancel_projection(recorded)
+        elif (
+            current is not None
+            and current.state == STATE_FAILED
+            and current.error != "cancelled_by_user"
+        ):
+            self._resolve_cancellations(runtime, "already_terminal")
+        # Seeing cancelled_by_user is not itself proof that this cancellation
+        # caused the stop. Only the responsible worker's _finish_cancelled path
+        # may durably confirm the registered cancellation intents.
+        latest, cancellations, _runtime, runtime_snapshot = (
+            self._request_snapshot(request_id)
+        )
+        refreshed = next(
+            (row for row in cancellations if row.id == recorded.id), recorded
+        )
+        return self._project_cancellation(
+            refreshed,
+            latest,
+            runtime_snapshot,
+            has_confirmed=self._has_confirmed_cancellation(cancellations),
+        )
 
     @staticmethod
-    def _cancel_projection(intent: Intent) -> dict[str, Any]:
+    def _cancel_projection(
+        intent: Intent, *, status: str | None = None
+    ) -> dict[str, Any]:
         result = intent.result if isinstance(intent.result, dict) else {}
         return {
             "cancellation_id": intent.id,
             "request_id": int(intent.payload["request_id"]),
             "client_cancel_id": intent.payload["client_cancel_id"],
-            "status": result.get("status") or "requested",
+            "status": status or result.get("status") or "requested",
             "created_at": intent.created_ts,
             "resolved_at": intent.resolved_ts,
         }
-
-    def _cancellation_status(self, request_id: int) -> dict[str, Any] | None:
-        for intent in self.spine.recent_intents(KIND_CANCELLATION):
-            if int(intent.payload.get("request_id") or 0) == request_id:
-                return self._cancel_projection(intent)
-        return None
 
 
 _MANAGERS: dict[str, ConversationRequestManager] = {}
@@ -446,7 +841,8 @@ def new_client_request_id() -> str:
 
 
 __all__ = [
-    "ConflictingConversationRequest", "ConversationRequestError",
+    "ConflictingConversationRequest", "ConflictingConversationProject",
+    "ConversationRequestError",
     "ConversationRequestManager", "KIND_CANCELLATION", "KIND_GENERATION",
     "UnknownConversationRequest", "default_manager", "new_client_request_id",
 ]

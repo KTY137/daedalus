@@ -200,6 +200,8 @@ const surfaceOutfile = path.join(workdir, 'surface.js');
 const systemOutfile = path.join(workdir, 'system.js');
 const conversationOutfile = path.join(workdir, 'conversation.js');
 const missionOutfile = path.join(workdir, 'mission.js');
+const genesisOutfile = path.join(workdir, 'genesis.js');
+const ariadneOutfile = path.join(workdir, 'ariadne.js');
 const acceleratorOutfile = path.join(workdir, 'accelerators.js');
 const outcomeOutfile = path.join(workdir, 'outcome.js');
 const healthReadOutfile = path.join(workdir, 'healthread.js');
@@ -209,6 +211,8 @@ const watcherOutfile = path.join(workdir, 'watchers.js');
 const capOutfile = path.join(workdir, 'capabilities.js');
 const catOutfile = path.join(workdir, 'catalogue.js');
 const teamOutfile = path.join(workdir, 'team.js');
+const fourfoldOutfile = path.join(workdir, 'fourfold.js');
+const themeOutfile = path.join(workdir, 'theme.js');
 
 try {
   await build({
@@ -217,6 +221,8 @@ try {
       system: path.join(here, '..', 'features', 'system', 'system.spec.ts'),
       conversation: path.join(here, '..', 'features', 'conversation', 'conversation.spec.ts'),
       mission: path.join(here, '..', 'features', 'mission', 'mission.spec.ts'),
+      genesis: path.join(here, '..', 'features', 'genesis', 'genesis.spec.ts'),
+      ariadne: path.join(here, '..', 'features', 'ariadne', 'ariadne.spec.ts'),
       accelerators: path.join(here, '..', 'features', 'system', 'accelerators.spec.ts'),
       outcome: path.join(here, '..', 'features', 'mission', 'outcome.spec.ts'),
       healthread: path.join(here, '..', 'features', 'system', 'healthread.spec.ts'),
@@ -225,7 +231,9 @@ try {
       watchers: path.join(here, '..', 'features', 'system', 'watchers.spec.ts'),
       capabilities: path.join(here, '..', 'features', 'system', 'capabilities.spec.ts'),
       catalogue: path.join(here, '..', 'features', 'system', 'catalogue.spec.ts'),
-      team: path.join(here, '..', 'features', 'settings', 'team.spec.ts')
+      team: path.join(here, '..', 'features', 'settings', 'team.spec.ts'),
+      fourfold: path.join(here, '..', 'features', 'twin', 'fourfold.spec.ts'),
+      theme: path.join(here, '..', 'shared', 'ui', 'theme', 'theme.spec.ts')
     },
     bundle: true,
     absWorkingDir: repoRoot,
@@ -245,6 +253,8 @@ try {
   const { runSystemCapabilitiesSpec } = await import(pathToFileURL(systemOutfile).href);
   const { runConversationSpec } = await import(pathToFileURL(conversationOutfile).href);
   const { runMissionSpec } = await import(pathToFileURL(missionOutfile).href);
+  const { runGenesisSpec } = await import(pathToFileURL(genesisOutfile).href);
+  const { runAriadneSpec } = await import(pathToFileURL(ariadneOutfile).href);
   const { runAcceleratorSpec } = await import(pathToFileURL(acceleratorOutfile).href);
   const { runOutcomeSpec } = await import(pathToFileURL(outcomeOutfile).href);
   const { runHealthReadSpec } = await import(pathToFileURL(healthReadOutfile).href);
@@ -254,11 +264,15 @@ try {
   const { runCapabilitySpec } = await import(pathToFileURL(capOutfile).href);
   const { runCatalogueSpec } = await import(pathToFileURL(catOutfile).href);
   const { runTeamSettingsSpec } = await import(pathToFileURL(teamOutfile).href);
+  const { runFourfoldSpec } = await import(pathToFileURL(fourfoldOutfile).href);
+  const { runThemeSpec } = await import(pathToFileURL(themeOutfile).href);
   const results = [
     ...runSurfaceSpec(),
     ...(await runSystemCapabilitiesSpec()),
     ...runConversationSpec(),
     ...runMissionSpec(),
+    ...(await runGenesisSpec()),
+    ...(await runAriadneSpec()),
     ...runAcceleratorSpec(),
     ...runOutcomeSpec(),
     ...runHealthReadSpec(),
@@ -268,6 +282,8 @@ try {
     ...runCapabilitySpec(),
     ...runCatalogueSpec(),
     ...runTeamSettingsSpec(),
+    ...runFourfoldSpec(),
+    ...runThemeSpec(),
     ...(await architectureSpec())
   ];
   let failed = 0;

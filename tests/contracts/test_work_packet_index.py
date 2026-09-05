@@ -17,11 +17,13 @@ from tools import index_work_packets as subject
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = ROOT / subject.SCHEMA_PATH
 INDEX_PATH = ROOT / subject.INDEX_PATH
-# Moved 2026-09-03: the registry gained the ``daedalus.hooks.crosstalk`` row
-# (network_egress + process_spawn) and ``daedalus.hooks`` had its notes
-# corrected, because its declared egress is no longer loopback-only.
+# Moved 2026-09-05: the registry additionally gained the canonical council CLI
+# live-egress door (cli.council -> daedalus.interfaces.cli.entry:_council,
+# G1-COUNCIL-01) after the tools.scene_environments_build row (G1-UI-12). All
+# effectful paths enter the central Effect-Lease authority before performing
+# effects.
 FROZEN_EFFECT_REGISTRY_SHA256 = (
-    "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
+    "7a8fc9442be4d1fff8f576fa951036788ef146c779c5c1145bce21f471f3c605"
 )
 
 
@@ -192,20 +194,18 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "285 tracked files" in message
+    assert "330 tracked files" in message
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
-    # or retires an artifact. Both sides of the 2026-09-03 merge bumped these
-    # by one for different packets -- G1-UI-07 here and G1-SCC-02 on main --
-    # so the merged values were arithmetic neither side could do alone and
-    # were re-derived with `python -m tools.index_work_packets --render`.
+    # or retires an artifact. These values were re-derived from the staged
+    # v0.1.6 ASAE packet set with `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 282,
+        "assigned_artifacts": 327,
         "legacy_artifacts": 204,
-        "packet_artifacts": 284,
-        "packet_ids": 219,
-        "post_index_artifacts": 80,
+        "packet_artifacts": 329,
+        "packet_ids": 264,
+        "post_index_artifacts": 125,
         "registry_artifacts": 1,
-        "tracked_files": 285,
+        "tracked_files": 330,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -216,7 +216,7 @@ def test_checker_binds_the_exact_master_plan_authority(tmp_path: Path) -> None:
     subject._verify_master_plan(ROOT)
     plan = tmp_path / subject.MASTER_PLAN_PATH
     plan.parent.mkdir(parents=True)
-    plan.write_text("not Revision 11\n", encoding="utf-8")
+    plan.write_text("not Revision 12\n", encoding="utf-8")
 
     with pytest.raises(subject.IndexError, match="authority drifted"):
         subject._verify_master_plan(tmp_path)
@@ -254,8 +254,28 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
     payload = _index()
     packets = {packet["packet_id"]: packet for packet in payload["packets"]}
     expected_primary_ids = {
+        "G1-ACCEL-01",
+        "G1-ARIADNE-02",
+            "G1-ARIADNE-03",
+            "G1-COUNCIL-01",
+            "G1-DESKTOP-PRERELEASE-016",
         "G1-ENV-01",
+        "G1-EXP-FOURFOLD-HYBRID-01",
+        "G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01",
+        "G1-EXP-GPU-ENV-01",
+        "G1-EXP-TENSOR-GPU-01",
+        "G1-EXP-TENSOR-GPU-02",
+        "G1-EXP-TENSOR-LATENT-CEILING-01",
+        "G1-EXP-TENSOR-LATENT-CEILING-02",
+        "G1-EXP-TENSOR-LATENT-CEILING-03",
+        "G1-EXP-TENSOR-LATENT-CEILING-04",
+        "G1-EXP-TENSOR-LATENT-CEILING-05",
+        "G1-EXP-TENSOR-LATENT-CEILING-06",
+        "G1-EXP-TENSOR-LATENT-CEILING-07",
         "G1-GATE-01",
+        "G1-GENESIS-01",
+        "G1-GENESIS-02",
+        "G1-GENESIS-03",
         "G1-HERMES-01",
         "G1-HIER-01",
         "G1-HIER-02",
@@ -304,8 +324,24 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-IFACE-HTTP-01",
         "G1-IFACE-HTTP-02",
         "G1-IFACE-HTTP-03",
+        "G1-IFACE-HTTP-04",
         "G1-IKARUS-14",
         "G1-IKARUS-15",
+        "G1-IKARUS-16",
+        "G1-IKARUS-17",
+        "G1-IKARUS-18",
+        "G1-IKARUS-19",
+        "G1-IKARUS-20",
+        "G1-IKARUS-21",
+        "G1-IKARUS-22",
+        "G1-IKARUS-23",
+        "G1-IKARUS-24",
+        "G1-IKARUS-25",
+        "G1-IKARUS-COMPUTER-01",
+        "G1-IKARUS-CONTEXT-01",
+        "G1-IKARUS-CV-01",
+        "G1-INTEGRATE-DEEPSEEK-LAB-01",
+        "G1-KERNEL-01",
         "G1-MUT-01",
         "G1-MUT-02A",
         "G1-MUT-02B",
@@ -330,9 +366,18 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-UI-05",
         "G1-UI-06",
         "G1-UI-07",
+        "G1-UI-08",
+        "G1-UI-09",
+        "G1-UI-10",
+        "G1-UI-11",
+        "G1-UI-12",
+        "G1-UI-13",
+        "G1-UI-14",
         "G1-WEB-01",
+        "G1-WP-IKARUS-COMPUTER-LOOP-01",
         "G1-WP-INDEX-01",
         "G1-SCC-02",
+        "G1-TENSOR-01",
     }
     post_index_packets = {
         packet_id: packet

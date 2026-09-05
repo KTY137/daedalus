@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Generic, Mapping, Sequence, TypeVar
 
-from ..schemas import _sha256
+from ..kernel.contracts.base import _sha256
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import ForestEdge, KnowledgeForest
 from .contracts import FOURFOLD_PLANES, FourfoldSnapshot

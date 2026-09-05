@@ -285,6 +285,8 @@ def _scope_requirements(effects: Iterable[str], scope: EffectScope) -> None:
     if values & {Effect.PROCESS_SPAWN, Effect.PROCESS_CONTROL}:
         if not scope.tools:
             raise EffectLeaseScopeError("process effects require explicit tools")
+    if Effect.COMPUTER_USE in values and not scope.tools:
+        raise EffectLeaseScopeError("computer effects require exact tools")
     if Effect.SECRETS in values and not scope.secret_refs:
         raise EffectLeaseScopeError("secret effects require explicit secret_refs")
     if not scope.kill_switch_ref:
@@ -346,8 +348,10 @@ def _validate_narrowed_scope(
         raise EffectLeaseScopeError("execution kill-switch generation is stale")
 
     write_effects = {Effect.FILESYSTEM_WRITE.value, Effect.REPOSITORY_MUTATION.value}
+    if Effect.COMPUTER_USE.value in granted_effects and not scope.read_only:
+        write_effects.add(Effect.COMPUTER_USE.value)
     network_effects = {Effect.NETWORK_EGRESS.value, Effect.LISTEN_SOCKET.value}
-    process_effects = {Effect.PROCESS_SPAWN.value, Effect.PROCESS_CONTROL.value}
+    process_effects = {Effect.PROCESS_SPAWN.value, Effect.PROCESS_CONTROL.value, Effect.COMPUTER_USE.value}
     if request.writable_paths and not requested_effects & write_effects:
         raise EffectLeaseScopeError("writable_paths supplied without a write effect")
     if requested_effects & write_effects and not request.writable_paths:

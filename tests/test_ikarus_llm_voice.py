@@ -37,7 +37,8 @@ def test_chat_auto_route_uses_llm_client_and_records_resolved_provider(monkeypat
     seen = {}
     def fake_llm(provider, message, model=None, effort=None, project=None, *,
                  conversation_id=None, timeout_s=150.0, limit_policy=None,
-                 additional_context=""):
+                 additional_context="", response_schema=None):
+        assert response_schema is None  # Computer JSON constraints do not alter ordinary chat.
         seen.update(provider=provider, conversation_id=conversation_id,
                     timeout_s=timeout_s, limit_policy=limit_policy)
         return "hello from model", "claude-test", ikarus_os._EMPTY_CTX
@@ -76,7 +77,8 @@ def test_chat_unbounded_policy_removes_attempt_timeout_and_token_caps(monkeypatc
 
     def fake_llm(provider, message, model=None, effort=None, project=None, *,
                  conversation_id=None, timeout_s=150.0, limit_policy=None,
-                 additional_context=""):
+                 additional_context="", response_schema=None):
+        assert response_schema is None
         calls.append((timeout_s, limit_policy))
         if len(calls) < 4:
             return None, "claude-test", ikarus_os._EMPTY_CTX

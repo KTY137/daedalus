@@ -8,6 +8,7 @@ from typing import Any, Callable, Collection, Pattern
 from ... import core
 from ...orchestration.ikarus import shell as ikarus_os
 from ...orchestration import conversation_requests
+from .effects import _header_values, same_origin_request
 
 SsePort = Callable[..., Any]
 ClockPort = Callable[[], float]
@@ -174,10 +175,11 @@ def handle_ikarus_stream(handler: Any, qs: dict[str, list[str]]) -> None:
     Two more additive, opt-in wires, both able to fail silently into the
     plain unwired stream rather than take the chat down:
 
-      ``conversation_id`` (query param) is passed straight through to
-      ``ikarus_os.ask_stream`` -- see daedalus/orchestration/conversation.py. Omitted,
-      this endpoint is byte-for-byte what it was before that module
-      landed.
+      ``conversation_id`` (query param) is admitted only when the canonical
+      spine binds it exactly to ``project``, then passed to
+      ``ikarus_os.ask_stream``. Missing, mixed, unscoped, corrupt or mismatched
+      bindings return JSON 409 before progress or SSE is opened. Omitted, the
+      endpoint retains its stateless behaviour.
 
       A ``daedalus.progress`` unit is opened for this turn and the
       stream is tee'd through ``progress_sources.watch_stream`` so a
@@ -188,6 +190,32 @@ def handle_ikarus_stream(handler: Any, qs: dict[str, list[str]]) -> None:
       before this existed.
     """
     self = handler
+    origins = _header_values(self, "Origin")
+    fetch_sites = _header_values(self, "Sec-Fetch-Site")
+    if (
+        len(origins) > 1
+        or (origins and not same_origin_request(self, origins[0]))
+        or len(fetch_sites) != 1
+        or fetch_sites[0].casefold() != "same-origin"
+    ):
+        # This historical GET can start provider and computer-tool effects.
+        # EventSource cannot attach the normal mutation token. Chromium omits
+        # Origin for a same-origin EventSource GET, so the browser-controlled
+        # Sec-Fetch-Site value is mandatory; when Origin is present it must
+        # still bind to the exact numeric HTTP authority. Do this before
+        # progress, conversation, provider, ledger, or stream state is touched.
+        self.close_connection = True
+        self._send_json(
+            {
+                "ok": False,
+                "error": (
+                    "Ikarus stream requires Sec-Fetch-Site: same-origin and, "
+                    "when supplied, the exact numeric bound Origin"
+                ),
+            },
+            status=403,
+        )
+        return
     project = (qs.get("project") or [""])[0]
     message = (qs.get("message") or [""])[0].strip()
     if not project or not message:
@@ -196,7 +224,25 @@ def handle_ikarus_stream(handler: Any, qs: dict[str, list[str]]) -> None:
     provider = (qs.get("provider") or [""])[0] or None
     model = (qs.get("model") or [""])[0] or None
     effort = (qs.get("effort") or [""])[0] or None
-    conversation_id = (qs.get("conversation_id") or [""])[0] or None
+    conversation_values = qs.get("conversation_id")
+    conversation_id = conversation_values[0] if conversation_values else None
+    if conversation_id is not None:
+        from ...orchestration import conversation
+
+        try:
+            conversation.default_store().require_project_binding(
+                conversation_id, project
+            )
+        except conversation.ConversationProjectConflict as exc:
+            self._send_json(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "code": "conversation_project_conflict",
+                },
+                status=409,
+            )
+            return
 
     unit_id: str | None = None
     try:

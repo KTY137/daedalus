@@ -372,6 +372,18 @@ def main(argv: list[str]) -> int:  # pragma: no cover - thin CLI
         print(load().render())
         return 0
     command = argv[0]
+    if command in ("start", "note", "end"):
+        # This compatibility module is independently executable with
+        # ``python -m daedalus.shift``.  It therefore needs its own canonical
+        # admission; the registered interfaces.cli owner is not on this path.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.shift_compat",
+            REGISTRY_BY_ID["cli.shift_compat"].effects,
+            (process_guard_boundary_decision(),),
+        )
     if command == "start":
         goal = argv[1] if len(argv) > 1 else ""
         until = argv[2] if len(argv) > 2 else ""

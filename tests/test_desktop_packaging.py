@@ -4,9 +4,13 @@ import json
 import os
 import plistlib
 import re
+import shutil
 import stat
 import struct
+import subprocess
 import tarfile
+import textwrap
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,6 +24,8 @@ from scripts.daedalus_desktop_sidecar import (
 from tools.build_tauri_sidecar import (
     BUNDLE_FILES_NAME,
     BUNDLE_ID_NAME,
+    DESKTOP_PYINSTALLER_EXCLUDES,
+    assert_no_accelerator_runtime_payload,
     bundle_files,
     bundle_identity,
 )
@@ -39,6 +45,26 @@ MH_MAGIC_64 = 0xFEEDFACF
 MH_EXECUTE = 0x2
 MH_DYLIB = 0x6
 LC_UUID = 0x1B
+PINNED_TAURI_ACTION = (
+    "tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f"
+)
+from tools.smoke_packaged_resources import _wheel_web_file_closure
+PINNED_UPLOAD_ACTION = (
+    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+)
+PINNED_DOWNLOAD_ACTION = (
+    "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093"
+)
+PINNED_WORKFLOW_ACTIONS = {
+    "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+    "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+    "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+    "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9",
+    "dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87",
+    PINNED_TAURI_ACTION,
+    PINNED_UPLOAD_ACTION,
+    PINNED_DOWNLOAD_ACTION,
+}
 
 
 def _macho_bytes(
@@ -93,6 +119,8 @@ def _arm64_bundle_fixture(tmp_path: Path) -> tuple[Path, Path, tuple[Path, ...]]
 
 def test_tauri_desktop_has_no_parallel_frontend_or_updater() -> None:
     config = json.loads((TAURI / "tauri.conf.json").read_text(encoding="utf-8"))
+    assert config["productName"] == "Daedalus"
+    assert config["identifier"] == "dev.daedalus.desktop"
     assert config["app"]["windows"] == []
     assert config["build"]["frontendDist"] == "http://127.0.0.1:8765"
     assert config["bundle"]["createUpdaterArtifacts"] is False
@@ -210,6 +238,17 @@ def test_release_native_host_is_compiled_against_the_bundled_backend_identity() 
     assert 'env::var("PROFILE").as_deref() != Ok("release")' in build_rs
     assert "is required for a release build" in build_rs
     assert "trim_end_matches" in build_rs
+
+
+def test_desktop_rust_crate_keeps_the_windows_gnu_unit_harness_runnable() -> None:
+    cargo = (TAURI / "Cargo.toml").read_text(encoding="utf-8")
+    build_rs = (TAURI / "build.rs").read_text(encoding="utf-8")
+    library = (TAURI / "src" / "lib.rs").read_text(encoding="utf-8")
+
+    assert 'crate-type = ["rlib"]' in cargo
+    assert 'env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("gnu")' in build_rs
+    assert 'println!("cargo:rustc-link-arg={}", resource.display())' in build_rs
+    assert "#[cfg(not(test))]\n    let builder = builder.plugin(tauri_plugin_dialog::init());" in library
 
 
 def test_sidecar_bundle_identity_is_deterministic_and_binds_paths_and_bytes(
@@ -365,16 +404,23 @@ def test_release_workflow_builds_three_desktop_platforms_without_updater() -> No
 
     for runner in ("windows-latest", "ubuntu-22.04", "macos-latest"):
         assert runner in release_matrix
-    assert "tauri-apps/tauri-action@v1" in workflow
-    assert "@tauri-apps/cli@2.11.4" in workflow
+    assert workflow.count(PINNED_TAURI_ACTION) == 2
+    package = json.loads(
+        (ROOT / "apps" / "web" / "package.json").read_text(encoding="utf-8")
+    )
+    assert package["devDependencies"]["@tauri-apps/cli"] == "2.11.4"
     assert "uploadUpdaterJson: false" in workflow
     assert "uploadUpdaterSignatures: false" in workflow
     assert "--prerelease" in workflow
-    assert "pyinstaller==6.22.1" in workflow
-    assert "select_desktop_release_assets.py select desktop-artifacts" in workflow
+    project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'desktop-build = ["pyinstaller==6.22.1"]' in project
+    assert (
+        'select_desktop_release_assets.py select desktop-artifacts "$VERSION"'
+        in workflow
+    )
     assert "select_desktop_release_assets.py archive-macos-app" in workflow
     assert "Archive exactly one macOS application bundle" in release_matrix
-    assert "actions/upload-artifact@v4" in release_matrix
+    assert PINNED_UPLOAD_ACTION in release_matrix
     assert "Daedalus_${VERSION}_aarch64.app.tar.gz" in release_matrix
     assert "Verify macOS arm64 bundle architecture" in release_matrix
     assert "select_desktop_release_assets.py verify-macos-arm64" in release_matrix
@@ -383,6 +429,201 @@ def test_release_workflow_builds_three_desktop_platforms_without_updater() -> No
     assert release_matrix.index("Build desktop bundles") < release_matrix.index(
         "Verify macOS arm64 bundle architecture"
     ) < release_matrix.index("Archive exactly one macOS application bundle")
+
+
+def test_desktop_build_explicitly_excludes_opt_in_gpu_research_runtimes() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    validation, _publisher = workflow.split("\n  release:\n", 1)
+    install = "uv sync --locked --extra test --extra desktop-build --no-extra gpu"
+    release_install = (
+        "uv sync --locked --extra test --extra release-build --no-extra gpu"
+    )
+    assert validation.count(install) == 2
+    assert validation.count(release_install) == 1
+    for forbidden in ('".[gpu]"', "--all-extras", "pip install -e"):
+        assert forbidden not in validation
+
+    project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'desktop-build = ["pyinstaller==6.22.1"]' in project
+    assert (
+        'release-build = ["build==1.6.0", "setuptools==84.0.0"]' in project
+    )
+    assert 'requires = ["setuptools==84.0.0"]' in project
+    assert "dependencies = []" in project
+
+    lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
+    assert 'name = "pyinstaller"\nversion = "6.22.1"' in lock
+    assert 'name = "build"\nversion = "1.6.0"' in lock
+
+    build_source = (ROOT / "tools" / "build_tauri_sidecar.py").read_text(
+        encoding="utf-8"
+    )
+    assert set(DESKTOP_PYINSTALLER_EXCLUDES) == {
+        "cuda",
+        "cupy",
+        "cupy_backends",
+        "cupyx",
+        "newton",
+        "nvidia",
+        "torch",
+        "triton",
+        "warp",
+    }
+    assert 'cmd.extend(["--exclude-module", module])' in build_source
+    assert "assert_no_accelerator_runtime_payload(frozen)" in build_source
+
+
+def test_desktop_workflow_uses_only_immutable_actions_and_locked_toolchains() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    actions = re.findall(
+        r"^\s*(?:-\s+)?uses:\s+([^\s#]+)", workflow, flags=re.MULTILINE
+    )
+
+    assert actions
+    assert set(actions) == PINNED_WORKFLOW_ACTIONS
+    assert all(re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", action) for action in actions)
+    assert workflow.count('toolchain: "1.97.1"') == 2
+    assert workflow.count('version: "0.11.26"') == 3
+    assert workflow.count("npm exec -- tauri icon") == 2
+    assert workflow.count("tauriScript: npm exec tauri") == 2
+    assert "npm install --global" not in workflow
+
+    package = json.loads(
+        (ROOT / "apps" / "web" / "package.json").read_text(encoding="utf-8")
+    )
+    package_lock = json.loads(
+        (ROOT / "apps" / "web" / "package-lock.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert package["devDependencies"]["@tauri-apps/cli"] == "2.11.4"
+    assert package_lock["packages"][""]["devDependencies"]["@tauri-apps/cli"] == (
+        "2.11.4"
+    )
+    locked_cli = package_lock["packages"]["node_modules/@tauri-apps/cli"]
+    assert locked_cli["version"] == "2.11.4"
+    assert locked_cli["integrity"].startswith("sha512-")
+
+
+def test_packaged_resource_smoke_enters_the_canonical_effect_boundary() -> None:
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID
+
+    smoke_source = (ROOT / "tools" / "smoke_packaged_resources.py").read_text(
+        encoding="utf-8"
+    )
+    row = REGISTRY_BY_ID["tools.packaged_resources_smoke"]
+    assert row.target == "tools.smoke_packaged_resources:main"
+    assert row.wiring.value == "central"
+    assert 'begin_effect(\n        "tools.packaged_resources_smoke"' in smoke_source
+    assert smoke_source.index("begin_effect(") < smoke_source.index("init_result =")
+
+
+def test_packaged_resource_smoke_rejects_stale_unreachable_vite_chunks(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "fixture.whl"
+    prefix = "daedalus/resources/web_dist/"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            prefix + "index.html",
+            '<script src="/assets/index-current123.js"></script>',
+        )
+        archive.writestr(
+            prefix + "assets/index-current123.js",
+            'import("./lazy-current456.js")',
+        )
+        archive.writestr(prefix + "assets/lazy-current456.js", "export default 1")
+        archive.writestr(prefix + "assets/index-stale999.js", "export default 2")
+
+    with zipfile.ZipFile(wheel) as archive:
+        reachable, orphaned = _wheel_web_file_closure(archive)
+
+    assert reachable == (
+        "assets/index-current123.js",
+        "assets/lazy-current456.js",
+        "index.html",
+    )
+    assert orphaned == ("assets/index-stale999.js",)
+
+
+def test_desktop_payload_guard_refuses_accelerator_modules_and_native_libraries(
+    tmp_path: Path,
+) -> None:
+    safe = tmp_path / "safe"
+    (safe / "_internal" / "daedalus").mkdir(parents=True)
+    (safe / "_internal" / "daedalus" / "accelerators.py").write_text(
+        "research recipe only\n", encoding="utf-8"
+    )
+    assert_no_accelerator_runtime_payload(safe)
+
+    torch = safe / "_internal" / "torch" / "__init__.py"
+    torch.parent.mkdir()
+    torch.write_text("", encoding="utf-8")
+    with pytest.raises(SystemExit, match="opt-in accelerator runtime payloads"):
+        assert_no_accelerator_runtime_payload(safe)
+    torch.unlink()
+    torch.parent.rmdir()
+
+    cudart = safe / "_internal" / "cudart64_12.dll"
+    cudart.write_bytes(b"cuda runtime")
+    with pytest.raises(SystemExit, match="cudart64_12.dll"):
+        assert_no_accelerator_runtime_payload(safe)
+
+
+@pytest.mark.parametrize(
+    "filename",
+    (
+        "libcudart.so.12",
+        "libcublas.so.12",
+        "libtorch_cuda.so",
+        "libnvJitLink.so.12",
+        "libnccl.so.2",
+        "libcuda.so.1",
+        "libcupti.so.12",
+        "libnvshmem_host.so.3",
+        "nvblas64_12.dll",
+        "nvperf_host.dll",
+        "nvtx.cp313-win_amd64.pyd",
+        "cutensor.cp313-win_amd64.pyd",
+        "c10_cuda.dll",
+        "caffe2_nvrtc.dll",
+    ),
+)
+def test_desktop_payload_guard_normalizes_native_library_prefixes(
+    tmp_path: Path, filename: str
+) -> None:
+    internal = tmp_path / "backend" / "_internal"
+    internal.mkdir(parents=True)
+    (internal / filename).write_bytes(b"accelerator runtime")
+
+    with pytest.raises(SystemExit, match=re.escape(filename)):
+        assert_no_accelerator_runtime_payload(tmp_path / "backend")
+
+
+def test_desktop_payload_guard_checks_root_level_native_extensions(
+    tmp_path: Path,
+) -> None:
+    backend = tmp_path / "backend"
+    backend.mkdir()
+    filename = "torch_cuda.dll"
+    (backend / filename).write_bytes(b"accelerator runtime")
+
+    with pytest.raises(SystemExit, match=re.escape(filename)):
+        assert_no_accelerator_runtime_payload(backend)
+
+
+@pytest.mark.parametrize(
+    "module", ("torch", "nvidia", "cuda", "cupy", "newton", "warp", "triton")
+)
+def test_desktop_payload_guard_checks_every_internal_path_component(
+    tmp_path: Path, module: str
+) -> None:
+    payload = tmp_path / "backend" / "_internal" / "vendor" / module / "data.bin"
+    payload.parent.mkdir(parents=True)
+    payload.write_bytes(b"accelerator runtime")
+
+    with pytest.raises(SystemExit, match=re.escape(f"vendor/{module}/data.bin")):
+        assert_no_accelerator_runtime_payload(tmp_path / "backend")
 
 
 def test_desktop_shipping_paths_and_project_tests_are_in_both_ci_lanes() -> None:
@@ -746,7 +987,23 @@ def test_macos_app_archive_refuses_missing_duplicate_or_existing_output(
     assert archive.read_bytes() == b"do not overwrite"
 
 
-def test_release_asset_selection_is_exactly_the_v010_five_asset_matrix(
+def _write_release_asset_matrix(root: Path, version: str = "0.1.6") -> tuple[Path, ...]:
+    assets = tuple(
+        root / name
+        for name in (
+            f"Daedalus_{version}_x64-setup.exe",
+            f"Daedalus_{version}_amd64.AppImage",
+            f"Daedalus_{version}_amd64.deb",
+            f"Daedalus_{version}_aarch64.dmg",
+            f"Daedalus_{version}_aarch64.app.tar.gz",
+        )
+    )
+    for path in assets:
+        path.write_bytes(b"installer")
+    return assets
+
+
+def test_release_asset_selection_is_exactly_the_version_bound_five_asset_matrix(
     tmp_path: Path,
 ) -> None:
     expected = (
@@ -764,7 +1021,50 @@ def test_release_asset_selection_is_exactly_the_v010_five_asset_matrix(
     app_internal.parent.mkdir(parents=True)
     app_internal.write_bytes(b"not a release asset")
 
-    assert select_release_assets(tmp_path) == expected
+    assert select_release_assets(tmp_path, "0.1.3") == expected
+
+
+def test_release_asset_selection_refuses_empty_or_non_regular_assets(
+    tmp_path: Path,
+) -> None:
+    assets = _write_release_asset_matrix(tmp_path)
+    assets[1].write_bytes(b"")
+    with pytest.raises(ValueError, match="desktop release asset is empty"):
+        select_release_assets(tmp_path, "0.1.6")
+
+    assets[1].write_bytes(b"installer")
+    assets[2].unlink()
+    assets[2].mkdir()
+    with pytest.raises(ValueError, match="desktop release asset is not a regular file"):
+        select_release_assets(tmp_path, "0.1.6")
+
+
+def test_release_asset_selection_refuses_a_linked_asset(tmp_path: Path) -> None:
+    assets = _write_release_asset_matrix(tmp_path)
+    external = tmp_path / "external-installer"
+    external.write_bytes(b"external")
+    assets[0].unlink()
+    try:
+        assets[0].symlink_to(external)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"host cannot create test symlink: {exc}")
+
+    with pytest.raises(ValueError, match="symlink or reparse point"):
+        select_release_assets(tmp_path, "0.1.6")
+
+
+def test_release_asset_selection_refuses_a_linked_root(tmp_path: Path) -> None:
+    actual_root = tmp_path / "actual"
+    actual_root.mkdir()
+    _write_release_asset_matrix(actual_root)
+    linked_root = tmp_path / "linked"
+    try:
+        linked_root.symlink_to(actual_root, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"host cannot create test symlink: {exc}")
+
+    with pytest.raises(ValueError, match="symlink or reparse point"):
+        select_release_assets(linked_root, "0.1.6")
 
 
 def test_release_asset_selection_refuses_missing_or_duplicate_installers(
@@ -778,18 +1078,33 @@ def test_release_asset_selection_refuses_missing_or_duplicate_installers(
     ):
         (tmp_path / name).write_bytes(b"installer")
     with pytest.raises(ValueError, match=r"\.app\.tar\.gz: expected 1, found 0"):
-        select_release_assets(tmp_path)
+        select_release_assets(tmp_path, "0.1.3")
 
     (tmp_path / "Daedalus.app.tar.gz").write_bytes(b"installer")
     (tmp_path / "Daedalus.dmg").unlink()
     with pytest.raises(ValueError, match=r"\.dmg: expected 1, found 0"):
-        select_release_assets(tmp_path)
+        select_release_assets(tmp_path, "0.1.3")
 
     (tmp_path / "Daedalus.dmg").write_bytes(b"installer")
     duplicate = tmp_path / "Other.exe"
     duplicate.write_bytes(b"duplicate")
     with pytest.raises(ValueError, match=r"\.exe: expected 1, found 2"):
-        select_release_assets(tmp_path)
+        select_release_assets(tmp_path, "0.1.3")
+
+
+def test_release_asset_selection_refuses_a_complete_wrong_version_matrix(
+    tmp_path: Path,
+) -> None:
+    for name in (
+        "Daedalus_0.1.4_x64-setup.exe",
+        "Daedalus_0.1.4_amd64.AppImage",
+        "Daedalus_0.1.4_amd64.deb",
+        "Daedalus_0.1.4_aarch64.dmg",
+        "Daedalus_0.1.4_aarch64.app.tar.gz",
+    ):
+        (tmp_path / name).write_bytes(b"installer")
+    with pytest.raises(ValueError, match="wrong-version assets"):
+        select_release_assets(tmp_path, "0.1.6")
 
 
 def test_pull_request_validation_cannot_receive_release_write_authority() -> None:
@@ -807,15 +1122,64 @@ def test_pull_request_validation_cannot_receive_release_write_authority() -> Non
     assert "persist-credentials: false" in validation
 
     # Release authority exists only after the trusted-main platform matrix
-    # succeeds. The release job consumes validated workflow artifacts instead
-    # of rerunning branch-controlled build hooks with a write-capable token.
+    # and the independent full-product acceptance job succeed. The release job
+    # consumes validated workflow artifacts instead of rerunning
+    # branch-controlled build hooks with a write-capable token.
     assert "if: github.event_name == 'push'" in release
-    assert "needs: desktop-release" in release
+    assert "needs:\n      - desktop-release\n      - release-acceptance" in release
     assert "permissions:\n      contents: write" in release
-    assert "actions/download-artifact@v4" in release
+    assert PINNED_DOWNLOAD_ACTION in release
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in release
-    assert "PYTHONPATH: ${{ github.workspace }}" in release
+    assert "PYTHONPATH:" not in release
     assert "gh release create" in release
+
+    selection = release.split(
+        "      - name: Select validated release assets without release authority\n",
+        1,
+    )[1].split("      - name: Publish prerelease\n", 1)[0]
+    publish = release.split("      - name: Publish prerelease\n", 1)[1]
+    assert "GH_TOKEN:" not in selection
+    assert "select_desktop_release_assets.py select" in selection
+    assert 'echo "asset_list=$asset_list" >> "$GITHUB_OUTPUT"' in selection
+    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in publish
+    assert "mapfile -d '' assets < \"$ASSET_LIST\"" in publish
+    assert 'SHORT_SHA="${GITHUB_SHA:0:7}"' in publish
+    assert 'TAG="desktop-v${VERSION}-g${SHORT_SHA}"' in publish
+    assert "set -euo pipefail" in publish
+    assert '[[ ! "$GITHUB_SHA" =~ ^[0-9a-fA-F]{40}$ ]]' in publish
+    assert 'LATEST_MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main"' in publish
+    assert '[[ "$LATEST_MAIN_SHA" != "$GITHUB_SHA" ]]' in publish
+    assert publish.index('LATEST_MAIN_SHA="$(gh api') < publish.index(
+        'gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs"'
+    )
+    assert 'gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs"' in publish
+    assert '--raw-field "ref=$TAG_REF"' in publish
+    assert '--raw-field "sha=$GITHUB_SHA"' in publish
+    assert 'BOUND_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG"' in publish
+    assert '[[ "$BOUND_SHA" != "$GITHUB_SHA" ]]' in publish
+    assert publish.index("# immutable-tag-claim:start") < publish.index("gh release create")
+    assert "if gh api" not in publish
+    assert ">/dev/null 2>&1" not in publish
+    assert '--verify-tag' in publish
+    assert '--target' not in publish
+    assert (
+        '--title "Daedalus v${VERSION} — Autonomous Super Assistant Evolver (ASAE)"'
+        in publish
+    )
+
+    token_steps = [
+        step
+        for step in re.split(r"\n(?=      - name:)", release)
+        if "GH_TOKEN:" in step
+    ]
+    assert len(token_steps) == 2
+    for step in token_steps:
+        assert "shell: bash" in step
+        assert "gh " in step
+        assert "python" not in step.casefold()
+        assert "tools/" not in step
+        assert "PYTHONPATH:" not in step
+
     for forbidden in (
         "npm ci",
         "npm run build",
@@ -824,14 +1188,181 @@ def test_pull_request_validation_cannot_receive_release_write_authority() -> Non
         "smoke_tauri_sidecar.py",
         "cargo fmt",
         "cargo test",
-        "tauri-action@v1",
+        "tauri-apps/tauri-action@",
     ):
         assert forbidden not in release
 
-    # PR validation, release-matrix validation and publishing all deliberately
-    # avoid persisting Git credentials. The release token is scoped to the one
-    # gh release command through GH_TOKEN instead.
-    assert workflow.count("persist-credentials: false") == 3
+    # PR validation, release-matrix validation, release acceptance and
+    # publishing all deliberately avoid persisting Git credentials. The
+    # release token is scoped to the one gh release command through GH_TOKEN.
+    assert workflow.count("persist-credentials: false") == 4
+
+
+def _release_test_bash() -> str:
+    candidates: list[str] = []
+    if os.name == "nt":
+        for root in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
+            if root:
+                candidates.append(str(Path(root) / "Git" / "bin" / "bash.exe"))
+                candidates.append(str(Path(root) / "Git" / "usr" / "bin" / "bash.exe"))
+    discovered = shutil.which("bash")
+    if discovered:
+        candidates.append(discovered)
+    for candidate in candidates:
+        if not Path(candidate).is_file():
+            continue
+        probe = subprocess.run([candidate, "--version"], capture_output=True, text=True, check=False)
+        if probe.returncode == 0:
+            return candidate
+    pytest.skip("A POSIX bash is required for the semantic release-tag test")
+
+
+@pytest.mark.parametrize(
+    ("mode", "succeeds"),
+    [
+        pytest.param("forbidden", False, id="403"),
+        pytest.param("server", False, id="500"),
+        pytest.param("existing", False, id="existing-tag"),
+        pytest.param("superseded", False, id="superseded-main"),
+        pytest.param("race", False, id="post-create-race"),
+        pytest.param("success", True, id="success"),
+    ],
+)
+def test_release_tag_claim_is_atomic_exact_and_fail_closed(mode: str, succeeds: bool) -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    claim = workflow.split("# immutable-tag-claim:start\n", 1)[1].split(
+        "# immutable-tag-claim:end",
+        1,
+    )[0]
+    claim = textwrap.dedent(claim)
+    fake_gh = r'''
+gh() {
+  if [[ "${1:-}" != "api" ]]; then
+    echo "unexpected gh command: $*" >&2
+    return 90
+  fi
+  if [[ "${2:-}" == "--method" ]]; then
+    [[ "${3:-}" == "POST" ]] || return 91
+    [[ "${4:-}" == "repos/$GITHUB_REPOSITORY/git/refs" ]] || return 92
+    [[ "${5:-}" == "--raw-field" && "${6:-}" == "ref=refs/tags/$TAG" ]] || return 93
+    [[ "${7:-}" == "--raw-field" && "${8:-}" == "sha=$GITHUB_SHA" ]] || return 94
+    case "$FAKE_GH_MODE" in
+      forbidden) echo "HTTP 403" >&2; return 22 ;;
+      server) echo "HTTP 500" >&2; return 23 ;;
+      existing) echo "HTTP 422: Reference already exists" >&2; return 24 ;;
+      race|success) return 0 ;;
+      *) return 95 ;;
+    esac
+  fi
+  if [[ "${2:-}" == "repos/$GITHUB_REPOSITORY/git/ref/heads/main" ]]; then
+    [[ "${3:-}" == "--jq" && "${4:-}" == ".object.sha" ]] || return 96
+    if [[ "$FAKE_GH_MODE" == "superseded" ]]; then
+      echo "ffffffffffffffffffffffffffffffffffffffff"
+    else
+      echo "$GITHUB_SHA"
+    fi
+    return 0
+  fi
+  [[ "${2:-}" == "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" ]] || return 96
+  [[ "${3:-}" == "--jq" && "${4:-}" == ".object.sha" ]] || return 97
+  case "$FAKE_GH_MODE" in
+    race) echo "ffffffffffffffffffffffffffffffffffffffff" ;;
+    success) echo "$GITHUB_SHA" ;;
+    *) return 98 ;;
+  esac
+}
+'''
+    full_sha = "0123456789abcdef0123456789abcdef01234567"
+    completed = subprocess.run(
+        [_release_test_bash(), "-euo", "pipefail", "-c", fake_gh + "\n" + claim],
+        env={
+            **os.environ,
+            "FAKE_GH_MODE": mode,
+            "GITHUB_REPOSITORY": "owner/daedalus",
+            "GITHUB_SHA": full_sha,
+            "TAG": "desktop-v0.1.6-g0123456",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if succeeds:
+        assert completed.returncode == 0, completed.stderr
+    else:
+        assert completed.returncode != 0, completed.stdout
+
+
+def test_release_acceptance_is_a_non_pr_hard_gate_with_retained_receipts() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    _before, remainder = workflow.split("\n  release-acceptance:\n", 1)
+    acceptance, publisher = remainder.split("\n  release:\n", 1)
+
+    assert "if: github.event_name != 'pull_request'" in acceptance
+    assert "runs-on: ubuntu-24.04" in acceptance
+    assert "timeout-minutes: 90" in acceptance
+    assert "permissions:\n      contents: read" in acceptance
+    assert "python -m pytest -q -n auto --dist loadfile" in acceptance
+    assert "--junitxml=release-evidence/python-full.xml" in acceptance
+
+    for surface in (
+        "tests/kernel/test_genesis_contracts.py",
+        "tests/kernel/test_genesis_effect_lease.py",
+        "tests/orchestration/test_genesis_materializer.py",
+        "tests/orchestration/test_genesis_service.py",
+        "tests/interfaces/test_genesis_cli.py",
+        "tests/interfaces/test_http_genesis.py",
+        "tests/interfaces/test_http_response_disconnect.py",
+        "tests/interfaces/test_desktop_settings_owner.py",
+        "tests/interfaces/test_web_distribution.py",
+        "tests/twin/test_fourfold_read_projection.py",
+        "tests/test_ariadne_campaign_v0.py",
+        "tests/test_ikarus_project_grounding.py",
+        "tests/test_effect_boundary.py",
+        "tests/test_cli_effect_boundary.py",
+        "tests/test_kernel_contracts_have_producers.py",
+    ):
+        assert surface in acceptance
+
+    for command in (
+        "npm run test:app",
+        "npm run test:motion",
+        "npx tsc --noEmit",
+        "npm run build",
+        "npm audit --omit=dev --json",
+        "npx playwright install --with-deps chromium --only-shell",
+        "python -m tools.gui_check --json",
+        "python -m build --no-isolation --sdist --wheel --outdir release-dist",
+        "python -I tools/smoke_packaged_resources.py",
+    ):
+        assert command in acceptance
+
+    pinned_images = re.findall(
+        r"(?:docker\.io/library/python|registry\.access\.redhat\.com/ubi9/python-312)"
+        r"@sha256:[0-9a-f]{64}",
+        acceptance,
+    )
+    assert len(pinned_images) == 2
+    assert len(set(pinned_images)) == 2
+    live_test = (
+        "tests/test_linux_oci_containment.py::"
+        "test_live_linux_container_writes_workspace_but_not_root_and_has_no_network"
+    )
+    assert acceptance.count(live_test) == 2
+    assert acceptance.count('DAEDALUS_RUN_LINUX_OCI_INTEGRATION: "1"') == 2
+    assert '"skipped": 0' in acceptance
+    assert 'for slug, family, receipt_name in (' in acceptance
+    for receipt in (
+        "podman-debian.xml",
+        "podman-debian-receipt.json",
+        "podman-rhel.xml",
+        "podman-rhel-receipt.json",
+    ):
+        assert receipt in acceptance
+    assert "if: always()" in acceptance
+    assert PINNED_UPLOAD_ACTION in acceptance
+    assert "release-evidence/" in acceptance
+
+    assert "needs:\n      - desktop-release\n      - release-acceptance" in publisher
 
 
 def test_native_rust_tests_gate_each_desktop_bundle() -> None:
@@ -846,7 +1377,7 @@ def test_native_rust_tests_gate_each_desktop_bundle() -> None:
     assert workflow.count(command) == 2
     for build_job in (pr_linux, release_matrix):
         assert build_job.index("Generate desktop icons") < build_job.index(command)
-        assert build_job.index(command) < build_job.index("tauri-apps/tauri-action@v1")
+        assert build_job.index(command) < build_job.index(PINNED_TAURI_ACTION)
     assert command not in publisher
 
 
@@ -871,6 +1402,12 @@ def test_desktop_release_versions_are_aligned() -> None:
         r'^version = "([^"]+)"$', project_section, flags=re.MULTILINE
     )
     assert project_match
+    uv_lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
+    locked_project = uv_lock.split('name = "daedalus"', 1)[1]
+    uv_match = re.search(
+        r'^version = "([^"]+)"$', locked_project, flags=re.MULTILINE
+    )
+    assert uv_match
     assert (
         package["version"]
         == package_lock["version"]
@@ -879,5 +1416,17 @@ def test_desktop_release_versions_are_aligned() -> None:
         == match.group(1)
         == locked_match.group(1)
         == project_match.group(1)
-        == "0.1.5"
+        == uv_match.group(1)
+        == "0.1.6"
     )
+
+
+def test_desktop_release_workflow_reads_the_canonical_python_version() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    # Artifact naming and publication must read the same authored version.
+    # The mirrored npm/Tauri/Cargo/lock values are independently checked above.
+    assert workflow.count("tomllib.load(handle)['project']['version']") == 2
+    assert "json.loads(Path('apps/web/src-tauri/tauri.conf.json')" not in workflow
+    assert 'NOTES="Daedalus v${VERSION}"' in workflow
+    assert "Daedalus v0.1.6" not in workflow

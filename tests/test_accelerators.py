@@ -191,13 +191,68 @@ def test_deep_probe_import_only_yields_unverified_not_ready() -> None:
             contextlib.redirect_stdout(stdout):
         exec(accelerators._DEEP_PROBE, {})  # noqa: S102 - probe source under test
 
-    rows = json.loads(stdout.getvalue())
+    rows = accelerators._decode_deep_probe_output(stdout.getvalue(), "")
     for name in ("cuvs", "cugraph", "newton"):
         assert rows[name]["installed"] is True
         assert rows[name]["cuda_ready"] is None
         assert "import_only: no device kernel smoke" in rows[name]["detail"]
     assert rows["torch"]["installed"] is False
     assert rows["torch"]["cuda_ready"] is False
+
+
+def test_deep_probe_accepts_noisy_stdout_and_retains_diagnostics() -> None:
+    probe_rows = {
+        name: {
+            "installed": name in ("torch", "warp"),
+            "cuda_ready": name in ("torch", "warp"),
+            "detail": "measured",
+        }
+        for name in ("torch", "cupy", "warp", "cuvs", "cugraph", "newton")
+    }
+    completed = mock.Mock(
+        returncode=0,
+        stdout=(
+            "Warp 1.17.0 initialized on cuda:0\n"
+            f"{accelerators._DEEP_PROBE_SENTINEL}{json.dumps(probe_rows)}\n"
+            "runtime shutdown note\n"
+        ),
+        stderr="CUDA_PATH could not be detected\n",
+    )
+    with mock.patch.object(accelerators.subprocess, "run", return_value=completed):
+        rows = accelerators.deep_framework_status.__wrapped__()
+
+    assert rows["torch"]["installed"] is True
+    assert rows["warp"]["cuda_ready"] is True
+    assert rows["cupy"]["installed"] is False
+    assert rows["_diagnostics"] == {
+        "stdout": "Warp 1.17.0 initialized on cuda:0\nruntime shutdown note",
+        "stderr": "CUDA_PATH could not be detected",
+    }
+
+
+def test_failed_deep_probe_rows_are_unprobed_with_shallow_presence_evidence() -> None:
+    failure = {
+        "probe": {
+            "installed": False,
+            "cuda_ready": None,
+            "detail": "invalid probe output: missing sentinel",
+            "probed": False,
+        }
+    }
+    with mock.patch.object(accelerators, "deep_framework_status", return_value=failure), \
+            mock.patch.object(
+                accelerators,
+                "_has_module",
+                side_effect=lambda name: name in ("torch", "newton"),
+            ):
+        rows = accelerators._framework_rows(deep=True)
+
+    assert rows["torch"]["installed"] is True
+    assert rows["newton"]["installed"] is True
+    assert rows["cupy"]["installed"] is False
+    assert all(row["probed"] is False for row in rows.values())
+    assert all(row["cuda_ready"] is None for row in rows.values())
+    assert all("missing sentinel" in row["detail"] for row in rows.values())
 
 
 def test_deep_rows_preserve_unverified_tristate() -> None:
@@ -238,4 +293,92 @@ def test_deep_import_only_lanes_cap_at_unverified() -> None:
     assert not lanes["sparse_graph"]["evidence"]
     assert lanes["warp_kernels"]["state"] == "ready"
     assert lanes["newton_physics"]["state"] == "unverified"
+    assert lanes["newton_physics"]["missing"] == (
+        "Newton device execution was not probed",
+    )
+
+
+def test_cli_json_exposes_successful_probe_noise_as_bounded_diagnostics(
+    capsys,
+) -> None:
+    from daedalus.interfaces.cli import entry as cli_entry
+
+    oversized_stdout = "x" * (accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT + 17)
+    probe_rows = _frameworks(("torch", "warp"))
+    probe_rows["_diagnostics"] = {
+        "stdout": oversized_stdout,
+        "stderr": "CUDA_PATH fallback used",
+    }
+    with mock.patch.object(
+        accelerators, "deep_framework_status", return_value=probe_rows
+    ), mock.patch.object(
+        accelerators, "nvidia_hardware_status", return_value=_hardware()
+    ), mock.patch.dict("os.environ", {}, clear=True):
+        cli_entry._accelerators(["--deep", "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    diagnostics = payload["framework_probe_diagnostics"]
+    assert diagnostics["requested"] is True
+    assert diagnostics["transport_outcome"] == "decoded"
+    assert diagnostics["stdout"] == (
+        "x" * accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+        + " ... [17 chars omitted]"
+    )
+    assert diagnostics["stderr"] == "CUDA_PATH fallback used"
+    assert diagnostics["failure"] == ""
+    assert (
+        diagnostics["retained_char_limit"]
+        == accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+    )
+    assert set(payload["frameworks"]) == {
+        "torch",
+        "cupy",
+        "warp",
+        "cuvs",
+        "cugraph",
+        "newton",
+    }
+    assert {row["id"] for row in payload["lanes"]} == {
+        "tensor_inference",
+        "sparse_graph",
+        "warp_kernels",
+        "newton_physics",
+        "nvidia_optical_flow",
+        "dlss",
+    }
+    assert "state" not in diagnostics
+    assert "ready" not in diagnostics
+
+
+def test_accelerator_status_exposes_top_level_probe_failure_diagnostics() -> None:
+    failure = accelerators._probe_failure(
+        "child process failed",
+        stdout="runtime banner",
+        stderr="driver warning",
+    )
+    with mock.patch.object(
+        accelerators, "deep_framework_status", return_value=failure
+    ), mock.patch.object(
+        accelerators, "nvidia_hardware_status", return_value=_hardware()
+    ), mock.patch.object(
+        accelerators,
+        "_has_module",
+        side_effect=lambda name: name in ("torch", "newton"),
+    ), mock.patch.dict("os.environ", {}, clear=True):
+        payload = accelerators.accelerator_status(deep=True)
+
+    diagnostics = payload["framework_probe_diagnostics"]
+    assert diagnostics["requested"] is True
+    assert diagnostics["transport_outcome"] == "failed"
+    assert diagnostics["stdout"] == "runtime banner"
+    assert diagnostics["stderr"] == "driver warning"
+    assert "child process failed" in diagnostics["failure"]
+    assert (
+        diagnostics["retained_char_limit"]
+        == accelerators._DEEP_PROBE_DIAGNOSTIC_LIMIT
+    )
+    assert len(payload["frameworks"]) == 6
+    assert all(row["probed"] is False for row in payload["frameworks"].values())
+    assert all(row["cuda_ready"] is None for row in payload["frameworks"].values())
+    assert all(row["state"] != "ready" for row in payload["lanes"])
 

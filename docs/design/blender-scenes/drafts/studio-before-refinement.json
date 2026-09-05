@@ -1,0 +1,24 @@
+{
+  "scene": "studio",
+  "title": "Spatial Studio",
+  "blender": "4.5.13 LTS",
+  "objects": 317,
+  "meshes": 32,
+  "vertices_base": 998,
+  "materials": 18,
+  "cameras": 1,
+  "devices": [
+    "NVIDIA GeForce MX330"
+  ],
+  "resolution": [
+    1600,
+    1000
+  ],
+  "samples_max": 64,
+  "seed": 20260905,
+  "build_seconds": 1.38,
+  "total_seconds": 107.28,
+  "blend": "blend\\studio.blend",
+  "render": "renders\\studio.png",
+  "render_completed": true
+}

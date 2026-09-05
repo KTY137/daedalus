@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Generic, Mapping, Union, TypeVar
 
-from ..schemas import _identifier
+from ..kernel.contracts.base import _identifier
 from ..spine.envelope import canonical_json, canonical_sha
 from .relation_blocks import (
     MAX_REFERENCE_OPERATIONS,

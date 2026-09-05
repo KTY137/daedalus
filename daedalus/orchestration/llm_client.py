@@ -237,7 +237,7 @@ class IkarusLLMClient:
         for attempt in attempts:
             try:
                 result = invoke(selection.provider, request, selection.timeout_s)
-                if isinstance(result, LLMResponse) and result.text.strip():
+                if isinstance(result, LLMResponse) and (result.text.strip() or result.tool_calls):
                     return LLMResponse(result.text, result.provider, result.model,
                                        result.tool_calls, attempts=attempt)
                 if isinstance(result, str) and result.strip():

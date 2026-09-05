@@ -2,15 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import hmac
 import json
 import mimetypes
 import os
 import re
+import secrets
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import effects as http_effects
@@ -23,6 +25,7 @@ from ... import core
 from ...foundation import accelerators
 from ...orchestration import agents_registry, categories, control_plane, conversation_requests, editor_context, hierarchy, runtime_registry
 from ...orchestration.ikarus import chat as ikarus_chat
+from ...orchestration.genesis import read_genesis_preview, run_genesis
 from .bootstrap_prompt import claude_bootstrap_prompt
 from ...orchestration.context_plan import plan_context
 from ...foundation.env import env_status, load_env
@@ -33,6 +36,7 @@ from ...foundation.projects import (
     ProjectRowUpdateError,
     list_projects,
     register_project,
+    resolve_registered_project_root,
     resolve_repo_root,
 )
 from ...file_bridge import stream_state
@@ -46,7 +50,92 @@ from ...structcore.topology import spectral_partition
 from ... import memory as memory_mod
 
 ROOT = Path(__file__).resolve().parents[3]
-WEB_DIST = ROOT / "apps" / "web" / "dist"
+SOURCE_WEB_DIST = ROOT / "apps" / "web" / "dist"
+PACKAGE_WEB_DIST = Path(__file__).resolve().parents[2] / "resources" / "web_dist"
+
+
+def _resolve_web_dist(
+    source_dist: Path = SOURCE_WEB_DIST,
+    package_dist: Path = PACKAGE_WEB_DIST,
+) -> Path:
+    """Prefer a checkout build, then fall back to the installed package copy."""
+
+    if (source_dist / "index.html").is_file():
+        return source_dist
+    return package_dist
+
+
+def _contained_web_path(root: Path, request_path: str) -> Path | None:
+    """Resolve one URL path without permitting a static-root escape."""
+
+    decoded = unquote(request_path)
+    if "\x00" in decoded or "\\" in decoded:
+        return None
+    try:
+        candidate = (root / decoded.lstrip("/")).resolve()
+    except (OSError, RuntimeError):
+        return None
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
+
+
+WEB_DIST = _resolve_web_dist()
+_CLIENT_DISCONNECT_ERRORS = (
+    BrokenPipeError,
+    ConnectionResetError,
+    ConnectionAbortedError,
+)
+_GENESIS_PREVIEW_SECRET_BYTES = 32
+_GENESIS_PREVIEW_SECRET_ATTR = "daedalus_genesis_preview_secret"
+_GENESIS_RUN_ID_RE = re.compile(r"^genesis-[0-9a-f]{24}\Z")
+_AUTH_REFUSAL_MAX_DRAIN_BYTES = 64 * 1024
+
+
+def _install_genesis_preview_secret(
+    server: Any, *, secret: bytes | None = None
+) -> None:
+    """Install one ephemeral preview root secret on exactly one HTTP server.
+
+    The secret is transport state, not orchestration or candidate authority. It
+    is never persisted or returned by an API; per-run bearer capabilities are
+    derived from it only for the lifetime of this bound server.
+    """
+
+    material = (
+        secrets.token_bytes(_GENESIS_PREVIEW_SECRET_BYTES)
+        if secret is None
+        else secret
+    )
+    if type(material) is not bytes or len(material) != _GENESIS_PREVIEW_SECRET_BYTES:
+        raise ValueError(
+            "Genesis preview server secret must be exactly 32 opaque bytes"
+        )
+    setattr(server, _GENESIS_PREVIEW_SECRET_ATTR, material)
+
+
+def _genesis_preview_capability(server: Any, run_id: str) -> str:
+    """Derive an unguessable capability bound to this server and exact run."""
+
+    if not isinstance(run_id, str) or not _GENESIS_RUN_ID_RE.fullmatch(run_id):
+        raise ValueError("Genesis preview run id is invalid")
+    secret = getattr(server, _GENESIS_PREVIEW_SECRET_ATTR, None)
+    if type(secret) is not bytes or len(secret) != _GENESIS_PREVIEW_SECRET_BYTES:
+        raise RuntimeError("Genesis preview capability root is not installed")
+    address = getattr(server, "server_address", ("", 0))
+    host = str(address[0])
+    port = int(address[1])
+    context = (
+        b"daedalus-genesis-preview-capability-v1\0"
+        + host.encode("ascii", "strict")
+        + b"\0"
+        + str(port).encode("ascii")
+        + b"\0"
+        + run_id.encode("ascii")
+    )
+    return hmac.new(secret, context, hashlib.sha256).hexdigest()
 
 
 def _project_center(project: str | None) -> list[str]:
@@ -92,16 +181,42 @@ def _project_ignore(project: str | None) -> list[str]:
     return [str(x) for x in raw if str(x).strip()]
 
 
-def _structure_index(project: str, refresh: bool = False) -> dict:
-    """Shared structural index for a project (cached process-wide by repo root
-    AND scope -- see ``cached_index``)."""
-    return cached_index(resolve_repo_root(None, project), refresh=refresh,
-                        center=_project_center(project),
-                        ignore=_project_ignore(project))
+def _structure_index(
+    project: str, refresh: bool = False, *, fourfold: bool = False
+) -> dict:
+    """Return the normal code index or the explicit rich Fourfold read.
+
+    ``cached_index`` includes documents/types/wiki in its scope key.  Keeping
+    those opt-ins behind ``fourfold`` preserves the measured code-map baseline
+    while giving the Fourfold surface all Forest inputs through the same
+    canonical indexer.
+    """
+    return cached_index(
+        resolve_repo_root(None, project),
+        refresh=refresh,
+        center=_project_center(project),
+        ignore=_project_ignore(project),
+        documents=True if fourfold else None,
+        types=True if fourfold else None,
+        wiki=True if fourfold else None,
+        # do_GET has no effect authority.  Fourfold is a new read projection,
+        # so its cold path explicitly forgoes the SQLite cache, worker pool and
+        # Git subprocess instead of inheriting the legacy structure route's
+        # effectful cache behaviour.
+        effect_free=fourfold,
+    )
 
 
 def _json_safe(payload: Any) -> bytes:
     return json.dumps(payload, default=str).encode("utf-8")
+
+
+def _run_ariadne_campaign(**kwargs: Any) -> dict[str, Any]:
+    """Load the campaign workload only when the Ariadne POST actually runs."""
+
+    from ...ariadne import run_campaign
+
+    return run_campaign(**kwargs)
 
 
 def _project_list() -> dict[str, Any]:
@@ -147,7 +262,9 @@ def _host_capabilities(
     managed = host_mode == "desktop"
     return {
         "host_mode": host_mode,
-        "can_manage_openvscode": bool(managed and ide.get("available") is True),
+        "can_manage_openvscode": bool(
+            managed and ide.get("managed_start_available") is True
+        ),
         "can_open_external_editor": bool(
             managed and ide.get("reachable") is True and ide.get("ui_url")),
         # Navigation requires a live, nonce-bound adapter session.  Supporting
@@ -858,6 +975,30 @@ def _conversation_view(conversation_id: str, limit: int = LOOP_MAX_LIMIT) -> dic
     if not store.conversation_exists(conversation_id):
         return None
     resumed = store.resume(conversation_id)
+    binding = resumed.get("project_binding") or {}
+    bound = (
+        binding.get("state") == conv.BINDING_BOUND
+        and isinstance(binding.get("project"), str)
+        and bool(binding["project"])
+    )
+    if not bound:
+        # Existing mixed/unscoped/corrupt history remains canonical evidence,
+        # but GET must not leak any part of it.  In particular, never fetch a
+        # bounded transcript tail here: forty matching recent turns cannot
+        # hide one older row bound to another project.
+        return {
+            "conversation_id": conversation_id,
+            "exists": resumed["exists"],
+            "project_binding": binding,
+            "quarantined": True,
+            "turn_count": 0,
+            "narrative": [],
+            "last_turn": None,
+            "turns": [],
+            "turns_returned": 0,
+            "dispatches": [],
+            "open_dispatches": [],
+        }
     turns = store.turns(conversation_id, limit=limit)
 
     def _turn_dict(t: Any) -> dict[str, Any]:
@@ -875,6 +1016,8 @@ def _conversation_view(conversation_id: str, limit: int = LOOP_MAX_LIMIT) -> dic
     return {
         "conversation_id": conversation_id,
         "exists": resumed["exists"],
+        "project_binding": binding,
+        "quarantined": False,
         "turn_count": resumed["turn_count"],
         "narrative": resumed["narrative"],
         "last_turn": _turn_dict(resumed["last_turn"]) if resumed["last_turn"] else None,
@@ -937,7 +1080,19 @@ class DaedalusHandler(BaseHTTPRequestHandler):
     server_version = "DaedalusAgentOS/0.1"
 
     def end_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "http://127.0.0.1:5173")
+        # Genesis is intentionally same-origin only.  In particular, its
+        # preflight response must not grant the development UI origin (or any
+        # other origin) authority to start an effectful run.  The production
+        # UI and its preview are served by this same handler, so they do not
+        # need CORS.
+        genesis_response = urlparse(self.path).path.startswith("/api/genesis")
+        if not genesis_response:
+            self.send_header("Access-Control-Allow-Origin", "http://127.0.0.1:5173")
+        else:
+            # Applies to successful assets, capability redirects, and refusal
+            # JSON alike. A browser must never reinterpret a preview response
+            # as executable content from a more permissive MIME type.
+            self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS")
         self.send_header(
             "Access-Control-Allow-Headers",
@@ -945,12 +1100,43 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         )
         super().end_headers()
 
+    def _send_response_bytes(
+        self,
+        body: bytes,
+        *,
+        status: int = 200,
+        content_type: str | None = None,
+        headers: tuple[tuple[str, str], ...] = (),
+        send_content_length: bool = True,
+    ) -> None:
+        """Write one non-streaming response or finish after a peer close."""
+
+        try:
+            self.send_response(status)
+            for keyword, value in headers:
+                self.send_header(keyword, value)
+            if content_type is not None:
+                self.send_header("Content-Type", content_type)
+            if send_content_length:
+                self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if body:
+                self.wfile.write(body)
+        except _CLIENT_DISCONNECT_ERRORS:
+            # Only writes to the response transport happen inside this block.
+            # Backend/file work is evaluated by callers first and therefore
+            # keeps its established exception-to-HTTP-error behavior.
+            self.close_connection = True
+
     def do_OPTIONS(self) -> None:
         # Preflight carries no Authorization header by specification, so it is
-        # answered unauthenticated. It reveals nothing: the response is three
-        # fixed CORS headers and no body.
-        self.send_response(204)
-        self.end_headers()
+        # answered unauthenticated. It reveals nothing and, for Genesis, omits
+        # Access-Control-Allow-Origin so a browser cannot obtain CORS authority.
+        self._send_response_bytes(
+            b"",
+            status=204,
+            send_content_length=False,
+        )
 
     def _authorized(self) -> bool:
         """True unless this server was started with a shared token unmet.
@@ -970,17 +1156,117 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         # who can time the answer, and this one is the whole boundary.
         return hmac.compare_digest(supplied, token)
 
+    def _drain_rejected_request_body(self) -> bool:
+        """Discard one small, fixed-length body before closing an auth refusal.
+
+        On Windows, closing a socket with unread inbound bytes can turn the
+        intended 401 into a client-visible TCP reset.  Only an unambiguous,
+        bounded Content-Length is consumed here.  Chunked, duplicate,
+        malformed, and oversized framing stays unread and forces connection
+        close instead of creating an unauthenticated streaming/body sink.
+        """
+
+        headers = getattr(self, "headers", None)
+        request_body = getattr(self, "rfile", None)
+        if headers is None or request_body is None:
+            return True
+        if headers.get_all("Transfer-Encoding"):
+            self.close_connection = True
+            return False
+        lengths = headers.get_all("Content-Length") or []
+        if not lengths:
+            return True
+        if len(lengths) != 1:
+            self.close_connection = True
+            return False
+        raw_length = str(lengths[0]).strip()
+        if (
+            not raw_length.isascii()
+            or not raw_length.isdecimal()
+            or len(raw_length) > len(str(_AUTH_REFUSAL_MAX_DRAIN_BYTES))
+        ):
+            self.close_connection = True
+            return False
+        length = int(raw_length)
+        if length > _AUTH_REFUSAL_MAX_DRAIN_BYTES:
+            self.close_connection = True
+            return False
+        try:
+            drained = request_body.read(length) if length else b""
+        except (OSError, ValueError):
+            self.close_connection = True
+            return False
+        if not isinstance(drained, bytes) or len(drained) != length:
+            self.close_connection = True
+            return False
+        return True
+
+    def _drain_available_rejected_request_body(self) -> int:
+        """Best-effort discard after an early response with unsafe framing.
+
+        An invalid or oversized Content-Length cannot be used as a read count:
+        doing so would turn a fail-closed route into a blocking request-body
+        sink.  Winsock can nevertheless reset the response if even the small
+        prefix already sent by the peer remains unread.  Read at most 64 KiB
+        for at most 50 ms, after the refusal has been written, then close.
+        """
+
+        request_body = getattr(self, "rfile", None)
+        if request_body is None:
+            return 0
+        read_once = getattr(request_body, "read1", None)
+        if not callable(read_once):
+            read_once = getattr(request_body, "read", None)
+        if not callable(read_once):
+            return 0
+
+        connection = getattr(self, "connection", None)
+        gettimeout = getattr(connection, "gettimeout", None)
+        settimeout = getattr(connection, "settimeout", None)
+        old_timeout: object = None
+        timeout_changed = False
+        if callable(gettimeout) and callable(settimeout):
+            try:
+                old_timeout = gettimeout()
+                settimeout(0.05)
+                timeout_changed = True
+            except (OSError, ValueError):
+                timeout_changed = False
+
+        drained = 0
+        try:
+            while drained < _AUTH_REFUSAL_MAX_DRAIN_BYTES:
+                chunk = read_once(
+                    min(8192, _AUTH_REFUSAL_MAX_DRAIN_BYTES - drained)
+                )
+                if not isinstance(chunk, bytes) or not chunk:
+                    break
+                drained += len(chunk)
+        except (OSError, ValueError):
+            pass
+        finally:
+            if timeout_changed and callable(settimeout):
+                try:
+                    settimeout(old_timeout)
+                except (OSError, TypeError, ValueError):
+                    pass
+        return drained
+
     def _deny(self) -> None:
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", "Bearer")
+        body_drained = self._drain_rejected_request_body()
         body = _json_safe({"ok": False, "error": "unauthorized: this server is "
                                                  "bound to a non-loopback "
                                                  "address and requires a "
                                                  "bearer token"})
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        response_headers = [("WWW-Authenticate", "Bearer")]
+        if not body_drained:
+            response_headers.append(("Connection", "close"))
+        self._send_response_bytes(
+            body,
+            status=401,
+            content_type="application/json; charset=utf-8",
+            headers=tuple(response_headers),
+        )
 
     def do_GET(self) -> None:
         if not self._authorized():
@@ -1030,6 +1316,8 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             self._deny()
             return
         try:
+            if not http_effects.preflight_post(self):
+                return
             from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
             begin_effect(
@@ -1042,40 +1330,91 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": str(exc)}, status=404)
         except editor_context.EditorContextError as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=400)
+        except ProjectRowNotFound as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=404)
+        except ProjectRegistrationError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=400)
+        except ProjectRegistryUnavailable as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=503)
         except Exception as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=500)
 
     def _send_json(self, payload: Any, status: int = 200) -> None:
         data = _json_safe(payload)
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        self._send_response_bytes(
+            data,
+            status=status,
+            content_type="application/json; charset=utf-8",
+        )
 
     def _send_static(self, path: str) -> None:
-        target = WEB_DIST / path.lstrip("/")
-        if path in ("", "/"):
-            target = WEB_DIST / "index.html"
-        if not target.exists() or not target.is_file():
-            target = WEB_DIST / "index.html"
-        if not target.exists():
+        root = WEB_DIST.resolve()
+        requested = "index.html" if path in ("", "/") else path
+        target = _contained_web_path(root, requested)
+        if target is None:
+            self._send_response_bytes(
+                b"Not Found\n",
+                status=404,
+                content_type="text/plain; charset=utf-8",
+            )
+            return
+        if not target.is_file():
+            target = _contained_web_path(root, "index.html")
+        if target is None:
+            self._send_response_bytes(
+                b"Not Found\n",
+                status=404,
+                content_type="text/plain; charset=utf-8",
+            )
+            return
+        if not target.is_file():
             body = b"<h1>Daedalus Agent OS</h1><p>Run npm install && npm run build in apps/web.</p>"
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_response_bytes(
+                body,
+                content_type="text/html; charset=utf-8",
+            )
             return
         content = target.read_bytes()
-        self.send_response(200)
-        self.send_header("Content-Type", mimetypes.guess_type(str(target))[0] or "application/octet-stream")
-        self.send_header("Content-Length", str(len(content)))
-        self.end_headers()
-        self.wfile.write(content)
+        content_type = (
+            mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+        )
+        self._send_response_bytes(content, content_type=content_type)
 
     def _handle_events(self, project: str | None) -> None:
         return http_sse.handle_events(self, project, stream_state=stream_state)
+
+    def _genesis_authority_root(self) -> Path:
+        """Return the Authority Root frozen when this HTTP server started."""
+
+        root = getattr(self.server, "daedalus_authority_root", None)
+        if not isinstance(root, Path) or not root.is_absolute():
+            raise RuntimeError("Genesis HTTP Authority Root is not bound")
+        return root
+
+    def _run_genesis(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        kwargs["repo_root"] = self._genesis_authority_root()
+        return run_genesis(prompt, **kwargs)
+
+    def _read_genesis_preview(
+        self, run_id: str, relative_path: str
+    ) -> tuple[bytes, str]:
+        return read_genesis_preview(
+            run_id,
+            relative_path,
+            repo_root=self._genesis_authority_root(),
+        )
+
+    def _genesis_preview_capability(self, run_id: str) -> str:
+        return _genesis_preview_capability(self.server, run_id)
+
+    def _read_genesis_source_archive(self, run_id: str, candidate_sha256: str) -> bytes:
+        from ...orchestration.genesis import read_genesis_source_archive
+
+        return read_genesis_source_archive(
+            run_id,
+            candidate_sha256,
+            repo_root=self._genesis_authority_root(),
+        )
 
     def _handle_ikarus_stream(self, qs: dict) -> None:
         return http_sse.handle_ikarus_stream(self, qs)
@@ -1113,6 +1452,9 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 task_artifacts=_task_artifacts,
                 task_snapshot=_task_snapshot,
                 resolve_repo_root=resolve_repo_root,
+                genesis_preview=self._read_genesis_preview,
+                genesis_preview_capability=self._genesis_preview_capability,
+                genesis_source_archive=self._read_genesis_source_archive,
                 conversation_id_re=_CONVERSATION_ID_RE,
                 task_id_re=_TASK_ID_RE,
                 loop_max_limit=LOOP_MAX_LIMIT,
@@ -1126,7 +1468,10 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 read_body=_read_body,
                 structure_index=_structure_index,
                 resolve_repo_root=resolve_repo_root,
+                resolve_registered_project_root=resolve_registered_project_root,
                 register_project=register_project,
+                genesis_run=self._run_genesis,
+                ariadne_run=_run_ariadne_campaign,
             ),
         )
 
@@ -1137,7 +1482,10 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 read_body=_read_body,
                 structure_index=_structure_index,
                 resolve_repo_root=resolve_repo_root,
+                resolve_registered_project_root=resolve_registered_project_root,
                 register_project=register_project,
+                genesis_run=self._run_genesis,
+                ariadne_run=_run_ariadne_campaign,
             ),
         )
 
@@ -1170,24 +1518,44 @@ def _resolve_bind(host: str, allow_remote_clients: bool) -> str:
 
 
 def run(host: str = "127.0.0.1", port: int = 8765, *,
-        allow_remote_clients: bool = False) -> None:
+        allow_remote_clients: bool = False,
+        on_bound: Callable[[], object] | None = None,
+        authority_root: str | Path | None = None) -> None:
     load_env()  # before the guard: the token may legitimately live in .env
     token = _resolve_bind(host, allow_remote_clients)
+    bound_authority_root = Path(
+        authority_root if authority_root is not None else Path.cwd()
+    ).resolve(strict=True)
     httpd = ThreadingHTTPServer((host, port), DaedalusHandler)
     # Read per request by DaedalusHandler._authorized. Empty on the loopback
     # path, which is every path anybody normally takes.
     httpd.daedalus_auth_token = token
     httpd.daedalus_desktop_startup_nonce = _desktop_startup_nonce()
-    if token:
-        print(f"!! Daedalus Agent OS is bound to {host}, which is NOT this "
-              f"machine. Every request requires 'Authorization: Bearer "
-              f"<{AUTH_TOKEN_ENV}>'. Unauthenticated requests get 401.",
-              flush=True)
-    print(f"Daedalus Agent OS listening on http://{host}:{port}", flush=True)
-    httpd.serve_forever()
+    httpd.daedalus_authority_root = bound_authority_root
+    _install_genesis_preview_secret(httpd)
+    try:
+        # The callback owns already-admitted lifecycle effects.  It runs only
+        # after ThreadingHTTPServer has successfully created and bound the real
+        # socket, so an occupied port cannot autostart desktop services.
+        if on_bound is not None:
+            on_bound()
+        if token:
+            print(f"!! Daedalus Agent OS is bound to {host}, which is NOT this "
+                  f"machine. Every request requires 'Authorization: Bearer "
+                  f"<{AUTH_TOKEN_ENV}>'. Unauthenticated requests get 401.",
+                  flush=True)
+        print(f"Daedalus Agent OS listening on http://{host}:{port}", flush=True)
+        httpd.serve_forever()
+    finally:
+        httpd.server_close()
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(
+    argv: list[str] | None = None,
+    *,
+    on_bound: Callable[[], object] | None = None,
+    authority_root: str | Path | None = None,
+) -> None:
     import sys
 
     parser = argparse.ArgumentParser(description="Run the local Daedalus Agent OS web API.")
@@ -1203,12 +1571,17 @@ def main(argv: list[str] | None = None) -> None:
                              f"Authorization: Bearer header.")
     args = parser.parse_args(argv)
     try:
+        from daedalus.budget import install_process_guard
         from daedalus.spine.effect_boundary import (
             REGISTRY_BY_ID,
             GuardDecision,
             begin_effect,
         )
 
+        # ``daedalus`` installs this at its umbrella CLI door, but the frozen
+        # desktop sidecar and ``python -m ...web_api`` enter here directly.
+        # Install the same real process/url spend net before the effect starts.
+        install_process_guard()
         token = _resolve_bind(args.host, args.allow_remote_clients)
         begin_effect(
             "cli.web_api",
@@ -1223,8 +1596,13 @@ def main(argv: list[str] | None = None) -> None:
                 ),
             ),
         )
-        run(args.host, args.port,
-            allow_remote_clients=args.allow_remote_clients)
+        run_kwargs: dict[str, Any] = {
+            "allow_remote_clients": args.allow_remote_clients,
+            "on_bound": on_bound,
+        }
+        if authority_root is not None:
+            run_kwargs["authority_root"] = authority_root
+        run(args.host, args.port, **run_kwargs)
     except NonLoopbackBindRefused as exc:
         print(str(exc), file=sys.stderr, flush=True)
         raise SystemExit(2)

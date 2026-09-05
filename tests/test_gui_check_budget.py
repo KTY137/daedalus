@@ -19,6 +19,8 @@ rather than obeyed -- otherwise a typo would be a way to remove the bound.
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tools import gui_check
@@ -59,3 +61,94 @@ def test_the_timeout_message_tells_the_operator_what_to_do():
     assert gui_check.timeout_message(1800.0).startswith(
         "the browser suite did not finish within 1800s"
     )
+
+
+def test_the_growing_shell_is_split_into_serial_bounded_invocations():
+    plan = gui_check._suite_plan()
+
+    assert [label for label, _ in plan] == [
+        "shell-1/4",
+        "shell-2/4",
+        "shell-3/4",
+        "shell-4/4",
+        "loop-ui",
+    ]
+    for current, (_, arguments) in enumerate(plan[:-1], 1):
+        assert arguments == [
+            "--grep-invert",
+            "@loopui",
+            "--shard",
+            f"{current}/{gui_check.SHELL_SHARDS}",
+        ]
+    assert plan[-1][1] == ["--grep", "@loopui"]
+
+
+def test_the_outer_budget_covers_every_bounded_phase():
+    assert gui_check.aggregate_timeout_s({}) == 3370
+    assert gui_check.aggregate_timeout_s(
+        {gui_check.SUITE_TIMEOUT_ENV: "900"}
+    ) == 4870
+
+
+def test_the_live_browser_fixture_names_this_checkout_and_is_removed(tmp_path):
+    root = tmp_path / "specimen"
+    root.mkdir()
+
+    name, path = gui_check._acceptance_project_target(root)
+    gui_check._install_acceptance_project(root, name, path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert name.startswith("000_gui_acceptance_")
+    assert payload["name"] == name
+    assert payload["repo_root"] == str(root.resolve())
+    assert path.parent == (root / "projects").resolve()
+    assert gui_check._remove_acceptance_project(path) == ""
+    assert not path.exists()
+    assert (root / "projects").is_dir()
+
+
+def test_fixture_cleanup_preserves_an_existing_project_registry(tmp_path):
+    root = tmp_path / "specimen"
+    registry = root / "projects"
+    registry.mkdir(parents=True)
+    retained = registry / "owner.json"
+    retained.write_text("{}\n", encoding="utf-8")
+
+    name, path = gui_check._acceptance_project_target(root)
+    gui_check._install_acceptance_project(root, name, path)
+
+    assert gui_check._remove_acceptance_project(path) == ""
+    assert retained.read_text(encoding="utf-8") == "{}\n"
+
+
+def test_fixture_target_is_known_before_an_interrupted_atomic_publish(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "specimen"
+    root.mkdir()
+    name, path = gui_check._acceptance_project_target(root)
+    publish = gui_check.publish_bytes_once
+
+    def publish_then_interrupt(target, data):
+        assert publish(target, data) is True
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(gui_check, "publish_bytes_once", publish_then_interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        try:
+            gui_check._install_acceptance_project(root, name, path)
+        finally:
+            assert gui_check._remove_acceptance_project(path) == ""
+    assert not path.exists()
+
+
+def test_fixture_cleanup_reports_a_locked_row_without_raising(tmp_path, monkeypatch):
+    path = tmp_path / "owned.json"
+    path.write_text("{}\n", encoding="utf-8")
+
+    def locked(*_args, **_kwargs):
+        raise OSError(32, "sharing violation")
+
+    monkeypatch.setattr(gui_check.Path, "unlink", locked)
+    detail = gui_check._remove_acceptance_project(path, retry_s=0)
+    assert "could not remove acceptance-project row" in detail

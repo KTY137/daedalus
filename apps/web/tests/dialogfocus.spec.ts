@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { NOT_BUILT } from './_app';
 
 /**
@@ -27,15 +27,14 @@ async function open(page: Page, chip: RegExp, dialog: string) {
 }
 
 /** Where focus is, and whether it is inside the dialog. */
-async function focusInside(page: Page, selector: string): Promise<{ inside: boolean; label: string }> {
-  return page.evaluate((sel) => {
-    const root = document.querySelector(sel);
+async function focusInside(root: Locator): Promise<{ inside: boolean; label: string }> {
+  return root.evaluate((dialog) => {
     const active = document.activeElement as HTMLElement | null;
     return {
-      inside: Boolean(root && active && root.contains(active)),
+      inside: Boolean(active && dialog.contains(active)),
       label: active ? `${active.tagName.toLowerCase()}.${active.className} :: ${(active.textContent || '').trim().slice(0, 40)}` : 'none'
     };
-  }, selector);
+  });
 }
 
 for (const surface of [
@@ -44,26 +43,26 @@ for (const surface of [
 ]) {
   test.describe(`${surface.name} dialog focus`, () => {
     test('Tab never leaves the dialog', async ({ page }) => {
-      await open(page, surface.chip, surface.name);
+      const panel = await open(page, surface.chip, surface.name);
 
       // Twenty Tabs is well past the number of controls in either panel, so
       // if the ring leaks at all it leaks inside this loop. Two was enough to
       // reach the theme controls before the trap existed.
       for (let i = 0; i < 20; i += 1) {
         await page.keyboard.press('Tab');
-        const at = await focusInside(page, '[role="dialog"]');
+        const at = await focusInside(panel);
         expect(at.inside, `Tab ${i + 1} left the dialog and landed on ${at.label}`).toBe(true);
       }
     });
 
     test('Shift+Tab never leaves the dialog either', async ({ page }) => {
-      await open(page, surface.chip, surface.name);
+      const panel = await open(page, surface.chip, surface.name);
 
       // Backwards from the close button is the shortest route out: the close
       // button is first in the ring, so one Shift+Tab is the whole test.
       for (let i = 0; i < 8; i += 1) {
         await page.keyboard.press('Shift+Tab');
-        const at = await focusInside(page, '[role="dialog"]');
+        const at = await focusInside(panel);
         expect(at.inside, `Shift+Tab ${i + 1} left the dialog and landed on ${at.label}`).toBe(true);
       }
     });
@@ -72,8 +71,8 @@ for (const surface of [
       const before = await page.evaluate(() => document.activeElement?.className || '');
       expect(before).toBeDefined();
 
-      await open(page, surface.chip, surface.name);
-      const opened = await focusInside(page, '[role="dialog"]');
+      const panel = await open(page, surface.chip, surface.name);
+      const opened = await focusInside(panel);
       expect(opened.inside).toBe(true);
       expect(opened.label).toContain('health-close');
 
@@ -91,12 +90,30 @@ for (const surface of [
     test('the controls behind the scrim are not reachable by keyboard', async ({ page }) => {
       // The concrete leak that existed: the theme controls. Named explicitly
       // so a regression says what a user could have pressed.
-      await open(page, surface.chip, surface.name);
+      const panel = await open(page, surface.chip, surface.name);
+
+      const background = await panel.evaluate((dialog) => {
+        const selector = [
+          'a[href]', 'button:not(:disabled)', 'input:not(:disabled)',
+          'select:not(:disabled)', 'textarea:not(:disabled)', 'summary',
+          '[tabindex]:not([tabindex="-1"])'
+        ].join(',');
+        const controls = Array.from(document.querySelectorAll<HTMLElement>(selector))
+          .filter((element) => !dialog.contains(element) && element.offsetParent !== null);
+        return {
+          count: controls.length,
+          unprotected: controls
+            .filter((element) => !element.closest('[inert]'))
+            .map((element) => `${element.tagName.toLowerCase()}.${element.className}`)
+        };
+      });
+      expect(background.count, 'the test did not exercise any visible background control').toBeGreaterThan(0);
+      expect(background.unprotected, 'visible controls outside the modal were not inert').toEqual([]);
 
       const reached: string[] = [];
       for (let i = 0; i < 20; i += 1) {
         await page.keyboard.press('Tab');
-        const at = await focusInside(page, '[role="dialog"]');
+        const at = await focusInside(panel);
         if (!at.inside) reached.push(at.label);
       }
       expect(reached, `keyboard reached ${reached.length} controls behind an aria-modal dialog`).toEqual([]);

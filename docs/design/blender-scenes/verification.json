@@ -1,0 +1,133 @@
+{
+  "toolchain": "4.5.13 LTS",
+  "scope": "Offline Blender projects and still renders; no runtime/UI integration claim.",
+  "all_passed": true,
+  "scenes": [
+    {
+      "id": "porcelain",
+      "reopened": true,
+      "objects": 16,
+      "editable_meshes": 10,
+      "mesh_vertices_with_modifiers": 19588,
+      "materials": 4,
+      "lights": 4,
+      "camera": "Porcelain / hero",
+      "external_missing": [],
+      "resolution": [
+        1600,
+        1000
+      ],
+      "blend_bytes": 259317,
+      "render_bytes": 1608859,
+      "blend_sha256": "5afd4b59ab3bce85b85d507ce646dd245e068427a0f59fb792543d7b7f1d104f",
+      "render_sha256": "765ca1bb45d4f91f3793f2d806e7dba279ada0b1a2c4e59733381552861875da"
+    },
+    {
+      "id": "graphite",
+      "reopened": true,
+      "objects": 61,
+      "editable_meshes": 42,
+      "mesh_vertices_with_modifiers": 10316,
+      "materials": 6,
+      "lights": 5,
+      "camera": "Graphite / hero camera",
+      "external_missing": [],
+      "resolution": [
+        1600,
+        1000
+      ],
+      "blend_bytes": 170783,
+      "render_bytes": 1972891,
+      "blend_sha256": "286ea20561e52cc8e404438ace7e69bf4b434cb68e85696e50e784223657ac03",
+      "render_sha256": "698290ea6868a2c6bdce6c779338e9cd8066fcbfdbe7c3779f22abe62035a415"
+    },
+    {
+      "id": "daylight",
+      "reopened": true,
+      "objects": 29,
+      "editable_meshes": 25,
+      "mesh_vertices_with_modifiers": 2552,
+      "materials": 6,
+      "lights": 3,
+      "camera": "Spatial / architectural composition",
+      "external_missing": [],
+      "resolution": [
+        1600,
+        1000
+      ],
+      "blend_bytes": 130496,
+      "render_bytes": 1726835,
+      "blend_sha256": "ef256d11497147c789e4a1a97a64cf1b858ece14e86a8e5776dc63b0ec33164d",
+      "render_sha256": "eaaf431eb0fbcf509f22f81f33c43bdd365114482012ca3e503cf6000cb0d50c"
+    },
+    {
+      "id": "dusk",
+      "reopened": true,
+      "objects": 33,
+      "editable_meshes": 27,
+      "mesh_vertices_with_modifiers": 3186,
+      "materials": 8,
+      "lights": 4,
+      "camera": "Spatial / architectural composition",
+      "external_missing": [],
+      "resolution": [
+        1600,
+        1000
+      ],
+      "blend_bytes": 153885,
+      "render_bytes": 1710651,
+      "blend_sha256": "d9699700abfbeab1c601c61dfc27cf04e57b4e0b2f0eac0fd118d9c3c892d669",
+      "render_sha256": "94403bf4a00beff6e5064eec0760c35cf4397f1eae31d25d9d888048cbd7e8bf"
+    },
+    {
+      "id": "studio",
+      "reopened": true,
+      "objects": 317,
+      "editable_meshes": 32,
+      "mesh_vertices_with_modifiers": 6412,
+      "materials": 18,
+      "lights": 4,
+      "camera": "Spatial / architectural composition",
+      "external_missing": [],
+      "resolution": [
+        1600,
+        1000
+      ],
+      "blend_bytes": 171756,
+      "render_bytes": 1698273,
+      "blend_sha256": "c8cc4488484768407fb219deab0ad0aad9de1a5e134812c74a8143fe5079529d",
+      "render_sha256": "37982a3059b776d142fd73998575d740d5b9c35e2e8eb63b3a9110c50ac93a1b"
+    },
+    {
+      "id": "techno-forest",
+      "reopened": true,
+      "objects": 1089,
+      "editable_meshes": 160,
+      "mesh_vertices_with_modifiers": 50342,
+      "materials": 10,
+      "lights": 4,
+      "camera": "Forest / immersive trail camera",
+      "external_missing": [],
+      "resolution": [
+        1600,
+        1000
+      ],
+      "blend_bytes": 829068,
+      "render_bytes": 2399903,
+      "blend_sha256": "51bdba464232319b8703f1ec3605f7c3df1005f7caa9226688260bc3d69787a5",
+      "render_sha256": "d91db90d4e41773951c267e0990a3de5848b865d7cb870b2b00d4917414c7de8"
+    }
+  ],
+  "collection": {
+    "file": "blend/Daedalus-Scene-Collection.blend",
+    "scenes": 6,
+    "bytes": 1259360,
+    "sha256": "8ade39fdad14670f95432dc42bf6c1aa27f4ce97068f81e1f4109f2acf05321e"
+  },
+  "png_metadata": {
+    "policy": "Textual and EXIF chunks stripped; compressed IDAT pixel streams preserved byte-for-byte.",
+    "files_checked": 12,
+    "private_chunks": 0,
+    "private_absolute_paths": 0
+  }
+}

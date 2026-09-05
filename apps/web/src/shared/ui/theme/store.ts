@@ -1,4 +1,5 @@
 import { BUILT_INS, BUILT_IN_IDS, DEFAULT_THEME_ID, builtIn } from './presets';
+import { isSceneEnvironmentId } from '../scene/environments';
 import type { StoredTheme, ThemeSpec } from './types';
 
 /**
@@ -47,7 +48,7 @@ function repair(
 ): ThemeSpec {
   const pick = <T,>(group: string, key: string, fallback: T, kind: 'string' | 'number' | 'boolean'): T => {
     const g = raw[group];
-    if (isRecord(g) && typeof g[key] === kind) return g[key] as T;
+    if (isRecord(g) && typeof g[key] === kind && (kind !== 'number' || Number.isFinite(g[key]))) return g[key] as T;
     missing.push(`${group}.${key}`);
     return fallback;
   };
@@ -71,11 +72,42 @@ function repair(
   };
 
   const raw2 = raw;
+  // Optional controls must survive the same import/reload path as the original
+  // palette. Previously editing depth or voice looked saved but was discarded.
+  const optional = <T extends object>(group: string, fallback: T, keys: Array<keyof T>): Partial<T> => {
+    const values: Partial<T> = {};
+    const source = isRecord(raw[group]) ? raw[group] as Record<string, unknown> : {};
+    keys.forEach((key) => {
+      const value = source[String(key)];
+      const reference = fallback[key];
+      if ((typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))) &&
+          (reference === undefined || typeof value === typeof reference)) values[key] = value as T[keyof T];
+      else if (reference !== undefined) values[key] = reference;
+    });
+    return values;
+  };
   const colorKeys = Object.keys(base.colors) as Array<keyof ThemeSpec['colors']>;
   const colors = {} as ThemeSpec['colors'];
   colorKeys.forEach((k) => {
     colors[k] = pick('colors', k, base.colors[k], 'string');
   });
+  // The environment is not repaired from the base: a look saved before rooms
+  // existed stays roomless, and an id no registry knows is dropped and named in
+  // `problems` — the alternative is a broken picture behind everything.
+  const environment = (() => {
+    if (!isRecord(raw.scene) || raw.scene.environment === undefined || raw.scene.environment === null) return undefined;
+    if (isSceneEnvironmentId(raw.scene.environment)) return raw.scene.environment;
+    missing.push('scene.environment');
+    return undefined;
+  })();
+  const scene = isRecord(raw.scene)
+    ? {
+        enabled: pick('scene', 'enabled', base.scene?.enabled ?? true, 'boolean'),
+        intensity: Math.max(0, Math.min(1, pick('scene', 'intensity', base.scene?.intensity ?? 0.7, 'number'))),
+        speed: Math.max(0, Math.min(1, pick('scene', 'speed', base.scene?.speed ?? 0.5, 'number'))),
+        ...(environment ? { environment } : {})
+      }
+    : undefined;
 
   return {
     id: top('id', base.id, 'string'),
@@ -84,7 +116,12 @@ function repair(
     base: raw.base === 'light' || raw.base === 'dark' ? raw.base : base.base,
     origin: top('origin', base.origin, 'string'),
     colors,
+    ...Object.fromEntries(['warn', 'warnInk', 'heat', 'plane'].flatMap((key) => {
+      const value = raw[key] ?? base[key as keyof ThemeSpec];
+      return typeof value === 'string' ? [[key, value]] : [];
+    })),
     type: {
+      ...optional('type', base.type, ['voice', 'voiceWeight', 'labelWeight', 'labelTracking', 'datumWeight', 'datumTracking']),
       display: pick('type', 'display', base.type.display, 'string'),
       body: pick('type', 'body', base.type.body, 'string'),
       mono: pick('type', 'mono', base.type.mono, 'string'),
@@ -95,6 +132,7 @@ function repair(
       displaySerif: pick('type', 'displaySerif', base.type.displaySerif, 'boolean')
     },
     form: {
+      ...optional('form', base.form, ['elevationPane', 'elevationDrawer', 'elevationModal']),
       radius: pick('form', 'radius', base.form.radius, 'number'),
       border: pick('form', 'border', base.form.border, 'number'),
       unit: pick('form', 'unit', base.form.unit, 'number'),
@@ -104,6 +142,7 @@ function repair(
       alpha: pick('form', 'alpha', base.form.alpha, 'number')
     },
     stage: {
+      ...optional('stage', base.stage, ['parallax', 'depthFog', 'depthBlur']),
       layout: one('stage', 'layout', ['forest', 'stars', 'cards', 'arcs'] as const, base.stage.layout),
       glyph: one('stage', 'glyph', ['pearl', 'disc', 'star', 'card'] as const, base.stage.glyph),
       backboneOnly: pick('stage', 'backboneOnly', base.stage.backboneOnly, 'boolean'),
@@ -111,6 +150,7 @@ function repair(
       sizeByFanIn: pick('stage', 'sizeByFanIn', base.stage.sizeByFanIn, 'number'),
       glow: pick('stage', 'glow', base.stage.glow, 'number')
     },
+    ...(scene ? { scene } : {}),
     composition: {
       chrome: one('composition', 'chrome', ['bar', 'rail', 'masthead'] as const, base.composition.chrome),
       /**

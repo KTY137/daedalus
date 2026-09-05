@@ -14,8 +14,6 @@ import { NOT_BUILT } from './_app';
  * than only in a comment.
  */
 
-const LIVE = 'http://127.0.0.1:8765';
-
 /** The shape the real server returns. `installed` is a live find_spec result
  *  even on this shallow answer — it is not a placeholder. */
 function shallow(over: Record<string, unknown> = {}) {
@@ -371,7 +369,9 @@ test.describe('compute section', () => {
   test('the live backend answers the contract this section reads', async ({ page }) => {
     // No stub. If the real payload loses a field this section reads, or emits
     // a lane state with no German word, this goes red.
-    const response = await page.request.get(`${LIVE}/api/accelerators/status`);
+    // gui_check owns a dynamically allocated loopback port; the request
+    // fixture already carries that baseURL.
+    const response = await page.request.get('/api/accelerators/status');
     expect(response.ok(), 'the live accelerator endpoint did not answer').toBeTruthy();
     const snapshot = (await response.json()).accelerators;
     expect(snapshot.schema).toBe('daedalus-accelerators/1');

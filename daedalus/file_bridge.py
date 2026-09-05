@@ -1037,6 +1037,14 @@ def watch(default_repo_root: str | None, interval_s: float,
     )
     token = owner_token or uuid.uuid4().hex
     identity = process_identity or current_process_identity()
+    scheduled_tick = None
+    if default_repo_root:
+        from daedalus.kairos.scheduler import KairosScheduler
+        scheduler = KairosScheduler()
+        scheduled_tick = lambda: scheduler.dispatch_due_computer(
+            default_repo_root,
+            cancelled=stop_event.is_set if stop_event is not None else None,
+        )
     bridge_watcher.watch_loop(
         outbox=OUTBOX,
         inbox=INBOX,
@@ -1062,6 +1070,7 @@ def watch(default_repo_root: str | None, interval_s: float,
         now_epoch=time.time,
         now_iso=_now_iso,
         sleep=time.sleep,
+        scheduled_tick=scheduled_tick,
     )
 
 

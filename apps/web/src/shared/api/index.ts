@@ -1,4 +1,4 @@
-import type { ApiEnvelope, BootstrapPayload, ContextPlanPayload, ControlPlanePayload, DashboardPayload, DesktopStatusPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRegistration, ProjectRegistrationPayload, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TeamPayload, TopologyPayload } from '../contracts';
+import type { ApiEnvelope, BootstrapPayload, ContextPlanPayload, ControlPlanePayload, DashboardPayload, DesktopStatusPayload, DistillPayload, EffortLevel, FourfoldPayload, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRegistration, ProjectRegistrationPayload, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload, TeamPayload, TopologyPayload } from '../contracts';
 
 /**
  * Why a request failed, kept SEPARATE from the message.
@@ -110,6 +110,152 @@ export function createProject(registration: ProjectRegistration) {
   });
 }
 
+/** The owner-directed Genesis intake. It deliberately has no project field:
+ * a Genesis run starts with an explicit absent base repository and returns
+ * references to the canonical mission/candidate/evidence artifacts owned by
+ * the backend. `request_key` makes an ambiguous browser retry idempotent. */
+export interface GenesisRequest {
+  prompt: string;
+  target?: string;
+  stack?: string;
+  request_key: string;
+}
+
+export interface GenesisPreview {
+  kind?: string | null;
+  path?: string | null;
+  url?: string | null;
+  [key: string]: unknown;
+}
+
+export interface GenesisRun {
+  run_id: string;
+  request_key: string;
+  status: string;
+  target: unknown;
+  defaults: unknown;
+  blockers: unknown;
+  mission: unknown;
+  candidate: unknown;
+  evidence: unknown;
+  roundtrip: unknown;
+  preview: GenesisPreview | null;
+  artifacts: unknown;
+  [key: string]: unknown;
+}
+
+export interface GenesisPayload {
+  ok: boolean;
+  genesis: GenesisRun;
+  error?: string;
+}
+
+export function startGenesis(input: GenesisRequest) {
+  return request<GenesisPayload>('/api/genesis', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  }, 15 * 60_000);
+}
+
+/** One exact, repository-bound controlled-repair campaign. The browser can
+ * choose only the repair subject and exact replacement. Runtime, evaluator,
+ * budgets, commands and promotion authority remain backend-owned. */
+export interface AriadneRequest {
+  project: string;
+  source_revision: string;
+  campaign_id: string;
+  target_path: string;
+  before: string;
+  after: string;
+}
+
+export interface AriadneUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cost_microusd?: number;
+  wall_time_ms?: number;
+  est_input_tokens?: number;
+  [key: string]: unknown;
+}
+
+export interface AriadneTrial {
+  campaign_id: string;
+  seed: number;
+  stage: string;
+  status: string;
+  variant_id: string;
+  arm_role: string;
+  candidate_tree_sha256: string | null;
+  candidate_tree_locator: string | null;
+  evidence_packet_sha256: string | null;
+  evidence_packet_locator: string | null;
+  configured_budget_sha256: string | null;
+  metrics: Record<string, number>;
+  usage: AriadneUsage;
+  negative_outcomes: string[];
+  blockers: string[];
+  started_at: string;
+  finished_at: string;
+  [key: string]: unknown;
+}
+
+export interface AriadneBudgetEquality {
+  configured_budget_sha256: string;
+  trial_keys: string[];
+  trial_budget_sha256s: string[];
+  realized_usage_sha256s: string[];
+  configured_equal: boolean;
+  realized_usage_recorded: boolean;
+  within_budget: boolean;
+  [key: string]: unknown;
+}
+
+/** Canonical CampaignReceipt wire shape. The receipt nominates at most; it is
+ * neither an OwnerApproval nor a merge/promotion instruction. */
+export interface AriadneCampaignReceipt {
+  contract_type: 'daedalus.campaign-receipt';
+  contract_version: string;
+  campaign_id: string;
+  source_revision: string;
+  campaign_contract_sha256: string;
+  campaign_contract_locator: string;
+  experiment_spec_sha256: string;
+  experiment_spec_locator: string;
+  metric_names: string[];
+  trials: AriadneTrial[];
+  execution_order: number[];
+  outcome: 'nominated' | 'rejected' | 'failed' | 'cancelled';
+  selected_seed: number | null;
+  candidate_tree_sha256: string | null;
+  candidate_tree_locator: string | null;
+  nomination_receipt_sha256: string | null;
+  nomination_receipt_locator: string | null;
+  usage: AriadneUsage;
+  overhead_usage: AriadneUsage;
+  negative_outcomes: string[];
+  reproducibility_note: string;
+  blockers: string[];
+  started_at: string;
+  finished_at: string;
+  selection_mode: string;
+  selected_variant_id: string | null;
+  budget_equality: AriadneBudgetEquality | null;
+  provenance: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface AriadnePayload extends ApiEnvelope {
+  project: string;
+  ariadne: AriadneCampaignReceipt;
+}
+
+export function startAriadne(input: AriadneRequest) {
+  return request<AriadnePayload>('/api/ariadne', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  }, 15 * 60_000);
+}
+
 /** The desktop settings response is also the single measured service-status
  * snapshot. Source/dev servers may answer 404; callers must render that as
  * unavailable instead of inventing a running IDE. */
@@ -117,11 +263,31 @@ export function getDesktopStatus() {
   return request<DesktopStatusPayload>('/api/desktop/settings');
 }
 
-export function startDesktopIde(projectName: string) {
-  return request<DesktopStatusPayload>('/api/desktop/services/ide/start', {
+/**
+ * Settings owns a wider desktop document than the IDE status card. Keep the
+ * transport policy (failure classes and the 20s timeout) in this canonical
+ * client, while the Settings boundary validates the deliberately unknown
+ * response before it is allowed into React state.
+ */
+export function getDesktopSettingsDocument(): Promise<unknown> {
+  return request<unknown>('/api/desktop/settings');
+}
+
+export function putDesktopSettingsDocument(config: unknown): Promise<unknown> {
+  return request<unknown>('/api/desktop/settings', {
+    method: 'PUT',
+    body: JSON.stringify(config)
+  });
+}
+
+export function runDesktopServiceAction(
+  service: 'bridge' | 'ollama',
+  verb: 'start' | 'stop'
+): Promise<unknown> {
+  return request<unknown>(`/api/desktop/services/${service}/${verb}`, {
     method: 'POST',
-    body: JSON.stringify({ project: projectName })
-  }, 70_000);
+    body: '{}'
+  });
 }
 
 export function getDashboard(project: string) {
@@ -455,6 +621,8 @@ export interface ConversationTurn {
 /** One row of GET /api/conversations?project= — a thread, newest activity first. */
 export interface ConversationListRow {
   conversation_id: string;
+  /** Unbounded server proof; list rows are emitted only when this is bound. */
+  project_binding?: ConversationProjectBinding;
   turn_count: number;
   first_message: string;
   last_message: string;
@@ -464,9 +632,26 @@ export interface ConversationListRow {
   last_status?: string | null;
 }
 
+export type ConversationProjectBindingState =
+  | 'bound'
+  | 'missing'
+  | 'unscoped'
+  | 'mixed'
+  | 'corrupt';
+
+export interface ConversationProjectBinding {
+  state: ConversationProjectBindingState;
+  project: string | null;
+  /** All turn + generation rows inspected by the server, never the UI limit. */
+  row_count: number;
+}
+
 export interface ConversationView {
   conversation_id: string;
   exists: boolean;
+  /** Canonical unbounded server binding. Absent on an older backend: fail closed. */
+  project_binding?: ConversationProjectBinding;
+  quarantined?: boolean;
   turn_count: number;
   narrative?: string;
   turns: ConversationTurn[];
@@ -1436,6 +1621,21 @@ export function getStructure(
   if (refresh) q.set('refresh', '1');
   if (graphNodes !== undefined) q.set('graph_nodes', String(graphNodes));
   return request<StructurePayload>(`/api/structure?${q.toString()}`, undefined, 70_000);
+}
+
+/**
+ * Canonical legacy-Forest Fourfold read. The normal request is a balanced
+ * overview; `all` is the owner-explicit census and therefore carries no
+ * silent node cap.
+ */
+export function getFourfold(
+  project: string,
+  graphNodes: number | 'all' = 800,
+  refresh = false
+): Promise<FourfoldPayload> {
+  const q = new URLSearchParams({ project, graph_nodes: String(graphNodes) });
+  if (refresh) q.set('refresh', '1');
+  return request<FourfoldPayload>(`/api/fourfold?${q.toString()}`, undefined, 180_000);
 }
 
 /** Distill a target module/symbol down to a minimal review slice. */

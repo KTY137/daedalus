@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import platform
 import plistlib
+import re
 import stat
 import struct
 import sys
@@ -18,6 +19,13 @@ from collections import Counter
 from pathlib import Path
 
 REQUIRED_SUFFIXES = (".exe", ".AppImage", ".deb", ".dmg", ".app.tar.gz")
+RELEASE_ASSET_NAME_TEMPLATES = (
+    "Daedalus_{version}_x64-setup.exe",
+    "Daedalus_{version}_amd64.AppImage",
+    "Daedalus_{version}_amd64.deb",
+    "Daedalus_{version}_aarch64.dmg",
+    "Daedalus_{version}_aarch64.app.tar.gz",
+)
 MACOS_ARM64_TARGET = "aarch64-apple-darwin"
 _ARM64_CPU_TYPE = 0x0100000C
 _MACHO_64_HEADER = struct.Struct("<IiiIIIII")
@@ -316,16 +324,23 @@ def archive_macos_app(app_root: Path, archive_path: Path) -> Path:
     return archive_path
 
 
-def select_release_assets(root: Path) -> tuple[Path, ...]:
-    """Return one top-level asset per suffix, or refuse the artifact set."""
+def select_release_assets(root: Path, expected_version: str) -> tuple[Path, ...]:
+    """Return the exact version-bound five-asset desktop matrix."""
 
-    if not root.is_dir():
-        raise ValueError(f"desktop artifact directory does not exist: {root}")
-    assets = tuple(
-        path
-        for path in sorted(root.iterdir(), key=lambda candidate: candidate.name)
-        if path.is_file() and _asset_suffix(path) is not None
-    )
+    _require_directory_no_link(root, "desktop artifact directory")
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", expected_version):
+        raise ValueError(f"invalid desktop release version: {expected_version!r}")
+    admitted: list[Path] = []
+    for path in sorted(root.iterdir(), key=lambda candidate: candidate.name):
+        if _asset_suffix(path) is None:
+            continue
+        metadata = _lstat_no_link(path, "desktop release asset")
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError(f"desktop release asset is not a regular file: {path}")
+        if metadata.st_size <= 0:
+            raise ValueError(f"desktop release asset is empty: {path}")
+        admitted.append(path)
+    assets = tuple(admitted)
     counts = Counter(_asset_suffix(path) for path in assets)
     problems = [
         f"{suffix}: expected 1, found {counts.get(suffix, 0)}"
@@ -336,6 +351,19 @@ def select_release_assets(root: Path) -> tuple[Path, ...]:
     duplicates = sorted(name for name, count in names.items() if count > 1)
     if duplicates:
         problems.append("duplicate release-asset names: " + ", ".join(duplicates))
+    expected_names = {
+        template.format(version=expected_version)
+        for template in RELEASE_ASSET_NAME_TEMPLATES
+    }
+    observed_names = {path.name for path in assets}
+    missing_names = sorted(expected_names - observed_names)
+    unexpected_names = sorted(observed_names - expected_names)
+    if missing_names:
+        problems.append("missing version-bound assets: " + ", ".join(missing_names))
+    if unexpected_names:
+        problems.append(
+            "unexpected or wrong-version assets: " + ", ".join(unexpected_names)
+        )
     if problems:
         raise ValueError(
             "invalid validated desktop artifact set (" + "; ".join(problems) + ")"
@@ -363,7 +391,7 @@ def main(argv: list[str] | None = None) -> int:
     }:
         print(
             "usage: select_desktop_release_assets.py "
-            "{archive-macos-app APP_DIR OUTPUT|select ARTIFACT_DIR|"
+            "{archive-macos-app APP_DIR OUTPUT|select ARTIFACT_DIR VERSION|"
             "verify-macos-arm64 APP_DIR SIDECAR_DIR RUNNER_ARCH RUST_TARGET}",
             file=sys.stderr,
         )
@@ -381,8 +409,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             print("verified macOS arm64 bundle: " + ", ".join(map(str, verified)))
             return 0
-        if args[0] == "select" and len(args) == 2:
-            assets = select_release_assets(Path(args[1]))
+        if args[0] == "select" and len(args) == 3:
+            assets = select_release_assets(Path(args[1]), args[2])
         else:
             raise ValueError("invalid command arguments")
     except ValueError as exc:

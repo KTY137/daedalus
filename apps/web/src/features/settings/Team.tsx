@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { getHierarchy, updateTeam } from '@/shared/api';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ApiError, getHierarchy, updateTeam } from '@/shared/api';
 import type { HierarchyPayload, TeamPayload } from '@/shared/contracts';
 import {
   agentRowsFromPayload,
   ceilingFromPayload,
   draftFromPayload,
   lanesFromPayload,
+  sameAgentSet,
   teamChanged,
   teamPatch,
   FALLBACK_CEILING,
@@ -41,71 +42,392 @@ export interface TeamSettingsProps {
   ports?: TeamPorts;
 }
 
+interface DeferredSaveError {
+  detail: string;
+  outcomeUncertain: boolean;
+}
+
+interface PendingTeamReconcile {
+  baseline: TeamDraft;
+  submitted: TeamDraft;
+}
+
+class UnconfirmedTeamWriteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnconfirmedTeamWriteError';
+  }
+}
+
+function confirmedTeamSave(
+  result: TeamPayload,
+  requestedProject: string,
+  baseline: TeamDraft,
+  submitted: TeamDraft
+): { baseline: TeamDraft; draft: TeamDraft; ignored: string[]; retained: string[] } {
+  const raw = result as unknown as Record<string, unknown> | null;
+  const team = raw && typeof raw.team === 'object' && raw.team !== null && !Array.isArray(raw.team)
+    ? raw.team as Record<string, unknown>
+    : undefined;
+  const ignored = raw?.ignored_fields;
+  if (
+    !team
+    || raw?.project !== requestedProject
+    || !Number.isSafeInteger(team.max_workers)
+    || Number(team.max_workers) < 1
+    || typeof team.default_lane !== 'string'
+    || !team.default_lane
+    || !Array.isArray(team.active_agents)
+    || team.active_agents.some((name) => typeof name !== 'string' || !name)
+    || (ignored !== undefined && (
+      !Array.isArray(ignored)
+      || ignored.some((field) => typeof field !== 'string')
+    ))
+  ) {
+    throw new UnconfirmedTeamWriteError(
+      'Das Team-Backend bestätigte den gespeicherten Projektstand nicht vollständig.'
+    );
+  }
+  const confirmed: TeamDraft = {
+    maxWorkers: team.max_workers as number,
+    lane: team.default_lane,
+    agents: [...team.active_agents] as string[]
+  };
+  const ignoredFields = (ignored || []) as string[];
+  const confirmedOrIgnored = (
+    changed: boolean,
+    matches: boolean,
+    field: string
+  ) => !changed || matches || ignoredFields.includes(field);
+  if (
+    !confirmedOrIgnored(
+      submitted.maxWorkers !== baseline.maxWorkers,
+      confirmed.maxWorkers === submitted.maxWorkers,
+      'max_workers'
+    )
+    || !confirmedOrIgnored(
+      submitted.lane !== baseline.lane,
+      confirmed.lane === submitted.lane,
+      'default_lane'
+    )
+    || !confirmedOrIgnored(
+      !sameAgentSet(submitted.agents, baseline.agents),
+      sameAgentSet(confirmed.agents, submitted.agents),
+      'active_agents'
+    )
+  ) {
+    throw new UnconfirmedTeamWriteError(
+      'Das Team-Backend bestätigte die angeforderten Änderungen nicht.'
+    );
+  }
+  const retained: string[] = [];
+  if (
+    submitted.maxWorkers !== baseline.maxWorkers
+    && ignoredFields.includes('max_workers')
+  ) retained.push('max_workers');
+  if (
+    submitted.lane !== baseline.lane
+    && ignoredFields.includes('default_lane')
+  ) retained.push('default_lane');
+  if (
+    !sameAgentSet(submitted.agents, baseline.agents)
+    && ignoredFields.includes('active_agents')
+  ) retained.push('active_agents');
+
+  return {
+    baseline: confirmed,
+    draft: {
+      maxWorkers: retained.includes('max_workers') ? submitted.maxWorkers : confirmed.maxWorkers,
+      lane: retained.includes('default_lane') ? submitted.lane : confirmed.lane,
+      agents: retained.includes('active_agents')
+        ? [...submitted.agents]
+        : [...confirmed.agents]
+    },
+    ignored: ignoredFields,
+    retained
+  };
+}
+
+function canonicalTeamDraft(payload: HierarchyPayload, requestedProject: string): TeamDraft {
+  const raw = payload as unknown as Record<string, unknown> | null;
+  const nodes = raw?.nodes;
+  const projectNodes = Array.isArray(nodes)
+    ? nodes.filter((candidate) => {
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+        const node = candidate as Record<string, unknown>;
+        return node.type === 'project';
+      }) as Record<string, unknown>[]
+    : [];
+  const projectNode = projectNodes.length === 1 ? projectNodes[0] : undefined;
+  const projectData = projectNode
+    && typeof projectNode.data === 'object'
+    && projectNode.data !== null
+    && !Array.isArray(projectNode.data)
+      ? projectNode.data as Record<string, unknown>
+      : undefined;
+  if (
+    raw?.ok !== true
+    || raw.project !== requestedProject
+    || projectNode?.id !== `project:${requestedProject}`
+    || !projectData
+    || !Number.isSafeInteger(projectData.max_workers)
+    || Number(projectData.max_workers) < 1
+    || typeof projectData.default_lane !== 'string'
+    || !projectData.default_lane
+  ) {
+    throw new Error(
+      'Das Team-Backend lieferte keinen gültigen kanonischen Projektstand.'
+    );
+  }
+  return draftFromPayload(payload);
+}
+
+function writeOutcomeUncertain(error: unknown): boolean {
+  return (
+    error instanceof UnconfirmedTeamWriteError
+    || (
+      error instanceof ApiError && (
+        error.kind === 'network'
+        || error.kind === 'timeout'
+        || (error.kind === 'http' && error.status >= 500)
+      )
+    )
+  );
+}
+
+function deferredSaveMessage(issue: DeferredSaveError): string {
+  return issue.outcomeUncertain
+    ? `Der Ausgang eines vorherigen Speicherversuchs ist unklar. Der kanonische Serverstand wurde danach neu gelesen. ${issue.detail}`
+    : `Ein vorheriger Speicherversuch wurde abgelehnt: ${issue.detail}`;
+}
+
+function rebaseSubmittedTeamDraft(
+  pending: PendingTeamReconcile,
+  canonical: TeamDraft
+): TeamDraft {
+  return {
+    maxWorkers: pending.submitted.maxWorkers !== pending.baseline.maxWorkers
+      ? pending.submitted.maxWorkers
+      : canonical.maxWorkers,
+    lane: pending.submitted.lane !== pending.baseline.lane
+      ? pending.submitted.lane
+      : canonical.lane,
+    agents: !sameAgentSet(pending.submitted.agents, pending.baseline.agents)
+      ? [...pending.submitted.agents]
+      : [...canonical.agents]
+  };
+}
+
 export function TeamSettings({ project, enabled, ports = teamPorts }: TeamSettingsProps) {
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [lanes, setLanes] = useState<string[]>([]);
   const [ceiling, setCeiling] = useState(FALLBACK_CEILING);
   const [baseline, setBaseline] = useState<TeamDraft | undefined>();
   const [draft, setDraft] = useState<TeamDraft | undefined>();
+  const [draftProject, setDraftProject] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const loadRequest = useRef(0);
+  const saveRequest = useRef(0);
+  const activeSaveRequest = useRef(0);
+  const projectRef = useRef(project);
+  const draftProjectRef = useRef(draftProject);
+  const lastLoadProject = useRef('');
+  const observedProject = useRef(project);
+  const wasEnabled = useRef(false);
+  const deferredSaveErrors = useRef<Record<string, DeferredSaveError>>({});
+  const pendingReconciles = useRef<Record<string, PendingTeamReconcile>>({});
+
+  useLayoutEffect(() => {
+    if (projectRef.current !== project) {
+      projectRef.current = project;
+      loadRequest.current += 1;
+      saveRequest.current += 1;
+    }
+    draftProjectRef.current = draftProject;
+  }, [draftProject, project]);
 
   const load = useCallback(async () => {
     if (!project) return;
+    const requestedProject = project;
+    const request = ++loadRequest.current;
+    lastLoadProject.current = requestedProject;
+    if (draftProjectRef.current !== requestedProject) {
+      setBaseline(undefined);
+      setDraft(undefined);
+      setDraftProject('');
+    }
     setLoading(true);
     setError('');
     setNotice('');
     try {
-      const payload = await ports.load(project);
-      const next = draftFromPayload(payload);
+      const payload = await ports.load(requestedProject);
+      if (request !== loadRequest.current || projectRef.current !== requestedProject) return;
+      const next = canonicalTeamDraft(payload, requestedProject);
+      const pendingReconcile = pendingReconciles.current[requestedProject];
+      const nextDraft = pendingReconcile
+        ? rebaseSubmittedTeamDraft(pendingReconcile, next)
+        : next;
       setAgents(agentRowsFromPayload(payload));
-      setLanes(lanesFromPayload(payload, next.lane));
+      setLanes(lanesFromPayload(payload, nextDraft.lane));
       setCeiling(ceilingFromPayload(payload));
       setBaseline(next);
-      setDraft(next);
+      setDraft(nextDraft);
+      setDraftProject(requestedProject);
+      if (pendingReconcile) delete pendingReconciles.current[requestedProject];
+      const deferredSaveError = deferredSaveErrors.current[requestedProject];
+      if (deferredSaveError) {
+        delete deferredSaveErrors.current[requestedProject];
+        setError(deferredSaveMessage(deferredSaveError));
+      }
     } catch (e) {
+      if (request !== loadRequest.current || projectRef.current !== requestedProject) return;
       setBaseline(undefined);
       setDraft(undefined);
-      setError(e instanceof Error ? e.message : 'Die Team-Einstellungen konnten nicht gelesen werden.');
+      setDraftProject('');
+      const readError = e instanceof Error ? e.message : 'Die Team-Einstellungen konnten nicht gelesen werden.';
+      const deferredSaveError = deferredSaveErrors.current[requestedProject];
+      setError(
+        deferredSaveError?.outcomeUncertain
+          ? `Der Ausgang des Speicherversuchs ist unklar und der kanonische Serverstand konnte noch nicht bestätigt werden. ${deferredSaveError.detail} Lesen: ${readError}`
+          : readError
+      );
     } finally {
-      setLoading(false);
+      if (request === loadRequest.current && projectRef.current === requestedProject) setLoading(false);
     }
   }, [project, ports]);
 
-  useEffect(() => {
-    if (enabled) void load();
-  }, [enabled, load]);
+  const changed = Boolean(
+    draft
+    && baseline
+    && draftProject === project
+    && teamChanged(draft, baseline)
+  );
 
-  const changed = Boolean(draft && baseline && teamChanged(draft, baseline));
+  useEffect(() => {
+    const opened = enabled && !wasEnabled.current;
+    wasEnabled.current = enabled;
+    const projectChanged = observedProject.current !== project;
+    observedProject.current = project;
+    if (projectChanged) {
+      lastLoadProject.current = '';
+      setBaseline(undefined);
+      setDraft(undefined);
+      setDraftProject('');
+      setLoading(false);
+      setError('');
+      setNotice('');
+    }
+    if (!project) {
+      lastLoadProject.current = '';
+      setBaseline(undefined);
+      setDraft(undefined);
+      setDraftProject('');
+      setLoading(false);
+      setError('');
+      setNotice('');
+      return;
+    }
+    if (!enabled) return;
+    const projectNeedsLoad = lastLoadProject.current !== project;
+    if (projectNeedsLoad || (opened && !changed)) void load();
+  }, [changed, enabled, load, project]);
+
+  const maxWorkersValid = Boolean(
+    draft
+    && Number.isSafeInteger(draft.maxWorkers)
+    && draft.maxWorkers >= 1
+    && draft.maxWorkers <= ceiling
+  );
 
   const save = useCallback(async () => {
-    if (!draft || !baseline || !teamChanged(draft, baseline)) return;
+    if (
+      !draft
+      || !baseline
+      || draftProject !== project
+      || !maxWorkersValid
+      || !teamChanged(draft, baseline)
+      || saving
+      || activeSaveRequest.current !== 0
+    ) return;
+    const requestedProject = draftProject;
+    const request = ++saveRequest.current;
+    activeSaveRequest.current = request;
+    let reloadAfterSettle = false;
     setSaving(true);
     setError('');
     setNotice('');
     try {
-      const result = await ports.save(project, teamPatch(draft, baseline));
-      const saved: TeamDraft = {
-        maxWorkers: result.team.max_workers,
-        lane: result.team.default_lane,
-        agents: result.team.active_agents
-      };
-      setBaseline(saved);
-      setDraft(saved);
-      const ignored = result.ignored_fields || [];
-      setNotice(ignored.length ? `Gespeichert. Nicht übernommen: ${ignored.join(', ')}.` : 'Gespeichert.');
+      const result = await ports.save(requestedProject, teamPatch(draft, baseline));
+      if (request !== saveRequest.current || projectRef.current !== requestedProject) {
+        reloadAfterSettle = projectRef.current === requestedProject;
+        return;
+      }
+      const confirmed = confirmedTeamSave(
+        result,
+        requestedProject,
+        baseline,
+        draft
+      );
+      setBaseline(confirmed.baseline);
+      setDraft(confirmed.draft);
+      setDraftProject(requestedProject);
+      const ignored = confirmed.ignored;
+      setNotice(
+        confirmed.retained.length
+          ? `Nicht übernommen: ${confirmed.retained.join(', ')}. Der Entwurf bleibt zum erneuten Speichern erhalten.`
+          : ignored.length
+            ? `Gespeichert. Nicht übernommen: ${ignored.join(', ')}.`
+            : 'Gespeichert.'
+      );
     } catch (e) {
+      const detail = e instanceof Error ? e.message : 'Speichern fehlgeschlagen.';
+      const superseded = request !== saveRequest.current || projectRef.current !== requestedProject;
+      const outcomeUncertain = writeOutcomeUncertain(e);
+      if (superseded || outcomeUncertain) {
+        deferredSaveErrors.current[requestedProject] = { detail, outcomeUncertain };
+        if (outcomeUncertain) {
+          pendingReconciles.current[requestedProject] = {
+            baseline: { ...baseline, agents: [...baseline.agents] },
+            submitted: { ...draft, agents: [...draft.agents] }
+          };
+        }
+        reloadAfterSettle = true;
+        return;
+      }
       // save_team answers 400 with the field and the reason. Showing that
       // verbatim beats a generic failure line.
-      setError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen.');
+      setError(detail);
     } finally {
-      setSaving(false);
+      if (activeSaveRequest.current === request) {
+        try {
+          // A project round-trip or an ambiguous transport failure can leave
+          // the PUT effectful without a usable response. Keep the write lock
+          // until a same-project canonical read has settled; otherwise the
+          // user could discard or apply another draft against the old base.
+          if (reloadAfterSettle && projectRef.current === requestedProject) await load();
+        } finally {
+          if (activeSaveRequest.current === request) {
+            activeSaveRequest.current = 0;
+            setSaving(false);
+          }
+        }
+      }
     }
-  }, [draft, baseline, project, ports]);
+  }, [baseline, draft, draftProject, load, maxWorkersValid, ports, project, saving]);
+
+  const discard = useCallback(() => {
+    if (!baseline || draftProject !== project) return;
+    setDraft({ ...baseline, agents: [...baseline.agents] });
+    setError('');
+    setNotice('Nicht gespeicherte Team-Änderungen verworfen.');
+  }, [baseline, draftProject, project]);
 
   const toggleAgent = useCallback((name: string) => {
+    setError('');
+    setNotice('');
     setDraft((prev) =>
       prev
         ? {
@@ -127,9 +449,13 @@ export function TeamSettings({ project, enabled, ports = teamPorts }: TeamSettin
         hier sind sie zum ersten Mal wieder änderbar.
       </p>
 
+      {enabled && !project && (
+        <p className="settings-hint" role="status">Kein Projekt ausgewählt.</p>
+      )}
+
       {loading && !draft && <p className="settings-hint" role="status">Team wird gelesen …</p>}
 
-      {!loading && !draft && (
+      {project && !loading && !draft && (
         <div className="cap-load-state">
           <p className="settings-hint bad" role="alert">
             {error || 'Die Team-Einstellungen sind nicht verfügbar.'}
@@ -140,8 +466,8 @@ export function TeamSettings({ project, enabled, ports = teamPorts }: TeamSettin
         </div>
       )}
 
-      {draft && (
-        <div className="team-card" aria-busy={saving}>
+      {draft && draftProject === project && (
+        <fieldset className="team-card" disabled={loading || saving} aria-busy={loading || saving}>
           <label className="team-field">
             <span>Max. Worker</span>
             <input
@@ -149,17 +475,31 @@ export function TeamSettings({ project, enabled, ports = teamPorts }: TeamSettin
               min={1}
               max={ceiling}
               value={draft.maxWorkers}
-              aria-describedby="team-workers-hint"
-              onChange={(event) => setDraft({ ...draft, maxWorkers: Number(event.currentTarget.value) })}
+              aria-invalid={!maxWorkersValid}
+              aria-describedby={maxWorkersValid ? 'team-workers-hint' : 'team-workers-hint team-workers-error'}
+              onChange={(event) => {
+                setError('');
+                setNotice('');
+                setDraft({ ...draft, maxWorkers: Number(event.currentTarget.value) });
+              }}
             />
           </label>
           <p className="settings-hint" id="team-workers-hint">1 bis {ceiling}.</p>
+          {!maxWorkersValid && (
+            <p className="settings-hint bad" id="team-workers-error" role="alert">
+              Max. Worker muss eine ganze Zahl zwischen 1 und {ceiling} sein.
+            </p>
+          )}
 
           <label className="team-field">
             <span>Default-Lane</span>
             <select
               value={draft.lane}
-              onChange={(event) => setDraft({ ...draft, lane: event.currentTarget.value })}
+              onChange={(event) => {
+                setError('');
+                setNotice('');
+                setDraft({ ...draft, lane: event.currentTarget.value });
+              }}
             >
               {lanes.map((lane) => (
                 <option key={lane} value={lane}>{lane}</option>
@@ -198,6 +538,14 @@ export function TeamSettings({ project, enabled, ports = teamPorts }: TeamSettin
               type="button"
               className="settings-refresh"
               disabled={!changed || saving}
+              onClick={discard}
+            >
+              Verwerfen
+            </button>
+            <button
+              type="button"
+              className="settings-refresh"
+              disabled={!changed || !maxWorkersValid || saving}
               onClick={() => void save()}
             >
               {saving ? 'Wird gespeichert …' : 'Team speichern'}
@@ -207,7 +555,7 @@ export function TeamSettings({ project, enabled, ports = teamPorts }: TeamSettin
 
           {error && <p className="settings-hint bad" role="alert">{error}</p>}
           {notice && <p className="settings-hint" role="status">{notice}</p>}
-        </div>
+        </fieldset>
       )}
     </section>
   );

@@ -10,6 +10,13 @@
  * which `drawerVariants` does not animate.
  */
 
+.settings-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+  background: color-mix(in srgb, var(--room2) 52%, transparent);
+}
+
 .settings {
   position: fixed;
   top: 0;
@@ -91,27 +98,7 @@
 .settings-refresh:disabled { opacity: 0.5; cursor: default; }
 .settings-hint { color: var(--ink3); font-size: var(--fs-xs); margin-bottom: var(--u2); }
 .settings-hint.bad { color: var(--bad); }
-
-/* ------------------------------------------------------------- autonomy */
-
-.autonomy { display: grid; gap: var(--u1); }
-.autonomy button {
-  display: grid;
-  gap: 2px;
-  text-align: left;
-  padding: var(--u2);
-  min-height: 44px;
-  border: var(--border) solid var(--line2);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink2);
-  font: inherit;
-  cursor: pointer;
-}
-.autonomy button b { color: var(--ink); font-size: var(--fs-sm); }
-.autonomy button span { font-size: var(--fs-xs); color: var(--ink3); }
-.autonomy button.on { border-color: var(--accent); background: var(--surface2); }
-.autonomy button.on b { color: var(--accent); }
+.settings-hint.ok { color: var(--ok); }
 
 /* --------------------------------------------------------- execution caps */
 
@@ -318,7 +305,15 @@
 
 /* ------------------------------------------------ managed connections */
 
-.connection-stack { display: grid; gap: var(--u3); }
+.connection-stack {
+  display: grid;
+  gap: var(--u3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.connection-stack:disabled { opacity: 0.72; }
 .service-status {
   display: flex;
   align-items: flex-start;
@@ -391,6 +386,8 @@
 .remote-settings {
   display: grid;
   gap: var(--u2);
+  min-width: 0;
+  margin: 0;
   padding: var(--u3);
   border: var(--border) solid var(--line2);
   border-radius: var(--radius-sm);
@@ -407,6 +404,12 @@
   padding-top: var(--u1);
 }
 .settings-save-row .settings-hint { margin: 0; }
+.settings-action-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--u1); }
+.general-settings-actions {
+  margin-top: var(--u2);
+  padding-top: var(--u2);
+  border-top: var(--border) solid var(--line2);
+}
 .settings-primary {
   border-color: var(--accent) !important;
   color: var(--accent) !important;
@@ -421,6 +424,7 @@
   .cap-value-field { margin-left: 0; }
   .settings-save-row { align-items: stretch; flex-direction: column; }
   .settings-save-row button { width: 100%; }
+  .settings-action-buttons { display: grid; grid-template-columns: 1fr; }
 }
 
 /* -------------------------------------------------------- reachability */
@@ -461,21 +465,6 @@
   word-break: break-word;
 }
 .reach-detail .bad { color: var(--bad); }
-
-/* ------------------------------------------------------------ the log */
-
-.autolog { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--u2); }
-.autolog li {
-  display: grid;
-  gap: 1px;
-  border-left: 2px solid var(--line);
-  padding-left: var(--u2);
-  font-size: var(--fs-xs);
-}
-.autolog-when { color: var(--ink3); }
-.autolog-what { color: var(--ink); }
-.autolog-detail { color: var(--ink2); word-break: break-word; }
-.autolog-level { color: var(--ink3); }
 
 /* ------------------------------------------------------------------ team */
 

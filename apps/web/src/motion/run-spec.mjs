@@ -44,6 +44,7 @@ const SCAN_ROOTS = [
   path.resolve(here, '..', 'app'),
   path.resolve(here, '..', 'features'),
   path.resolve(here, '..', 'shared', 'ui', 'glass'),
+  path.resolve(here, '..', 'shared', 'ui', 'scene'),
   path.resolve(here, '..', 'shared', 'ui', 'theme')
 ];
 

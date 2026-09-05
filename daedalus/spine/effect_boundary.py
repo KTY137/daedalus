@@ -41,6 +41,9 @@ class Surface(str, Enum):
 
 
 class Effect(str, Enum):
+    # A mediated host tool operation. Its exact tool, arguments, workspace,
+    # application and network scope are bound by computer.tool_policy.
+    COMPUTER_USE = "computer_use"
     FILESYSTEM_WRITE = "filesystem_write"
     PROCESS_SPAWN = "process_spawn"
     PROCESS_CONTROL = "process_control"
@@ -142,6 +145,8 @@ class EffectStartRefused(EffectBoundaryError):
 # open a CENTRAL row.
 GUARD_CONTRACT_IMPLEMENTED: Mapping[str, bool] = MappingProxyType(
     {
+        "computer.tool_policy": True,
+        "computer.configuration": True,
         "budget.process_guard": True,
         "containment.attempt": True,
         "containment.worktree": True,
@@ -163,6 +168,62 @@ POLICY_CONTRACTS = frozenset(GUARD_CONTRACT_IMPLEMENTED)
 # blocker.  ABSENT records a required surface that does not exist (there is MCP
 # configuration inspection, but no Daedalus MCP runtime).
 ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
+    EntrypointSpec(
+        id="python.computer_context",
+        surface=Surface.PYTHON,
+        target="daedalus.orchestration.ikarus.computer_context:remember",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("computer.configuration",),
+        wiring=Wiring.CENTRAL,
+        notes="Owner product-memory facts on canonical spine; no research memory or model-callable policy editing.",
+    ),
+    EntrypointSpec(
+        id="python.computer_schedule",
+        surface=Surface.PYTHON,
+        target="daedalus.orchestration.ikarus.computer_schedule:schedule_computer",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard", "computer.configuration"),
+        wiring=Wiring.CENTRAL,
+        notes="Explicit owner scheduled computer objective, frozen policy and due time on canonical spine.",
+    ),
+    EntrypointSpec(
+        id="python.computer_dispatch_due",
+        surface=Surface.PYTHON,
+        target="daedalus.orchestration.ikarus.computer_schedule:dispatch_due_computer",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard", "computer.configuration"),
+        wiring=Wiring.CENTRAL,
+        notes="Claim due canonical schedule once; provider and computer effects retain their own inner admission.",
+    ),
+    EntrypointSpec(
+        id="python.ikarus_computer_configure",
+        surface=Surface.PYTHON,
+        target="daedalus.interfaces.computer_configuration:configure_computer",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard", "computer.configuration"),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.interfaces.computer_configuration:configure_computer", "begin_effect"),),
+        notes="Explicit owner policy update with current-digest binding; never a model-callable tool.",
+    ),
+    EntrypointSpec(
+        id="python.ikarus_computer_setup",
+        surface=Surface.PYTHON,
+        target="daedalus.runtimes.computer:setup_computer",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard", "computer.configuration"),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.runtimes.computer:setup_computer", "begin_effect"),),
+        notes="Explicit owner setup only; fixed isolated file workspace, no overwrite or stop-marker clearing. Not exposed as a model tool.",
+    ),
+    EntrypointSpec(
+        id="python.ikarus_computer",
+        surface=Surface.PYTHON,
+        target="daedalus.runtimes.computer:ComputerService.execute",
+        effects=(Effect.COMPUTER_USE,),
+        guard_contracts=("computer.tool_policy",),
+        wiring=Wiring.CENTRAL,
+        notes="Trusted host adapter; exact owner-scoped operation, durable lease and live kill check. Not candidate containment.",
+    ),
     EntrypointSpec(
         id="cli.daedalus",
         surface=Surface.CLI,
@@ -244,7 +305,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         ),
         notes=(
             "Each POST starts centrally after request auth; the recorded "
-            "decision names the bind class (loopback vs token-verified)."
+            "decision names the bind class (loopback vs token-verified). "
+            "Narrow effect owners authorize effectful operations reached by "
+            "the dispatcher; desktop service ownership is separately leased, "
+            "and remote SSH is unavailable in v0.1.6."
         ),
         migration="complete for the web.mutations entrypoint",
     ),
@@ -442,6 +506,156 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         migration="complete for the python.offload entrypoint",
     ),
     EntrypointSpec(
+        id="python.genesis_switch",
+        surface=Surface.PYTHON,
+        target="daedalus.orchestration.genesis.service:_ensure_genesis_switch",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.orchestration.genesis.service:_ensure_genesis_switch",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "An explicit owner-directed Genesis start may initialise the one "
+            "canonical repository kill-switch permit. It never uses force and "
+            "therefore cannot erase an operator's sticky stop marker. It also "
+            "takes the repository-local cross-process file lock shared only by "
+            "Genesis and Ariadne candidate execution, because Windows MIC is "
+            "not a per-workspace write allow-list. Legacy execution lanes are "
+            "outside this mutex. The row covers the control-root directory/probe, "
+            "lock and permit write before the python.genesis Effect Lease is "
+            "requested."
+        ),
+        migration="complete for the Genesis kill-switch initialisation seam",
+    ),
+    EntrypointSpec(
+        id="python.genesis",
+        surface=Surface.PYTHON,
+        target="daedalus.orchestration.genesis.service:run_genesis",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+        ),
+        guard_contracts=(
+            "provider.write_policy",
+            "budget.process_guard",
+            "containment.attempt",
+            "containment.worktree",
+        ),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.orchestration.genesis.service:run_genesis",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Genesis materializes a candidate only in its leased, checkout-external "
+            "Attempt workspace/CAS, then starts and stops bounded local build and "
+            "test processes under the same lease. Preview bytes are served later "
+            "by the existing Daedalus HTTP server; this entrypoint opens no socket "
+            "and declares no network, repository, spend, secret, or promotion effect."
+        ),
+        migration="complete for the python.genesis entrypoint",
+    ),
+    EntrypointSpec(
+        id="python.ariadne_campaign",
+        surface=Surface.PYTHON,
+        target="daedalus.ariadne.campaign:run_campaign",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+        ),
+        guard_contracts=(
+            "provider.write_policy",
+            "budget.process_guard",
+            "containment.attempt",
+            "containment.worktree",
+        ),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.ariadne.campaign:run_campaign", "begin_effect"),
+        ),
+        notes=(
+            "An explicitly started Ariadne V0 campaign freezes its task, "
+            "operator variants, evaluator and equal budgets before it creates "
+            "any canonical Attempt workspace or contained child process. Every "
+            "trial outcome is retained and the door can emit a nomination only; "
+            "it has no approval, merge, promotion, repository-mutation, egress, "
+            "spend, or secret authority."
+        ),
+        migration="complete for the bounded Ariadne V0 campaign entrypoint",
+    ),
+    EntrypointSpec(
+        id="python.desktop_switch",
+        surface=Surface.PYTHON,
+        target="daedalus.interfaces.desktop.effects:DesktopEffectOwner._ensure_switch",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.interfaces.desktop.effects:DesktopEffectOwner._ensure_switch",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Before either desktop settings persistence or loopback Ollama "
+            "observation requests its own Effect Lease, this helper verifies the "
+            "already operator-armed kill-switch control root. KillSwitch.read_state "
+            "creates and removes one bounded probe file and starts cmd/cat once per "
+            "process to prove cross-process visibility. The helper never arms, clears, "
+            "or stops the switch and owns no service-process authority."
+        ),
+        migration="complete for the desktop kill-switch verification seam",
+    ),
+    EntrypointSpec(
+        id="python.desktop_settings_persist",
+        surface=Surface.PYTHON,
+        target="daedalus.interfaces.desktop.effects:DesktopEffectOwner.save_settings",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("provider.write_policy", "budget.process_guard"),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.interfaces.desktop.effects:DesktopEffectOwner.save_settings",
+                "_authorize_settings",
+            ),
+        ),
+        notes=(
+            "After validation and widening consent, persists only the resolved "
+            "config directory, config/connections.json, and its PID-bound atomic "
+            "temp sibling under a durable lease. Service calls are separately "
+            "owned; remote SSH cannot be persisted in v0.1.6."
+        ),
+        migration="complete for desktop settings persistence",
+    ),
+    EntrypointSpec(
+        id="python.desktop_ollama_adopt",
+        surface=Surface.PYTHON,
+        target="daedalus.interfaces.desktop.effects:DesktopEffectOwner.start_ollama",
+        effects=(Effect.NETWORK_EGRESS,),
+        guard_contracts=("provider.egress_policy",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.interfaces.desktop.effects:DesktopEffectOwner.start_ollama",
+                "_begin_authorized",
+            ),
+        ),
+        notes=(
+            "Probes and adopts only the exact endpoint-derived loopback Ollama "
+            "lane. It starts no child, opens no listener, writes no path, and "
+            "owns no secrets or SSH authority."
+        ),
+        migration="complete for read-only local Ollama adoption",
+    ),
+    EntrypointSpec(
         id="python.promote_candidates",
         surface=Surface.PYTHON,
         target="daedalus.kairos.gated_writes:promote_candidates",
@@ -599,6 +813,28 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         migration="complete for the cli.enforce entrypoint",
     ),
     EntrypointSpec(
+        id="cli.council",
+        surface=Surface.CLI,
+        target="daedalus.interfaces.cli.entry:_council",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.interfaces.cli.entry:_council", "begin_effect"),),
+        notes=(
+            "Cross-vendor council subcommand: spawns vendor CLIs, egresses "
+            "the evidence, appends the hash-chained bus under runs/council/ "
+            "and is priced by the process guard; --dry-run also starts "
+            "at the boundary because the start must be unconditional."
+        ),
+        migration="complete for the cli.council entrypoint (G1-COUNCIL-01)",
+    ),
+    EntrypointSpec(
         id="cli.gui_lint",
         surface=Surface.CLI,
         target="daedalus.gui.lint:main",
@@ -648,6 +884,20 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "subcommand stays fail-open read-only inspection."
         ),
         migration="complete for the cli.shift entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.shift_compat",
+        surface=Surface.CLI,
+        target="daedalus.shift:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.shift:main", "begin_effect"),),
+        notes=(
+            "The python -m compatibility door admits start/note/end writes "
+            "independently; status remains fail-open read-only inspection."
+        ),
+        migration="complete for the cli.shift_compat entrypoint",
     ),
     EntrypointSpec(
         id="cli.structcore",
@@ -826,11 +1076,34 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         wiring=Wiring.CENTRAL,
         anchors=(GuardAnchor("daedalus.interfaces.http.web_api:main", "begin_effect"),),
         notes=(
-            "The listen socket starts centrally with the real _resolve_bind "
-            "verdict as its decision; a refused non-loopback bind still "
-            "refuses before the boundary is consulted."
+            "The HTTP listen socket starts centrally with the real _resolve_bind "
+            "verdict. Optional desktop bootstrap and cleanup are nested behind "
+            "their narrower desktop effect owners."
         ),
         migration="complete for the cli.web_api entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.desktop_sidecar",
+        surface=Surface.CLI,
+        target="daedalus.interfaces.desktop.sidecar:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.interfaces.desktop.sidecar:main", "begin_effect"),
+        ),
+        notes=(
+            "The frozen desktop executable creates its writable runtime, "
+            "verifies its kill-switch control root across a subprocess, and "
+            "loads the operator-owned .env before delegating to cli.web_api. "
+            "That bootstrap starts centrally; the web server and desktop "
+            "effect owners retain their narrower nested boundaries."
+        ),
+        migration="complete for the packaged desktop sidecar entrypoint",
     ),
     EntrypointSpec(
         id="web.mutations_put",
@@ -843,8 +1116,9 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             GuardAnchor("daedalus.interfaces.http.web_api:DaedalusHandler.do_PUT", "begin_effect"),
         ),
         notes=(
-            "Each PUT starts centrally after request auth, mirroring "
-            "web.mutations."
+            "Each PUT starts centrally after request auth. Desktop settings and "
+            "service adoption are nested behind exact durable effect owners; "
+            "remote SSH is unavailable in v0.1.6."
         ),
         migration="complete for the web.mutations_put entrypoint",
     ),
@@ -2604,6 +2878,30 @@ _LATE_DOOR_ROWS: tuple[EntrypointSpec, ...] = (
         ),
         migration="complete for the cli.ignition entrypoint",
     ),
+    EntrypointSpec(
+        id="cli.ariadne_campaign",
+        surface=Surface.CLI,
+        target="daedalus.ariadne.__main__:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.ariadne.__main__:main", "begin_effect"),
+        ),
+        notes=(
+            "Public bounded Ariadne campaign command. Its outer boundary is "
+            "first and installs the real process guard before argparse; the "
+            "inner python.ariadne_campaign lease separately owns exact write "
+            "policy, containment, durable starts, and per-attempt effects. "
+            "The command may nominate only and has no approval, merge, or "
+            "promotion authority."
+        ),
+        migration="complete for the cli.ariadne_campaign entrypoint",
+    ),
 )
 
 ENTRYPOINTS += _LATE_DOOR_ROWS
@@ -2647,6 +2945,30 @@ _PORTABLE_TOOL_ROWS: tuple[EntrypointSpec, ...] = (
         migration="complete for the desktop sidecar smoke entrypoint",
     ),
     EntrypointSpec(
+        id="tools.packaged_resources_smoke",
+        surface=Surface.CLI,
+        target="tools.smoke_packaged_resources:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.LISTEN_SOCKET,
+        ),
+        guard_contracts=("web.authenticated_bind", "budget.process_guard"),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "tools.smoke_packaged_resources:main",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Release-wheel smoke initialises one caller-supplied temporary "
+            "project, opens one ephemeral hard-coded loopback listener and "
+            "reads it back locally to verify packaged UI resources."
+        ),
+        migration="complete for the packaged-resource smoke entrypoint",
+    ),
+    EntrypointSpec(
         id="tools.codex_state_import",
         surface=Surface.CLI,
         target="tools.import_codex_state:main",
@@ -2679,6 +3001,27 @@ _PORTABLE_TOOL_ROWS: tuple[EntrypointSpec, ...] = (
             "temporary file and refuses overwrite or ambiguous app bundles."
         ),
         migration="complete for the desktop release-asset entrypoint",
+    ),
+    EntrypointSpec(
+        id="tools.scene_environments_build",
+        surface=Surface.CLI,
+        target="tools.build_scene_environments:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("tools.build_scene_environments:main", "begin_effect"),
+        ),
+        notes=(
+            "Design-asset build (G1-UI-12): reads the Blender renders under "
+            "docs/design/blender-scenes and rewrites the WebP images plus the "
+            "provenance manifest under apps/web/src/shared/ui/scene/"
+            "environments. FILESYSTEM_WRITE and nothing else -- no child "
+            "process, no network; --check only reads and compares digests. "
+            "The boundary is first so the read-only branch cannot hide the "
+            "effects the door can perform."
+        ),
+        migration="complete for the scene-environment asset build entrypoint",
     ),
 )
 

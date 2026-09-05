@@ -52,14 +52,14 @@ from .foundation.projects import resolve_repo_root
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _git(repo_root: str, args: list[str]) -> str:
+def _git(repo_root: str, args: list[str], *, timeout_s: float = 30.0) -> str:
     completed = subprocess.run(
         ["git", *args],
         cwd=repo_root,
         text=True,
         capture_output=True,
         check=False,
-        timeout=30,
+        timeout=timeout_s,
     )
     if completed.returncode != 0:
         return completed.stderr.strip()
@@ -82,7 +82,11 @@ def _count_open_todos(events: list[dict[str, Any]]) -> int:
     return len(open_keys - done_keys)
 
 
-def collect_status(repo_root: str) -> dict[str, Any]:
+def collect_status(
+    repo_root: str,
+    *,
+    git_timeout_s: float = 30.0,
+) -> dict[str, Any]:
     """The six counters, unchanged.
 
     KEPT VERBATIM ON PURPOSE. ``daedalus.core`` feeds this to the web API and
@@ -93,8 +97,10 @@ def collect_status(repo_root: str) -> dict[str, Any]:
     events = load_events()
     return {
         "repo_root": repo_root,
-        "git_branch": _git(repo_root, ["branch", "--show-current"]),
-        "git_status": _git(repo_root, ["status", "--short"]),
+        "git_branch": _git(
+            repo_root, ["branch", "--show-current"], timeout_s=git_timeout_s),
+        "git_status": _git(
+            repo_root, ["status", "--short"], timeout_s=git_timeout_s),
         "outbox_count": len(list(OUTBOX.glob("*.json"))) if OUTBOX.exists() else 0,
         "inbox_count": len(list(INBOX.glob("*.report.json"))) if INBOX.exists() else 0,
         "memory_events": len(events),

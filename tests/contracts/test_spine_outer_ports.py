@@ -38,9 +38,10 @@ WHAT THIS FILE DELIBERATELY DOES NOT DO
 ---------------------------------------
 It does not copy ``tests/kernel/test_fourfold_evidence_outer_ports.py``'s
 blanket ban on function-scope imports. That guard is correct for
-``daedalus/twin``, which has none. ``daedalus/spine`` has 34, and they are
+``daedalus/twin``, which has none. ``daedalus/spine`` has 39, and they are
 load-bearing: ``bootstrap`` -> ``picker``, ``picker`` -> ``attempt``,
-``containment`` -> ``cancel`` and the ``main`` entrypoints' budget/effect
+the platform containment backends -> ``cancel`` and the ``main`` entrypoints'
+budget/effect
 imports are cycle-avoidance inside one layer, not layering debt. A blanket ban
 would go red on legitimate edges, so it is not adopted and not baselined; the
 owning shape is the static rule, which already sees every scope.
@@ -138,7 +139,7 @@ MOVED_BINDINGS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 #: invariant -- a later packet may legitimately add or remove a deferred import
 #: inside the layer. What must not change silently is that this number is
 #: non-zero while a cold-import test is offered as evidence about the layer.
-SPINE_DEFERRED_DAEDALUS_IMPORTS = 34
+SPINE_DEFERRED_DAEDALUS_IMPORTS = 39
 
 
 def _tracked_spine_files() -> tuple[Path, ...]:

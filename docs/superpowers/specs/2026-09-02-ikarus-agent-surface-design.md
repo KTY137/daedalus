@@ -45,7 +45,9 @@ of this surface and the one place the design spends its boldness.
 - The cockpit is a read surface over the canonical kernel. The single
   effectful transition in the conversation stays
   `POST /api/conversations/{id}/turns`; dispatch stays `POST /api/queue`
-  behind the existing confirmation/autonomy rule.
+  behind an explicit confirmation or visible `Loslegen` action. The earlier
+  browser-local automatic-dispatch preference was retired for v0.1.6 because
+  presentation state must not become orchestration authority.
 
 ## 3. Assumptions (stated, not asked)
 

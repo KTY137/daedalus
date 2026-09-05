@@ -17,6 +17,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, ClassVar, Mapping, Sequence
 
+from daedalus.atomic import replace_with_retry
 from daedalus.kernel.artifacts import ArtifactRef, artifact_locator
 from daedalus.kernel.contracts.base import (
     CanonicalContract,
@@ -212,6 +213,17 @@ class SourceTreeManifest(CanonicalContract):
             raise ValueError(
                 "ignored_roots must retain mandatory exclusions: " + ", ".join(missing)
             )
+        ignored_casefold = {item.casefold() for item in ignored}
+        ignored_entries = tuple(
+            path
+            for path in paths
+            if path.split("/", 1)[0].casefold() in ignored_casefold
+        )
+        if ignored_entries:
+            raise ValueError(
+                "source tree entries must not live under ignored roots: "
+                + ", ".join(ignored_entries)
+            )
         object.__setattr__(self, "ignored_roots", ignored)
 
         if not isinstance(self.provenance, ContractProvenance):
@@ -269,6 +281,37 @@ class SourceTreeStore:
         self.objects.mkdir(parents=True, exist_ok=True)
         if self.objects.is_symlink():
             raise SourceTreeStoreError("source-tree object root must not be a symlink")
+
+    @classmethod
+    def open_existing(cls, root: str | os.PathLike[str]) -> "SourceTreeStore":
+        """Open an already provisioned CAS without a filesystem write.
+
+        The ordinary constructor is the canonical provisioning seam and calls
+        ``mkdir(exist_ok=True)`` for both roots.  A status, replay, or preview
+        read must not cross that effect merely because the directories are
+        expected to exist.  This constructor verifies the same anti-symlink
+        shape and refuses an absent store instead of creating one.
+
+        The returned object intentionally retains the normal store API; this
+        is an effect-free open operation, not a second artifact authority.
+        Callers remain responsible for using only read methods.
+        """
+
+        raw = Path(root)
+        if raw.is_symlink() or not raw.is_dir():
+            raise SourceTreeStoreError(
+                "existing source-tree store root must be a real directory"
+            )
+        resolved = raw.resolve(strict=True)
+        objects = resolved / "objects"
+        if objects.is_symlink() or not objects.is_dir():
+            raise SourceTreeStoreError(
+                "existing source-tree object root must be a real directory"
+            )
+        store = object.__new__(cls)
+        store.root = resolved
+        store.objects = objects.resolve(strict=True)
+        return store
 
     @staticmethod
     def _open_flags() -> int:
@@ -675,7 +718,7 @@ class SourceTreeStore:
                     stream.flush()
                     os.fsync(stream.fileno())
                 output.chmod(0o755 if entry.executable else 0o644)
-            os.replace(staging, target)
+            replace_with_retry(staging, target)
             self._fsync_directory(target.parent)
         except BaseException:
             shutil.rmtree(staging, ignore_errors=True)

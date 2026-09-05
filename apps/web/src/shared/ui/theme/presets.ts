@@ -518,9 +518,152 @@ export const BUILT_INS: ThemeSpec[] = [
   }
 ];
 
+// Spatial collection. Previous references remain selectable and read-only;
+// shared shell copy and navigation affordances intentionally span all themes.
+const liquid: ThemeSpec = {
+  ...structuredClone(BUILT_INS[0]),
+  id: 'liquid', name: 'Liquid Glass', origin: 'spatial-2026-09-05',
+  note: 'Kühles Glas. Sanftes Licht. Raum für deine Ideen.',
+  colors: {
+    ...BUILT_INS[0].colors,
+    room: '#151c32', room2: '#080c17',
+    surface: 'rgba(170,190,240,.055)', surface2: 'rgba(190,205,250,.075)',
+    ink: '#f3f5ff', ink2: '#c0c9df', ink3: '#929eb9',
+    line: 'rgba(202,217,255,.16)', line2: 'rgba(202,217,255,.08)',
+    accent: '#a5b8ff', accentInk: '#101b42',
+    node: '#dce5ff', node2: '#7f92bd', edge: 'rgba(173,195,255,.15)', edgeHot: '#a5b8ff'
+  },
+  type: { ...BUILT_INS[0].type, size: 14, scale: 1.2, displayWeight: 550, displayTracking: -.035 },
+  form: { radius: 20, border: 1, unit: 8, elevation: 2, elevationPane: 2, elevationDrawer: 3, elevationModal: 4, material: 'glass', blur: 28, alpha: .62 },
+  stage: { ...BUILT_INS[0].stage, layout: 'forest', glyph: 'pearl', backboneOnly: true, glow: .35, parallax: .65, depthFog: .25, depthBlur: 1.2 },
+  scene: { enabled: true, intensity: .8, speed: .5 }
+};
+BUILT_INS.unshift(liquid, {
+  ...structuredClone(liquid), id: 'frost', name: 'Frost', base: 'light',
+  note: 'Perlmutt, Tageslicht und ein Hauch von Blau.',
+  colors: {
+    ...liquid.colors, room: '#e5eaf4', room2: '#f5f7fc',
+    surface: 'rgba(255,255,255,.5)', surface2: 'rgba(255,255,255,.68)',
+    ink: '#1c2943', ink2: '#455574', ink3: '#566580',
+    line: 'rgba(66,88,132,.2)', line2: 'rgba(66,88,132,.1)',
+    accent: '#3859bf', accentInk: '#ffffff',
+    node: '#496cbe', node2: '#7082a7', edge: 'rgba(66,88,132,.18)', edgeHot: '#3859bf',
+    live: '#906318', bad: '#b72e48', ok: '#1b7656'
+  },
+  warn: '#886414', warnInk: '#ffffff', heat: '#ddd5c9, #c4a16d, #a47735, #855824, #674115',
+  plane: '#a64d4b, #4b7836, #286e94, #7d4b9b',
+  scene: { enabled: true, intensity: .65, speed: .35 }
+}, {
+  ...structuredClone(liquid), id: 'dusk', name: 'Dusk',
+  note: 'Warmes Abendlicht auf rauchigem Glas.',
+  colors: { ...liquid.colors, room: '#291c31', room2: '#130e1a', accent: '#edb4ce', accentInk: '#361829', node: '#f3d9e8', node2: '#b08caa', edgeHot: '#edb4ce' },
+  scene: { enabled: true, intensity: .75, speed: .3 }
+});
+
+// Room collection (G1-UI-13). One look per Blender room from G1-UI-11: the
+// palette is read off the render (mean, darkest and brightest tenth), the
+// sculpture is off because the room is the picture, and the glass is a touch
+// lighter than Liquid so the room shows through the panels. The three image
+// directions the owner was asked to choose between (Porcelain, Graphite,
+// Spatial) are therefore switchable live instead of compared on stills.
+const roomForm: ThemeSpec['form'] = { ...liquid.form, blur: 26, alpha: 0.58 };
+const roomSceneOf = (environment: NonNullable<ThemeSpec['scene']>['environment']): NonNullable<ThemeSpec['scene']> =>
+  ({ enabled: false, intensity: 0.85, speed: 0.35, environment });
+const frost = BUILT_INS[1];
+const darkRoom = (
+  spec: Pick<ThemeSpec, 'id' | 'name' | 'note'> & { colors: Partial<ThemeSpec['colors']>; environment: NonNullable<NonNullable<ThemeSpec['scene']>['environment']> }
+): ThemeSpec => ({
+  ...structuredClone(liquid),
+  id: spec.id, name: spec.name, note: spec.note, origin: 'rooms-2026-09-05',
+  colors: { ...liquid.colors, ...spec.colors },
+  form: { ...roomForm },
+  scene: roomSceneOf(spec.environment)
+});
+const lightRoom = (
+  spec: Pick<ThemeSpec, 'id' | 'name' | 'note'> & { colors: Partial<ThemeSpec['colors']>; environment: NonNullable<NonNullable<ThemeSpec['scene']>['environment']> }
+): ThemeSpec => ({
+  ...structuredClone(frost),
+  id: spec.id, name: spec.name, note: spec.note, origin: 'rooms-2026-09-05',
+  colors: { ...frost.colors, ...spec.colors },
+  form: { ...roomForm },
+  scene: roomSceneOf(spec.environment)
+});
+
+BUILT_INS.unshift(
+  lightRoom({
+    id: 'room-porcelain', name: 'Porcelain', note: 'Ein Band aus Glas im hellen Studio.', environment: 'porcelain',
+    colors: {
+      room: '#e4e7e6', room2: '#f4f5f5',
+      surface: 'rgba(255,255,255,.52)', surface2: 'rgba(255,255,255,.7)',
+      ink: '#1d2530', ink2: '#48546a', ink3: '#5d687c',
+      line: 'rgba(52,70,102,.2)', line2: 'rgba(52,70,102,.1)',
+      accent: '#4a6fb3', accentInk: '#ffffff',
+      node: '#4a6fb3', node2: '#7a879d', edge: 'rgba(52,70,102,.18)', edgeHot: '#4a6fb3'
+    }
+  }),
+  darkRoom({
+    id: 'room-graphite', name: 'Graphite Atelier', note: 'Rauchglas, Titan und Lichtkontakte.', environment: 'graphite',
+    colors: {
+      room: '#1d2936', room2: '#0a1119',
+      surface: 'rgba(176,196,226,.06)', surface2: 'rgba(190,206,236,.09)',
+      ink: '#eef2f7', ink2: '#bcc7d6', ink3: '#8d9bb0',
+      line: 'rgba(196,212,240,.17)', line2: 'rgba(196,212,240,.08)',
+      accent: '#9fb8dc', accentInk: '#0d1b2c',
+      node: '#dbe5f4', node2: '#7e90ab', edge: 'rgba(176,196,226,.16)', edgeHot: '#9fb8dc'
+    }
+  }),
+  lightRoom({
+    id: 'room-daylight', name: 'Spatial Daylight', note: 'Steinbogen, Meer und Morgenlicht.', environment: 'daylight',
+    colors: {
+      room: '#e8e5df', room2: '#f5f3ee',
+      surface: 'rgba(255,255,255,.5)', surface2: 'rgba(255,255,255,.68)',
+      ink: '#1f2a36', ink2: '#4a5768', ink3: '#5f6b7b',
+      line: 'rgba(60,80,104,.2)', line2: 'rgba(60,80,104,.1)',
+      accent: '#3d6f9e', accentInk: '#ffffff',
+      node: '#3d6f9e', node2: '#7f8b98', edge: 'rgba(60,80,104,.18)', edgeHot: '#3d6f9e'
+    }
+  }),
+  darkRoom({
+    id: 'room-dusk', name: 'Spatial Dusk', note: 'Abendhimmel und Amberlicht am Bogen.', environment: 'dusk',
+    colors: {
+      room: '#3a2b30', room2: '#1b1317',
+      surface: 'rgba(236,200,180,.07)', surface2: 'rgba(240,208,190,.1)',
+      ink: '#f7ece4', ink2: '#d5c3b8', ink3: '#a8968c',
+      line: 'rgba(240,214,196,.18)', line2: 'rgba(240,214,196,.09)',
+      accent: '#e9a878', accentInk: '#2a1810',
+      node: '#f3ddcc', node2: '#a98a7d', edge: 'rgba(236,200,180,.16)', edgeHot: '#e9a878'
+    }
+  }),
+  lightRoom({
+    id: 'room-studio', name: 'Spatial Studio', note: 'Gestaffelte Galerie mit Olivenbäumen.', environment: 'studio',
+    colors: {
+      room: '#dadde0', room2: '#edeff1',
+      surface: 'rgba(255,255,255,.5)', surface2: 'rgba(255,255,255,.68)',
+      ink: '#1f272d', ink2: '#4a545c', ink3: '#5f6970',
+      line: 'rgba(56,72,80,.2)', line2: 'rgba(56,72,80,.1)',
+      accent: '#5b7a52', accentInk: '#ffffff',
+      node: '#5b7a52', node2: '#7f8a90', edge: 'rgba(56,72,80,.18)', edgeHot: '#5b7a52'
+    }
+  }),
+  darkRoom({
+    id: 'room-forest', name: 'Techno Forest', note: 'Lichtfasern zwischen Bäumen im Nebel.', environment: 'techno-forest',
+    colors: {
+      room: '#1f3d47', room2: '#0c1e25',
+      surface: 'rgba(170,214,222,.06)', surface2: 'rgba(180,222,230,.09)',
+      ink: '#e9f4f5', ink2: '#b9d0d4', ink3: '#87a4aa',
+      line: 'rgba(190,230,236,.17)', line2: 'rgba(190,230,236,.08)',
+      accent: '#7fe3d8', accentInk: '#062a2b',
+      node: '#d6f0f2', node2: '#7ea3aa', edge: 'rgba(170,214,222,.16)', edgeHot: '#7fe3d8'
+    }
+  })
+);
+
 export const BUILT_IN_IDS = new Set(BUILT_INS.map((t) => t.id));
 
-export const DEFAULT_THEME_ID = 'referenz';
+// New installations open in a room; a saved selection is never overridden
+// (theme/store.ts reads the stored id first). The owner's rejected Liquid
+// Glass stays selectable as a reference.
+export const DEFAULT_THEME_ID = 'room-graphite';
 
 export function builtIn(id: string): ThemeSpec | undefined {
   return BUILT_INS.find((t) => t.id === id);

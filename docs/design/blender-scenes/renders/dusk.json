@@ -1,0 +1,24 @@
+{
+  "scene": "dusk",
+  "title": "Spatial Dusk",
+  "blender": "4.5.13 LTS",
+  "objects": 33,
+  "meshes": 27,
+  "vertices_base": 888,
+  "materials": 8,
+  "cameras": 1,
+  "devices": [
+    "NVIDIA GeForce MX330"
+  ],
+  "resolution": [
+    1600,
+    1000
+  ],
+  "samples_max": 64,
+  "seed": 20260905,
+  "build_seconds": 1.27,
+  "total_seconds": 66.7,
+  "blend": "blend\\dusk.blend",
+  "render": "renders\\dusk.png",
+  "render_completed": true
+}
