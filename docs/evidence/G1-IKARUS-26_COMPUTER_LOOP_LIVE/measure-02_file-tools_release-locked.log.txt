@@ -1,0 +1,9 @@
+policy before: d73541b301da87b1bf8d368158826f317d6f8f043440e8978fd32a587b97afd0 | tools: () | provider: ollama_http
+configured: {'ok': True, 'policy_sha256': 'd8c8cd75acb13856df96334f041c95e31136b0e117eefb753d9007bd89fc3c4d'}
+policy after: d8c8cd75acb13856df96334f041c95e31136b0e117eefb753d9007bd89fc3c4d | tools: ('file.list', 'file.read', 'file.write', 'file.mkdir') | model: qwen2.5-coder:7b
+state: unavailable | ok: False | tool_steps: 0 | planner_calls: 0 | replans: 0 | repair_calls: 0 | elapsed_s: 0.0
+summary: Computer assistance needs an owner-configured computer policy.
+planner_summary: 
+workspace files: []
+notes.txt: absent
+EXIT 0

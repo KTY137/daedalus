@@ -159,6 +159,10 @@ class ComputerService:
         for tool in self._policy.tools:
             projected = _release_tool_spec(tool)
             if projected is None:
+                # Reported, not dropped: a configured policy whose every tool is
+                # release-locked was indistinguishable from no policy at all
+                # (measured 2026-09-05, mission computer-loop-measure-02).
+                unavailable[tool] = PATH_IO_RELEASE_REFUSAL
                 continue
             reason = _release_unavailable_reason(self._policy, tool)
             if reason:

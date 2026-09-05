@@ -62,7 +62,7 @@ Retained under `docs/evidence/G1-EDA-HOST-STATUS-01/fixture/results.json` (user-
 
 For the owner's Vivado/Vitis goal, the honest state is: read-only XPR inspection, effect-free planning, report parsing and a Vivado project runner exist in the tree (see `docs/chip-design/README.md`), but on this developer machine no vendor toolchain is installed, so every live phase is `blocked_external` by construction. A live Vivado receipt needs a host with Vivado; nothing here claims one. Vitis/HLS is planned in amendment 013 as `G1-HW-04` on top of the existing slice.
 
-## Scope and boundaries
+## Scope
 
 Measurement only. Out of scope: installing toolchains, any change to the chip-design modules, KiCad.
 

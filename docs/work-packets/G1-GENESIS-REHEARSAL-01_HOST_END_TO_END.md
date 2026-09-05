@@ -93,7 +93,7 @@ Same clone, fresh control root, request keys `loop-genesis-rehearsal-03-<target>
 
 Reading: every target the Gate-1 Genesis strand advertises is reachable on this host through the production path, the two PWA targets carry their honest labelling as blockers in the result, the inadmissible target/blueprint pair refuses before any effect, and the Python-stdlib CLI product passes its black-box gate. Gate wall times vary by a factor of about two between runs of the same blueprint (web 463 ms build versus desktop 1780 ms), which is host noise on a shared machine, not a property of the target; no run approached a ceiling.
 
-## Scope and boundaries
+## Scope
 
 In scope: one measured run and its retained evidence. Out of scope: any code change, browser end-to-end, the source-download flow, publication, and any claim beyond product availability on this host. Gate-3/Gate-5 obligations are untouched.
 

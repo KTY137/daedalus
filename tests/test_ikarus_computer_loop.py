@@ -15,15 +15,17 @@ from daedalus.spine.durability import open_gate0_spine_writer
 class Service:
     policy_digest = "a" * 64
 
-    def __init__(self, *, enabled=True, result=None, max_steps=4):
+    def __init__(self, *, enabled=True, result=None, max_steps=4, unavailable=None):
         self.calls = []
         self.enabled = enabled
+        self.unavailable = dict(unavailable or {})
         self.result = result or {"ok": True, "state": "verified", "result": {"text": "fixture"}, "evidence": {"digest": "b" * 64}}
         self.max_steps = max_steps
         self.stopped = False
 
     def capabilities(self):
         return {"enabled": self.enabled, "tools": [{"name": "file.read", "description": "Read a permitted file", "parameters": {}}],
+                "unavailable": dict(self.unavailable),
                 "max_steps": self.max_steps, "timeout_s": 10, "planner_provider": "ollama_http"}
 
     def check_cancelled(self):
@@ -310,3 +312,86 @@ def test_stream_cancellation_reaches_inflight_computer_planner(isolated):
     assert not worker.is_alive()
     assert not service.calls
     assert not results
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-26: what the live 2026-09-05 measurement found (missions computer-loop-measure-02/03)
+# --------------------------------------------------------------------------
+
+PLAN = {"type": "plan", "steps": ["Read the page and report the title.", "Observe the current browser DOM again."]}
+PLAN_OTHER = {"type": "plan", "steps": ["Read the page and report the title."]}
+RELEASE_LOCK = "workspace path tools are disabled in v0.1.6 until handle-relative, reparse-safe I/O is independently verified"
+
+
+def _unbounded(monkeypatch):
+    """The owner's Revision-10 master option: every Daedalus-owned cap axis disabled."""
+    from daedalus.kernel.policy.limits import ExecutionLimitPolicy, store_in_env
+
+    env = {}
+    store_in_env(ExecutionLimitPolicy(mode="unbounded_execution"), env)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+
+def test_release_locked_policy_is_reported_as_locked_not_as_missing(isolated):
+    """Mission computer-loop-measure-02: a configured policy whose every tool was
+    release-locked was reported as if no policy existed."""
+    root, ledger = isolated
+    locked = Service(enabled=False, unavailable={"file.read": RELEASE_LOCK, "file.write": RELEASE_LOCK})
+    result = loop.run_computer_task(root, "Read fixture", service=locked, ledger=ledger, propose=planner())
+    assert result["state"] == "unavailable"
+    assert "every configured tool is unavailable" in result["summary"]
+    assert "file.read: workspace path tools are disabled" in result["summary"]
+    assert "owner-configured" not in result["summary"]
+    assert not ledger.recent_intents(loop.MISSION_KIND)
+    missing = loop.run_computer_task(root, "Read fixture", service=Service(enabled=False), ledger=ledger, propose=planner())
+    assert missing["state"] == "unavailable"
+    assert "needs an owner-configured computer policy" in missing["summary"]
+
+
+def test_three_identical_plans_stall_even_under_unbounded_execution(isolated, monkeypatch):
+    """Mission computer-loop-measure-03: a 7B planner repeated one plan eleven times and only
+    the kill switch ended the loop. Identical plans are a progress criterion, not a cap, so
+    the rule holds when every cap axis is disabled and the step limit is not enforced."""
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN, PLAN, PLAN, READ, DONE), mission_id="plan-stall")
+    assert result["state"] == "stalled", result["summary"]
+    assert "identical advisory plans" in result["summary"]
+    assert (result["planner_calls"], result["replans"], result["tool_steps"]) == (3, 2, 0)
+    assert len(result["proposals"]) == 3, "all three proposals stay retained"
+    assert result["plan"]["revision"] == 3
+    assert service.calls == []
+
+
+def test_a_different_plan_or_a_tool_step_resets_the_identical_plan_sequence(isolated, monkeypatch):
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN, PLAN, PLAN_OTHER, PLAN, PLAN, READ, PLAN, PLAN, DONE))
+    assert result["state"] == "completed", result["summary"]
+    assert (result["planner_calls"], result["tool_steps"], result["replans"]) == (9, 1, 6)
+    assert len(service.calls) == 1
+
+
+def test_an_invalid_response_between_plans_resets_the_identical_plan_sequence(isolated, monkeypatch):
+    root, ledger = isolated
+    _unbounded(monkeypatch)
+    service = Service(max_steps=2)
+    responses = iter([json.dumps(PLAN), json.dumps(PLAN), "not a proposal at all",
+                      json.dumps(PLAN), json.dumps(PLAN), json.dumps(READ), json.dumps(DONE)])
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=lambda *args: next(responses))
+    assert result["state"] == "completed", result["summary"]
+    assert result["planner_calls"] == 7 and result["tool_steps"] == 1
+
+
+def test_identical_plans_stall_under_the_bounded_default_before_the_step_limit(isolated):
+    root, ledger = isolated
+    service = Service(max_steps=8)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    propose=planner(PLAN, PLAN, PLAN, READ, DONE))
+    assert result["state"] == "stalled" and result["planner_calls"] == 3

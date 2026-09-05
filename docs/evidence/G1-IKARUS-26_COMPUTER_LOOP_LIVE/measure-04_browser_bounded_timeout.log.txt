@@ -1,0 +1,13 @@
+killswitch: SwitchState(running=True, reason='armed', path='<SCRATCH>/self-renovation\\control6\\killswitch', token='RUN')
+policy before: 0d93817768772471b973631b3e0e51130bfb18387b3d9d0c18c1579b33a3a7a2 | tools: ['browser.navigate', 'browser.read'] | enabled: True
+configured: {'ok': True, 'changed': False, 'policy_sha256': '0d93817768772471b973631b3e0e51130bfb18387b3d9d0c18c1579b33a3a7a2', 'policy': {'schema': 'daedalus-computer-policy/1', 'workspace': '<USERPROFILE>/.daedalus\\computer-workspaces\\383cc917d869', 'tools': ['browser.navigate', 'browser.read'], 'origins': ['http://127.0.0.1:65094'], 'applications': {}, 'planner_provider': 'ollama_http', 'planner_model': 'qwen2.5-coder:7b', 'allow_remote_context': False, 'max_steps': 8, 'timeout_s': 300, 'max_file_bytes': 1048576}, 'evidence': None}
+policy after: 0d93817768772471b973631b3e0e51130bfb18387b3d9d0c18c1579b33a3a7a2 | enabled: True | tools: ['browser.navigate', 'browser.read'] | unavailable: {}
+state: blocked | ok: False | tool_steps: 1 | planner_calls: 2 | replans: 0 | repair_calls: 0 | elapsed_s: 309.7
+summary: The tool refused or failed; no uncertain effect was repeated.
+planner_summary: None
+ step 1 browser.navigate | ok: False | status: None | url: None | text: ''
+Task was destroyed but it is pending!
+task: <Task cancelling name='Task-3' coro=<Connection.run.<locals>.init() running at <USERPROFILE>\Desktop\PROJECTS\daedalus\.claude\worktrees\stage3-failed-receipt\.venv\Lib\site-packages\playwright\_impl\_connection.py:344> wait_for=<Future finished result=None>>
+Future exception was never retrieved
+future: <Future finished exception=TargetClosedError('Target page, context or browser has been closed')>
+playwright._impl._errors.TargetClosedError: Target page, context or browser has been closed

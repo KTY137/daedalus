@@ -1,0 +1,32 @@
+[
+ {
+  "call": 0,
+  "sha256": "290975792dc61e5e08e1be86fa2e52559555ab6f1bda3323d474958380e1a269",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Open http://127.0.0.1:65094/notes.html in the browser.\",\n    \"Read the page and report the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+ },
+ {
+  "call": 1,
+  "sha256": "719defa36967393c8f55e8116342f1c920ceeaa89aab4547c9aa6e6f191abb1b",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Open http://127.0.0.1:65094/notes.html in the browser.\",\n    \"Read the page and report the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+ },
+ {
+  "call": 2,
+  "sha256": "7286d53580e0486502a3309eac2603e28f332c0ab6d5a20798b91305e4f66a6e",
+  "response": "{\"type\":\"tool\",\"tool\":\"browser.navigate\",\"arguments\":{\"url\":\"http://127.0.0.1:65094/notes.html\"}}"
+ },
+ {
+  "call": 3,
+  "sha256": "b733c5b265f6811ec4727905106dd07898b57f89f4dc6af3ceb9e899a1292fc9",
+  "response": "{\"type\":\"plan\",\"steps\":[\"Read the page and report the page title, the three items listed under Today, and the sentinel code.\",\"Observe the current browser DOM and receive a fresh observation token.\"]}"
+ },
+ {
+  "call": 4,
+  "sha256": "552d1adf136e4fda18ab7daf2b1237a62840bbdc0c2e1940e9ce06f1b3c24c21",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the page and report the page title, the three items listed under Today, and the sentinel code.\",\n    \"Observe the current browser DOM and receive a fresh observation token.\"\n  ]\n}"
+ },
+ {
+  "call": 5,
+  "sha256": "197c2a1c967e32db11112429fe67ea47178c94fdcf993232d21322707bcc9e7f",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the page and report the page title, the three items listed under Today, and the sentinel code.\", \"Observe the current browser DOM and receive a fresh observation token.\"]\n}"
+ }
+]
