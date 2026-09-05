@@ -267,6 +267,11 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
   `context_length` 4096, evicting a natively warmed instance, so routing the
   computer planner through the native path is the next packet). Pending:
   `G1-EDA-HOST-STATUS-02` (Vivado Tcl emission) and the lane-3 fix-forward.
+- Stage 15 `G1-IKARUS-31`: schema-constrained Ollama calls (the computer
+  planner) take the native `/api/chat` route with keep_alive, num_ctx and the
+  output cap as num_predict; the loop hands the planner a cancellation probe
+  (G1-KERNEL-02). Live: 25.5 s per planner call against 74 to 125 s before;
+  the 7B planner still never proposes `browser.read` after navigating.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.

@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 343,
+    "assigned_artifacts": 344,
     "legacy_artifacts": 204,
-    "packet_artifacts": 345,
-    "packet_ids": 280,
-    "post_index_artifacts": 141,
+    "packet_artifacts": 346,
+    "packet_ids": 281,
+    "post_index_artifacts": 142,
     "registry_artifacts": 1,
-    "tracked_files": 346,
+    "tracked_files": 347,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -3926,6 +3926,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-31_PLANNER_NATIVE_ROUTE_AND_CANCEL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-26` (the live measurement), `G1-IKARUS-29` (plan budget, pre-effect timeout), `G1-KERNEL-02` (`run_cancellable`, `ProviderCancelled`)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-31",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-31_PLANNER_NATIVE_ROUTE_AND_CANCEL.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -6096,6 +6112,20 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-30",
       "path": "docs/work-packets/G1-IKARUS-30_DESKTOP_VISION_LIVE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-31",
+      "path": "docs/work-packets/G1-IKARUS-31_PLANNER_NATIVE_ROUTE_AND_CANCEL.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
