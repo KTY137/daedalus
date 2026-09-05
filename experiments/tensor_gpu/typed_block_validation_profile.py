@@ -3,17 +3,18 @@
 GPU-10 showed that packed Boolean support materializes quickly enough that the
 remaining cost is dominated by canonical ``TypedRelationBlock`` construction.
 GPU-11/12 identified and fused repeated structural validation scans. GPU-13
-then separated the exact persisted-scalar ``_stored`` cost. This contained
-GPU-14 diagnostic asks the next narrower question: how expensive is decoding
-packed support into canonical CSR relative to the unchanged canonical block
-constructor and scalar-admission path?
+separated persisted-scalar ``_stored`` cost, while GPU-14/15 then narrowed and
+reduced packed-support decoding overhead. With decoding no longer dominant,
+this contained GPU-16 diagnostic removes the standalone scalar wall-time probe:
+that probe duplicated work already executed by the canonical constructor and
+could drift away from the path it was intended to explain.
 
-The profiler executes the real support decoder, canonical constructor, and
-``_stored`` scalar contract. It does not duplicate structural validation or add
-a trusted constructor, alternate relation type, cache, backend, or semantic
-authority. Independently sampled timings are diagnostic and non-additive;
-profiler timings are attribution evidence only. Neither mints a speedup or
-promotion claim.
+The profiler now executes the real support decoder and canonical constructor,
+and retains ``_stored`` attribution only from cProfile of that constructor.
+It does not duplicate structural/scalar validation or add a trusted constructor,
+alternate relation type, cache, backend, or semantic authority. Independently
+sampled wall timings are diagnostic and non-additive; profiler timings are
+attribution evidence only. Neither mints a speedup or promotion claim.
 """
 from __future__ import annotations
 
@@ -51,7 +52,7 @@ else:  # direct ``python experiments/tensor_gpu/typed_block_validation_profile.p
         pack_rows,
     )
 
-SCHEMA = "daedalus-tensor-typed-block-validation-profile/3"
+SCHEMA = "daedalus-tensor-typed-block-validation-profile/4"
 MAX_PROFILE_REPEATS = 5
 
 
@@ -107,14 +108,6 @@ def _builtin_metrics(stats: Sequence[Any], marker: str) -> dict[str, float | int
             if isinstance(entry.code, str) and marker in entry.code
         )
     )
-
-
-def _scalar_admission(values: Sequence[bool]) -> tuple[bool, ...]:
-    """Run the exact persisted Boolean scalar contract without structural work."""
-
-    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
-        raise ValueError("values must be a scalar sequence")
-    return tuple(_relation_blocks._stored(value, "boolean") for value in values)
 
 
 def _profile_once(factory: Callable[[], TypedRelationBlock[bool]]) -> _ProfileSample:
@@ -201,15 +194,6 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
         warmup=case.warmup,
     )
     row_offsets, column_indices = support
-    values = (True,) * len(column_indices)
-
-    admitted_values, scalar_samples = _measure_repeated(
-        lambda: _scalar_admission(values),
-        repeats=case.repeats,
-        warmup=case.warmup,
-    )
-    if admitted_values != values:
-        raise AssertionError("scalar admission changed canonical Boolean values")
 
     factory = lambda: _block_from_csr_support(
         left,
@@ -236,7 +220,6 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
     metrics = _median_metrics(profiled)
     profiled_wall_median = float(statistics.median(sample.wall_ms for sample in profiled))
     constructor_median = float(statistics.median(unprofiled_samples))
-    scalar_median = float(statistics.median(scalar_samples))
     support_decode_median = float(statistics.median(support_decode_samples))
     post_init_cumulative_ms = float(
         metrics["typed_block_post_init"]["cumulative_ms_median"]
@@ -262,21 +245,14 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
             "entry_count": len(column_indices),
             "unprofiled_ms": _timing_summary(support_decode_samples),
         },
-        "scalar_admission": {
-            "contract": "daedalus.twin.relation_blocks._stored(value, 'boolean')",
-            "value_count": len(values),
-            "admitted_count": len(admitted_values),
-            "unprofiled_ms": _timing_summary(scalar_samples),
-        },
         "unprofiled_construct_ms": _timing_summary(unprofiled_samples),
         "unprofiled_comparison": {
             "support_decode_to_constructor_ratio": _ratio(
                 support_decode_median, constructor_median
             ),
-            "scalar_to_constructor_ratio": _ratio(scalar_median, constructor_median),
             "interpretation": (
-                "Ratios compare independently sampled medians using one warmup/repeat policy. "
-                "Support decode, scalar admission, and constructor timings are non-additive."
+                "Ratio compares independently sampled decoder and constructor medians using "
+                "one warmup/repeat policy. The timings are diagnostic and non-additive."
             ),
         },
         "profiled_construct_wall_ms": _timing_summary(
@@ -291,9 +267,10 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
                 0.0, post_init_cumulative_ms - stored_cumulative_ms
             ),
             "interpretation": (
-                "Single-run cProfile inclusive attribution only. The less-stored remainder "
-                "contains every other __post_init__ child/self cost and is not a pure "
-                "structural wall-time measurement."
+                "Single-run cProfile inclusive attribution only. _stored attribution comes "
+                "from the real canonical constructor; no duplicate scalar wall-time probe is "
+                "executed. The less-stored remainder contains every other __post_init__ "
+                "child/self cost and is not a pure structural wall-time measurement."
             ),
         },
     }
@@ -319,10 +296,10 @@ def run_probe(
         "semantic_scope": "canonical Boolean TypedRelationBlock materialization only",
         "measurement_contract": (
             "Run the unchanged packed-support decoder and canonical constructor with one "
-            "warmup/repeat policy, retain deterministic cProfile attribution, and independently "
-            "scan the exact existing _stored Boolean scalar-admission contract. Structural "
-            "validation is not duplicated or bypassed. Independently measured wall timings "
-            "are diagnostic and non-additive."
+            "warmup/repeat policy, retain deterministic constructor-native cProfile attribution "
+            "for the existing _stored Boolean scalar-admission contract, and do not execute a "
+            "standalone scalar timing path. Structural or scalar validation is not duplicated "
+            "or bypassed. Independently measured wall timings are diagnostic and non-additive."
         ),
         "runtime": {
             "python_implementation": platform.python_implementation(),
