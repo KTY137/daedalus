@@ -13,8 +13,11 @@ mixed result in its Work Packet.
 GPU-21 removed that retired-control A/B from the live profiler. GPU-24 keeps the
 same single diagnostic surface while following the production consolidation of
 persisted scalar admission from one helper call per entry to one sequence-level
-owner. This is experiment-only observation code; it does not bypass product
-validation or mint performance/promotion authority.
+owner. GPU-25 keeps that surface unchanged while the canonical Boolean owner
+uses exact ``True`` identity as its valid common path rather than repeating a
+generic type check and truthiness conversion for every stored Boolean entry.
+This is experiment-only observation code; it does not bypass product validation
+or mint performance/promotion authority.
 """
 from __future__ import annotations
 
