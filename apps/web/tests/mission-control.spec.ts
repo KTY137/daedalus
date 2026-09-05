@@ -77,6 +77,66 @@ test('a stale provider sample expires to UNKNOWN instead of staying reachable', 
   await expect(providerEvidence.getByText('unknown', { exact: true }).first()).toBeVisible();
 });
 
+test('a stale system proof expires to UNKNOWN instead of staying healthy', async ({ page }) => {
+  let healthSamples = 0;
+  const sampledAt = new Date().toISOString();
+  await page.route('**/api/health*', async (route) => {
+    healthSamples += 1;
+    if (healthSamples === 1) {
+      await route.fulfill({
+        json: {
+          ok: true,
+          generated_at: sampledAt,
+          project: 'agent_env',
+          warnings: [],
+          health: {
+            schema: 1,
+            generated_at: sampledAt,
+            states: ['working', 'present', 'degraded', 'absent', 'unknown'],
+            counts: { working: 1, present: 0, degraded: 0, absent: 0, unknown: 0 },
+            verdict: 0,
+            not_proven: [],
+            subsystems: [{
+              name: 'runtime spine',
+              asks: 'is the runtime spine healthy?',
+              state: 'working',
+              headline: 'runtime spine answered its cheap probe',
+              facts: [],
+              remedy: '',
+              required: true,
+              seconds: 0.01
+            }]
+          }
+        }
+      });
+    }
+    // Subsequent polls deliberately remain unresolved. Mission Control must
+    // revoke the old positive assertion using its own freshness budget.
+  });
+  await page.clock.install({ time: new Date() });
+
+  const seen = collect(page);
+  await openApp(page);
+  await settle(page, seen);
+
+  const control = page.getByRole('region', { name: /Evolution control/i });
+  const systemProof = control.getByText('system proof', { exact: true }).locator('..');
+  await expect(systemProof.getByText('1 / 1', { exact: true })).toBeVisible();
+
+  await page.clock.fastForward(50_000);
+
+  await expect(systemProof.getByText('unknown', { exact: true })).toBeVisible();
+  await expect(systemProof.getByText(/stale · sampled \d+s ago/)).toBeVisible();
+  const aggregateState = await control.locator('.mc-head-status [data-state]').getAttribute('data-state');
+  expect(aggregateState, 'a stale system proof remained a live aggregate claim').toBe('unknown');
+
+  await control.getByText('Evidence console', { exact: true }).click();
+  const systemEvidence = control
+    .getByText('unresolved checks', { exact: true })
+    .locator('xpath=ancestor::section[1]');
+  await expect(systemEvidence.getByText(/cached subsystem verdicts are UNKNOWN until refreshed/i)).toBeVisible();
+});
+
 test('loop gate reason, lifecycle gaps and HTTP bounds are visible', async ({ page }) => {
   const queue = {
     ok: true,
