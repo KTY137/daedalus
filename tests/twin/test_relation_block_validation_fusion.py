@@ -119,13 +119,44 @@ def test_fused_validation_preserves_prehead_error_precedence(
     assert _error(**overrides) == expected
 
 
+def test_count_mismatch_fallback_keeps_column_type_before_range_and_count() -> None:
+    assert _error(
+        row_offsets=(0, 2, 2),
+        column_indices=(3, "bad", 1),
+    ) == "block.column_indices must contain integers"
+
+
+def test_count_mismatch_fallback_keeps_range_before_count() -> None:
+    assert _error(
+        row_offsets=(0, 2, 2),
+        column_indices=(3, 1, 0),
+    ) == "block.column_indices contains an out-of-range index"
+
+
+def test_matched_count_fast_path_handles_empty_rows_without_cross_row_ordering() -> None:
+    block = TypedRelationBlock(
+        **_kwargs(
+            row_offsets=(0, 0, 3),
+            column_indices=(0, 1, 2),
+        )
+    )  # type: ignore[arg-type]
+
+    assert list(block.iter_entries()) == [
+        ("r1", "c0", True),
+        ("r1", "c1", True),
+        ("r1", "c2", True),
+    ]
+
+
 def test_scalar_admission_still_precedes_structural_validation() -> None:
     assert _error(values=(False, True, True), row_offsets=(0, 3, 2)) == (
         "relation blocks must not store semiring zero values"
     )
 
 
-def test_constructor_no_longer_uses_generic_any_or_per_row_column_slices() -> None:
+def test_constructor_uses_row_spans_without_generic_any_or_per_entry_row_state() -> None:
     source = inspect.getsource(TypedRelationBlock.__post_init__)
     assert "any(" not in source
     assert "columns[offsets[row]" not in source
+    assert "while row < row_count" not in source
+    assert "range(offsets[row], offsets[row + 1])" in source
