@@ -7,7 +7,7 @@ import daedalus.runtime_registry as registry
 
 
 def test_claude_windows_batch_shim_is_not_reported_ready(monkeypatch) -> None:
-    monkeypatch.setattr(registry.os, "name", "nt")
+    monkeypatch.setattr(registry, "_runtime_platform", lambda: "nt")
     monkeypatch.setattr(
         registry.shutil,
         "which",
@@ -24,7 +24,7 @@ def test_claude_windows_batch_shim_is_not_reported_ready(monkeypatch) -> None:
 
 
 def test_claude_windows_native_executable_is_probed(monkeypatch) -> None:
-    monkeypatch.setattr(registry.os, "name", "nt")
+    monkeypatch.setattr(registry, "_runtime_platform", lambda: "nt")
     resolved = r"C:\tools\claude.exe"
     monkeypatch.setattr(registry.shutil, "which", lambda command: resolved)
     completed = SimpleNamespace(returncode=0, stdout="2.1.0\n", stderr="")
@@ -39,7 +39,7 @@ def test_claude_windows_native_executable_is_probed(monkeypatch) -> None:
 
 
 def test_codex_batch_probe_policy_is_not_changed_by_claude_guard(monkeypatch) -> None:
-    monkeypatch.setattr(registry.os, "name", "nt")
+    monkeypatch.setattr(registry, "_runtime_platform", lambda: "nt")
     resolved = r"C:\Users\runner\node\codex.CMD"
     monkeypatch.setattr(registry.shutil, "which", lambda command: resolved)
     completed = SimpleNamespace(returncode=0, stdout="codex 0.152.0\n", stderr="")
