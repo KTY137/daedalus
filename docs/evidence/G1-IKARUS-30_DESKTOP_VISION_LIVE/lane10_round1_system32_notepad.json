@@ -1,0 +1,39 @@
+{
+  "authority_root": "<USERPROFILE>\\AppData\\Local\\Temp\\daedalus-lane10\\authority",
+  "mission_id": "lane10-desktop-live",
+  "started_at": "2026-09-05T19:07:20+0200",
+  "policy_sha256": "7555b840daaccdfd537fe82b1ec9c7b0885e43d1c720926f8d0f0fbbdde61bc0",
+  "limit_policy_mode": "bounded",
+  "control_root": "<USERPROFILE>\\.daedalus\\control\\f03a8ab03a51",
+  "ledger_states_before": {
+    "STARTED": 1
+  },
+  "control_root_image_files_before": [],
+  "foreground_before_launch": {
+    "foreground_window_class": "Chrome_WidgetWin_1",
+    "foreground_executable": "<USERPROFILE>\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+    "foreground_pid": 18976
+  },
+  "launched_pid_recorded": true,
+  "foreground_after_launch": {
+    "foreground_window_class": "Notepad",
+    "foreground_executable": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+    "foreground_pid": 36264
+  },
+  "launched_window_is_foreground": false,
+  "launched_pid_alive": "Notepad.exe                  27700 Console                    1        18.268 K",
+  "abort": "desktop.observe refused with the launched window in the foreground",
+  "abort_foreground": {
+    "foreground_window_class": "Notepad",
+    "foreground_executable": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+    "foreground_pid": 36264
+  },
+  "cleanup_taskkill_rc": 0,
+  "cleanup_window_gone": true,
+  "fixture_unchanged": true,
+  "ledger_states_after": {
+    "COMPLETED": 1,
+    "STARTED": 3
+  },
+  "control_root_image_files_after": []
+}

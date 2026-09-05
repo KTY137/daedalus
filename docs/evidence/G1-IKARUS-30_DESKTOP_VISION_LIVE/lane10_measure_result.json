@@ -1,0 +1,1973 @@
+{
+  "authority_root": "<USERPROFILE>\\AppData\\Local\\Temp\\daedalus-lane10\\authority",
+  "mission_id": "lane10-desktop-live-202317",
+  "started_at": "2026-09-05T20:23:18+0200",
+  "policy_sha256": "a47e3b4fc8e6da66a8a501cb314f772882c7ee6f4d5e0f7985462c1007752ace",
+  "limit_policy_mode": "bounded",
+  "control_root": "<USERPROFILE>\\.daedalus\\control\\f03a8ab03a51",
+  "ledger_states_before": {
+    "COMPLETED": 1,
+    "STARTED": 3
+  },
+  "control_root_image_files_before": [],
+  "foreground_before_launch": {
+    "foreground_window_class": "Shell_TrayWnd",
+    "foreground_executable": "C:\\Windows\\explorer.exe",
+    "foreground_pid": 17188
+  },
+  "preexisting_authorized_windows": 0,
+  "launched_pid_recorded": true,
+  "foreground_after_launch": {
+    "foreground_window_class": "Notepad",
+    "foreground_executable": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+    "foreground_pid": 13120
+  },
+  "authorized_image_owns_foreground": true,
+  "authorized_image_window_count": 1,
+  "launched_pid_owns_the_window": false,
+  "overlap_diagnostic_after_launch": [],
+  "observation_provenance": {
+    "observation_id": "7f5fec8a7e3444099746a3ccb03ea099",
+    "frame": {
+      "window_id": "7736220",
+      "monitor_id": "65537",
+      "focus_window_id": "3869866",
+      "process_id": 13120,
+      "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+      "origin_x": 783,
+      "origin_y": 230,
+      "width": 2850,
+      "height": 1563,
+      "dpi": 240,
+      "coordinate_space": "desktop",
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "crop_x": 0,
+      "crop_y": 0
+    },
+    "image_sha256": "cd5c29a463165448c7b003839fa5b2a6bd8da8f04d8783f436401ef0e4c4a289",
+    "captured_at": "2026-09-05T18:23:26.717762+00:00"
+  },
+  "ocr_words_fixture": {
+    "retained_words": [
+      "Datei",
+      "Bearbeiten",
+      "DAEDALUS",
+      "ZINNOBER",
+      "Ansicht",
+      "Textdokume",
+      "LANEIO",
+      "SENTINEL",
+      "739104",
+      "41",
+      "Zeichen",
+      "Unformatierter",
+      "Text",
+      "100%",
+      "lanel(",
+      "Windows",
+      "(CRLF)",
+      "UTF-8"
+    ],
+    "redacted_word_count": 11,
+    "redaction_reason": "restored Notepad session tab titles are owner content"
+  },
+  "ocr_sentinels_found": {
+    "DAEDALUS": true,
+    "ZINNOBER": true,
+    "LANE10": false,
+    "SENTINEL": true,
+    "739104": true
+  },
+  "ocr_confidence_values": [
+    "null"
+  ],
+  "stale_age_seconds": 31.0,
+  "m06_attempts": [
+    {
+      "attempt": 0,
+      "ok": true,
+      "error": null
+    }
+  ],
+  "m07_attempts": [
+    {
+      "attempt": 0,
+      "ok": false,
+      "error": "desktop pixels or focus changed; observe again"
+    },
+    {
+      "attempt": 1,
+      "ok": true,
+      "error": null
+    }
+  ],
+  "ocr_words_after_typing": {
+    "retained_words": [
+      "Datei",
+      "Bearbeiten",
+      "DAEDALUS",
+      "ZINNOBER",
+      "Ansicht",
+      "KARMESIN991",
+      "Textdokume",
+      "LANEIO",
+      "SENTINEL",
+      "739104",
+      "Ze",
+      "1,",
+      "29",
+      "52",
+      "Zeichen",
+      "Unformatierter",
+      "Text",
+      "100%",
+      "lane10",
+      "Windows",
+      "(CRLF)",
+      "UTF-8"
+    ],
+    "redacted_word_count": 12,
+    "redaction_reason": "restored Notepad session tab titles are owner content"
+  },
+  "postcondition_typed_text_visible": true,
+  "m10_attempts": [
+    {
+      "attempt": 0,
+      "ok": true,
+      "error": null
+    }
+  ],
+  "ocr_words_after_backspace": {
+    "retained_words": [
+      "Datei",
+      "Bearbeiten",
+      "DAEDALUS",
+      "ZINNOBER",
+      "Ansicht",
+      "KARMESINS",
+      "Textdokume",
+      "LANEIO",
+      "SENTINEL",
+      "739104",
+      "Ze",
+      "1,",
+      "28",
+      "51",
+      "Zeichen",
+      "Unformatierter",
+      "Text",
+      "100%",
+      "lane10",
+      "Windows",
+      "(CRLF)",
+      "UTF-8"
+    ],
+    "redacted_word_count": 12,
+    "redaction_reason": "restored Notepad session tab titles are owner content"
+  },
+  "postcondition_backspace_applied": false,
+  "foreground_while_minimized": {
+    "foreground_window_class": "Shell_TrayWnd",
+    "foreground_executable": "C:\\Windows\\explorer.exe",
+    "foreground_pid": 17188
+  },
+  "foreground_restored": true,
+  "killswitch_path": "<USERPROFILE>\\.daedalus\\control\\f03a8ab03a51\\killswitch",
+  "kill_stop_after_seconds": 0.4,
+  "kill_latch_seconds": 0.05,
+  "rearmed": true,
+  "cleanup_taskkill_rcs": [
+    0,
+    255
+  ],
+  "cleanup_windows_remaining": 0,
+  "fixture_unchanged": true,
+  "ledger_states_after": {
+    "COMPLETED": 18,
+    "STARTED": 6
+  },
+  "control_root_image_files_after": [],
+  "steps": [
+    {
+      "step": "m00_observe_without_foreground_app",
+      "attempt_id": "lane10-a01",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 0.353,
+      "ok": false,
+      "state": "reconciliation_required",
+      "error": "foreground executable is not owner-authorized",
+      "error_type": "ComputerRefused",
+      "result": null,
+      "note": "Notepad is not running; the owner's own window owns the foreground"
+    },
+    {
+      "step": "m01_app_launch",
+      "attempt_id": "lane10-a02",
+      "tool": "app.launch",
+      "arguments": {
+        "application": "notepad"
+      },
+      "seconds": 0.886,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "application": "notepad",
+        "process_id": 5064,
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "8eabaf3280bab9f9df77e1ef0f621eb3a4ca2378c6d4e0e0320e0b56fc4305be",
+        "lease_sha256": "7ecbe4ddddf9317be317a869c4b35ab709d540475179d183ca45efeeeaeea870",
+        "start_sha256": "2d3c269d32eb6e58815626a72ba2c0adbf3493b8aa216a02bfa5e86581288968",
+        "terminal_sha256": "294088f4d0ef6a232360cbc1ae39909be87ea8fdf23129afc24952dbb39cbd6e",
+        "operation_sha256": "f3c728711f09b29f53313072fae36eec8678486fe62bb44e53b927d91191abc0",
+        "execution_id": "computer-f4360bc8fb8609b9c79eef8504d13ddb-exec-0"
+      }
+    },
+    {
+      "step": "m02_observe_foreground",
+      "attempt_id": "lane10-a03",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 4.949,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "7f5fec8a7e3444099746a3ccb03ea099",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "cd5c29a463165448c7b003839fa5b2a6bd8da8f04d8783f436401ef0e4c4a289",
+        "captured_at": "2026-09-05T18:23:26.717762+00:00",
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "9b43ddf23b061249e19af886d879cea0fc704061c13d7e911e3a6898b01eb9fe",
+        "lease_sha256": "a94fa20137b96b57e52c7861a8009468dad27ae3293b76e512cefeaa0e0108b4",
+        "start_sha256": "37e8d523f3c24be787c7a70a6d075362b0cecce1656bf6006f3f5763d781a2d0",
+        "terminal_sha256": "d6cc6d0e291b555b949403f37c5e217c63993b93c7c1c06b4993880074c0ef68",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-54bf03cf15a5742fb4fbd7e1c69c22fd-exec-0"
+      }
+    },
+    {
+      "step": "m03_vision_inspect",
+      "attempt_id": "lane10-a04",
+      "tool": "vision.inspect",
+      "arguments": {
+        "observation_id": "7f5fec8a7e3444099746a3ccb03ea099"
+      },
+      "seconds": 5.423,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "image": {
+          "sha256": "cd5c29a463165448c7b003839fa5b2a6bd8da8f04d8783f436401ef0e4c4a289",
+          "format": "png",
+          "width": 2850,
+          "height": 1563,
+          "coordinate_frame": {
+            "coordinate_space": "desktop",
+            "origin_x": 783,
+            "origin_y": 230,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "crop_x": 0.0,
+            "crop_y": 0.0,
+            "monitor_id": "65537",
+            "window_id": "7736220",
+            "captured_at": "2026-09-05T18:23:26.717762+00:00"
+          }
+        }
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "170a1b199a3e4abd44e7afd210207d597a25ed4394aedbfbb9ed7cd27ad9a918",
+        "lease_sha256": "4e2c7867d80cbe84cc91368d92b4fab5ad4502702e12e535efeacc85fd20db15",
+        "start_sha256": "16691c06877a6962c76ace492124fc610cff38397c0e0211eff5053b6503a719",
+        "terminal_sha256": "a25961f2b1f8282746e1815bea8c53648c0ef7825c38bdbe2f98c9c7f365bfd5",
+        "operation_sha256": "d6f29f3afbdfeeccbcf39e37d317c8176a2db57f25e6cc7c808a8cc2a6f75627",
+        "execution_id": "computer-6d1224a6b0a5fea58dec87def8ffd84a-exec-0"
+      }
+    },
+    {
+      "step": "m04_vision_ocr",
+      "attempt_id": "lane10-a05",
+      "tool": "vision.ocr",
+      "arguments": {
+        "observation_id": "7f5fec8a7e3444099746a3ccb03ea099"
+      },
+      "seconds": 2.356,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "image": {
+          "sha256": "cd5c29a463165448c7b003839fa5b2a6bd8da8f04d8783f436401ef0e4c4a289",
+          "format": "png",
+          "width": 2850,
+          "height": 1563,
+          "coordinate_frame": {
+            "coordinate_space": "desktop",
+            "origin_x": 783,
+            "origin_y": 230,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "crop_x": 0.0,
+            "crop_y": 0.0,
+            "monitor_id": "65537",
+            "window_id": "7736220",
+            "captured_at": "2026-09-05T18:23:26.717762+00:00"
+          }
+        },
+        "words": [
+          {
+            "text": "Datei",
+            "confidence": null,
+            "image_rect": {
+              "x": 38,
+              "y": 131,
+              "width": 76,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 821.0,
+              "y": 361.0,
+              "width": 76.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "Bearbeiten",
+            "confidence": null,
+            "image_rect": {
+              "x": 189,
+              "y": 131,
+              "width": 160,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 972.0,
+              "y": 361.0,
+              "width": 160.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "DAEDALUS",
+            "confidence": null,
+            "image_rect": {
+              "x": 42,
+              "y": 235,
+              "width": 156,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 825.0,
+              "y": 465.0,
+              "width": 156.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "ZINNOBER",
+            "confidence": null,
+            "image_rect": {
+              "x": 222,
+              "y": 235,
+              "width": 157,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 1005.0,
+              "y": 465.0,
+              "width": 157.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "Ansicht",
+            "confidence": null,
+            "image_rect": {
+              "x": 422,
+              "y": 131,
+              "width": 113,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 1205.0,
+              "y": 361.0,
+              "width": 113.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "Textdokume",
+            "confidence": null,
+            "image_rect": {
+              "x": 1231,
+              "y": 54,
+              "width": 164,
+              "height": 22
+            },
+            "mapped_rect": {
+              "x": 2014.0,
+              "y": 284.0,
+              "width": 164.0,
+              "height": 22.0
+            }
+          },
+          {
+            "text": "LANEIO",
+            "confidence": null,
+            "image_rect": {
+              "x": 44,
+              "y": 278,
+              "width": 115,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 827.0,
+              "y": 508.0,
+              "width": 115.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "SENTINEL",
+            "confidence": null,
+            "image_rect": {
+              "x": 182,
+              "y": 278,
+              "width": 156,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 965.0,
+              "y": 508.0,
+              "width": 156.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "739104",
+            "confidence": null,
+            "image_rect": {
+              "x": 362,
+              "y": 278,
+              "width": 118,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 1145.0,
+              "y": 508.0,
+              "width": 118.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "41",
+            "confidence": null,
+            "image_rect": {
+              "x": 263,
+              "y": 1514,
+              "width": 25,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 1046.0,
+              "y": 1744.0,
+              "width": 25.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "Zeichen",
+            "confidence": null,
+            "image_rect": {
+              "x": 299,
+              "y": 1512,
+              "width": 105,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 1082.0,
+              "y": 1742.0,
+              "width": 105.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "Unformatierter",
+            "confidence": null,
+            "image_rect": {
+              "x": 785,
+              "y": 1512,
+              "width": 199,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 1568.0,
+              "y": 1742.0,
+              "width": 199.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "Text",
+            "confidence": null,
+            "image_rect": {
+              "x": 993,
+              "y": 1514,
+              "width": 53,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 1776.0,
+              "y": 1744.0,
+              "width": 53.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "100%",
+            "confidence": null,
+            "image_rect": {
+              "x": 1931,
+              "y": 1514,
+              "width": 69,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 2714.0,
+              "y": 1744.0,
+              "width": 69.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "lanel(",
+            "confidence": null,
+            "image_rect": {
+              "x": 2031,
+              "y": 52,
+              "width": 75,
+              "height": 22
+            },
+            "mapped_rect": {
+              "x": 2814.0,
+              "y": 282.0,
+              "width": 75.0,
+              "height": 22.0
+            }
+          },
+          {
+            "text": "Windows",
+            "confidence": null,
+            "image_rect": {
+              "x": 2101,
+              "y": 1512,
+              "width": 124,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 2884.0,
+              "y": 1742.0,
+              "width": 124.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "(CRLF)",
+            "confidence": null,
+            "image_rect": {
+              "x": 2236,
+              "y": 1514,
+              "width": 81,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 3019.0,
+              "y": 1744.0,
+              "width": 81.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "UTF-8",
+            "confidence": null,
+            "image_rect": {
+              "x": 2523,
+              "y": 1514,
+              "width": 77,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 3306.0,
+              "y": 1744.0,
+              "width": 77.0,
+              "height": 21.0
+            }
+          }
+        ],
+        "redacted_word_rows": 11
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "2fb0d0af94b1438bd75deb8734b29283025dbfdd53a994195993223be481906d",
+        "lease_sha256": "512b306d857134333bfc844c95519a6521d57b40d29b6915b22d7d724ab9c9cb",
+        "start_sha256": "852c5df75e239e32e2be9eed8d271c9b259e21c92ad8c65af5a696acf8f666d9",
+        "terminal_sha256": "c192193f286898dcd22352c35d393f92b7b9f0ee9886f03d2f37167850e2655c",
+        "operation_sha256": "4d9cc6c147bc79d7e63961c4d3bb6a5fa3d22d1af3dd5d2e2a90b3b3c708467b",
+        "execution_id": "computer-b4f36dac6a52a34d77b3481fd8a0c2da-exec-0"
+      }
+    },
+    {
+      "step": "m05_vision_ocr_stale_observation",
+      "attempt_id": "lane10-a06",
+      "tool": "vision.ocr",
+      "arguments": {
+        "observation_id": "7f5fec8a7e3444099746a3ccb03ea099"
+      },
+      "seconds": 0.029,
+      "ok": false,
+      "state": "blocked",
+      "error": "desktop observation is stale or unavailable",
+      "error_type": "ComputerRefused",
+      "result": null,
+      "note": "same observation_id, now older than the 30 s freshness window"
+    },
+    {
+      "step": "m06_key_end_observe0",
+      "attempt_id": "lane10-a07",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 1.587,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "6e5a945bd7994d36b679b812bbd1620c",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "6e59a081ee802ed773269eeffad3bea8c9cbaa9b92ae66a3e409f29801d8a2d1",
+        "captured_at": "2026-09-05T18:23:59.747516+00:00",
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "dfb9b62d08905e2052c0fb322a7cac03e19ba34c40b6d60f8310de4580005f8f",
+        "lease_sha256": "3d99ed1f38d2076968d570b13875e08daec80d47a0bc48aaa77f0523d9e1328e",
+        "start_sha256": "6adc372995ba0ae742e50401dfb8092787517284ec13404ec43e9e8ce4f9b23f",
+        "terminal_sha256": "a551bc2f23c32d37aa9ea684bd9fe303f2b5872d76623cb7a92636c210ce053e",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-b22e024639249fc6f17df310a6ccdcef-exec-0"
+      }
+    },
+    {
+      "step": "m06_key_end_try0",
+      "attempt_id": "lane10-a08",
+      "tool": "desktop.key",
+      "arguments": {
+        "observation_id": "6e5a945bd7994d36b679b812bbd1620c",
+        "key": "END",
+        "expected": "caret at the end of the first fixture line"
+      },
+      "seconds": 1.782,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "6e5a945bd7994d36b679b812bbd1620c",
+        "expected": "caret at the end of the first fixture line",
+        "input_groups": 1,
+        "postcondition_verified": false,
+        "next_step": "observe and independently verify the postcondition"
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "49d3031387b51707c5e685ab93a917ee9c83898e874492260ab520422d0b569f",
+        "lease_sha256": "8802c5cf7ca11576df6955791902912385c715b7a9603205022909405b3b8eea",
+        "start_sha256": "a212ffb3537acc7f264864872d71f74afbd24fc116fbd23bf1c5b0b7335e50e0",
+        "terminal_sha256": "b71fcef83f15952a507d505c9468cc0669e4229a20fd61db52c5f53291f1e456",
+        "operation_sha256": "17f91e3357799b6754427da51dd479fffd12ed1995a2aacf04221baa33bfcef2",
+        "execution_id": "computer-e34dc182e8a815ad8dedcffc2c18f0dc-exec-0"
+      }
+    },
+    {
+      "step": "m07_type_observe0",
+      "attempt_id": "lane10-a09",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 1.361,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "406e84581eed4649aadd14b47322adec",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "15fea4ae33b9d083aa5da2413fe6d8de60decfe29a0dfe37c73b3f338d0a499a",
+        "captured_at": "2026-09-05T18:24:02.865984+00:00",
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "f3599b725308f4416fee862f454af2c3b0034b4c33f4a2a03a87a2194730b518",
+        "lease_sha256": "33de1def21d73234a21ec1042f72ac3a9da2f42481cf7cadbf4eab5a7bb9c269",
+        "start_sha256": "aee33f9aee884fbf3b1c6639fa0c1f1ca5220c5dea9cdcffe7df6783b651f4b1",
+        "terminal_sha256": "e6c6b88d75e09f2694855545776e7d7f5ce3b9f898b3dc2e06f3bd259dd97899",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-1e96a0ef41be05859f9667afd89c5ab5-exec-0"
+      }
+    },
+    {
+      "step": "m07_type_try0",
+      "attempt_id": "lane10-a10",
+      "tool": "desktop.type",
+      "arguments": {
+        "observation_id": "406e84581eed4649aadd14b47322adec",
+        "text": " KARMESIN99",
+        "expected": "first line ends with KARMESIN99"
+      },
+      "seconds": 1.518,
+      "ok": false,
+      "state": "reconciliation_required",
+      "error": "desktop pixels or focus changed; observe again",
+      "error_type": "ComputerRefused",
+      "result": null,
+      "note": ""
+    },
+    {
+      "step": "m07_type_observe1",
+      "attempt_id": "lane10-a11",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 1.548,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "4abed39383964459986f28b6178fe0fc",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "95004bbe49f1e5790c2ab5f168651c61781a6cfabd4103c82da98be63760ae6b",
+        "captured_at": "2026-09-05T18:24:05.730412+00:00",
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "5606bbd7b3c7e77e9d4f77cca64a376811f095fd0eebe291f4b8a0ea758d66ec",
+        "lease_sha256": "a667a94538019980486f62cbc373c8d551df67a05b1dedd8e1eeefc2308bafee",
+        "start_sha256": "3a5f014a4fe184589d5644f9fc7b323dab09351f31b0b6ec90ee0eb62a57e8db",
+        "terminal_sha256": "d3fd12c72affc1554d1b4087fdd7a0016ac2c56be64299cf10b2faaf76563510",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-6b601923407e560c961925ae9a6d320c-exec-0"
+      }
+    },
+    {
+      "step": "m07_type_try1",
+      "attempt_id": "lane10-a12",
+      "tool": "desktop.type",
+      "arguments": {
+        "observation_id": "4abed39383964459986f28b6178fe0fc",
+        "text": " KARMESIN99",
+        "expected": "first line ends with KARMESIN99"
+      },
+      "seconds": 3.659,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "4abed39383964459986f28b6178fe0fc",
+        "expected": "first line ends with KARMESIN99",
+        "input_groups": 11,
+        "postcondition_verified": false,
+        "next_step": "observe and independently verify the postcondition"
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "892b827019fd60d326c77a73fdecf2e9d53267f603d407d495006d32a24d749c",
+        "lease_sha256": "faa876473f46c5c943ec59d091d05147a5ff177e7f89ff47abd79643ca8b61b8",
+        "start_sha256": "312bf1bb33c116a5049aa976ab94117667ce3434a51082cbf55ff72ea84839ea",
+        "terminal_sha256": "107510fd03f9f231b88e418721f4344b6be7b04446d20b44bada8fa47ca69981",
+        "operation_sha256": "10901293284d722894e699025c5206cf35cf84f38777679011bc43b2bef6a9ca",
+        "execution_id": "computer-a562fb5eb9800506a708de17c85c6a34-exec-0"
+      }
+    },
+    {
+      "step": "m08_observe_after_typing",
+      "attempt_id": "lane10-a13",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 2.224,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "be6cb2e1cd054aa8a26548d8ed2367dd",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "75fbeb9c8b2e847b020c5212ec825174c4d615a87da8f48d8de4e5a486ecc8d2",
+        "captured_at": "2026-09-05T18:24:11.604279+00:00",
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "4e75221b2046e11256c431cbf1d6580449d44f5891107b150c4dd0e3f4ee48c8",
+        "lease_sha256": "78c1ff57dec2db5971cce563daeb25a3dded1ea0fbfb5227189ad91841ac2dd2",
+        "start_sha256": "c3aec927753a12a5789b4ce26b0affa6703e5eec0e91b6d6b696e64f918636d0",
+        "terminal_sha256": "2238171b7946640059575d0a8dd94bf11bf4ed0e742957584f700aa417f06a61",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-7a8246ac3893f8303f664d580980b09e-exec-0"
+      }
+    },
+    {
+      "step": "m09_vision_ocr_after_typing",
+      "attempt_id": "lane10-a14",
+      "tool": "vision.ocr",
+      "arguments": {
+        "observation_id": "be6cb2e1cd054aa8a26548d8ed2367dd"
+      },
+      "seconds": 3.12,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "image": {
+          "sha256": "75fbeb9c8b2e847b020c5212ec825174c4d615a87da8f48d8de4e5a486ecc8d2",
+          "format": "png",
+          "width": 2850,
+          "height": 1563,
+          "coordinate_frame": {
+            "coordinate_space": "desktop",
+            "origin_x": 783,
+            "origin_y": 230,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "crop_x": 0.0,
+            "crop_y": 0.0,
+            "monitor_id": "65537",
+            "window_id": "7736220",
+            "captured_at": "2026-09-05T18:24:11.604279+00:00"
+          }
+        },
+        "words": [
+          {
+            "text": "Datei",
+            "confidence": null,
+            "image_rect": {
+              "x": 38,
+              "y": 131,
+              "width": 76,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 821.0,
+              "y": 361.0,
+              "width": 76.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "Bearbeiten",
+            "confidence": null,
+            "image_rect": {
+              "x": 189,
+              "y": 131,
+              "width": 160,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 972.0,
+              "y": 361.0,
+              "width": 160.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "DAEDALUS",
+            "confidence": null,
+            "image_rect": {
+              "x": 42,
+              "y": 235,
+              "width": 156,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 825.0,
+              "y": 465.0,
+              "width": 156.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "ZINNOBER",
+            "confidence": null,
+            "image_rect": {
+              "x": 222,
+              "y": 235,
+              "width": 157,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 1005.0,
+              "y": 465.0,
+              "width": 157.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "Ansicht",
+            "confidence": null,
+            "image_rect": {
+              "x": 422,
+              "y": 131,
+              "width": 113,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 1205.0,
+              "y": 361.0,
+              "width": 113.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "KARMESIN991",
+            "confidence": null,
+            "image_rect": {
+              "x": 402,
+              "y": 225,
+              "width": 199,
+              "height": 43
+            },
+            "mapped_rect": {
+              "x": 1185.0,
+              "y": 455.0,
+              "width": 199.0,
+              "height": 43.0
+            }
+          },
+          {
+            "text": "Textdokume",
+            "confidence": null,
+            "image_rect": {
+              "x": 1231,
+              "y": 54,
+              "width": 164,
+              "height": 22
+            },
+            "mapped_rect": {
+              "x": 2014.0,
+              "y": 284.0,
+              "width": 164.0,
+              "height": 22.0
+            }
+          },
+          {
+            "text": "LANEIO",
+            "confidence": null,
+            "image_rect": {
+              "x": 44,
+              "y": 278,
+              "width": 115,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 827.0,
+              "y": 508.0,
+              "width": 115.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "SENTINEL",
+            "confidence": null,
+            "image_rect": {
+              "x": 182,
+              "y": 278,
+              "width": 156,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 965.0,
+              "y": 508.0,
+              "width": 156.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "739104",
+            "confidence": null,
+            "image_rect": {
+              "x": 362,
+              "y": 278,
+              "width": 118,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 1145.0,
+              "y": 508.0,
+              "width": 118.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "Ze",
+            "confidence": null,
+            "image_rect": {
+              "x": 57,
+              "y": 1514,
+              "width": 32,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 840.0,
+              "y": 1744.0,
+              "width": 32.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "1,",
+            "confidence": null,
+            "image_rect": {
+              "x": 98,
+              "y": 1514,
+              "width": 17,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 881.0,
+              "y": 1744.0,
+              "width": 17.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "29",
+            "confidence": null,
+            "image_rect": {
+              "x": 169,
+              "y": 1514,
+              "width": 30,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 952.0,
+              "y": 1744.0,
+              "width": 30.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "52",
+            "confidence": null,
+            "image_rect": {
+              "x": 264,
+              "y": 1514,
+              "width": 31,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 1047.0,
+              "y": 1744.0,
+              "width": 31.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "Zeichen",
+            "confidence": null,
+            "image_rect": {
+              "x": 304,
+              "y": 1512,
+              "width": 104,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 1087.0,
+              "y": 1742.0,
+              "width": 104.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "Unformatierter",
+            "confidence": null,
+            "image_rect": {
+              "x": 785,
+              "y": 1512,
+              "width": 199,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 1568.0,
+              "y": 1742.0,
+              "width": 199.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "Text",
+            "confidence": null,
+            "image_rect": {
+              "x": 993,
+              "y": 1514,
+              "width": 53,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 1776.0,
+              "y": 1744.0,
+              "width": 53.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "100%",
+            "confidence": null,
+            "image_rect": {
+              "x": 1931,
+              "y": 1514,
+              "width": 69,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 2714.0,
+              "y": 1744.0,
+              "width": 69.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "lane10",
+            "confidence": null,
+            "image_rect": {
+              "x": 2031,
+              "y": 52,
+              "width": 85,
+              "height": 22
+            },
+            "mapped_rect": {
+              "x": 2814.0,
+              "y": 282.0,
+              "width": 85.0,
+              "height": 22.0
+            }
+          },
+          {
+            "text": "Windows",
+            "confidence": null,
+            "image_rect": {
+              "x": 2101,
+              "y": 1512,
+              "width": 124,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 2884.0,
+              "y": 1742.0,
+              "width": 124.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "(CRLF)",
+            "confidence": null,
+            "image_rect": {
+              "x": 2236,
+              "y": 1514,
+              "width": 81,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 3019.0,
+              "y": 1744.0,
+              "width": 81.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "UTF-8",
+            "confidence": null,
+            "image_rect": {
+              "x": 2523,
+              "y": 1514,
+              "width": 77,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 3306.0,
+              "y": 1744.0,
+              "width": 77.0,
+              "height": 21.0
+            }
+          }
+        ],
+        "redacted_word_rows": 12
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "419cbf4fa2b6a55a65a456a34518db5e8b0d9c7d23e9da848e4d3c4e6ca620bb",
+        "lease_sha256": "5589bcd444a49481bf3870d1a2943cbba2232a2c5a0f426e39e919b5ba2878e0",
+        "start_sha256": "516332508a2f180ccca20ce9ee1d971d9de82f2ed3f80b132c85b038dcc5951c",
+        "terminal_sha256": "47fcdb13d2bbd5664eb19934d2a15cf99cf828bddcd0e286723c3d944091e6a1",
+        "operation_sha256": "a2e77d33f4b89d6bec947561574e699e6674ae638ff00d5a5f874e47f013f38c",
+        "execution_id": "computer-899b6bb2c47590bf094e4e66279e9478-exec-0"
+      }
+    },
+    {
+      "step": "m10_key_backspace_observe0",
+      "attempt_id": "lane10-a15",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 2.13,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "7727ce91917f498fafe5ee4891c44f80",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "75fbeb9c8b2e847b020c5212ec825174c4d615a87da8f48d8de4e5a486ecc8d2",
+        "captured_at": "2026-09-05T18:24:17.130211+00:00",
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "7d7e95d637359543ba685ce8e4ee53ecbb234ec0fdcd596f75a83fb7fa0aec3a",
+        "lease_sha256": "c900591ab805cfec55797a3a65203949d9ca17fac4e3b46044a3ff989468c13d",
+        "start_sha256": "4cc1d8f653e1936f217eaef95db6c667dbdc429d261da74100fa64eb5c16114d",
+        "terminal_sha256": "f1cf503264935c43a7dcce7233fdeb25ac52384b304ef08be756707093da3775",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-d3b57538a742a627225e53aeef6c99e7-exec-0"
+      }
+    },
+    {
+      "step": "m10_key_backspace_try0",
+      "attempt_id": "lane10-a16",
+      "tool": "desktop.key",
+      "arguments": {
+        "observation_id": "7727ce91917f498fafe5ee4891c44f80",
+        "key": "BACKSPACE",
+        "expected": "the last typed character is removed"
+      },
+      "seconds": 3.896,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "7727ce91917f498fafe5ee4891c44f80",
+        "expected": "the last typed character is removed",
+        "input_groups": 1,
+        "postcondition_verified": false,
+        "next_step": "observe and independently verify the postcondition"
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "0dda8af7aec4bc01e758bf7aae3307bd5d2021e9b90239a7a0a3283623b34456",
+        "lease_sha256": "503f7fa31d28df4b898adc06929d1c34edf33811f0c77c2485dc3dba66908d69",
+        "start_sha256": "452e441ae9b246461f910afe1e0bcc9bc43e87cf586b0059ba425c9b6fb91e59",
+        "terminal_sha256": "dcc09440fae0f6c721830e1333f2d81f9a4f9ba34315b5256e13069ba2722af5",
+        "operation_sha256": "187936de616c4ed6cf9b7e0028c5221bba84c911479cfa13979dd7af7bba901e",
+        "execution_id": "computer-7ccd4ce3bdba6dc515c8d06e34c03a97-exec-0"
+      }
+    },
+    {
+      "step": "m11_observe_after_backspace",
+      "attempt_id": "lane10-a17",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 4.306,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "38e0b97022654f53a507269d866d1a98",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "bf52eef1fc2a2590313d872d1493c6c165659bfb6c6c552d44ad2be6394c4a77",
+        "captured_at": "2026-09-05T18:24:24.757222+00:00",
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "dd06dfa147cfe72a8b8edb4791b6a918b281d5f515008b51f733ded78e635537",
+        "lease_sha256": "68688097d0cea6a90054b4757fa39bf584ac190d55a4d9c91bfd8dd56a2464ea",
+        "start_sha256": "4fc9a6cd4037a87597a7244681d8ddd0c124c4c64dcb8eee560e94122539b40f",
+        "terminal_sha256": "d7b3ab6328c2640f7ebeb486e49752e990d31e506043a8902c7e562ef7a4a86b",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-ecd93f6255426bde64f689816602c3c0-exec-0"
+      }
+    },
+    {
+      "step": "m12_vision_ocr_after_backspace",
+      "attempt_id": "lane10-a18",
+      "tool": "vision.ocr",
+      "arguments": {
+        "observation_id": "38e0b97022654f53a507269d866d1a98"
+      },
+      "seconds": 5.353,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "image": {
+          "sha256": "bf52eef1fc2a2590313d872d1493c6c165659bfb6c6c552d44ad2be6394c4a77",
+          "format": "png",
+          "width": 2850,
+          "height": 1563,
+          "coordinate_frame": {
+            "coordinate_space": "desktop",
+            "origin_x": 783,
+            "origin_y": 230,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "crop_x": 0.0,
+            "crop_y": 0.0,
+            "monitor_id": "65537",
+            "window_id": "7736220",
+            "captured_at": "2026-09-05T18:24:24.757222+00:00"
+          }
+        },
+        "words": [
+          {
+            "text": "Datei",
+            "confidence": null,
+            "image_rect": {
+              "x": 38,
+              "y": 131,
+              "width": 76,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 821.0,
+              "y": 361.0,
+              "width": 76.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "Bearbeiten",
+            "confidence": null,
+            "image_rect": {
+              "x": 189,
+              "y": 131,
+              "width": 160,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 972.0,
+              "y": 361.0,
+              "width": 160.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "DAEDALUS",
+            "confidence": null,
+            "image_rect": {
+              "x": 42,
+              "y": 235,
+              "width": 156,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 825.0,
+              "y": 465.0,
+              "width": 156.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "ZINNOBER",
+            "confidence": null,
+            "image_rect": {
+              "x": 222,
+              "y": 235,
+              "width": 157,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 1005.0,
+              "y": 465.0,
+              "width": 157.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "Ansicht",
+            "confidence": null,
+            "image_rect": {
+              "x": 422,
+              "y": 131,
+              "width": 113,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 1205.0,
+              "y": 361.0,
+              "width": 113.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "KARMESINS",
+            "confidence": null,
+            "image_rect": {
+              "x": 402,
+              "y": 225,
+              "width": 179,
+              "height": 43
+            },
+            "mapped_rect": {
+              "x": 1185.0,
+              "y": 455.0,
+              "width": 179.0,
+              "height": 43.0
+            }
+          },
+          {
+            "text": "Textdokume",
+            "confidence": null,
+            "image_rect": {
+              "x": 1231,
+              "y": 54,
+              "width": 164,
+              "height": 22
+            },
+            "mapped_rect": {
+              "x": 2014.0,
+              "y": 284.0,
+              "width": 164.0,
+              "height": 22.0
+            }
+          },
+          {
+            "text": "LANEIO",
+            "confidence": null,
+            "image_rect": {
+              "x": 44,
+              "y": 278,
+              "width": 115,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 827.0,
+              "y": 508.0,
+              "width": 115.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "SENTINEL",
+            "confidence": null,
+            "image_rect": {
+              "x": 182,
+              "y": 278,
+              "width": 156,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 965.0,
+              "y": 508.0,
+              "width": 156.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "739104",
+            "confidence": null,
+            "image_rect": {
+              "x": 362,
+              "y": 278,
+              "width": 118,
+              "height": 24
+            },
+            "mapped_rect": {
+              "x": 1145.0,
+              "y": 508.0,
+              "width": 118.0,
+              "height": 24.0
+            }
+          },
+          {
+            "text": "Ze",
+            "confidence": null,
+            "image_rect": {
+              "x": 57,
+              "y": 1514,
+              "width": 32,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 840.0,
+              "y": 1744.0,
+              "width": 32.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "1,",
+            "confidence": null,
+            "image_rect": {
+              "x": 98,
+              "y": 1514,
+              "width": 17,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 881.0,
+              "y": 1744.0,
+              "width": 17.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "28",
+            "confidence": null,
+            "image_rect": {
+              "x": 169,
+              "y": 1514,
+              "width": 30,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 952.0,
+              "y": 1744.0,
+              "width": 30.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "51",
+            "confidence": null,
+            "image_rect": {
+              "x": 264,
+              "y": 1514,
+              "width": 24,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 1047.0,
+              "y": 1744.0,
+              "width": 24.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "Zeichen",
+            "confidence": null,
+            "image_rect": {
+              "x": 299,
+              "y": 1512,
+              "width": 105,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 1082.0,
+              "y": 1742.0,
+              "width": 105.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "Unformatierter",
+            "confidence": null,
+            "image_rect": {
+              "x": 785,
+              "y": 1512,
+              "width": 199,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 1568.0,
+              "y": 1742.0,
+              "width": 199.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "Text",
+            "confidence": null,
+            "image_rect": {
+              "x": 993,
+              "y": 1514,
+              "width": 53,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 1776.0,
+              "y": 1744.0,
+              "width": 53.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "100%",
+            "confidence": null,
+            "image_rect": {
+              "x": 1931,
+              "y": 1514,
+              "width": 69,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 2714.0,
+              "y": 1744.0,
+              "width": 69.0,
+              "height": 21.0
+            }
+          },
+          {
+            "text": "lane10",
+            "confidence": null,
+            "image_rect": {
+              "x": 2031,
+              "y": 52,
+              "width": 85,
+              "height": 22
+            },
+            "mapped_rect": {
+              "x": 2814.0,
+              "y": 282.0,
+              "width": 85.0,
+              "height": 22.0
+            }
+          },
+          {
+            "text": "Windows",
+            "confidence": null,
+            "image_rect": {
+              "x": 2101,
+              "y": 1512,
+              "width": 124,
+              "height": 23
+            },
+            "mapped_rect": {
+              "x": 2884.0,
+              "y": 1742.0,
+              "width": 124.0,
+              "height": 23.0
+            }
+          },
+          {
+            "text": "(CRLF)",
+            "confidence": null,
+            "image_rect": {
+              "x": 2236,
+              "y": 1514,
+              "width": 81,
+              "height": 26
+            },
+            "mapped_rect": {
+              "x": 3019.0,
+              "y": 1744.0,
+              "width": 81.0,
+              "height": 26.0
+            }
+          },
+          {
+            "text": "UTF-8",
+            "confidence": null,
+            "image_rect": {
+              "x": 2523,
+              "y": 1514,
+              "width": 77,
+              "height": 21
+            },
+            "mapped_rect": {
+              "x": 3306.0,
+              "y": 1744.0,
+              "width": 77.0,
+              "height": 21.0
+            }
+          }
+        ],
+        "redacted_word_rows": 12
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "448b7da768281f4847abb9639b69371098d355671caf6c3d0f9f0b33fef8b430",
+        "lease_sha256": "d587431a67c5fda8f2b3a51dd60103f0f38d14ad9a56e0019262494656452f24",
+        "start_sha256": "515bd056d35a8d1eb8eadb1b1e6ab188c029a27f16977d1296d882d7fdc1e433",
+        "terminal_sha256": "26e3588e84efe303bc5a7dac970268551c722b2d97c88bc38c7738e97fc5f4df",
+        "operation_sha256": "9173337a85df1e2dbbc9cc477d6d35cb3f37d44582c93ab29f2e59c46a278486",
+        "execution_id": "computer-5f3c25e27a7aea4c935dea92008a9cca-exec-0"
+      }
+    },
+    {
+      "step": "m13_observe_while_minimized",
+      "attempt_id": "lane10-a19",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 1.193,
+      "ok": false,
+      "state": "reconciliation_required",
+      "error": "foreground executable is not owner-authorized",
+      "error_type": "ComputerRefused",
+      "result": null,
+      "note": "the authorized application runs but no longer owns the foreground"
+    },
+    {
+      "step": "m14_observe_before_kill",
+      "attempt_id": "lane10-a20",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 1.939,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "f27a150bebda4d3ab5942cc63602e55b",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "fa7341c879d3d1595f6c7522a43dd7ba8353044e55673073152bebd3244aeb2c",
+        "captured_at": "2026-09-05T18:24:36.452458+00:00",
+        "postcondition_verified": false
+      },
+      "note": "",
+      "evidence_digests": {
+        "artifact_sha256": "10e45d4c7cc85031b4c4c3eb8d5e667277b4a0a2e95982b834dff1339fe96108",
+        "lease_sha256": "1aefa4a884157ef63bf8e3f920c162f7a2339db4a95df32a030064e24deb9bcb",
+        "start_sha256": "4346dace8c3d0220e7112073b7be49991bb4b8895be57e99eb7bccf8837b40d6",
+        "terminal_sha256": "40c1bcebe28d14ce1c19bedbf40fb30b03a01c64414060a0f7ce1e49dd9429e0",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-a956f7909a3787b58f85da489265471d-exec-0"
+      }
+    },
+    {
+      "step": "m15_vision_ocr_during_kill",
+      "attempt_id": "lane10-a21",
+      "tool": "vision.ocr",
+      "arguments": {
+        "observation_id": "f27a150bebda4d3ab5942cc63602e55b"
+      },
+      "seconds": 0.38,
+      "ok": false,
+      "state": "blocked",
+      "error": "kill switch engaged: a stop marker is present beside the permit [C:\\Users\\nukei\\.daedalus\\control\\f03a8ab03a51\\killswitch]",
+      "error_type": "WaveLeaseKillSwitchEngaged",
+      "result": null,
+      "note": "the kill switch is engaged from another thread while OCR polls its checkpoint"
+    },
+    {
+      "step": "m16_observe_after_kill",
+      "attempt_id": "lane10-a22",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 0.0,
+      "ok": false,
+      "state": "blocked",
+      "error": "kill switch engaged: a stop marker is present beside the permit [C:\\Users\\nukei\\.daedalus\\control\\f03a8ab03a51\\killswitch]",
+      "error_type": "LoopHalted",
+      "result": null,
+      "note": "the latched switch must refuse every further step in this service"
+    },
+    {
+      "step": "m17_observe_after_rearm",
+      "attempt_id": "lane10-a23",
+      "tool": "desktop.observe",
+      "arguments": {},
+      "seconds": 1.737,
+      "ok": true,
+      "state": "completed",
+      "error": null,
+      "error_type": null,
+      "result": {
+        "status": "observed",
+        "observation_id": "8aba09068d204859aa49f4c45a4fae05",
+        "frame": {
+          "window_id": "7736220",
+          "monitor_id": "65537",
+          "focus_window_id": "3869866",
+          "process_id": 13120,
+          "executable": "c:\\program files\\windowsapps\\microsoft.windowsnotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\notepad\\notepad.exe",
+          "origin_x": 783,
+          "origin_y": 230,
+          "width": 2850,
+          "height": 1563,
+          "dpi": 240,
+          "coordinate_space": "desktop",
+          "scale_x": 1.0,
+          "scale_y": 1.0,
+          "crop_x": 0,
+          "crop_y": 0
+        },
+        "image_sha256": "fa7341c879d3d1595f6c7522a43dd7ba8353044e55673073152bebd3244aeb2c",
+        "captured_at": "2026-09-05T18:24:38.910858+00:00",
+        "postcondition_verified": false
+      },
+      "note": "a new ComputerService after an operator re-arm; the latched object stays latched",
+      "evidence_digests": {
+        "artifact_sha256": "aa410dfa3c71782728d639b50b2eefb3b60943772613a82756a4d2eed1226ca2",
+        "lease_sha256": "8a7bb731a5287c95a681e90cbc1a8434dbff1e61adb61e46cb4281069388cd9f",
+        "start_sha256": "b5d2e8fcb4a7888c5304719a22ba3a48843d64b1f3698c146d0e6d688d340a46",
+        "terminal_sha256": "ec4a6adc9f5cefa859bf3b09f858737b5b4d2b9e8c4214690a1f64a0dee83ff6",
+        "operation_sha256": "c403076a226816bfc3170d216157697b156f0d7c5ae6f92cfd2bc4abf13f381a",
+        "execution_id": "computer-61628122c2154d3ebc3f6a05412c9d4a-exec-0"
+      }
+    }
+  ],
+  "privacy_pass": "OCR output filtered by lane10_redact.py: only the measurement's own sentinels, the typed probe, Notepad chrome and status counters are retained. No image was ever written to disk by the adapter or this harness."
+}

@@ -1,0 +1,57 @@
+{
+  "authority_root": "C:\\Users\\nukei\\AppData\\Local\\Temp\\daedalus-lane10\\authority",
+  "control_root": "C:\\Users\\nukei\\.daedalus\\control\\f03a8ab03a51",
+  "killswitch_env": "C:\\Users\\nukei\\.daedalus\\control\\f03a8ab03a51\\killswitch",
+  "fixture_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\daedalus-lane10\\fixture\\lane10-sentinel.txt",
+  "fixture_sentinels": [
+    "DAEDALUS",
+    "ZINNOBER",
+    "LANE10",
+    "SENTINEL",
+    "739104"
+  ],
+  "notepad": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+  "switch_path": "C:\\Users\\nukei\\.daedalus\\control\\f03a8ab03a51\\killswitch",
+  "switch_state_before_setup": "armed",
+  "setup_created": false,
+  "policy_sha256_before": "7555b840daaccdfd537fe82b1ec9c7b0885e43d1c720926f8d0f0fbbdde61bc0",
+  "workspace": "C:\\Users\\nukei\\.daedalus\\computer-workspaces\\f03a8ab03a51",
+  "configure_changed": true,
+  "policy_sha256_after": "a47e3b4fc8e6da66a8a501cb314f772882c7ee6f4d5e0f7985462c1007752ace",
+  "policy": {
+    "schema": "daedalus-computer-policy/1",
+    "workspace": "C:\\Users\\nukei\\.daedalus\\computer-workspaces\\f03a8ab03a51",
+    "tools": [
+      "app.launch",
+      "desktop.observe",
+      "vision.inspect",
+      "vision.ocr",
+      "desktop.type",
+      "desktop.key"
+    ],
+    "origins": [],
+    "applications": {
+      "notepad": [
+        "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2607.14.0_x64__8wekyb3d8bbwe\\Notepad\\Notepad.exe",
+        "C:\\Users\\nukei\\AppData\\Local\\Temp\\daedalus-lane10\\fixture\\lane10-sentinel.txt"
+      ]
+    },
+    "planner_provider": "ollama_http",
+    "planner_model": null,
+    "allow_remote_context": false,
+    "max_steps": 32,
+    "timeout_s": 900,
+    "max_file_bytes": 1048576
+  },
+  "capabilities_enabled": true,
+  "capability_tool_names": [
+    "app.launch",
+    "desktop.observe",
+    "vision.inspect",
+    "vision.ocr",
+    "desktop.type",
+    "desktop.key"
+  ],
+  "capability_unavailable": {},
+  "desktop_validation_note": "live foreground input not yet measured; application support requires verification"
+}
