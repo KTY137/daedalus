@@ -319,28 +319,34 @@ class TypedRelationBlock(Generic[T]):
 
         row_count = len(self.row_axis.labels)
         column_count = len(self.column_axis.labels)
-        row = 0
-        row_stop = offsets[1] if row_count else 0
-        previous_column: int | None = None
+        entry_count = len(values)
         columns_out_of_range = False
         columns_not_strict = False
-        for position, item in enumerate(columns):
-            if type(item) is not int:
-                raise ValueError("block.column_indices must contain integers")
-            if not 0 <= item < column_count:
-                columns_out_of_range = True
-            while row < row_count and position >= row_stop:
-                row += 1
-                previous_column = None
-                if row < row_count:
-                    row_stop = offsets[row + 1]
-            if row < row_count:
-                if previous_column is not None and previous_column >= item:
-                    columns_not_strict = True
-                previous_column = item
+        if len(columns) == entry_count and offsets[-1] == entry_count:
+            # Canonical blocks are overwhelmingly on this path. Walk each row span
+            # directly instead of checking/advancing a row-boundary state machine for
+            # every stored entry. Count-mismatch inputs keep the precedence-preserving
+            # fallback below.
+            for row in range(row_count):
+                previous_column: int | None = None
+                for position in range(offsets[row], offsets[row + 1]):
+                    item = columns[position]
+                    if type(item) is not int:
+                        raise ValueError("block.column_indices must contain integers")
+                    if not 0 <= item < column_count:
+                        columns_out_of_range = True
+                    if previous_column is not None and previous_column >= item:
+                        columns_not_strict = True
+                    previous_column = item
+        else:
+            for item in columns:
+                if type(item) is not int:
+                    raise ValueError("block.column_indices must contain integers")
+                if not 0 <= item < column_count:
+                    columns_out_of_range = True
         if columns_out_of_range:
             raise ValueError("block.column_indices contains an out-of-range index")
-        if len(columns) != len(values) or offsets[-1] != len(values):
+        if len(columns) != entry_count or offsets[-1] != entry_count:
             raise ValueError("CSR arrays must terminate at the common entry count")
         if columns_not_strict:
             raise ValueError("column indices must be strictly increasing inside each row")
