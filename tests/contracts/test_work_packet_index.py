@@ -194,18 +194,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "330 tracked files" in message
+    assert "331 tracked files" in message
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
-    # v0.1.6 ASAE packet set with `tools/index_work_packets.py --render`.
+    # v0.1.6 ASAE packet set with `tools/index_work_packets.py --render`, then
+    # re-measured the same way when G1-HW-01 added one primary packet document.
     assert payload["counts"] == {
-        "assigned_artifacts": 327,
+        "assigned_artifacts": 328,
         "legacy_artifacts": 204,
-        "packet_artifacts": 329,
-        "packet_ids": 264,
-        "post_index_artifacts": 125,
+        "packet_artifacts": 330,
+        "packet_ids": 265,
+        "post_index_artifacts": 126,
         "registry_artifacts": 1,
-        "tracked_files": 330,
+        "tracked_files": 331,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -378,6 +379,9 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-WP-INDEX-01",
         "G1-SCC-02",
         "G1-TENSOR-01",
+        # Isolated EXPERIMENT (effect-free KiCad inspection); see
+        # docs/work-packets/G1-HW-01_KICAD_READ_ONLY_INSPECTION.md.
+        "G1-HW-01",
     }
     post_index_packets = {
         packet_id: packet

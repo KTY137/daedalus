@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 327,
+    "assigned_artifacts": 328,
     "legacy_artifacts": 204,
-    "packet_artifacts": 329,
-    "packet_ids": 264,
-    "post_index_artifacts": 125,
+    "packet_artifacts": 330,
+    "packet_ids": 265,
+    "post_index_artifacts": 126,
     "registry_artifacts": 1,
-    "tracked_files": 330,
+    "tracked_files": 331,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -2790,6 +2790,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-HW-01_KICAD_READ_ONLY_INSPECTION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "585b7ea4e141332928ad6c9578b9c9997e55f247",
+        "classification": "EXPERIMENT",
+        "dependencies": "none. It reads `daedalus/chip_design/` for shape only and imports",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-HW-01",
+      "primary_artifact": "docs/work-packets/G1-HW-01_KICAD_READ_ONLY_INSPECTION.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IDE-10_OPENVSCODE_EXPERIMENT.md"
       ],
       "metadata": {
@@ -5196,6 +5212,20 @@
       "format": "markdown",
       "packet_id": "G1-HIER-15",
       "path": "docs/work-packets/G1-HIER-15_SQLITE_CONNECTION_CLOSE_SWEEP.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-HW-01",
+      "path": "docs/work-packets/G1-HW-01_KICAD_READ_ONLY_INSPECTION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
