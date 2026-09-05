@@ -11,6 +11,9 @@ import daedalus.providers.claude_cli as claude_provider
 from daedalus.providers.claude_cli import (
     ClaudeCLIProvider,
     ClaudeProviderAuthorizationRequired,
+    ClaudeProviderScopeMismatch,
+    claude_idempotency_key,
+    claude_invocation_sha256,
 )
 
 
@@ -27,6 +30,22 @@ SEALED_FIELDS = {
 def _provider_tree() -> ast.Module:
     source = Path(claude_provider.__file__).read_text(encoding="utf-8")
     return ast.parse(source)
+
+
+def _invocation(tmp_path: Path, **changes: object) -> str:
+    values: dict[str, object] = {
+        "objective": "review exact diff",
+        "worktree": str(tmp_path),
+        "paths": ["src/ikarus.py"],
+        "agent": {"name": "reviewer", "model_tier": "sonnet"},
+        "model": "sonnet",
+        "timeout_s": 300,
+        "attempt_id": "attempt-claude-1",
+        "source_revision": "a" * 40,
+        "request_sha256": "b" * 64,
+    }
+    values.update(changes)
+    return claude_invocation_sha256(**values)  # type: ignore[arg-type]
 
 
 def test_claude_provider_exposes_only_complete_sealed_runtime_contract() -> None:
@@ -93,3 +112,53 @@ def test_partial_sealed_bundle_is_fail_closed(missing: str) -> None:
             workspace_grant=object(),  # type: ignore[arg-type]
             **sealed,
         )
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["../primary/secret.py", "/etc/passwd", "C:/repo/file.py", "bad\x00path"],
+)
+def test_claude_path_scope_refuses_escape_or_ambiguous_paths(path: str) -> None:
+    with pytest.raises(ClaudeProviderScopeMismatch):
+        claude_provider._normalize_paths([path])
+
+
+def test_claude_path_scope_is_canonical_and_deduplicated() -> None:
+    assert claude_provider._normalize_paths(
+        ["src\\ikarus.py", "src/ikarus.py", ".", "tests/test_ikarus.py"]
+    ) == ["src/ikarus.py", "tests/test_ikarus.py"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("objective", "change implementation"),
+        ("paths", ["src/other.py"]),
+        ("agent", {"name": "implementer", "model_tier": "sonnet"}),
+        ("model", "opus"),
+        ("timeout_s", 301),
+        ("attempt_id", "attempt-claude-2"),
+        ("source_revision", "c" * 40),
+        ("request_sha256", "d" * 64),
+    ],
+)
+def test_claude_invocation_identity_changes_with_execution_semantics(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    baseline = _invocation(tmp_path)
+    changed = _invocation(tmp_path, **{field: value})
+
+    assert changed != baseline
+    assert claude_idempotency_key(changed) != claude_idempotency_key(baseline)
+
+
+def test_claude_invocation_identity_canonicalizes_worktree_and_paths(
+    tmp_path: Path,
+) -> None:
+    first = _invocation(tmp_path, paths=["src\\ikarus.py", "src/ikarus.py"])
+    second = _invocation(tmp_path, paths=["src/ikarus.py"])
+
+    assert first == second
+    assert claude_idempotency_key(first) == f"claude-{first}"
