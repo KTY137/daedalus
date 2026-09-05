@@ -55,6 +55,7 @@ test('a stale provider sample expires to UNKNOWN instead of staying reachable', 
     // answering without fabricating a new failure receipt. The last good row
     // must age out of authority on its own.
   });
+  await page.clock.install({ time: new Date() });
 
   const seen = collect(page);
   await openApp(page);
