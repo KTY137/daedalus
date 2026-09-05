@@ -8,7 +8,9 @@ never grants file, tool, policy, evaluator, or promotion authority.
 
 The client makes the chat default useful: ``auto`` means "pick an available
 LLM", never "silently fall back to deterministic help text".  The deterministic
-index remains an explicit runtime because status/distill are measurements, not
+index remains an explicit runtime and may also be pinned deliberately by the
+operator as the automatic Voice policy; automatic readiness probing never
+falls back to it on its own because status/distill are measurements, not
 language-model work.
 """
 from __future__ import annotations
@@ -231,6 +233,17 @@ class IkarusLLMClient:
                 reason = "explicit provider; transport owns final readiness"
             return LLMSelection(requested_norm, requested_norm, False,
                                 self.timeout_s, self.max_attempts, reason)
+
+        # The operator may deliberately pin the default Voice to the local,
+        # deterministic index. That is a policy choice, not a readiness
+        # fallback: honour it before probing any LLM so an omitted/`auto`
+        # request cannot silently become a paid Claude/Codex turn against the
+        # configured intent. Automatic probing still never chooses the
+        # deterministic runtime unless this explicit environment policy says so.
+        if env_default == "deterministic":
+            return LLMSelection("deterministic", requested_norm, True,
+                                self.timeout_s, 1,
+                                "configured deterministic Voice policy")
 
         failures: list[str] = []
 
