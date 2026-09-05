@@ -81,9 +81,12 @@ Independent release review found that all 12 PNGs carried Blender text/EXIF
 metadata, including a local absolute workspace path, and that the first ZIP
 also included raw logs. `sanitize.py` removed 144 metadata chunks while
 asserting byte-identical IDAT streams. Final check: 12 PNGs, zero private
-chunks or absolute paths. The deterministic ZIP now contains 46 files,
-19,859,620 bytes; CRC and privacy checks pass; SHA-256 is
-`d4fe5d60f9ea8dfbb84150468d0998df7cfb7db1f2cac8ed9f692b68eb760c24`.
+chunks or absolute paths. A clean Windows checkout then exposed mixed CRLF/LF
+source bytes in the first archive. The complete scene-source subtree is now
+pinned `-text`, and a fresh byte-stable checkout rebuilds the same payload on
+every host. The deterministic ZIP contains 46 files, 19,859,546 bytes; CRC and
+privacy checks pass; SHA-256 is
+`35478e9793882aa2b341d1d661557d4f3e1cab08a795813a6e0f62a6cc682613`.
 
 All six final previews were visually inspected, including corrected Dusk and
 Studio compositions. No owner art-direction approval, animation, GLB export,
