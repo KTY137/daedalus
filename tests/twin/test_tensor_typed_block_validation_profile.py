@@ -15,8 +15,6 @@ EXPECTED_METRICS = {
     "bounded_sequence_admission",
     "semiring_resolution",
     "identifier_admission",
-    "constructor_validation_generators",
-    "builtin_any",
 }
 
 
@@ -68,14 +66,14 @@ def test_profile_executes_the_existing_canonical_constructor() -> None:
 def test_probe_pairs_support_decode_with_constructor_native_attribution() -> None:
     report = _PROFILE.run_probe((_case(),), profile_repeats=2)
 
-    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/4"
+    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/5"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert report["semantic_scope"] == "canonical Boolean TypedRelationBlock materialization only"
     assert "unchanged packed-support decoder and canonical constructor" in report["measurement_contract"]
-    assert "constructor-native cProfile attribution" in report["measurement_contract"]
-    assert "do not execute a standalone scalar timing path" in report["measurement_contract"]
+    assert "only active constructor-native cProfile attribution" in report["measurement_contract"]
+    assert "do not execute standalone scalar or retired zero-only validation metrics" in report["measurement_contract"]
     assert "not duplicated or bypassed" in report["measurement_contract"]
     assert "non-additive" in report["measurement_contract"]
 
@@ -120,8 +118,10 @@ def test_support_decode_measurement_reuses_exact_existing_decoder() -> None:
     assert result["support_decode"]["entry_count"] == len(expected[1])
 
 
-def test_duplicate_scalar_wall_timer_is_removed() -> None:
+def test_duplicate_and_retired_profiler_paths_are_removed() -> None:
     assert not hasattr(_PROFILE, "_scalar_admission")
+    assert not hasattr(_PROFILE, "_nested_codes")
+    assert not hasattr(_PROFILE, "_builtin_metrics")
 
 
 def test_profile_repeat_bound_is_strict_and_rejects_bool() -> None:
