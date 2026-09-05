@@ -4,17 +4,18 @@ GPU-10 showed that packed Boolean support materializes quickly enough that the
 remaining cost is dominated by canonical ``TypedRelationBlock`` construction.
 GPU-11/12 identified and fused repeated structural validation scans. GPU-13
 separated persisted-scalar ``_stored`` cost, while GPU-14/15 then narrowed and
-reduced packed-support decoding overhead. With decoding no longer dominant,
-this contained GPU-16 diagnostic removes the standalone scalar wall-time probe:
-that probe duplicated work already executed by the canonical constructor and
-could drift away from the path it was intended to explain.
+reduced packed-support decoding overhead. GPU-16 removed the duplicate scalar
+wall-time path and kept only constructor-native attribution. GPU-17 now prunes
+the retired ``builtins.any`` and validation-generator metrics: both were useful
+while GPU-11/12 removed those scans, but the frozen post-GPU-12 evidence keeps
+them at zero and they no longer explain an active constructor cost.
 
-The profiler now executes the real support decoder and canonical constructor,
-and retains ``_stored`` attribution only from cProfile of that constructor.
-It does not duplicate structural/scalar validation or add a trusted constructor,
-alternate relation type, cache, backend, or semantic authority. Independently
-sampled wall timings are diagnostic and non-additive; profiler timings are
-attribution evidence only. Neither mints a speedup or promotion claim.
+The profiler executes the real support decoder and canonical constructor and
+reports only active in-path cProfile functions. It does not duplicate structural
+or scalar validation, add a trusted constructor, alternate relation type, cache,
+backend, or semantic authority. Independently sampled wall timings are
+diagnostic and non-additive; profiler timings are attribution evidence only.
+Neither mints a speedup or promotion claim.
 """
 from __future__ import annotations
 
@@ -26,7 +27,6 @@ import statistics
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from types import CodeType
 from typing import Any, Callable, Sequence
 
 import daedalus.schemas as _schemas
@@ -52,7 +52,7 @@ else:  # direct ``python experiments/tensor_gpu/typed_block_validation_profile.p
         pack_rows,
     )
 
-SCHEMA = "daedalus-tensor-typed-block-validation-profile/4"
+SCHEMA = "daedalus-tensor-typed-block-validation-profile/5"
 MAX_PROFILE_REPEATS = 5
 
 
@@ -71,16 +71,6 @@ def _validate_profile_repeats(value: int) -> int:
     return value
 
 
-def _nested_codes(code: CodeType, *, name: str) -> tuple[CodeType, ...]:
-    found: list[CodeType] = []
-    for constant in code.co_consts:
-        if isinstance(constant, CodeType):
-            if constant.co_name == name:
-                found.append(constant)
-            found.extend(_nested_codes(constant, name=name))
-    return tuple(found)
-
-
 def _entry_metrics(entries: Sequence[Any]) -> dict[str, float | int]:
     return {
         "calls": sum(int(entry.callcount) for entry in entries),
@@ -89,25 +79,9 @@ def _entry_metrics(entries: Sequence[Any]) -> dict[str, float | int]:
     }
 
 
-def _code_metrics(stats: Sequence[Any], codes: Sequence[CodeType]) -> dict[str, float | int]:
+def _code_metrics(stats: Sequence[Any], codes: Sequence[Any]) -> dict[str, float | int]:
     code_ids = {id(code) for code in codes}
-    return _entry_metrics(
-        tuple(
-            entry
-            for entry in stats
-            if isinstance(entry.code, CodeType) and id(entry.code) in code_ids
-        )
-    )
-
-
-def _builtin_metrics(stats: Sequence[Any], marker: str) -> dict[str, float | int]:
-    return _entry_metrics(
-        tuple(
-            entry
-            for entry in stats
-            if isinstance(entry.code, str) and marker in entry.code
-        )
-    )
+    return _entry_metrics(tuple(entry for entry in stats if id(entry.code) in code_ids))
 
 
 def _profile_once(factory: Callable[[], TypedRelationBlock[bool]]) -> _ProfileSample:
@@ -131,11 +105,6 @@ def _profile_once(factory: Callable[[], TypedRelationBlock[bool]]) -> _ProfileSa
         "bounded_sequence_admission": _code_metrics(stats, (_relation_blocks._sequence.__code__,)),
         "semiring_resolution": _code_metrics(stats, (_relation_blocks._reference_semiring.__code__,)),
         "identifier_admission": _code_metrics(stats, (_schemas._identifier.__code__,)),
-        "constructor_validation_generators": _code_metrics(
-            stats,
-            _nested_codes(post_init_code, name="<genexpr>"),
-        ),
-        "builtin_any": _builtin_metrics(stats, "builtins.any"),
     }
     return _ProfileSample(block=block, wall_ms=wall_ms, metrics=metrics)
 
@@ -296,10 +265,11 @@ def run_probe(
         "semantic_scope": "canonical Boolean TypedRelationBlock materialization only",
         "measurement_contract": (
             "Run the unchanged packed-support decoder and canonical constructor with one "
-            "warmup/repeat policy, retain deterministic constructor-native cProfile attribution "
-            "for the existing _stored Boolean scalar-admission contract, and do not execute a "
-            "standalone scalar timing path. Structural or scalar validation is not duplicated "
-            "or bypassed. Independently measured wall timings are diagnostic and non-additive."
+            "warmup/repeat policy, retain only active constructor-native cProfile attribution "
+            "for the existing Boolean materialization path, and do not execute standalone "
+            "scalar or retired zero-only validation metrics. Structural or scalar validation "
+            "is not duplicated or bypassed. Independently measured wall timings are "
+            "diagnostic and non-additive."
         ),
         "runtime": {
             "python_implementation": platform.python_implementation(),
