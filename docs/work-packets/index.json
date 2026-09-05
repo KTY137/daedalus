@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 335,
+    "assigned_artifacts": 340,
     "legacy_artifacts": 204,
-    "packet_artifacts": 337,
-    "packet_ids": 272,
-    "post_index_artifacts": 133,
+    "packet_artifacts": 342,
+    "packet_ids": 277,
+    "post_index_artifacts": 138,
     "registry_artifacts": 1,
-    "tracked_files": 338,
+    "tracked_files": 343,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -1907,6 +1907,38 @@
       "origin": "post_index",
       "packet_id": "G1-ARIADNE-07",
       "primary_artifact": "docs/work-packets/G1-ARIADNE-07_COUNCIL_HARDENING.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-08_GIT_OBJECT_READER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ARIADNE-05_WORKING_TREE_BASE_BINDING`, `G1-ARIADNE-06_NAMED_REFUSALS",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-08",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-08_GIT_OBJECT_READER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-09_CLI_EXIT_CODE_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ARIADNE-04_FAILED_RECEIPT_ON_FIRST_CALL`, `G1-ARIADNE-06_NAMED_REFUSALS`, `G1-ARIADNE-07_COUNCIL_HARDENING",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-09",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-09_CLI_EXIT_CODE_CONTRACT.md"
     },
     {
       "artifacts": [
@@ -3846,6 +3878,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-29_COMPUTER_LOOP_PROGRESS_AND_PRE_EFFECT_TIMEOUT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-26_COMPUTER_LOOP_LIVE` (stage 13), whose review section named both items below as undecided",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-29",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-29_COMPUTER_LOOP_PROGRESS_AND_PRE_EFFECT_TIMEOUT.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -4311,6 +4359,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "EXPERIMENT",
+        "dependencies": "`G1-SELF-00_SELF_RENOVATION_REHEARSAL`,",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-SELF-01",
+      "primary_artifact": "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-TAURI-CI-AUTH-271.json"
       ],
       "metadata": {
@@ -4340,6 +4404,22 @@
       "origin": "post_index",
       "packet_id": "G1-TENSOR-01",
       "primary_artifact": "docs/work-packets/G1-TENSOR-01.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-TESTS-01_SHELL_VOICE_TEST_ISOLATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "585b7ea4e141332928ad6c9578b9c9997e55f247",
+        "classification": "ALIGNED",
+        "dependencies": "none",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-TESTS-01",
+      "primary_artifact": "docs/work-packets/G1-TESTS-01_SHELL_VOICE_TEST_ISOLATION.md"
     },
     {
       "artifacts": [
@@ -4736,6 +4816,34 @@
       "format": "markdown",
       "packet_id": "G1-ARIADNE-07",
       "path": "docs/work-packets/G1-ARIADNE-07_COUNCIL_HARDENING.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ARIADNE-08",
+      "path": "docs/work-packets/G1-ARIADNE-08_GIT_OBJECT_READER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ARIADNE-09",
+      "path": "docs/work-packets/G1-ARIADNE-09_CLI_EXIT_CODE_CONTRACT.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -5910,6 +6018,20 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-IKARUS-29",
+      "path": "docs/work-packets/G1-IKARUS-29_COMPUTER_LOOP_PROGRESS_AND_PRE_EFFECT_TIMEOUT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-IKARUS-COMPUTER-01",
       "path": "docs/work-packets/G1-IKARUS-COMPUTER-01.md",
       "sections": [
@@ -6252,9 +6374,37 @@
     },
     {
       "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-SELF-01",
+      "path": "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
       "format": "json",
       "packet_id": "G1-TENSOR-01",
       "path": "docs/work-packets/G1-TENSOR-01.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-TESTS-01",
+      "path": "docs/work-packets/G1-TESTS-01_SHELL_VOICE_TEST_ISOLATION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
