@@ -10,7 +10,7 @@ from daedalus.structcore.forest import (
     KnowledgeForest,
 )
 from daedalus.twin import FourfoldSnapshot, PlaneSnapshot, fourfold_from_knowledge_forest
-from daedalus.twin.relation_blocks import RelationSignature
+from daedalus.twin.relation_blocks import RelationSignature, TypedRelationBlock
 from daedalus.twin.relation_projection import boolean_relation_block_from_fourfold
 from daedalus.twin.semiring import BooleanSemiring
 
@@ -237,6 +237,33 @@ def test_projection_reuses_canonical_plane_tuple_without_materializing_plane_map
 
     assert tuple(imports.iter_entries()) == (("src/a.py", "src/b.py", True),)
     assert tuple(documents.iter_entries()) == (("src/b.py", "docs/b.md", True),)
+
+
+def test_cross_plane_projection_reuses_verified_endpoints_without_coordinate_readmission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forest = _forest()
+    snapshot = _complete_snapshot(forest)
+
+    def unexpected_coordinate_admission(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError(
+            "verified cross-plane bindings must reuse the canonical indexed block owner"
+        )
+
+    monkeypatch.setattr(
+        TypedRelationBlock,
+        "from_coordinates",
+        classmethod(unexpected_coordinate_admission),
+    )
+
+    documents = boolean_relation_block_from_fourfold(
+        forest,
+        snapshot,
+        RelationSignature("code", "documents", "knowledge"),
+    )
+
+    assert tuple(documents.iter_entries()) == (("src/b.py", "docs/b.md", True),)
+    assert documents.subject.source_fourfold_sha256 == snapshot.digest
 
 
 def test_projection_refuses_legacy_partial_endpoint_planes() -> None:

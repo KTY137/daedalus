@@ -97,6 +97,56 @@ def boolean_relation_block_from_fourfold(
             plane=signature.target_plane,
             labels=target_plane.node_ids,
         )
+
+    subject = ProjectionSubject(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_fourfold_sha256=snapshot.digest,
+    )
+    semiring = BooleanSemiring()
+
+    if signature.source_plane != signature.target_plane:
+        # FourfoldSnapshot already validates revision identity and endpoint
+        # membership for every retained cross-plane binding.  Convert those
+        # verified labels to local indices once and delegate to the existing
+        # canonical indexed block owner instead of readmitting each label
+        # through ``from_coordinates``.
+        row_positions: dict[str, int] = {}
+        column_positions: dict[str, int] = {}
+        entries: dict[tuple[int, int], bool] = {}
+        for binding in snapshot.bindings:
+            if (
+                binding.source_plane == signature.source_plane
+                and binding.target_plane == signature.target_plane
+                and binding.relation == signature.relation
+            ):
+                if len(entries) >= MAX_BLOCK_ENTRIES:
+                    raise ValueError(
+                        f"relation projection exceeds bounded limit {MAX_BLOCK_ENTRIES}"
+                    )
+                if not row_positions:
+                    row_positions = {
+                        label: position for position, label in enumerate(row_axis.labels)
+                    }
+                    column_positions = {
+                        label: position
+                        for position, label in enumerate(column_axis.labels)
+                    }
+                entries[
+                    (
+                        row_positions[binding.source_node_id],
+                        column_positions[binding.target_node_id],
+                    )
+                ] = True
+        return TypedRelationBlock._from_indexed(
+            subject,
+            signature,
+            row_axis,
+            column_axis,
+            entries,
+            semiring,
+        )
+
     coordinates: list[tuple[str, str, bool]] = []
 
     def append(source: str, target: str) -> None:
@@ -106,49 +156,36 @@ def boolean_relation_block_from_fourfold(
             )
         coordinates.append((source, target, True))
 
-    if signature.source_plane != signature.target_plane:
-        for binding in snapshot.bindings:
-            if (
-                binding.source_plane == signature.source_plane
-                and binding.target_plane == signature.target_plane
-                and binding.relation == signature.relation
-            ):
-                append(binding.source_node_id, binding.target_node_id)
-    else:
-        retained_digests = source_plane.relation_sha256s
-        if retained_digests:
-            for hyperedge in forest.hyperedges:
-                if hyperedge.relation != signature.relation:
-                    continue
-                digest = canonical_sha(hyperedge.to_dict())
-                if _retains_digest(retained_digests, digest):
-                    raise ValueError(
-                        "binary relation projection cannot flatten a retained ForestHyperedge"
-                    )
+    retained_digests = source_plane.relation_sha256s
+    if retained_digests:
+        for hyperedge in forest.hyperedges:
+            if hyperedge.relation != signature.relation:
+                continue
+            digest = canonical_sha(hyperedge.to_dict())
+            if _retains_digest(retained_digests, digest):
+                raise ValueError(
+                    "binary relation projection cannot flatten a retained ForestHyperedge"
+                )
 
-            for edge in forest.edges:
-                if edge.relation != signature.relation:
-                    continue
-                digest = canonical_sha(edge.to_dict())
-                if not _retains_digest(retained_digests, digest):
-                    continue
-                if not edge.directed:
-                    raise ValueError(
-                        "binary relation projection requires an explicitly directed ForestEdge"
-                    )
-                append(edge.source, edge.target)
+        for edge in forest.edges:
+            if edge.relation != signature.relation:
+                continue
+            digest = canonical_sha(edge.to_dict())
+            if not _retains_digest(retained_digests, digest):
+                continue
+            if not edge.directed:
+                raise ValueError(
+                    "binary relation projection requires an explicitly directed ForestEdge"
+                )
+            append(edge.source, edge.target)
 
     return TypedRelationBlock.from_coordinates(
-        subject=ProjectionSubject(
-            repository_id=snapshot.repository_id,
-            source_revision=snapshot.source_revision,
-            source_fourfold_sha256=snapshot.digest,
-        ),
+        subject=subject,
         signature=signature,
         row_axis=row_axis,
         column_axis=column_axis,
         coordinates=coordinates,
-        semiring=BooleanSemiring(),
+        semiring=semiring,
     )
 
 
