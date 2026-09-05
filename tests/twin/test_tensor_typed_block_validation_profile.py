@@ -11,7 +11,7 @@ ProbeCase = _PROFILE.ProbeCase
 EXPECTED_METRICS = {
     "bitset_block_factory",
     "typed_block_post_init",
-    "stored_scalar_admission",
+    "stored_sequence_admission",
     "bounded_sequence_admission",
     "semiring_resolution",
     "identifier_admission",
@@ -56,7 +56,7 @@ def test_profile_executes_the_existing_canonical_constructor() -> None:
     assert set(sample.metrics) == EXPECTED_METRICS
     assert sample.metrics["bitset_block_factory"]["calls"] == 1
     assert sample.metrics["typed_block_post_init"]["calls"] == 1
-    assert sample.metrics["stored_scalar_admission"]["calls"] == canonical.entry_count
+    assert sample.metrics["stored_sequence_admission"]["calls"] == 1
     assert sample.metrics["bounded_sequence_admission"]["calls"] == 3
     for metric in sample.metrics.values():
         assert metric["self_ms"] >= 0.0
@@ -66,14 +66,15 @@ def test_profile_executes_the_existing_canonical_constructor() -> None:
 def test_probe_pairs_support_decode_with_constructor_native_profile_only() -> None:
     report = _PROFILE.run_probe((_case(),), profile_repeats=2)
 
-    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/7"
+    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/8"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert report["semantic_scope"] == "canonical Boolean TypedRelationBlock materialization only"
     assert "unchanged packed-support decoder and canonical constructor" in report["measurement_contract"]
     assert "constructor-native cProfile attribution" in report["measurement_contract"]
-    assert "Retired one-shot A/B controls" in report["measurement_contract"]
+    assert "sequence-level persisted-scalar admission owner" in report["measurement_contract"]
+    assert "one-shot A/B controls" in report["measurement_contract"]
     assert "does not bypass product validation" in report["measurement_contract"]
 
     result = report["cases"][0]
@@ -90,7 +91,7 @@ def test_probe_pairs_support_decode_with_constructor_native_profile_only() -> No
     assert result["profiled_construct_wall_ms"]["median"] >= 0.0
     assert set(result["profile_metrics"]) == EXPECTED_METRICS
     assert result["profile_metrics"]["typed_block_post_init"]["calls"] == 1
-    assert result["profile_metrics"]["stored_scalar_admission"]["calls"] == result["output_entries"]
+    assert result["profile_metrics"]["stored_sequence_admission"]["calls"] == 1
     assert result["profile_metrics"]["bounded_sequence_admission"]["calls"] == 3
     ratio = result["unprofiled_comparison"]["support_decode_to_constructor_ratio"]
     assert ratio is None or ratio >= 0.0
@@ -98,10 +99,11 @@ def test_probe_pairs_support_decode_with_constructor_native_profile_only() -> No
     assert "non-additive" in result["unprofiled_comparison"]["interpretation"]
     assert "scalar_to_constructor_ratio" not in result["unprofiled_comparison"]
     assert result["profile_attribution"]["post_init_cumulative_ms_median"] >= 0.0
-    assert result["profile_attribution"]["stored_cumulative_ms_median"] >= 0.0
-    assert result["profile_attribution"]["post_init_less_stored_cumulative_ms_median"] >= 0.0
+    assert result["profile_attribution"]["stored_sequence_cumulative_ms_median"] >= 0.0
+    assert result["profile_attribution"]["post_init_less_stored_sequence_cumulative_ms_median"] >= 0.0
     assert "real canonical constructor" in result["profile_attribution"]["interpretation"]
-    assert "no duplicate scalar wall-time probe" in result["profile_attribution"]["interpretation"]
+    assert "sole persisted-scalar sequence admission owner" in result["profile_attribution"]["interpretation"]
+    assert "no per-entry helper" in result["profile_attribution"]["interpretation"]
     assert "not a pure structural wall-time" in result["profile_attribution"]["interpretation"]
 
 

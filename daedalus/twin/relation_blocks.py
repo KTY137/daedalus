@@ -54,39 +54,56 @@ def _label_position(labels: Sequence[str], label: str) -> int | None:
     return position
 
 
-def _stored(value: Any, semiring_name: str) -> Any:
+def _stored_values(raw_values: Sequence[Any], semiring_name: str) -> tuple[Any, ...]:
+    """Validate and canonicalize one persisted scalar sequence.
+
+    Persisted semiring selection is owned once per relation block rather than by
+    one helper call per stored entry. Non-normalizing semirings keep an existing
+    tuple intact; mutable sequence inputs are materialized exactly once.
+    """
+
     if semiring_name == "boolean":
-        if type(value) is not bool:
-            raise ValueError("boolean relation blocks must contain bool values")
-        if not value:
-            raise ValueError("relation blocks must not store semiring zero values")
-        return value
+        for item in raw_values:
+            if type(item) is not bool:
+                raise ValueError("boolean relation blocks must contain bool values")
+            if not item:
+                raise ValueError("relation blocks must not store semiring zero values")
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
     if semiring_name == "natural":
-        if type(value) is not int or value < 0:
-            raise ValueError("natural relation blocks must contain non-negative integers")
-        if value.bit_length() > MAX_NATURAL_BITS:
-            raise ValueError(
-                f"natural relation-block values exceed bounded bit length {MAX_NATURAL_BITS}"
-            )
-        if value == 0:
-            raise ValueError("relation blocks must not store semiring zero values")
-        return value
+        for item in raw_values:
+            if type(item) is not int or item < 0:
+                raise ValueError("natural relation blocks must contain non-negative integers")
+            if item.bit_length() > MAX_NATURAL_BITS:
+                raise ValueError(
+                    f"natural relation-block values exceed bounded bit length {MAX_NATURAL_BITS}"
+                )
+            if item == 0:
+                raise ValueError("relation blocks must not store semiring zero values")
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
     if semiring_name == "tropical":
-        if type(value) not in (int, float):
-            raise ValueError("tropical relation blocks must contain numeric costs")
-        try:
-            value = float(value)
-        except OverflowError as exc:
-            raise ValueError("tropical relation-block costs must be finite") from exc
-        if not math.isfinite(value) or value < 0:
-            raise ValueError("tropical relation-block costs must be finite and non-negative")
-        return 0.0 if value == 0.0 else value
+        values: list[float] = []
+        for item in raw_values:
+            if type(item) not in (int, float):
+                raise ValueError("tropical relation blocks must contain numeric costs")
+            try:
+                stored = float(item)
+            except OverflowError as exc:
+                raise ValueError("tropical relation-block costs must be finite") from exc
+            if not math.isfinite(stored) or stored < 0:
+                raise ValueError("tropical relation-block costs must be finite and non-negative")
+            values.append(0.0 if stored == 0.0 else stored)
+        return tuple(values)
+
     if semiring_name == "evidence-dag":
-        if not isinstance(value, EvidenceValue):
-            raise ValueError("evidence-dag relation blocks require EvidenceValue values")
-        if not value.alternatives:
-            raise ValueError("relation blocks must not store semiring zero values")
-        return value
+        for item in raw_values:
+            if not isinstance(item, EvidenceValue):
+                raise ValueError("evidence-dag relation blocks require EvidenceValue values")
+            if not item.alternatives:
+                raise ValueError("relation blocks must not store semiring zero values")
+        return raw_values if type(raw_values) is tuple else tuple(raw_values)  # type: ignore[return-value]
+
     raise ValueError(
         f"unsupported persisted semiring {semiring_name!r}; add an explicit scalar contract first"
     )
@@ -292,17 +309,7 @@ class TypedRelationBlock(Generic[T]):
         if type(columns) is not tuple:
             columns = tuple(columns)
         raw_values = _sequence(self.values, "block.values", MAX_BLOCK_ENTRIES)
-        values = None if type(raw_values) is tuple else []
-        for index, item in enumerate(raw_values):
-            stored = _stored(item, self.semiring_name)
-            if values is None and stored is not item:
-                values = [raw_values[position] for position in range(index)]
-            if values is not None:
-                values.append(stored)
-        if values is None:
-            values = raw_values
-        else:
-            values = tuple(values)
+        values = _stored_values(raw_values, self.semiring_name)
 
         offsets_monotone = True
         previous_offset: int | None = None

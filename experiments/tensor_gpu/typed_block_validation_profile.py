@@ -3,18 +3,18 @@
 GPU-10 showed that packed Boolean support materializes quickly enough that the
 remaining cost is dominated by canonical ``TypedRelationBlock`` construction.
 GPU-11/12 identified and fused repeated structural validation scans. GPU-13
-separated persisted-scalar ``_stored`` cost, while GPU-14/15 narrowed and
-reduced packed-support decoding overhead. GPU-16 removed the duplicate scalar
-wall-time path, GPU-17 pruned retired zero-only metrics, and GPU-19 replaced the
-canonical common-case per-entry CSR row-state walk with exact row-span
-validation. GPU-20 retained a one-shot same-process A/B for that row-order
-change and froze the mixed result in its Work Packet.
+separated persisted-scalar admission cost, while GPU-14/15 narrowed and reduced
+packed-support decoding overhead. GPU-16 removed the duplicate scalar wall-time
+path, GPU-17 pruned retired zero-only metrics, and GPU-19 replaced the canonical
+common-case per-entry CSR row-state walk with exact row-span validation. GPU-20
+retained a one-shot same-process A/B for that row-order change and froze the
+mixed result in its Work Packet.
 
-GPU-21 removes that retired-control A/B from the live profiler now that the
-decision evidence is content-addressed. The diagnostic returns to one job:
-execute the real support decoder and canonical constructor, retaining only
-active in-path cProfile attribution. This is experiment-only observation code;
-it does not bypass product validation or mint performance/promotion authority.
+GPU-21 removed that retired-control A/B from the live profiler. GPU-24 keeps the
+same single diagnostic surface while following the production consolidation of
+persisted scalar admission from one helper call per entry to one sequence-level
+owner. This is experiment-only observation code; it does not bypass product
+validation or mint performance/promotion authority.
 """
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ else:  # direct ``python experiments/tensor_gpu/typed_block_validation_profile.p
         pack_rows,
     )
 
-SCHEMA = "daedalus-tensor-typed-block-validation-profile/7"
+SCHEMA = "daedalus-tensor-typed-block-validation-profile/8"
 MAX_PROFILE_REPEATS = 5
 
 
@@ -114,7 +114,9 @@ def _profile_once(factory: Callable[[], TypedRelationBlock[bool]]) -> _ProfileSa
     metrics = {
         "bitset_block_factory": _code_metrics(stats, (_block_from_csr_support.__code__,)),
         "typed_block_post_init": _code_metrics(stats, (post_init_code,)),
-        "stored_scalar_admission": _code_metrics(stats, (_relation_blocks._stored.__code__,)),
+        "stored_sequence_admission": _code_metrics(
+            stats, (_relation_blocks._stored_values.__code__,)
+        ),
         "bounded_sequence_admission": _code_metrics(stats, (_relation_blocks._sequence.__code__,)),
         "semiring_resolution": _code_metrics(stats, (_relation_blocks._reference_semiring.__code__,)),
         "identifier_admission": _code_metrics(stats, (_schemas._identifier.__code__,)),
@@ -207,8 +209,8 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
     post_init_cumulative_ms = float(
         metrics["typed_block_post_init"]["cumulative_ms_median"]
     )
-    stored_cumulative_ms = float(
-        metrics["stored_scalar_admission"]["cumulative_ms_median"]
+    stored_sequence_cumulative_ms = float(
+        metrics["stored_sequence_admission"]["cumulative_ms_median"]
     )
     return {
         "status": "verified",
@@ -245,15 +247,17 @@ def run_case(case: ProbeCase, *, profile_repeats: int) -> dict[str, Any]:
         "profile_metrics": metrics,
         "profile_attribution": {
             "post_init_cumulative_ms_median": post_init_cumulative_ms,
-            "stored_cumulative_ms_median": stored_cumulative_ms,
-            "post_init_less_stored_cumulative_ms_median": max(
-                0.0, post_init_cumulative_ms - stored_cumulative_ms
+            "stored_sequence_cumulative_ms_median": stored_sequence_cumulative_ms,
+            "post_init_less_stored_sequence_cumulative_ms_median": max(
+                0.0, post_init_cumulative_ms - stored_sequence_cumulative_ms
             ),
             "interpretation": (
-                "Single-run cProfile inclusive attribution only. _stored attribution comes "
-                "from the real canonical constructor; no duplicate scalar wall-time probe is "
-                "executed. The less-stored remainder contains every other __post_init__ "
-                "child/self cost and is not a pure structural wall-time measurement."
+                "Single-run cProfile inclusive attribution only. _stored_values attribution "
+                "comes from the real canonical constructor; it is the sole persisted-scalar "
+                "sequence admission owner and no per-entry helper or duplicate scalar "
+                "wall-time probe is executed. The less-admission remainder contains every "
+                "other __post_init__ child/self cost and is not a pure structural wall-time "
+                "measurement."
             ),
         },
     }
@@ -279,10 +283,11 @@ def run_probe(
         "semantic_scope": "canonical Boolean TypedRelationBlock materialization only",
         "measurement_contract": (
             "Run the unchanged packed-support decoder and canonical constructor with one "
-            "warmup/repeat policy and retain only active constructor-native cProfile "
-            "attribution. Retired one-shot A/B controls are preserved in their closed "
-            "Work Packet evidence rather than kept as live profiler code. The diagnostic "
-            "does not bypass product validation or establish a constructor-wide speedup."
+            "warmup/repeat policy and retain active constructor-native cProfile attribution, "
+            "including the canonical sequence-level persisted-scalar admission owner. Retired "
+            "one-shot A/B controls remain in closed Work Packet evidence rather than as live "
+            "profiler code. The diagnostic does not bypass product validation or establish a "
+            "constructor-wide speedup."
         ),
         "runtime": {
             "python_implementation": platform.python_implementation(),
