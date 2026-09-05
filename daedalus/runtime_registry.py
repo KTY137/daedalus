@@ -104,6 +104,11 @@ RUNTIMES: tuple[RuntimeSpec, ...] = (
 _WINDOWS_BATCH_SUFFIXES = (".cmd", ".bat")
 
 
+def _runtime_platform() -> str:
+    """Return the process platform through a narrow, testable observation seam."""
+    return os.name
+
+
 def _run_version(
     command: str,
     *,
@@ -114,7 +119,7 @@ def _run_version(
         return False, "", f"{command} not found on PATH"
     if (
         refuse_windows_batch_shim
-        and os.name == "nt"
+        and _runtime_platform() == "nt"
         and path.casefold().endswith(_WINDOWS_BATCH_SUFFIXES)
     ):
         return (
