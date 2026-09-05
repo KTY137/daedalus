@@ -1,0 +1,42 @@
+# G1-HW-01 host measurement, 2026-09-05
+
+Worktree: .claude/worktrees/lane6-kicad-inspect on loop/lane6-kicad-inspect
+Base revision: 585b7ea4e141332928ad6c9578b9c9997e55f247
+Interpreter: 3.13.14 Windows-11-10.0.26200-SP0
+
+## python -m daedalus.pcb_design status
+
+ABSENT  kicad-cli  KiCad command line: kicad-cli not found on PATH or in a known install location
+ABSENT  kicad      KiCad GUI application: kicad not found on PATH or in a known install location
+ABSENT  ngspice    ngspice circuit simulator: ngspice not found on PATH or in a known install location
+ABSENT  gerbv      gerbv Gerber viewer: gerbv not found on PATH or in a known install location
+ABSENT  pcbnew     KiCad Python API (SWIG, KiCad 8): module 'pcbnew' not importable here
+ABSENT  kipy       KiCad IPC API client (KiCad 9): module 'kipy' not importable here
+exit=0
+
+## PATH probe (independent of the package)
+kicad-cli  (not on PATH)
+kicad      (not on PATH)
+ngspice    (not on PATH)
+gerbv      (not on PATH)
+
+## Install locations
+ls: cannot access '/c/Program Files/KiCad': No such file or directory
+ls: cannot access '/c/Program Files (x86)/KiCad': No such file or directory
+
+## python -m daedalus.pcb_design plan (missing prerequisites)
+
+admissible: False
+missing_tools: ['gerbv', 'kicad-cli', 'ngspice']
+unmet_governance_prerequisites: ['amendment_013_adopted', 'effect_lease', 'bounded_write_root', 'owner_approval']
+inadmissible_reasons: ['governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval', 'tool_absent:gerbv', 'tool_absent:kicad-cli', 'tool_absent:ngspice']
+plan_shape_sha256: 7c2545ccd34ea796b1e7066c5d09a6fb530a4d992372058d75364614e889b630
+ - erc blocked_external ['kicad-cli:absent', 'governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval']
+ - drc blocked_external ['kicad-cli:absent', 'governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval']
+ - netlist blocked_external ['kicad-cli:absent', 'governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval']
+ - bom blocked_external ['kicad-cli:absent', 'governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval']
+ - gerbers blocked_external ['kicad-cli:absent', 'governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval']
+ - drill blocked_external ['kicad-cli:absent', 'governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval']
+ - gerber_render blocked_external ['gerbv:absent', 'governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval']
+ - spice blocked_external ['ngspice:absent', 'governance:amendment_013_adopted', 'governance:effect_lease', 'governance:bounded_write_root', 'governance:owner_approval']
+plan exit=1
