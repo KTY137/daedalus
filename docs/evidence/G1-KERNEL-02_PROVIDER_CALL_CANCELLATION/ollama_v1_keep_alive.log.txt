@@ -1,0 +1,99 @@
+G1-KERNEL-02 — open item measured: does the /v1 shim honour keep_alive / num_ctx?
+================================================================================
+
+Question (Pythia, room 2026-09-05 18:25)
+----------------------------------------
+The computer loop's planner reaches Ollama through
+shell._llm -> _ollama -> providers._openai_compat.chat_completion, i.e. the
+OpenAI-compatible /v1 shim, while the native offload path in
+providers/ollama.py sets keep_alive_value(). If the shim drops keep_alive, the
+~74 s per planner call measured in G1-IKARUS-26 is a ROUTING effect, not a model
+limit. The docstring at _openai_compat.py:132-134 already claims the shim drops
+it ("measured"); is that still true on the installed version?
+
+Host
+----
+Windows 11, Ollama 0.33.3 (GET /api/version), model qwen2.5-coder:7b
+(7.6B, Q4_K_M), 2026-09-05 ~20:24-20:26 local. Box shared with nine other lane
+agents. Measured with curl against the loopback endpoint, not through Daedalus,
+so this measures Ollama's behaviour and not our client.
+
+Baseline before the experiment
+------------------------------
+    $ date "+now=%H:%M:%S"; curl -s http://127.0.0.1:11434/api/ps
+    now=20:24:12
+    expires_at 2026-09-05T20:29:12.978+02:00      -> now + 5m00s
+    context_length 6144
+
+    (5m00s is Ollama's DEFAULT keep_alive. 6144 is _ollama_native.DEFAULT_NUM_CTX,
+    so the resident instance had been loaded natively by some earlier call, and
+    the most recent call had NOT renewed it with a 30m TTL.)
+
+A. The /v1 shim, with keep_alive at the top level
+-------------------------------------------------
+    $ date "+A_before=%H:%M:%S"
+    A_before=20:24:34
+    $ curl -s -H "Content-Type: application/json" -d '{
+        "model":"qwen2.5-coder:7b",
+        "messages":[{"role":"user","content":"hi"}],
+        "stream":false,"max_tokens":1,"keep_alive":"30m"}' \
+        http://127.0.0.1:11434/v1/chat/completions
+    {"id":"chatcmpl-114","object":"chat.completion",...,"choices":[{"index":0,
+     "message":{"role":"assistant","content":"Hello"},...
+    $ date "+A_after=%H:%M:%S"
+    A_after=20:25:13
+    $ curl -s http://127.0.0.1:11434/api/ps
+    expires_at 2026-09-05T20:30:13.575+02:00      -> A_after + 5m00s
+    context_length 4096
+
+B. The native endpoint, same TTL and an explicit num_ctx (control)
+------------------------------------------------------------------
+    $ date "+B_before=%H:%M:%S"
+    B_before=20:25:34
+    $ curl -s -H "Content-Type: application/json" -d '{
+        "model":"qwen2.5-coder:7b","keep_alive":"30m",
+        "options":{"num_ctx":6144}}' \
+        http://127.0.0.1:11434/api/generate
+    {"model":"qwen2.5-coder:7b",...,"done":true,"done_reason":"load"}
+    $ date "+B_after=%H:%M:%S"
+    B_after=20:26:03
+    $ curl -s http://127.0.0.1:11434/api/ps
+    expires_at 2026-09-05T20:56:03.407+02:00      -> B_after + 30m00s
+    context_length 6144
+
+Result
+------
+| call                            | expires_at      | context_length |
+| ------------------------------- | --------------- | -------------- |
+| /v1/chat/completions, keep_alive | +5m00s (default) | 4096          |
+| /api/generate, keep_alive+num_ctx| +30m00s          | 6144          |
+
+Both fields are dropped by the /v1 shim; both are honoured natively. The
+docstring's claim holds against Ollama 0.33.3.
+
+Two further observations
+------------------------
+1. The /v1 call did more than fail to extend the TTL: context_length went
+   6144 -> 4096, so it EVICTED and RELOADED the natively-warmed instance at the
+   4096 default. The planner is therefore also running in a context window it
+   did not ask for.
+2. The one-token /v1 completion took 39 s wall (20:24:34 -> 20:25:13),
+   consistent with that reload. This is a shared, loaded box: treat 39 s as
+   "a reload happened", not as a performance figure.
+
+So Pythia's hypothesis is supported: the loop's per-call cost includes a reload
+that the routing causes.
+
+Not fixed in G1-KERNEL-02, and not because it is small: the fix is not available
+in _openai_compat at all -- Ollama ignores the fields whatever this client
+sends. The repair is to route the planner through _ollama_native.native_chat,
+which means shell.py and _ollama_native.py, both outside this lane, and it is a
+different architectural axis with a different primary claim.
+
+Confound, stated
+----------------
+Nine agents share this box and at least one was independently probing the same
+endpoint. An intervening call could in principle reset a TTL. The two rows were
+taken 70 s apart, both landed on an exact +Xm00s boundary, and they disagree in
+the predicted direction, so a confound would have to be adversarially
+well-timed to produce them.
