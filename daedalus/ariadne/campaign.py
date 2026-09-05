@@ -180,7 +180,48 @@ def _is_domain_failure(failure: BaseException) -> bool:
     return isinstance(failure, AriadneCampaignError)
 
 
-def _safe_target(root: Path, value: str):
+def _verify_head(root: Path, source_revision: str):
+    try:
+        return verify_repository_head_revision(root, source_revision)
+    except (RepositoryHeadRevisionBindingError, RepositoryHeadRevisionRaceError) as exc:
+        raise AriadneConflictError(f"source_revision conflict: {exc}") from exc
+    except RepositoryHeadRevisionShapeError as exc:
+        raise AriadneRequestError(f"repository HEAD is unavailable or unsafe: {exc}") from exc
+
+
+_BASE_BINDING_SCHEMA = "daedalus-ariadne-base-tree-binding/1"
+
+
+def _base_tree_binding(
+    *, campaign_id: str, source_revision: str, relative: str, base_file_sha256: str
+) -> dict[str, Any]:
+    """What the campaign base IS: the working-tree bytes, content-addressed.
+
+    The receipt binds ``source_revision`` (the verified HEAD) and the base
+    tree (CAS). It never verified that the base bytes are the file's content
+    AT that revision, and a raw byte compare against the HEAD blob would lie
+    under git line-ending filters. So the claim is stated instead of faked:
+    ``base_source`` is the working tree and ``head_content_verified`` is
+    false until a separate packet verifies it through git itself.
+    """
+    return {
+        "schema": _BASE_BINDING_SCHEMA,
+        "campaign_id": campaign_id,
+        "source_revision": source_revision,
+        "target_path": relative,
+        "base_file_sha256": base_file_sha256,
+        "base_source": "working-tree",
+        "head_content_verified": False,
+    }
+
+
+def _admit_target_path(value: str) -> str:
+    """Pure path admission: no filesystem, no repository, no HEAD.
+
+    Shape and mandatory-ignored-root refusals happen before the repository is
+    observed at all, so a refused request leaves no trace and needs no
+    ``.git``. Reading the admitted path is :func:`_safe_target`.
+    """
     if type(value) is not str:
         raise AriadneRequestError("target_path must be a strict string")
     try:
@@ -197,6 +238,11 @@ def _safe_target(root: Path, value: str):
         raise AriadneRequestError(
             "target_path must not enter a mandatory ignored root"
         )
+    return relative
+
+
+def _safe_target(root: Path, value: str):
+    relative = _admit_target_path(value)
     try:
         return relative, read_repository_source(root, relative)
     except RepositoryTreeRaceError as exc:
@@ -791,6 +837,7 @@ def _complete_failed_campaign_receipt(
     blocker: str,
     reproducibility_note: str,
     additional_negative_outcomes: tuple[str, ...] = (),
+    base_binding_sha256: str | None = None,
 ) -> tuple[CampaignReceipt, ArtifactRef]:
     """Commit an addressable failed CampaignReceipt instead of STATE_FAILED."""
 
@@ -807,6 +854,7 @@ def _complete_failed_campaign_receipt(
         contract.digest,
         spec.digest,
         outer_binding_ref.sha256,
+        *(() if base_binding_sha256 is None else (base_binding_sha256,)),
         *(
             digest
             for trial in trials
@@ -1086,15 +1134,18 @@ def run_campaign(
     if before == after:
         raise AriadneCampaignError("repair must replace before with a different value")
     root = Path(repo_root).resolve(strict=True)
-    relative, target_snapshot = _safe_target(root, target_path)
     if len(source_revision) != 40 or any(c not in "0123456789abcdef" for c in source_revision):
         raise AriadneCampaignError("source_revision must be the exact lowercase 40-hex Git HEAD")
-    try:
-        head_receipt = verify_repository_head_revision(root, source_revision)
-    except (RepositoryHeadRevisionBindingError, RepositoryHeadRevisionRaceError) as exc:
-        raise AriadneConflictError(f"source_revision conflict: {exc}") from exc
-    except RepositoryHeadRevisionShapeError as exc:
-        raise AriadneRequestError(f"repository HEAD is unavailable or unsafe: {exc}") from exc
+    # HEAD is observed BEFORE and AFTER the target read (G1-ARIADNE-05): a
+    # commit or checkout between the two would bind bytes of revision X to a
+    # receipt labelled Y, and nothing else here would notice.
+    _admit_target_path(target_path)  # pure refusals first: no repository observed yet
+    head_receipt = _verify_head(root, source_revision)
+    relative, target_snapshot = _safe_target(root, target_path)
+    if _verify_head(root, source_revision).to_dict() != head_receipt.to_dict():
+        raise AriadneConflictError(
+            "source_revision conflict: repository HEAD changed while the target was read"
+        )
     head_receipt_sha = canonical_sha(head_receipt.to_dict())
     try:
         original = target_snapshot.source.decode("utf-8", errors="strict")
@@ -1267,9 +1318,13 @@ def run_campaign(
         base = _store_scoped_tree(
             store, payload=original_bytes, relative=relative,
             tree_id=f"{campaign_id}-base", source_revision=source_revision,
-            origin="ariadne.controlled-repair.scoped-base", created_at=created,
+            origin="ariadne.controlled-repair.working-tree-base", created_at=created,
             trace_id=campaign_id,
         )
+        base_binding_ref = store.put_bytes(canonical_json(_base_tree_binding(
+            campaign_id=campaign_id, source_revision=source_revision,
+            relative=relative, base_file_sha256=target_snapshot.source_sha256,
+        )).encode("ascii"))
         budget = ResourceBudget(max_wall_time_s=timeout_s, max_attempts=1)
         budget_sha = canonical_sha(asdict(budget))
         task_sha = operation_sha
@@ -1611,6 +1666,7 @@ def run_campaign(
                     source_revision=source_revision,
                     operation_sha256=operation_sha,
                     started_at=created,
+                    base_binding_sha256=base_binding_ref.sha256,
                     blocker=blocker,
                     reproducibility_note=(
                         "The campaign stopped at the first post-capture error; "
@@ -1716,6 +1772,7 @@ def run_campaign(
                     source_revision=source_revision,
                     operation_sha256=operation_sha,
                     started_at=created,
+                    base_binding_sha256=base_binding_ref.sha256,
                     blocker=(
                         f"{variant}:inner-terminal-evidence:{terminal_type}:"
                         f" {terminal_message}"
@@ -1767,6 +1824,7 @@ def run_campaign(
                     source_revision=source_revision,
                     operation_sha256=operation_sha,
                     started_at=created,
+                    base_binding_sha256=base_binding_ref.sha256,
                     blocker="; ".join(
                         f"{variant}:{violation}" for violation in budget_violations
                     ),
@@ -1841,7 +1899,7 @@ def run_campaign(
         finished = _now()
         receipt_inputs = {
             contract.digest, spec.digest, selected.candidate_tree_sha256,
-            outer_binding_ref.sha256,
+            outer_binding_ref.sha256, base_binding_ref.sha256,
             nomination.digest, *(digest for t in trials for digest in (
                 t.base_source_tree_sha256, *t.attempt_contract_sha256s,
                 *t.attempt_receipt_sha256s, t.candidate_tree_sha256, t.evidence_packet_sha256,
