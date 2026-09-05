@@ -168,10 +168,17 @@ export function MissionControl({
   const queue = loop.queue.data?.queue;
   const attempts = loop.attempts.data?.attempts;
   const latest = attempts?.intents?.[0];
-  const providerSampleUnknown = Boolean(providersError) || !providersLoadedAt;
-  const providerSampleStale = isStale(providersLoadedAt, now);
+  const providerSampleStale = providersLoadedAt != null && isStale(providersLoadedAt, now);
+  const providerSampleUnknown = Boolean(providersError) || !providersLoadedAt || providerSampleStale;
   const reachable = providers.filter((p) => p.available).length;
   const configured = providers.filter((p) => p.configured).length;
+  const providerSampleDetail = providersError
+    ? 'endpoint unread'
+    : !providersLoadedAt
+      ? 'never sampled'
+      : providerSampleStale
+        ? `stale · ${ageLabel(providersLoadedAt, now)}`
+        : `${configured} configured · ${ageLabel(providersLoadedAt, now)}`;
   const governanceState = governance ? coerceState(governance.state) : 'unknown';
 
   const queueStage: HealthState = loop.queue.error
@@ -257,7 +264,7 @@ export function MissionControl({
         <div className="mc-readout">
           <span>provider sample</span>
           <b>{providerSampleUnknown ? 'unknown' : `${reachable} / ${providers.length}`}</b>
-          <small>{providerSampleUnknown ? 'endpoint unread' : `${configured} configured · ${ageLabel(providersLoadedAt, now)}`}</small>
+          <small>{providerSampleDetail}</small>
         </div>
         <div className="mc-readout">
           <span>promotion</span>
