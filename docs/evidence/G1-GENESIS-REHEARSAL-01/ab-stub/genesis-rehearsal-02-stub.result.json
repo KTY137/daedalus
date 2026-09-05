@@ -1,0 +1,224 @@
+{
+  "elapsed_s": 12.738432899990585,
+  "genesis": {
+    "run_id": "genesis-f550afe4b15265cf80f4c5d2",
+    "request_key": "loop-genesis-rehearsal-02-stub",
+    "status": "preview-ready",
+    "target": "web",
+    "defaults": {
+      "accessibility": "WCAG 2.2 AA",
+      "authentication": false,
+      "audience": "one local user",
+      "base_repository": null,
+      "capability_scope": "card CRUD with fixed backlog/in-progress/done columns, keyboard move controls, and optional search/filter",
+      "language": "English UI generated from the supplied objective",
+      "product_class": "local-first kanban board",
+      "requested_stack": null,
+      "requested_target": "web",
+      "stack": "python-stdlib",
+      "stack_required": false,
+      "storage": "local-only",
+      "target": "web",
+      "target_required": true,
+      "telemetry": false,
+      "blueprint": "kanban-board-v1"
+    },
+    "blockers": [],
+    "mission": {
+      "mission_id": "mission-f550afe4b15265cf80f4c5d2",
+      "objective": "Materialize and verify an isolated web product: kanban board",
+      "work_items": [
+        "wi-001-36439c649487",
+        "wi-002-2c34ce789e18",
+        "wi-003-9277f555f931",
+        "wi-004-5896c73969da",
+        "wi-005-de0695221471",
+        "wi-006-d7f19e25a3b4",
+        "wi-007-7347d69697de",
+        "wi-008-48b7754f9858",
+        "wi-009-6d0343228f72"
+      ],
+      "success_criteria": [
+        "Card model and schema match their independently pinned identities",
+        "app.js matches the pinned kanban-board-v1 template after exact CONFIG normalization",
+        "browser behavior is not claimed by certified-template conformance",
+        "candidate-executing checks report effective OS write containment",
+        "deterministic syntax check passes",
+        "generated unit tests pass",
+        "package smoke check passes",
+        "rebuilt Fourfold snapshot is complete",
+        "runtime smoke check passes"
+      ],
+      "policy_sha256": "1859390fcdf731880245f326772517daee94230edf5fad86b2d3e9d3c8d34396"
+    },
+    "candidate": {
+      "kind": "candidate source tree",
+      "sha256": "e770c09d9b58a030f073923947a870207b1483774f44ebd9fb1b29b0c9566f20",
+      "locator": "artifact-locator:sha256:e770c09d9b58a030f073923947a870207b1483774f44ebd9fb1b29b0c9566f20",
+      "files": [
+        "README.md",
+        "app.js",
+        "fourfold.json",
+        "icons/icon-192.svg",
+        "icons/icon-512.svg",
+        "index.html",
+        "manifest.webmanifest",
+        "model.py",
+        "schemas/card.schema.json",
+        "server.py",
+        "service-worker.js",
+        "styles.css",
+        "tests/test_project.py"
+      ]
+    },
+    "evidence": {
+      "kind": "evidence packet",
+      "sha256": "0ac2a79e4aef20ff1405e5f7905fc346ccca07a34618bf0748510fcf6075ac0a",
+      "locator": "artifact-locator:sha256:0ac2a79e4aef20ff1405e5f7905fc346ccca07a34618bf0748510fcf6075ac0a",
+      "status": "passed",
+      "checks": [
+        "attempt-f550afe4b15265cf80f4c5d2:build",
+        "attempt-f550afe4b15265cf80f4c5d2:fourfold",
+        "attempt-f550afe4b15265cf80f4c5d2:kanban_template_conformance",
+        "attempt-f550afe4b15265cf80f4c5d2:package",
+        "attempt-f550afe4b15265cf80f4c5d2:runtime",
+        "attempt-f550afe4b15265cf80f4c5d2:test"
+      ],
+      "candidate_tree_sha256": "e770c09d9b58a030f073923947a870207b1483774f44ebd9fb1b29b0c9566f20"
+    },
+    "roundtrip": {
+      "kind": "round-trip report",
+      "sha256": "709192f9dac6ddbc9322041bb0de153268bcd2fec45c5d5f7696d01e8a30ed45",
+      "locator": "artifact-locator:sha256:709192f9dac6ddbc9322041bb0de153268bcd2fec45c5d5f7696d01e8a30ed45",
+      "status": "passed",
+      "checks": {
+        "build": true,
+        "code": true,
+        "containment": true,
+        "data": true,
+        "kanban_template_conformance": true,
+        "knowledge": true,
+        "package": true,
+        "runtime": true,
+        "test": true,
+        "type": true
+      },
+      "feature_assurance": {
+        "approved_kanban_app_template_sha256": "66244182208b8bae5777d16d71f859724f8f37d71abb4decf5c84834d023d941",
+        "approved_kanban_model_sha256": "dbebac7873d9b9853b8ba5275a8c489bca2dc873dd710becae5b8f6bced6f647",
+        "approved_kanban_schema_sha256": "bb12c29e79a3767e578b7c126062669ddccc21b3b23ec76730bcf41bd729f054",
+        "blueprint": "kanban-board-v1",
+        "browser_behavior_verified": false,
+        "candidate_owned": false,
+        "kanban_template_verified": true,
+        "mechanism": "kernel-owned certified kanban template plus pinned model/schema conformance",
+        "runtime_behavior_verified_by_this_check": false,
+        "limitation": "Exact generated source identities and fixed-column wiring are checked, but browser interactions are not executed; behavioral browser verification remains a separate release gap."
+      }
+    },
+    "preview": {
+      "kind": "read-only-cas-preview",
+      "path": "/api/genesis/genesis-f550afe4b15265cf80f4c5d2/preview/"
+    },
+    "artifacts": {
+      "actual_fourfold": {
+        "kind": "actual fourfold",
+        "sha256": "6ce13653cc0841856fb105316527351efa6b716c69646ea16eab5ae36e4dced6",
+        "locator": "artifact-locator:sha256:6ce13653cc0841856fb105316527351efa6b716c69646ea16eab5ae36e4dced6"
+      },
+      "attempt": {
+        "kind": "attempt",
+        "sha256": "6f002dc61242a2171fa3c6df775db0ee8698bc4d6951866aafbceee4f5fd00b8",
+        "locator": "artifact-locator:sha256:6f002dc61242a2171fa3c6df775db0ee8698bc4d6951866aafbceee4f5fd00b8"
+      },
+      "autonomy_policy": {
+        "kind": "autonomy policy",
+        "sha256": "1859390fcdf731880245f326772517daee94230edf5fad86b2d3e9d3c8d34396",
+        "locator": "artifact-locator:sha256:1859390fcdf731880245f326772517daee94230edf5fad86b2d3e9d3c8d34396"
+      },
+      "build_intent": {
+        "kind": "build intent",
+        "sha256": "852c47e4d5c03b4af653b8d95367233890dfe3b81c616174945af7da7e9cd0e9",
+        "locator": "artifact-locator:sha256:852c47e4d5c03b4af653b8d95367233890dfe3b81c616174945af7da7e9cd0e9"
+      },
+      "design_contract": {
+        "kind": "design contract",
+        "sha256": "699fc807e6061509eee885d149065f43cced06fcfeb6e3b584df5ead342f4f1c",
+        "locator": "artifact-locator:sha256:699fc807e6061509eee885d149065f43cced06fcfeb6e3b584df5ead342f4f1c"
+      },
+      "evidence": {
+        "kind": "evidence",
+        "sha256": "0ac2a79e4aef20ff1405e5f7905fc346ccca07a34618bf0748510fcf6075ac0a",
+        "locator": "artifact-locator:sha256:0ac2a79e4aef20ff1405e5f7905fc346ccca07a34618bf0748510fcf6075ac0a"
+      },
+      "graph_proposal": {
+        "kind": "graph proposal",
+        "sha256": "f20b55b9a05107e8fa54c9262d7f106c1e0bdfe4eebc3a5e57ded8e00f014915",
+        "locator": "artifact-locator:sha256:f20b55b9a05107e8fa54c9262d7f106c1e0bdfe4eebc3a5e57ded8e00f014915"
+      },
+      "materialization_plan": {
+        "kind": "materialization plan",
+        "sha256": "7c69608183f2c2b15dd18a30a33a5a44f5f58b71f81d402272fe4aeb93ee8d40",
+        "locator": "artifact-locator:sha256:7c69608183f2c2b15dd18a30a33a5a44f5f58b71f81d402272fe4aeb93ee8d40"
+      },
+      "mission": {
+        "kind": "mission",
+        "sha256": "a04b4687376fd444d40d0342bd3540754c38024ffe41ff7ef622d094fdbd50ca",
+        "locator": "artifact-locator:sha256:a04b4687376fd444d40d0342bd3540754c38024ffe41ff7ef622d094fdbd50ca"
+      },
+      "policy_decision": {
+        "kind": "policy decision",
+        "sha256": "b2674901fb560902174ad02d68e7690303a41800c669e859550bc2eed08ae5e1",
+        "locator": "artifact-locator:sha256:b2674901fb560902174ad02d68e7690303a41800c669e859550bc2eed08ae5e1"
+      },
+      "product_spec": {
+        "kind": "product spec",
+        "sha256": "498574fd4783e90484079b6297ebdbeb0759f60447859e4b78dd543c75c8f1b9",
+        "locator": "artifact-locator:sha256:498574fd4783e90484079b6297ebdbeb0759f60447859e4b78dd543c75c8f1b9"
+      },
+      "roundtrip": {
+        "kind": "roundtrip",
+        "sha256": "709192f9dac6ddbc9322041bb0de153268bcd2fec45c5d5f7696d01e8a30ed45",
+        "locator": "artifact-locator:sha256:709192f9dac6ddbc9322041bb0de153268bcd2fec45c5d5f7696d01e8a30ed45"
+      },
+      "run_record": {
+        "kind": "run record",
+        "sha256": "9f6fca26596c771b6e262f4aa85b38a04e0d77ea68a0c44c2aac029339711018",
+        "locator": "artifact-locator:sha256:9f6fca26596c771b6e262f4aa85b38a04e0d77ea68a0c44c2aac029339711018"
+      },
+      "runtime_manifest": {
+        "kind": "runtime manifest",
+        "sha256": "b9f513e7b4ac0380aee88f7bda49e415822db225634b1c15507ffddaf258ac59",
+        "locator": "artifact-locator:sha256:b9f513e7b4ac0380aee88f7bda49e415822db225634b1c15507ffddaf258ac59"
+      },
+      "target_fourfold": {
+        "kind": "target fourfold",
+        "sha256": "b74db38010c110b3c3d8bc52d5282a748c68fb8cfa47dc3171e0a1530982a0bb",
+        "locator": "artifact-locator:sha256:b74db38010c110b3c3d8bc52d5282a748c68fb8cfa47dc3171e0a1530982a0bb"
+      },
+      "toolchain_manifest": {
+        "kind": "toolchain manifest",
+        "sha256": "99088eb6e487af64778d19973de98224ab7191fd8b01a519ee14e2b85c5222fa",
+        "locator": "artifact-locator:sha256:99088eb6e487af64778d19973de98224ab7191fd8b01a519ee14e2b85c5222fa"
+      }
+    },
+    "invocation_effect": {
+      "schema": "daedalus-genesis-invocation-effect-binding/1",
+      "entrypoint_id": "python.genesis",
+      "source_revision": "36d681b04cb12931c0d6efe89b673875a7a02b24",
+      "attempt_id": "attempt-f550afe4b15265cf80f4c5d2",
+      "operation_sha256": "c4b95df8dc407f56bb51311c7d7668a173cc12dbd2e83d8be5a5e8c6341e6e63",
+      "lease_sha256": "532cc416c9c5c6e5c8bd150fa602f708f6f9d8d6f17ea5df12a5a40de7c2e6ec",
+      "execution_id": "mission-f550afe4b15265cf80f4c5d2-python.genesis-attempt-f550afe4b15265cf80f4c5d2-d226fefd-exec-0",
+      "execution_request_sha256": "515001d5008f89ea997563525e8a046c0b2daed9eb5f306298ee83af719ae581",
+      "lease_subject_record_sha256": "d8d271db75a89de654846953c7fe0c26cddb8b383161099764e8d3b2e403b569",
+      "lease_execution_record_sha256": "5cd2bebd6fe09fc730e00f1ad184a008cdd225a2f965402885f438202803e4cf",
+      "expected_terminal_state": "completed"
+    },
+    "publication": {
+      "status": "not-requested",
+      "owner_approval_required": true,
+      "automatic_promotion": false
+    }
+  }
+}

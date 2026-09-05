@@ -64,6 +64,22 @@ Retained under `docs/evidence/G1-GENESIS-REHEARSAL-01/`: the sanitized CLI resul
 
 The 16 to 31 s gate times and the runtime timeout of the morning are absent with the base interpreter: every contained gate finishes in about half a second to one second. This is one run on one host; it supports, but does not prove, the reading that the launcher stub (an extra process holding the merged log handle) caused the earlier slowness and the `STATUS_CONTROL_C_EXIT` on timeout. A controlled A/B (same run with `resolve_python_argv` disabled) is the discriminating follow-up if the claim is to be stated as cause.
 
+## A/B against the launcher stub (stage 8, measured 2026-09-05, 15:14)
+
+Same clone, same blueprint, same policy, a fresh control root and request key `loop-genesis-rehearsal-02-stub`; the only change is `daedalus.kernel.interpreter.stdlib_interpreter` patched to return `sys.executable` (the venv launcher stub), i.e. the exact spawn of the morning. Run in-process through `run_genesis` (the CLI door installs only the budget net, which prices no python spawn; the `python.genesis` lease and every kernel boundary are unchanged).
+
+| Gate | A: base interpreter | B: launcher stub | B / A | warning line in B |
+| --- | --- | --- | --- | --- |
+| build | 463 ms | 1360 ms | 2.9x | yes |
+| test | 1173 ms | 2530 ms | 2.2x | yes |
+| runtime | 1096 ms | 2995 ms | 2.7x | yes |
+| package | 462 ms | 1851 ms | 4.0x | yes |
+| kanban_template_conformance (in-process) | 18 ms | 15 ms | 0.8x | no |
+
+Arm B also reaches `preview-ready` (run `genesis-f550afe4b15265cf80f4c5d2`, round-trip passed, no blockers, no timeout, whole run 12.7 s). Interpreter provenance in B names a different binary SHA-256 (the stub) than in A.
+
+Reading, narrowed by the A/B: the stub is a measurable, consistent cost (one extra process per gate, roughly 0.9 to 1.9 s here) and pollutes every gate output with the warning line; on a quiet host it does not by itself produce the 16 to 31 s gates or the runtime timeout of the morning. Those figures therefore need the stub plus host contention (Codex's own note: competing build/package work); the stub alone is not the proven cause of the timeout. What the base interpreter buys is proven: the cost and the pollution go away, and the exact-output contracts (Ariadne) become satisfiable.
+
 ## Scope and boundaries
 
 In scope: one measured run and its retained evidence. Out of scope: any code change, browser end-to-end, the source-download flow, publication, and any claim beyond product availability on this host. Gate-3/Gate-5 obligations are untouched.
@@ -78,6 +94,7 @@ No contract changes. The run used `daedalus genesis` (registered CLI door), the 
 | --- | --- |
 | run reaches `preview-ready` with no blockers | yes |
 | every contained gate passed inside its ceiling without timeout or cancellation | yes (463, 1173, 1096, 462 ms) |
+| A/B with the launcher stub | also preview-ready; 2.2x to 4.0x slower per contained gate, warning line in every contained gate output, no timeout on a quiet host |
 | launcher warning line absent from every gate output | yes |
 | interpreter provenance recorded, path-free | yes |
 | no publication, no promotion | none requested; flags false/required as recorded |
@@ -88,7 +105,7 @@ Nothing to roll back; evidence only.
 
 ## Evidence, expected failures, and review
 
-Codex review requested as a free room turn. Expected caveat kept: single run, no A/B against the stub.
+Codex review requested as a free room turn. The A/B is retained under `docs/evidence/G1-GENESIS-REHEARSAL-01/ab-stub/`; single run per arm, one host.
 
 Iron Plan: **EXPERIMENT** (measurement of product availability; no code change, no promotion)
 
