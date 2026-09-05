@@ -77,7 +77,13 @@ test('a source that FAILED is visible, and does not read as "nothing here"', asy
 test('runtime settings distinguish a failed status read from a measured empty inventory', async ({ page }) => {
   await page.route('**/api/runtimes/status*', (r) => r.fulfill(failJson('runtimes status is down')));
   const seen = collect(page);
-  await openApp(page);
+
+  // This invariant belongs to the themed cockpit's Settings surface, not the
+  // legacy `?surface=classic` helper used by the broader degraded-source test.
+  const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
+  expect(response, 'the themed cockpit did not answer GET /').not.toBeNull();
+  expect(response!.status(), 'GET / did not come back 200').toBe(200);
+  await expect(page.locator('.cockpit'), 'the themed cockpit never mounted').toBeVisible({ timeout: 20_000 });
 
   // Ctrl+, is the cockpit's documented settings chord and avoids depending on
   // theme-specific button placement.
