@@ -274,8 +274,11 @@ reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
 - Stage 15 `G1-IKARUS-31`: schema-constrained Ollama calls (the computer
   planner) take the native `/api/chat` route with keep_alive, num_ctx and the
   output cap as num_predict; the loop hands the planner a cancellation probe
-  (G1-KERNEL-02). Live: 25.5 s per planner call against 74 to 125 s before;
-  the 7B planner still never proposes `browser.read` after navigating.
+  (G1-KERNEL-02); the transport is an explicit caller decision. Live: 25.5 s
+  per planner call against 74 to 125 s before; measured residual: a mixed
+  chat/planner session still reloads on 3 of 4 transport switches, so the
+  native route for all voices is the follow-up; the 7B planner still never
+  proposes `browser.read` after navigating.
 - `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
   (Ikarus persistence, self-Renovation with leakage rule, KiCad and
   Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
