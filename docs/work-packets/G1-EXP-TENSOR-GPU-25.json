@@ -132,5 +132,9 @@
     "merge": false,
     "gate_transition": false
   },
+  "closure": {
+    "evidence_seed_head": "d87b795ac1bd3fe2f32485bc8701691367d3b1cb",
+    "note": "This seed head first introduced the closed Work Packet record after the verified code/test and profiler-narrative commits. The final branch head is verified independently after this metadata binding commit."
+  },
   "next_narrow_step": "If still before 2026-09-29, use active v8 attribution to select a remaining end-to-end canonical materialization cost or a higher-priority bounded Fourfold/Tensor issue. Do not add a second Boolean validator or restore the deleted per-entry scalar authority."
 }
