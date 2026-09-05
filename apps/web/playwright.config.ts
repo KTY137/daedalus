@@ -66,7 +66,13 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: true,
 
-  timeout: 60_000,
+  // The cockpit suite deliberately exercises a cold structure scan with a
+  // 240s wait and a project-switch scan with a 300s wait. A 60s GLOBAL test
+  // timeout made those assertions unreachable: Playwright killed the test
+  // before the product-specific wait could produce a verdict. Keep this finite
+  // and above the largest declared per-test wait; tools/gui_check.py still owns
+  // the outer suite budget through DAEDALUS_GUI_SUITE_TIMEOUT_S.
+  timeout: 360_000,
   expect: { timeout: 15_000 },
 
   reporter: [
