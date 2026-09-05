@@ -1,10 +1,10 @@
 """Structured Claude CLI adapter with a broker-only public execution path.
 
-Prompt construction and output parsing are pure helpers.  The only subprocess
-implementation is private.  The public ``ask_claude`` compatibility name now
-requires the complete sealed invocation bundle and delegates to
-:class:`ClaudeCLIProvider`; callers can no longer select the legacy callback
-broker through this surface.
+Prompt construction and output parsing are pure helpers. The only subprocess
+implementation is private. The public ``ask_claude`` compatibility name now
+accepts one exact immutable sealed invocation bundle and delegates to
+:class:`ClaudeCLIProvider`; callers can no longer assemble a partial authority
+set or select the legacy callback broker through this surface.
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import json
 import os
 import shutil
 import subprocess
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .fallback import fallback_decision
@@ -61,13 +62,61 @@ REPORT_SCHEMA: dict[str, Any] = {
 _CMD_SHIM_SUFFIXES = (".cmd", ".bat")
 
 
+@dataclass(frozen=True)
+class ClaudeSealedInvocationBundle:
+    """One indivisible capability-bearing input to the public Claude bridge.
+
+    The individual records are still owned and authenticated by their existing
+    kernel/runtime layers. This type grants nothing and verifies no signature;
+    it only prevents the public caller seam from representing an impossible
+    half-bundle. ``ClaudeCLIProvider`` and the sealed broker remain the authority
+    boundary and re-verify every member before an effect can start.
+
+    Exact-type checking in :func:`ask_claude` is intentional. A duck-typed
+    object with property accessors is caller-controlled code; the bridge should
+    refuse it before reading any security-critical member.
+    """
+
+    runtime_authorization: "RuntimeBoundEffectAuthorization"
+    effect_execution: "EffectExecutionRequest"
+    workspace_grant: "ClaudeWorkspaceGrant"
+    invocation_authority: "ProviderInvocationObservationAuthority"
+    invocation_payload: "ProviderInvocationPayload"
+    invocation_abi: "ProviderInvocationABIContract"
+    observation_binding_ledger: "ProviderObservationBindingLedger"
+    executable_registry: "ProviderExecutableObjectRegistry"
+    pre_admission: "ProviderExecutablePreAdmissionReceipt"
+
+    def __post_init__(self) -> None:
+        missing = [
+            name
+            for name in (
+                "runtime_authorization",
+                "effect_execution",
+                "workspace_grant",
+                "invocation_authority",
+                "invocation_payload",
+                "invocation_abi",
+                "observation_binding_ledger",
+                "executable_registry",
+                "pre_admission",
+            )
+            if getattr(self, name) is None
+        ]
+        if missing:
+            raise ValueError(
+                "Claude sealed invocation bundle cannot contain empty members: "
+                + ", ".join(missing)
+            )
+
+
 def _command_for_spawn(resolved: str | None, *, platform_name: str) -> str:
     """Return the executable that may receive argv without a shell relay.
 
     On Windows, ``subprocess.run(..., shell=False)`` still routes ``.cmd`` and
-    ``.bat`` launchers through ``cmd.exe``.  That command interpreter reparses
+    ``.bat`` launchers through ``cmd.exe``. That command interpreter reparses
     every argv element, so a provider prompt or model value must never cross
-    that boundary.  Refuse the launch rather than pretending ``shell=False``
+    that boundary. Refuse the launch rather than pretending ``shell=False``
     makes a shell script behave like a native executable.
     """
 
@@ -183,7 +232,7 @@ def _invoke_claude_cli(
     """Private subprocess implementation consumed only by the brokered provider.
 
     Prompt/report files are no longer written into the Daedalus checkout from
-    this layer.  Their exact canonical digests are returned and become broker
+    this layer. Their exact canonical digests are returned and become broker
     output evidence; a later CAS packet may retain the bytes explicitly.
     """
 
@@ -246,21 +295,16 @@ def ask_claude(
     model: str = "sonnet",
     timeout_s: int = 300,
     *,
-    runtime_authorization: "RuntimeBoundEffectAuthorization | None" = None,
-    effect_execution: "EffectExecutionRequest | None" = None,
-    workspace_grant: "ClaudeWorkspaceGrant | None" = None,
-    invocation_authority: "ProviderInvocationObservationAuthority | None" = None,
-    invocation_payload: "ProviderInvocationPayload | None" = None,
-    invocation_abi: "ProviderInvocationABIContract | None" = None,
-    observation_binding_ledger: "ProviderObservationBindingLedger | None" = None,
-    executable_registry: "ProviderExecutableObjectRegistry | None" = None,
-    pre_admission: "ProviderExecutablePreAdmissionReceipt | None" = None,
+    sealed_bundle: ClaudeSealedInvocationBundle | None = None,
 ) -> dict[str, Any]:
-    """Compatibility adapter that now enters Claude only through the sealed broker.
+    """Enter Claude through one exact sealed capability bundle.
 
-    Existing callers keep the import path, but execution requires the complete
-    invocation-authority/payload/ABI/registry/pre-admission bundle in addition
-    to the runtime Effect authority and isolated worktree.
+    ``ask_claude`` deliberately does not mint authority. The production
+    orchestration composition root must construct the bundle from canonical
+    runtime/effect/invocation admission. Collapsing nine optional authority
+    keywords into one exact object makes partial caller injection
+    unrepresentable at this public seam while preserving the deeper provider
+    and broker validation.
     """
 
     from .providers.claude_cli import (
@@ -268,22 +312,11 @@ def ask_claude(
         ClaudeProviderAuthorizationRequired,
     )
 
-    if runtime_authorization is None or effect_execution is None or workspace_grant is None:
+    if type(sealed_bundle) is not ClaudeSealedInvocationBundle:
         raise ClaudeProviderAuthorizationRequired(
-            "ask_claude requires runtime authorization, effect execution, and workspace grant"
+            "ask_claude requires one exact ClaudeSealedInvocationBundle"
         )
-    if (
-        invocation_authority is None
-        or invocation_payload is None
-        or invocation_abi is None
-        or observation_binding_ledger is None
-        or executable_registry is None
-        or pre_admission is None
-    ):
-        raise ClaudeProviderAuthorizationRequired(
-            "ask_claude requires the authenticated invocation ABI, payload, "
-            "executable registry, pre-admission, and binding ledger"
-        )
+
     agent = route_task(objective, paths)
     return ClaudeCLIProvider().run(
         objective=objective,
@@ -292,15 +325,15 @@ def ask_claude(
         agent=agent,
         model=model,
         timeout_s=timeout_s,
-        runtime_authorization=runtime_authorization,
-        effect_execution=effect_execution,
-        workspace_grant=workspace_grant,
-        invocation_authority=invocation_authority,
-        invocation_payload=invocation_payload,
-        invocation_abi=invocation_abi,
-        observation_binding_ledger=observation_binding_ledger,
-        executable_registry=executable_registry,
-        pre_admission=pre_admission,
+        runtime_authorization=sealed_bundle.runtime_authorization,
+        effect_execution=sealed_bundle.effect_execution,
+        workspace_grant=sealed_bundle.workspace_grant,
+        invocation_authority=sealed_bundle.invocation_authority,
+        invocation_payload=sealed_bundle.invocation_payload,
+        invocation_abi=sealed_bundle.invocation_abi,
+        observation_binding_ledger=sealed_bundle.observation_binding_ledger,
+        executable_registry=sealed_bundle.executable_registry,
+        pre_admission=sealed_bundle.pre_admission,
     )
 
 
@@ -325,6 +358,7 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "ClaudeSealedInvocationBundle",
     "REPORT_SCHEMA",
     "ask_claude",
     "build_prompt",
