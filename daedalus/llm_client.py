@@ -173,6 +173,11 @@ class IkarusLLMClient:
         except Exception as exc:  # a failed probe is not an available model
             return {"available": False, "last_error": str(exc)}
 
+    @staticmethod
+    def _probe_failure(provider: str, row: Mapping[str, Any]) -> str:
+        detail = row.get("last_error") or row.get("auth_status") or "unavailable"
+        return f"{provider}: {detail}"
+
     def resolve(self, requested: str | None = None) -> LLMSelection:
         requested_norm = normalize_provider(requested)
         env_default = normalize_provider(self.environ.get("DAEDALUS_IKARUS_PROVIDER"))
@@ -183,24 +188,59 @@ class IkarusLLMClient:
             return LLMSelection("deterministic", requested_norm, False,
                                 self.timeout_s, 1, "explicit local-index selection")
 
-        explicit = requested_norm if requested_norm != "auto" else env_default
-        if explicit not in ("auto", "deterministic"):
-            if explicit not in _PROVIDER_ALIASES.values():
-                return LLMSelection(None, explicit, requested_norm == "auto",
+        # An explicit user choice is a hard preference, never a reason to
+        # silently switch providers. It must still be executable NOW. This is
+        # especially load-bearing for Claude on Windows: runtime_status may
+        # refuse an npm .cmd/.bat shim because the live transport cannot safely
+        # pass caller-controlled argv through cmd.exe. Selection must preserve
+        # that refusal instead of claiming the requested Voice is usable and
+        # discovering the mismatch only at subprocess time.
+        if requested_norm != "auto":
+            if requested_norm not in _PROVIDER_ALIASES.values():
+                return LLMSelection(None, requested_norm, False,
                                     self.timeout_s, self.max_attempts,
-                                    f"unknown Ikarus LLM provider {explicit!r}")
-            return LLMSelection(explicit, requested_norm, requested_norm == "auto",
+                                    f"unknown Ikarus LLM provider {requested_norm!r}")
+            row = self._probe(requested_norm)
+            if not bool(row.get("available")):
+                return LLMSelection(
+                    None, requested_norm, False, self.timeout_s, self.max_attempts,
+                    "explicit provider is unavailable ("
+                    + self._probe_failure(requested_norm, row) + ")",
+                )
+            return LLMSelection(requested_norm, requested_norm, False,
                                 self.timeout_s, self.max_attempts,
-                                "configured provider" if requested_norm == "auto" else "explicit provider")
+                                "explicit provider is available")
 
         failures: list[str] = []
+
+        # DAEDALUS_IKARUS_PROVIDER is the operator's preferred automatic Voice,
+        # not permission to lie about readiness. Try it first when configured;
+        # if its measured status is unavailable, retain the reason and continue
+        # through the normal preference order. This makes `auto` resilient while
+        # preserving the rule that a directly requested provider never changes
+        # underneath the user.
+        if env_default not in ("auto", "deterministic"):
+            if env_default not in _PROVIDER_ALIASES.values():
+                failures.append(f"{env_default}: unknown configured provider")
+            else:
+                row = self._probe(env_default)
+                if bool(row.get("available")):
+                    return LLMSelection(env_default, requested_norm, True,
+                                        self.timeout_s, self.max_attempts,
+                                        "configured provider is available")
+                failures.append(self._probe_failure(env_default, row))
+
         for candidate in self._order():
+            if candidate == env_default:
+                continue
             row = self._probe(candidate)
             if bool(row.get("available")):
+                reason = "first available provider in automatic preference order"
+                if failures:
+                    reason += "; earlier preference unavailable: " + failures[0]
                 return LLMSelection(candidate, requested_norm, True,
-                                    self.timeout_s, self.max_attempts,
-                                    "first available provider in automatic preference order")
-            failures.append(f"{candidate}: {row.get('last_error') or row.get('auth_status') or 'unavailable'}")
+                                    self.timeout_s, self.max_attempts, reason)
+            failures.append(self._probe_failure(candidate, row))
         detail = "; ".join(failures[:5])
         return LLMSelection(None, requested_norm, True, self.timeout_s,
                             self.max_attempts,
