@@ -2036,6 +2036,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
           additional_context: str = "",
           response_schema: dict | None = None,
           cancelled: Callable[[], bool] | None = None,
+          transport: str | None = None,
           ) -> tuple[str | None, str | None, _Ctx]:
     """Return (reply_text, model_used, ctx). (None, None, _EMPTY_CTX) -> caller
     falls back to help. ``ctx`` carries the gated-slice metadata for the envelope.
@@ -2060,7 +2061,8 @@ def _llm(provider: str | None, message: str, model: str | None = None,
             message, mdl, effort, context, timeout_s=timeout_s,
             limit_policy=captured_policy,
             **({"response_schema": response_schema} if response_schema is not None else {}),
-            **({"cancelled": cancelled} if cancelled is not None else {})), mdl, ctx
+            **({"cancelled": cancelled} if cancelled is not None else {}),
+            **({"transport": transport} if transport is not None else {})), mdl, ctx
     if p in _OLLAMA_CLI:
         from ...providers.ollama import DEFAULT_MODEL
 
@@ -2458,15 +2460,24 @@ def _ollama(message: str, model: str, effort: str | None,
             context: str = "", *, timeout_s: float | None = 150.0,
             limit_policy: ExecutionLimitPolicy | None = None,
             response_schema: dict | None = None,
-            cancelled: Callable[[], bool] | None = None) -> str | None:
+            cancelled: Callable[[], bool] | None = None,
+            transport: str | None = None) -> str | None:
     from ...providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
+
+    # The transport is an explicit caller decision (review session 6e, room
+    # 21:00): "native" or "v1". Left unset, a schema-constrained call derives
+    # "native" (Codex, option B) and a schema-less call keeps "v1".
+    if transport not in (None, "native", "v1"):
+        raise ValueError(f"unknown Ollama transport {transport!r}; use 'native' or 'v1'")
+    if transport is None:
+        transport = "native" if response_schema is not None else "v1"
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
     # BEFORE warm_model_async, which connects on a daemon thread, and before
     # the request is built. A repointed OLLAMA_HOST is refused here.
     _provider_start("ollama", endpoint=host, model=model)
     system = SYSTEM + (_LOW_EFFORT_STYLE if (effort or "low").lower() == "low" else "")
-    if response_schema is not None:
+    if transport == "native":
         # G1-IKARUS-31: a schema-constrained call (the computer planner among
         # them) takes Ollama's NATIVE /api/chat. MEASURED 2026-09-05 on Ollama
         # 0.33.3: the /v1 shim ignores keep_alive (expires +5m), pins
@@ -2497,7 +2508,7 @@ def _ollama(message: str, model: str, effort: str | None,
         return None
 
 
-def _ollama_native_schema(host: str, model: str, system: str, user: str, schema: dict, *,
+def _ollama_native_schema(host: str, model: str, system: str, user: str, schema: dict | None, *,
                           effort: str | None, limit_policy: ExecutionLimitPolicy | None,
                           timeout_s: float | None,
                           cancelled: Callable[[], bool] | None) -> str | None:
@@ -2516,7 +2527,8 @@ def _ollama_native_schema(host: str, model: str, system: str, user: str, schema:
     cap = _effort_cap(effort, limit_policy)
 
     def work() -> str:
-        reply = native_chat(host=host, model=model, messages=messages, force_json=schema,
+        reply = native_chat(host=host, model=model, messages=messages,
+                            force_json=schema if schema is not None else False,
                             keep_alive=keep_alive_value(), num_predict=cap,
                             timeout_s=timeout_s, temperature=0.3)
         return reply.get("content") or ""

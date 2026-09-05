@@ -177,3 +177,36 @@ def test_llm_forwards_the_probe_to_the_ollama_route(monkeypatch):
     assert text == "ok"
     assert seen["cancelled"] is probe
     assert seen["response_schema"] == SCHEMA
+
+
+def test_the_transport_is_an_explicit_caller_decision(fake):
+    """Review session 6e (room 21:00): the discriminator is explicit; the derived
+    default (schema -> native, none -> v1) stays for callers that do not say."""
+    shell._ollama("hello", "qwen2.5-coder:7b", "low", "", timeout_s=30, transport="native")
+    assert fake.paths() == ["/api/chat"], fake.paths()
+    body = fake.requests[0][1]
+    assert "format" not in body and body["keep_alive"] == keep_alive_value()
+    fake.requests.clear()
+    shell._ollama("plan", "qwen2.5-coder:7b", "low", "", timeout_s=30, response_schema=SCHEMA, transport="v1")
+    time.sleep(0.3)
+    assert "/v1/chat/completions" in fake.paths() and "/api/chat" not in fake.paths(), fake.paths()
+    with pytest.raises(ValueError, match="unknown Ollama transport"):
+        shell._ollama("x", "qwen2.5-coder:7b", "low", "", timeout_s=30, transport="grpc")
+
+
+def test_the_computer_planner_names_the_native_transport(monkeypatch):
+    from daedalus.orchestration.ikarus import computer_loop as loop
+    from daedalus.kernel.policy.limits import ExecutionLimitPolicy
+
+    seen = {}
+
+    def fake_llm(provider, prompt, **kwargs):
+        seen.update(kwargs)
+        return json.dumps({"type": "finish", "summary": "ok"}), "m", shell._EMPTY_CTX
+
+    monkeypatch.setattr(shell, "_llm", fake_llm)
+    monkeypatch.setattr(loop, "_require_context_route", lambda caps: "ollama_http")
+    loop._model_proposal("prompt", {"tools": [], "planner_model": "m"}, ExecutionLimitPolicy(mode="bounded"), 5.0,
+                         cancelled=lambda: False)
+    assert seen["transport"] == "native"
+    assert callable(seen["cancelled"])
