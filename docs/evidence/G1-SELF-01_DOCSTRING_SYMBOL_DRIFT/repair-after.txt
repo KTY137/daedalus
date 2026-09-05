@@ -1,0 +1,13 @@
+daedalus.kairos.scheduler.KairosScheduler.spawn` plans a single objective across the
+*local* bench, a **build session** is the frontier-first counterpart: it owns
+one feature across several bounded **waves**, tracks who owns each subtask, and
+routes implementation to a frontier builder (Claude) while sending only routine
+work (docs/tests) to the local Ollama bench.
+
+This module is deterministic and additive. It reuses the existing seams and
+invents no new ones:
+
+  * :func:`daedalus.kairos.decompose.decompose`  -- feature -> scoped subtasks.
+  * :func:`daedalus.router.route_task`    -- subtask -> owning agent.
+  * :func:`daedalus.orchestration.categories.preset_for` -- owning agent -> {lane, tier}.
+  * :class:`daedalus.kairos.scheduler.KairosScheduler`  -- wave sizing

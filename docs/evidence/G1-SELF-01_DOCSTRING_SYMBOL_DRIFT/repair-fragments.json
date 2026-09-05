@@ -1,0 +1,14 @@
+{
+  "after": "daedalus.kairos.scheduler.KairosScheduler.spawn` plans a single objective across the\n*local* bench, a **build session** is the frontier-first counterpart: it owns\none feature across several bounded **waves**, tracks who owns each subtask, and\nroutes implementation to a frontier builder (Claude) while sending only routine\nwork (docs/tests) to the local Ollama bench.\n\nThis module is deterministic and additive. It reuses the existing seams and\ninvents no new ones:\n\n  * :func:`daedalus.kairos.decompose.decompose`  -- feature -> scoped subtasks.\n  * :func:`daedalus.router.route_task`    -- subtask -> owning agent.\n  * :func:`daedalus.orchestration.categories.preset_for` -- owning agent -> {lane, tier}.\n  * :class:`daedalus.kairos.scheduler.KairosScheduler`  -- wave sizing",
+  "after_bytes": 777,
+  "after_sha256": "eaeb1cab3071ebcfc841c391a5d60fdf3aeb82e816d28e4a2b67d353d90127c7",
+  "before": "daedalus.kairos.scheduler.Ikarus.spawn` plans a single objective across the\n*local* bench, a **build session** is the frontier-first counterpart: it owns\none feature across several bounded **waves**, tracks who owns each subtask, and\nroutes implementation to a frontier builder (Claude) while sending only routine\nwork (docs/tests) to the local Ollama bench.\n\nThis module is deterministic and additive. It reuses the existing seams and\ninvents no new ones:\n\n  * :func:`daedalus.kairos.decompose.decompose`  -- feature -> scoped subtasks.\n  * :func:`daedalus.router.route_task`    -- subtask -> owning agent.\n  * :func:`daedalus.orchestration.categories.preset_for` -- owning agent -> {lane, tier}.\n  * :class:`daedalus.kairos.scheduler.Ikarus`       -- wave sizing",
+  "before_bytes": 764,
+  "before_occurrences_in_frozen_target": 1,
+  "before_sha256": "0a7fa0a96c721b75111d544a6b07dfa0651e5618435fc2cd5b86763df44bcd8b",
+  "campaign_id": "self-renovation-04",
+  "note": "AUTHORITATIVE byte record of the exact --before/--after argv values. core.autocrlf is true on this host (see .gitattributes), so the sibling repair-before.txt / repair-after.txt are convenience copies whose line endings a fresh checkout may rewrite. The escaped strings below do not change under EOL normalization; verify with the sha256 fields.",
+  "schema": "daedalus-g1-self-01-repair-fragments/1",
+  "source_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+  "target_path": "daedalus/build.py"
+}
