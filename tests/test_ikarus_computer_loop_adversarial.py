@@ -70,15 +70,20 @@ def _planner(*responses):
 def test_a_whitespace_only_difference_is_a_different_plan(isolated):
     """The packet pins exact comparison of the parsed ordered steps: "no whitespace
     normalisation, which could equate different literals" (Codex, room 16:49).  A
-    normalising comparison would stall here on planner call 3."""
+    normalising comparison would stall here on planner call 3.
+
+    Three plans, not four: since G1-IKARUS-29 the loop also stalls after
+    ``_MAX_PLANS_PER_STEP`` (4) consecutive plans without a tool step, counted
+    regardless of content, so the sequence stays below that budget and the
+    only rule that can fire here is the identical-plan comparison under test."""
     root, ledger = isolated
     service = _Service()
     result = loop.run_computer_task(
         root, "Read fixture", service=service, ledger=ledger,
-        propose=_planner(PLAN, PLAN_PADDED, PLAN, PLAN_PADDED, FINISH))
+        propose=_planner(PLAN, PLAN_PADDED, PLAN, FINISH))
     assert result["state"] == "no_actions", result["summary"]
-    assert result["planner_calls"] == 5, result["summary"]
-    assert result["plan"]["steps"] == PLAN_PADDED["steps"]
+    assert result["planner_calls"] == 4, result["summary"]
+    assert result["plan"]["steps"] == PLAN["steps"]
     assert service.calls == []
 
 
