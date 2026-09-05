@@ -807,9 +807,10 @@ def test_command_gate_records_effective_containment_attestation(
 
     seen = {}
 
-    def _contained(argv, worktree, out_path, tmpdir):
+    def _contained(argv, worktree, out_path, tmpdir, *, timeout_s=None):
         seen["argv"] = tuple(argv)
         seen["worktree"] = worktree
+        seen["timeout_s"] = timeout_s
         out_path.write_text("contained build passed\n", encoding="utf-8")
         return _ContainedProcess(), _Log()
 
@@ -822,7 +823,11 @@ def test_command_gate_records_effective_containment_attestation(
 
     assert verdict.passed is True
     assert verdict.command == argv
-    assert seen == {"argv": argv, "worktree": worktree}
+    assert seen == {
+        "argv": argv,
+        "worktree": worktree,
+        "timeout_s": attempt_mod.DEFAULT_GATE_TIMEOUT_S,
+    }
     assert verdict.containment is attestation
     block = verdict.summary()["containment"]
     assert block["requested"] is True

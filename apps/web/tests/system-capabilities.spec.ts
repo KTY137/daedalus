@@ -7,7 +7,7 @@ function envelope(extra: Record<string, unknown> = {}) {
   return { ok: true, generated_at: '2026-08-31T00:00:00Z', project: project.name, warnings: [], ...extra };
 }
 
-function profile(mode = 'manual') {
+function profile(agentOverride = 'manual', projectDefault = 'manual') {
   return {
     name: 'alpha',
     display_name: 'Alpha',
@@ -20,17 +20,24 @@ function profile(mode = 'manual') {
     active: true,
     // One grant the registry declares, one it does not -- the live mix.
     capabilities: ['ollama_write', 'bash'],
-    autonomy: { read_files: { project_default: mode } },
+    autonomy: {
+      read_files: {
+        project_default: projectDefault,
+        agent_override: agentOverride,
+        mode: agentOverride
+      }
+    },
     ownership: ['daedalus/runtimes']
   };
 }
 
-function control(mode = 'manual') {
+function control(mode = 'manual', sibling = 'semi_auto', projectName = project.name) {
   return envelope({
+    project: projectName,
     profiles: [profile(mode)],
     claude: { subagent_count: 1 },
     codex: { runtime: { communication: 'file_bus' } },
-    autonomy: { agents: { alpha: mode, sibling: 'semi_auto' } },
+    autonomy: { default: 'manual', agents: { alpha: mode, sibling } },
     capability_gates: [{ id: 'read_files', label: 'Read files' }],
     runtimes: []
   });
@@ -240,14 +247,378 @@ test('one refused provider sample stays explicit while the other contracts remai
   await expect(system.getByText('Projekt atlas · Verdikt BLOCKED_BY_GATE', { exact: true })).toBeVisible();
 });
 
-test('agent autonomy still PUTs the existing project contract and preserves sibling policy', async ({ page }) => {
+test('agent autonomy PUT patches only the selected profile through the existing project owner', async ({ page }) => {
   const fixture = await stubCockpit(page);
   await openSystemSettings(page);
 
   await page.getByLabel('Projekt-Autonomie für Alpha').selectOption('autonomous');
+  expect(fixture.autonomyBodies).toHaveLength(0);
+  await page.getByRole('button', { name: 'Projekt-Autonomie übernehmen' }).click();
   await expect.poll(() => fixture.autonomyBodies.length).toBe(1);
-  expect(fixture.autonomyBodies[0]).toEqual({ agents: { alpha: 'autonomous', sibling: 'semi_auto' } });
+  expect(fixture.autonomyBodies[0]).toEqual({ agent_updates: { alpha: 'autonomous' } });
   await expect(page.getByLabel('Projekt-Autonomie für Alpha')).toHaveValue('autonomous');
+});
+
+test('an older backend cannot acknowledge and silently ignore a profile autonomy update', async ({ page }) => {
+  const fixture = await stubCockpit(page);
+  const autonomyBodies: Record<string, unknown>[] = [];
+  await page.unroute('**/api/projects/*/autonomy');
+  await page.route('**/api/projects/*/autonomy', async (route) => {
+    autonomyBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+    // Compatibility-skew reproduction: an older owner returns 200 but ignores
+    // the additive `agent_updates` member and therefore confirms `manual`.
+    await fulfillJson(route, control('manual'));
+  });
+  await openSystemSettings(page);
+
+  const system = page.getByTestId('system-capabilities');
+  const autonomy = system.getByLabel('Projekt-Autonomie für Alpha');
+  const apply = system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' });
+  await autonomy.selectOption('autonomous');
+  await apply.click();
+
+  await expect(system.getByRole('alert')).toContainText(/Ausgang .* unklar/);
+  await expect(system.getByRole('alert')).toContainText('bestätigte den Autonomie-Modus');
+  await expect(autonomy).toHaveValue('autonomous');
+  await expect(apply).toBeEnabled();
+  expect(fixture.calls.filter((call) => call === 'GET /api/projects/atlas/control-plane')).toHaveLength(2);
+  expect(autonomyBodies).toEqual([{ agent_updates: { alpha: 'autonomous' } }]);
+});
+
+test('a stale HTTP 200 autonomy projection reconciles a committed profile update', async ({ page }) => {
+  await stubCockpit(page);
+  let canonical = 'manual';
+  let reconcilePending = false;
+  let releaseCanonicalRead: (() => void) | undefined;
+  let controlReads = 0;
+
+  await page.unroute('**/api/projects/*/control-plane');
+  await page.route('**/api/projects/*/control-plane', async (route) => {
+    controlReads += 1;
+    if (reconcilePending) {
+      await new Promise<void>((resolve) => { releaseCanonicalRead = resolve; });
+      reconcilePending = false;
+    }
+    await fulfillJson(route, control(canonical));
+  });
+  await page.unroute('**/api/projects/*/autonomy');
+  await page.route('**/api/projects/*/autonomy', async (route) => {
+    canonical = 'autonomous';
+    reconcilePending = true;
+    // The mutation committed, but the HTTP 200 projections contradict each
+    // other: the map moved while the editable profile stayed stale.
+    const inconsistent = control('manual');
+    inconsistent.autonomy.agents.alpha = 'autonomous';
+    await fulfillJson(route, inconsistent);
+  });
+  await openSystemSettings(page);
+
+  const system = page.getByTestId('system-capabilities');
+  const autonomy = system.getByLabel('Projekt-Autonomie für Alpha');
+  const apply = system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' });
+  const reload = page
+    .locator('section[aria-labelledby="system-capabilities-title"]')
+    .locator(':scope > .settings-title > button.settings-refresh');
+  await autonomy.selectOption('autonomous');
+  await apply.click();
+
+  await expect.poll(() => Boolean(releaseCanonicalRead)).toBe(true);
+  await expect(autonomy).toBeDisabled();
+  await expect(reload).toBeDisabled();
+  releaseCanonicalRead?.();
+
+  await expect(autonomy).toHaveValue('autonomous');
+  await expect(autonomy).toBeEnabled();
+  await expect(apply).toBeDisabled();
+  await expect(system.getByRole('alert')).toContainText(/Ausgang .* unklar/);
+  expect(controlReads).toBe(2);
+});
+
+test('discarding a project autonomy draft performs no write', async ({ page }) => {
+  const fixture = await stubCockpit(page);
+  await openSystemSettings(page);
+
+  const system = page.getByTestId('system-capabilities');
+  const autonomy = system.getByLabel('Projekt-Autonomie für Alpha');
+  const apply = system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' });
+  await autonomy.selectOption('autonomous');
+  await expect(apply).toBeEnabled();
+  await system.locator('.system-agent-actions').getByRole('button', { name: 'Verwerfen', exact: true }).click();
+
+  await expect(autonomy).toHaveValue('manual');
+  await expect(apply).toBeDisabled();
+  expect(fixture.autonomyBodies).toHaveLength(0);
+});
+
+test('a transient control-plane read failure does not erase an autonomy draft', async ({ page }) => {
+  const fixture = await stubCockpit(page);
+  let failNextRead = false;
+  await page.unroute('**/api/projects/*/control-plane');
+  await page.route('**/api/projects/*/control-plane', async (route) => {
+    if (failNextRead) {
+      failNextRead = false;
+      await route.fulfill({ status: 503, json: { ok: false, error: 'control plane temporarily unavailable' } });
+      return;
+    }
+    await fulfillJson(route, control());
+  });
+  await openSystemSettings(page);
+
+  const section = page.locator('section[aria-labelledby="system-capabilities-title"]');
+  const system = page.getByTestId('system-capabilities');
+  const autonomy = system.getByLabel('Projekt-Autonomie für Alpha');
+  await autonomy.selectOption('autonomous');
+  failNextRead = true;
+  await section.getByRole('button', { name: 'Neu lesen', exact: true }).click();
+  await expect(system.getByText(/control plane temporarily unavailable/)).toBeVisible();
+
+  await section.getByRole('button', { name: 'Neu lesen', exact: true }).click();
+  await expect(system.getByLabel('Projekt-Autonomie für Alpha')).toHaveValue('autonomous');
+  await expect(system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' })).toBeEnabled();
+  expect(fixture.autonomyBodies).toHaveLength(0);
+});
+
+test('a delayed autonomy save locks reload until the write settles', async ({ page }) => {
+  const fixture = await stubCockpit(page);
+  let releasePut: (() => void) | undefined;
+  let putFinished = false;
+  const autonomyBodies: Record<string, unknown>[] = [];
+  await page.unroute('**/api/projects/*/autonomy');
+  await page.route('**/api/projects/*/autonomy', async (route) => {
+    autonomyBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+    await new Promise<void>((resolve) => { releasePut = resolve; });
+    await fulfillJson(route, control('autonomous'));
+    putFinished = true;
+  });
+  await openSystemSettings(page);
+
+  const section = page.locator('section[aria-labelledby="system-capabilities-title"]');
+  const system = page.getByTestId('system-capabilities');
+  const autonomy = system.getByLabel('Projekt-Autonomie für Alpha');
+  const apply = system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' });
+  const reload = section.locator(':scope > .settings-title > button.settings-refresh');
+  await autonomy.selectOption('autonomous');
+  await apply.click();
+  await expect.poll(() => Boolean(releasePut)).toBe(true);
+  await expect(apply).toBeDisabled();
+  await expect(reload).toBeDisabled();
+  expect(fixture.calls.filter((call) => call === 'GET /api/projects/atlas/control-plane')).toHaveLength(1);
+  expect(autonomyBodies).toEqual([{ agent_updates: { alpha: 'autonomous' } }]);
+
+  releasePut?.();
+  await expect.poll(() => putFinished).toBe(true);
+  await expect(autonomy).toBeEnabled();
+  await expect(autonomy).toHaveValue('autonomous');
+  await expect(apply).toBeDisabled();
+  await expect(reload).toBeEnabled();
+});
+
+test('an ambiguous autonomy response is reconciled before the project lock is released', async ({ page }) => {
+  await stubCockpit(page);
+  let canonical = 'manual';
+  let writeResponseLost = false;
+  let releaseCanonicalRead: (() => void) | undefined;
+  let putCount = 0;
+
+  await page.unroute('**/api/projects/*/control-plane');
+  await page.route('**/api/projects/*/control-plane', async (route) => {
+    if (writeResponseLost) {
+      await new Promise<void>((resolve) => { releaseCanonicalRead = resolve; });
+      writeResponseLost = false;
+    }
+    await fulfillJson(route, control(canonical));
+  });
+  await page.unroute('**/api/projects/*/autonomy');
+  await page.route('**/api/projects/*/autonomy', async (route) => {
+    putCount += 1;
+    canonical = 'autonomous';
+    writeResponseLost = true;
+    await route.fulfill({
+      status: 500,
+      json: { ok: false, error: 'projection failed after the autonomy commit' }
+    });
+  });
+  await openSystemSettings(page);
+
+  const section = page.locator('section[aria-labelledby="system-capabilities-title"]');
+  const system = page.getByTestId('system-capabilities');
+  const autonomy = system.getByLabel('Projekt-Autonomie für Alpha');
+  const apply = system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' });
+  const reload = section.locator(':scope > .settings-title > button.settings-refresh');
+  await autonomy.selectOption('autonomous');
+  await apply.click();
+
+  await expect.poll(() => Boolean(releaseCanonicalRead)).toBe(true);
+  await expect(autonomy).toBeDisabled();
+  await expect(apply).toBeDisabled();
+  await expect(reload).toBeDisabled();
+
+  releaseCanonicalRead?.();
+  await expect(autonomy).toHaveValue('autonomous');
+  await expect(autonomy).toBeEnabled();
+  await expect(apply).toBeDisabled();
+  await expect(system.getByRole('alert')).toContainText(/Ausgang .* unklar/);
+  await expect(system.getByRole('alert')).not.toContainText('Autonomie nicht gespeichert');
+  await expect(reload).toBeEnabled();
+  expect(putCount).toBe(1);
+});
+
+test('autonomy apply waits for a pending reload and never serializes its sibling policy', async ({ page }) => {
+  await stubCockpit(page);
+  let controlReads = 0;
+  let releaseRead: (() => void) | undefined;
+  const autonomyBodies: Record<string, unknown>[] = [];
+  await page.unroute('**/api/projects/*/control-plane');
+  await page.route('**/api/projects/*/control-plane', async (route) => {
+    controlReads += 1;
+    if (controlReads === 2) {
+      await new Promise<void>((resolve) => { releaseRead = resolve; });
+      await fulfillJson(route, control('manual', 'autonomous'));
+      return;
+    }
+    await fulfillJson(route, control('manual'));
+  });
+  await page.unroute('**/api/projects/*/autonomy');
+  await page.route('**/api/projects/*/autonomy', async (route) => {
+    autonomyBodies.push(route.request().postDataJSON() as Record<string, unknown>);
+    await fulfillJson(route, control('autonomous', 'autonomous'));
+  });
+  await openSystemSettings(page);
+
+  const section = page.locator('section[aria-labelledby="system-capabilities-title"]');
+  const system = page.getByTestId('system-capabilities');
+  const autonomy = system.getByLabel('Projekt-Autonomie für Alpha');
+  const apply = system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' });
+  await autonomy.selectOption('autonomous');
+  const refreshed = page.waitForResponse((response) => (
+    response.request().method() === 'GET'
+    && response.url().endsWith('/api/projects/atlas/control-plane')
+  ));
+  await section.getByRole('button', { name: 'Neu lesen', exact: true }).click();
+  await expect.poll(() => Boolean(releaseRead)).toBe(true);
+  await expect(autonomy).toBeDisabled();
+  await expect(apply).toBeDisabled();
+  expect(autonomyBodies).toHaveLength(0);
+
+  releaseRead?.();
+  await refreshed;
+  await expect(autonomy).toBeEnabled();
+  await expect(autonomy).toHaveValue('autonomous');
+  await expect(apply).toBeEnabled();
+  await expect(section.getByRole('button', { name: 'Neu lesen', exact: true })).toBeEnabled();
+
+  await apply.click();
+  await expect.poll(() => autonomyBodies.length).toBe(1);
+  expect(autonomyBodies[0]).toEqual({ agent_updates: { alpha: 'autonomous' } });
+  await expect(autonomy).toHaveValue('autonomous');
+  await expect(apply).toBeDisabled();
+});
+
+test('keeps unsaved autonomy drafts scoped across an A to B to A project round-trip', async ({ page }) => {
+  const fixture = await stubCockpit(page);
+  const projects = [
+    { name: 'atlas', repo_root: 'C:\\work\\atlas', team: {} },
+    { name: 'beta', repo_root: 'C:\\work\\beta', team: {} }
+  ];
+  await page.unroute('**/api/projects');
+  await page.route('**/api/projects', (route) => fulfillJson(route, envelope({ projects })));
+  await page.unroute('**/api/projects/*/control-plane');
+  await page.route('**/api/projects/*/control-plane', (route) => {
+    const name = decodeURIComponent(new URL(route.request().url()).pathname.split('/')[3]);
+    return fulfillJson(route, control('manual', 'semi_auto', name));
+  });
+
+  const chooseProject = async (name: string) => {
+    await page.locator('.scope-trigger').click();
+    await page.getByRole('listbox', { name: 'Projekt wählen' }).getByRole('button', { name, exact: true }).click();
+    await expect(page.locator('.scope-name')).toHaveText(name);
+  };
+
+  await openSystemSettings(page);
+  let system = page.getByTestId('system-capabilities');
+  await system.getByLabel('Projekt-Autonomie für Alpha').selectOption('autonomous');
+  await expect(system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' })).toBeEnabled();
+
+  await page.locator('.settings-close').click();
+  await chooseProject('beta');
+  await page.getByRole('button', { name: /^Einstellungen/ }).click();
+  system = page.getByTestId('system-capabilities');
+  await expect(system.getByLabel('Projekt-Autonomie für Alpha')).toHaveValue('manual');
+  await expect(system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' })).toBeDisabled();
+
+  await page.locator('.settings-close').click();
+  await chooseProject('atlas');
+  await page.getByRole('button', { name: /^Einstellungen/ }).click();
+  system = page.getByTestId('system-capabilities');
+  await expect(system.getByLabel('Projekt-Autonomie für Alpha')).toHaveValue('autonomous');
+  await expect(system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' })).toBeEnabled();
+  expect(fixture.autonomyBodies).toHaveLength(0);
+});
+
+test('an autonomy write stays locked and reports failure across an A to B to A project round-trip', async ({ page }) => {
+  await stubCockpit(page);
+  const projects = [
+    { name: 'atlas', repo_root: 'C:\\work\\atlas', team: {} },
+    { name: 'beta', repo_root: 'C:\\work\\beta', team: {} }
+  ];
+  const canonical: Record<string, string> = { atlas: 'manual', beta: 'manual' };
+  let releasePut: (() => void) | undefined;
+  let putFinished = false;
+  let putCount = 0;
+
+  await page.unroute('**/api/projects');
+  await page.route('**/api/projects', (route) => fulfillJson(route, envelope({ projects })));
+  await page.unroute('**/api/projects/*/control-plane');
+  await page.route('**/api/projects/*/control-plane', (route) => {
+    const name = decodeURIComponent(new URL(route.request().url()).pathname.split('/')[3]);
+    return fulfillJson(route, control(canonical[name], 'semi_auto', name));
+  });
+  await page.unroute('**/api/projects/*/autonomy');
+  await page.route('**/api/projects/*/autonomy', async (route) => {
+    const name = decodeURIComponent(new URL(route.request().url()).pathname.split('/')[3]);
+    putCount += 1;
+    await new Promise<void>((resolve) => { releasePut = resolve; });
+    await route.fulfill({ status: 409, json: { ok: false, error: `autonomy conflict for ${name}` } });
+    putFinished = true;
+  });
+
+  const chooseProject = async (name: string) => {
+    await page.locator('.scope-trigger').click();
+    await page.getByRole('listbox', { name: 'Projekt wählen' }).getByRole('button', { name, exact: true }).click();
+    await expect(page.locator('.scope-name')).toHaveText(name);
+  };
+
+  await openSystemSettings(page);
+  let system = page.getByTestId('system-capabilities');
+  await system.getByLabel('Projekt-Autonomie für Alpha').selectOption('autonomous');
+  await system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' }).click();
+  await expect.poll(() => Boolean(releasePut)).toBe(true);
+
+  await page.locator('.settings-close').click();
+  await chooseProject('beta');
+  await page.getByRole('button', { name: /^Einstellungen/ }).click();
+  system = page.getByTestId('system-capabilities');
+  await expect(system).toBeVisible();
+  await expect(system.getByLabel('Projekt-Autonomie für Alpha')).toHaveValue('manual');
+  await page.locator('.settings-close').click();
+  await chooseProject('atlas');
+  await page.getByRole('button', { name: /^Einstellungen/ }).click();
+  const section = page.locator('section[aria-labelledby="system-capabilities-title"]');
+  await expect(section.getByText(/Projekt-Autonomie wird gespeichert/)).toBeVisible();
+  await expect(section.getByRole('button', { name: 'Neu lesen', exact: true })).toBeDisabled();
+  expect(putCount).toBe(1);
+
+  releasePut?.();
+  await expect.poll(() => putFinished).toBe(true);
+  system = page.getByTestId('system-capabilities');
+  await expect(system.getByLabel('Projekt-Autonomie für Alpha')).toBeEnabled();
+  // A definite refusal must not discard the operator's project-scoped draft.
+  // The canonical baseline remains manual, so the retained autonomous draft
+  // is still visibly dirty and can be retried after the conflict is resolved.
+  await expect(system.getByLabel('Projekt-Autonomie für Alpha')).toHaveValue('autonomous');
+  await expect(system.getByRole('button', { name: 'Projekt-Autonomie übernehmen' })).toBeEnabled();
+  await expect(system.getByRole('alert')).toContainText('autonomy conflict for atlas');
+  expect(putCount).toBe(1);
 });
 
 test('the safety gates are named, not buried in a JSON dump', async ({ page }) => {

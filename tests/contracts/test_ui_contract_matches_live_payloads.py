@@ -136,6 +136,7 @@ CASES = [
     ("/api/projects/daedalus_wt/control-plane", "", "ControlPlanePayload"),
     ("/api/projects/daedalus_wt/control-plane", "profiles.0", "AgentProfile"),
     ("/api/structure?project=daedalus_wt", "", "StructurePayload"),
+    ("/api/fourfold?project=daedalus_wt&graph_nodes=200", "", "FourfoldPayload"),
     ("/api/topology?project=daedalus_wt", "", "TopologyPayload"),
     ("/api/drafts?project=daedalus_wt", "", "DraftsPayload"),
 ]
@@ -144,6 +145,10 @@ CASES = [
 # with the reason. An entry here is a decision; an endpoint in NEITHER list is
 # a gap, and the coverage test below fails on it.
 EXEMPT: dict[str, str] = {
+    "/api/genesis": "POST-only product intake; this audit samples read-only GET "
+                    "response shapes and must not start a Genesis run",
+    "/api/ariadne": "POST-only controlled campaign start; this audit samples "
+                     "read-only GET shapes and must not start an Ariadne run",
     "/api/env/status": "returns a secrets-adjacent inventory; auditing it here "
                        "would print key names into test output",
     "/api/context/plan": "requires request-specific parameters; a bare GET is a "
@@ -163,7 +168,8 @@ EXEMPT: dict[str, str] = {
                         "provider budget",
     "/api/projects/": "the bare prefix is the registration POST; its GET "
                       "subpaths are audited above",
-    "/api/desktop/services/ide/start": "POST only, and it starts a service",
+    "/api/desktop/services/": "dynamic POST-only desktop service actions; "
+                              "this read audit must not start or stop a service",
     # Found by the coverage test itself on 2026-09-03: five endpoints the
     # cockpit calls that were in neither list.
     "/api/events": "server-sent events, not a JSON document; its frame shapes "

@@ -74,6 +74,16 @@ export function sec(name: DurationName): number {
   return DURATION_MS[name] / 1000;
 }
 
+/** Timing adapter for imperative renderers such as Sigma, which speak
+ *  milliseconds instead of framer-motion seconds. Reduced motion disables
+ *  camera interpolation rather than merely shortening it. */
+export function imperativeTiming(
+  name: DurationName,
+  reduced: boolean
+): { duration: number } {
+  return { duration: reduced ? 0 : DURATION_MS[name] };
+}
+
 export type Bezier = [number, number, number, number];
 
 export const EASE: Record<'glass' | 'depart' | 'ack', Bezier> = {

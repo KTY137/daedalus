@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-06",
+  "artifact_role": "primary",
   "title": "Refuse normalization-ambiguous latent-ceiling corpus scalars",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-05",
+  "dependencies": "G1-EXP-TENSOR-LATENT-CEILING-05",
   "campaign_issue": 239,
   "base_revision": "bc037f1a110ed597e1bc2c7bd9177ea0ae72c201",
   "authority_refs": [
@@ -33,6 +36,7 @@
     "public_product_surface": false
   },
   "gardener_decision": "Tighten the existing scalar parser in place. Do not add a canonicalization service, schema framework, alternate corpus representation, corpus registry, embedding service, vector store, or second evidence identity model.",
+  "contracts": "The finding, gardener_decision and authority_boundary objects freeze the behavior and authority contract: accepted semantic strings are already canonical and are never silently normalized after hashing.",
   "acceptance": [
     "the committed prediction-only corpus remains valid, incomplete, and byte-identical",
     "semantic string fields with surrounding whitespace are refused rather than silently stripped before evidence identity is retained",
@@ -54,6 +58,7 @@
     "hosted_ci": "unclaimed unless an exact-head workflow with real executed steps appears after the final packet commit",
     "claim": "Focused exact-blob evidence only; no full-repository, package, platform, latent-benefit, tensor-performance, or benchmark-green claim follows."
   },
+  "evidence": "The verification object binds the focused result to exact blobs and explicitly withholds broader repository, package, platform, latent-benefit, performance and benchmark claims.",
   "branch_hygiene": {
     "remote_branch": "exp/tensor-latent-ceiling-01",
     "new_remote_branch_created": false,

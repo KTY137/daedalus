@@ -7,6 +7,8 @@ the NATIVE Ollama API (the /v1 shim silently drops it).
 """
 import io
 import json
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -93,7 +95,10 @@ class KeepAliveTest(unittest.TestCase):
         self.assertTrue(ok)
         self.assertTrue(captured["url"].endswith("/api/generate"))
         self.assertNotIn("/v1/", captured["url"])
-        self.assertEqual(captured["body"]["keep_alive"], "10m")
+        self.assertEqual(ollama_mod.DEFAULT_KEEP_ALIVE, "30m")
+        self.assertEqual(
+            captured["body"]["keep_alive"], ollama_mod.DEFAULT_KEEP_ALIVE
+        )
         self.assertEqual(captured["body"]["model"], "m7")
 
     def test_env_override(self):
@@ -112,6 +117,10 @@ class KeepAliveTest(unittest.TestCase):
 
 class AskStreamTest(unittest.TestCase):
     PROJECT = "sunny_garden"
+    ANALYSIS_PROMPT = (
+        "Schau dir den aktuellen Projektzustand an. Nenne die drei wichtigsten "
+        "nächsten Schritte und erkläre kurz, warum."
+    )
 
     def _events(self, *a, **kw):
         return list(ikarus_os.ask_stream(*a, **kw))
@@ -135,6 +144,38 @@ class AskStreamTest(unittest.TestCase):
         self.assertTrue(final["action"]["requires_confirmation"])
         self.assertEqual(final["action"]["args"]["lane"], "local_only")
 
+    def test_answer_shaped_german_analysis_uses_the_selected_voice(self):
+        with mock.patch.object(ikarus_os, "_ollama_stream",
+                               return_value=iter(["Drei", " Schritte"])) as voice:
+            evs = self._events(
+                self.PROJECT, self.ANALYSIS_PROMPT, provider="ollama")
+        voice.assert_called_once()
+        self.assertEqual(
+            [event for event, _ in evs],
+            ["start", "delta", "delta", "final"],
+        )
+        final = evs[-1][1]
+        self.assertEqual(final["intent"], "chat")
+        self.assertEqual(final["shell"], ikarus_os.SHELL_VOICE)
+        self.assertEqual(final["assistant"], "Drei Schritte")
+        self.assertNotIn("action", final)
+        self.assertNotIn("act_offer", final)
+
+    def test_explicit_mutation_with_explanation_stays_confirm_gated(self):
+        message = (
+            "Prüf die Tests und fix den Fehler. "
+            "Erklär danach warum."
+        )
+        with mock.patch.object(ikarus_os.core, "team_config",
+                               return_value={"default_lane": "local_only"}), \
+             mock.patch.object(ikarus_os, "_ollama_stream") as voice:
+            evs = self._events(self.PROJECT, message, provider="ollama")
+        voice.assert_not_called()
+        final = evs[-1][1]
+        self.assertEqual(final["intent"], "enqueue")
+        self.assertEqual(final["shell"], ikarus_os.SHELL_HAND)
+        self.assertTrue(final["action"]["requires_confirmation"])
+
     def test_local_lane_streams_deltas_then_final(self):
         with mock.patch.object(ikarus_os, "_ollama_stream",
                                return_value=iter(["Hel", "lo"])):
@@ -143,6 +184,145 @@ class AskStreamTest(unittest.TestCase):
         self.assertEqual([p["text"] for e, p in evs if e == "delta"], ["Hel", "lo"])
         self.assertEqual(evs[-1][1]["assistant"], "Hello")
         self.assertEqual(evs[-1][1]["provider_used"], "ollama_http")
+
+    def test_cancel_before_first_iteration_is_supported_and_never_persists(self):
+        class TrackableInner:
+            def __init__(self):
+                self.next_calls = 0
+                self.close_calls = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                self.next_calls += 1
+                return "final", {"intent": "chat", "assistant": "too late"}
+
+            def close(self):
+                self.close_calls += 1
+
+        inner = TrackableInner()
+        with mock.patch.object(ikarus_os, "_ask_stream_inner", return_value=inner), \
+                mock.patch.object(ikarus_os, "_persist_turn") as persist:
+            stream = ikarus_os.ask_stream(
+                self.PROJECT, "hello", conversation_id="conv_cancel"
+            )
+            self.assertIs(iter(stream), stream)
+            self.assertEqual(stream.cancel(), ikarus_os.STREAM_CANCEL_REQUESTED)
+            self.assertEqual(stream.cancel(), ikarus_os.STREAM_CANCEL_REQUESTED)
+            self.assertEqual(list(stream), [])
+            self.assertEqual(stream.cancel(), ikarus_os.STREAM_CANCEL_CONFIRMED)
+
+        self.assertEqual(inner.next_calls, 0)
+        self.assertEqual(inner.close_calls, 1)
+        persist.assert_not_called()
+
+    def test_cancel_after_delta_drops_final_and_closes_locally(self):
+        inner = iter([
+            ("start", {"intent": "chat"}),
+            ("delta", {"text": "partial"}),
+            ("final", {"intent": "chat", "assistant": "partial done"}),
+        ])
+        with mock.patch.object(ikarus_os, "_ask_stream_inner", return_value=inner), \
+                mock.patch.object(ikarus_os, "_persist_turn") as persist:
+            stream = ikarus_os.ask_stream(
+                self.PROJECT, "hello", conversation_id="conv_cancel"
+            )
+            self.assertEqual(next(stream)[0], "start")
+            self.assertEqual(next(stream), ("delta", {"text": "partial"}))
+            self.assertEqual(stream.cancel(), ikarus_os.STREAM_CANCEL_REQUESTED)
+            self.assertEqual(list(stream), [])
+
+        persist.assert_not_called()
+
+    def test_cancel_wins_a_blocked_final_race_without_claiming_hard_kill(self):
+        entered = threading.Event()
+        release = threading.Event()
+
+        class BlockingFinal:
+            def __init__(self):
+                self.close_calls = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                entered.set()
+                release.wait(1)
+                return "final", {"intent": "chat", "assistant": "too late"}
+
+            def close(self):
+                self.close_calls += 1
+
+        inner = BlockingFinal()
+        delivered = []
+        failures = []
+        with mock.patch.object(ikarus_os, "_ask_stream_inner", return_value=inner), \
+                mock.patch.object(ikarus_os, "_persist_turn") as persist:
+            stream = ikarus_os.ask_stream(
+                self.PROJECT, "hello", conversation_id="conv_cancel"
+            )
+
+            def drive():
+                try:
+                    delivered.extend(stream)
+                except Exception as exc:  # pragma: no cover - assertion capture
+                    failures.append(exc)
+
+            worker = threading.Thread(target=drive)
+            worker.start()
+            self.assertTrue(entered.wait(1))
+            self.assertEqual(stream.cancel(), ikarus_os.STREAM_CANCEL_REQUESTED)
+            self.assertEqual(stream.cancel(), ikarus_os.STREAM_CANCEL_REQUESTED)
+            self.assertEqual(inner.close_calls, 1)
+            release.set()
+            worker.join(1)
+
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(stream.cancel(), ikarus_os.STREAM_CANCEL_CONFIRMED)
+
+        self.assertEqual(delivered, [])
+        self.assertEqual(failures, [])
+        persist.assert_not_called()
+
+    def test_final_commit_wins_the_race_atomically(self):
+        persist_entered = threading.Event()
+        release_persist = threading.Event()
+        delivered = []
+        cancel_outcomes = []
+
+        def persist(*_args, **_kwargs):
+            persist_entered.set()
+            release_persist.wait(1)
+
+        with mock.patch.object(
+            ikarus_os,
+            "_ask_stream_inner",
+            return_value=iter([
+                ("final", {"intent": "chat", "assistant": "committed"})
+            ]),
+        ), mock.patch.object(ikarus_os, "_persist_turn", side_effect=persist) as saved:
+            stream = ikarus_os.ask_stream(
+                self.PROJECT, "hello", conversation_id="conv_final"
+            )
+            worker = threading.Thread(target=lambda: delivered.append(next(stream)))
+            worker.start()
+            self.assertTrue(persist_entered.wait(1))
+            canceller = threading.Thread(
+                target=lambda: cancel_outcomes.append(stream.cancel())
+            )
+            canceller.start()
+            time.sleep(0.02)
+            self.assertTrue(canceller.is_alive())
+            release_persist.set()
+            worker.join(1)
+            canceller.join(1)
+
+        self.assertEqual(delivered[0][0], "final")
+        self.assertEqual(
+            cancel_outcomes, [ikarus_os.STREAM_CANCEL_ALREADY_TERMINAL]
+        )
+        saved.assert_called_once()
 
     def test_midstream_error_keeps_partial_without_blocking_retry(self):
         def boom():

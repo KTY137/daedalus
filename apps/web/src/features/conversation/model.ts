@@ -148,6 +148,53 @@ export interface Turn {
   effort?: EffortLevel;
 }
 
+export type TurnActivityPhase = 'creating' | 'accepted' | 'routed' | 'writing' | 'cancelling';
+
+export interface TurnActivity {
+  phase: TurnActivityPhase;
+  /** Short, user-facing wording derived only from fields already observed. */
+  label: string;
+}
+
+/**
+ * The live sentence for one turn. This is deliberately not a plan or a
+ * reasoning trace: it translates browser/request facts that already exist on
+ * `Turn` into useful cadence while the final receipt is still outstanding.
+ */
+export function activityForTurn(
+  turn: Turn,
+  labelOf: (id: string) => string | undefined
+): TurnActivity | undefined {
+  if (turn.role !== 'ikarus' || !turn.streaming) return undefined;
+  if (turn.cancellation === 'requested') {
+    return { phase: 'cancelling', label: 'Abbruch angefordert' };
+  }
+
+  const provider = turn.started?.provider_used || '';
+  const providerLabel = provider === 'deterministic'
+    ? 'Lokaler Index'
+    : provider
+      ? labelOf(provider) || provider
+      : '';
+
+  if (turn.text) {
+    return {
+      phase: 'writing',
+      label: providerLabel ? `${providerLabel} antwortet` : 'Antwort entsteht'
+    };
+  }
+  if (turn.started) {
+    return {
+      phase: 'routed',
+      label: providerLabel ? `${providerLabel} ist ausgewählt` : 'Route ist ausgewählt'
+    };
+  }
+  if (turn.requestId !== undefined) {
+    return { phase: 'accepted', label: 'Anfrage angenommen' };
+  }
+  return { phase: 'creating', label: 'Anfrage wird angelegt' };
+}
+
 export function positiveTurnId(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
@@ -263,6 +310,25 @@ export function envelopeFrom(value: unknown): TurnEnvelope | undefined {
 }
 
 /* --------------------------------------------------------------- resume */
+
+/**
+ * A stored id is only a hint until the canonical spine proves both its
+ * identity and project. The proof is the server's unbounded cross-kind binding
+ * field, never the bounded transcript tail. Empty, legacy, mixed, or corrupt
+ * views fail closed: they must never be displayed under, or appended from,
+ * another project's chrome.
+ */
+export function conversationConfirmsProject(
+  view: ConversationView | undefined,
+  threadId: string,
+  project: string
+): boolean {
+  if (!view || !threadId || !project) return false;
+  if (!view.exists || view.conversation_id !== threadId) return false;
+  return view.quarantined !== true
+    && view.project_binding?.state === 'bound'
+    && view.project_binding.project === project;
+}
 
 export function resumedDispatch(dispatch: ConversationDispatch): TaskSnapshot | undefined {
   const id = typeof dispatch.link?.dispatch_ref === 'string' ? dispatch.link.dispatch_ref : '';
@@ -398,6 +464,25 @@ export function cancellationLabel(status: ConversationCancellationStatus): strin
     case 'already_terminal': return 'Turn war bereits abgeschlossen';
     default: return 'Abbruchzustand unbekannt';
   }
+}
+
+/**
+ * Copy for an authoritative terminal `cancelled` state. The terminal state
+ * alone does not prove that the cancellation request was confirmed: after a
+ * crash or an external durable cancellation the backend can deliberately
+ * report `unknown` here.
+ */
+export function cancelledObservation(status?: ConversationCancellationStatus): {
+  cancellation: ConversationCancellationStatus;
+  text: string;
+} {
+  const cancellation = status || 'unknown';
+  return {
+    cancellation,
+    text: cancellation === 'confirmed'
+      ? 'Der Server hat den Abbruch bestätigt.'
+      : `Der Turn wurde als abgebrochen gemeldet. ${cancellationLabel(cancellation)}.`
+  };
 }
 
 /** Seconds while a turn is out. Past a minute a bare `73s` stops being read. */
@@ -583,7 +668,7 @@ function routeRow(turn: Turn, labelOf: (id: string) => string | undefined): Ledg
   return {
     key: 'route',
     label: 'Route',
-    datum: turn.streaming ? `${name} · antwortet` : name,
+    datum: turn.streaming ? `${name} · ausgewählt` : name,
     tone: turn.streaming ? 'live' : 'info',
     detail: detail.length ? detail : undefined
   };
@@ -635,9 +720,15 @@ function editorRow(turn: Turn): LedgerRow | undefined {
   return { key: 'editor', label: 'Editor', datum: n === 1 ? 'Anhang übergeben' : `${n} Anhänge übergeben`, tone: 'info' };
 }
 
-function answerRow(turn: Turn, stamp: Stamp | undefined): LedgerRow | undefined {
+function answerRow(
+  turn: Turn,
+  stamp: Stamp | undefined,
+  labelOf: (id: string) => string | undefined
+): LedgerRow | undefined {
   if (turn.streaming) {
-    return { key: 'answer', label: 'Antwort', datum: turn.text ? 'wird geschrieben' : 'Ikarus denkt', tone: 'live' };
+    const activity = activityForTurn(turn, labelOf);
+    if (!activity) return undefined;
+    return { key: 'answer', label: 'Antwort', datum: activity.label, tone: 'live' };
   }
   if (!stamp) return undefined;
   const bits = [stamp.word];
@@ -743,7 +834,7 @@ export function ledgerFor(turn: Turn, labelOf: (id: string) => string | undefine
     contextRow(turn),
     refusalRow(turn),
     editorRow(turn),
-    answerRow(turn, stamp),
+    answerRow(turn, stamp, labelOf),
     mismatchRow(turn),
     offerRow(turn),
     dispatchRow(turn),

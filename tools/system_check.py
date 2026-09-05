@@ -725,9 +725,14 @@ def _gui(sb: Sandbox) -> Result:
     if not gui.exists():
         return Result("gui.a_human_can_operate_the_cockpit", UNAVAILABLE,
                       "tools/gui_check.py is not present", {})
+    # gui_check bounds each strictly serial shard separately. The wrapper must
+    # leave room for every green shard plus startup rather than killing a valid
+    # aggregate at the former monolithic-suite limit.
+    from tools.gui_check import aggregate_timeout_s
+    aggregate_timeout = aggregate_timeout_s()
     rc, out = sb.py(str(gui), "--repo-root", str(sb.repo),
                     "--web-root", str(ROOT / "apps" / "web"), "--json",
-                    timeout=1800)
+                    timeout=aggregate_timeout)
     payload = _json_tail(out)
     if payload is None:
         return Result("gui.a_human_can_operate_the_cockpit", FAIL,

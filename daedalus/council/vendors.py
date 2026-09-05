@@ -388,6 +388,32 @@ def council_cwd(repo_root: str | Path | None = None) -> tempfile.TemporaryDirect
     return handle
 
 
+def _resolve_command(argv: Sequence[str], env: Mapping[str, str]) -> list[str]:
+    """Resolve a bare ``argv[0]`` the way a shell would, against ``env``'s PATH.
+
+    ``CreateProcess`` on Windows searches PATH but never ``PATHEXT``, so the
+    npm ``codex.CMD`` shim that ``shutil.which`` finds was ``not_on_path`` for
+    every live council seat (measured 2026-09-05). A command that already
+    carries a directory is passed through untouched; an unresolvable name is
+    left for the spawn to refuse as ``not_on_path`` so the failure class is
+    unchanged.
+    """
+    argv = [str(part) for part in argv]
+    if not argv or os.path.dirname(argv[0]):
+        return argv
+    found = shutil.which(argv[0], path=env.get("PATH"))
+    if found:
+        argv[0] = found
+    return argv
+
+
+def _is_budget_refusal(exc: BaseException) -> bool:
+    """True for the process guard's ``BudgetRefused`` (lazy import: no ledger dependency at import time)."""
+    from daedalus.kernel.policy.ledger import BudgetRefused
+
+    return isinstance(exc, BudgetRefused)
+
+
 def run_managed(
     argv: Sequence[str],
     *,
@@ -410,6 +436,7 @@ def run_managed(
       immediate child only; a hung vendor's grandchildren outlive it.
     """
     started = time.monotonic()
+    argv = _resolve_command(argv, env)
     try:
         with tempfile.TemporaryDirectory(prefix="dcouncil-io-") as iodir:
             box = Path(iodir)
@@ -667,6 +694,17 @@ class CouncilAdapter:
         try:
             reply = self._dispatch(text, model=model, timeout_s=timeout_s)
         except Exception as exc:  # a vendor must never take the council down
+            if _is_budget_refusal(exc):
+                # The process guard refused the spawn: a missing voice with a
+                # named reason in the bus vocabulary, never a "transport error".
+                return self._reply(
+                    model,
+                    status="unavailable",
+                    reason="budget_exhausted",
+                    stderr=str(exc),
+                    latency_s=time.monotonic() - started,
+                    withheld=withheld,
+                )
             return self._reply(
                 model,
                 status="error",

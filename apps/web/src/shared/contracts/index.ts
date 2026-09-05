@@ -30,9 +30,9 @@ export interface ProjectRegistrationPayload extends ApiEnvelope {
   created: boolean;
 }
 
-/** OpenVSCode is managed by the desktop runtime, not inferred from whether an
- * iframe happened to paint. Optional aliases keep the web bundle compatible
- * with an older desktop sidecar while its additive status contract rolls out. */
+/** OpenVSCode is observed through the desktop projection, never inferred from
+ * whether an iframe happened to paint. v0.1.6 does not own managed IDE start;
+ * optional aliases keep older read-only status payloads renderable. */
 export interface DesktopIdeService {
   mode?: 'native' | 'docker';
   installed?: boolean;
@@ -46,7 +46,10 @@ export interface DesktopIdeService {
   container_name?: string;
   configured_executable?: string;
   managed?: boolean;
+  observed?: boolean;
   process_running?: boolean;
+  managed_start_available?: boolean;
+  availability_reason?: string;
   runtime_downloads?: boolean;
   state?: string;
   detail?: string;
@@ -499,6 +502,69 @@ export interface StructureGraph {
  * there is no unique Fiedler vector, and the backend says so instead of
  * returning a partition it could not justify.
  */
+/* ---- Fourfold Project Twin read projection ---- */
+
+export type FourfoldPlane = 'code' | 'type' | 'data' | 'knowledge';
+
+export interface FourfoldPlaneSummary {
+  plane: FourfoldPlane;
+  status: 'complete' | 'partial' | 'absent';
+  reason: string;
+  node_count: number;
+  shown_count: number;
+  relation_count: number;
+}
+
+export interface FourfoldGraphNode {
+  id: string;
+  plane: FourfoldPlane;
+  kind: string;
+  language: string;
+  loc: number;
+  score: number;
+  fan_in: number;
+}
+
+export interface FourfoldGraphEdge {
+  source: string;
+  target: string;
+  relation: string;
+  directed: boolean;
+  weight: number;
+  cross_plane: boolean;
+  assurance: 'verified' | 'observed';
+}
+
+export interface FourfoldPayload extends ApiEnvelope {
+  fourfold: {
+    schema: 'daedalus-fourfold-read/1';
+    repository_id: string;
+    snapshot_sha256: string;
+    forest_sha256: string;
+    /** Digest of this compiled Forest read, not a Git or candidate revision. */
+    revision: string;
+    revision_basis: 'forest-content';
+    assurance: 'legacy-forest-projection';
+    planes: FourfoldPlaneSummary[];
+    graph: {
+      nodes: FourfoldGraphNode[];
+      edges: FourfoldGraphEdge[];
+      n_nodes_total: number;
+      n_nodes_shown: number;
+      n_modules_total: number;
+      n_modules_shown: number;
+      n_edges_total: number;
+      n_edges_eligible: number;
+      n_edges_offmap: number;
+      /** Retained and counted, but deliberately not expanded into fake pairs. */
+      n_hyperedges_total: number;
+      n_bindings_total: number;
+      truncated: boolean;
+      scope: 'bounded' | 'all';
+    };
+  };
+}
+
 export interface TopologyPayload extends ApiEnvelope {
   topology: {
     available: boolean;

@@ -47,8 +47,10 @@ FORBIDDEN_PREFIXES = (
     "daedalus.runtimes",
 )
 
-#: Every symbol the four twin modules took from the facade before G1-HIER-11,
-#: and the module that now supplies it. Nine distinct names, fifteen bindings.
+#: Every contract symbol currently used by the twin layer and the module that
+#: supplies it. Nine distinct names, thirty-eight bindings. This includes the
+#: G1-HIER-11 moves plus later Tensor/relation modules, so integrating those
+#: modules cannot silently reopen the legacy-facade edge.
 MOVED_BINDINGS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "daedalus.twin.contracts",
@@ -70,6 +72,34 @@ MOVED_BINDINGS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ("ContractProvenance", "_identifier", "_revision", "_sha256"),
     ),
     ("daedalus.twin._reference_claims", ("_identifier",)),
+    ("daedalus.twin.contractions", ("_identifier",)),
+    (
+        "daedalus.twin.hybrid_retrieval",
+        ("_non_empty", "_revision", "_sha256"),
+    ),
+    (
+        "daedalus.twin.relation_blocks",
+        ("_identifier", "_non_empty", "_record_payload", "_revision", "_sha256"),
+    ),
+    ("daedalus.twin.relation_compiler", ("_sha256",)),
+    ("daedalus.twin.semiring", ("_sha256",)),
+    (
+        "daedalus.twin.tensor",
+        (
+            "CanonicalContract",
+            "ContractProvenance",
+            "_identifier",
+            "_non_empty",
+            "_record_payload",
+            "_require_provenance_inputs",
+            "_revision",
+            "_sha256",
+        ),
+    ),
+    (
+        "daedalus.twin.two_category",
+        ("_identifier", "_non_empty", "_revision", "_sha256"),
+    ),
 )
 
 
@@ -229,7 +259,7 @@ def test_moved_symbols_are_the_same_objects_the_facade_exposes() -> None:
             assert bound is getattr(_facade, symbol), (module_name, symbol)
             assert bound is getattr(_owner, symbol), (module_name, symbol)
             assert bound is getattr(_nucleus, symbol), (module_name, symbol)
-    assert checked == 15
+    assert checked == 38
     assert len(names) == 9
 
     # One nucleus, not two: the owner re-exports these names and defines none

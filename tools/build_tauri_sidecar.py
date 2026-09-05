@@ -27,6 +27,54 @@ BACKEND_DIR = TAURI_DIR / "backend"
 BUILD_DIR = ROOT / "build" / "desktop-sidecar"
 BUNDLE_ID_NAME = "BUNDLE_ID"
 BUNDLE_FILES_NAME = "BUNDLE_FILES"
+# Research accelerators are installed only through the explicit ``gpu`` extra.
+# A desktop build must stay small and portable even when the build interpreter
+# happens to come from a GPU-enabled maintainer environment.
+DESKTOP_PYINSTALLER_EXCLUDES = (
+    "cuda",
+    "cupy",
+    # PyInstaller sees CuPy's implementation packages independently from the
+    # public ``cupy`` package.  Excluding only the public name can therefore
+    # pull its extension modules (and, through their DLL search path, more
+    # than a gigabyte of CUDA/Torch libraries) into a desktop built from a
+    # maintainer environment that also has the opt-in ``gpu`` extra.
+    "cupy_backends",
+    "cupyx",
+    "newton",
+    "nvidia",
+    "torch",
+    "triton",
+    "warp",
+)
+DESKTOP_FORBIDDEN_ACCELERATOR_FILE_PREFIXES = (
+    "c10_cuda",
+    "caffe2_nvrtc",
+    "cublas",
+    "cuda",
+    "cudart",
+    "cudnn",
+    "cufft",
+    "cufile",
+    "cupti",
+    "curand",
+    "cusolver",
+    "cusparse",
+    "cutensor",
+    "nccl",
+    "npp",
+    "nvblas",
+    "nvjpeg",
+    "nvjitlink",
+    "nvperf",
+    "nvshmem",
+    "nvcuda",
+    "nvrtc",
+    "nvtoolsext",
+    "nvtx",
+    "torch",
+    "warp",
+    "cupy",
+)
 BUNDLED_MUTABLE_STATE_PATHS = (
     "_internal/config",
     "_internal/inbox",
@@ -154,6 +202,48 @@ def bundle_identity(root: Path) -> str:
     return digest.hexdigest()
 
 
+def assert_no_accelerator_runtime_payload(root: Path) -> None:
+    """Refuse CUDA/PyTorch/Newton runtime payloads in a frozen desktop tree."""
+
+    forbidden: list[str] = []
+    excluded = tuple(name.casefold() for name in DESKTOP_PYINSTALLER_EXCLUDES)
+
+    def matches_module_component(component: str) -> bool:
+        normalized = component.casefold()
+        return any(
+            normalized == name
+            or normalized.startswith(name + ".")
+            or normalized.startswith(name + "-")
+            or normalized.startswith(name + "_")
+            for name in excluded
+        )
+
+    for relative, _path in bundle_files(root):
+        parts = relative.replace("\\", "/").split("/")
+        filename = parts[-1].casefold()
+        # PyInstaller normally places a package directly below ``_internal``,
+        # but hooks and collected data may introduce another container first or
+        # even place an extension beside the executable. Inspect every path
+        # component so neither ``vendor/torch`` nor a root ``torch_cuda.dll``
+        # can evade the guard.
+        module_payload = any(matches_module_component(part) for part in parts)
+        # ELF and Mach-O libraries conventionally add ``lib`` to the Windows
+        # basename (libcudart, libcublas, libtorch_cuda).  Normalize that one
+        # optional prefix before applying the same closed accelerator list.
+        native_filename = filename[3:] if filename.startswith("lib") else filename
+        native_payload = any(
+            native_filename.startswith(prefix)
+            for prefix in DESKTOP_FORBIDDEN_ACCELERATOR_FILE_PREFIXES
+        )
+        if module_payload or native_payload:
+            forbidden.append(relative)
+    if forbidden:
+        sample = ", ".join(forbidden[:10])
+        raise SystemExit(
+            "desktop backend contains opt-in accelerator runtime payloads: " + sample
+        )
+
+
 def build(target: str) -> Path:
     dist_index = ROOT / "apps" / "web" / "dist" / "index.html"
     if not dist_index.is_file():
@@ -197,6 +287,8 @@ def build(target: str) -> Path:
         "--collect-submodules",
         "daedalus",
     ]
+    for module in DESKTOP_PYINSTALLER_EXCLUDES:
+        cmd.extend(["--exclude-module", module])
     for source, destination in DATA_PATHS:
         cmd.extend(["--add-data", f"{ROOT / source}:{destination}"])
     cmd.append(str(ROOT / "scripts" / "daedalus_desktop_sidecar.py"))
@@ -210,6 +302,8 @@ def build(target: str) -> Path:
     internal = frozen / "_internal"
     if not executable.is_file() or not internal.is_dir():
         raise SystemExit(f"unexpected PyInstaller onedir layout under {frozen}")
+
+    assert_no_accelerator_runtime_payload(frozen)
 
     shutil.copytree(frozen, BACKEND_DIR, dirs_exist_ok=True)
     (BACKEND_DIR / "BUILD_TARGET").write_text(target + "\n", encoding="utf-8")

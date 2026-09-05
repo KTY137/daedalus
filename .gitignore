@@ -27,6 +27,9 @@ inbox/*.json
 .env
 .env.*
 !.env.example
+# Source-web operator settings are latest-only runtime state, not Run Records.
+/config/connections.json
+/config/known_hosts
 *.log
 .DS_Store
 Thumbs.db
@@ -168,7 +171,7 @@ memory/offload_metrics.local.jsonl.lock
 # Machine-bound project registry row for the local checkout. docs/DESKTOP.md
 # calls this runtime state seeded below the external profile root, and it
 # carries an absolute repo_root -- the exact class of hardcoded machine path
-# 5375f0c3 removed. The four tracked sibling rows point at C:\Users\nukei and
+# 5375f0c3 removed. The four tracked sibling rows point at a local user profile and
 # are stale history, not a precedent to follow.
 projects/daedalus.json
 

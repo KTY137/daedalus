@@ -1,0 +1,185 @@
+{
+  "kind": "daedalus-scene-environments",
+  "version": 1,
+  "generator": "tools/build_scene_environments.py",
+  "encoder": {
+    "pillow": "10.4.0",
+    "webp": "1.4.0"
+  },
+  "environments": [
+    {
+      "id": "porcelain",
+      "title": "Porcelain",
+      "quality": "final",
+      "source": "docs/design/blender-scenes/renders/porcelain.png",
+      "sourceSha256": "765ca1bb45d4f91f3793f2d806e7dba279ada0b1a2c4e59733381552861875da",
+      "sourceResolution": [
+        1600,
+        1000
+      ],
+      "blender": "4.5.13 LTS",
+      "samples": 64,
+      "seed": 20260905,
+      "blend": "docs/design/blender-scenes/blend/porcelain.blend",
+      "image": {
+        "file": "porcelain.webp",
+        "width": 1600,
+        "height": 1000,
+        "bytes": 16546,
+        "sha256": "90a65ce544296e570048a8eba28bc1d3f6206a47ffc8b89fad422a87a67ee3f6"
+      },
+      "thumb": {
+        "file": "porcelain.thumb.webp",
+        "width": 480,
+        "height": 300,
+        "bytes": 2780,
+        "sha256": "817e9cc7d6751be31f1810b58dab8f0a92e461b2220fe7c890748f350074c5a8"
+      }
+    },
+    {
+      "id": "graphite",
+      "title": "Graphite Atelier",
+      "quality": "final",
+      "source": "docs/design/blender-scenes/renders/graphite.png",
+      "sourceSha256": "698290ea6868a2c6bdce6c779338e9cd8066fcbfdbe7c3779f22abe62035a415",
+      "sourceResolution": [
+        1600,
+        1000
+      ],
+      "blender": "4.5.13 LTS",
+      "samples": 64,
+      "seed": 20260905,
+      "blend": "docs/design/blender-scenes/blend/graphite.blend",
+      "image": {
+        "file": "graphite.webp",
+        "width": 1600,
+        "height": 1000,
+        "bytes": 42870,
+        "sha256": "d5ce7d68dcdbcff8279573075a032ff00a4e8f1525ec0226d8c91825e23970d0"
+      },
+      "thumb": {
+        "file": "graphite.thumb.webp",
+        "width": 480,
+        "height": 300,
+        "bytes": 8108,
+        "sha256": "80aaaf3269ad446df76d5ee8815b81c279c3b80a693358165ef085e776da87b4"
+      }
+    },
+    {
+      "id": "daylight",
+      "title": "Spatial Daylight",
+      "quality": "final",
+      "source": "docs/design/blender-scenes/renders/daylight.png",
+      "sourceSha256": "eaaf431eb0fbcf509f22f81f33c43bdd365114482012ca3e503cf6000cb0d50c",
+      "sourceResolution": [
+        1600,
+        1000
+      ],
+      "blender": "4.5.13 LTS",
+      "samples": 64,
+      "seed": 20260905,
+      "blend": "docs/design/blender-scenes/blend/daylight.blend",
+      "image": {
+        "file": "daylight.webp",
+        "width": 1600,
+        "height": 1000,
+        "bytes": 18106,
+        "sha256": "0083a280a1fa37f9e8f326b8012b769ca453a5717a925eac4b025f205aa2ba9f"
+      },
+      "thumb": {
+        "file": "daylight.thumb.webp",
+        "width": 480,
+        "height": 300,
+        "bytes": 3226,
+        "sha256": "234ee5f96b379c85b02d566645540ced0882c80553ae468b88aa8e93f912e73b"
+      }
+    },
+    {
+      "id": "dusk",
+      "title": "Spatial Dusk",
+      "quality": "final",
+      "source": "docs/design/blender-scenes/renders/dusk.png",
+      "sourceSha256": "94403bf4a00beff6e5064eec0760c35cf4397f1eae31d25d9d888048cbd7e8bf",
+      "sourceResolution": [
+        1600,
+        1000
+      ],
+      "blender": "4.5.13 LTS",
+      "samples": 64,
+      "seed": 20260905,
+      "blend": "docs/design/blender-scenes/blend/dusk.blend",
+      "image": {
+        "file": "dusk.webp",
+        "width": 1600,
+        "height": 1000,
+        "bytes": 23690,
+        "sha256": "ec9071eddb688417cef7dd9c9aab414b0c7653e740a9b5486b0cc5a5a22815f0"
+      },
+      "thumb": {
+        "file": "dusk.thumb.webp",
+        "width": 480,
+        "height": 300,
+        "bytes": 4116,
+        "sha256": "4a383475066a53935e6a54b18579bbfbae5b363ba5e31e0e098e30ffc544f141"
+      }
+    },
+    {
+      "id": "studio",
+      "title": "Spatial Studio",
+      "quality": "final",
+      "source": "docs/design/blender-scenes/renders/studio.png",
+      "sourceSha256": "37982a3059b776d142fd73998575d740d5b9c35e2e8eb63b3a9110c50ac93a1b",
+      "sourceResolution": [
+        1600,
+        1000
+      ],
+      "blender": "4.5.13 LTS",
+      "samples": 64,
+      "seed": 20260905,
+      "blend": "docs/design/blender-scenes/blend/studio.blend",
+      "image": {
+        "file": "studio.webp",
+        "width": 1600,
+        "height": 1000,
+        "bytes": 20596,
+        "sha256": "38d67195b9da5af23eccc71da964c2ab2236feee159567fd455fbfa6405d0c02"
+      },
+      "thumb": {
+        "file": "studio.thumb.webp",
+        "width": 480,
+        "height": 300,
+        "bytes": 3486,
+        "sha256": "912a996818317634a5701e7df2e8156032f27474cee001c19d1ca3bd90694b36"
+      }
+    },
+    {
+      "id": "techno-forest",
+      "title": "Techno Forest",
+      "quality": "final",
+      "source": "docs/design/blender-scenes/renders/techno-forest.png",
+      "sourceSha256": "d91db90d4e41773951c267e0990a3de5848b865d7cb870b2b00d4917414c7de8",
+      "sourceResolution": [
+        1600,
+        1000
+      ],
+      "blender": "4.5.13 LTS",
+      "samples": 64,
+      "seed": 20260905,
+      "blend": "docs/design/blender-scenes/blend/techno-forest.blend",
+      "image": {
+        "file": "techno-forest.webp",
+        "width": 1600,
+        "height": 1000,
+        "bytes": 109872,
+        "sha256": "3680086005690d1e343d7538ef2999665fb74f6fe92f256d2673ca7d247b462a"
+      },
+      "thumb": {
+        "file": "techno-forest.thumb.webp",
+        "width": 480,
+        "height": 300,
+        "bytes": 16416,
+        "sha256": "684482330e53e356ce963aeb00c5406ba4fb876bd87082c09f49283c9093c457"
+      }
+    }
+  ]
+}

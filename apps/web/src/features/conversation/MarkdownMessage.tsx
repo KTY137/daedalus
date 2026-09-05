@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -7,6 +7,8 @@ interface MarkdownMessageProps {
   streaming?: boolean;
   /** seconds since the turn went out; drawn while the stream is still empty */
   elapsed?: number;
+  /** observed request/stream activity; never a model reasoning claim */
+  activity?: string;
 }
 
 /**
@@ -95,11 +97,16 @@ const components: Components = {
   input: ({ checked }) => <span className={checked ? 'md-task on' : 'md-task'} aria-hidden="true" />
 };
 
-export function MarkdownMessage({ text, streaming = false, elapsed }: MarkdownMessageProps) {
+export const MarkdownMessage = memo(function MarkdownMessage({
+  text,
+  streaming = false,
+  elapsed,
+  activity
+}: MarkdownMessageProps) {
   if (!text && streaming) {
     return (
-      <div className="turn-text markdown thinking" role="status">
-        <span>Ikarus denkt{elapsed !== undefined && elapsed >= 2 ? ` · ${elapsed} s` : ''}</span>
+      <div className="turn-text markdown thinking">
+        <span>{activity || 'Ikarus arbeitet'}{elapsed !== undefined && elapsed >= 2 ? ` · ${elapsed} s` : ''}</span>
         <i /><i /><i />
       </div>
     );
@@ -112,7 +119,7 @@ export function MarkdownMessage({ text, streaming = false, elapsed }: MarkdownMe
       {streaming && <span className="caret" aria-hidden="true" />}
     </div>
   );
-}
+});
 
 /** A local note the surface wrote itself — help, a command hint. */
 export function NoteMessage({ children }: { children: ReactNode }) {

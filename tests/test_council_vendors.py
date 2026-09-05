@@ -664,6 +664,33 @@ def test_run_managed_missing_binary_is_a_spawn_error_not_an_exception():
     assert result.spawn_error.startswith("not_on_path")
 
 
+def test_run_managed_resolves_a_bare_command_through_path_and_pathext(tmp_path):
+    """A bare command name is resolved the way a shell would, then spawned.
+
+    Windows ``CreateProcess`` does not consult ``PATHEXT``, so the npm
+    ``codex.CMD`` shim was ``not_on_path`` for the council even though
+    ``shutil.which("codex")`` found it (measured 2026-09-05: both live seats
+    reported ``transport_error``). The runner resolves ``argv[0]`` first.
+    """
+    shim_dir = tmp_path / "shims"
+    shim_dir.mkdir()
+    if sys.platform == "win32":
+        (shim_dir / "shimcli.cmd").write_text("@echo shim-ok" + chr(13) + chr(10), encoding="ascii")
+    else:
+        shim = shim_dir / "shimcli"
+        shim.write_text("#!/bin/sh" + chr(10) + "echo shim-ok" + chr(10), encoding="ascii")
+        shim.chmod(0o755)
+    env = dict(V.council_env())
+    env["PATH"] = str(shim_dir) + os.pathsep + env.get("PATH", "")
+    with tempfile.TemporaryDirectory() as cwd:
+        result = V.run_managed(
+            ["shimcli"], stdin_text="", timeout_s=20, cwd=cwd, env=env,
+        )
+    assert result.spawn_error == "", result
+    assert result.returncode == 0, result
+    assert result.stdout.strip() == "shim-ok"
+
+
 # --------------------------------------------------------------------------
 # nothing here touches the memory ledger
 # --------------------------------------------------------------------------
@@ -683,3 +710,21 @@ def test_vendor_reply_is_frozen():
     reply = V.VendorReply(vendor="local", actor="council.local.x", model="x", status="ok")
     with pytest.raises(dataclasses.FrozenInstanceError):
         reply.status = "error"  # type: ignore[misc]
+
+
+def test_budget_refusal_is_recorded_as_budget_exhausted_not_transport_error():
+    """The guard's refusal is a named reason in the bus vocabulary, not a crash."""
+    from daedalus.kernel.policy.ledger import BudgetRefused
+
+    def refused_runner(argv, **kw):
+        raise BudgetRefused(
+            label="subprocess.Popen: claude -p", vendor="anthropic_cli", model="?",
+            estimate_usd=3.0, spent_usd=5.0, reserved_usd=0.0, ceiling_usd=5.0,
+            calls=2, open_calls=0, want_calls=1, max_calls=40,
+            reason="spend ceiling would be crossed (basis=worst_case)",
+        )
+
+    reply = V.ClaudeAdapter(runner=refused_runner).ask("q", timeout_s=5)
+    assert reply.status == "unavailable"
+    assert reply.reason == "budget_exhausted"
+    assert "BUDGET REFUSED" in reply.stderr

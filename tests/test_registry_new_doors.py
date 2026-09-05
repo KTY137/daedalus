@@ -162,6 +162,10 @@ LATE_ROWS: dict[str, str] = {
 #: the expected ``entrypoint.not_rediscovered`` REVIEW finding.
 STATIC_ONLY_ROWS: dict[str, str] = {
     "cli.ignition": "daedalus.ignition.__main__:main",
+    "cli.ariadne_campaign": "daedalus.ariadne.__main__:main",
+    # G1-COUNCIL-01: the council subcommand of the daedalus CLI; a
+    # function-level target the conservative scanner does not rediscover.
+    "cli.council": "daedalus.interfaces.cli.entry:_council",
 }
 
 #: Every row this file derives, both groups.
@@ -223,6 +227,13 @@ NO_ROW: dict[str, str] = {
 #: green on the strength of an exception nobody needed.  Narrowing this table is
 #: the opposite of the widening that would have "fixed" this packet cheaply.
 BRIDGES: dict[tuple[str, str], str] = {
+    ("cli.council", "spend"): (
+        "session._dispatch_round hands each seat to threading.Thread("
+        "target=_call) and the name-based closure does not follow a "
+        "callable passed as an argument; _call -> adapter.ask -> "
+        "_CliAdapter._dispatch, which BILLABLE_SITES lists. Re-verified in "
+        "test_the_bridges_are_checked_not_believed part 3."
+    ),
     ("cli.build_exec", "repository_mutation"): (
         "WaveExecutor.run_wave hands the write path to "
         "kairos.gated_writes:run_write_wave, which lives in the retained "
@@ -893,6 +904,34 @@ def test_the_bridges_are_checked_not_believed():
         "the retired project_memory bridge is back. It was removed because the "
         "effect is derived; a bridge here would suppress the painted-label "
         "check for a row that no longer needs it."
+    )
+
+    # 3. cli.council -> the vendor spend, across a Thread(target=...) hop.
+    session_src = (ROOT / "daedalus" / "council" / "session.py").read_text(
+        encoding="utf-8"
+    )
+    assert "target=_call" in session_src, (
+        "_dispatch_round no longer dispatches through Thread(target=_call); "
+        "re-derive the cli.council row, the spend hop may now be followed"
+    )
+    assert "adapter.ask(" in session_src, (
+        "_call no longer asks the adapter; the cli.council spend bridge "
+        "names a path that is gone"
+    )
+    council_reached = closure("daedalus.interfaces.cli.entry:_council")
+    assert ("daedalus.council.session", "_dispatch_round") in council_reached, (
+        "cli.council no longer reaches _dispatch_round; re-derive the row"
+    )
+    assert ("daedalus.council.vendors", "_CliAdapter._dispatch") in BILLABLE, (
+        "BILLABLE_SITES no longer lists _CliAdapter._dispatch; the council "
+        "would spend outside the drift detector, fix budget_process first"
+    )
+    assert ("daedalus.council.vendors", "_CliAdapter._dispatch") not in (
+        council_reached
+    ), (
+        "the closure now follows the Thread hop and derives the council spend "
+        "on its own: delete the (cli.council, spend) bridge instead of keeping "
+        "a standing pre-authorisation"
     )
 
     # 2. build_exec -> the worktree, through a retained non-.py legacy source.

@@ -76,6 +76,32 @@ CURRENT_CROSS_DOMAIN_COMPONENT = PRE_OFFLOAD_PORT_CROSS_DOMAIN_COMPONENT - {
 CURRENT_CROSS_DOMAIN_COMPONENT = (
     CURRENT_CROSS_DOMAIN_COMPONENT - {"daedalus.ikarus_supervisor"}
 ) | {"daedalus.orchestration.ikarus.supervisor"}
+# The final staged Genesis/computer-assistant surface closes six tracked owner
+# modules into the existing workload cycle.  Pin the actual component rather
+# than preserving the prerelease size-13 snapshot: all six names are required
+# for the measured size-19 SCC below.
+CURRENT_CROSS_DOMAIN_COMPONENT = CURRENT_CROSS_DOMAIN_COMPONENT | {
+    "daedalus.orchestration.control_plane",
+    "daedalus.orchestration.hierarchy",
+    "daedalus.orchestration.ikarus.chat",
+    "daedalus.orchestration.ikarus.computer_loop",
+    "daedalus.orchestration.ikarus.computer_schedule",
+    "daedalus.orchestration.ikarus.shell",
+}
+GENESIS_CONTRACT_COMPONENT = frozenset(
+    {
+        "daedalus.kernel.artifacts",
+        "daedalus.kernel.contracts.base",
+        "daedalus.kernel.contracts.canonical",
+        "daedalus.kernel.contracts.genesis",
+    }
+)
+DESKTOP_OWNER_COMPONENT = frozenset(
+    {
+        "daedalus.interfaces.desktop.effects",
+        "daedalus.interfaces.desktop.projection",
+    }
+)
 CURRENT_COMPONENTS_SHA256 = (
     # Moved in G1-PKG-01: the 14-module component IS the provider family, so
     # renaming its members renames them inside the component. Count and
@@ -84,7 +110,11 @@ CURRENT_COMPONENTS_SHA256 = (
     # Moved again in G1-PKG-02: the 7-module gates component IS the
     # repository_write_* family, so renaming its members renames them inside
     # the component. Count 12 and maximum 14 are unchanged.
-    "25111f36f9b86fde24835e6fc79b767f34ea63a8a96109b7dcb8d25b935b50bb"
+    # Final staged index, 2026-09-05: 14 exact non-trivial components, led by
+    # the size-19 CURRENT_CROSS_DOMAIN_COMPONENT above.  The two newly closed
+    # components are also asserted by membership below; the digest pins every
+    # member of every component rather than merely their count and maximum.
+    "841a5a979ea07aa45acdf7ab8ed7f2a3841c2e81c80d6b2974e1ba53c2140a78"
 )
 # Moving census, not an architecture invariant: any packet that legitimately
 # splits or adds a leaf module changes these two totals without touching the
@@ -158,7 +188,16 @@ CURRENT_COMPONENTS_SHA256 = (
 # ``shell``, not ``os``, because a module named os.py shadows the standard
 # library for any process whose cwd lands beside it -- the defect
 # daedalus/interfaces/http/ already has.
-CENSUS_MODULES = 434
+# 434 -> 447 after the Tensor/Fourfold experiment history and the selectively
+# integrated DeepSeek-lab context landed on main.  This is thirteen additions
+# and no deletion: eight relation/tensor modules plus five arch/shift ports or
+# compatibility modules.  None of the thirteen belongs to a non-trivial SCC;
+# the component count, maximum and digest asserted below remain unchanged.
+# 447 -> 470 in the final staged v0.1.6 index: exactly 23 previously untracked
+# Genesis, Ariadne, computer-runtime, desktop-owner, contract, containment and
+# Twin projection Python modules became part of the tracked graph.  This is an
+# exact tracked-path census, not a relaxed lower bound.
+CENSUS_MODULES = 473
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -378,7 +417,31 @@ CENSUS_MODULES = 434
 # something else, so nothing dropped. The five: interfaces.http.effects,
 # interfaces.http.sse, interfaces.http.web_api,
 # orchestration.conversation_requests, and ikarus.shell reaching a sibling.
-CENSUS_EDGES = 1650
+#
+# 1650 -> 1696 with those same two integrations.  Measured by diffing the
+# resolved edge sets at e6b8bc26 and 61cd1f3e: the five arch/shift modules add
+# 8 edges; the eight new Tensor/Fourfold modules add 33; ``daedalus.twin``
+# exports five of them; and ``daedalus.twin.contracts`` swaps its one
+# ``kernel.contracts.base`` edge for one ``schemas`` edge.  That is +47/-1,
+# net +46.  No added edge closes a new cycle; CURRENT_COMPONENTS_SHA256 stays
+# byte-identical.
+#
+# 1696 -> 1715 after the Gate-1 Genesis/Ariadne HTTP workbench, canonical
+# Campaign replay facade, and desktop owner integrations were wired into the
+# existing tracked modules. This is the re-measured moving edge census; the
+# cycle count, maximum, membership assertions, and component digest below stay
+# unchanged and therefore do not trade a boundary regression for a new pin.
+# 1715 -> 1717 in the final prerelease hardening, with no module movement:
+# ``interfaces.http.web_api -> budget`` installs the process-wide spend guard
+# for direct/frozen entry, and ``interfaces.http.effects -> spine.killswitch``
+# classifies a stopped Ariadne run as a typed conflict.  Both edges are the
+# admission/error boundaries they name; the 12 SCCs, maximum 14 and component
+# digest below remain byte-identical.
+# 1717 -> 1886 after the final staging operation.  The 23 tracked modules and
+# their integrations contribute a measured net +169 resolved imports.  The
+# equality below pins the complete graph's edge census; no tolerance was added
+# for the large staged change.
+CENSUS_EDGES = 1905
 
 
 def _module_name(path: str) -> str:
@@ -465,8 +528,8 @@ def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
 
     assert len(graph) == CENSUS_MODULES
     assert sum(len(targets) for targets in graph.values()) == CENSUS_EDGES
-    assert len(components) == 12
-    assert max(map(len, components)) == 14
+    assert len(components) == 14
+    assert max(map(len, components)) == 19
     component_bytes = json.dumps(
         components,
         ensure_ascii=True,
@@ -476,8 +539,10 @@ def test_observation_contract_breaks_the_next_cross_domain_scc() -> None:
     assert REMAINING_CROSS_DOMAIN_COMPONENT not in component_sets
     assert PRE_OFFLOAD_PORT_CROSS_DOMAIN_COMPONENT not in component_sets
     assert CURRENT_CROSS_DOMAIN_COMPONENT in component_sets
+    assert GENESIS_CONTRACT_COMPONENT in component_sets
+    assert DESKTOP_OWNER_COMPONENT in component_sets
     # The claim of G1-SCC-CUT1, stated as membership rather than as a count: a
-    # count of 13 would also be satisfied by dropping five unrelated modules.
+    # count alone would also be satisfied by exchanging unrelated modules.
     # The kernel and the spine are the layers that left, and the kernel no
     # longer names the workload at all.
     assert "daedalus.offload" not in graph["daedalus.kernel.attempt_execution"]

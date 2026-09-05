@@ -238,6 +238,7 @@ def save_autonomy(project: str, patch: dict[str, Any]) -> dict[str, Any]:
         raise ProjectRowUpdateError("autonomy patch must be a JSON object")
 
     changes: dict[str, Any] = {}
+    agent_updates: dict[str, str] | None = None
     if "default" in patch:
         changes["default"] = _norm_mode(patch["default"], "manual")
     if "agents" in patch:
@@ -245,6 +246,19 @@ def save_autonomy(project: str, patch: dict[str, Any]) -> dict[str, Any]:
             changes["agents"] = dict(patch["agents"] or {})
         except (TypeError, ValueError) as exc:
             raise ProjectRowUpdateError("autonomy agents must be an object") from exc
+    if "agent_updates" in patch:
+        raw_updates = patch["agent_updates"]
+        if not isinstance(raw_updates, dict):
+            raise ProjectRowUpdateError("autonomy agent_updates must be an object")
+        agent_updates = {}
+        for raw_name, raw_mode in raw_updates.items():
+            if not isinstance(raw_name, str) or not raw_name.strip():
+                raise ProjectRowUpdateError("autonomy agent update names must be non-empty strings")
+            if raw_mode not in AUTONOMY_MODES:
+                raise ProjectRowUpdateError(
+                    f"autonomy mode for agent '{raw_name}' must be one of {', '.join(AUTONOMY_MODES)}"
+                )
+            agent_updates[raw_name] = raw_mode
     if "capabilities" in patch:
         try:
             changes["capabilities"] = dict(patch["capabilities"] or {})
@@ -263,6 +277,15 @@ def save_autonomy(project: str, patch: dict[str, Any]) -> dict[str, Any]:
                 "project registry row has invalid team autonomy data"
             )
         autonomy.update(changes)
+        if agent_updates is not None:
+            existing_agents = autonomy.get("agents")
+            if existing_agents is None:
+                existing_agents = {}
+            elif not isinstance(existing_agents, dict):
+                raise ProjectRegistryUnavailable(
+                    "project registry row has invalid team autonomy agents data"
+                )
+            autonomy["agents"] = {**existing_agents, **agent_updates}
 
     rewrite_project_team(project, mutate)
     return unified_profiles(project)

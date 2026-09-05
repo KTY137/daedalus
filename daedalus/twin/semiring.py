@@ -11,7 +11,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Protocol, Sequence, TypeVar, runtime_checkable
 
-from ..schemas import _sha256
+from ..kernel.contracts.base import _sha256
 from ..spine.envelope import canonical_json, canonical_sha
 
 T = TypeVar("T")

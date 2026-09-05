@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-01",
+  "artifact_role": "primary",
   "title": "Evidence-first latent/Tensor headroom ceiling",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "base_revision": "68721e3208194391d71b0ae64d24157fd1876207",
+  "dependencies": "the frozen 1,383-item retained failure corpus and Master Plan Revision 11",
   "authority_refs": [
     "docs/IKARUS_ARIADNE_MASTER_PLAN.md#14-kill-criteria",
     "docs/IKARUS_ARIADNE_MASTER_PLAN.md#15-alignment-protocol-for-every-change",
@@ -45,6 +48,7 @@
     "prediction_rows_are_evidence": false,
     "result_status": "NOT_MEASURED"
   },
+  "contracts": "The frozen_experiment, expiry and authority_boundary objects are the frozen behavior, budget, stop rule and authority contract; prediction rows never count as measured evidence.",
   "acceptance": [
     "invalid schema, revision identity, duplicate rows, unsupported buckets/statuses, and evidence-free rows refuse",
     "only measured rows contribute to bucket counts used for a final ceiling",
@@ -64,7 +68,10 @@
     "local_result": "11 passed in 0.06s; py_compile succeeded; prediction-only CLI emitted ceiling=null and exit 3",
     "hosted_ci": "unclaimed; issue #67 remains an external infrastructure blocker"
   },
+  "evidence": "The verification object records only the executed local checks and preserves hosted CI as unclaimed; the committed seed remains prediction-only and non-authorizing.",
   "expiry": "Delete this experiment if the complete measured ceiling is <=3%; if >=20%, retain the receipt and license exactly one budget-equal latent-only-variable experiment. Do not promote this arm into production architecture by default.",
+  "migration": "No production runtime, graph authority, store or backend is migrated; rollback deletes only the isolated experiment after retaining its evidence.",
+  "rollback": "Delete the isolated experiment only under the frozen expiry rule, retaining its measured and negative evidence; no production state requires reversal.",
   "authority_boundary": {
     "automatic_merge": false,
     "automatic_promotion": false,

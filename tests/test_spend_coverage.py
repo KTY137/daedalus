@@ -495,6 +495,13 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
             installers.add(path.relative_to(ROOT).as_posix())
     assert installers == {
         "daedalus/interfaces/cli/entry.py",
+        # WIDENED 2026-09-05 for the independently runnable Web API process.
+        # The umbrella CLI already installs the guard, but the frozen desktop
+        # sidecar and ``python -m daedalus.interfaces.http.web_api`` enter at
+        # ``web_api.main`` directly.  Its own installation happens before bind
+        # admission or server construction, so those paths retain the same
+        # process-wide spend floor rather than depending on a caller.
+        "daedalus/interfaces/http/web_api.py",
         "tools/operability_drill.py",
         # Widened 2026-07-29 from two sites to seven. The audit that created
         # this test found the ceiling installed in exactly ONE function and

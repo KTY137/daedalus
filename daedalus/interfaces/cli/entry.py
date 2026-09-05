@@ -65,6 +65,13 @@
                                         narrative half read from
                                         docs/architecture-narrative.md; --check
                                         is the gate and exits non-zero on drift
+    daedalus genesis "<product>" [--target web|cli|desktop|mobile] [--stack S]
+                                        create, test and retain one isolated
+                                        zero-base product candidate; no publish
+    daedalus ariadne --source-revision SHA --campaign-id ID --target PATH
+                     --before TEXT --after TEXT
+                                        run one bounded controlled-repair
+                                        campaign; nomination only, no merge
     daedalus web                         run the local Agent OS web API/app
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
@@ -565,6 +572,18 @@ def _council(argv: list[str]) -> None:
     score and no approve/reject field, by construction: a deterministic gate
     (tests, fences, diffs) is the only thing that decides. What the council
     produces is a queue of checks for that gate to run."""
+    # THE BOUNDARY FIRST (G1-COUNCIL-01): before argparse, before any
+    # plan or vendor spawn, so no --help, parse error or later branch can
+    # reach an effect around it. The process guard prices every vendor
+    # spawn against the ledger; the 2026-09-05 refusals were that guard.
+    from ...budget import process_guard_boundary_decision
+    from ...spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.council",
+        REGISTRY_BY_ID["cli.council"].effects,
+        (process_guard_boundary_decision(),),
+    )
     import argparse
     import json
     from pathlib import Path
@@ -1090,6 +1109,118 @@ def _governance(argv: list[str]) -> int:
     return 0 if g["promotion_allowed"] else 1
 
 
+def _web(argv: list[str]) -> None:
+    """Run the local web UI with its canonical settings owner installed."""
+    from pathlib import Path
+
+    from ... import desktop_runtime
+    from ..http import web_api
+
+    runtime_root = Path.cwd().resolve(strict=True)
+    manager = desktop_runtime.DesktopRuntimeManager(runtime_root)
+    base_handler = web_api.DaedalusHandler
+
+    try:
+        desktop_runtime.install_tunnel_egress_policy()
+        desktop_runtime.install_web_integration(web_api, manager)
+        web_api.main(
+            argv,
+            on_bound=manager.bootstrap,
+            authority_root=runtime_root,
+        )
+    finally:
+        web_api.DaedalusHandler = base_handler
+        manager.close()
+
+
+def _genesis(argv: list[str]) -> int:
+    """Run one owner-directed zero-base Genesis Mission."""
+    import argparse
+    import json
+    from pathlib import Path
+
+    from ...orchestration.genesis import GenesisError, run_genesis
+
+    parser = argparse.ArgumentParser(
+        prog="daedalus genesis",
+        description=(
+            "Create and independently verify an isolated product candidate. "
+            "This command never publishes or promotes it."
+        ),
+    )
+    parser.add_argument("prompt")
+    parser.add_argument("--target", choices=("web", "cli", "desktop", "mobile"))
+    parser.add_argument("--stack")
+    parser.add_argument("--request-key")
+    parser.add_argument("--repo-root", default=str(Path.cwd()))
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+    try:
+        result = run_genesis(
+            args.prompt,
+            target=args.target,
+            stack=args.stack,
+            request_key=args.request_key,
+            repo_root=args.repo_root,
+        )
+    except (GenesisError, OSError, TypeError, ValueError) as exc:
+        print(f"Genesis refused: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps({"ok": True, "genesis": result}, indent=2, ensure_ascii=False))
+    else:
+        print(f"GENESIS  {result['status']}  {result['run_id']}")
+        print(f"  target: {result['target']}")
+        candidate = result.get("candidate") or {}
+        if candidate.get("sha256"):
+            print(f"  candidate: {candidate['sha256']}")
+        evidence = result.get("evidence") or {}
+        if evidence.get("sha256"):
+            print(f"  evidence:  {evidence['sha256']} ({evidence.get('status')})")
+        preview = result.get("preview") or {}
+        if preview.get("path"):
+            print(
+                "  preview:   start `daedalus web`, then open /?view=genesis "
+                "(the candidate stays in the sandboxed embedded preview)"
+            )
+        for blocker in result.get("blockers") or ():
+            print(f"  blocker:   {blocker}")
+        print("  publication: not requested; owner approval remains required")
+    return 0 if result.get("status") in {"preview-ready", "succeeded"} else 2
+
+
+def _ariadne(argv: list[str]) -> int:
+    """Run one explicitly requested, bounded Ariadne repair campaign."""
+    import argparse
+    import json
+    from pathlib import Path
+
+    from ...ariadne import AriadneCampaignError, run_campaign
+    from ...spine.killswitch import LoopHalted
+
+    parser = argparse.ArgumentParser(prog="daedalus ariadne")
+    parser.add_argument("--repo-root", default=str(Path.cwd()))
+    parser.add_argument("--source-revision", required=True)
+    parser.add_argument("--campaign-id", required=True)
+    parser.add_argument("--target", required=True)
+    parser.add_argument("--before", required=True)
+    parser.add_argument("--after", required=True)
+    parser.add_argument("--timeout-s", type=int, default=30)
+    args = parser.parse_args(argv)
+    try:
+        result = run_campaign(
+            repo_root=args.repo_root, source_revision=args.source_revision,
+            campaign_id=args.campaign_id, target_path=args.target,
+            before=args.before, after=args.after, timeout_s=args.timeout_s,
+        )
+    except (AriadneCampaignError, LoopHalted, OSError, TypeError, ValueError) as exc:
+        print(f"Ariadne refused: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps({"ok": True, "ariadne": result}, indent=2, ensure_ascii=False))
+    return 0
+
+
 def main() -> None:
     argv = sys.argv[1:]
     if not argv or argv[0] in ("-h", "--help", "help"):
@@ -1214,8 +1345,12 @@ def main() -> None:
         from .bookkeeper import main as m; m(rest)
     elif cmd == "map":
         from ...mapping.render import main as m; raise SystemExit(m(rest))
+    elif cmd == "genesis":
+        raise SystemExit(_genesis(rest))
+    elif cmd == "ariadne":
+        raise SystemExit(_ariadne(rest))
     elif cmd == "web":
-        from ..http.web_api import main as m; m(rest)
+        _web(rest)
     elif cmd == "enforce":
         from .enforce import main as m; m()
     elif cmd == "improve":

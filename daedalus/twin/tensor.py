@@ -10,7 +10,7 @@ from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from typing import Any, ClassVar, Mapping, Sequence
 
-from ..schemas import (
+from ..kernel.contracts.base import (
     CanonicalContract,
     ContractProvenance,
     _identifier,

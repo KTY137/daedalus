@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-07",
+  "artifact_role": "primary",
   "title": "Rebind complete latent-ceiling claims to validated corpus identity",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-06",
+  "dependencies": "G1-EXP-TENSOR-LATENT-CEILING-06",
   "campaign_issue": 239,
   "base_revision": "6efb64cddd677a2cefbc69fafa6f1e36e891a986",
   "authority_refs": [
@@ -34,6 +37,7 @@
     "public_product_surface": false
   },
   "gardener_decision": "Reuse the existing Corpus.parse and Row.parse validation path by reconstructing the exact canonical evidence payload only when an input is otherwise eligible to publish a final ceiling. Do not duplicate row validators, add a constructor-token framework, introduce a second evidence model, or build latent/Tensor infrastructure.",
+  "contracts": "The finding, gardener_decision and authority_boundary objects freeze the behavior and authority contract: a complete candidate is rebound and revalidated through the sole existing parser before any numeric claim.",
   "acceptance": [
     "a parser-created complete measured corpus on the frozen source revision and denominator still computes present_not_expressible / 1383",
     "a directly constructed complete corpus with duplicate item ids is refused through the existing parser invariant before a numeric ceiling is emitted",
@@ -55,6 +59,7 @@
     "hosted_ci": "unclaimed unless an exact-head workflow with real executed steps appears after the final packet commit",
     "claim": "Focused exact-blob evidence only; no full-repository, package, platform, latent-benefit, tensor-performance, or benchmark-green claim follows."
   },
+  "evidence": "The verification object binds the focused result to exact blobs and explicitly withholds broader repository, package, platform, latent-benefit, performance and benchmark claims.",
   "branch_hygiene": {
     "remote_branch": "exp/tensor-latent-ceiling-01",
     "new_remote_branch_created": false,

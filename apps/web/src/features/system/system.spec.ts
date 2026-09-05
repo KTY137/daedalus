@@ -19,7 +19,18 @@ function envelope(extra: Record<string, unknown> = {}) {
 
 function control(agents: Record<string, string> = { alpha: 'manual' }): ControlPlanePayload {
   return envelope({
-    profiles: [],
+    profiles: Object.entries(agents).map(([name, mode]) => ({
+      name,
+      display_name: name,
+      sync_status: 'unified' as const,
+      category: 'test',
+      category_label: 'Test',
+      squads: [],
+      active: true,
+      capabilities: [],
+      autonomy: { read_files: { agent_override: mode } },
+      ownership: []
+    })),
     claude: {},
     codex: {},
     autonomy: { agents },
@@ -59,21 +70,42 @@ export async function runSystemCapabilitiesSpec(): Promise<SystemSpecResult[]> {
   check('one failed source does not erase the successful control plane', snapshot.controlPlane.status === 'ready' && snapshot.controlPlane.data === plane);
   check('one failed source does not erase loop evidence', snapshot.loopArchitecture.status === 'ready' && snapshot.loopArchitecture.data.architecture.trusted);
 
-  const patch = agentAutonomyPatch(control({ alpha: 'manual', beta: 'semi_auto' }), 'alpha', 'autonomous');
-  check('agent autonomy patches preserve sibling policy entries', patch.agents.beta === 'semi_auto' && patch.agents.alpha === 'autonomous', JSON.stringify(patch));
+  const patch = agentAutonomyPatch('alpha', 'autonomous');
+  check(
+    'agent autonomy patches only the selected profile so the server can preserve concurrent sibling updates',
+    JSON.stringify(patch) === JSON.stringify({ agent_updates: { alpha: 'autonomous' } }),
+    JSON.stringify(patch)
+  );
 
   let updateProject = '';
   let updatePatch: Record<string, unknown> | undefined;
   const updated = control({ alpha: 'autonomous' });
-  const result = await updateAgentAutonomy('atlas', plane, 'alpha', 'autonomous', {
+  const result = await updateAgentAutonomy('atlas', 'alpha', 'autonomous', {
     updateAutonomy: async (project, value) => {
       updateProject = project;
       updatePatch = value;
       return updated;
     }
   });
-  check('autonomy still uses the existing project-scoped PUT port', updateProject === 'atlas' && (updatePatch?.agents as Record<string, string>).alpha === 'autonomous');
+  check(
+    'autonomy still uses the existing project-scoped PUT port',
+    updateProject === 'atlas'
+      && (updatePatch?.agent_updates as Record<string, string>).alpha === 'autonomous'
+  );
   check('the canonical PUT response replaces the local projection', result === updated);
+
+  let unconfirmed = '';
+  try {
+    await updateAgentAutonomy('atlas', 'alpha', 'autonomous', {
+      updateAutonomy: async () => control({ alpha: 'manual' })
+    });
+  } catch (error) {
+    unconfirmed = error instanceof Error ? error.message : String(error);
+  }
+  check(
+    'an older backend cannot acknowledge and silently ignore a profile update',
+    unconfirmed.includes('bestätigte den Autonomie-Modus')
+  );
 
   // A 200 that is missing the key the card dereferences must become EVIDENCE,
   // not an exception during render. Before this, `status: 'ready'` meant only
@@ -96,6 +128,22 @@ export async function runSystemCapabilitiesSpec(): Promise<SystemSpecResult[]> {
   check(
     'one malformed body still does not erase the siblings that answered',
     malformed.providerStatus.status === 'ready' && malformed.controlPlane.status === 'ready'
+  );
+
+  const wrongProject = await loadSystemCapabilities('atlas', {
+    ...ports,
+    getControlPlane: async () => ({ ...control(), project: 'beta' })
+  }, () => 2);
+  check(
+    'a control-plane read for another project cannot reconcile this project autonomy draft',
+    wrongProject.controlPlane.status === 'error'
+      && wrongProject.controlPlane.error.kind === 'contract'
+      && wrongProject.controlPlane.error.message.includes('atlas'),
+    JSON.stringify(wrongProject.controlPlane)
+  );
+  check(
+    'a wrong-project control plane still does not erase independent capability evidence',
+    wrongProject.dashboard.status === 'ready' && wrongProject.hierarchy.status === 'ready'
   );
 
   return results;

@@ -24,29 +24,46 @@ IMPLEMENTATIONS = {
     "sse": HTTP_ROOT / "sse.py",
     "router": HTTP_ROOT / "router.py",
 }
-REGISTRY_SHA256 = "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
+REGISTRY_SHA256 = "7a8fc9442be4d1fff8f576fa951036788ef146c779c5c1145bce21f471f3c605"
 WIRE_LITERAL_CONTRACTS = {
-    # "read" moved 542 -> 563 in eb9dee78, which added GET /api/conversations,
-    # and the pin was not re-measured when g1-ui-05 merged (ec9a11d8). It has
-    # been red on main ever since.
-    #
-    # The guard's claim is that a refactor cannot silently CHANGE the wire, so
-    # the number was not simply overwritten. Diffing the literal multiset of
-    # handle_get between e2f5e347 and this revision: 0 removed, 21 added, and
-    # every one of the 21 belongs to the new endpoint -- '/api/conversations',
-    # 'project', 'project is required', 'the conversation store failed: ',
-    # 400 x2, 500, 0, 20, and the ok/error/False shapes the handler already
-    # uses elsewhere. Purely additive. The invariant held; only the census was
-    # stale.
+    # Re-pinned 2026-09-05 after the intentional additive Genesis run/report/
+    # preview and Fourfold read routes. The final literals also bind the
+    # loopback-only client/server and same-origin Genesis admission checks.
+    # Ariadne moved the shared bounded-JSON/browser preflight ahead of the
+    # web.mutations effect, so its helpers are included explicitly rather than
+    # letting that security boundary fall outside the literal contract.
+    # The shared early-refusal path now drains only a small, unambiguous body,
+    # or an already-available bounded prefix after writing the refusal, so
+    # Windows cannot replace the intended 4xx JSON with a TCP reset.
+    # Re-pinned again after legacy ask/SSE began refusing a non-exact canonical
+    # conversation project binding before assistant, progress, or SSE effects.
+    # The legacy effectful GET requires one Sec-Fetch-Site: same-origin value
+    # before any stream-side effect. Chromium omits Origin on a same-origin
+    # EventSource GET; when supplied, it must still match the numeric authority.
+    # Ariadne repository-admission failures now become stable typed 400/409
+    # responses instead of escaping through the generic HTTP 500 path; those
+    # four added literals are the bounded error/code/status wire shape.
+    # G1-GENESIS-03 adds a same-origin-only archive read bound to the exact
+    # candidate digest, with attachment headers and no preview capability reuse.
     "read": (
         ("handle_get",),
-        563,
-        "4a00427a4e2338d7a5d60791619effea086c321bc581658b1e4923be03300aa2",
+        740,
+        "fff96cbdbe9fce8d5ac91658581ebbdc0e90733d6de1035b7e50424977a1a395",
     ),
     "effects": (
-        ("handle_put", "handle_post"),
-        392,
-        "4ee4c3c7138a27759c0c8decce6cf2c81b53b8ca56e8b49c4abd84ec6d83dd61",
+        (
+            "same_origin_request",
+            "_read_bounded_json_body",
+            "_validate_genesis_body",
+            "_validate_ariadne_body",
+            "_send_boundary_refusal",
+            "preflight_post",
+            "_prepared_post_body",
+            "handle_put",
+            "handle_post",
+        ),
+        587,
+        "52ef53f8c3e9d74e0f175847a7f97901b756184957b29e9b45fe14464c815acc",
     ),
     "sse": (
         (
@@ -63,8 +80,8 @@ WIRE_LITERAL_CONTRACTS = {
             "handle_task_events",
             "handle_conversation_request_events",
         ),
-        174,
-        "e4a3de4ae47c3d648d2ffb690288002079b3c6588c63f9ddad2c0d1bb74e44c7",
+        193,
+        "5542c0e6323d1b41dc062e97695fea7ecd751f39d79190b4cd418a0841f4a232",
     ),
 }
 

@@ -136,7 +136,10 @@ def nvidia_hardware_status() -> dict[str, Any]:
     }
 
 
-_DEEP_PROBE = r"""
+_DEEP_PROBE_SENTINEL = "__DAEDALUS_ACCELERATOR_PROBE_JSON_V1__:"
+_DEEP_PROBE_DIAGNOSTIC_LIMIT = 4_000
+
+_DEEP_PROBE_TEMPLATE = r"""
 import importlib
 import json
 
@@ -163,8 +166,76 @@ for name in ("torch", "cupy", "warp", "cuvs", "cugraph", "newton"):
     except Exception as exc:
         row["detail"] = type(exc).__name__ + ": " + str(exc)
     out[name] = row
-print(json.dumps(out))
+# Start a fresh line because an imported runtime may have written an
+# unterminated banner. The parent accepts exactly one sentinel record and
+# keeps all other output as diagnostics.
+print("\n" + __DAEDALUS_PROBE_SENTINEL__ + json.dumps(out, sort_keys=True), flush=True)
 """
+_DEEP_PROBE = _DEEP_PROBE_TEMPLATE.replace(
+    "__DAEDALUS_PROBE_SENTINEL__", repr(_DEEP_PROBE_SENTINEL)
+)
+
+
+def _bounded_probe_diagnostic(raw: str) -> str:
+    text = raw.strip()
+    if len(text) <= _DEEP_PROBE_DIAGNOSTIC_LIMIT:
+        return text
+    omitted = len(text) - _DEEP_PROBE_DIAGNOSTIC_LIMIT
+    return f"{text[:_DEEP_PROBE_DIAGNOSTIC_LIMIT]} ... [{omitted} chars omitted]"
+
+
+def _probe_failure(detail: str, *, stdout: str = "", stderr: str = "") -> dict[str, dict[str, Any]]:
+    diagnostics: dict[str, str] = {}
+    if stdout.strip():
+        diagnostics["stdout"] = _bounded_probe_diagnostic(stdout)
+    if stderr.strip():
+        diagnostics["stderr"] = _bounded_probe_diagnostic(stderr)
+    full_detail = "; ".join(
+        (
+            detail,
+            *(f"{stream}: {message}" for stream, message in diagnostics.items()),
+        )
+    )
+    payload = {
+        "probe": {
+            "installed": False,
+            "cuda_ready": None,
+            "detail": full_detail,
+            "probed": False,
+        }
+    }
+    if diagnostics:
+        payload["_diagnostics"] = diagnostics
+    return payload
+
+
+def _decode_deep_probe_output(stdout: str, stderr: str) -> dict[str, dict[str, Any]]:
+    records: list[str] = []
+    noise: list[str] = []
+    for line in stdout.splitlines():
+        if line.startswith(_DEEP_PROBE_SENTINEL):
+            records.append(line.removeprefix(_DEEP_PROBE_SENTINEL))
+        elif line.strip():
+            noise.append(line)
+    if len(records) != 1:
+        raise ValueError(f"expected one probe sentinel record, found {len(records)}")
+    try:
+        payload = json.loads(records[0])
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid sentinel JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("sentinel JSON must be an object")
+
+    diagnostics: dict[str, str] = {}
+    stdout_noise = _bounded_probe_diagnostic("\n".join(noise))
+    stderr_noise = _bounded_probe_diagnostic(stderr)
+    if stdout_noise:
+        diagnostics["stdout"] = stdout_noise
+    if stderr_noise:
+        diagnostics["stderr"] = stderr_noise
+    if diagnostics:
+        payload["_diagnostics"] = diagnostics
+    return payload
 
 
 @lru_cache(maxsize=1)
@@ -179,21 +250,21 @@ def deep_framework_status() -> dict[str, dict[str, Any]]:
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return {"probe": {"installed": False, "cuda_ready": False, "detail": str(exc)}}
+        return _probe_failure(str(exc))
     if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "framework probe failed").strip()
-        return {"probe": {"installed": False, "cuda_ready": False, "detail": detail}}
+        return _probe_failure(
+            f"framework probe exited with status {result.returncode}",
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
     try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        return {
-            "probe": {
-                "installed": False,
-                "cuda_ready": False,
-                "detail": f"invalid probe output: {exc}",
-            }
-        }
-    return payload if isinstance(payload, dict) else {}
+        return _decode_deep_probe_output(result.stdout, result.stderr)
+    except ValueError as exc:
+        return _probe_failure(
+            f"invalid probe output: {exc}",
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
 
 
 def _redacted_endpoint(raw: str) -> str:
@@ -376,25 +447,79 @@ def _remote_compute_status(*, probe: bool) -> dict[str, Any]:
             "hint": ""}
 
 
-def _framework_rows(*, deep: bool) -> dict[str, dict[str, Any]]:
+def _framework_rows(
+    *,
+    deep: bool,
+    probe_diagnostics: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
     names = ("torch", "cupy", "warp", "cuvs", "cugraph", "newton")
     if deep:
         rows = deep_framework_status()
-        return {
-            name: {
-                "installed": bool(rows.get(name, {}).get("installed")),
+        if probe_diagnostics is not None:
+            raw_diagnostics = rows.get("_diagnostics")
+            diagnostics = raw_diagnostics if isinstance(raw_diagnostics, dict) else {}
+            probe_failure = rows.get("probe")
+            probe_diagnostics.update(
+                {
+                    # This is only the child-process transport outcome. It is
+                    # deliberately not a framework- or lane-readiness claim.
+                    "transport_outcome": (
+                        "failed" if isinstance(probe_failure, dict) else "decoded"
+                    ),
+                    "stdout": _bounded_probe_diagnostic(
+                        str(diagnostics.get("stdout") or "")
+                    ),
+                    "stderr": _bounded_probe_diagnostic(
+                        str(diagnostics.get("stderr") or "")
+                    ),
+                    "failure": (
+                        _bounded_probe_diagnostic(
+                            str(probe_failure.get("detail") or "unknown probe failure")
+                        )
+                        if isinstance(probe_failure, dict)
+                        else ""
+                    ),
+                }
+            )
+        probe_failure = rows.get("probe")
+        if isinstance(probe_failure, dict):
+            detail = str(probe_failure.get("detail") or "unknown probe failure")
+            return {
+                name: {
+                    # A failed deep probe says nothing about imports. Retain
+                    # the safe, non-executing find_spec evidence instead.
+                    "installed": _has_module(name),
+                    "cuda_ready": None,
+                    "detail": f"deep probe failed: {detail}",
+                    "probed": False,
+                }
+                for name in names
+            }
+
+        normalized: dict[str, dict[str, Any]] = {}
+        for name in names:
+            source = rows.get(name)
+            if not isinstance(source, dict):
+                normalized[name] = {
+                    "installed": _has_module(name),
+                    "cuda_ready": None,
+                    "detail": f"deep probe returned no result for {name}",
+                    "probed": False,
+                }
+                continue
+            normalized[name] = {
+                "installed": bool(source.get("installed")),
                 # None means "installed but unverified"; only real device
                 # checks may report True, so preserve the tri-state.
                 "cuda_ready": (
                     None
-                    if rows.get(name, {}).get("cuda_ready") is None
-                    else bool(rows.get(name, {}).get("cuda_ready"))
+                    if source.get("cuda_ready") is None
+                    else bool(source.get("cuda_ready"))
                 ),
-                "detail": str(rows.get(name, {}).get("detail", "")),
+                "detail": str(source.get("detail", "")),
                 "probed": True,
             }
-            for name in names
-        }
+        return normalized
     return {
         name: {
             "installed": _has_module(name),
@@ -409,7 +534,18 @@ def _framework_rows(*, deep: bool) -> dict[str, dict[str, Any]]:
 def accelerator_status(*, deep: bool = False, probe_remote: bool = False) -> dict[str, Any]:
     """Describe local and remote accelerator readiness without capability inflation."""
     hardware = nvidia_hardware_status()
-    frameworks = _framework_rows(deep=deep)
+    framework_probe_diagnostics: dict[str, Any] = {
+        "requested": deep,
+        "transport_outcome": "not_requested" if not deep else "not_observed",
+        "stdout": "",
+        "stderr": "",
+        "failure": "",
+        "retained_char_limit": _DEEP_PROBE_DIAGNOSTIC_LIMIT,
+    }
+    frameworks = _framework_rows(
+        deep=deep,
+        probe_diagnostics=framework_probe_diagnostics,
+    )
     gpu = bool(hardware["available"])
 
     # THE LOCAL BRANCH HAS TO ASK THE SAME QUESTION THE REMOTE ONE DOES.
@@ -533,7 +669,13 @@ def accelerator_status(*, deep: bool = False, probe_remote: bool = False) -> dic
                 "experimental forest visualization",
             ),
             evidence=("newton", "warp") if newton_ready else (),
-            missing=() if newton_ready else ("Newton plus CUDA-capable Warp",),
+            missing=(
+                ()
+                if newton_ready
+                else ("Newton device execution was not probed",)
+                if newton_unverified
+                else ("Newton plus CUDA-capable Warp",)
+            ),
             warning="not a code-retrieval or semantic-reasoning primitive",
         ),
         ComputeLane(
@@ -559,6 +701,10 @@ def accelerator_status(*, deep: bool = False, probe_remote: bool = False) -> dic
         "schema": "daedalus-accelerators/1",
         "hardware": hardware,
         "frameworks": frameworks,
+        # Bounded child-process output and transport failures are operational
+        # diagnostics only. Readiness remains exclusively in framework rows
+        # and the policy-derived lane states below.
+        "framework_probe_diagnostics": framework_probe_diagnostics,
         "remote_rtx_ollama": _remote_rtx_status(probe=probe_remote),
         # The card that can actually host these lanes is the bench's, not this
         # machine's. Reporting only local silicon is how "missing" got read as

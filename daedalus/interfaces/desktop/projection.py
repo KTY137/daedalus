@@ -1,23 +1,16 @@
 """Read-only desktop status projections over the existing manager state."""
 from __future__ import annotations
 
-import os
+import contextlib
+import json
 from typing import Any
 
 
 def bridge_status_is_managed(manager: Any, status: dict[str, Any]) -> bool:
-    """Bind a bridge heartbeat to the exact manager-owned watcher identity."""
+    """v0.1.6 never owns or adopts a bridge watcher."""
 
-    return bool(
-        manager._bridge
-        and manager._bridge.is_alive()
-        and manager._bridge_owner_token
-        and manager._bridge_process_identity
-        and status.get("state") in {"alive", "busy", "wedged"}
-        and status.get("pid") == os.getpid()
-        and status.get("owner_token") == manager._bridge_owner_token
-        and status.get("process_identity") == manager._bridge_process_identity
-    )
+    del manager, status
+    return False
 
 
 def ide_status(
@@ -25,34 +18,28 @@ def ide_status(
     project: Any = None,
     *,
     error_type: type[Exception],
+    config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Project native or Docker IDE state without starting or downloading it."""
+    """Project loopback reachability without spawning a discovery command."""
 
-    if manager.config["ide"]["mode"] == "docker":
-        return manager._docker_ide_status(project)
-    ok, detail = manager._probe_ide()
-    running = bool(manager._ide and manager._ide.poll() is None)
-    executable = ""
-    discovery_error = ""
-    try:
-        executable = manager._discover_ide_executable()
-    except error_type as exc:
-        # A status read must remain observational. Missing installations are
-        # reported to the UI and never trigger a download or start.
-        discovery_error = str(exc)
-    installed = bool(executable)
+    del error_type
+    generation = manager.config if config is None else config
+    mode = generation["ide"]["mode"]
     return {
-        "endpoint": manager.config["ide"]["endpoint"],
-        "ui_url": manager._ide_ui_url(project),
-        "installed": installed,
-        "available": installed,
-        "executable": executable,
-        "reachable": ok,
-        "last_error": "" if ok else (discovery_error or detail),
-        "detail": discovery_error,
-        "managed": running,
-        "process_running": running,
-        "configured_executable": manager.config["ide"]["executable"],
+        "mode": mode,
+        "endpoint": generation["ide"]["endpoint"],
+        "ui_url": manager._ide_ui_url(project, config=generation),
+        "installed": False,
+        "available": False,
+        "executable": "",
+        "observed": False,
+        "reachable": False,
+        "last_error": "not probed by the read-only desktop projection",
+        "detail": "",
+        "managed": False,
+        "process_running": False,
+        "configured_executable": generation["ide"]["executable"],
+        "image": generation["ide"]["docker_image"],
         "runtime_downloads": False,
     }
 
@@ -62,11 +49,14 @@ def budget_status(
     *,
     budget_kernel: Any,
     execution_limit_policy: Any,
+    config: dict[str, Any] | None = None,
+    policy_error: str | None = None,
 ) -> dict[str, Any]:
     """Project configured and ledger-backed execution-limit state."""
 
-    configured = manager.config["budget"]
-    policy = execution_limit_policy.from_dict(manager.config["caps"])
+    generation = manager.config if config is None else config
+    configured = generation["budget"]
+    policy = execution_limit_policy.from_dict(generation["caps"])
     effective = policy.effective
     base: dict[str, Any] = {
         "available": False,
@@ -101,11 +91,14 @@ def budget_status(
         "mission_spend_ceiling_enabled": effective.mission_spend,
         "last_error": "",
     }
-    if manager._budget_policy_error:
-        base["last_error"] = manager._budget_policy_error
+    current_policy_error = (
+        manager._budget_policy_error if policy_error is None else policy_error
+    )
+    if current_policy_error:
+        base["last_error"] = current_policy_error
         return base
     try:
-        state = budget_kernel.ledger().state()
+        state = budget_kernel.ledger().state_readonly()
     except (budget_kernel.BudgetError, OSError) as exc:
         base["last_error"] = str(exc)
         return base
@@ -144,6 +137,27 @@ def budget_status(
     }
 
 
+def _heartbeat_projection(file_bridge: Any) -> dict[str, Any]:
+    """Detach and validate heartbeat state without letting bad bytes crash GET."""
+
+    try:
+        value = file_bridge.heartbeat_status()
+        if type(value) is not dict:
+            raise ValueError("heartbeat projection is not an object")
+        state = value.get("state")
+        if state not in {"none", "alive", "busy", "wedged", "stale"}:
+            raise ValueError("heartbeat state is missing or unsupported")
+        return json.loads(json.dumps(value))
+    except Exception as exc:
+        return {
+            "state": "invalid",
+            "detail": (
+                "heartbeat state is malformed: "
+                f"{type(exc).__name__}: {str(exc)[:500]}"
+            ),
+        }
+
+
 def snapshot(
     manager: Any,
     *,
@@ -153,10 +167,46 @@ def snapshot(
 ) -> dict[str, Any]:
     """Build the established desktop JSON projection without side effects."""
 
-    ok, err = manager._probe()
-    bridge_status = file_bridge.heartbeat_status()
-    remote = manager.config["ollama"]["remote"]
-    budget = manager._budget_status()
+    del environ, tunnel_target_var
+
+    from ..http.effects import mutation_route_wired
+    from .effects import (
+        MANAGED_BRIDGE_UNAVAILABLE,
+        MANAGED_IDE_UNAVAILABLE,
+        MANAGED_OLLAMA_UNAVAILABLE,
+        REMOTE_SSH_UNAVAILABLE,
+    )
+
+    lock = getattr(manager, "_lock", None)
+    guard = lock if hasattr(lock, "__enter__") else contextlib.nullcontext()
+    with guard:
+        # Exactly one detached configuration generation feeds every nested
+        # projector. No helper may re-read manager.config during this snapshot.
+        config = json.loads(json.dumps(manager.config))
+        try:
+            ollama_observation = json.loads(
+                json.dumps(manager._ollama_observation)
+            )
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            ollama_observation = {
+                "observed": False,
+                "reachable": False,
+                "last_error": "stored Ollama observation is invalid",
+            }
+        config_error = str(getattr(manager, "_config_error", ""))
+        budget_policy_error = str(
+            getattr(manager, "_budget_policy_error", "")
+        )
+        bridge_start_error = str(
+            getattr(manager, "_bridge_start_error", "")
+        )
+
+    bridge_status = _heartbeat_projection(file_bridge)
+    remote = config["ollama"]["remote"]
+    budget = manager._budget_status(
+        config=config,
+        policy_error=budget_policy_error,
+    )
     caps = {
         "available": budget["available"],
         "mode": budget["mode"],
@@ -165,12 +215,16 @@ def snapshot(
         "fingerprint_sha256": budget["limit_policy_fingerprint_sha256"],
         "last_error": budget["last_error"],
         "external_limits_remain": True,
-        "ariadne_campaign_live": False,
+        "ariadne_campaign_live": mutation_route_wired("/api/ariadne"),
     }
-    return {
-        "config": manager.config,
+    configured_endpoint = config["ollama"]["local_host"]
+    observation_matches = (
+        ollama_observation.get("endpoint") == configured_endpoint
+    )
+    result = {
+        "config": config,
         "config_path": str(manager.config_path),
-        "config_error": manager._config_error,
+        "config_error": config_error,
         "budget": budget,
         "caps": caps,
         "budget_error": budget["last_error"],
@@ -178,34 +232,55 @@ def snapshot(
             "ssh_key_only": True,
             "stores_passwords": False,
             "stores_private_key_bytes": False,
-            "host_key_verification": "strict",
+            "host_key_verification": "unavailable",
         },
         "services": {
             "bridge": {
                 **bridge_status,
-                "managed": manager._bridge_status_is_managed(bridge_status),
-                "last_error": manager._bridge_start_error,
+                "managed": False,
+                "last_error": bridge_start_error,
+                "managed_start_available": False,
+                "availability_reason": MANAGED_BRIDGE_UNAVAILABLE,
             },
             "ollama": {
-                "mode": manager.config["ollama"]["mode"],
-                "endpoint": environ.get("OLLAMA_HOST", ""),
-                "physical_target": environ.get(tunnel_target_var, ""),
-                "reachable": ok,
-                "last_error": "" if ok else err,
-                "tunnel_running": bool(
-                    manager._tunnel and manager._tunnel.poll() is None
+                "mode": config["ollama"]["mode"],
+                "endpoint": configured_endpoint,
+                "physical_target": "",
+                "observed": bool(
+                    observation_matches and ollama_observation.get("observed")
                 ),
-                "local_process_running": bool(
-                    manager._ollama and manager._ollama.poll() is None
+                "observed_at": (
+                    ollama_observation.get("observed_at")
+                    if observation_matches
+                    else None
                 ),
-                "host_key_pinned": bool(
-                    remote["host_key_fingerprint"]
-                    or (
-                        manager.known_hosts_path.exists()
-                        and manager.known_hosts_path.stat().st_size
-                    )
+                "reachable": bool(
+                    observation_matches and ollama_observation.get("reachable")
                 ),
+                "last_error": str(
+                    ollama_observation.get("last_error")
+                    if observation_matches
+                    else "not probed for the configured endpoint"
+                ),
+                "tunnel_running": False,
+                "local_process_running": False,
+                "managed_start_available": False,
+                "remote_ssh_available": False,
+                "availability_reason": (
+                    REMOTE_SSH_UNAVAILABLE
+                    if config["ollama"]["mode"] == "remote_ssh"
+                    else MANAGED_OLLAMA_UNAVAILABLE
+                ),
+                "fingerprint_configured": bool(remote["host_key_fingerprint"]),
+                "host_key_verified": False,
+                "host_key_status": "not_checked",
             },
-            "ide": manager._ide_status(),
+            "ide": {
+                **manager._ide_status(config=config),
+                "managed_start_available": False,
+                "availability_reason": MANAGED_IDE_UNAVAILABLE,
+            },
         },
     }
+    # The public projection never returns a live manager-owned mapping.
+    return json.loads(json.dumps(result))

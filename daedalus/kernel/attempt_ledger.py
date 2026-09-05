@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
+from pathlib import Path
 from typing import Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
@@ -148,6 +149,7 @@ class AttemptLedger:
         rows = read_attempt_intents(
             self.path,
             effect_key=_effect_key(attempt_id),
+            immutable=bool(getattr(self, "_read_immutable", False)),
         )
         if not rows:
             return None
@@ -424,6 +426,65 @@ class AttemptLedger:
             if intent.state == STATE_INTENDED
         ]
         return tuple(sorted(starts, key=lambda start: start.attempt_id))
+
+    def lookup(self, attempt_id: str) -> AttemptBeginResult | None:
+        """Read one persisted Attempt lifecycle without starting it again.
+
+        Status and artifact projections need an addressable read seam.  Calling
+        :meth:`begin` for that purpose is wrong: even an idempotent replay has
+        to reconstruct the entire input contract and can race a first writer.
+        This method reads the same canonical event and terminal receipt used by
+        ``begin``/``complete`` and never creates, resolves, or repairs state.
+        """
+        intent = self._intent_for(attempt_id)
+        if intent is None:
+            return None
+        start = self._decode_start_intent(intent)
+        return AttemptBeginResult(
+            start=start,
+            execute=False,
+            completion=self._completion_for(intent, start),
+        )
+
+    @classmethod
+    def lookup_read_only(
+        cls,
+        path: str | os.PathLike[str],
+        source_store: SourceTreeStore,
+        attempt_id: str,
+        *,
+        immutable: bool = True,
+    ) -> AttemptBeginResult | None:
+        """Read one Attempt without constructing the writable ledger facade.
+
+        ``AttemptLedger.__init__`` intentionally installs the single-start
+        index through the durable Event-Store writer.  A replay/status lookup
+        performed before an effect begins must not invoke that constructor and
+        merely hope ``CREATE INDEX IF NOT EXISTS`` changes nothing.  This seam
+        uses the canonical ``mode=ro`` Attempt reader and the same strict
+        decoders/artifact resolution as :meth:`lookup`, while owning no writer
+        connection and creating no database when ``path`` is absent.  The
+        default immutable projection cannot create SQLite sidecars and is
+        appropriate before an effect boundary.  A caller already inside an
+        admitted serial effect may request ``immutable=False`` when it must see
+        another writer's uncheckpointed WAL before deciding whether to start.
+        """
+
+        if not isinstance(source_store, SourceTreeStore):
+            raise AttemptStateError("source_store must be SourceTreeStore")
+        reader = object.__new__(cls)
+        reader.source_store = source_store
+        reader.path = str(Path(path).resolve())
+        reader._read_immutable = bool(immutable)
+        intent = reader._intent_for(attempt_id)
+        if intent is None:
+            return None
+        start = reader._decode_start_intent(intent)
+        return AttemptBeginResult(
+            start=start,
+            execute=False,
+            completion=reader._completion_for(intent, start),
+        )
 
 
 __all__ = ["AttemptLedger"]

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, ClassVar, Mapping, Sequence
 
-from ..schemas import (
+from ..kernel.contracts.base import (
     CanonicalContract,
     ContractProvenance,
     _identifier,

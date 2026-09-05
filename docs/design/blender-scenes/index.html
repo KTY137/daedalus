@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Daedalus — Spatial studies</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#101112;color:#ececea}
+    *{box-sizing:border-box}body{margin:0}a{color:inherit}button{font:inherit;color:inherit;cursor:pointer}
+    header,main,footer{max-width:1440px;margin:auto;padding:0 5vw}header{padding-top:38px;display:flex;justify-content:space-between;align-items:center;font-size:12px;letter-spacing:.08em}header span:last-child{color:#9ca0a4}
+    .intro{padding:88px 0 46px;max-width:720px}.eyebrow{font-size:11px;letter-spacing:.19em;text-transform:uppercase;color:#9ca0a4}h1{font-size:clamp(40px,6vw,80px);font-weight:450;letter-spacing:-.055em;line-height:1.05;margin:18px 0 22px}.intro p{font-size:16px;line-height:1.7;color:#a4a8ab;max-width:520px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:42px 24px}.card{min-width:0}.preview{display:block;border:1px solid #ffffff16;padding:0;background:#191c20;width:100%;aspect-ratio:1.6;overflow:hidden;border-radius:14px}.preview img{width:100%;height:100%;object-fit:cover;transition:transform .65s}.preview:hover img{transform:scale(1.035)}.caption{display:flex;justify-content:space-between;align-items:baseline;padding:16px 2px;gap:12px}.caption h2{font-size:17px;font-weight:500;margin:0 0 7px;letter-spacing:-.02em}.caption p{font-size:12px;color:#92979c;margin:0}.caption a{font-size:12px;text-decoration:none;color:#c7cbce;white-space:nowrap;border-bottom:1px solid #595e62;padding-bottom:4px}.number{color:#737a80;font-size:11px;margin-right:9px;font-weight:400}footer{padding-top:72px;padding-bottom:34px;font-size:12px;color:#858b90;line-height:1.8;display:flex;justify-content:space-between;gap:24px}footer a{text-decoration:none;color:#b4b9bd}
+    dialog{padding:0;border:1px solid #ffffff22;border-radius:18px;background:#171a1d;width:min(1200px,94vw);max-height:94vh;color:#fff;overflow:auto;box-shadow:0 30px 100px #0008}dialog::backdrop{background:#07090be8;backdrop-filter:blur(16px)}dialog img{width:100%;display:block}dialog .bar{padding:22px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px}dialog h2{font-size:20px;font-weight:450;margin:0}dialog p{color:#a6adb3;font-size:13px;line-height:1.6;margin:8px 0 0}dialog .links{display:flex;gap:18px;align-items:center;flex-shrink:0}dialog a{font-size:13px;text-decoration:none;border-bottom:1px solid #7b858f;padding-bottom:4px}.close{position:absolute;right:14px;top:14px;width:36px;height:36px;border:1px solid #ffffff30;background:#1b202bc9;border-radius:50%;font-size:23px;line-height:1}.close:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #92c6ed;outline-offset:4px}
+    @media(max-width:650px){header{padding-top:24px}.intro{padding-top:56px}.grid{grid-template-columns:1fr;gap:24px}footer{display:block}dialog .bar{display:block}dialog .links{margin-top:20px}h1{font-size:52px}}@media(prefers-reduced-motion:reduce){.preview img{transition:none}}
+  </style>
+</head>
+<body>
+<header><span>DAEDALUS / DESIGN STUDIES</span><span>06 EDITABLE SCENES</span></header>
+<main>
+  <div class="intro"><div class="eyebrow">Light. Material. Space.</div><h1>Eine neue<br>Atmosphäre.</h1><p>Sechs räumliche Studien. Von klarem Glas und ruhiger Architektur bis in einen leuchtenden Techno Forest. In Blender modelliert und gerendert.</p></div>
+  <section class="grid" aria-label="Blender Szenen" id="grid"></section>
+</main>
+<footer><div>Bearbeitbare Geometrie · Materialien · Kamera · Licht<br>Blender 4.5 LTS · Cycles · prozedurale Materialien</div><div><a href="blend/Daedalus-Scene-Collection.blend" download>Alle sechs Szenen in einem Projekt ↓</a><br><a href="README.md">Anleitung und Renderbefehle ↗</a><br><a href="verification.json">Technischer Prüfbericht ↗</a></div></footer>
+<dialog id="viewer" aria-labelledby="viewerTitle"><button class="close" aria-label="Vorschau schließen">×</button><img id="large" alt=""><div class="bar"><div><h2 id="viewerTitle"></h2><p id="description"></p></div><div class="links"><a id="png" download>PNG ↓</a><a id="blend" download>Blender-Projekt ↓</a></div></div></dialog>
+<script>
+  const scenes = [
+    ['porcelain','Porcelain','Optisches Glas · warmes Studiolicht','Ein durchgehendes Glasband auf einer mineralischen Bühne.'],
+    ['graphite','Graphite Atelier','Rauchglas · Titan · eisblaues Licht','Sechs gläserne Module mit metallischen Skulpturen und feinen Verbindungen.'],
+    ['daylight','Spatial Daylight','Kalkstein · Morgenlicht · Meer','Ein großzügiger Bogen öffnet die ruhige Architektur zum Horizont.'],
+    ['dusk','Spatial Dusk','Abendhimmel · Amber · Schatten','Die Architektur im letzten Sonnenlicht, mit verdeckter warmer Beleuchtung.'],
+    ['studio','Spatial Studio','Galerie · Kreide · Olivenbäume','Gestaffelte Räume, kühles Oberlicht und zurückhaltende Bepflanzung.'],
+    ['techno-forest','Techno Forest','Organische Formen · Lichtfasern · Nebel','Ein dunkler Wald mit verzweigten Baumkronen und leuchtenden Wurzelbahnen.']
+  ];
+  const grid=document.querySelector('#grid'),viewer=document.querySelector('#viewer');
+  scenes.forEach(([id,title,subtitle,description],i)=>{
+    const article=document.createElement('article');article.className='card';
+    article.innerHTML=`<button class="preview" aria-label="${title} groß ansehen"><img src="renders/${id}.png" alt="Blender Rendering: ${title}" loading="${i<2?'eager':'lazy'}"></button><div class="caption"><div><h2><span class="number">0${i+1}</span>${title}</h2><p>${subtitle}</p></div><a href="blend/${id}.blend" download>.blend ↗</a></div>`;
+    article.querySelector('button').addEventListener('click',()=>{
+      document.querySelector('#large').src=`renders/${id}.png`;document.querySelector('#large').alt=title;
+      document.querySelector('#viewerTitle').textContent=title;document.querySelector('#description').textContent=description;
+      document.querySelector('#png').href=`renders/${id}.png`;document.querySelector('#blend').href=`blend/${id}.blend`;
+      viewer.showModal();
+    });grid.append(article);
+  });
+  document.querySelector('.close').addEventListener('click',()=>viewer.close());
+  viewer.addEventListener('click',e=>{if(e.target===viewer){const r=viewer.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)viewer.close();}});
+</script>
+</body>
+</html>
