@@ -520,3 +520,68 @@ def test_unbounded_execution_never_ends_a_mission_on_wall_time(isolated, monkeyp
                                     clock=itertools.count(0, 1000).__next__)
     assert result["state"] == "completed", result["summary"]
     assert len(service.calls) == 1
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-31: the planner call is reachable by the cancellation probe
+# --------------------------------------------------------------------------
+
+
+def test_the_default_planner_receives_a_probe_bound_to_the_loop(isolated, monkeypatch):
+    """Without a propose override the loop must call _model_proposal with a callable
+    ``cancelled`` probe that reflects both the mission cancellation and the service stop."""
+    root, ledger = isolated
+    service = Service()
+    seen = {}
+
+    def recorder(prompt, capabilities, limit_policy, timeout_s, *, cancelled=None):
+        seen["probe"] = cancelled
+        seen["before"] = cancelled()
+        service.stopped = True
+        seen["after_stop"] = cancelled()
+        service.stopped = False
+        return json.dumps(DONE)
+
+    monkeypatch.setattr(loop, "_model_proposal", recorder)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger)
+    assert result["state"] == "no_actions", result["summary"]
+    assert callable(seen["probe"])
+    assert seen["before"] is False and seen["after_stop"] is True
+
+
+def test_a_user_cancellation_during_the_planner_call_ends_as_cancelled(isolated, monkeypatch):
+    """Codex (room, 21:56): user cancellation must map to exactly ``cancelled``."""
+    from daedalus.providers._openai_compat import ProviderCancelled
+
+    root, ledger = isolated
+    service = Service()
+    cancel = threading.Event()
+
+    def planner_that_is_cancelled(prompt, capabilities, limit_policy, timeout_s, *, cancelled=None):
+        cancel.set()
+        assert cancelled(), "the probe must see the cancellation"
+        raise ProviderCancelled("cancelled while provider-call was in flight")
+
+    monkeypatch.setattr(loop, "_model_proposal", planner_that_is_cancelled)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger,
+                                    cancelled=cancel.is_set)
+    assert result["state"] == "cancelled", result["summary"]
+    assert result["planner_calls"] == 1 and result["tool_steps"] == 0
+    assert service.calls == []
+
+
+def test_a_service_stop_during_the_planner_call_keeps_the_stop_attribution(isolated, monkeypatch):
+    from daedalus.providers._openai_compat import ProviderCancelled
+
+    root, ledger = isolated
+    service = Service()
+
+    def planner_stopped(prompt, capabilities, limit_policy, timeout_s, *, cancelled=None):
+        service.stopped = True
+        assert cancelled()
+        raise ProviderCancelled("cancelled while provider-call was in flight")
+
+    monkeypatch.setattr(loop, "_model_proposal", planner_stopped)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger)
+    assert result["state"] == "blocked", result["summary"]
+    assert "operator stop" in result["summary"]

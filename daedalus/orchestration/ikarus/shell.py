@@ -2035,6 +2035,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
           limit_policy: ExecutionLimitPolicy | None = None,
           additional_context: str = "",
           response_schema: dict | None = None,
+          cancelled: Callable[[], bool] | None = None,
           ) -> tuple[str | None, str | None, _Ctx]:
     """Return (reply_text, model_used, ctx). (None, None, _EMPTY_CTX) -> caller
     falls back to help. ``ctx`` carries the gated-slice metadata for the envelope.
@@ -2058,7 +2059,8 @@ def _llm(provider: str | None, message: str, model: str | None = None,
         return _ollama(
             message, mdl, effort, context, timeout_s=timeout_s,
             limit_policy=captured_policy,
-            **({"response_schema": response_schema} if response_schema is not None else {})), mdl, ctx
+            **({"response_schema": response_schema} if response_schema is not None else {}),
+            **({"cancelled": cancelled} if cancelled is not None else {})), mdl, ctx
     if p in _OLLAMA_CLI:
         from ...providers.ollama import DEFAULT_MODEL
 
@@ -2455,7 +2457,8 @@ def _refusal_envelope(project: str, receipt: dict) -> dict:
 def _ollama(message: str, model: str, effort: str | None,
             context: str = "", *, timeout_s: float | None = 150.0,
             limit_policy: ExecutionLimitPolicy | None = None,
-            response_schema: dict | None = None) -> str | None:
+            response_schema: dict | None = None,
+            cancelled: Callable[[], bool] | None = None) -> str | None:
     from ...providers.ollama import DEFAULT_HOST, ollama_http_base_url, warm_model_async
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
@@ -2463,6 +2466,19 @@ def _ollama(message: str, model: str, effort: str | None,
     # the request is built. A repointed OLLAMA_HOST is refused here.
     _provider_start("ollama", endpoint=host, model=model)
     system = SYSTEM + (_LOW_EFFORT_STYLE if (effort or "low").lower() == "low" else "")
+    if response_schema is not None:
+        # G1-IKARUS-31: a schema-constrained call (the computer planner among
+        # them) takes Ollama's NATIVE /api/chat. MEASURED 2026-09-05 on Ollama
+        # 0.33.3: the /v1 shim ignores keep_alive (expires +5m), pins
+        # context_length 4096 and evicts a natively warmed instance, so every
+        # planner call paid the cold load. The native path honours the schema
+        # (``format``), keep_alive and options.num_ctx; the output cap travels
+        # as num_predict (None when the token axis is disabled), and no separate
+        # warm-up is sent because the request itself carries keep_alive.
+        # Schema-less callers keep the /v1 route below, byte for byte.
+        return _ollama_native_schema(
+            host, model, system, _with_context(message, context), response_schema,
+            effort=effort, limit_policy=limit_policy, timeout_s=timeout_s, cancelled=cancelled)
     # Refresh VRAM residency off-thread. Purely a side effect: the reply text and
     # envelope are byte-for-byte what they were, but the NEXT turn skips the
     # ~44s cold reload instead of paying it after 5 idle minutes.
@@ -2479,6 +2495,39 @@ def _ollama(message: str, model: str, effort: str | None,
         return (txt or "").strip() or None
     except Exception:
         return None
+
+
+def _ollama_native_schema(host: str, model: str, system: str, user: str, schema: dict, *,
+                          effort: str | None, limit_policy: ExecutionLimitPolicy | None,
+                          timeout_s: float | None,
+                          cancelled: Callable[[], bool] | None) -> str | None:
+    """One schema-constrained native Ollama call; cancellable when a probe is given.
+
+    ``ProviderCancelled`` is raised through, never swallowed: the caller decides
+    what a cancelled planner call means (the computer loop maps it through its
+    checkpoint to ``cancelled`` or to the kill switch's own state). A cancelled
+    call is abandoned, not retried; see ``_openai_compat.run_cancellable``.
+    """
+    from ...providers._ollama_native import native_chat
+    from ...providers._openai_compat import ProviderCancelled, run_cancellable
+    from ...providers.ollama import keep_alive_value
+
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    cap = _effort_cap(effort, limit_policy)
+
+    def work() -> str:
+        reply = native_chat(host=host, model=model, messages=messages, force_json=schema,
+                            keep_alive=keep_alive_value(), num_predict=cap,
+                            timeout_s=timeout_s, temperature=0.3)
+        return reply.get("content") or ""
+
+    try:
+        text = run_cancellable(work, cancelled=cancelled, name="ollama-native") if cancelled is not None else work()
+    except ProviderCancelled:
+        raise
+    except Exception:
+        return None
+    return (text or "").strip() or None
 
 
 def _ollama_cli(message: str, model: str, effort: str | None,

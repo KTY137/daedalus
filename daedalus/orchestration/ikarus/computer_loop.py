@@ -7,6 +7,7 @@ visible reconciliation work, never automatically retried.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import ipaddress
 import json
@@ -196,8 +197,27 @@ def _require_context_route(capabilities: Mapping[str, Any]) -> str:
     return provider
 
 
+def _cancel_probe(cancelled: Callable[[], bool] | None, service: Any) -> Callable[[], bool]:
+    """A non-raising probe for the provider call: mission cancellation or service stop.
+
+    The loop's own ``checkpoint()`` keeps raising the typed error afterwards, so
+    the attribution (``cancelled`` versus the kill switch) is unchanged; the probe
+    only lets the in-flight provider call be abandoned (G1-KERNEL-02).
+    """
+    def probe() -> bool:
+        if cancelled is not None and cancelled():
+            return True
+        try:
+            service.check_cancelled()
+        except BaseException:  # noqa: BLE001 - any stop signal is a stop for the probe
+            return True
+        return False
+    return probe
+
+
 def _model_proposal(prompt: str, capabilities: Mapping[str, Any],
-                    limit_policy: ExecutionLimitPolicy, timeout_s: float | None) -> str:
+                    limit_policy: ExecutionLimitPolicy, timeout_s: float | None, *,
+                    cancelled: Callable[[], bool] | None = None) -> str:
     # Recheck the concrete endpoint on every step, including after tool output.
     provider = _require_context_route(capabilities)
     from .shell import _llm
@@ -217,6 +237,7 @@ def _model_proposal(prompt: str, capabilities: Mapping[str, Any],
         provider, prompt, model=capabilities.get("planner_model"), effort="medium",
         project=None, timeout_s=timeout_s, limit_policy=limit_policy,
         response_schema={"anyOf": alternatives},
+        cancelled=cancelled,
     )
     if not response:
         raise ComputerLoopRefused("configured computer planner returned no usable response")
@@ -368,7 +389,9 @@ def _computer_events_admitted(
         raise ComputerLoopRefused("execution limit policy changed since this mission was scheduled")
     context_snapshot = _context_snapshot(root)
     context_digest = str(context_snapshot["context_sha256"])
-    propose = propose or _model_proposal
+    # G1-IKARUS-31: the default planner gets a probe so a hanging provider call
+    # can be abandoned; an injected ``propose`` keeps its four-argument contract.
+    propose = propose or functools.partial(_model_proposal, cancelled=_cancel_probe(cancelled, service))
     mission_id = mission_id or f"computer-{uuid.uuid4().hex}"
     now = datetime.now(timezone.utc).isoformat()
     policy_digest = str(service.policy_digest)
