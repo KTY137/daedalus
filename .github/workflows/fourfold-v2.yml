@@ -132,6 +132,25 @@ jobs:
           path: runs/tensor_gpu/typed_block_validation_profile_ci.json
           if-no-files-found: error
           retention-days: 7
+      - name: Emit paired scalar-admission decision diagnostic
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python experiments/tensor_gpu/scalar_admission_ab.py \
+            --sizes 64 128 256 \
+            --densities 0.01 0.05 \
+            --repeats 7 \
+            --warmup 3 \
+            --output runs/tensor_gpu/scalar_admission_ab_ci.json
+      - name: Retain paired scalar-admission decision diagnostic
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensor-scalar-admission-ab-${{ github.sha }}
+          path: runs/tensor_gpu/scalar_admission_ab_ci.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Emit packed intermediate residency diagnostic
         if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
         env:
