@@ -43,6 +43,7 @@ _MAX_PLAN_STEPS = 12
 _MAX_PLAN_STEP_CHARS = 240
 _MAX_CONSECUTIVE_REPAIRS = 2
 _STALL_OBSERVATIONS = 3
+_MAX_PLANS_PER_STEP = 4
 _READ_TOOLS = frozenset({"file.list", "file.read", "vision.inspect", "vision.match",
                          "vision.changes", "vision.ocr", "desktop.observe", "browser.read"})
 
@@ -431,6 +432,7 @@ def _computer_events_admitted(
         repeated_invalid_responses = 0
         prior_plan_steps: list[str] | None = None
         repeated_plans = 0
+        plans_since_tool_step = 0
         proposals: list[dict[str, Any]] = []
 
         def checkpoint() -> None:
@@ -530,6 +532,10 @@ def _computer_events_admitted(
                     # difference is a different plan (Codex, room 2026-09-05 16:49).
                     repeated_plans = repeated_plans + 1 if steps == prior_plan_steps else 1
                     prior_plan_steps = steps
+                    # Counted, not compared: a planner that paraphrases one plan produces a
+                    # different steps list every time and would never trip the rule above
+                    # (Codex named that limitation; whitespace normalisation was refused).
+                    plans_since_tool_step += 1
                     if plan is not None:
                         replans += 1
                     plan = {"advisory": True, "revision": replans + 1, "steps": proposal["steps"],
@@ -543,6 +549,17 @@ def _computer_events_admitted(
                         # plans under unbounded_execution until the kill switch.
                         state, summary = "stalled", "Three consecutive identical advisory plans established no progress."
                         break
+                    if plans_since_tool_step >= _MAX_PLANS_PER_STEP:
+                        # Planning is not progress; only an executed tool step is. The budget
+                        # is per step and renews below, so a plan-execute-plan rhythm is
+                        # unaffected. Like the rules around it this is a progress criterion,
+                        # not one of the section-4.1 cap axes, so no execution-limit mode
+                        # disables it: measured 2026-09-05 (computer-loop-measure-03), where a
+                        # 7B planner replanned until the kill switch under unbounded_execution.
+                        state, summary = "stalled", (
+                            f"{_MAX_PLANS_PER_STEP} consecutive advisory plans proposed no tool step; "
+                            "the plan budget for one step is exhausted.")
+                        break
                     continue
                 prior_plan_steps, repeated_plans = None, 0  # a tool or finish proposal ends the plan sequence
                 if proposal["type"] == "finish":
@@ -551,6 +568,15 @@ def _computer_events_admitted(
                     summary = (f"{len(history)} tool operation(s) completed; evidence is retained. "
                                "The planner's task-level conclusion remains advisory." if history else
                                "The planner finished without executing any tool.")
+                    break
+                if limit_policy.enforces("wall_time") and clock() - started_at >= timeout:
+                    # Last check before the effect: the planner call above may have consumed
+                    # the remaining budget. Measured 2026-09-05 (computer-loop-measure-04):
+                    # two planner calls consumed a 300 s mission and the browser start then
+                    # hit the adapter's own cooperative deadline, which is reported as a tool
+                    # failure. An exhausted budget is a mission outcome, not a tool defect, so
+                    # no step artifact, no step intent and no adapter call happen here.
+                    state, summary = "timeout", "The mission timeout elapsed before the tool step; no effect was started."
                     break
                 tool = proposal["tool"]
                 step += 1
@@ -580,6 +606,7 @@ def _computer_events_admitted(
                     raise
                 history.append({"step": step, "tool": tool, "outcome": outcome,
                                 "artifact": result_artifact.to_dict()})
+                plans_since_tool_step = 0  # an executed tool step renews the plan budget
                 yield "progress", {"mission_id": mission_id, "phase": "observed", "step": step,
                                    "tool": tool, "ok": outcome["ok"], "state": outcome.get("state")}
                 if not outcome["ok"]:
