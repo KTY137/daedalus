@@ -2,16 +2,14 @@
 
 The public provider method cannot invoke Claude from ambient authority. It
 requires one exact :class:`RuntimeBoundEffectAuthorization`, one narrowed
-:class:`EffectExecutionRequest`, an isolated-workspace binding tied to the
-same request, execution, attempt, source revision, and invocation payload,
-plus the exact signed :class:`ProviderObservationAuthority` and its
-:class:`ProviderObservationBindingLedger` that the broker authenticates and
-persists before external code runs. The generic broker persists grant/start
-state, suppresses exact replay, rechecks runtime trust, retains output
-identities, and commits terminal state before a provider value is released.
+:class:`EffectExecutionRequest`, and an isolated-workspace binding tied to the
+same request, execution, attempt, and source revision.
 
-The subprocess implementation remains private in :mod:`daedalus.claude_bridge`.
-Calling that helper directly is not a supported production entrypoint.
+The preferred production path additionally requires the authenticated provider
+invocation authority, canonical payload, signed ABI, executable registry and
+pre-admission receipt consumed by the sealed broker.  A legacy direct-provider
+mode remains temporarily for callers that still present the older observation
+authority; the public ``ask_claude`` bridge no longer exposes that mode.
 """
 from __future__ import annotations
 
@@ -25,10 +23,22 @@ from ..kernel.effects import EffectExecutionRequest
 from ..kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from ..primary_tree import assert_write_allowed
 from ..runtimes.broker import RuntimeInvocationResult, run_runtime_provider
+from ..runtimes.provider_executable_object_registry import (
+    ProviderExecutableObjectRegistry,
+)
+from ..runtimes.provider_executable_pre_admission import (
+    ProviderExecutablePreAdmissionReceipt,
+)
+from ..runtimes.provider_invocation_abi import ProviderInvocationABIContract
+from ..runtimes.provider_invocation_authority import (
+    ProviderInvocationObservationAuthority,
+)
+from ..runtimes.provider_invocation_payload import ProviderInvocationPayload
 from ..runtimes.provider_observation import (
     ProviderObservationAuthority,
     ProviderObservationBindingLedger,
 )
+from ..runtimes.sealed_broker import run_sealed_runtime_provider
 from ..spine.effect_boundary import Effect
 from ..spine.envelope import canonical_sha
 from .base import Provider, ProviderCapabilities
@@ -205,10 +215,6 @@ def _validate_execution_shape(
         raise ClaudeProviderScopeMismatch(
             "Claude execution understates provider effects: " + ", ".join(missing)
         )
-    # The current Claude CLI permission mode is agentic and can inspect or edit
-    # any file in its isolated worktree, regardless of path hints. Claiming a
-    # narrower write set would be false evidence. The safe broad scope is the
-    # worktree root, while the primary checkout is excluded separately.
     if "." not in execution.writable_paths:
         raise ClaudeProviderScopeMismatch(
             "agentic Claude execution must lease the isolated worktree root '.'"
@@ -259,9 +265,6 @@ def _resolve_workspace(
         raise ClaudeProviderWorkspaceMismatch(
             "Claude repo_root is not the exact bound worktree"
         )
-    # This closes Daedalus self-work structurally. A generic target-repository
-    # primary-tree proof must come from the authenticated attempt capability
-    # required before the canonical provider row may become CENTRAL.
     assert_write_allowed(supplied, what="Claude runtime workspace")
     return supplied
 
@@ -306,6 +309,50 @@ def _output_digests(
     )
 
 
+def _runtime_binding_mode(
+    *,
+    invocation_authority: ProviderInvocationObservationAuthority | None,
+    invocation_payload: ProviderInvocationPayload | None,
+    invocation_abi: ProviderInvocationABIContract | None,
+    executable_registry: ProviderExecutableObjectRegistry | None,
+    pre_admission: ProviderExecutablePreAdmissionReceipt | None,
+    observation_authority: ProviderObservationAuthority | None,
+    observation_binding_ledger: ProviderObservationBindingLedger | None,
+) -> str:
+    """Select the sealed transition path without silently mixing authorities."""
+
+    sealed_specific = (
+        invocation_authority,
+        invocation_payload,
+        invocation_abi,
+        executable_registry,
+        pre_admission,
+    )
+    if any(value is not None for value in sealed_specific):
+        if not all(value is not None for value in sealed_specific):
+            raise ClaudeProviderAuthorizationRequired(
+                "Claude sealed execution requires invocation authority, payload, ABI, "
+                "executable registry, and pre-admission as one complete bundle"
+            )
+        if observation_binding_ledger is None:
+            raise ClaudeProviderAuthorizationRequired(
+                "Claude sealed execution requires the provider-observation binding ledger"
+            )
+        if observation_authority is not None:
+            raise ClaudeProviderAuthorizationRequired(
+                "Claude sealed execution must not mix legacy observation authority "
+                "with invocation authority"
+            )
+        return "sealed"
+
+    if observation_authority is None or observation_binding_ledger is None:
+        raise ClaudeProviderAuthorizationRequired(
+            "Claude live execution requires either the complete sealed invocation "
+            "bundle or the legacy signed provider-observation authority"
+        )
+    return "legacy"
+
+
 class ClaudeCLIProvider(Provider):
     """Agentic Claude CLI adapter whose public execution seam is brokered."""
 
@@ -329,10 +376,15 @@ class ClaudeCLIProvider(Provider):
         agent: dict[str, Any],
         model: str | None = None,
         timeout_s: int = 300,
-        policy: Any | None = None,  # retained for the common provider interface
+        policy: Any | None = None,
         runtime_authorization: RuntimeBoundEffectAuthorization | None = None,
         effect_execution: EffectExecutionRequest | None = None,
         workspace_grant: ClaudeWorkspaceGrant | None = None,
+        invocation_authority: ProviderInvocationObservationAuthority | None = None,
+        invocation_payload: ProviderInvocationPayload | None = None,
+        invocation_abi: ProviderInvocationABIContract | None = None,
+        executable_registry: ProviderExecutableObjectRegistry | None = None,
+        pre_admission: ProviderExecutablePreAdmissionReceipt | None = None,
         observation_authority: ProviderObservationAuthority | None = None,
         observation_binding_ledger: ProviderObservationBindingLedger | None = None,
     ) -> dict[str, Any]:
@@ -345,11 +397,15 @@ class ClaudeCLIProvider(Provider):
             raise ClaudeProviderAuthorizationRequired(
                 "Claude live execution requires an exact isolated-workspace binding"
             )
-        if observation_authority is None or observation_binding_ledger is None:
-            raise ClaudeProviderAuthorizationRequired(
-                "Claude live execution requires the signed provider-observation "
-                "authority and its binding ledger"
-            )
+        binding_mode = _runtime_binding_mode(
+            invocation_authority=invocation_authority,
+            invocation_payload=invocation_payload,
+            invocation_abi=invocation_abi,
+            executable_registry=executable_registry,
+            pre_admission=pre_admission,
+            observation_authority=observation_authority,
+            observation_binding_ledger=observation_binding_ledger,
+        )
         normalized_paths = _validate_execution_shape(effect_execution, paths)
         workspace = _resolve_workspace(
             repo_root,
@@ -358,6 +414,9 @@ class ClaudeCLIProvider(Provider):
             grant=workspace_grant,
         )
         resolved_model = model or str(agent.get("model_tier", "sonnet"))
+        attempt_id = runtime_authorization.request.attempt_id
+        source_revision = runtime_authorization.request.provenance.source_revision
+        request_sha256 = runtime_authorization.request.digest
         invocation_sha256 = claude_invocation_sha256(
             objective=objective,
             worktree=str(workspace),
@@ -365,9 +424,9 @@ class ClaudeCLIProvider(Provider):
             agent=agent,
             model=resolved_model,
             timeout_s=timeout_s,
-            attempt_id=runtime_authorization.request.attempt_id,
-            source_revision=runtime_authorization.request.provenance.source_revision,
-            request_sha256=runtime_authorization.request.digest,
+            attempt_id=attempt_id,
+            source_revision=source_revision,
+            request_sha256=request_sha256,
         )
         expected_idempotency = claude_idempotency_key(invocation_sha256)
         if effect_execution.idempotency_key != expected_idempotency:
@@ -375,25 +434,65 @@ class ClaudeCLIProvider(Provider):
                 "Claude execution idempotency key does not bind the exact invocation"
             )
 
-        invocation: RuntimeInvocationResult[dict[str, Any]] = run_runtime_provider(
-            ENTRYPOINT_ID,
-            authorization=runtime_authorization,
-            execution=effect_execution,
-            invoke=lambda: _invoke_claude_cli(
-                objective=objective,
-                repo_root=str(workspace),
-                paths=normalized_paths,
-                agent=agent,
-                model=resolved_model,
-                timeout_s=timeout_s,
-            ),
-            output_digests=lambda value: _output_digests(
-                value,
-                invocation_sha256=invocation_sha256,
-            ),
-            observation_authority=observation_authority,
-            observation_binding_ledger=observation_binding_ledger,
-        )
+        if binding_mode == "sealed":
+            expected_payload = {
+                "objective": objective,
+                "worktree": str(workspace),
+                "paths": normalized_paths,
+                "agent": dict(agent),
+                "model": resolved_model,
+                "timeout_s": timeout_s,
+                "attempt_id": attempt_id,
+                "source_revision": source_revision,
+                "request_sha256": request_sha256,
+                "invocation_sha256": invocation_sha256,
+            }
+            assert invocation_payload is not None
+            assert invocation_authority is not None
+            assert invocation_abi is not None
+            assert executable_registry is not None
+            assert pre_admission is not None
+            assert observation_binding_ledger is not None
+            if invocation_payload.to_dict()["body"] != expected_payload:
+                raise ClaudeInvocationBindingMismatch(
+                    "Claude authenticated payload does not match the exact invocation"
+                )
+            invocation: RuntimeInvocationResult[dict[str, Any]] = (
+                run_sealed_runtime_provider(
+                    ENTRYPOINT_ID,
+                    authorization=runtime_authorization,
+                    execution=effect_execution,
+                    invocation_authority=invocation_authority,
+                    invocation_payload=invocation_payload,
+                    invocation_abi=invocation_abi,
+                    observation_binding_ledger=observation_binding_ledger,
+                    executable_registry=executable_registry,
+                    pre_admission=pre_admission,
+                )
+            )
+        else:
+            assert observation_authority is not None
+            assert observation_binding_ledger is not None
+            invocation = run_runtime_provider(
+                ENTRYPOINT_ID,
+                authorization=runtime_authorization,
+                execution=effect_execution,
+                invoke=lambda: _invoke_claude_cli(
+                    objective=objective,
+                    repo_root=str(workspace),
+                    paths=normalized_paths,
+                    agent=agent,
+                    model=resolved_model,
+                    timeout_s=timeout_s,
+                ),
+                output_digests=lambda value: _output_digests(
+                    value,
+                    invocation_sha256=invocation_sha256,
+                ),
+                observation_authority=observation_authority,
+                observation_binding_ledger=observation_binding_ledger,
+            )
+
         runtime_receipt = {
             "executed": invocation.executed,
             "invocation_sha256": invocation_sha256,

@@ -8,7 +8,10 @@ from pathlib import Path
 
 import pytest
 
+import daedalus.claude_bridge as claude_bridge
+import daedalus.providers.claude_cli as claude_provider
 import daedalus.runtimes.broker as lifecycle
+from daedalus.providers.claude_cli import ClaudeProviderAuthorizationRequired
 from daedalus.runtimes.provider_invocation_abi import (
     issue_provider_invocation_abi_contract,
 )
@@ -225,3 +228,65 @@ def test_sealed_output_evidence_failure_stays_started_for_reconciliation(
         )
 
     assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"
+
+
+def test_claude_provider_accepts_a_complete_sealed_transition_bundle() -> None:
+    marker = object()
+    assert (
+        claude_provider._runtime_binding_mode(
+            invocation_authority=marker,
+            invocation_payload=marker,
+            invocation_abi=marker,
+            executable_registry=marker,
+            pre_admission=marker,
+            observation_authority=None,
+            observation_binding_ledger=marker,
+        )
+        == "sealed"
+    )
+
+
+def test_claude_provider_refuses_partial_or_mixed_sealed_authority() -> None:
+    marker = object()
+    with pytest.raises(ClaudeProviderAuthorizationRequired, match="complete bundle"):
+        claude_provider._runtime_binding_mode(
+            invocation_authority=marker,
+            invocation_payload=None,
+            invocation_abi=marker,
+            executable_registry=marker,
+            pre_admission=marker,
+            observation_authority=None,
+            observation_binding_ledger=marker,
+        )
+
+    with pytest.raises(ClaudeProviderAuthorizationRequired, match="must not mix"):
+        claude_provider._runtime_binding_mode(
+            invocation_authority=marker,
+            invocation_payload=marker,
+            invocation_abi=marker,
+            executable_registry=marker,
+            pre_admission=marker,
+            observation_authority=marker,
+            observation_binding_ledger=marker,
+        )
+
+
+def test_public_ask_claude_surface_no_longer_exposes_legacy_observation_authority() -> None:
+    parameters = inspect.signature(claude_bridge.ask_claude).parameters
+    assert "observation_authority" not in parameters
+    assert {
+        "invocation_authority",
+        "invocation_payload",
+        "invocation_abi",
+        "observation_binding_ledger",
+        "executable_registry",
+        "pre_admission",
+    } <= set(parameters)
+
+
+def test_claude_provider_has_a_callback_free_sealed_callsite() -> None:
+    source = inspect.getsource(claude_provider.ClaudeCLIProvider.run)
+    assert "run_sealed_runtime_provider(" in source
+    sealed_tail = source.split("run_sealed_runtime_provider(", 1)[1].split(")", 1)[0]
+    assert "invoke=" not in sealed_tail
+    assert "output_digests=" not in sealed_tail

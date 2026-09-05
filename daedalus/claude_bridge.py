@@ -1,11 +1,10 @@
 """Structured Claude CLI adapter with a broker-only public execution path.
 
 Prompt construction and output parsing are pure helpers.  The only subprocess
-implementation is private and is invoked by :class:`ClaudeCLIProvider` after
-the runtime broker has persisted an exact grant and start receipt.  The legacy
-``ask_claude`` name remains import-compatible, but now requires the same
-runtime/effect authority and isolated-workspace grant instead of invoking from
-ambient process authority.
+implementation is private.  The public ``ask_claude`` compatibility name now
+requires the complete sealed invocation bundle and delegates to
+:class:`ClaudeCLIProvider`; callers can no longer select the legacy callback
+broker through this surface.
 """
 from __future__ import annotations
 
@@ -26,10 +25,18 @@ if TYPE_CHECKING:
     from .kernel.effects import EffectExecutionRequest
     from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
     from .providers.claude_cli import ClaudeWorkspaceGrant
-    from .runtimes.provider_observation import (
-        ProviderObservationAuthority,
-        ProviderObservationBindingLedger,
+    from .runtimes.provider_executable_object_registry import (
+        ProviderExecutableObjectRegistry,
     )
+    from .runtimes.provider_executable_pre_admission import (
+        ProviderExecutablePreAdmissionReceipt,
+    )
+    from .runtimes.provider_invocation_abi import ProviderInvocationABIContract
+    from .runtimes.provider_invocation_authority import (
+        ProviderInvocationObservationAuthority,
+    )
+    from .runtimes.provider_invocation_payload import ProviderInvocationPayload
+    from .runtimes.provider_observation import ProviderObservationBindingLedger
 
 
 REPORT_SCHEMA: dict[str, Any] = {
@@ -242,15 +249,18 @@ def ask_claude(
     runtime_authorization: "RuntimeBoundEffectAuthorization | None" = None,
     effect_execution: "EffectExecutionRequest | None" = None,
     workspace_grant: "ClaudeWorkspaceGrant | None" = None,
-    observation_authority: "ProviderObservationAuthority | None" = None,
+    invocation_authority: "ProviderInvocationObservationAuthority | None" = None,
+    invocation_payload: "ProviderInvocationPayload | None" = None,
+    invocation_abi: "ProviderInvocationABIContract | None" = None,
     observation_binding_ledger: "ProviderObservationBindingLedger | None" = None,
+    executable_registry: "ProviderExecutableObjectRegistry | None" = None,
+    pre_admission: "ProviderExecutablePreAdmissionReceipt | None" = None,
 ) -> dict[str, Any]:
-    """Compatibility adapter that now delegates to the brokered provider.
+    """Compatibility adapter that now enters Claude only through the sealed broker.
 
-    Existing callers keep the import path, but a call without explicit
-    persisted authority fails before subprocess creation.  The caller must
-    supply an attempt-owned worktree; direct Primary Checkout execution is not
-    a compatibility feature.
+    Existing callers keep the import path, but execution requires the complete
+    invocation-authority/payload/ABI/registry/pre-admission bundle in addition
+    to the runtime Effect authority and isolated worktree.
     """
 
     from .providers.claude_cli import (
@@ -262,10 +272,17 @@ def ask_claude(
         raise ClaudeProviderAuthorizationRequired(
             "ask_claude requires runtime authorization, effect execution, and workspace grant"
         )
-    if observation_authority is None or observation_binding_ledger is None:
+    if (
+        invocation_authority is None
+        or invocation_payload is None
+        or invocation_abi is None
+        or observation_binding_ledger is None
+        or executable_registry is None
+        or pre_admission is None
+    ):
         raise ClaudeProviderAuthorizationRequired(
-            "ask_claude requires the signed provider-observation authority "
-            "and its binding ledger"
+            "ask_claude requires the authenticated invocation ABI, payload, "
+            "executable registry, pre-admission, and binding ledger"
         )
     agent = route_task(objective, paths)
     return ClaudeCLIProvider().run(
@@ -278,8 +295,12 @@ def ask_claude(
         runtime_authorization=runtime_authorization,
         effect_execution=effect_execution,
         workspace_grant=workspace_grant,
-        observation_authority=observation_authority,
+        invocation_authority=invocation_authority,
+        invocation_payload=invocation_payload,
+        invocation_abi=invocation_abi,
         observation_binding_ledger=observation_binding_ledger,
+        executable_registry=executable_registry,
+        pre_admission=pre_admission,
     )
 
 
@@ -300,8 +321,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # The module entrypoint intentionally performs no external effect.  It is
-    # retained only as a fail-closed compatibility surface.
     main()
 
 
