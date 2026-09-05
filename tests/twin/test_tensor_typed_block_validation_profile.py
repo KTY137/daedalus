@@ -63,19 +63,20 @@ def test_profile_executes_the_existing_canonical_constructor() -> None:
         assert metric["cumulative_ms"] >= 0.0
 
 
-def test_probe_pairs_support_decode_with_constructor_native_attribution() -> None:
+def test_probe_pairs_support_decode_constructor_and_csr_validation_ab() -> None:
     report = _PROFILE.run_probe((_case(),), profile_repeats=2)
 
-    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/5"
+    assert report["schema"] == "daedalus-tensor-typed-block-validation-profile/6"
     assert report["status"] == "completed"
     assert report["authority"] == "diagnostic-only"
     assert report["claim"] == "none"
     assert report["semantic_scope"] == "canonical Boolean TypedRelationBlock materialization only"
     assert "unchanged packed-support decoder and canonical constructor" in report["measurement_contract"]
-    assert "only active constructor-native cProfile attribution" in report["measurement_contract"]
-    assert "do not execute standalone scalar or retired zero-only validation metrics" in report["measurement_contract"]
-    assert "not duplicated or bypassed" in report["measurement_contract"]
-    assert "non-additive" in report["measurement_contract"]
+    assert "one bounded alternating same-process A/B" in report["measurement_contract"]
+    assert "retired pre-GPU-19" in report["measurement_contract"]
+    assert "microstage-only" in report["measurement_contract"]
+    assert "does not bypass product validation" in report["measurement_contract"]
+    assert "does not" in report["measurement_contract"]
 
     result = report["cases"][0]
     assert result["status"] == "verified"
@@ -102,6 +103,96 @@ def test_probe_pairs_support_decode_with_constructor_native_attribution() -> Non
     assert "real canonical constructor" in result["profile_attribution"]["interpretation"]
     assert "no duplicate scalar wall-time probe" in result["profile_attribution"]["interpretation"]
     assert "not a pure structural wall-time" in result["profile_attribution"]["interpretation"]
+
+    ab = result["csr_column_validation_ab"]
+    assert ab["authority"] == "microstage-diagnostic-only"
+    assert _PROFILE.PRE_GPU19_RELATION_BLOCK_BLOB in ab["control"]
+    assert "GPU-19 matched-count row-span" in ab["candidate"]
+    assert ab["valid_outcome_parity"] is True
+    assert ab["ordering"] == "alternating AB/BA in one process"
+    assert ab["control_ms"]["samples"] == 2
+    assert ab["candidate_ms"]["samples"] == 2
+    assert ab["control_ms"]["median"] >= 0.0
+    assert ab["candidate_ms"]["median"] >= 0.0
+    assert ab["candidate_to_control_ratio"] is None or ab["candidate_to_control_ratio"] >= 0.0
+    assert "already decoded canonical CSR support" in ab["interpretation"]
+    assert "cannot mint" in ab["interpretation"]
+
+
+def test_csr_validation_ab_matches_valid_and_invalid_outcomes() -> None:
+    validators = (
+        _PROFILE._pre_gpu19_column_validation,
+        _PROFILE._gpu19_column_validation,
+    )
+
+    valid = {
+        "row_offsets": (0, 2, 2, 4),
+        "column_indices": (0, 2, 1, 3),
+        "row_count": 3,
+        "column_count": 4,
+        "entry_count": 4,
+    }
+    for validator in validators:
+        assert validator(**valid) is None
+
+    invalid_cases = (
+        (
+            {
+                "row_offsets": (0, 2),
+                "column_indices": (1, 0),
+                "row_count": 1,
+                "column_count": 2,
+                "entry_count": 2,
+            },
+            "strictly increasing",
+        ),
+        (
+            {
+                "row_offsets": (0, 2),
+                "column_indices": (2, 0),
+                "row_count": 1,
+                "column_count": 2,
+                "entry_count": 1,
+            },
+            "out-of-range",
+        ),
+        (
+            {
+                "row_offsets": (0, 2),
+                "column_indices": (1, 0),
+                "row_count": 1,
+                "column_count": 2,
+                "entry_count": 1,
+            },
+            "common entry count",
+        ),
+        (
+            {
+                "row_offsets": (0, 2),
+                "column_indices": ("bad", 0),
+                "row_count": 1,
+                "column_count": 2,
+                "entry_count": 1,
+            },
+            "contain integers",
+        ),
+    )
+    for kwargs, message in invalid_cases:
+        for validator in validators:
+            with pytest.raises(ValueError, match=message):
+                validator(**kwargs)
+
+
+def test_csr_validation_ab_is_bounded_and_rejects_non_callables() -> None:
+    noop = lambda: None
+    for repeats, warmup in ((0, 0), (_PROFILE.MAX_REPEATS + 1, 0), (True, 0)):
+        with pytest.raises(ValueError, match="repeats"):
+            _PROFILE._measure_validation_ab(noop, noop, repeats=repeats, warmup=warmup)
+    for repeats, warmup in ((1, -1), (1, _PROFILE.MAX_WARMUP + 1), (1, True)):
+        with pytest.raises(ValueError, match="warmup"):
+            _PROFILE._measure_validation_ab(noop, noop, repeats=repeats, warmup=warmup)
+    with pytest.raises(ValueError, match="validators must be callable"):
+        _PROFILE._measure_validation_ab(None, noop, repeats=1, warmup=0)  # type: ignore[arg-type]
 
 
 def test_support_decode_measurement_reuses_exact_existing_decoder() -> None:
