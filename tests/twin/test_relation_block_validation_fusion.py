@@ -87,6 +87,10 @@ def test_fused_validation_retains_canonical_block_identity_and_digest() -> None:
             "block.row_offsets must contain integers",
         ),
         (
+            {"row_offsets": (-1, 2, 3)},
+            "block.row_offsets must contain every row boundary and start at zero",
+        ),
+        (
             {"row_offsets": (1, 0, 3)},
             "block.row_offsets must contain every row boundary and start at zero",
         ),
@@ -163,6 +167,8 @@ def test_constructor_uses_row_spans_without_generic_any_or_per_entry_row_state()
     assert "any(" not in source
     assert "columns[offsets[row]" not in source
     assert "while row < row_count" not in source
+    assert "previous_offset is not None" not in source
+    assert "previous_offset = -1" in source
     assert "previous_column is not None" not in source
     assert "previous_column = -1" in source
     assert "range(offsets[row], offsets[row + 1])" in source

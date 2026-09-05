@@ -316,11 +316,11 @@ class TypedRelationBlock(Generic[T]):
         values = _stored_values(raw_values, self.semiring_name)
 
         offsets_monotone = True
-        previous_offset: int | None = None
+        previous_offset = -1
         for item in offsets:
             if type(item) is not int:
                 raise ValueError("block.row_offsets must contain integers")
-            if previous_offset is not None and previous_offset > item:
+            if previous_offset > item:
                 offsets_monotone = False
             previous_offset = item
         if len(offsets) != len(self.row_axis.labels) + 1 or not offsets or offsets[0] != 0:
