@@ -1,17 +1,26 @@
 """G1-EDA-HOST-STATUS-02: deterministic Vivado/Vitis-HLS Tcl emission.
 
 Every test here is effect-free with respect to vendor tools.  No test needs
-AMD Vivado, Vitis HLS, XSCT or Quartus; the one test that starts a process
-runs the emitted parse harness with a plain ``tclsh`` and is skipped when no
-Tcl shell is installed.  A green harness result proves the emitted text is
-parseable Tcl whose command words resolve; it is never evidence that a vendor
-tool accepts the script.
+AMD Vivado, Vitis HLS, XSCT or Quartus.  Two tests start a plain ``tclsh`` and
+skip when no Tcl shell is installed; one starts this CLI itself to measure a
+real stdout redirect, because an in-process capture cannot see the platform
+text layer.  A green harness result proves the emitted text is parseable Tcl
+whose command words resolve; it is never evidence that a vendor tool accepts
+the script.
+
+The emission contract these tests pin is *inline*: ``plan`` writes no file.
+An earlier revision wrote the emitted script to an operator-named path, which
+put a write outside this CLI's one admitted effect anchor; see
+``tests/test_chip_design_isolation.py`` for the guard that keeps it out.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -129,7 +138,7 @@ VIVADO_PINS: dict[str, tuple[str, int, int]] = {
     "full": ("99e3fc661fcd90b4f51578af81078f84ec8b149ae025333e291673c19305d964", 5599, 141),
 }
 HLS_PIN = ("80ef3c3ceae3247cb861f07a3b42a2c168fbb5ceedfeb457735d4118f41cd4ed", 2835, 72)
-HARNESS_PIN = ("2fdfbc4b257ca9882ef59f196caa70a38f236a07304a6e7012c0bfb449fdcb65", 4176, 139)
+HARNESS_PIN = ("6c3ea9ac5b99166f05049473d195251e3e61015fa53cbeb24ce8f73a1956d222", 11781, 238)
 
 KERNEL_SOURCE = (
     "// Trivial Vitis HLS kernel fixture; no vendor header is required to\n"
@@ -246,11 +255,16 @@ def test_vitis_hls_script_identity_is_pinned() -> None:
 
 def test_parse_harness_identity_is_pinned() -> None:
     script = render_vivado_project_flow(scope="full", **VIVADO_KWARGS)
-    harness = render_parse_harness(script, script_path="C:/pinned/out/emitted.tcl")
+    harness = render_parse_harness(script)
     assert (harness.sha256, harness.byte_length, harness.line_count) == HARNESS_PIN
     assert harness.target == PARSE_HARNESS_TARGET
     assert harness.syntax_check.complete is True
     assert script.sha256 in harness.text
+    # The subject travels inside the harness, so the harness reads no file and
+    # cannot be aimed at bytes the emitter never saw.
+    assert base64.b64encode(script.data).decode("ascii")[:76] in harness.text
+    assert "open $daedalus_script" not in harness.text
+    assert "daedalus_real_open $daedalus_script" not in harness.text
 
 
 def test_rendering_is_byte_stable_across_calls() -> None:
@@ -382,9 +396,9 @@ def test_vitis_hls_rendering_refuses_unsafe_values(override: dict) -> None:
 
 def test_parse_harness_refuses_to_wrap_itself() -> None:
     script = render_vivado_project_flow(scope="full", **VIVADO_KWARGS)
-    harness = render_parse_harness(script, script_path="C:/pinned/out/emitted.tcl")
+    harness = render_parse_harness(script)
     with pytest.raises(TclEmitError):
-        render_parse_harness(harness, script_path="C:/pinned/out/harness.tcl")
+        render_parse_harness(harness)
 
 
 # ---------------------------------------------------------------------------
@@ -402,11 +416,7 @@ def test_parse_harness_refuses_to_wrap_itself() -> None:
 )
 def test_parse_harness_runs_green_under_tclsh(tmp_path: Path, script_factory) -> None:
     script = script_factory()
-    script_path = tmp_path / "emitted.tcl"
-    script_path.write_bytes(script.data)
-    harness = render_parse_harness(
-        script, script_path=str(script_path).replace("\\", "/")
-    )
+    harness = render_parse_harness(script)
     harness_path = tmp_path / "emitted.harness.tcl"
     harness_path.write_bytes(harness.data)
     before = sorted(item.name for item in tmp_path.iterdir())
@@ -424,6 +434,9 @@ def test_parse_harness_runs_green_under_tclsh(tmp_path: Path, script_factory) ->
     assert rows["intercepted_exit"] == "0"
     assert int(rows["stub_calls"]) > 0
     assert rows["vendor_acceptance_claimed"] == "0"
+    assert rows["sha256_expected"] == script.sha256
+    # base64 round-trip: tclsh decoded exactly the bytes the emitter produced.
+    assert int(rows["embedded_bytes"]) == script.byte_length
     # The harness stubs every effectful surface, so the dry parse must not have
     # created the project, output or report directories the script names.
     assert sorted(item.name for item in tmp_path.iterdir()) == before
@@ -483,18 +496,13 @@ def test_plan_without_emission_is_unchanged(
     assert payload["schema"] == chip_cli.PLAN_SCHEMA
     assert not [key for key in payload if key.startswith("emitted_")]
 
-
-def test_plan_emit_tcl_writes_a_bound_deterministic_script(
+def test_plan_emit_tcl_puts_a_bound_script_in_the_payload(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _forbid_effects(monkeypatch)
     root = tmp_path / "project"
     root.mkdir()
-    review = tmp_path / "review"
-    review.mkdir()
     xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
-    out = review / "flow.tcl"
-    harness_out = review / "flow.harness.tcl"
     assert (
         chip_cli.main(
             [
@@ -503,9 +511,7 @@ def test_plan_emit_tcl_writes_a_bound_deterministic_script(
                 "--phase",
                 "full",
                 "--emit-tcl",
-                str(out),
                 "--emit-harness",
-                str(harness_out),
                 "--json",
             ]
         )
@@ -517,15 +523,19 @@ def test_plan_emit_tcl_writes_a_bound_deterministic_script(
     assert emitted["schema"] == TCL_EMIT_SCHEMA
     assert emitted["target"] == VIVADO_TARGET
     assert emitted["scope"] == "full"
-    assert emitted["written"] is True
     assert emitted["syntax_check"]["complete"] is True
     assert emitted["syntax_check"]["vendor_acceptance_claimed"] is False
     assert emitted["syntax_check"]["executed"] is False
     assert "design.bit" in emitted["expected_outputs"]
     assert harness["subject_sha256"] == emitted["sha256"]
     assert harness["runner"] == "tclsh"
+    # No path and no write: the script itself is the payload row.
+    assert "path" not in emitted and "written" not in emitted
+    assert "path" not in harness and "written" not in harness
 
-    text = out.read_text(encoding="utf-8")
+    text = emitted["text"]
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest() == emitted["sha256"]
+    assert len(text.encode("utf-8")) == emitted["byte_length"]
     assert emitted["bound_identities"]["manifest_sha256"] == payload["manifest_sha256"]
     assert (
         emitted["bound_identities"]["source_identity_sha256"]
@@ -537,81 +547,107 @@ def test_plan_emit_tcl_writes_a_bound_deterministic_script(
     assert "demo.srcs/sources_1/new/top.sv" in text
     assert "demo.srcs/constrs_1/new/pins.xdc" in text
     assert tcl_info_complete(text) is True
-    assert tcl_info_complete(harness_out.read_text(encoding="utf-8")) is True
-    # Emission must not touch the inspected project.
+    assert tcl_info_complete(harness["text"]) is True
+    # Emission must leave the inspected project and the whole tree alone.
     assert sorted(item.name for item in root.iterdir()) == ["demo.srcs", "demo.xpr"]
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["project"]
 
 
-def test_plan_emit_tcl_is_idempotent_and_refuses_a_clobber(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _forbid_effects(monkeypatch)
-    root = tmp_path / "project"
-    root.mkdir()
-    review = tmp_path / "review"
-    review.mkdir()
-    xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
-    out = review / "flow.tcl"
-    argv = ["plan", str(xpr), "--emit-tcl", str(out), "--json"]
-    assert chip_cli.main(argv) == 0
-    first = _json_stdout(capsys)["emitted_tcl"]
-    assert first["written"] is True
-    original = out.read_bytes()
-
-    assert chip_cli.main(argv) == 0
-    second = _json_stdout(capsys)["emitted_tcl"]
-    assert second["written"] is False
-    assert second["sha256"] == first["sha256"]
-    assert out.read_bytes() == original
-
-    out.write_text("# hand edited\n", encoding="utf-8")
-    with pytest.raises(SystemExit) as excinfo:
-        chip_cli.main(argv)
-    assert excinfo.value.code == 2
-    assert out.read_text(encoding="utf-8") == "# hand edited\n"
-
-
-@pytest.mark.parametrize("suffix", ("flow.txt", "flow"))
-def test_plan_emit_tcl_requires_a_tcl_suffix(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, suffix: str
-) -> None:
-    _forbid_effects(monkeypatch)
-    root = tmp_path / "project"
-    root.mkdir()
-    xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
-    with pytest.raises(SystemExit):
-        chip_cli.main(["plan", str(xpr), "--emit-tcl", str(tmp_path / suffix), "--json"])
-
-
-def test_plan_emit_tcl_refuses_to_write_into_the_project(
+def test_plan_emit_tcl_is_deterministic_across_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _forbid_effects(monkeypatch)
     root = tmp_path / "project"
     root.mkdir()
     xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
-    inside = root / "flow.tcl"
-    with pytest.raises(SystemExit):
-        chip_cli.main(["plan", str(xpr), "--emit-tcl", str(inside), "--json"])
-    assert not inside.exists()
-    assert "must not write inside the inspected project root" in capsys.readouterr().err
+    argv = ["plan", str(xpr), "--emit-tcl", "--emit-harness", "--json"]
+    assert chip_cli.main(argv) == 0
+    first = _json_stdout(capsys)
+    assert chip_cli.main(argv) == 0
+    assert _json_stdout(capsys) == first
 
 
-def test_plan_emit_tcl_refuses_a_missing_parent_directory(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_plan_emit_tcl_dash_streams_only_the_script_to_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`--emit-tcl -` exists so an operator can `> file` without a CLI write."""
+
+    _forbid_effects(monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
+    assert chip_cli.main(["plan", str(xpr), "--emit-tcl", "-", "--json"]) == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert captured.out == payload["emitted_tcl"]["text"]
+    assert (
+        hashlib.sha256(captured.out.encode("utf-8")).hexdigest()
+        == payload["emitted_tcl"]["sha256"]
+    )
+    assert tcl_info_complete(captured.out) is True
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["project"]
+
+
+def test_a_redirected_script_still_hashes_to_its_recorded_digest(
+    tmp_path: Path,
+) -> None:
+    """The whole point of `-` is `> file`, so measure a real redirect.
+
+    An in-process capture cannot see the platform text layer: on Windows a
+    text-mode stdout turns every LF into CRLF, and the saved script then no
+    longer hashes to the sha256 its own payload records. This test spawns the
+    CLI and redirects for real. It needs no vendor tool.
+    """
+
+    root = tmp_path / "project"
+    root.mkdir()
+    xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
+    saved = tmp_path / "flow.tcl"
+    plan = tmp_path / "plan.json"
+    with saved.open("wb") as out, plan.open("wb") as err:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "daedalus.chip_design",
+                "plan",
+                str(xpr),
+                "--emit-tcl",
+                "-",
+                "--json",
+            ],
+            stdout=out,
+            stderr=err,
+        )
+    assert result.returncode == 0, plan.read_text(encoding="utf-8")
+    payload = json.loads(plan.read_text(encoding="utf-8"))
+    data = saved.read_bytes()
+    assert hashlib.sha256(data).hexdigest() == payload["emitted_tcl"]["sha256"]
+    assert len(data) == payload["emitted_tcl"]["byte_length"]
+    assert b"\r" not in data, "the text layer translated the emitted script"
+    assert data.decode("utf-8") == payload["emitted_tcl"]["text"]
+
+
+def test_plan_emit_harness_dash_streams_the_harness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _forbid_effects(monkeypatch)
     root = tmp_path / "project"
     root.mkdir()
     xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
-    missing = tmp_path / "absent" / "flow.tcl"
-    with pytest.raises(SystemExit):
-        chip_cli.main(["plan", str(xpr), "--emit-tcl", str(missing), "--json"])
-    assert not missing.parent.exists()
+    assert (
+        chip_cli.main(
+            ["plan", str(xpr), "--emit-tcl", "--emit-harness", "-", "--json"]
+        )
+        == 0
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert captured.out == payload["emitted_harness"]["text"]
 
 
-def test_plan_emit_harness_requires_emit_tcl(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_plan_refuses_two_streams_on_one_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _forbid_effects(monkeypatch)
     root = tmp_path / "project"
@@ -619,8 +655,38 @@ def test_plan_emit_harness_requires_emit_tcl(
     xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
     with pytest.raises(SystemExit):
         chip_cli.main(
-            ["plan", str(xpr), "--emit-harness", str(tmp_path / "h.tcl"), "--json"]
+            ["plan", str(xpr), "--emit-tcl", "-", "--emit-harness", "-", "--json"]
         )
+    assert "only one of --emit-tcl and --emit-harness" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("value", ("flow.tcl", "out/flow.tcl", "..", "/dev/null"))
+def test_plan_emit_tcl_refuses_an_output_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    value: str,
+) -> None:
+    """Planning writes no file, so a path argument is a refusal, not a target."""
+
+    _forbid_effects(monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
+    with pytest.raises(SystemExit):
+        chip_cli.main(["plan", str(xpr), "--emit-tcl", value, "--json"])
+    assert "does not take an output path" in capsys.readouterr().err
+    assert not list(tmp_path.rglob("*.tcl"))
+
+
+def test_plan_emit_harness_requires_emit_tcl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _forbid_effects(monkeypatch)
+    root = tmp_path / "project"
+    root.mkdir()
+    xpr = _write_project(root, project_path_metadata=r"C:\source\demo.xpr")
+    with pytest.raises(SystemExit):
+        chip_cli.main(["plan", str(xpr), "--emit-harness", "--json"])
+    assert "--emit-harness requires --emit-tcl" in capsys.readouterr().err
 
 
 def test_plan_refuses_hls_flags_on_the_vivado_target(
@@ -644,9 +710,6 @@ def test_plan_vitis_hls_emits_a_bound_csynth_script(
 ) -> None:
     _forbid_effects(monkeypatch)
     kernel = _write_kernel(tmp_path)
-    review = tmp_path / "review"
-    review.mkdir()
-    out = review / "csynth.tcl"
     assert (
         chip_cli.main(
             [
@@ -659,7 +722,6 @@ def test_plan_vitis_hls_emits_a_bound_csynth_script(
                 "--part",
                 "xcu250-figd2104-2L-e",
                 "--emit-tcl",
-                str(out),
                 "--json",
             ]
         )
@@ -673,21 +735,29 @@ def test_plan_vitis_hls_emits_a_bound_csynth_script(
     assert payload["promotion"] is False
     assert payload["security_boundary_claimed"] is False
     # No admitted Vitis HLS runner exists; the plan says so instead of implying
-    # that `daedalus-chip run` could execute it.
+    # that `daedalus-chip run` could execute it, and the invocation stays a
+    # template because no file was written for an argv to point at.
     assert payload["live_runner_available"] is False
-    assert payload["argv"] == ["vitis_hls", "-f", payload["emitted_tcl"]["path"]]
+    assert payload["invocation_template"] == [
+        "vitis_hls",
+        "-f",
+        "<script the operator saved>",
+    ]
+    assert "argv" not in payload
     emitted = payload["emitted_tcl"]
     assert emitted["target"] == VITIS_HLS_TARGET
-    assert emitted["written"] is True
+    assert "path" not in emitted and "written" not in emitted
     assert emitted["sha256"] == payload["emitted_tcl_sha256"]
-    text = out.read_text(encoding="utf-8")
+    text = emitted["text"]
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest() == emitted["sha256"]
     assert payload["kernel_sha256"] in text
     assert emitted["bound_identities"]["plan_sha256"] in text
     assert "csynth_design" in text
     assert "xcu250-figd2104-2L-e" in text
     assert tcl_info_complete(text) is True
-    # The kernel itself is untouched.
+    # The kernel and the tree around it are untouched.
     assert kernel.read_text(encoding="utf-8") == KERNEL_SOURCE
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["kernel"]
 
 
 def test_plan_vitis_hls_is_deterministic(
@@ -757,30 +827,3 @@ def test_plan_vitis_hls_refuses_a_non_cpp_kernel(
                 "--json",
             ]
         )
-
-
-def test_plan_vitis_hls_refuses_to_emit_into_the_kernel_tree(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _forbid_effects(monkeypatch)
-    kernel = _write_kernel(tmp_path)
-    inside = kernel.parent / "csynth.tcl"
-    with pytest.raises(SystemExit):
-        chip_cli.main(
-            [
-                "plan",
-                str(kernel),
-                "--target",
-                VITIS_HLS_TARGET,
-                "--top",
-                "vadd",
-                "--part",
-                "xcu250-figd2104-2L-e",
-                "--emit-tcl",
-                str(inside),
-                "--json",
-            ]
-        )
-    assert not inside.exists()
-    assert kernel.read_text(encoding="utf-8") == KERNEL_SOURCE
-    assert "must not write inside the inspected project root" in capsys.readouterr().err

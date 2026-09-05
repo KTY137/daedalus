@@ -31,11 +31,11 @@
       "script_sha256": "99e3fc661fcd90b4f51578af81078f84ec8b149ae025333e291673c19305d964",
       "script_target": "vivado-project"
     },
-    "byte_length": 4180,
-    "line_count": 139,
+    "byte_length": 11781,
+    "line_count": 238,
     "schema": "daedalus-chip-tcl-emit/1",
     "scope": "full",
-    "sha256": "e3a76334205556269c2e26db2c321118aedd73d0ec7cbe2baf844886bb1afde5",
+    "sha256": "6c3ea9ac5b99166f05049473d195251e3e61015fa53cbeb24ce8f73a1956d222",
     "syntax_check": {
       "checker": "daedalus-tcl-info-complete/1",
       "complete": true,
@@ -76,11 +76,11 @@
       "script_sha256": "80ef3c3ceae3247cb861f07a3b42a2c168fbb5ceedfeb457735d4118f41cd4ed",
       "script_target": "vitis-hls"
     },
-    "byte_length": 3914,
-    "line_count": 127,
+    "byte_length": 7780,
+    "line_count": 177,
     "schema": "daedalus-chip-tcl-emit/1",
     "scope": "csynth",
-    "sha256": "6a7e1b7db4a0801cab406048a06961d3e38f1b0fca6f346da5911e9fffd65737",
+    "sha256": "f25eabee206754349fff09b1c7bf1e0f0879b191eea1790c4224eaa740626d15",
     "syntax_check": {
       "checker": "daedalus-tcl-info-complete/1",
       "complete": true,

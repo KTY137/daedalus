@@ -15,6 +15,7 @@ import json
 import math
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -94,7 +95,6 @@ from .publication import derive_chip_publication
 from .publication_verifier import verify_chip_eda_publication_graph
 from .sources import classify_source, discover_sources
 from .tcl_emit import (
-    TCL_EMIT_SCHEMA,
     VITIS_HLS_TARGET,
     VIVADO_TARGET,
     EmittedTclScript,
@@ -545,6 +545,43 @@ def _emit(payload: Mapping[str, Any], *, as_json: bool) -> None:
             print(f"{key}: {value}")
 
 
+def _emit_plan(
+    payload: Mapping[str, Any], raw: str | None, *, as_json: bool
+) -> None:
+    """Print one plan, keeping a streamed script alone on stdout.
+
+    With ``--emit-tcl -`` the operator wants ``> file`` to capture exactly the
+    script, so stdout carries the script and nothing else; the plan itself
+    moves to stderr rather than being dropped, because a suppressed plan would
+    hide the identities the script is bound to.
+    """
+
+    if raw is None:
+        _emit(payload, as_json=as_json)
+        return
+    # Exact bytes, not text. On Windows the text layer would translate every
+    # LF to CRLF, so a redirected script would no longer hash to the sha256
+    # the payload records for it -- the emitted artifact would lie about its
+    # own identity the moment an operator saved it.
+    data = raw.encode("utf-8")
+    stream = getattr(sys.stdout, "buffer", None)
+    if stream is None:  # pragma: no cover - a text-only stdout replacement
+        sys.stdout.write(raw)
+    else:
+        sys.stdout.flush()
+        stream.write(data)
+        stream.flush()
+    if as_json:
+        print(
+            json.dumps(dict(payload), indent=2, sort_keys=True, default=str),
+            file=sys.stderr,
+        )
+        return
+    for key, value in payload.items():
+        if key not in {"status", "manifest", "steps"}:
+            print(f"{key}: {value}", file=sys.stderr)
+
+
 def _print_execution(result: ExecutionResult, *, as_json: bool) -> int:
     payload = result.to_dict()
     if as_json:
@@ -863,59 +900,30 @@ def _emitted_source_lists(
     return tuple(dict.fromkeys(design)), tuple(dict.fromkeys(constraints))
 
 
-def _emission_target_path(
-    value: str,
-    *,
-    label: str,
-    forbidden_root: Path | None,
-    forbidden_paths: Sequence[Path] = (),
-) -> Path:
-    """Validate one operator-named emission path without writing anything."""
-
-    text = str(value).strip()
-    if not text:
-        raise ValueError(f"{label} must be a non-empty path")
-    target = canonical_path(text)
-    if target.suffix.lower() != ".tcl":
-        raise ValueError(f"{label} must name a .tcl file: {target}")
-    if forbidden_root is not None and _path_within(forbidden_root, target):
-        raise ValueError(
-            f"{label} must not write inside the inspected project root "
-            f"{forbidden_root}; planning never mutates the authoritative project"
-        )
-    for forbidden in forbidden_paths:
-        if canonical_path_identity(target) == canonical_path_identity(forbidden):
-            raise ValueError(f"{label} must not overwrite an inspected input: {target}")
-    parent = target.parent
-    if not parent.is_dir():
-        raise ValueError(f"{label} parent directory does not exist: {parent}")
-    if target.is_symlink():
-        raise ValueError(f"{label} must not be a symbolic link: {target}")
-    if target.exists() and not target.is_file():
-        raise ValueError(f"{label} exists and is not a regular file: {target}")
-    return target
+EMISSION_STDOUT = "-"
 
 
-def _write_emitted_script(script: EmittedTclScript, target: Path) -> bool:
-    """Write one canonical script, refusing to clobber different content.
+def _emission_mode(value: str | None, *, label: str) -> str | None:
+    """Interpret one emission flag; this function touches no filesystem.
 
-    Returns whether bytes were written.  Re-emitting an unchanged script is a
-    no-op, so a reviewer can re-run planning without touching mtimes, and an
-    existing file with different bytes is refused instead of overwritten.
+    ``plan`` is an effect-free command and this CLI has exactly one admitted
+    effect boundary: ``run_admitted_eda`` and the ``begin_effect`` it consumes.
+    A file written from planning would be a second write path beside that door,
+    so emission never names an output file. The bare flag puts the canonical
+    script into the payload; ``-`` additionally streams the raw script to
+    stdout so the operator can redirect it into a file themselves.
     """
 
-    payload = script.data
-    if target.exists():
-        current = target.read_bytes()
-        if current == payload:
-            return False
-        raise ValueError(
-            f"refusing to overwrite different content at {target}; "
-            "delete it deliberately or emit to a new path"
-        )
-    with target.open("xb") as handle:
-        handle.write(payload)
-    return True
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text in {"", EMISSION_STDOUT}:
+        return text
+    raise ValueError(
+        f"{label} does not take an output path: planning writes no file. Use "
+        f"{label} for the script inside the plan payload, or "
+        f"'{label} {EMISSION_STDOUT} > <file>' to redirect the raw script."
+    )
 
 
 def _emit_scripts(
@@ -923,52 +931,44 @@ def _emit_scripts(
     *,
     emit_tcl: str | None,
     emit_harness: str | None,
-    forbidden_root: Path | None,
-    forbidden_paths: Sequence[Path] = (),
-) -> dict[str, Any]:
-    """Emit the requested review artifacts and return their payload rows.
+) -> tuple[dict[str, Any], str | None]:
+    """Return the review-artifact payload rows and any raw stdout stream.
 
-    This function writes files and starts nothing.  The Tcl syntax evidence in
+    This function opens nothing and starts nothing. The Tcl syntax evidence in
     the returned rows is the package's own completeness check; no interpreter,
     Vivado or Vitis HLS ran, and none is claimed to have accepted the text.
     """
 
     rows: dict[str, Any] = {}
-    if emit_harness and not emit_tcl:
-        raise ValueError("--emit-harness requires --emit-tcl because the harness reads it")
-    if not emit_tcl:
-        return rows
-    script_path = _emission_target_path(
-        emit_tcl,
-        label="--emit-tcl",
-        forbidden_root=forbidden_root,
-        forbidden_paths=forbidden_paths,
-    )
-    written = _write_emitted_script(script, script_path)
+    tcl_mode = _emission_mode(emit_tcl, label="--emit-tcl")
+    harness_mode = _emission_mode(emit_harness, label="--emit-harness")
+    if harness_mode is not None and tcl_mode is None:
+        raise ValueError(
+            "--emit-harness requires --emit-tcl because the harness embeds it"
+        )
+    if tcl_mode is None:
+        return rows, None
     rows["emitted_tcl"] = emitted_script_payload(
         script,
-        path=str(script_path),
-        written=written,
         extra={"expected_outputs": list(expected_emitted_outputs(script.scope))}
         if script.target == VIVADO_TARGET
         else {"expected_outputs": ["csynth.rpt", "hls_summary.txt"]},
     )
-    if emit_harness:
-        harness = render_parse_harness(script, script_path=str(script_path))
-        harness_path = _emission_target_path(
-            emit_harness,
-            label="--emit-harness",
-            forbidden_root=forbidden_root,
-            forbidden_paths=(*forbidden_paths, script_path),
-        )
-        harness_written = _write_emitted_script(harness, harness_path)
+    raw: str | None = script.text if tcl_mode == EMISSION_STDOUT else None
+    if harness_mode is not None:
+        harness = render_parse_harness(script)
         rows["emitted_harness"] = emitted_script_payload(
             harness,
-            path=str(harness_path),
-            written=harness_written,
             extra={"subject_sha256": script.sha256, "runner": "tclsh"},
         )
-    return rows
+        if harness_mode == EMISSION_STDOUT:
+            if raw is not None:
+                raise ValueError(
+                    "only one of --emit-tcl and --emit-harness may stream to "
+                    "stdout; the other belongs in the plan payload"
+                )
+            raw = harness.text
+    return rows, raw
 
 
 def _hls_kernel_identity(value: str) -> tuple[Path, str, int]:
@@ -985,7 +985,7 @@ def _hls_kernel_identity(value: str) -> tuple[Path, str, int]:
     return kernel, hashlib.sha256(payload).hexdigest(), len(payload)
 
 
-def _vitis_hls_plan(args: argparse.Namespace) -> dict[str, Any]:
+def _vitis_hls_plan(args: argparse.Namespace) -> tuple[dict[str, Any], str | None]:
     """Plan one Vitis HLS C-synthesis script; this function starts nothing.
 
     There is no admitted Vitis HLS runner in this slice: ``daedalus-chip run``
@@ -1032,7 +1032,7 @@ def _vitis_hls_plan(args: argparse.Namespace) -> dict[str, Any]:
         "clock_period": str(args.clock_period).strip(),
         "project_dir": str(project_dir),
         "output_dir": str(output_dir),
-        "invocation_template": ["vitis_hls", "-f", "<emitted script>"],
+        "invocation_template": ["vitis_hls", "-f", "<script the operator saved>"],
         "effects": ["filesystem_write", "process_control", "process_spawn"],
         "network_capability_requested": False,
         "secret_capability_requested": False,
@@ -1054,21 +1054,13 @@ def _vitis_hls_plan(args: argparse.Namespace) -> dict[str, Any]:
         plan_sha256=_plan_digest(payload),
     )
     payload["emitted_tcl_sha256"] = script.sha256
-    payload.update(
-        _emit_scripts(
-            script,
-            emit_tcl=args.emit_tcl,
-            emit_harness=args.emit_harness,
-            # Symmetric with the Vivado target: planning never writes into the
-            # inspected source tree, so a review artifact goes somewhere else.
-            forbidden_root=root,
-            forbidden_paths=(kernel,),
-        )
+    rows, raw = _emit_scripts(
+        script,
+        emit_tcl=args.emit_tcl,
+        emit_harness=args.emit_harness,
     )
-    emitted = payload.get("emitted_tcl")
-    if isinstance(emitted, dict):
-        payload["argv"] = ["vitis_hls", "-f", emitted["path"]]
-    return payload
+    payload.update(rows)
+    return payload, raw
 
 
 def _output_dir(root: Path, base: str, run_id: str, phase: str) -> Path:
@@ -2108,16 +2100,27 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--impl-run", default="impl_1")
     plan.add_argument(
         "--emit-tcl",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="-",
         help=(
-            "write the canonical batch-mode Tcl script for this plan to a .tcl "
-            "path outside the inspected project; nothing is executed"
+            "put the canonical batch-mode Tcl script for this plan into the "
+            "payload as emitted_tcl.text; planning writes no file. Pass '-' to "
+            "stream the raw script to stdout instead (the plan moves to "
+            "stderr) so the operator can redirect it. Nothing is executed."
         ),
     )
     plan.add_argument(
         "--emit-harness",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="-",
         help=(
-            "also write the contained tclsh parse harness for the emitted "
-            "script; running it is an operator action, never this command's"
+            "also emit the self-contained tclsh parse harness for the script; "
+            "it embeds the script as base64 and reads no file. Running it is "
+            "an operator action, never this command's."
         ),
     )
     plan.add_argument("--top", help="required top function for --target vitis-hls")
@@ -2273,10 +2276,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "plan":
         if args.target == VITIS_HLS_TARGET:
             try:
-                payload = _vitis_hls_plan(args)
+                payload, raw = _vitis_hls_plan(args)
             except (ValueError, TclEmitError) as exc:
                 parser.error(str(exc))
-            _emit(payload, as_json=args.json)
+            _emit_plan(payload, raw, as_json=args.json)
             return 0
         try:
             for flag, value, default in (
@@ -2315,7 +2318,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "steps": steps,
             "security_boundary_claimed": False,
         }
-        if args.emit_tcl or args.emit_harness:
+        raw: str | None = None
+        if args.emit_tcl is not None or args.emit_harness is not None:
             try:
                 design, constraints = _emitted_source_lists(manifest)
                 scope = args.phase
@@ -2344,17 +2348,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     plan_sha256=_plan_digest(payload),
                     trusted_tcl_sha256=trusted_vivado_tcl().sha256,
                 )
-                payload.update(
-                    _emit_scripts(
-                        script,
-                        emit_tcl=args.emit_tcl,
-                        emit_harness=args.emit_harness,
-                        forbidden_root=manifest.project_root,
-                    )
+                rows, raw = _emit_scripts(
+                    script,
+                    emit_tcl=args.emit_tcl,
+                    emit_harness=args.emit_harness,
                 )
-            except (ValueError, TclEmitError, OSError) as exc:
+                payload.update(rows)
+            except (ValueError, TclEmitError) as exc:
                 parser.error(str(exc))
-        _emit(payload, as_json=args.json)
+        _emit_plan(payload, raw, as_json=args.json)
         return 0
 
     if args.command != "run":
