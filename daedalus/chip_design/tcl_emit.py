@@ -15,6 +15,7 @@ It is never evidence that Vivado or Vitis HLS accepts it.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import re
 from dataclasses import dataclass
@@ -831,30 +832,34 @@ def render_vitis_hls_flow(
 # ---------------------------------------------------------------------------
 
 
-def render_parse_harness(script: EmittedTclScript, *, script_path: str) -> EmittedTclScript:
-    """Render a plain-``tclsh`` harness that parses an emitted script safely.
+def render_parse_harness(script: EmittedTclScript) -> EmittedTclScript:
+    """Render a self-contained ``tclsh`` harness that parses an emitted script.
 
-    The harness replaces every vendor command with a recording stub and
-    replaces the effectful Tcl surfaces the emitted scripts use (``file
-    mkdir``/``copy``/``delete``/``rename`` and ``open``) with stubs, so running
-    it with ``tclsh`` starts no vendor tool and writes nothing.  It reports Tcl
-    completeness, the number of stubbed vendor calls, and whether evaluating
-    the script raised a Tcl error.
+    The subject script is carried inside the harness as base64, so the harness
+    reads no file and needs no path: it decodes the exact bytes the emitter
+    produced.  Every vendor command becomes a recording stub, and the
+    effectful Tcl surfaces the emitted scripts use (``file
+    mkdir``/``copy``/``delete``/``rename``, ``open`` and ``exit``) are replaced
+    too, so running it with ``tclsh`` starts no vendor tool and writes nothing.
+    It reports Tcl completeness, the number of stubbed vendor calls, and
+    whether evaluating the script raised a Tcl error.
 
     This harness is a reviewable artifact.  Daedalus never runs it: the CLI
-    that emits it spawns no process.  A green harness result proves the text
-    is parseable Tcl whose command words all resolve.  It is not evidence
-    that AMD Vivado or Vitis HLS accepts the script.
+    that emits it spawns no process and opens no file.  A green harness result
+    proves the text is parseable Tcl whose command words all resolve.  It is
+    not evidence that AMD Vivado or Vitis HLS accepts the script.
+
+    ``binary decode base64`` requires Tcl 8.6 or newer.
     """
 
     if not isinstance(script, EmittedTclScript):
         raise TclEmitError("parse harness input must be an EmittedTclScript")
     if script.target == PARSE_HARNESS_TARGET:
         raise TclEmitError("a parse harness cannot be its own subject")
-    path_literal = tcl_path_literal(script_path, name="script_path")
     stubs = tuple(sorted(set(script.commands) - TCL_BUILTINS - {"get_property"}))
     if not stubs:
         raise TclEmitError("parse harness needs at least one vendor command to stub")
+    encoded = base64.b64encode(script.data).decode("ascii")
     identities = (
         ("script_sha256", script.sha256),
         ("script_target", script.target),
@@ -870,9 +875,13 @@ def render_parse_harness(script: EmittedTclScript, *, script_path: str) -> Emitt
             identities=identities,
         )
     )
+    lines.append("# The subject script is embedded below as base64, so this harness reads")
+    lines.append("# no file and cannot be pointed at different bytes than the emitter saw.")
+    lines.append("set daedalus_script_base64 {")
+    lines.extend(encoded[offset : offset + 76] for offset in range(0, len(encoded), 76))
+    lines.append("}")
     lines.extend(
         [
-            f"set daedalus_script {{{path_literal}}}",
             f"set daedalus_expected_sha256 {{{script.sha256}}}",
             "set daedalus_calls [list]",
             "",
@@ -951,10 +960,7 @@ def render_parse_harness(script: EmittedTclScript, *, script_path: str) -> Emitt
             '        "daedalus-intercepted-exit"',
             "}",
             "",
-            "set daedalus_channel [daedalus_real_open $daedalus_script r]",
-            "fconfigure $daedalus_channel -translation binary",
-            "set daedalus_body [read $daedalus_channel]",
-            "close $daedalus_channel",
+            "set daedalus_body [binary decode base64 $daedalus_script_base64]",
             "set daedalus_complete [info complete $daedalus_body]",
             "",
             "set daedalus_exit_code {}",
@@ -966,8 +972,8 @@ def render_parse_harness(script: EmittedTclScript, *, script_path: str) -> Emitt
             "    }",
             "}",
             "",
-            'puts "DAEDALUS_TCL_PARSE script=$daedalus_script"',
             'puts "DAEDALUS_TCL_PARSE sha256_expected=$daedalus_expected_sha256"',
+            'puts "DAEDALUS_TCL_PARSE embedded_bytes=[string length $daedalus_body]"',
             'puts "DAEDALUS_TCL_PARSE complete=$daedalus_complete"',
             'puts "DAEDALUS_TCL_PARSE stub_calls=[llength $daedalus_calls]"',
             'puts "DAEDALUS_TCL_PARSE intercepted_exit=$daedalus_exit_code"',
@@ -1016,13 +1022,17 @@ def expected_emitted_outputs(scope: str) -> tuple[str, ...]:
 def emitted_script_payload(
     script: EmittedTclScript,
     *,
-    path: str,
-    written: bool,
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Canonical plan-payload row for one emitted script."""
+    """Canonical plan-payload row for one emitted script.
 
-    payload = {**script.to_dict(), "path": path, "written": written}
+    The script travels *inside* the payload as ``text``.  Emission deliberately
+    writes no file: the emitting command is effect-free, and the one admitted
+    effect boundary of this CLI is ``run_admitted_eda``/``begin_effect``.  An
+    operator who wants a file redirects the raw form to one themselves.
+    """
+
+    payload = {**script.to_dict(), "text": script.text}
     if extra:
         payload.update(dict(extra))
     return payload
