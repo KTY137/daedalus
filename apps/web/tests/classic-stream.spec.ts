@@ -32,6 +32,41 @@ function blockUnexpectedReplay(counter: { calls: number }) {
   };
 }
 
+test('classic composer only arms for sendable text and ignores IME confirmation Enter', async ({ page }) => {
+  const requests = { stream: 0, ask: 0 };
+  await page.route('**/api/ikarus/ask', async (route) => {
+    requests.ask += 1;
+    await route.abort();
+  });
+  await page.route(/\/api\/ikarus\/stream\?/, async (route) => {
+    requests.stream += 1;
+    await route.abort();
+  });
+
+  await openApp(page);
+  const composer = page.getByLabel('Ask Ikarus');
+  const send = page.getByRole('button', { name: 'Send' });
+
+  await expect(send).toBeDisabled();
+  await composer.fill('   ');
+  await expect(send).toBeDisabled();
+
+  await composer.fill('入力中');
+  await expect(send).toBeEnabled();
+  await composer.evaluate((element) => {
+    element.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      bubbles: true,
+      cancelable: true,
+      isComposing: true,
+    }));
+  });
+
+  await expect(composer).toHaveValue('入力中');
+  expect(requests.stream + requests.ask).toBe(0);
+});
+
 test('classic keeps a partial stream halted and never replays it with POST', async ({ page }) => {
   const replay = { calls: 0 };
   await page.route('**/api/ikarus/ask', blockUnexpectedReplay(replay));
