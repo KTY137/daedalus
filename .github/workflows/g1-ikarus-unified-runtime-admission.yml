@@ -51,6 +51,7 @@ on:
       - "tests/test_runtime_registry_claude_shim.py"
       - "tests/test_runtime_registry_fanout.py"
       - "tests/test_runtime_registry_singleflight.py"
+      - "tests/runtimes/test_trust_flags_agree.py"
       - "tests/runtimes/test_provider_executable_pre_admission.py"
       - "tests/runtimes/test_provider_executable_pre_admission_review.py"
       - "tests/runtimes/test_provider_executable_object_registry.py"
@@ -139,6 +140,7 @@ jobs:
           tests/test_runtime_registry_claude_shim.py
           tests/test_runtime_registry_fanout.py
           tests/test_runtime_registry_singleflight.py
+          tests/runtimes/test_trust_flags_agree.py
           tests/runtimes/test_provider_executable_pre_admission.py
           tests/runtimes/test_provider_executable_object_registry.py
           tests/runtimes/test_provider_runtime_executable_binding.py
@@ -171,6 +173,7 @@ jobs:
           tests/test_runtime_registry_singleflight.py
           tests/kernel/test_runtime_conformance_harness.py
           tests/runtimes/test_runtime_conformance_profiles.py
+          tests/runtimes/test_trust_flags_agree.py
           tests/runtimes/test_provider_executable_pre_admission.py
           tests/runtimes/test_provider_executable_pre_admission_review.py
           tests/runtimes/test_provider_executable_object_registry.py
