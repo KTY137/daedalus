@@ -712,3 +712,58 @@ def test_a_report_without_planner_facts_still_renders(isolated):
     """Retained reports from before this packet have no planner key."""
     text = loop._chat_report({"summary": "old", "steps": [], "mission_id": "m"})
     assert "Planner:" not in text
+
+
+# --------------------------------------------------------------------------
+# Council 2026-09-06 (council-20260906T012701Z-c52b8002, 3 of 3 seats) on G1-IKARUS-32/33
+# --------------------------------------------------------------------------
+
+PLAN_EXTENDED = {"type": "plan", "steps": ["Read the fixture file.", "Read it again to verify.", "Summarise both reads."]}
+PLAN_CHANGED_FRONT = {"type": "plan", "steps": ["Open the fixture instead.", "Read it again to verify."]}
+
+
+def test_a_revision_that_extends_the_plan_keeps_progress_over_the_unchanged_prefix(isolated):
+    """Anthropic seat: [s1,s2,s3] executed, then [s1,s2,s3,s4] reset progress to step 1 and
+    invited re-execution. Progress now survives over the steps a revision left unchanged at
+    the front; a revision that changes the first step restarts at 0."""
+    root, ledger = isolated
+    service = Service(max_steps=10)
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, READ, PLAN_EXTENDED, PLAN_CHANGED_FRONT, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "completed", result["summary"]
+    extended = prompts[4]["plan_progress"]
+    assert (extended["tool_steps_since_plan"], extended["next_step"]) == (2, "Summarise both reads.")
+    changed = prompts[5]["plan_progress"]
+    assert (changed["tool_steps_since_plan"], changed["next_step"]) == (0, "Open the fixture instead.")
+
+
+def test_a_failed_tool_step_is_not_progress_against_the_plan(isolated):
+    """Anthropic and OpenAI seats: the increment ran before the ok check. The loop ends on a
+    failed step, so the only observable is the order in the report: the plan is still in force
+    with zero executed steps recorded against it, and the mission is blocked, not completed."""
+    root, ledger = isolated
+    service = Service(max_steps=6, result={"ok": False, "state": "denied", "result": {}, "evidence": {}})
+    propose, prompts = _capturing_planner(PLAN_TWO, READ, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
+    assert result["state"] == "blocked" and result["tool_steps"] == 1
+    assert len(prompts) == 2, "no prompt is built after a failed step, so no advanced count can reach a planner"
+
+
+def test_a_non_boolean_remote_flag_never_reaches_a_remote_planner(monkeypatch):
+    """Anthropic and OpenAI seats: remote_context is reported false for allow_remote_context=1.
+    The route check uses the same `is True` test, so such a policy is refused before any planner
+    call and the report line can never say 'nein' for a planner that received observations.
+    (ComputerPolicy itself refuses a non-boolean flag at construction.)"""
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    with pytest.raises(loop.ComputerLoopRefused, match="local-only"):
+        loop._require_context_route({"planner_provider": "codex_cli", "allow_remote_context": 1})
+    with pytest.raises(loop.ComputerLoopRefused, match="local-only"):
+        loop._require_context_route({"planner_provider": "codex_cli", "allow_remote_context": "true"})
+    assert loop._require_context_route({"planner_provider": "codex_cli", "allow_remote_context": True}) == "codex_cli"
+
+
+def test_directive_states_the_real_threshold():
+    text = loop._prompt("o", [], [], {}, plan={"advisory": True, "revision": 1, "steps": ["s"], "artifact": {}},
+                        progress=loop._plan_progress({"steps": ["s"]}, 0))
+    assert "three in a row end the task as stalled" in text
+    assert "ends the task as stalled" not in text.replace("three in a row end the task as stalled", "")
