@@ -1,0 +1,93 @@
+{
+  "id": "G1-GARDEN-MAP-06",
+  "title": "Re-evaluate coverage dependency transplant against the current canonical lock state",
+  "status": "closed-research",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "5a1219fe831bfd54ecd3ace5e8b8e50077c7ea80",
+  "source": {
+    "branch": "packet/g1-map-02",
+    "head": "ce4bcfd4829b981cd57618201e6a73d70824fc64",
+    "selected_commit": "0580898c66ccf6e5128d42aa2932b4a5cae1295f",
+    "selected_blobs": {
+      "pyproject.toml": "965d2fcb4f372e26a7de75fedc55c368bc972e43",
+      "uv.lock": "5548843dbe7c60b2ad1abe562c9d7df7ea5bf840"
+    },
+    "ref_retained": true,
+    "wholesale_merge": false,
+    "archive_target_used": false
+  },
+  "current_canonical_state": {
+    "head": "5a1219fe831bfd54ecd3ace5e8b8e50077c7ea80",
+    "pyproject_blob": "b408814fb6b28a6854aa5458fd14a3d8083af937",
+    "uv_lock_blob": "27f706214636ca02f9fc504e91a20333f4df5605",
+    "coverage_declared_in_test_extra": false,
+    "coverage_present_in_uv_lock": false,
+    "pytest_xdist_declared": ">=3.6",
+    "pytest_xdist_locked": "3.8.0",
+    "execnet_locked": "2.1.2"
+  },
+  "source_state": {
+    "coverage_declared_in_test_extra": ">=7",
+    "coverage_locked": "7.16.0",
+    "pytest_xdist_locked": "3.8.0",
+    "execnet_locked": "2.1.2",
+    "historical_lock_regeneration_scope": "coverage plus then-stale pytest-xdist and execnet entries"
+  },
+  "decision": {
+    "semantic_need": "retain supported installation for the opt-in coverage-guided gate path; coverage remains optional for the default preflight but must be installable when explicitly requested",
+    "transplant": "refused-as-historical-lock-blob",
+    "reason": [
+      "the selected source commit was generated against an older dependency graph and its lock regeneration bundled coverage with pytest-xdist and execnet repair",
+      "the current canonical lock already contains pytest-xdist 3.8.0 and execnet 2.1.2, so the historical uv.lock blob is not the current canonical dependency graph",
+      "the current canonical pyproject and lock still omit coverage, so the semantic dependency need remains real",
+      "copying the historical lock or changing pyproject without a fresh current lock would create avoidable dependency drift instead of gardening it"
+    ],
+    "next_valid_implementation": "on the current canonical gardening line, add exactly coverage>=7 to the existing test extra, regenerate uv.lock from the current graph with the repository's current lock toolchain, then verify frozen test-extra installation plus the focused coverage-guided gate path before retaining the dependency change",
+    "parallel_abstraction_required": false
+  },
+  "verification": {
+    "inspection": {
+      "current_pyproject_test_extra": "coverage absent; pytest-xdist>=3.6 present",
+      "current_uv_lock": "coverage absent; pytest-xdist 3.8.0 and execnet 2.1.2 present",
+      "source_pyproject_test_extra": "coverage>=7 present",
+      "source_uv_lock": "coverage 7.16.0, pytest-xdist 3.8.0 and execnet 2.1.2 present"
+    },
+    "production_code_changed": false,
+    "dependency_files_changed": false,
+    "tests_changed": false,
+    "historical_test_claim_reused": false,
+    "claim_boundary": {
+      "full_repository_test_suite_claim": false,
+      "performance_claim": false,
+      "tensor_vs_forest_claim": false,
+      "crewai_claim": false,
+      "alphaevolve_claim": false
+    }
+  },
+  "gardener": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "archive_write": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "parallel_abstraction_added": false,
+    "source_branch_preserved": true,
+    "historical_lock_blob_copied": false
+  },
+  "authority": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "automatic_merge": false,
+    "gate_transition": false
+  },
+  "next": "Either perform a separate bounded dependency implementation packet using a freshly regenerated current uv.lock and focused verification, or continue commit-by-commit assessment of the remaining packet/g1-map-02 mapping-engine evidence. Do not wholesale-merge packet/g1-map-02 and do not move it into archive/legacy-20260830."
+}
