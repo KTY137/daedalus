@@ -272,8 +272,11 @@ def compile_relation_blocks(
     plans. When omitted, every representable binary relation signature observed
     in the Forest or in verified cross-plane bindings is compiled. Every
     selected relation requires ``complete`` Fourfold endpoint planes so sparse
-    zeroes cannot silently encode unknown partial or absent facts. Retained
-    Forest hyperedges and undirected Forest edges are never flattened into
+    zeroes cannot silently encode unknown partial or absent facts. Same-plane
+    Forest edges must also retain their exact canonical digest in that plane's
+    ``relation_sha256s``; a matching selected/discovered relation fails closed
+    when the Fourfold subject omitted that Forest relation. Retained Forest
+    hyperedges and undirected Forest edges are never flattened into
     pairwise/directional facts; discover-all and an explicitly selected
     conflicting relation fail closed instead.
 
@@ -316,6 +319,10 @@ def compile_relation_blocks(
             "Forest nodes are missing from the Fourfold plane partition: "
             + ", ".join(missing_nodes[:8])
         )
+    retained_relation_digests = {
+        plane.plane: frozenset(plane.relation_sha256s)
+        for plane in snapshot.planes
+    }
 
     requested_signatures = (
         None
@@ -369,6 +376,16 @@ def compile_relation_blocks(
             edge.relation,
             target_plane,
         )
+        if source_plane == target_plane:
+            edge_digest = canonical_sha(edge.to_dict())
+            if edge_digest not in retained_relation_digests[source_plane]:
+                conflicts = requested_set is None or signature in requested_set
+                if conflicts:
+                    raise ValueError(
+                        f"Fourfold {source_plane} plane does not retain ForestEdge "
+                        f"{edge.relation!r} digest"
+                    )
+                continue
         if not edge.directed:
             reverse_signature = RelationSignature(
                 target_plane,
