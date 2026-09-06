@@ -8,15 +8,34 @@ runtime capability, an observation authority, or permission to execute code.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 from daedalus.schemas import _identifier, _revision, _sha256
-from daedalus.spine.envelope import canonical_sha
 
 
 class ProviderInvocationSubjectError(ValueError):
     """The provider invocation identity is malformed or non-canonical."""
+
+
+def _canonical_digest(value: Any) -> str:
+    """Hash invocation identity bytes without a mutable cross-layer helper.
+
+    Provider invocation subjects participate in the sealed runtime trust chain,
+    so their identity must not depend on a replaceable helper imported from the
+    broader spine layer.  Keep the byte recipe exactly aligned with the spine's
+    canonical JSON contract while owning the tiny hashing primitive locally.
+    """
+
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -110,7 +129,7 @@ class ProviderInvocationSubject:
 
     @property
     def digest(self) -> str:
-        return canonical_sha(self.to_dict())
+        return _canonical_digest(self.to_dict())
 
 
 __all__ = [
