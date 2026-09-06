@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+import daedalus.runtimes.provider_invocation_authority as invocation_authority_module
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
 from daedalus.runtimes.provider_invocation_authority import (
@@ -17,6 +18,7 @@ from daedalus.runtimes.provider_invocation_authority import (
 from daedalus.runtimes.provider_observation import (
     issue_provider_observation_authority,
 )
+from daedalus.spine.envelope import canonical_sha
 
 
 NOW = datetime(2026, 8, 4, 22, 0, tzinfo=timezone.utc)
@@ -131,6 +133,37 @@ def test_exact_composite_authority_round_trips_and_verifies() -> None:
         restored.observation_authority.provider_id
     )
     assert len(restored.invocation_contract_sha256) == 64
+
+
+def test_authority_evidence_hashing_is_detached_from_shared_helper(monkeypatch) -> None:
+    authority = _authority(_execution())
+    body = authority.to_dict()
+    signing_body = dict(body)
+    signing_body["signature_sha256"] = "0" * 64
+    contract_body = {
+        "schema": "daedalus-provider-invocation-contract/1",
+        "invocation_contract_id": authority.invocation_contract_id,
+        "invocation_subject_sha256": authority.invocation_subject.digest,
+        "invocation_registry_sha256": authority.invocation_registry_sha256,
+    }
+    expected = (
+        canonical_sha(body),
+        canonical_sha(signing_body),
+        canonical_sha(contract_body),
+    )
+
+    monkeypatch.setattr(
+        invocation_authority_module,
+        "canonical_sha",
+        lambda _value: "f" * 64,
+        raising=False,
+    )
+
+    assert (
+        authority.digest,
+        authority.signing_digest,
+        authority.invocation_contract_sha256,
+    ) == expected
 
 
 @pytest.mark.parametrize(
