@@ -199,7 +199,7 @@ Wiederherstellung im `finally`), **Sandbox (gemeinsam)** ueber
 | [`run_persisted_promotion_authorization_mutations.py`](../../../scripts/run_persisted_promotion_authorization_mutations.py) | In-Place | [`daedalus/kernel/promotion.py`](../../../daedalus/kernel/promotion.py) | 3 |
 | [`run_promotion_execution_mutations.py`](../../../scripts/run_promotion_execution_mutations.py) | In-Place | [`daedalus/kernel/promotion_execution.py`](../../../daedalus/kernel/promotion_execution.py) | 4 |
 | [`run_promotion_execution_reader_mutations.py`](../../../scripts/run_promotion_execution_reader_mutations.py) | In-Place | [`daedalus/kernel/promotion_execution_reader.py`](../../../daedalus/kernel/promotion_execution_reader.py) | 6 |
-| [`run_promotion_receipt_authority_mutations.py`](../../../scripts/run_promotion_receipt_authority_mutations.py) | In-Place | [`daedalus/kernel/__init__.py`](../../../daedalus/kernel/__init__.py), [`daedalus/schemas.py`](../../../daedalus/schemas.py) sowie `daedalus/kernel/contracts.py` -- **dieser Pfad existiert nicht mehr**, siehe Ungeklaert | 1 |
+| [`run_promotion_receipt_authority_mutations.py`](../../../scripts/run_promotion_receipt_authority_mutations.py) | In-Place | [`daedalus/kernel/__init__.py`](../../../daedalus/kernel/__init__.py), [`daedalus/kernel/contracts/security.py`](../../../daedalus/kernel/contracts/security.py) und [`daedalus/kernel/contracts/canonical.py`](../../../daedalus/kernel/contracts/canonical.py) | 1 |
 
 ### Provider: Invocation, Executable-Ziele und Beobachtung
 
@@ -329,13 +329,14 @@ werden ueber ihre Ausgaben in Work Packets belegt.
 
 ## Ungeklaert
 
-* **Toter Pfad:** `scripts/run_promotion_receipt_authority_mutations.py:29`
-  liest `ROOT / "daedalus" / "kernel" / "contracts.py"`. Dieser Pfad existiert
-  nicht mehr -- `daedalus/kernel/contracts` ist heute ein Paket. Das Skript
-  bricht damit vor der ersten Mutation ab; es ist die einzige Datei im
-  Verzeichnis, deren statisch benannte Ziele nicht mehr aufloesen
-  (gemessen 2026-09-05, alle 89 Dateien geprueft). Nur ein Hinweis, nichts
-  geloescht.
+* **Geklaert 2026-09-05:**
+  [`run_promotion_receipt_authority_mutations.py`](../../../scripts/run_promotion_receipt_authority_mutations.py)
+  greift jetzt die tatsaechlichen Eigentuemermodule
+  [`security.py`](../../../daedalus/kernel/contracts/security.py) und
+  [`canonical.py`](../../../daedalus/kernel/contracts/canonical.py) an. Sein
+  Docstring behaelt den frueheren toten Einzeldatei-Pfad und den damals
+  gemessenen Vorabbruch als historische Fehlerursache; der laufende Runner
+  verwendet den Paketpfad.
 * **Ungeklaert:** Wie viele der 73 Kampagnen heute noch gruen laufen. Diese
   Seite hat keine davon ausgefuehrt -- In-Place-Runner schreiben in den
   Arbeitsbaum, und der ist in dieser Session dreckig und wird parallel benutzt.

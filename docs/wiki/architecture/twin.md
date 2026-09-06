@@ -2,7 +2,7 @@
 title: Twin
 type: module
 status: living
-updated: 2026-09-05
+updated: 2026-09-06
 covers: daedalus/twin
 ---
 # Twin
@@ -17,7 +17,7 @@ kompilierte Graph-IR, und alles hier ist eine regenerierbare Projektion daraus.
 Der Paket-Docstring sagt es direkt: Import erzeugt keinen Store, plant keine
 Arbeit, gewaehrt kein Vertrauen und promotet nichts.
 
-Gemessen 2026-09-05: 17 `.py`-Dateien, 4997 Zeilen. Die Extraktoren, die die
+Gemessen 2026-09-06: 15 direkte `.py`-Dateien, 3846 Zeilen. Die Extraktoren, die die
 Ebenen erst befuellen, liegen daneben in
 [Twin-Extractors](twin-extractors.md).
 
@@ -39,21 +39,32 @@ Ebenen erst befuellen, liegen daneben in
 | --- | --- | --- |
 | [`relation_blocks.py`](../../../daedalus/twin/relation_blocks.py) | Kanonische typisierte Sparse-Bloecke (bounded stdlib-CSR) als ausfuehrbares Orakel fuer optionale spaetere Backends. | `TypedRelationBlock`, `TypedAxis`, `RelationSignature`, `ProjectionSubject`, `MAX_REFERENCE_OPERATIONS` |
 | [`semiring.py`](../../../daedalus/twin/semiring.py) | Deterministische Semiring-Referenzsemantik. Reine Beobachter: verifizieren keine Evidenz, mutieren keinen Snapshot, promoten nichts. | `Semiring`, `BooleanSemiring`, `NaturalSemiring`, `TropicalSemiring`, `EvidenceDagSemiring`, `EvidenceValue`, `MAX_NATURAL_BITS`, `MAX_EVIDENCE_ALTERNATIVES`, `MAX_EVIDENCE_TERM_ATOMS` |
-| [`contractions.py`](../../../daedalus/twin/contractions.py) | Eine minimale typisierte Kontraktions-IR mit genau einem beschraenkten Referenzinterpreter. Nur Operationen, deren Semantik von Semiring und Block kommt. | `ContractionPlan`, `BlockRef`, `Compose`, `Hadamard`, `ReferenceContractionInterpreter` |
 | [`relation_compiler.py`](../../../daedalus/twin/relation_compiler.py) | Kompiliert autoritative Forest-Kanten und verifizierte Snapshot-Bindings in typisierte Bloecke. Jede Achse ist die *vollstaendige* Ebenenzugehoerigkeit aus dem Snapshot, nicht die in einer Relation beobachteten Labels -- nur so sind unabhaengig kompilierte Relationen exakt komponierbar. | `compile_relation_blocks`, `CompiledRelationBlocks`, `relation_block_name` |
 | [`relation_projection.py`](../../../daedalus/twin/relation_projection.py) | Strikter Adapter in das Boolean-Sparse-Orakel. Verlangt, dass *beide* Endpunkt-Ebenen `complete` sind, weil `TypedRelationBlock` kein Vollstaendigkeitsfeld hat und eine partielle Beobachtung sonst zur falschen Closed-World-Relation wuerde. | `boolean_relation_block_from_fourfold` |
 | [`tensor.py`](../../../daedalus/twin/tensor.py) | Deterministische Sparse-Tensor-Sicht eines exakten Fourfold/Forest-Subjekts, als kanonischer Vertrag mit `status` und Provenienz. | `TensorView`, `TensorAxis`, `SparseTensorEntry`, `parse_tensor_view`, `TENSOR_STATUSES`, `MAX_TENSOR_AXES` |
 | [`two_category.py`](../../../daedalus/twin/two_category.py) | Minimale evidenztragende Doppelkategorie fuer Twin-Evolution: Objekte sind typisierte Grenzen, horizontale Pfeile offene Komponenten, vertikale Pfeile Grenz-Migrationen, Quadrate Transformations-2-Zellen. Verifiziert keine Quittung, plant keinen Effekt. | `TypedBoundary`, `BoundaryPort`, `BoundaryMap`, `OpenFourfoldComponent`, `Transformation2Cell`, `VerificationStatus`, `MAX_BOUNDARY_PORTS`, `MAX_CELL_REFERENCES` |
 
-### Hybrid-Retrieval und Referenz-Compiler
+Der zusaetzliche Kontraktionsplan-Interpreter wurde mit G1-TENSOR-01CV als
+parallele Ausfuehrungs- und Budgetwahrheit entfernt. Die erhaltenen
+Multi-Hop-/Hadamard-Regressionen rufen `TypedRelationBlock.matmul()` und
+`hadamard()` direkt auf; der
+[Kernel-Vertrag](../../FOURFOLD_TENSOR_KERNEL_CONTRACT.md#contraction-plan-experiment-pruned-g1-tensor-01cv)
+enthaelt die Retirementsbegruendung.
+
+### Referenz-Compiler
 
 | Datei | Zweck | Wichtige Symbole |
 | --- | --- | --- |
-| [`hybrid_retrieval.py`](../../../daedalus/twin/hybrid_retrieval.py) | BM25-Seeding plus exakte typisierte Relationsplan-Ausfuehrung. BM25 und exakte Bezeichnersuche bleiben der schnelle physische Seed-Index, `ContractionPlan` liefert die logische Cross-Plane-Anfrage. Ergebnisse sind Vorschlaege; kein Verifier, kein Store, kein Scheduler, kein Effekt. | `FourfoldHybridRetriever`, `Bm25SeedIndex`, `HybridDocument`, `HybridHit`, `LexicalHit`, `HybridSearchResult`, `document_from_node_card` |
 | [`reference_compiler.py`](../../../daedalus/twin/reference_compiler.py) | Kompiliert *eine* beschraenkte Wiki-Anwendung in einen evidenzgebundenen Twin. Das Manifest deklariert eine endliche Quellmenge und semantische Claims -- die Claims werden nicht geglaubt, sondern aus Python-AST, deklariertem JavaScript, CSV, JSON-Schema und Markdown reproduziert. | `compile_reference_project`, `ReferenceCompileResult`, `ReferenceLimits`, `DEFAULT_REFERENCE_LIMITS`, `REFERENCE_SCHEMA`, `ReferenceCompileError` |
 | [`_reference_claims.py`](../../../daedalus/twin/_reference_claims.py) | Deterministische Pruefung der deklarierten Cross-Plane-Claims; erzeugt daraus `CrossPlaneBinding`-Records mit Beweis-Digests. | `verify_claims` |
 | [`_reference_common.py`](../../../daedalus/twin/_reference_common.py) | Strikte gemeinsame Helfer: Pfad-Confinement, Objekt-Whitelists, JSON-Laden, Groessengrenzen, Digest-Bildung. `CLAIM_KEYS` benennt die erlaubten Claim-Arten (`code_declares_type`, `type_matches_csv_field`, `type_matches_schema_field`, `wiki_documents_node`). | `ReferenceLimits`, `ReferenceCompileError`, `REFERENCE_SCHEMA`, `MANIFEST_KEYS`, `CLAIM_KEYS`, `safe_relpath`, `strict_object`, `strict_path_list`, `strict_json_loads`, `resolve_regular_file`, `read_file`, `decode_text`, `sha256_bytes` |
 | [`_reference_inventory.py`](../../../daedalus/twin/_reference_inventory.py) | Deterministische AST-, Datenschema- und Markdown-Inventare; baut `ForestNode`/`ForestEdge` aus Python, JavaScript, CSV, JSON-Schema und Markdown-Links. | `Inventory`, `build_inventory`, `normalized_link` |
+
+Beide eigenstaendigen Hybrid-Retriever-Stacks wurden nach der
+Integrationspruefung als doppelte Implementierungswahrheiten entfernt. Der
+[retained experiment tombstone](../../../experiments/fourfold_hybrid_retrieval/README.md)
+pinnt PR, Commit und Originalblobs; `relation_compiler.py` bleibt der aktive,
+unabhaengig getestete Relations-Compiler.
 
 ## Trust-Grenzen / Effekte
 
@@ -86,7 +97,7 @@ Anfrage kann damit nicht unbeschraenkt Rechenzeit ziehen.
 
 ## Tests
 
-Gemessen 2026-09-05: 34 Testmodule unter `tests/twin/`, plus Fourfold-Evidenz-
+Gemessen 2026-09-06: 39 Testmodule unter `tests/twin/`, plus Fourfold-Evidenz-
 Tests unter `tests/kernel/`. Auswahl:
 
 - Vertraege und Projektion: [`test_fourfold_contracts.py`](../../../tests/twin/test_fourfold_contracts.py),
@@ -100,7 +111,6 @@ Tests unter `tests/kernel/`. Auswahl:
   [`test_relation_contractions.py`](../../../tests/twin/test_relation_contractions.py),
   [`test_relation_semiring_retention.py`](../../../tests/twin/test_relation_semiring_retention.py),
   [`test_semiring_reference.py`](../../../tests/twin/test_semiring_reference.py),
-  [`test_contraction_operation_budget.py`](../../../tests/twin/test_contraction_operation_budget.py),
   [`test_hadamard_streaming.py`](../../../tests/twin/test_hadamard_streaming.py),
   [`test_fourfold_relation_projection.py`](../../../tests/twin/test_fourfold_relation_projection.py)
 - Tensor: [`test_tensor_kernel.py`](../../../tests/twin/test_tensor_kernel.py),
@@ -114,10 +124,10 @@ Tests unter `tests/kernel/`. Auswahl:
   [`test_tensor_heldout_csr_probe.py`](../../../tests/twin/test_tensor_heldout_csr_probe.py),
   [`test_tensor_heldout_multihop_probe.py`](../../../tests/twin/test_tensor_heldout_multihop_probe.py),
   [`test_tensor_forest_cost_probe.py`](../../../tests/twin/test_tensor_forest_cost_probe.py)
-- Hybrid-Retrieval: [`test_fourfold_hybrid_retrieval.py`](../../../tests/twin/test_fourfold_hybrid_retrieval.py)
-  (dieses Paket) und
-  [`test_fourfold_hybrid_retrieval_experiment.py`](../../../tests/twin/test_fourfold_hybrid_retrieval_experiment.py)
-  (das separate Experiment, siehe [Fourfold Hybrid Retrieval](../experiments/fourfold-hybrid-retrieval.md))
+- Gardening der entfernten Hybrid-Pfade:
+  [`test_hybrid_retrieval_gardening.py`](../../../tests/twin/test_hybrid_retrieval_gardening.py)
+  und [`test_fourfold_gardening.py`](../../../tests/twin/test_fourfold_gardening.py)
+  pinnen Abwesenheit, kanonischen Compiler und wiederherstellbare Evidenz.
 - Referenz-Compiler: [`test_wiki_reference.py`](../../../tests/twin/test_wiki_reference.py),
   [`test_reference_hardening.py`](../../../tests/twin/test_reference_hardening.py),
   [`test_reference_audit.py`](../../../tests/test_reference_audit.py)
@@ -142,19 +152,17 @@ Tests unter `tests/kernel/`. Auswahl:
 - [Spine](spine.md) -- liefert `canonical_sha` und `canonical_json` ueber die
   Alias-Fassade `daedalus.spine.envelope`, die fast jedes Modul hier importiert.
 - [Fourfold Hybrid Retrieval](../experiments/fourfold-hybrid-retrieval.md) --
-  das abgetrennte Experiment mit derselben Schichtung.
+  die Retirementsnotiz mit dem wiederherstellbaren Experiment-Tombstone.
 - [Graph delta as fitness](../graph-delta-as-fitness.md),
   [Wiki-Index](../index.md).
 
 ## Ungeklaert
 
-- **Ungeklaert:** das Verhaeltnis zwischen `daedalus/twin/hybrid_retrieval.py`
-  und `experiments/fourfold_hybrid_retrieval/retrieval.py`. Beide implementieren
-  BM25-Seeding plus typisierte Relationsexpansion, mit ueberlappenden Namen
-  (`ProjectionSubject`, `RelationSignature`, `TypedRelationBlock`,
-  `compile_relation_blocks`, `ContractionPlan`, `LexicalHit`, `HybridHit`), aber
-  in getrennten Modulen. Welches der beiden das Nachfolgemodul ist und ob eines
-  zurueckgebaut werden soll, ist aus dem Code nicht ablesbar.
+- **Geklaert durch G1-GARDEN-HYBRID-01/02:** beide konkurrierenden
+  Hybrid-Retriever wurden zurueckgebaut. Der aktive
+  [`relation_compiler.py`](../../../daedalus/twin/relation_compiler.py) bleibt;
+  der [Tombstone](../../../experiments/fourfold_hybrid_retrieval/README.md)
+  behaelt PR-, Commit- und Blob-Evidenz des separaten Experiments.
 - **Ungeklaert:** ob `read_projection.fourfold_read_projection` heute noch von
   einem Renderer aufgerufen wird oder nur noch vom Test.
 - **Ungeklaert:** ob die Data-Plane inzwischen aus einem Extraktor `complete`

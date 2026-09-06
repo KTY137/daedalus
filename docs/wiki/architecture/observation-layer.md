@@ -79,7 +79,7 @@ Objekt) ist `comparable=False` mit Begründung, statt jedes deklarierte Feld als
 die Funktion verlangt. Ein nie gesehenes Feld ist kein Feld, das nicht
 auftreten kann. Jeder Datensatz trägt `provenance="observed"` und den Lauf, aus
 dem er stammt; ein Konsument, der ihn als Tatsache meldet, liegt falsch. Das
-ist dieselbe Disziplin, die `eval/ceiling.py` anwendet, wenn es seinen sauberen
+ist dieselbe Disziplin, die `daedalus/eval/ceiling.py` anwendet, wenn es seinen sauberen
 vom undichten Arm trennt -- und im Masterplan Invariante 4: Modelle und
 Beobachtungen schlagen vor, Evaluatoren entscheiden.
 

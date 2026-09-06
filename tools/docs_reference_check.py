@@ -178,6 +178,42 @@ ALLOWED = {
     # delete the record of the loss.
     ("docs/GUI_CATALOGUE.md", "apps/web/src/components/glass/"):
         "named precisely as the directory e133e09b deleted; the section is the record of the removal",
+    # Integration review on 2026-09-06 surfaced current pages whose purpose is
+    # to retain a removed path or name a generated/future artifact. Keep these
+    # exact exceptions narrow: the page and absent target are both guarded by
+    # test_allowlist_entries_*, so a replacement becoming tracked makes the
+    # allowlist itself fail.
+    ("docs/FOURFOLD_TENSOR_KERNEL_CONTRACT.md", "daedalus/twin/contractions.py"):
+        "the G1-TENSOR-01CV tombstone names the duplicate module it records as pruned",
+    ("docs/LOCAL_DESKTOP_PACKAGE.md", "apps/web/src-tauri/backend"):
+        "generated sidecar output inside an isolated packaging copy, not tracked source",
+    ("docs/backlog/G1-HW-01_KICAD_READ_ONLY_INSPECTION.md", "docs/chip-design/KICAD.md"):
+        "a future in-scope deliverable named by the retained backlog packet",
+    (
+        "docs/evidence/G1-IKARUS-26_COMPUTER_LOOP_LIVE/adversarial_review.md",
+        ".claude/worktrees/lane9-adversarial-stage13",
+    ):
+        "the retained adversarial receipt names the disposable worktree it measured",
+    (
+        "docs/evidence/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT/rejected-candidates.md",
+        "tests/test_iron_plan_guard.py",
+    ):
+        "rejected-candidate evidence explicitly records why this removed test must not be rewritten",
+    ("docs/wiki/architecture/hooks.md", ".claude/proposals/hook_precompact_vault.py"):
+        "the live hooks page pins the absence of the retired parallel hook proposal",
+    ("docs/wiki/architecture/observe.md", "tests/observe/"):
+        "the live observation page explicitly records that no dedicated test directory exists",
+    (
+        "docs/wiki/experiments/forest-v2-s01-resolution.md",
+        "experiments/forest_v2/s01_resolution/README.md",
+    ):
+        "the audit records this missing path as the measured documentation defect and names its real target",
+    ("docs/wiki/experiments/forest-v2-s07-bm25.md", "tools/iron_plan_guard.py"):
+        "a frozen gold path retained precisely because the guard and file were retired",
+    ("docs/wiki/experiments/forest-v2-s07-bm25.md", "daedalus/verifier.py"):
+        "a frozen gold path retained to explain why the historical ranking no longer reproduces",
+    ("docs/wiki/tooling/claude-proposals.md", ".claude/proposals/hook_precompact_vault.py"):
+        "the proposals page pins the retired copy's absence and its canonical hooks replacement",
 }
 
 MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")

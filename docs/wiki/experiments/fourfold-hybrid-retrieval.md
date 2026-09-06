@@ -1,18 +1,25 @@
 ---
 title: Fourfold Hybrid Retrieval (Experiment)
 type: experiment
-status: living
-updated: 2026-09-05
+status: retired
+updated: 2026-09-06
 covers: experiments/fourfold_hybrid_retrieval
 ---
 # Fourfold Hybrid Retrieval (Experiment)
 
-`experiments/fourfold_hybrid_retrieval` ist ein eingegrenztes EXPERIMENT nach
+`experiments/fourfold_hybrid_retrieval` war ein eingegrenztes EXPERIMENT nach
 `AGENTS.md` ("Scientific freedom") und Masterplan Abschnitt 1: eingefrorener
 Spezifikationsrahmen, keine Produktionsschreibpfade, keine Promotion. Es
-beantwortet eine einzige Architekturfrage: **wie sieht die Naht zwischen der
+beantwortete eine einzige Architekturfrage: **wie sieht die Naht zwischen der
 logischen Vier-Ebenen-Anfrage und den physischen Indizes aus, wenn BM25 nicht
 der Gegner der Fourfold-Algebra ist, sondern ihr Zugriffspfad?**
+
+G1-GARDEN-HYBRID-02 hat den zweiten Planner/Retriever-Stack nach der
+Integrationspruefung aus dem Live-Baum entfernt. Das Verzeichnis enthaelt heute
+nur den [Evidenz-Tombstone](../../../experiments/fourfold_hybrid_retrieval/README.md),
+der PR #311, Experiment-Head, Merge-Commit und jeden Originalblob pinnt. Die
+folgenden Architektur- und Messangaben beschreiben das wiederherstellbare
+Experiment, nicht einen aktiven Produktionspfad.
 
 Der Vorlaeufer -- die Tensor-Experimente -- hatte gemessen, dass der scheinbare
 Gewinn einer Tensor-Repraesentation groesstenteils aus dem Vorindizieren kam,
@@ -37,18 +44,19 @@ Kernel-Pfad. Der Masterplan-Satz "Models and embeddings propose. Independent
 evidence verifies" gilt hier woertlich -- die Ausgabe traegt
 `authority = "unverified-retrieval-proposal"` und `proposal_only = True`.
 
-Gemessen 2026-09-05: 4 `.py`-Dateien, 1549 Zeilen, eine `README.md`, eine
-Testdatei mit 5 Tests, zwei GitHub-Workflows.
+Historischer Stand, gemessen 2026-09-05: 4 `.py`-Dateien, 1549 Zeilen, eine
+`README.md`, eine Testdatei mit 5 Tests, zwei GitHub-Workflows. Aktueller Stand:
+ein Tombstone und ein Gardening-Vertrag, keine ausfuehrbare Experimentdatei.
 
 ## Module
 
 | Datei | Zweck | Wichtige Symbole |
 | --- | --- | --- |
-| [`__init__.py`](../../../experiments/fourfold_hybrid_retrieval/__init__.py) | Re-Export der oeffentlichen Namen; der Docstring haelt die Schichtung und den Satz "Nothing here mutates Forest/Fourfold authority or participates in promotion" fest. | -- |
-| [`relations.py`](../../../experiments/fourfold_hybrid_retrieval/relations.py) | Der Compiler von autoritativem `KnowledgeForest` + `FourfoldSnapshot` zu deterministischen, regenerierbaren Adjazenzbloecken. Ein Block pro `(source_plane, relation, target_plane)`. | `compile_relation_blocks`, `RelationBlockCatalog`, `TypedRelationBlock`, `RelationSignature`, `RelationCell`, `ProjectionSubject`, `MAX_RELATION_BLOCKS`, `MAX_RELATION_ENTRIES`, `MAX_AXIS_LABELS` |
-| [`planner.py`](../../../experiments/fourfold_hybrid_retrieval/planner.py) | Die logische Anfragesprache (Schritt, Pfad, Plan) und ihre Uebersetzung auf physische Hash-Indizes plus ein deterministischer Referenz-Executor. | `RelationStep`, `PathExpression`, `ContractionPlan`, `PhysicalPlanner`, `PhysicalContractionPlan`, `PhysicalRelationIndex`, `CompiledPath`, `CompiledStep`, `IndexedHop`, `ReferenceContractionExecutor`, `ContractionResult`, `ContractionHit`, `EvidenceDerivation`, `MAX_PLAN_PATHS`, `MAX_PLAN_STEPS`, `MAX_EXECUTION_STATES`, `MAX_DERIVATIONS_PER_TARGET` |
-| [`retrieval.py`](../../../experiments/fourfold_hybrid_retrieval/retrieval.py) | Der Hybrid selbst: Node-Card-Dokumente in einem BM25-Index, Seeds in der Startebene, Plan-Ausfuehrung je Seed, RRF-Fusion, quittierter Vorschlag. | `NodeDocument`, `NodeDocumentIndex`, `LexicalHit`, `HybridRequest`, `HybridRetriever`, `HybridHit`, `HybridRetrievalReceipt`, `MAX_NODE_DOCUMENTS`, `MAX_SEED_HITS`, `MAX_RESULT_HITS` |
-| [`README.md`](../../../experiments/fourfold_hybrid_retrieval/README.md) | Der Paketvertrag in Prosa, inklusive der Liste "Deliberately not implemented" und dem naechsten zulaessigen Experiment. | -- |
+| `__init__.py` (retired blob `2bf6f03f...`) | Re-Export der oeffentlichen Namen; der Docstring hielt die Schichtung und den Satz "Nothing here mutates Forest/Fourfold authority or participates in promotion" fest. | -- |
+| `relations.py` (retired blob `cc08a2f9...`) | Der Compiler von autoritativem `KnowledgeForest` + `FourfoldSnapshot` zu deterministischen, regenerierbaren Adjazenzbloecken. Ein Block pro `(source_plane, relation, target_plane)`. | `compile_relation_blocks`, `RelationBlockCatalog`, `TypedRelationBlock`, `RelationSignature`, `RelationCell`, `ProjectionSubject`, `MAX_RELATION_BLOCKS`, `MAX_RELATION_ENTRIES`, `MAX_AXIS_LABELS` |
+| `planner.py` (retired blob `3bf58f11...`) | Die logische Anfragesprache (Schritt, Pfad, Plan) und ihre Uebersetzung auf physische Hash-Indizes plus einen deterministischen Referenz-Executor. | `RelationStep`, `PathExpression`, `ContractionPlan`, `PhysicalPlanner`, `PhysicalContractionPlan`, `PhysicalRelationIndex`, `CompiledPath`, `CompiledStep`, `IndexedHop`, `ReferenceContractionExecutor`, `ContractionResult`, `ContractionHit`, `EvidenceDerivation`, `MAX_PLAN_PATHS`, `MAX_PLAN_STEPS`, `MAX_EXECUTION_STATES`, `MAX_DERIVATIONS_PER_TARGET` |
+| `retrieval.py` (retired blob `c0ec9891...`) | Der Hybrid selbst: Node-Card-Dokumente in einem BM25-Index, Seeds in der Startebene, Plan-Ausfuehrung je Seed, RRF-Fusion, quittierter Vorschlag. | `NodeDocument`, `NodeDocumentIndex`, `LexicalHit`, `HybridRequest`, `HybridRetriever`, `HybridHit`, `HybridRetrievalReceipt`, `MAX_NODE_DOCUMENTS`, `MAX_SEED_HITS`, `MAX_RESULT_HITS` |
+| [`README.md`](../../../experiments/fourfold_hybrid_retrieval/README.md) | Aktiver Evidenz-Tombstone mit exakten Commit- und Blob-Identitaeten. | -- |
 
 Fremde Abhaengigkeiten sind genau drei, alle rein rechnend:
 `canonical_sha` aus [`daedalus/spine/envelope.py`](../../../daedalus/spine/envelope.py)
@@ -197,9 +205,10 @@ Die relevanten Grenzen sind Autoritaetsgrenzen, nicht Effektgrenzen:
 
 ## Tests
 
-Gemessen 2026-09-05: eine Testdatei, 295 Zeilen, 5 Tests --
-[`test_fourfold_hybrid_retrieval_experiment.py`](../../../tests/twin/test_fourfold_hybrid_retrieval_experiment.py).
-Sie baut ihre Fixtures aus einem echten `KnowledgeForest` und
+Historisch gemessen 2026-09-05: eine Testdatei, 295 Zeilen, 5 Tests --
+`test_fourfold_hybrid_retrieval_experiment.py`, im Tombstone als Blob
+`88dcbdc69a0586cc955e2ca02747d5442019d5d3` erhalten. Sie baute ihre Fixtures
+aus einem echten `KnowledgeForest` und
 `fourfold_from_knowledge_forest`, nicht aus handgeschriebenen Bloecken:
 
 - `test_compiler_preserves_many_to_many_edges_and_is_deterministic`
@@ -215,13 +224,13 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
 python -m pytest -q tests/twin/test_fourfold_hybrid_retrieval_experiment.py
 ```
 
-CI:
-[`fourfold-hybrid-retrieval.yml`](../../../.github/workflows/fourfold-hybrid-retrieval.yml)
-laeuft die fokussierten Tests auf Python 3.10 und 3.12 mit zwei Hash-Seeds --
-die Determinismus-Behauptung des Pakets wird also gegen Dict-Ordnung gemessen,
-nicht behauptet. Der zweite Workflow
-[`fourfold-hybrid-retrieval-evidence.yml`](../../../.github/workflows/fourfold-hybrid-retrieval-evidence.yml)
-gehoert zum *anderen*, in den Baum portierten Zweig (siehe "Ungeklaert").
+Die beiden dedizierten Workflows `fourfold-hybrid-retrieval.yml` und
+`fourfold-hybrid-retrieval-evidence.yml` wurden zusammen mit den doppelten
+Stacks entfernt. Der aktive [`fourfold-v2.yml`](../../../.github/workflows/fourfold-v2.yml)
+prueft den erhaltenen kanonischen Relations-Compiler;
+[`test_hybrid_retrieval_gardening.py`](../../../tests/twin/test_hybrid_retrieval_gardening.py)
+pinnt die Abwesenheit der beiden alten Workflows und die Wiederherstellbarkeit
+der retired Blobs.
 
 ## Status und Kill-Kriterien
 
@@ -274,21 +283,14 @@ Kontext-Token-Budgets -- also Gate-3-Arbeit, nicht Gate-1-Arbeit.
   [Tool vetting](../tool-vetting.md), [Feature backlog](../feature-backlog.md),
   [Wiki-Index](../index.md).
 
-## Ungeklaert
+## Retained historical questions and resolution
 
-- **Ungeklaert:** das Verhaeltnis zu
-  [`hybrid_retrieval.py`](../../../daedalus/twin/hybrid_retrieval.py)
-  und [`relation_compiler.py`](../../../daedalus/twin/relation_compiler.py)
-  im Produktionsbaum. Beide loesen dieselbe Aufgabe, tragen dieselben Begriffe
-  (`ContractionPlan`, `compile_relation_blocks`, `LexicalHit`, `HybridHit`) und
-  stammen aus zwei verschiedenen Work Packets
-  (`G1-EXP-FOURFOLD-HYBRID-01` in den Baum portiert,
-  `G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01` hier eingegrenzt). Unterschiede, die man
-  im Code sieht: die Twin-Variante nutzt CSR-Bloecke und die Semiring-Observer
-  (`ReferenceContractionInterpreter`, `CompiledRelationBlocks`,
-  `FourfoldHybridRetriever`, `Bm25SeedIndex`), diese hier nutzt Hash-Adjazenz
-  und einen einzelnen Referenz-Executor. Welche der beiden weiterlebt, steht in
-  keinem der beiden Packets.
+- **Geklaert durch G1-GARDEN-HYBRID-01/02:** der paketierte Hybrid-Retriever und
+  der separate Experiment-Stack waren zwei Implementierungswahrheiten und sind
+  beide entfernt. [`relation_compiler.py`](../../../daedalus/twin/relation_compiler.py)
+  bleibt der aktive Relations-Compiler; der
+  [Tombstone](../../../experiments/fourfold_hybrid_retrieval/README.md) haelt die
+  zweite Implementierung als reproduzierbare Git-Evidenz statt als Live-Code.
 - **Ungeklaert:** ob `HybridRetriever.search` bewusst *pro Seed* einen eigenen
   `execute`-Lauf macht. Der Kommentar begruendet nur die RRF-Formel, nicht die
   Schleife; ein einziger Lauf mit allen Seeds waere billiger, wuerde aber den

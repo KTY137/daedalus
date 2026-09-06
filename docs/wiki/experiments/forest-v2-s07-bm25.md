@@ -150,9 +150,11 @@ unter `tests/` referenziert nichts diesen Slice):
 
 Aufruf laut README: `python -m pytest experiments/forest_v2/s07_bm25/ -q`.
 
-Einziger externer Konsument im Baum:
-[`experiments/fourfold_hybrid_retrieval/retrieval.py`](../../../experiments/fourfold_hybrid_retrieval/retrieval.py)
-baut seine lexikalischen Seeds auf `BM25Index.from_documents`.
+Der fruehere externe Konsument `retrieval.py` aus dem inzwischen stillgelegten
+Fourfold-Hybrid-Experiment baute seine lexikalischen Seeds auf
+`BM25Index.from_documents`. Im aktuellen Baum bleibt nur der
+[Evidenz-Tombstone](../../../experiments/fourfold_hybrid_retrieval/README.md);
+der aktive Slice hat keinen externen Produktionskonsumenten.
 
 ## Verwandt
 
@@ -177,9 +179,9 @@ baut seine lexikalischen Seeds auf `BM25Index.from_documents`.
   `forest-v2-s07-bm25-measure/2` setzt; die spaeteren README-Abschnitte
   beschreiben die /2-Arme. Ob der Kontrakt-Abschnitt nur nachzuziehen ist,
   liess sich aus dem Code nicht entscheiden.
-- **Ungeklaert:** der README schreibt, das Verzeichnis sei "deliberately not a
-  package"; `experiments/fourfold_hybrid_retrieval/retrieval.py` importiert es
-  dennoch als `experiments.forest_v2.s07_bm25.bm25_index`. Ob das ueber
-  Namespace-Packages absichtlich funktioniert, steht nirgends.
+- **Geklaert durch G1-GARDEN-HYBRID-02:** die damalige Namespace-Package-Frage
+  hatte nur den inzwischen entfernten Hybrid-Konsumenten betroffen. Der
+  [Tombstone](../../../experiments/fourfold_hybrid_retrieval/README.md) haelt
+  dessen Commit- und Blob-Identitaet fest; s07 selbst bleibt unveraendert.
 - **Ungeklaert:** ob die im README genannte Verfallsfrist 2026-09-15 irgendwo
   mechanisch geprueft wird.
