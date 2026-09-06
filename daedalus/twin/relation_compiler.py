@@ -19,7 +19,7 @@ from typing import Any, Generic, Mapping, Sequence, TypeVar
 from ..kernel.contracts.base import _sha256
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import ForestEdge, KnowledgeForest
-from .contracts import FOURFOLD_PLANES, FourfoldSnapshot
+from .contracts import CrossPlaneBinding, FOURFOLD_PLANES, FourfoldSnapshot
 from .relation_blocks import (
     MAX_BLOCK_ENTRIES,
     ProjectionSubject,
@@ -194,6 +194,28 @@ def _selected_signatures(
     )
 
 
+def _require_complete_endpoint_planes(
+    snapshot: FourfoldSnapshot,
+    signatures: Sequence[RelationSignature],
+) -> None:
+    plane_map = snapshot.plane_map
+    incomplete = sorted(
+        {
+            plane
+            for signature in signatures
+            for plane in (signature.source_plane, signature.target_plane)
+            if plane_map[plane].status != "complete"
+        }
+    )
+    if incomplete:
+        detail = ", ".join(
+            f"{plane}={plane_map[plane].status}" for plane in incomplete
+        )
+        raise ValueError(
+            "relation compilation requires complete endpoint planes; " + detail
+        )
+
+
 def _observer_name(semiring: Semiring[Any]) -> str:
     if not isinstance(semiring, Semiring):
         raise ValueError("semiring must implement the Semiring protocol")
@@ -245,7 +267,9 @@ def compile_relation_blocks(
 
     ``signatures`` may predeclare empty blocks, which is useful for frozen query
     plans. When omitted, every representable binary relation signature observed
-    in the Forest or in verified cross-plane bindings is compiled. Retained
+    in the Forest or in verified cross-plane bindings is compiled. Every
+    selected relation requires ``complete`` Fourfold endpoint planes so sparse
+    zeroes cannot silently encode unknown partial or absent facts. Retained
     Forest hyperedges are never flattened into pairwise facts; discover-all and
     an explicitly selected conflicting relation fail closed instead.
 
@@ -325,10 +349,10 @@ def compile_relation_blocks(
                 "into pairwise relation blocks without losing semantics"
             )
 
-    facts: dict[
-        RelationSignature,
-        dict[tuple[str, str], set[tuple[str, ...]]],
-    ] = {}
+    discovered: set[RelationSignature] = set()
+    edge_records: list[
+        tuple[ForestEdge, RelationSignature, RelationSignature | None]
+    ] = []
     for edge in forest.edges:
         source_plane = node_plane.get(edge.source)
         target_plane = node_plane.get(edge.target)
@@ -349,11 +373,37 @@ def compile_relation_blocks(
                 edge.relation,
                 source_plane,
             )
+        edge_records.append((edge, signature, reverse))
+        discovered.add(signature)
+        if reverse is not None:
+            discovered.add(reverse)
 
-        include_forward = requested_set is None or signature in requested_set
-        include_reverse = reverse is not None and (
-            requested_set is None or reverse in requested_set
-        )
+    binding_records: list[tuple[CrossPlaneBinding, RelationSignature]] = []
+    if include_verified_bindings:
+        for binding in snapshot.bindings:
+            signature = RelationSignature(
+                binding.source_plane,
+                binding.relation,
+                binding.target_plane,
+            )
+            binding_records.append((binding, signature))
+            discovered.add(signature)
+
+    selected = (
+        requested_signatures
+        if requested_signatures is not None
+        else _selected_signatures(None, discovered)
+    )
+    _require_complete_endpoint_planes(snapshot, selected)
+    selected_set = frozenset(selected)
+
+    facts: dict[
+        RelationSignature,
+        dict[tuple[str, str], set[tuple[str, ...]]],
+    ] = {}
+    for edge, signature, reverse in edge_records:
+        include_forward = signature in selected_set
+        include_reverse = reverse is not None and reverse in selected_set
         if not include_forward and not include_reverse:
             continue
 
@@ -375,33 +425,20 @@ def compile_relation_blocks(
                 evidence_atoms=atoms,
             )
 
-    binding_count = 0
-    if include_verified_bindings:
-        binding_count = len(snapshot.bindings)
-        for binding in snapshot.bindings:
-            signature = RelationSignature(
-                binding.source_plane,
-                binding.relation,
-                binding.target_plane,
-            )
-            if requested_set is not None and signature not in requested_set:
-                continue
-            _record_fact(
-                facts,
-                signature=signature,
-                source=binding.source_node_id,
-                target=binding.target_node_id,
-                evidence_atoms=(
-                    binding.digest,
-                    *binding.evidence_sha256s,
-                ),
-            )
+    for binding, signature in binding_records:
+        if signature not in selected_set:
+            continue
+        _record_fact(
+            facts,
+            signature=signature,
+            source=binding.source_node_id,
+            target=binding.target_node_id,
+            evidence_atoms=(
+                binding.digest,
+                *binding.evidence_sha256s,
+            ),
+        )
 
-    selected = (
-        requested_signatures
-        if requested_signatures is not None
-        else _selected_signatures(None, set(facts))
-    )
     subject = ProjectionSubject(
         repository_id=snapshot.repository_id,
         source_revision=snapshot.source_revision,
@@ -452,7 +489,7 @@ def compile_relation_blocks(
         semantic_fact_count=sum(block.entry_count for _, block in compiled),
         forest_edge_count=len(forest.edges),
         forest_hyperedge_count=len(forest.hyperedges),
-        verified_binding_count=binding_count,
+        verified_binding_count=len(binding_records),
     )
 
 
