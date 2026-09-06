@@ -1,0 +1,77 @@
+[
+ {
+  "mission": "computer-loop-43-codex-r1",
+  "state": "completed",
+  "planner_calls": 4,
+  "tool_steps": 2,
+  "elapsed_s": 90.8,
+  "planner": {
+   "provider": "codex_cli",
+   "model": null,
+   "remote_context": true
+  },
+  "absent": [],
+  "prompt_chars_max": 7680,
+  "summary": "Page title: Daedalus stage 13 notes. Today: water the ficus; renew the library card; call the dentist at 15:00. Sentinel code: TANGERINE-4471."
+ },
+ {
+  "mission": "computer-loop-43-codex-r2",
+  "state": "completed",
+  "planner_calls": 4,
+  "tool_steps": 2,
+  "elapsed_s": 67.0,
+  "planner": {
+   "provider": "codex_cli",
+   "model": null,
+   "remote_context": true
+  },
+  "absent": [],
+  "prompt_chars_max": 7683,
+  "summary": "Page title: Daedalus stage 13 notes. Today: water the ficus; renew the library card; call the dentist at 15:00. Sentinel code: TANGERINE-4471."
+ },
+ {
+  "mission": "computer-loop-43-codex-r3",
+  "state": "completed",
+  "planner_calls": 4,
+  "tool_steps": 2,
+  "elapsed_s": 93.5,
+  "planner": {
+   "provider": "codex_cli",
+   "model": null,
+   "remote_context": true
+  },
+  "absent": [],
+  "prompt_chars_max": 7661,
+  "summary": "Page title: Daedalus stage 13 notes. Today: water the ficus; renew the library card; call the dentist at 15:00. Sentinel code: TANGERINE-4471."
+ },
+ {
+  "mission": "computer-loop-43-codex-r4",
+  "state": "completed",
+  "planner_calls": 4,
+  "tool_steps": 2,
+  "elapsed_s": 86.5,
+  "planner": {
+   "provider": "codex_cli",
+   "model": null,
+   "remote_context": true
+  },
+  "absent": [],
+  "prompt_chars_max": 7678,
+  "summary": "Page title: Daedalus stage 13 notes. Today: water the ficus; renew the library card; call the dentist at 15:00. Sentinel code: TANGERINE-4471."
+ },
+ {
+  "mission": "computer-loop-43-codex-r5",
+  "state": "completed",
+  "planner_calls": 4,
+  "tool_steps": 2,
+  "elapsed_s": 89.1,
+  "planner": {
+   "provider": "codex_cli",
+   "model": null,
+   "remote_context": true
+  },
+  "absent": [],
+  "prompt_chars_max": 7687,
+  "summary": "Page title: Daedalus stage 13 notes. Today: water the ficus; renew the library card; call the dentist at 15:00. Sentinel code: TANGERINE-4471."
+ }
+]

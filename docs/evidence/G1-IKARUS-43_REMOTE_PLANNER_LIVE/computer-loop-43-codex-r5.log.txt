@@ -1,0 +1,10 @@
+killswitch: SwitchState(running=True, reason='armed', path='<SCRATCH>\\control\\killswitch', token='RUN')
+policy before: a8623bf4bb60f6c16071fe22cb6ef561c65c52fcf9677550b929341c73f4695c | tools: ['browser.navigate', 'browser.read'] | enabled: True
+configured: {'ok': True, 'changed': False, 'policy_sha256': 'a8623bf4bb60f6c16071fe22cb6ef561c65c52fcf9677550b929341c73f4695c', 'policy': {'schema': 'daedalus-computer-policy/1', 'workspace': '<USERPROFILE>\\.daedalus\\computer-workspaces\\e7cef2dd3d99', 'tools': ['browser.navigate', 'browser.read'], 'origins': ['http://127.0.0.1:57660'], 'applications': {}, 'planner_provider': 'codex_cli', 'planner_model': None, 'allow_remote_context': True, 'max_steps': 16, 'timeout_s': 900, 'max_file_bytes': 1048576}, 'evidence': None}
+policy after: a8623bf4bb60f6c16071fe22cb6ef561c65c52fcf9677550b929341c73f4695c | enabled: True | tools: ['browser.navigate', 'browser.read'] | unavailable: {} | planner: codex_cli None | remote: True
+state: completed | ok: True | tool_steps: 2 | planner_calls: 4 | replans: 0 | repair_calls: 0 | elapsed_s: 89.1
+summary: 2 tool operation(s) completed; evidence is retained. The planner's task-level conclusion remains advisory.
+planner_summary: Page title: Daedalus stage 13 notes. Today: water the ficus; renew the library card; call the dentist at 15:00. Sentinel code: TANGERINE-4471.
+ step 1 browser.navigate | ok: True | status: observed | url: http://127.0.0.1:57660/notes.html | text: 'Daedalus stage 13 notes\n\nThis is a static page served from loopback for the Ikarus computer-loop measurement.\n\nToday\nwater the ficus\nrenew the library card\ncall'
+ step 2 browser.read | ok: True | status: observed | url: http://127.0.0.1:57660/notes.html | text: 'Daedalus stage 13 notes\n\nThis is a static page served from loopback for the Ikarus computer-loop measurement.\n\nToday\nwater the ficus\nrenew the library card\ncall'
+proposals retained: 4

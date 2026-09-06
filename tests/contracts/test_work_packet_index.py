@@ -194,7 +194,7 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "355 tracked files" in message  # re-measured 2026-09-06 after G1-IKARUS-32..35, 42..44
+    assert "355 tracked files" in message  # re-measured 2026-09-06 after G1-IKARUS-32..35, 42..44 and the 43 live evidence
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # v0.1.6 ASAE packet set with `tools/index_work_packets.py --render`.
