@@ -38,6 +38,35 @@ def test_scene_environment_manifest_matches_checked_in_assets() -> None:
     assert manifest["encoder"] == {"pillow": "10.4.0", "webp": "1.4.0"}
 
 
+def test_scene_archive_inputs_are_checkout_byte_stable() -> None:
+    scene_root = ROOT / "docs" / "design" / "blender-scenes"
+    sources = [
+        path.relative_to(ROOT).as_posix()
+        for path in sorted(scene_root.rglob("*"))
+        if path.is_file()
+        and "__pycache__" not in path.parts
+        and "logs" not in path.relative_to(scene_root).parts
+        and path.suffix != ".blend1"
+    ]
+    result = subprocess.run(
+        ["git", "check-attr", "text", "--stdin"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        input="\n".join(sources) + "\n",
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    unpinned = [
+        row for row in result.stdout.splitlines() if not row.endswith(": text: unset")
+    ]
+    assert unpinned == [], (
+        "scene archive inputs must retain their exact Git bytes across checkouts: "
+        + ", ".join(unpinned)
+    )
+
+
 def test_scene_archive_is_deterministic_and_excludes_raw_logs() -> None:
     result = _run("docs/design/blender-scenes/scripts/package.py", "--check")
     assert result.returncode == 0, result.stdout + result.stderr
