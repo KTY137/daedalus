@@ -53,8 +53,14 @@ jobs:
                   raise RuntimeError(f"{path}: expected exactly one match, found {count}: {old[:100]!r}")
               write(path, text.replace(old, new, 1))'''
           new_helper = '''    count = text.count(old)
-              if (count == 2 and path == "daedalus/ikarus_os.py" and
-                      old.startswith("    from .budget import process_guard_boundary_decision")):
+              stream_duplicate = (
+                  count == 2 and path == "daedalus/ikarus_os.py" and (
+                      old.startswith("    from .budget import process_guard_boundary_decision") or
+                      old.startswith("    host = os.environ.get(\\\"OLLAMA_HOST\\\", DEFAULT_HOST)") or
+                      old.startswith("    api_key = os.environ.get(\\\"DEEPSEEK_API_KEY\\\", \\\"\\\")")
+                  )
+              )
+              if stream_duplicate:
                   index = text.rfind(old)
                   write(path, text[:index] + new + text[index + len(old):])
                   return
