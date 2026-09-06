@@ -79,6 +79,40 @@ def test_fused_validation_retains_canonical_block_identity_and_digest() -> None:
     assert direct.digest == from_coordinates.digest
 
 
+@pytest.mark.parametrize("row_index", (-1, 2))
+def test_from_indexed_rejects_out_of_range_rows_instead_of_dropping_them(
+    row_index: int,
+) -> None:
+    rows, columns = _axes()
+    with pytest.raises(ValueError) as exc_info:
+        TypedRelationBlock._from_indexed(
+            _subject(),
+            RelationSignature("code", "declares", "type"),
+            rows,
+            columns,
+            {(row_index, 0): True},
+            BooleanSemiring(),
+        )
+
+    assert str(exc_info.value) == "indexed block contains an out-of-range row index"
+
+
+@pytest.mark.parametrize("row_index", (True, 1.0, "1"))
+def test_from_indexed_requires_exact_integer_row_indices(row_index: object) -> None:
+    rows, columns = _axes()
+    with pytest.raises(ValueError) as exc_info:
+        TypedRelationBlock._from_indexed(
+            _subject(),
+            RelationSignature("code", "declares", "type"),
+            rows,
+            columns,
+            {(row_index, 0): True},  # type: ignore[dict-item]
+            BooleanSemiring(),
+        )
+
+    assert str(exc_info.value) == "indexed block row indices must contain integers"
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     (
