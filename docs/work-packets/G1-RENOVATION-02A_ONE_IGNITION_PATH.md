@@ -51,8 +51,10 @@ its materializer; keep the three measurements `gate1` imports),
 (new; the shared door fixtures), `tests/ignition/test_voltage_ignition.py`,
 `tests/ignition/test_voltage_ignition_faults.py` (ported row by row),
 `tests/test_ignition_gate1.py` (the conjunct's failing tests),
-`docs/work-packets/G1_ACTIVATION_CHECKLIST.md`, this packet, and one fresh
-`runs/ignition/mission-gate1-voltage-ignition/` receipt store.
+`docs/work-packets/G1_ACTIVATION_CHECKLIST.md` and this packet.
+
+NOT in scope after all, and blocked rather than forced: a refreshed
+`runs/ignition/mission-gate1-voltage-ignition/` receipt store. See A10.
 
 Forbidden and untouched: the master plan, the amendment chain, `AGENTS.md`,
 `CLAUDE.md`, `.agentenv/`, `daedalus/spine/effect_boundary.py` (no new effect
@@ -115,7 +117,7 @@ every check evaluator.
 | A7 | The blocker chain recovers: run 3 after a blocked run 2 is a replay | third `write_receipt` in `::test_exit_zero_implies_replay_demonstrated` | green |
 | A8 | Each ported refusal row is discriminating | guard disabled in `gate1.py`, node goes red, guard restored (F1, F4 rows) | green |
 | A9 | Byte-pin census unchanged and complete | `pytest tests/test_ignition_bundle_gitattributes.py tests/test_byte_pin_eol_durability.py` | green |
-| A10 | The committed receipt demonstrates the replay | `runs/ignition/mission-gate1-voltage-ignition/receipt.json`: `replay.replay_demonstrated true`, `blockers []` | green |
+| A10 | The committed receipt demonstrates the replay | `runs/ignition/mission-gate1-voltage-ignition/receipt.json` | **BLOCKED on an owner action** — see below |
 
 ### The ported rows
 
@@ -131,6 +133,51 @@ every check evaluator.
 | rename precondition | exact-count `_replace` | `plan_work_items` + `rename_operator` refusals |
 | mid-run source mutation | `_tree_digest` before/after | `gate1.py:727` vs `gate1.py:1280` tripwire |
 | crash between writes | kill after the 3rd of 6 writes | kill the 2nd work item's operator; `compose_candidate` refuses the empty patch |
+
+### A10 — why the receipt was not refreshed
+
+`python -m daedalus.ignition` was run once from this worktree. It exited 1, and
+the first blocker is not about the slice:
+
+```
+work item wi-000-c41495030c8f could not lease: the kill switch for the
+installation control root is engaged (kill switch engaged: no permit file: the
+loop is not armed [C:\Users\nukei\.daedalus\control\232f43bed32a\killswitch])
+```
+
+The door derives its control root from the checkout it runs in
+(`daedalus/spine/killswitch.py` `control_root`). The main checkout's permit is
+armed; this worktree's control root, created for this packet, has **no permit
+file and no `.stopped` marker** — it has never been initialized
+[MEASURED 2026-09-06, `default_switch_path` for both roots]. Every attempt is
+therefore refused a lease, the composed candidate is the unrenamed base tree,
+and the remaining blockers all follow from that.
+
+Arming a kill switch is granting permission to perform effects on the owner's
+machine. Invariant 8 names the kill switch as a boundary enforced at effect
+boundaries, and no instruction reaching an implementation agent is the owner's
+consent, so the packet **stopped here instead of arming it**. The tracked
+receipt store was restored to its committed state (`git checkout -- runs/`,
+`git clean -fd runs/ignition/`) so the branch carries no receipt claiming a
+Gate-1 result nobody produced; the refused receipt's content is retained in the
+task report.
+
+To finish A10, an operator arms this worktree's control root and runs the door
+three times — drift, incomplete predecessor, replay. That is the sequence
+`G1-RENOVATION-01` §3 finding 3 already documents, now one run longer because
+run 2 correctly refuses:
+
+```
+python -c "from pathlib import Path; from daedalus.spine.killswitch import KillSwitch, default_switch_path; KillSwitch(default_switch_path(Path.cwd())).arm()"
+python -m daedalus.ignition   # exit 1: evaluator-bundle drift vs the 2026-08-30 receipt
+python -m daedalus.ignition   # exit 1: predecessor incomplete  <- new, and correct
+python -m daedalus.ignition   # exit 0: replay_demonstrated true, blockers []
+git add runs/ignition && git commit
+```
+
+The `execution_blockers` field WAS exercised by the real door in that run and is
+present in the receipt it wrote, so the new receipt shape is not unverified —
+only a green receipt is missing.
 
 ## Migration and rollback
 
@@ -180,8 +227,11 @@ the per-row RED/GREEN transcript. Commands, all from the isolated worktree
 .venv/Scripts/python.exe -m pytest -q --color=no -p no:cacheprovider \
     tests/ignition tests/test_ignition_gate1.py tests/test_ignition_bundle.py \
     tests/test_ignition_bundle_gitattributes.py tests/test_byte_pin_eol_durability.py
-.venv/Scripts/python.exe -m daedalus.ignition        (twice, for the replay)
 ```
+
+133 nodes green: 108 in the three ignition suites (up from the 104 baseline by
+exactly the four nodes of the conjunct fix), plus the 25 byte-pin nodes. The
+door run is A10 above.
 
 Iron Plan: ALIGNED · Iron Gate: 1 · touches invariants 1 (one kernel), 3
 (isolation), 6 (atomic revisions), 7 (provenance); plan §13 "no second

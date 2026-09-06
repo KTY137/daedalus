@@ -246,10 +246,21 @@ both trees in CAS [MEASURED 2026-09-06, `G1-RENOVATION-01` §2 rows 2.1-a…d,
 6. Non-promoting dry-run against the sealed authorization stack (§2.6).
 
 Evidence for this document, 2026-09-06 (`G1-RENOVATION-02A`, base
-`585b7ea4`): `pytest tests/ignition -q` → 10 passed, every node driving
+`585b7ea4`): 133 nodes green across `tests/ignition` (10),
+`tests/test_ignition_gate1.py` (38), `tests/test_ignition_bundle.py` (60) and
+the two byte-pin suites (25); every `tests/ignition` node drives
 `run_gate1_ignition` or a named seam of `daedalus/ignition/gate1.py`;
 `grep -rn "run_voltage_ignition\|materialize_voltage_rename" daedalus tests`
-returns only the deprecated shim and its own test. Superseded evidence
-(2026-08-17): `pytest tests/ignition/ -q` → 9 passed, all against
-`daedalus/ignition/runner.py`; registry state via `check_conformance`
+returns prose only — no shim, no import, nothing executable.
+
+**The receipt under `runs/ignition/mission-gate1-voltage-ignition/` is still
+the 2026-08-30 one.** The door was run once from the packet's worktree and
+exited 1 because that worktree's control root has never been armed; arming a
+kill switch is an owner action, so the packet stopped rather than force it. The
+refusal, and the three-run recipe that closes it, are in
+`docs/work-packets/G1-RENOVATION-02A_ONE_IGNITION_PATH.md` §A10. Nothing in
+this document rests on that receipt.
+
+Superseded evidence (2026-08-17): `pytest tests/ignition/ -q` → 9 passed, all
+against `daedalus/ignition/runner.py`; registry state via `check_conformance`
 (0 blockers, 78 not-central gaps), unmeasured since.
