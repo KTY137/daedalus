@@ -29,6 +29,17 @@ class _OversizedBlocks(Sequence[tuple[str, TypedRelationBlock[bool]]]):
         raise AssertionError("oversized block catalog was iterated")
 
 
+class _DeclaredEmptyBlocks(Sequence[tuple[str, TypedRelationBlock[bool]]]):
+    def __len__(self) -> int:
+        return 0
+
+    def __getitem__(self, index: int) -> tuple[str, TypedRelationBlock[bool]]:
+        raise AssertionError(f"empty block catalog was indexed at {index}")
+
+    def __iter__(self) -> Iterator[tuple[str, TypedRelationBlock[bool]]]:
+        raise AssertionError("declared-empty block catalog iterator was consumed")
+
+
 class _UnboundedBlocks:
     def __iter__(self) -> Iterator[tuple[str, TypedRelationBlock[bool]]]:
         raise AssertionError("unbounded block iterable was consumed")
@@ -55,3 +66,9 @@ def test_compiled_receipt_rejects_oversized_catalog_before_normalization() -> No
 def test_compiled_receipt_rejects_unbounded_iterable_before_consumption() -> None:
     with pytest.raises(ValueError, match="blocks must be a bounded sequence"):
         _receipt(_UnboundedBlocks())
+
+
+def test_compiled_receipt_materializes_only_declared_sequence_cardinality() -> None:
+    receipt = _receipt(_DeclaredEmptyBlocks())
+
+    assert receipt.blocks == ()

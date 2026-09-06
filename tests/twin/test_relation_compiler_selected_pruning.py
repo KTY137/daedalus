@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 import hashlib
 
 import pytest
@@ -89,6 +90,27 @@ def _fixture_with_hyperedge() -> tuple[KnowledgeForest, FourfoldSnapshot]:
     return forest, snapshot
 
 
+class _DeclaredSignatureCatalog(Sequence[RelationSignature]):
+    def __init__(self, signature: RelationSignature) -> None:
+        self._signature = signature
+
+    def __len__(self) -> int:
+        return 1
+
+    def __getitem__(self, index: int) -> RelationSignature:
+        if index == 0:
+            return self._signature
+        raise IndexError(index)
+
+    def __iter__(self) -> Iterator[RelationSignature]:
+        raise AssertionError("declared signature catalog iterator was consumed")
+
+
+class _UnboundedSignatures:
+    def __iter__(self) -> Iterator[RelationSignature]:
+        raise AssertionError("unbounded signature iterable was consumed")
+
+
 def test_explicit_signature_prunes_unselected_evidence_materialization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -173,6 +195,32 @@ def test_explicit_signature_contract_is_validated_before_edge_materialization(
             snapshot,
             BooleanSemiring(),
             signatures=(object(),),  # type: ignore[arg-type]
+        )
+
+
+def test_explicit_signature_catalog_materializes_declared_cardinality_only() -> None:
+    forest, snapshot = _fixture()
+    selected = RelationSignature("code", "imports", "code")
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=_DeclaredSignatureCatalog(selected),
+    )
+
+    assert tuple(compiled.block_map) == (relation_block_name(selected),)
+
+
+def test_explicit_signature_catalog_rejects_unbounded_iterable_before_consumption() -> None:
+    forest, snapshot = _fixture()
+
+    with pytest.raises(ValueError, match="signatures must be a bounded sequence"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=_UnboundedSignatures(),  # type: ignore[arg-type]
         )
 
 
