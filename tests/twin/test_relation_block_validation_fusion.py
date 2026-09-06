@@ -113,6 +113,55 @@ def test_from_indexed_requires_exact_integer_row_indices(row_index: object) -> N
     assert str(exc_info.value) == "indexed block row indices must contain integers"
 
 
+@pytest.mark.parametrize("column_index", (-1, 3))
+def test_from_indexed_rejects_out_of_range_columns_before_csr_materialization(
+    column_index: int,
+) -> None:
+    rows, columns = _axes()
+    with pytest.raises(ValueError) as exc_info:
+        TypedRelationBlock._from_indexed(
+            _subject(),
+            RelationSignature("code", "declares", "type"),
+            rows,
+            columns,
+            {(0, column_index): True},
+            BooleanSemiring(),
+        )
+
+    assert str(exc_info.value) == "indexed block contains an out-of-range column index"
+
+
+@pytest.mark.parametrize("column_index", (True, 1.0, "1"))
+def test_from_indexed_requires_exact_integer_column_indices(column_index: object) -> None:
+    rows, columns = _axes()
+    with pytest.raises(ValueError) as exc_info:
+        TypedRelationBlock._from_indexed(
+            _subject(),
+            RelationSignature("code", "declares", "type"),
+            rows,
+            columns,
+            {(0, column_index): True},  # type: ignore[dict-item]
+            BooleanSemiring(),
+        )
+
+    assert str(exc_info.value) == "indexed block column indices must contain integers"
+
+
+def test_from_indexed_rejects_incomparable_column_keys_before_sorting() -> None:
+    rows, columns = _axes()
+    with pytest.raises(ValueError) as exc_info:
+        TypedRelationBlock._from_indexed(
+            _subject(),
+            RelationSignature("code", "declares", "type"),
+            rows,
+            columns,
+            {(0, 0): True, (0, "1"): True},  # type: ignore[dict-item]
+            BooleanSemiring(),
+        )
+
+    assert str(exc_info.value) == "indexed block column indices must contain integers"
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     (
