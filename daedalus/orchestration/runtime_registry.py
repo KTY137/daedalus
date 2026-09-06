@@ -278,6 +278,44 @@ def resolve_runtime_command(
     return None
 
 
+_WINDOWS_BATCH_SUFFIXES = (".cmd", ".bat")
+
+
+def _runtime_platform() -> str:
+    """Return the process platform through a narrow, testable observation seam."""
+
+    return os.name
+
+
+def claude_command_for_spawn(
+    resolved: str | None = None,
+    *,
+    platform_name: str | None = None,
+) -> str:
+    """Return the resolved Claude executable iff argv can reach it as data.
+
+    Claude Code may be installed as an npm ``.cmd``/``.bat`` shim on Windows.
+    Python's ``shell=False`` does not turn such a batch file into a native
+    executable: Windows invokes ``cmd.exe`` and the command interpreter reparses
+    every argv element. Caller-controlled prompt/model text must therefore never
+    cross that relay. Readiness and live invocation use this same admission rule.
+    """
+
+    path = (
+        resolve_runtime_command("claude_code_cli")
+        if resolved is None
+        else resolved
+    )
+    if not path:
+        raise RuntimeError("Claude executable could not be resolved before spawn")
+    platform = _runtime_platform() if platform_name is None else platform_name
+    if platform == "nt" and path.casefold().endswith(_WINDOWS_BATCH_SUFFIXES):
+        raise RuntimeError(
+            "Claude execution refused: Windows .cmd/.bat launchers reparse argv"
+        )
+    return path
+
+
 def runtime_subprocess_env(
     runtime_id: str,
     *,
@@ -302,6 +340,14 @@ def _run_version(spec: RuntimeSpec) -> tuple[bool, str, str]:
         override = _COMMAND_ENV.get(spec.id, "")
         hint = f" or set {override}" if override else ""
         return False, "", f"{spec.command} not found on PATH or supported install locations{hint}"
+    if spec.id == "claude_code_cli":
+        try:
+            path = claude_command_for_spawn(
+                path,
+                platform_name=_runtime_platform(),
+            )
+        except RuntimeError as exc:
+            return False, path, str(exc)
     try:
         completed = subprocess.run(
             # Spawn the RESOLVED path, not the bare name: npm ships `codex` as a

@@ -52,6 +52,14 @@ def get_provider(name: str) -> Provider:
 
 
 def _availability_probe(name: str) -> tuple[bool, str]:
+    # Claude provider health must reuse the same cached executable admission as
+    # the runtime-status surface. Otherwise an npm batch shim can be advertised
+    # as usable after the actual argv boundary has already refused it.
+    if name == "claude_cli":
+        from ..orchestration.runtime_registry import cached_runtime_status
+
+        row = cached_runtime_status("claude_code_cli")
+        return bool(row.get("available")), str(row.get("last_error") or "")
     return _probe_provider(name, get_provider)
 
 

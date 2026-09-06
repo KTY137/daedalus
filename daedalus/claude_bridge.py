@@ -305,8 +305,15 @@ Constraints:
         ],
         "additionalProperties": False,
     }
+    command_path = payload.get("command_path")
+    if type(command_path) is not str or not command_path:
+        raise ValueError("Claude payload requires an exact resolved command path")
+    if command_path.casefold().endswith((".cmd", ".bat")):
+        raise RuntimeError(
+            "Claude execution refused: Windows .cmd/.bat launchers reparse argv"
+        )
     cmd = [
-        "claude",
+        command_path,
         "-p",
         prompt,
         "--model",

@@ -89,10 +89,18 @@ def test_probe_failure_is_health_data() -> None:
 
 
 def test_legacy_health_resolves_the_live_factory_monkeypatch() -> None:
-    with patch("daedalus.providers.get_provider", return_value=_Available()) as factory:
+    runtime_row = {"available": True, "last_error": ""}
+    with (
+        patch("daedalus.providers.get_provider", return_value=_Available()) as factory,
+        patch(
+            "daedalus.orchestration.runtime_registry.cached_runtime_status",
+            return_value=runtime_row,
+        ) as claude_readiness,
+    ):
         rows = legacy.provider_health()
         available = legacy.available_providers()
-    assert factory.call_count == 8
+    assert factory.call_count == 6
+    assert claude_readiness.call_count == 2
     assert all(
         row["available"]
         for row in rows

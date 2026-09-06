@@ -436,6 +436,7 @@ def _attach_invocation_stack(
         "agent": _agent(),
         "model": "sonnet",
         "timeout_s": effective_timeout,
+        "command_path": str((worktree / "claude.exe").resolve()),
         "invocation_sha256": invocation_sha,
     }
     if execution_limit_policy is not None:
@@ -628,6 +629,9 @@ def _stack(
     execution_limit_policy: ExecutionLimitPolicy | None = None,
     subprocess_run=None,
 ):
+    claude_executable = tmp_path / "claude.exe"
+    claude_executable.write_bytes(b"test executable identity")
+    monkeypatch.setenv("DAEDALUS_CLAUDE_CLI", str(claude_executable))
     authorization = _authorization(
         tmp_path,
         monkeypatch,
