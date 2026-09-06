@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 import threading
 
 import pytest
@@ -8,6 +10,7 @@ from daedalus.ikarus_cancellation import (
     CancellationRegistrationError,
     CancellationRegistry,
     CancellationSignal,
+    terminate_owned_subprocess,
 )
 
 
@@ -170,3 +173,93 @@ def test_cancel_wait_timeout_boundary_fails_closed() -> None:
     registry.open("turn-timeout-0001")
     with pytest.raises(ValueError, match="timeout_s must be >= 0"):
         registry.cancel_and_wait("turn-timeout-0001", timeout_s=-0.1)
+
+
+def _sleeping_child() -> subprocess.Popen[bytes]:
+    return subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def test_owned_subprocess_is_not_touched_before_cancellation() -> None:
+    signal = CancellationSignal("turn-proc-live-01")
+    proc = _sleeping_child()
+    try:
+        receipt = terminate_owned_subprocess(signal, proc, grace_s=0.5)
+        assert receipt.cancellation_requested is False
+        assert receipt.was_running is True
+        assert receipt.terminate_sent is False
+        assert receipt.kill_sent is False
+        assert receipt.process_exited is False
+        assert proc.poll() is None
+    finally:
+        proc.kill()
+        proc.wait(timeout=5)
+
+
+def test_owned_subprocess_stop_produces_positive_exit_evidence() -> None:
+    signal = CancellationSignal("turn-proc-stop-01")
+    proc = _sleeping_child()
+    signal.cancel()
+
+    receipt = terminate_owned_subprocess(signal, proc, grace_s=1.0)
+
+    assert receipt.request_id == signal.request_id
+    assert receipt.cancellation_requested is True
+    assert receipt.was_running is True
+    assert receipt.terminate_sent is True
+    assert receipt.process_exited is True
+    assert receipt.returncode is not None
+    assert proc.poll() is not None
+
+
+def test_owned_subprocess_already_terminal_is_observed_not_reterminated() -> None:
+    signal = CancellationSignal("turn-proc-done-01")
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "pass"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    proc.wait(timeout=5)
+    signal.cancel()
+
+    receipt = terminate_owned_subprocess(signal, proc, grace_s=0.5)
+
+    assert receipt.cancellation_requested is True
+    assert receipt.was_running is False
+    assert receipt.terminate_sent is False
+    assert receipt.kill_sent is False
+    assert receipt.process_exited is True
+    assert receipt.returncode == proc.returncode
+
+
+def test_owned_subprocess_boundary_rejects_substituted_handles_before_methods_run() -> None:
+    signal = CancellationSignal("turn-proc-type-01")
+
+    class SubstituteSignal(CancellationSignal):
+        pass
+
+    class FakeProcess:
+        def __getattribute__(self, name: str):
+            raise AssertionError(f"substituted process member accessed: {name}")
+
+    with pytest.raises(TypeError, match="exact CancellationSignal"):
+        terminate_owned_subprocess(SubstituteSignal(signal.request_id), FakeProcess())  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="exact subprocess.Popen"):
+        terminate_owned_subprocess(signal, FakeProcess())  # type: ignore[arg-type]
+
+
+def test_owned_subprocess_negative_grace_fails_before_process_observation() -> None:
+    signal = CancellationSignal("turn-proc-grace-01")
+    proc = _sleeping_child()
+    try:
+        with pytest.raises(ValueError, match="grace_s must be >= 0"):
+            terminate_owned_subprocess(signal, proc, grace_s=-0.1)
+        assert proc.poll() is None
+    finally:
+        proc.kill()
+        proc.wait(timeout=5)
