@@ -10,26 +10,42 @@ import pytest
 
 import daedalus.claude_bridge as claude_bridge
 import daedalus.providers.claude_cli as claude_provider
+from daedalus.kernel.effects import EffectExecutionRequest
+from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.providers.claude_cli import (
     ClaudeCLIProvider,
     ClaudeProviderAuthorizationRequired,
     ClaudeProviderScopeMismatch,
+    ClaudeWorkspaceGrant,
     claude_idempotency_key,
     claude_invocation_sha256,
 )
+from daedalus.runtimes.provider_executable_object_registry import (
+    ProviderExecutableObjectRegistry,
+)
+from daedalus.runtimes.provider_executable_pre_admission import (
+    ProviderExecutablePreAdmissionReceipt,
+)
+from daedalus.runtimes.provider_invocation_abi import ProviderInvocationABIContract
+from daedalus.runtimes.provider_invocation_authority import (
+    ProviderInvocationObservationAuthority,
+)
+from daedalus.runtimes.provider_invocation_payload import ProviderInvocationPayload
+from daedalus.runtimes.provider_observation import ProviderObservationBindingLedger
 
 
-SEALED_FIELDS = {
-    "runtime_authorization",
-    "effect_execution",
-    "workspace_grant",
-    "invocation_authority",
-    "invocation_payload",
-    "invocation_abi",
-    "executable_registry",
-    "pre_admission",
-    "observation_binding_ledger",
+SEALED_TYPES = {
+    "runtime_authorization": RuntimeBoundEffectAuthorization,
+    "effect_execution": EffectExecutionRequest,
+    "workspace_grant": ClaudeWorkspaceGrant,
+    "invocation_authority": ProviderInvocationObservationAuthority,
+    "invocation_payload": ProviderInvocationPayload,
+    "invocation_abi": ProviderInvocationABIContract,
+    "executable_registry": ProviderExecutableObjectRegistry,
+    "pre_admission": ProviderExecutablePreAdmissionReceipt,
+    "observation_binding_ledger": ProviderObservationBindingLedger,
 }
+SEALED_FIELDS = set(SEALED_TYPES)
 
 
 def _provider_tree() -> ast.Module:
@@ -54,7 +70,10 @@ def _invocation(tmp_path: Path, **changes: object) -> str:
 
 
 def _sealed_bundle(**changes: object) -> claude_bridge.ClaudeSealedInvocationBundle:
-    values = {name: object() for name in SEALED_FIELDS}
+    values = {
+        name: object.__new__(member_type)
+        for name, member_type in SEALED_TYPES.items()
+    }
     values.update(changes)
     return claude_bridge.ClaudeSealedInvocationBundle(**values)  # type: ignore[arg-type]
 
@@ -89,6 +108,17 @@ def test_public_claude_bridge_rejects_duck_typed_bundle_before_member_access() -
 def test_sealed_bundle_rejects_empty_member_at_construction() -> None:
     with pytest.raises(ValueError, match="pre_admission"):
         _sealed_bundle(pre_admission=None)
+
+
+@pytest.mark.parametrize("member", sorted(SEALED_FIELDS))
+def test_sealed_bundle_rejects_substituted_member_type_before_access(member: str) -> None:
+    class AmbientAuthority:
+        @property
+        def digest(self):
+            raise AssertionError("substituted authority member was evaluated")
+
+    with pytest.raises(TypeError, match=member):
+        _sealed_bundle(**{member: AmbientAuthority()})
 
 
 def test_public_claude_bridge_unwraps_exact_bundle_only_at_provider_boundary(
