@@ -18,14 +18,23 @@ sets while releasing the exact live signal.  ``cancel_and_wait`` can use that
 event to produce bounded positive evidence that the request owner has actually
 left its live scope; a timeout remains an explicit unproven outcome rather than
 being rounded up to "stopped".
+
+Subprocess termination is kept just as narrow. ``terminate_owned_subprocess``
+accepts the exact live signal and the exact ``Popen`` object the caller owns;
+it registers no ambient callback and owns no process table.  Its receipt says
+only what this process observed: whether cancellation had been requested,
+whether terminate/kill were sent, and whether that exact child was observed to
+exit.  It deliberately says nothing about remote billing or vendor-side work.
 """
 from __future__ import annotations
 
 import re
+import subprocess
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Any
 
 
 # Browser-generated UUIDs fit this alphabet, but the contract deliberately does
@@ -78,6 +87,35 @@ class StopReceipt:
         }
 
 
+@dataclass(frozen=True)
+class SubprocessStopReceipt:
+    """Positive, local evidence for stopping one exact owned child process.
+
+    ``process_exited`` is only true after ``poll``/``wait`` observed the child
+    terminal.  The receipt intentionally does not infer anything about a remote
+    service the child may have contacted before it exited.
+    """
+
+    request_id: str
+    cancellation_requested: bool
+    was_running: bool
+    terminate_sent: bool
+    kill_sent: bool
+    process_exited: bool
+    returncode: int | None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "request_id": self.request_id,
+            "cancellation_requested": self.cancellation_requested,
+            "was_running": self.was_running,
+            "terminate_sent": self.terminate_sent,
+            "kill_sent": self.kill_sent,
+            "process_exited": self.process_exited,
+            "returncode": self.returncode,
+        }
+
+
 class CancellationSignal:
     """Thread-safe stop signal passed directly to provider cancellation probes."""
 
@@ -123,6 +161,84 @@ class CancellationSignal:
     def _mark_finished(self) -> None:
         """Registry-only terminal mark for the exact live owner."""
         self._finished.set()
+
+
+def terminate_owned_subprocess(
+    signal: CancellationSignal,
+    process: subprocess.Popen[Any],
+    *,
+    grace_s: float = 1.0,
+) -> SubprocessStopReceipt:
+    """Stop one exact child after cancellation and prove what actually happened.
+
+    The helper is deliberately opt-in: it neither watches a global registry nor
+    discovers processes.  A caller that owns both ``signal`` and ``process``
+    invokes it after observing cancellation.  ``terminate`` gets one bounded
+    grace window; if the child is still live, ``kill`` gets the same bounded
+    observation window.  Expiry stays ``process_exited=False`` rather than being
+    rounded up to success.
+
+    Exact types are required at this trust boundary.  A duck-typed process can
+    run arbitrary code from ``poll``/``terminate``/``wait`` before the caller has
+    proved it is the child handle it created.
+    """
+    if type(signal) is not CancellationSignal:
+        raise TypeError("signal must be an exact CancellationSignal")
+    if type(process) is not subprocess.Popen:
+        raise TypeError("process must be an exact subprocess.Popen")
+    grace = float(grace_s)
+    if grace < 0:
+        raise ValueError("grace_s must be >= 0")
+
+    requested = signal.cancelled()
+    running = process.poll() is None
+    if not requested or not running:
+        code = process.poll()
+        return SubprocessStopReceipt(
+            request_id=signal.request_id,
+            cancellation_requested=requested,
+            was_running=running,
+            terminate_sent=False,
+            kill_sent=False,
+            process_exited=code is not None,
+            returncode=code,
+        )
+
+    terminate_sent = False
+    kill_sent = False
+    try:
+        process.terminate()
+        terminate_sent = True
+    except ProcessLookupError:
+        # The child won the race and exited between poll() and terminate().
+        pass
+
+    try:
+        returncode = process.wait(timeout=grace)
+    except subprocess.TimeoutExpired:
+        # Re-check before escalating: a child that became terminal at the
+        # boundary must not receive an unnecessary kill.
+        returncode = process.poll()
+        if returncode is None:
+            try:
+                process.kill()
+                kill_sent = True
+            except ProcessLookupError:
+                pass
+            try:
+                returncode = process.wait(timeout=grace)
+            except subprocess.TimeoutExpired:
+                returncode = process.poll()
+
+    return SubprocessStopReceipt(
+        request_id=signal.request_id,
+        cancellation_requested=True,
+        was_running=True,
+        terminate_sent=terminate_sent,
+        kill_sent=kill_sent,
+        process_exited=returncode is not None,
+        returncode=returncode,
+    )
 
 
 class CancellationRegistry:
