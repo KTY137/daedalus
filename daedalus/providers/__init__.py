@@ -140,6 +140,18 @@ def _configured(meta: ProviderMetadata) -> bool:
 def _availability_probe(name: str) -> tuple[bool, str]:
     if not _PROVIDERS[name].implemented:
         return False, "provider placeholder; implementation pending"
+
+    # Claude executable readiness has one canonical admission rule. Reusing the
+    # cached runtime row here prevents the provider-status plane/router from
+    # claiming a `.cmd`/`.bat` shim is usable after the actual spawn boundary has
+    # already refused it, and avoids launching a second `claude --version` probe
+    # when `/api/runtimes/status` and `/api/providers/status` refresh together.
+    if name == "claude_cli":
+        from ..runtime_registry import cached_runtime_status
+
+        row = cached_runtime_status("claude_code_cli")
+        return bool(row.get("available")), str(row.get("last_error") or "")
+
     try:
         return get_provider(name).available(), ""
     except Exception as exc:
