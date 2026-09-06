@@ -15,6 +15,8 @@ from sanitize import contains_private_path, inspect_png
 ROOT = Path(__file__).resolve().parent.parent
 ARCHIVE = ROOT.parent / "Daedalus-Blender-Scenes.zip"
 ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
+TEXT_MEMBER_NAMES = frozenset({".gitignore"})
+TEXT_MEMBER_SUFFIXES = frozenset({".html", ".json", ".md", ".py"})
 
 
 def included_files() -> list[Path]:
@@ -42,6 +44,14 @@ def validate_sources(paths: list[Path]) -> None:
                 raise RuntimeError(f"unsanitized metadata in {path.relative_to(ROOT)}")
 
 
+def archive_member_bytes(path: Path) -> bytes:
+    """Return checkout-independent bytes for one archive member."""
+    data = path.read_bytes()
+    if path.name in TEXT_MEMBER_NAMES or path.suffix.lower() in TEXT_MEMBER_SUFFIXES:
+        return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return data
+
+
 def write_archive(target: Path, paths: list[Path]) -> None:
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
         for path in paths:
@@ -50,7 +60,12 @@ def write_archive(target: Path, paths: list[Path]) -> None:
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3
             info.external_attr = 0o100644 << 16
-            bundle.writestr(info, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=6)
+            bundle.writestr(
+                info,
+                archive_member_bytes(path),
+                compress_type=zipfile.ZIP_DEFLATED,
+                compresslevel=6,
+            )
 
 
 def validate_archive(path: Path, expected_names: list[str]) -> dict[str, object]:

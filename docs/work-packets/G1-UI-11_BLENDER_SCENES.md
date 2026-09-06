@@ -82,11 +82,12 @@ metadata, including a local absolute workspace path, and that the first ZIP
 also included raw logs. `sanitize.py` removed 144 metadata chunks while
 asserting byte-identical IDAT streams. Final check: 12 PNGs, zero private
 chunks or absolute paths. A clean Windows checkout then exposed mixed CRLF/LF
-source bytes in the first archive. The complete scene-source subtree is now
-pinned `-text`, and a fresh byte-stable checkout rebuilds the same payload on
-every host. The deterministic ZIP contains 46 files, 19,859,546 bytes; CRC and
-privacy checks pass; SHA-256 is
-`35478e9793882aa2b341d1d661557d4f3e1cab08a795813a6e0f62a6cc682613`.
+source bytes in the first archive. The complete scene-source subtree is pinned
+`-text`, and `package.py` canonicalizes text members to LF at the archive
+boundary so an older, non-renormalized worktree cannot reintroduce CRLF. The
+deterministic ZIP contains 47 files, 19,864,725 bytes; CRC and privacy checks
+pass; SHA-256 is
+`814f400763abb44473c25947d35f617a6a6651b6efeb74df4b238edd6cb9b37d`.
 
 All six final previews were visually inspected, including corrected Dusk and
 Studio compositions. No owner art-direction approval, animation, GLB export,
