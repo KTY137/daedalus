@@ -461,11 +461,13 @@ CENSUS_MODULES = 483  # re-measured 2026-09-05 after the stage-14 lanes (pcb_des
 # two deleted Twin modules, so the 483-module total is unchanged.  None of the
 # 33 moved edges enters a non-trivial component: count 14, maximum 19, exact
 # membership assertions and CURRENT_COMPONENTS_SHA256 remain unchanged.
-# GPU-44 final head 96efc51b559a adds four contract/value lines to
+# GPU-44 head 96efc51b559a adds four contract/value lines to
 # twin.relation_compiler but no Import node. A fresh graph measurement confirms
-# the entire tuple unchanged: 483 modules, 1926 edges, 14 components, maximum
+# the entire tuple unchanged. The two subsequent product fixes through final
+# head 47c27d54eff2 alter computer refusal/control flow, again with no Import
+# node. The final tuple remains 483 modules, 1926 edges, 14 components, maximum
 # 19, and the exact component digest above.
-CENSUS_EDGES = 1926  # re-confirmed 2026-09-06 on final GPU-44 integration head
+CENSUS_EDGES = 1926  # re-confirmed 2026-09-06 on final integration head
 
 
 def _module_name(path: str) -> str:

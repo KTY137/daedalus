@@ -4612,14 +4612,14 @@ is unchanged.
 ## Final integrated-kernel remeasurement (2026-09-06, Windows)
 
 The historical rows above remain revision-bound evidence.  On exact integrated
-head `96efc51b559a521bf9b580c686b71704ebdc0279`, the repository venv's CPython
+head `47c27d54eff24f8f71fbbb1e4e018c85483474c3`, the repository venv's CPython
 3.12.13 ran the complete `probe_external_corpora.py` declaration twice.  The
 kernel row was identical across both runs apart from its root and wall-clock
 fields:
 
 | probe | final integrated corpus | measured result |
 | --- | --- | --- |
-| s02 `kernel` | 483 parsed files, 6,728 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; 44,796 type-name sites, resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930` |
+| s02 `kernel` | 483 parsed files, 6,728 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; 44,796 type-name sites, resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741` |
 
 Relative to the exact v0.1.6 measurement source `b59b2628ad6e`, this is a net
 +10 files and +145 functions.  A direct source census decomposes that movement:
@@ -4642,3 +4642,10 @@ except that raw site total is unchanged from the first-parent measurement,
 while the content-exact corpus digest correctly moves from
 `653bfb18c4a04cf9e111b9f902ae7799000cfac0e230c7cc1db08e66de1b48c8` to
 `d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930`.
+
+Two final product fixes after GPU-44 change only control-flow/refusal details in
+`runtimes/computer.py` and lexical path admission in
+`kernel/policy/computer.py`.  They add no file, function, import or type-name
+site, so every displayed measurement remains unchanged; their source bytes do
+move the content-exact digest from `d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930`
+to the final `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741`.
