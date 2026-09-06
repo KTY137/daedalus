@@ -1,0 +1,87 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-39",
+  "title": "Fail closed on indexed column keys before canonical ordering",
+  "classification": "implementation",
+  "domain": "tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "832119f70a9a3208f21b915b159e320986a96283",
+  "predecessor_evidence": {
+    "work_packet": "G1-EXP-TENSOR-GPU-38",
+    "record_blob": "edcfa084062f20b52e37da6c1df6852503d73a5c",
+    "negative_probe_commit": "2a8827ded876478454f6f385ffb5c58491e02ca4",
+    "finding": "Mixed exact-integer/non-integer indexed column keys could reach ordered.sort() before the relation-block boundary validated the column key, allowing Python tuple comparison to fail before the canonical fail-closed ValueError contract."
+  },
+  "implementation": {
+    "owner": "TypedRelationBlock._from_indexed",
+    "production_path": "daedalus/twin/relation_blocks.py",
+    "production_commit": "cd6b19fbb18aba41c754335cff9d603323307f3a",
+    "production_blob": "40c5f7c6a9c990fa8fe3c39cf47021ee76ae2e95",
+    "test_path": "tests/twin/test_relation_block_validation_fusion.py",
+    "test_commit": "03259c635f4204fe95a0b6b7580d3b62cb2f5d0c",
+    "test_blob": "462cc9c7726b91816befc9e3eec7dd34fca3f6df",
+    "semantics": [
+      "Materialize the existing indexed mapping once, as before.",
+      "Validate every row key as an exact int and within the existing row-axis bounds before sorting.",
+      "Validate every column key as an exact int and within the existing column-axis bounds before sorting.",
+      "Only after both indexed coordinates are admitted may canonical tuple ordering run.",
+      "Keep the existing TypedRelationBlock constructor as the final CSR, scalar, ordering and persisted-contract validator."
+    ],
+    "regressions": [
+      "negative and >= column_count indexed columns",
+      "bool, float and string column aliases",
+      "mixed integer/string column keys that were previously incomparable during sorting",
+      "existing GPU-37 indexed row fail-closed regressions remain pinned"
+    ]
+  },
+  "gardener_constraints": {
+    "parallel_abstraction_added": false,
+    "new_builder_added": false,
+    "new_validator_added": false,
+    "new_backend_added": false,
+    "new_cache_added": false,
+    "new_registry_added": false,
+    "new_public_api_added": false,
+    "existing_owner_extended_in_place": true
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "implementation_head": "03259c635f4204fe95a0b6b7580d3b62cb2f5d0c",
+    "workflow_run_id": 34018246867,
+    "merge_preview_sha": "bd3c1ae8a07b021b45a38fe06806bf29bc149f24",
+    "conclusion": "success",
+    "contract_matrix": "success",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "note": "This is pull-request integration evidence on the GitHub merge preview, not a claim that the full repository suite ran on the raw branch head."
+  },
+  "claim_boundaries": {
+    "correctness": "The bounded indexed-column pre-sort admission defect reproduced by GPU-38 is fixed in the existing canonical indexed owner and covered by focused regressions.",
+    "performance": "none",
+    "gpu_or_tensor_core_speedup": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "archive_legacy_20260830_written": false,
+    "unique_evidence_deleted": false,
+    "predecessor_negative_evidence_retained": true
+  }
+}
