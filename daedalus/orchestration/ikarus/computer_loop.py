@@ -412,6 +412,12 @@ def _computer_events_admitted(
     if not isinstance(tools, list) or any(type(tool) is not dict or not isinstance(tool.get("name"), str) for tool in tools):
         raise ComputerLoopRefused("computer capabilities must expose named tool descriptions")
     tool_inventory = {tool["name"]: tool for tool in tools}
+    # G1-IKARUS-33: provenance of the proposing model. The policy digest binds these
+    # values already; the report states them so a reader sees which planner ran and
+    # whether observations left the machine (measure-09 ran Codex over remote context).
+    planner_facts = {"provider": capabilities.get("planner_provider"),
+                     "model": capabilities.get("planner_model"),
+                     "remote_context": capabilities.get("allow_remote_context") is True}
     limit_policy = load_from_env()
     if (expected_execution_limit_policy_sha256 is not None
             and limit_policy.fingerprint_sha256 != expected_execution_limit_policy_sha256):
@@ -448,6 +454,7 @@ def _computer_events_admitted(
             "repository_input": {"status": "inapplicable", "reason": "general computer task"},
             "project_twin_input": {"status": "inapplicable", "reason": "general computer task"},
             "owner_context": context_snapshot,
+            "planner": planner_facts,
         })
         intent, created = _claim_mission(ledger, {
             "mission_id": mission_id, "objective": objective, "policy_sha256": policy_digest,
@@ -694,7 +701,7 @@ def _computer_events_admitted(
             "steps": history, "summary": summary, "planner_summary": planner_summary,
             "authority_root": str(root), "planner_calls": planner_calls, "tool_steps": step,
             "replans": replans, "repair_calls": repair_calls, "plan": plan,
-            "proposals": proposals,
+            "proposals": proposals, "planner": planner_facts,
             "task_success_verified": False, "elapsed_s": max(0.0, clock() - started_at),
         }
         final_artifact = store_canonical_json(artifact_root, report)
@@ -736,6 +743,11 @@ def _chat_report(report: Mapping[str, Any]) -> str:
         if len(text) > 2000:
             text = text[:2000] + " … (full observation retained in evidence)"
         lines.extend(["", f"`{step['tool']}`", "", "```json", text, "```"])
+    planner = report.get("planner")
+    if isinstance(planner, dict):
+        model = f" ({planner['model']})" if planner.get("model") else ""
+        left = "ja" if planner.get("remote_context") is True else "nein"
+        lines.extend(["", f"Planner: {planner.get('provider')}{model} · Kontext hat den Rechner verlassen: {left}"])
     if report.get("mission_id"):
         lines.extend(["", f"Mission: `{report['mission_id']}`"])
     return "\n".join(lines)

@@ -66,6 +66,8 @@ dieselben freigegebenen Aufruf- und Zeitbudgets wie die eigentliche Aufgabe.
 Bei wiederholt unveränderten Beobachtungen meldet er Stillstand. Ein abgelehntes
 Werkzeug oder eine unklare Wirkung wird nicht automatisch wiederholt.
 
+Der Bericht jeder Mission nennt den Planner, der die Schritte vorgeschlagen hat, und ob die Beobachtungen den Rechner verlassen haben (`Planner: … · Kontext hat den Rechner verlassen: ja|nein`); dieselben Angaben stehen in `/computer task` und `/computer tasks`. Ein entfernter Planner (`planner_provider` mit `allow_remote_context: true`) ist eine ausdrückliche Owner-Konfiguration; die Zeile macht sie nachträglich sichtbar und ersetzt keine Freigabe.
+
 ```text
 /computer queue Öffne die freigegebene Statusseite und lies den aktuellen Status.
 /computer every 30m 4 Öffne die freigegebene Statusseite und lies den aktuellen Status.

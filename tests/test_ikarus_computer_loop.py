@@ -673,3 +673,42 @@ def test_restating_the_plan_in_force_keeps_the_progress_count(isolated):
     assert prompts[3]["advisory_plan"]["revision"] == 2, "the revision count is unchanged by this rule"
     revised = prompts[4]["plan_progress"]
     assert (revised["tool_steps_since_plan"], revised["next_step"]) == (0, PLAN_OTHER["steps"][0])
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-33: the report and the mission artifact say which planner ran and whether
+# context left the machine (measure-09 ran Codex over allow_remote_context)
+# --------------------------------------------------------------------------
+
+class RemoteService(Service):
+    def capabilities(self):
+        caps = super().capabilities()
+        caps.update({"planner_provider": "codex_cli", "planner_model": "gpt-6-astra", "allow_remote_context": True})
+        return caps
+
+
+def test_report_and_mission_artifact_carry_the_planner_provenance(isolated):
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger,
+                                    propose=planner(READ, DONE), mission_id="planner-local")
+    assert result["planner"] == {"provider": "ollama_http", "model": None, "remote_context": False}
+    artifacts = (root / "control" / "ikarus-computer-artifacts").glob("*.json")
+    mission_artifact = next(json.loads(path.read_text()) for path in artifacts if '"repository_input"' in path.read_text())
+    assert mission_artifact["planner"] == {"provider": "ollama_http", "model": None, "remote_context": False}
+
+
+def test_remote_planner_is_named_in_the_report_the_chat_and_the_history(isolated):
+    root, ledger = isolated
+    result = loop.run_computer_task(root, "Read fixture", service=RemoteService(), ledger=ledger,
+                                    propose=planner(READ, DONE), mission_id="planner-remote")
+    assert result["planner"] == {"provider": "codex_cli", "model": "gpt-6-astra", "remote_context": True}
+    text = loop._chat_report(result)
+    assert "Planner: codex_cli (gpt-6-astra)" in text
+    assert "Kontext hat den Rechner verlassen: ja" in text
+    assert "verlassen: nein" in loop._chat_report({**result, "planner": {"provider": "ollama_http", "model": None, "remote_context": False}})
+
+
+def test_a_report_without_planner_facts_still_renders(isolated):
+    """Retained reports from before this packet have no planner key."""
+    text = loop._chat_report({"summary": "old", "steps": [], "mission_id": "m"})
+    assert "Planner:" not in text
