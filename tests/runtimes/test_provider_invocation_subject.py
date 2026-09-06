@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
+import json
 
 import pytest
 
+import daedalus.runtimes.provider_invocation as provider_invocation
 from daedalus.runtimes.provider_invocation import (
     ProviderInvocationSubject,
     ProviderInvocationSubjectError,
@@ -36,6 +39,33 @@ def test_provider_invocation_subject_has_stable_exact_round_trip() -> None:
     assert rebuilt == subject
     assert rebuilt.digest == subject.digest
     assert len(subject.digest) == 64
+
+
+def test_subject_digest_owns_canonical_hashing_boundary(monkeypatch) -> None:
+    subject = _subject()
+    canonical = json.dumps(
+        subject.to_dict(),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    expected = hashlib.sha256(canonical).hexdigest()
+
+    def forbidden_shared_helper(_value) -> str:
+        raise AssertionError("invocation identity delegated to mutable spine helper")
+
+    # Regression for the old implementation: it imported canonical_sha into
+    # this module and delegated a trust-chain digest through that global.  The
+    # local identity primitive must stay correct even if such a global is
+    # introduced or replaced later.
+    monkeypatch.setattr(
+        provider_invocation,
+        "canonical_sha",
+        forbidden_shared_helper,
+        raising=False,
+    )
+
+    assert subject.digest == expected
 
 
 @pytest.mark.parametrize(
