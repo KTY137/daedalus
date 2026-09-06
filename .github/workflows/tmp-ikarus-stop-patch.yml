@@ -6,6 +6,7 @@ on:
       - g1/ikarus-runtime-invocation-binding-07d3
     paths:
       - .github/ikarus_stop_patch.py
+      - .github/ikarus_stop_retry
 
 permissions:
   contents: write
@@ -26,8 +27,43 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Normalize patch against canonical import layout
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/ikarus_stop_patch.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''replace_once(
+              "daedalus/web_api.py",
+              "from . import core, ikarus_chat, ikarus_os\\n",
+              "from . import core, ikarus_cancellation, ikarus_chat, ikarus_os\\n",
+          )'''
+          new = '''replace_once(
+              "daedalus/web_api.py",
+              "    hierarchy,\\n    ikarus_chat,\\n    runtime_registry,\\n",
+              "    hierarchy,\\n    ikarus_cancellation,\\n    ikarus_chat,\\n    runtime_registry,\\n",
+          )'''
+          if old not in text:
+              raise SystemExit('expected web_api import patch stanza missing')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Apply exact canonical stop patch
-        run: python .github/ikarus_stop_patch.py
+        id: patch
+        shell: bash
+        run: |
+          set +e
+          python .github/ikarus_stop_patch.py > /tmp/ikarus-stop-patch.log 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            cp /tmp/ikarus-stop-patch.log .github/ikarus_stop_patch_error.txt
+            git add .github/ikarus_stop_patch_error.txt
+            git config user.name "KTY"
+            git config user.email "kaya.yesilyurt@tu-dortmund.de"
+            git commit -m "chore(ikarus): record stop patch staging failure"
+            git push origin HEAD:g1/ikarus-runtime-invocation-binding-07d3
+            exit "$code"
+          fi
       - name: Install Python test dependencies
         run: python -m pip install -e . pytest
       - name: Compile touched Python surfaces
@@ -54,6 +90,7 @@ jobs:
       - name: Commit only verified product changes
         run: |
           rm .github/ikarus_stop_patch.py
+          rm -f .github/ikarus_stop_retry .github/ikarus_stop_patch_error.txt
           git add -A
           git config user.name "KTY"
           git config user.email "kaya.yesilyurt@tu-dortmund.de"
