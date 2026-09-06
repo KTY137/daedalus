@@ -4619,7 +4619,7 @@ fields:
 
 | probe | final integrated corpus | measured result |
 | --- | --- | --- |
-| s02 `kernel` | 483 parsed files, 6,728 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; 44,796 type-name sites, resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7` |
+| s02 `kernel` | 483 parsed files, 6,729 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; 44,801 type-name sites, resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `08c3c28455dbcdd05a7cc87d0c6f78af4c7631a86121bd31b7015812071a883b` |
 
 Relative to the exact v0.1.6 measurement source `b59b2628ad6e`, this is a net
 +10 files and +145 functions.  A direct source census decomposes that movement:
@@ -4657,3 +4657,18 @@ file, function or type-name site; `EffectStartRefused` joins an existing
 All displayed measurements remain unchanged, while the exact source digest
 moves from `c69c50dd13b495ba95dc5fa4b43db6a36bfd01c67eb016b9be1bed6c6d26e741`
 to `c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7`.
+
+Merging `exp/tensor-kernel-contract-01` (`G1-EXP-TENSOR-GPU-45` and `-46`) into
+main moves the row again, and this time the counts move with it.  Both packets
+touch one file, `daedalus/twin/relation_compiler.py`: GPU-45 validates the
+receipt catalog as a bounded `Sequence` before normalization, and GPU-46 adds
+one private helper, `_materialize_declared_sequence`, reused by the receipt and
+explicit-signature paths.  The parsed file count is unchanged at 483; functions
+move 6,728 -> 6,729 (that single helper) and type-name sites 44,796 -> 44,801
+on the same bounded-Sequence validation path.  Every displayed rate is
+unchanged -- annotation-only 94.37%, full resolver 94.25%, marginal 8 functions
+/ 0.1189 pp, resolution 99.93%, verified internal 4,016 / 4,435 (90.55%) -- so
+the movement is source-size only and carries no retraction or restatement of
+the headline.  The exact source digest moves from
+`c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7` to
+`08c3c28455dbcdd05a7cc87d0c6f78af4c7631a86121bd31b7015812071a883b`.

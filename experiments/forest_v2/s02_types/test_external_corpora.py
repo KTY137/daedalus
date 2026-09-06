@@ -62,23 +62,27 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     """If this fails the kernel package moved; re-measure the write-up."""
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured twice on final unsanitized Gate-1 head 893b14674010
-    # with CPython 3.12.13.  The digest binds the exact 483-file source corpus;
-    # these figures are drift detectors, not claimed cross-version constants.
+    # Re-measured on the merge of exp/tensor-kernel-contract-01 (GPU-45/46) into
+    # main with CPython 3.12.13.  The digest binds the exact 483-file source
+    # corpus; these figures are drift detectors, not claimed cross-version
+    # constants.
     assert entry["corpus_pin"] == {
         "files": 483,
-        "sha256": "c8f4ab570625447627416d0041d35ec90dc1251e99294140d91f5b727c0a9ce7",
+        "sha256": "08c3c28455dbcdd05a7cc87d0c6f78af4c7631a86121bd31b7015812071a883b",
     }
-    assert entry["functions"] == 6728
+    # GPU-46 adds exactly one private helper, ``_materialize_declared_sequence``
+    # in daedalus/twin/relation_compiler.py, over the 6,728-function measurement.
+    assert entry["functions"] == 6729
     assert entry["annotation_only_pct"] == 94.37  # the control
     assert entry["full_resolver_pct"] == 94.25
     assert entry["marginal_functions"] == 8
     assert entry["marginal_pp"] == 0.1189
     # Keep the newly visible repo-unverified bucket as negative evidence rather
     # than preserving the historical 100% result after the corpus moved.
-    # GPU-44's ``forest_hyperedge_count: int`` is the one additional builtin
-    # type-name site over the pre-merge 44,795-site measurement.
-    assert entry["type_name_sites"] == 44796
+    # GPU-44's ``forest_hyperedge_count: int`` was the one additional builtin
+    # type-name site over the pre-merge 44,795-site measurement; GPU-45/46 add
+    # five more on the same bounded-Sequence validation path (44,796 -> 44,801).
+    assert entry["type_name_sites"] == 44801
     assert entry["internal_named_only"] == 419
     assert entry["verified_share_of_internal_pct"] == 90.55
 
