@@ -79,22 +79,8 @@ jobs:
           path.write_text(text.replace(old_helper, new_helper, 1), encoding='utf-8')
           PY
       - name: Apply exact canonical stop patch
-        id: patch
         shell: bash
-        run: |
-          set +e
-          python .github/ikarus_stop_patch.py > /tmp/ikarus-stop-patch.log 2>&1
-          code=$?
-          set -e
-          if [ "$code" -ne 0 ]; then
-            cp /tmp/ikarus-stop-patch.log .github/ikarus_stop_patch_error.txt
-            git add .github/ikarus_stop_patch_error.txt
-            git config user.name "KTY"
-            git config user.email "kaya.yesilyurt@tu-dortmund.de"
-            git commit -m "chore(ikarus): record stop patch staging failure"
-            git push origin HEAD:g1/ikarus-runtime-invocation-binding-07d3
-            exit "$code"
-          fi
+        run: python .github/ikarus_stop_patch.py
       - name: Install Python test dependencies
         run: python -m pip install -e . pytest
       - name: Compile touched Python surfaces
@@ -118,11 +104,18 @@ jobs:
         run: npm ci --prefix apps/web
       - name: Build shipping cockpit
         run: npm run build --prefix apps/web
-      - name: Commit only verified product changes
+      - name: Commit verified product delta only
         run: |
-          rm .github/ikarus_stop_patch.py
-          rm -f .github/ikarus_stop_retry .github/ikarus_stop_patch_error.txt
-          git add -A
+          git add \
+            daedalus/ikarus_os.py \
+            daedalus/web_api.py \
+            apps/web/src/api.ts \
+            apps/web/src/types.ts \
+            apps/web/src/cockpit/Conversation.tsx \
+            apps/web/tests/cockpit-stream.spec.ts \
+            tests/test_ikarus_stream.py \
+            tests/test_ikarus_http_cancellation.py \
+            tests/test_ikarus_stop_gate_paths.py
           git config user.name "KTY"
           git config user.email "kaya.yesilyurt@tu-dortmund.de"
           git commit -m "feat(ikarus): wire canonical JARVIS stop path"
