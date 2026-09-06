@@ -89,7 +89,10 @@ class KeepAliveTest(unittest.TestCase):
             resp.status = 200
             return resp
 
-        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        # Exercise the product default, independent of an operator-level host
+        # override (this development machine intentionally sets 10m).
+        with mock.patch.dict("os.environ", {}, clear=True), \
+                mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
             ok = ollama_mod.warm_model(host="http://127.0.0.1:11434", model="m7")
 
         self.assertTrue(ok)
