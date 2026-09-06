@@ -221,6 +221,10 @@ export interface ThemeScene {
    * (theme/store.ts reports it) instead of rendering a broken image.
    */
   environment?: SceneEnvironmentId;
+  /** Optional geometry view; absent keeps the existing rendered picture. */
+  rendering?: 'image' | 'interactive';
+  /** Display light level, clamped to 0.5..1.6. */
+  exposure?: number;
 }
 
 export interface ThemeComposition {

@@ -1,0 +1,33 @@
+# Does tests/test_chip_design_isolation.py actually catch the defect it exists for?
+#
+# The first revision of this packet wrote the emitted script to an operator-named
+# path from inside `plan`, outside the one admitted effect anchor
+# (run_admitted_eda / begin_effect). That was rejected in review. A guard that
+# cannot see the exact defect it was written for is not a guard, so the defect
+# was reintroduced once, on purpose, and then reverted.
+
+MUTATION (applied to daedalus/chip_design/cli.py, inside _emit_scripts):
+
+    +    with open("mutant-emitted.tcl", "wb") as handle:
+    +        handle.write(script.data)
+         rows["emitted_tcl"] = emitted_script_payload(
+
+MEASURED with the mutation applied:
+
+    $ .venv/Scripts/python.exe -m pytest tests/test_chip_design_isolation.py -q
+    FAILED tests/test_chip_design_isolation.py::test_no_planning_function_writes_or_spawns[_emit_scripts]
+    FAILED tests/test_chip_design_isolation.py::test_the_only_write_mode_open_in_the_cli_is_the_admitted_run_path
+    FAILED tests/test_chip_design_isolation.py::test_every_effect_free_subcommand_runs_with_writes_armed
+    3 failed, 25 passed in 2.11s
+
+Three independent checks fired: the per-function AST scan, the whole-file scan
+over the planning path, and the runtime fault injection with writes armed.
+
+MEASURED after reverting the mutation:
+
+    $ .venv/Scripts/python.exe -m pytest tests/test_chip_design_isolation.py \
+          tests/test_chip_design_tcl_emit.py -q
+    134 passed in 5.76s
+
+The tree was left with no `mutant-emitted.tcl` and no diff from the mutation;
+`grep -n mutant daedalus/chip_design/cli.py` returns nothing.

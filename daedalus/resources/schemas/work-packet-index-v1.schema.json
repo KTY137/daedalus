@@ -38,9 +38,9 @@
         "automatic_merge": { "const": false },
         "automatic_promotion": { "const": false },
         "classification": { "const": "ALIGNED" },
-        "master_plan_revision": { "const": 12 },
+        "master_plan_revision": { "const": 13 },
         "master_plan_sha256": {
-          "const": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
+          "const": "04e8cbf9441134e22b97fe1cb5e7ebcbcfedac64cda2f3e4e5086d82bb628639"
         }
       }
     },

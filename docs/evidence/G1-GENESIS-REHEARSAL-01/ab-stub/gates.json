@@ -1,0 +1,73 @@
+{
+  "schema": "daedalus-genesis-rehearsal-gates/1",
+  "measured": "2026-09-05",
+  "arm": "B: launcher stub as gate interpreter (kernel.interpreter.stdlib_interpreter patched to sys.executable)",
+  "run_id": "genesis-f550afe4b15265cf80f4c5d2",
+  "gates": [
+    {
+      "gate": "test",
+      "passed": true,
+      "wall_time_ms": 2530,
+      "timed_out": false,
+      "returncode": 0,
+      "interpreter": {
+        "binary_sha256": "7f11830b4fccc98db9610e2f44935d460969df2863bd345f9f6813f8ec2e43b4",
+        "implementation": "cpython",
+        "platform": "win32",
+        "version": "3.13.14"
+      },
+      "launcher_warning_in_output": true
+    },
+    {
+      "gate": "runtime",
+      "passed": true,
+      "wall_time_ms": 2995,
+      "timed_out": false,
+      "returncode": 0,
+      "interpreter": {
+        "binary_sha256": "7f11830b4fccc98db9610e2f44935d460969df2863bd345f9f6813f8ec2e43b4",
+        "implementation": "cpython",
+        "platform": "win32",
+        "version": "3.13.14"
+      },
+      "launcher_warning_in_output": true
+    },
+    {
+      "gate": "build",
+      "passed": true,
+      "wall_time_ms": 1360,
+      "timed_out": false,
+      "returncode": 0,
+      "interpreter": {
+        "binary_sha256": "7f11830b4fccc98db9610e2f44935d460969df2863bd345f9f6813f8ec2e43b4",
+        "implementation": "cpython",
+        "platform": "win32",
+        "version": "3.13.14"
+      },
+      "launcher_warning_in_output": true
+    },
+    {
+      "gate": "kanban_template_conformance",
+      "passed": true,
+      "wall_time_ms": 15,
+      "timed_out": false,
+      "returncode": 0,
+      "interpreter": null,
+      "launcher_warning_in_output": false
+    },
+    {
+      "gate": "package",
+      "passed": true,
+      "wall_time_ms": 1851,
+      "timed_out": false,
+      "returncode": 0,
+      "interpreter": {
+        "binary_sha256": "7f11830b4fccc98db9610e2f44935d460969df2863bd345f9f6813f8ec2e43b4",
+        "implementation": "cpython",
+        "platform": "win32",
+        "version": "3.13.14"
+      },
+      "launcher_warning_in_output": true
+    }
+  ]
+}

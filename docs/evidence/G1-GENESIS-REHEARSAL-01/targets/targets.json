@@ -1,0 +1,264 @@
+{
+  "schema": "daedalus-genesis-rehearsal-targets/1",
+  "measured": "2026-09-05",
+  "runs": [
+    {
+      "target": "cli",
+      "stderr_tail": "",
+      "status": "blocked",
+      "run_id": "genesis-6e0cd55c90eab594e946297c",
+      "blockers": [
+        "The kanban-board-v1 blueprint supports browser, desktop, and mobile PWA targets only; CLI is not implemented."
+      ],
+      "candidate_sha256": null,
+      "candidate_files": 0,
+      "roundtrip": null,
+      "roundtrip_checks": null,
+      "publication": {
+        "status": "not-requested",
+        "owner_approval_required": true
+      },
+      "defaults_target_note": {
+        "capability_scope": "card CRUD with fixed backlog/in-progress/done columns, keyboard move controls, and optional search/filter",
+        "target": "cli"
+      },
+      "gates": []
+    },
+    {
+      "target": "desktop",
+      "stderr_tail": "",
+      "status": "preview-ready",
+      "run_id": "genesis-1264fa9156a8f239fed80d0a",
+      "blockers": [
+        "Desktop is delivered as an installable offline PWA, not as a native store package."
+      ],
+      "candidate_sha256": "b7dd86fe936eb046f997501e15977d8ee5b012ec475298e2c4b50621d18e0a02",
+      "candidate_files": 13,
+      "roundtrip": "passed",
+      "roundtrip_checks": {
+        "build": true,
+        "code": true,
+        "containment": true,
+        "data": true,
+        "kanban_template_conformance": true,
+        "knowledge": true,
+        "package": true,
+        "runtime": true,
+        "test": true,
+        "type": true
+      },
+      "publication": {
+        "status": "not-requested",
+        "owner_approval_required": true,
+        "automatic_promotion": false
+      },
+      "defaults_target_note": {
+        "capability_scope": "card CRUD with fixed backlog/in-progress/done columns, keyboard move controls, and optional search/filter",
+        "target": "desktop"
+      },
+      "gates": [
+        {
+          "gate": "test",
+          "passed": true,
+          "wall_time_ms": 2030,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "package",
+          "passed": true,
+          "wall_time_ms": 725,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "kanban_template_conformance",
+          "passed": true,
+          "wall_time_ms": 16,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "build",
+          "passed": true,
+          "wall_time_ms": 1780,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "runtime",
+          "passed": true,
+          "wall_time_ms": 1861,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        }
+      ]
+    },
+    {
+      "target": "mobile",
+      "stderr_tail": "",
+      "status": "preview-ready",
+      "run_id": "genesis-2e5962f7605f6c6e95b29760",
+      "blockers": [
+        "Mobile is delivered as an installable offline PWA, not as a native store package."
+      ],
+      "candidate_sha256": "db74e13c2a48ce1bc5b2551b59de4217ae9e231b6e4a1b7a1654d17e34612d91",
+      "candidate_files": 13,
+      "roundtrip": "passed",
+      "roundtrip_checks": {
+        "build": true,
+        "code": true,
+        "containment": true,
+        "data": true,
+        "kanban_template_conformance": true,
+        "knowledge": true,
+        "package": true,
+        "runtime": true,
+        "test": true,
+        "type": true
+      },
+      "publication": {
+        "status": "not-requested",
+        "owner_approval_required": true,
+        "automatic_promotion": false
+      },
+      "defaults_target_note": {
+        "capability_scope": "card CRUD with fixed backlog/in-progress/done columns, keyboard move controls, and optional search/filter",
+        "target": "mobile"
+      },
+      "gates": [
+        {
+          "gate": "build",
+          "passed": true,
+          "wall_time_ms": 908,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "wall_time_ms": 1650,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "runtime",
+          "passed": true,
+          "wall_time_ms": 1071,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "package",
+          "passed": true,
+          "wall_time_ms": 755,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "kanban_template_conformance",
+          "passed": true,
+          "wall_time_ms": 26,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        }
+      ]
+    },
+    {
+      "target": "cli (todo list, item-collection-v1)",
+      "stderr_tail": "EXIT 0",
+      "status": "succeeded",
+      "run_id": "genesis-83b20849198505b972826293",
+      "blockers": [],
+      "candidate_sha256": "cfc498e95ff460993c020735d056f607df5775a37896fdd3f2c414b1e36a095b",
+      "candidate_files": 5,
+      "candidate_file_list": [
+        "README.md",
+        "app.py",
+        "fourfold.json",
+        "schemas/item.schema.json",
+        "tests/test_app.py"
+      ],
+      "roundtrip": "passed",
+      "roundtrip_checks": {
+        "build": true,
+        "cli_black_box": true,
+        "code": true,
+        "containment": true,
+        "data": true,
+        "feature_conformance": true,
+        "knowledge": true,
+        "package": true,
+        "runtime": true,
+        "test": true,
+        "type": true
+      },
+      "publication": {
+        "status": "not-requested",
+        "owner_approval_required": true,
+        "automatic_promotion": false
+      },
+      "preview": null,
+      "gates": [
+        {
+          "gate": "package",
+          "passed": true,
+          "wall_time_ms": 663,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "build",
+          "passed": true,
+          "wall_time_ms": 681,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "runtime",
+          "passed": true,
+          "wall_time_ms": 672,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "cli_black_box",
+          "passed": true,
+          "wall_time_ms": 4115,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "test",
+          "passed": true,
+          "wall_time_ms": 734,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        },
+        {
+          "gate": "feature_conformance",
+          "passed": true,
+          "wall_time_ms": 8,
+          "timed_out": false,
+          "returncode": 0,
+          "launcher_warning_in_output": false
+        }
+      ]
+    }
+  ]
+}

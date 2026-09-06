@@ -100,10 +100,16 @@ export function StatusLine({
     <div className="statusline" role="status" aria-label="Systemzustand">
       <div className="status-row">
         <span className="status-group">
-          <span className="status-item">
-            <b>{project || '—'}</b>
-            {s?.repo_root ? <span className="muted"> · {s.repo_root}</span> : null}
-          </span>
+          {/* No project is a fact, not a missing value; a dash reads as a
+              rendering hole. */}
+          {project ? (
+            <span className="status-item">
+              <b>{project}</b>
+              {s?.repo_root ? <span className="muted"> · {s.repo_root}</span> : null}
+            </span>
+          ) : (
+            <span className="status-item muted">Kein Projekt gewählt</span>
+          )}
         </span>
 
         <span className="status-sep" aria-hidden="true" />
@@ -202,6 +208,10 @@ export function StatusLine({
                 </span>
               ) : null}
             </>
+          ) : healthError ? (
+            /* The state read already failed; "wird gelesen" would promise a
+               result that is not coming. Same word as the health chip. */
+            <span className="status-item muted">Kern und Karte ungelesen</span>
           ) : (
             <span className="status-item pending">Kern und Karte werden gelesen …</span>
           )}

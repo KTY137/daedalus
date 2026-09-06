@@ -1,6 +1,6 @@
 # Amendment proposal 013: Hardware targets and self-Renovation
 
-Status: draft, awaiting owner approval
+Status: accepted 2026-09-06 08:48 (owner answer, verbatim option label: "Ja, exakt wie entworfen"; recorded in `docs/decisions-pending/OWNER_DECISIONS_20260906.md`); adopted as plan revision 13, amendment record sequence 12
 Owner: repository owner. Date: 2026-09-05.
 Classification: AMENDMENT. Active gate: 1.
 Request: Daedalus should work like a persistent assistant ("Jarvis"), improve

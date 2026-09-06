@@ -197,7 +197,7 @@ CURRENT_COMPONENTS_SHA256 = (
 # Genesis, Ariadne, computer-runtime, desktop-owner, contract, containment and
 # Twin projection Python modules became part of the tracked graph.  This is an
 # exact tracked-path census, not a relaxed lower bound.
-CENSUS_MODULES = 473
+CENSUS_MODULES = 483  # re-measured 2026-09-05 after the stage-14 lanes (pcb_design 8, chip_design.tcl_emit, contracts.git_objects)
 # 1603 -> 1618 in G1-HIER-10, which added no module and deleted none: eighteen
 # kernel modules stopped importing the ``daedalus.schemas`` facade and now name
 # the owning ``daedalus.kernel.contracts`` module for each symbol, so a file
@@ -441,7 +441,7 @@ CENSUS_MODULES = 473
 # their integrations contribute a measured net +169 resolved imports.  The
 # equality below pins the complete graph's edge census; no tolerance was added
 # for the large staged change.
-CENSUS_EDGES = 1905
+CENSUS_EDGES = 1923  # re-measured 2026-09-05 with the module census above
 
 
 def _module_name(path: str) -> str:

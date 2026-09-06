@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 328,
+    "assigned_artifacts": 345,
     "legacy_artifacts": 204,
-    "packet_artifacts": 330,
-    "packet_ids": 265,
-    "post_index_artifacts": 126,
+    "packet_artifacts": 347,
+    "packet_ids": 282,
+    "post_index_artifacts": 143,
     "registry_artifacts": 1,
-    "tracked_files": 331,
+    "tracked_files": 348,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -1846,6 +1846,102 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-ARIADNE-04_FAILED_RECEIPT_ON_FIRST_CALL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ARIADNE-02_CAMPAIGN_WORKBENCH`, `G1-ARIADNE-03_WINDOWS_EVALUATOR_INTERPRETER",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-04",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-04_FAILED_RECEIPT_ON_FIRST_CALL.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-05_WORKING_TREE_BASE_BINDING.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ARIADNE-01_CANONICAL_CAMPAIGN_REHEARSAL`, `G1-ARIADNE-04_FAILED_RECEIPT_ON_FIRST_CALL",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-05",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-05_WORKING_TREE_BASE_BINDING.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-06_NAMED_REFUSALS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+        "classification": "ALIGNED",
+        "dependencies": "G1-SELF-00_SELF_RENOVATION_REHEARSAL`, `G1-ARIADNE-05_WORKING_TREE_BASE_BINDING",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-06",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-06_NAMED_REFUSALS.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-07_COUNCIL_HARDENING.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ARIADNE-04_FAILED_RECEIPT_ON_FIRST_CALL`, `G1-ARIADNE-05_WORKING_TREE_BASE_BINDING`, `G1-ARIADNE-06_NAMED_REFUSALS",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-07",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-07_COUNCIL_HARDENING.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-08_GIT_OBJECT_READER.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ARIADNE-05_WORKING_TREE_BASE_BINDING`, `G1-ARIADNE-06_NAMED_REFUSALS",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-08",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-08_GIT_OBJECT_READER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-ARIADNE-09_CLI_EXIT_CODE_CONTRACT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "G1-ARIADNE-04_FAILED_RECEIPT_ON_FIRST_CALL`, `G1-ARIADNE-06_NAMED_REFUSALS`, `G1-ARIADNE-07_COUNCIL_HARDENING",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-ARIADNE-09",
+      "primary_artifact": "docs/work-packets/G1-ARIADNE-09_CLI_EXIT_CODE_CONTRACT.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-ATT-13B_WINDOWS_STABLE_SOURCE_TREE_CAS.md"
       ],
       "metadata": {
@@ -2067,6 +2163,38 @@
       "origin": "legacy",
       "packet_id": "G1-EDA-02",
       "primary_artifact": "unknown"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EDA-HOST-STATUS-01_CHIP_DESIGN_ON_THIS_HOST.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+        "classification": "EXPERIMENT",
+        "dependencies": "`G1-EDA-01` (the existing Vivado read-only inspection, planning and runner slice documented under `docs/chip-design/`)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EDA-HOST-STATUS-01",
+      "primary_artifact": "docs/work-packets/G1-EDA-HOST-STATUS-01_CHIP_DESIGN_ON_THIS_HOST.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-EDA-HOST-STATUS-02_EMITTED_VIVADO_VITIS_TCL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "EXPERIMENT",
+        "dependencies": "`G1-EDA-01` (the read-only Vivado inspection, planning and admitted project runner) and `G1-EDA-HOST-STATUS-01` (the measured host state this packet builds on)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-EDA-HOST-STATUS-02",
+      "primary_artifact": "docs/work-packets/G1-EDA-HOST-STATUS-02_EMITTED_VIVADO_VITIS_TCL.md"
     },
     {
       "artifacts": [
@@ -2339,6 +2467,22 @@
       "origin": "post_index",
       "packet_id": "G1-GENESIS-03",
       "primary_artifact": "docs/work-packets/G1-GENESIS-03_VERIFIED_SOURCE_DOWNLOAD.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-GENESIS-REHEARSAL-01_HOST_END_TO_END.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-GENESIS-02_KANBAN_BOARD_BLUEPRINT`, `G1-GENESIS-03_VERIFIED_SOURCE_DOWNLOAD`, `G1-KERNEL-01_STDLIB_INTERPRETER",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-GENESIS-REHEARSAL-01",
+      "primary_artifact": "docs/work-packets/G1-GENESIS-REHEARSAL-01_HOST_END_TO_END.md"
     },
     {
       "artifacts": [
@@ -3750,6 +3894,70 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-26_COMPUTER_LOOP_LIVE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-17_GENERAL_ASSISTANT_AMENDMENT` (Revision 12), the v0.1.6 path-I/O release lock (Codex, `RELEASE_DISABLED_TOOLS`)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-26",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-26_COMPUTER_LOOP_LIVE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-29_COMPUTER_LOOP_PROGRESS_AND_PRE_EFFECT_TIMEOUT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-26_COMPUTER_LOOP_LIVE` (stage 13), whose review section named both items below as undecided",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-29",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-29_COMPUTER_LOOP_PROGRESS_AND_PRE_EFFECT_TIMEOUT.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-30_DESKTOP_VISION_LIVE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-26_COMPUTER_LOOP_LIVE` (the loop measurement whose stage-13 result \u2014 the local 7B planner cannot drive multi-step tasks on this host \u2014 is why this packet drives `ComputerService.execute` directly), the Revision-12 general computer assistance strand",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-30",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-30_DESKTOP_VISION_LIVE.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-IKARUS-31_PLANNER_NATIVE_ROUTE_AND_CANCEL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-26` (the live measurement), `G1-IKARUS-29` (plan budget, pre-effect timeout), `G1-KERNEL-02` (`run_cancellable`, `ProviderCancelled`)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-31",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-31_PLANNER_NATIVE_ROUTE_AND_CANCEL.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -3827,6 +4035,22 @@
       "origin": "post_index",
       "packet_id": "G1-KERNEL-01",
       "primary_artifact": "docs/work-packets/G1-KERNEL-01_STDLIB_INTERPRETER.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-KERNEL-02_PROVIDER_CALL_CANCELLATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "585b7ea4e141332928ad6c9578b9c9997e55f247",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-26_COMPUTER_LOOP_LIVE` (the live measurement that exposed the hang), Revision 10 (`unbounded_execution`), Revision 12 (general computer assistance)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-KERNEL-02",
+      "primary_artifact": "docs/work-packets/G1-KERNEL-02_PROVIDER_CALL_CANCELLATION.md"
     },
     {
       "artifacts": [
@@ -4199,6 +4423,38 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-SELF-00_SELF_RENOVATION_REHEARSAL.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "b59b2628ad6ed85a8b5e729a12c58512543e2e73",
+        "classification": "EXPERIMENT",
+        "dependencies": "G1-ARIADNE-01_CANONICAL_CAMPAIGN_REHEARSAL`, `G1-ARIADNE-03_WINDOWS_EVALUATOR_INTERPRETER`, `G1-ARIADNE-05_WORKING_TREE_BASE_BINDING",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-SELF-00",
+      "primary_artifact": "docs/work-packets/G1-SELF-00_SELF_RENOVATION_REHEARSAL.md"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "cfe8d34b8ef1438156e6fa3e6982f5a30d91696f",
+        "classification": "EXPERIMENT",
+        "dependencies": "`G1-SELF-00_SELF_RENOVATION_REHEARSAL`,",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-SELF-01",
+      "primary_artifact": "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-TAURI-CI-AUTH-271.json"
       ],
       "metadata": {
@@ -4228,6 +4484,22 @@
       "origin": "post_index",
       "packet_id": "G1-TENSOR-01",
       "primary_artifact": "docs/work-packets/G1-TENSOR-01.json"
+    },
+    {
+      "artifacts": [
+        "docs/work-packets/G1-TESTS-01_SHELL_VOICE_TEST_ISOLATION.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "585b7ea4e141332928ad6c9578b9c9997e55f247",
+        "classification": "ALIGNED",
+        "dependencies": "none",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-TESTS-01",
+      "primary_artifact": "docs/work-packets/G1-TESTS-01_SHELL_VOICE_TEST_ISOLATION.md"
     },
     {
       "artifacts": [
@@ -4580,6 +4852,90 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-ARIADNE-04",
+      "path": "docs/work-packets/G1-ARIADNE-04_FAILED_RECEIPT_ON_FIRST_CALL.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ARIADNE-05",
+      "path": "docs/work-packets/G1-ARIADNE-05_WORKING_TREE_BASE_BINDING.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ARIADNE-06",
+      "path": "docs/work-packets/G1-ARIADNE-06_NAMED_REFUSALS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ARIADNE-07",
+      "path": "docs/work-packets/G1-ARIADNE-07_COUNCIL_HARDENING.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ARIADNE-08",
+      "path": "docs/work-packets/G1-ARIADNE-08_GIT_OBJECT_READER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-ARIADNE-09",
+      "path": "docs/work-packets/G1-ARIADNE-09_CLI_EXIT_CODE_CONTRACT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-COUNCIL-01",
       "path": "docs/work-packets/G1-COUNCIL-01_CLI_COUNCIL_EFFECT_DOOR.md",
       "sections": [
@@ -4596,6 +4952,34 @@
       "format": "markdown",
       "packet_id": "G1-DESKTOP-PRERELEASE-016",
       "path": "docs/work-packets/G1-DESKTOP-PRERELEASE-016-ASAE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-EDA-HOST-STATUS-01",
+      "path": "docs/work-packets/G1-EDA-HOST-STATUS-01_CHIP_DESIGN_ON_THIS_HOST.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-EDA-HOST-STATUS-02",
+      "path": "docs/work-packets/G1-EDA-HOST-STATUS-02_EMITTED_VIVADO_VITIS_TCL.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -4834,6 +5218,20 @@
       "format": "markdown",
       "packet_id": "G1-GENESIS-03",
       "path": "docs/work-packets/G1-GENESIS-03_VERIFIED_SOURCE_DOWNLOAD.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-GENESIS-REHEARSAL-01",
+      "path": "docs/work-packets/G1-GENESIS-REHEARSAL-01_HOST_END_TO_END.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -5714,6 +6112,62 @@
     {
       "artifact_role": "primary",
       "format": "markdown",
+      "packet_id": "G1-IKARUS-26",
+      "path": "docs/work-packets/G1-IKARUS-26_COMPUTER_LOOP_LIVE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-29",
+      "path": "docs/work-packets/G1-IKARUS-29_COMPUTER_LOOP_PROGRESS_AND_PRE_EFFECT_TIMEOUT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-30",
+      "path": "docs/work-packets/G1-IKARUS-30_DESKTOP_VISION_LIVE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-31",
+      "path": "docs/work-packets/G1-IKARUS-31_PLANNER_NATIVE_ROUTE_AND_CANCEL.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
       "packet_id": "G1-IKARUS-COMPUTER-01",
       "path": "docs/work-packets/G1-IKARUS-COMPUTER-01.md",
       "sections": [
@@ -5772,6 +6226,20 @@
       "format": "markdown",
       "packet_id": "G1-KERNEL-01",
       "path": "docs/work-packets/G1-KERNEL-01_STDLIB_INTERPRETER.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-KERNEL-02",
+      "path": "docs/work-packets/G1-KERNEL-02_PROVIDER_CALL_CANCELLATION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
@@ -6042,9 +6510,51 @@
     },
     {
       "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-SELF-00",
+      "path": "docs/work-packets/G1-SELF-00_SELF_RENOVATION_REHEARSAL.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-SELF-01",
+      "path": "docs/work-packets/G1-SELF-01_DOCSTRING_SYMBOL_DRIFT.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
       "format": "json",
       "packet_id": "G1-TENSOR-01",
       "path": "docs/work-packets/G1-TENSOR-01.json",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-TESTS-01",
+      "path": "docs/work-packets/G1-TESTS-01_SHELL_VOICE_TEST_ISOLATION.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",

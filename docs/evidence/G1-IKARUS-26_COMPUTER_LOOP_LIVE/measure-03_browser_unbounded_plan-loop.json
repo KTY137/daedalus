@@ -1,0 +1,140 @@
+{
+ "port": "65094",
+ "objective": "Open http://127.0.0.1:65094/notes.html in the browser, read the page, and report the page title, the three items listed under Today, and the sentinel code.",
+ "elapsed_s": 974.207640171051,
+ "policy_sha256": "0d93817768772471b973631b3e0e51130bfb18387b3d9d0c18c1579b33a3a7a2",
+ "report": {
+  "ok": false,
+  "state": "blocked",
+  "mission_id": "computer-loop-measure-03",
+  "mission_sha256": "8597d4e3498e8e0086707fcd582a13baa66e271fb6208ef4707b87de8f074546",
+  "mission_artifact": {
+   "sha256": "64b71a714f00d17acc58ff576e8e673fca97b991fc45e2756c2fd7924f0c9050",
+   "locator": "artifact-locator:sha256:64b71a714f00d17acc58ff576e8e673fca97b991fc45e2756c2fd7924f0c9050"
+  },
+  "steps": [
+   {
+    "step": 1,
+    "tool": "browser.navigate",
+    "outcome": {
+     "ok": true,
+     "state": "completed",
+     "result": {
+      "status": "observed",
+      "observation_id": "ceab683ed46a42708654cb4cf93c6fbb",
+      "url": "http://127.0.0.1:65094/notes.html",
+      "document_sha256": "71aff5c8d1bff5d24f1b2617504ef2bb283b0dc5dcd9e80c1891f352e2ad710f",
+      "text": "Daedalus stage 13 notes\n\nThis is a static page served from loopback for the Ikarus computer-loop measurement.\n\nToday\nwater the ficus\nrenew the library card\ncall the dentist at 15:00\n\nSentinel: TANGERINE-4471",
+      "controls": [],
+      "untrusted_page_content": true,
+      "network_refusals": [],
+      "postcondition_verified": false,
+      "page_javascript": false,
+      "dynamic_applications_available": false
+     },
+     "evidence": {
+      "artifact": {
+       "sha256": "1eb3aeb50d01c925bf295f7081833937d8ff07f8af53e10f956120b2a9572325",
+       "locator": "artifact-locator:sha256:1eb3aeb50d01c925bf295f7081833937d8ff07f8af53e10f956120b2a9572325"
+      },
+      "lease_sha256": "2388b543e7ae92fe69b42c24fc7dad72b9090fb912af7248ac9b1855f9e0ab05",
+      "start_sha256": "a7f375134b9e874da9197838b1380929f54f4468a716b77e48c4f88d904d0007",
+      "terminal_sha256": "26636ac7268690e6a026b6ba8bb069926b7471c7451f30b596ee5d5f94a357de",
+      "binding": {
+       "subject_record_sha256": "609458dbe37929ce85ea628411a704985e0b67657a3d72351872f41ab829694c",
+       "execution_record_sha256": "26383067be376ddfc6f8f4bad52f2e8b52ca45d7701b761b4c741771583042d8",
+       "execution_request_sha256": "0183f8be8907811377ee63aa8bbece771ab36996263d440ec2b832b0d1859a54",
+       "execution_id": "computer-d08b6aa7268e2aac78394975fa2544d6-exec-0",
+       "source_revision": "604e50bc6581ab8c22233eb36308767e29016e48593c720767e0b84eafde17f6",
+       "attempt_id": "computer-loop-measure-03-step-0001",
+       "operation_sha256": "d0296522c10e7531b9e20836f037bf6a1e8f26309f9bfeff6e45fc0c971eebf4",
+       "terminal_record_sha256": "cda521e753ae4d2f656f40ab39a11b7721da1fa51f1ab3128a672edb65b63d42"
+      }
+     }
+    },
+    "artifact": {
+     "sha256": "0ff522ceb05bbdb5a4065101b407dd69ab4597b488e27d0a59fcf9cc06af53cf",
+     "locator": "artifact-locator:sha256:0ff522ceb05bbdb5a4065101b407dd69ab4597b488e27d0a59fcf9cc06af53cf"
+    }
+   }
+  ],
+  "summary": "LoopHalted: kill switch engaged: stop was requested [<SCRATCH>/self-renovation\\control6\\killswitch]",
+  "planner_summary": null,
+  "authority_root": "<SCRATCH>/self-renovation\\subject",
+  "planner_calls": 13,
+  "tool_steps": 1,
+  "replans": 10,
+  "repair_calls": 0,
+  "plan": {
+   "advisory": true,
+   "revision": 11,
+   "steps": [
+    "Read the page and report the page title, the three items listed under Today, and the sentinel code."
+   ],
+   "artifact": {
+    "sha256": "4a28c20b0ee46134b0f05d6c975a7129060139971eca6e5b57e6d9cdb804fd3e",
+    "locator": "artifact-locator:sha256:4a28c20b0ee46134b0f05d6c975a7129060139971eca6e5b57e6d9cdb804fd3e"
+   }
+  },
+  "proposals": [
+   {
+    "sha256": "565c4dc35ec0e87e266f710ff7bbba582fdab77fa3a882c2a5ef14d6237bf784",
+    "locator": "artifact-locator:sha256:565c4dc35ec0e87e266f710ff7bbba582fdab77fa3a882c2a5ef14d6237bf784"
+   },
+   {
+    "sha256": "c998d97eb5a6d65d8527a1814ddd105f7f5c1d388256e2a390300493475d9cb2",
+    "locator": "artifact-locator:sha256:c998d97eb5a6d65d8527a1814ddd105f7f5c1d388256e2a390300493475d9cb2"
+   },
+   {
+    "sha256": "a0a024c58ce92b01177a4d101ddb124b3cc4651cda818ebda7515418ca778d0b",
+    "locator": "artifact-locator:sha256:a0a024c58ce92b01177a4d101ddb124b3cc4651cda818ebda7515418ca778d0b"
+   },
+   {
+    "sha256": "9dbeb42cfa9a9d3cd9a215ceddaca30a226657056950da6771e36d031f9892ad",
+    "locator": "artifact-locator:sha256:9dbeb42cfa9a9d3cd9a215ceddaca30a226657056950da6771e36d031f9892ad"
+   },
+   {
+    "sha256": "c9d9a403a35e8c74066635aa57572df6d0a15aa3e1d48cdfd713db532bed8d6e",
+    "locator": "artifact-locator:sha256:c9d9a403a35e8c74066635aa57572df6d0a15aa3e1d48cdfd713db532bed8d6e"
+   },
+   {
+    "sha256": "fd66f62d8a32ecf36028f768925e7604b6e90983a2c0673e6edf9d07552e1b1f",
+    "locator": "artifact-locator:sha256:fd66f62d8a32ecf36028f768925e7604b6e90983a2c0673e6edf9d07552e1b1f"
+   },
+   {
+    "sha256": "4788d017829b81a718169787fb695abeeaa80729cf65682c16f8059e9ef1cc3e",
+    "locator": "artifact-locator:sha256:4788d017829b81a718169787fb695abeeaa80729cf65682c16f8059e9ef1cc3e"
+   },
+   {
+    "sha256": "ae891cf55d1723439569ded1626e2a1bc5abf267ea069169a7c8bfa37233503e",
+    "locator": "artifact-locator:sha256:ae891cf55d1723439569ded1626e2a1bc5abf267ea069169a7c8bfa37233503e"
+   },
+   {
+    "sha256": "f910db463d8e30a600856cb043fbf41f16ee03428759208f9586c01057817a26",
+    "locator": "artifact-locator:sha256:f910db463d8e30a600856cb043fbf41f16ee03428759208f9586c01057817a26"
+   },
+   {
+    "sha256": "68574f8140908a4bae8c365666b9081b5ec42b39c7899331d2b8104e5d2a49a8",
+    "locator": "artifact-locator:sha256:68574f8140908a4bae8c365666b9081b5ec42b39c7899331d2b8104e5d2a49a8"
+   },
+   {
+    "sha256": "0c38e6f91b124910e5b3b7ab245148b5132c53224e3afc15cc8f3bc48441e33b",
+    "locator": "artifact-locator:sha256:0c38e6f91b124910e5b3b7ab245148b5132c53224e3afc15cc8f3bc48441e33b"
+   },
+   {
+    "sha256": "4a28c20b0ee46134b0f05d6c975a7129060139971eca6e5b57e6d9cdb804fd3e",
+    "locator": "artifact-locator:sha256:4a28c20b0ee46134b0f05d6c975a7129060139971eca6e5b57e6d9cdb804fd3e"
+   },
+   {
+    "sha256": "49696cf2e914a7a6d628b3df0f31e33dc17f0a4d79c61e8c375c27530b2f0e42",
+    "locator": "artifact-locator:sha256:49696cf2e914a7a6d628b3df0f31e33dc17f0a4d79c61e8c375c27530b2f0e42"
+   }
+  ],
+  "task_success_verified": false,
+  "elapsed_s": 961.3669096999947,
+  "report_artifact": {
+   "sha256": "33ebdf202e736713da92fce450b8db73538271d616a47870089bd92337664d92",
+   "locator": "artifact-locator:sha256:33ebdf202e736713da92fce450b8db73538271d616a47870089bd92337664d92"
+  }
+ }
+}

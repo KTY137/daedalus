@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,9 +49,11 @@ def _norm(path: str | os.PathLike) -> str:
 
 
 def serena_configured_root(root: Path) -> Path | None:
-    """The ``--project`` Serena is started with in this tree's ``.mcp.json``,
-    or None when there is no such configuration. This is the CONFIGURED root;
-    the live server's identity is not observable from a hook."""
+    """The root Serena is started on in this tree's ``.mcp.json``: the
+    ``--project`` path (environment variables expanded), or this tree for
+    ``--project-from-cwd``; None when there is no such configuration. This is
+    the CONFIGURED root; the live server's identity is not observable from a
+    hook."""
     try:
         data = json.loads((root / ".mcp.json").read_text(encoding="utf-8"))
         args = data["mcpServers"]["serena"]["args"]
@@ -59,10 +62,15 @@ def serena_configured_root(root: Path) -> Path | None:
     if not isinstance(args, list):
         return None
     for i, item in enumerate(args):
+        if item == "--project-from-cwd":
+            # Serena roots itself at the nearest ancestor of the cwd Claude Code
+            # launched it in that carries .serena/project.yml or .git -- the
+            # session's own tree (the general form, adopted 2026-09-06).
+            return root
         if item == "--project" and i + 1 < len(args) and isinstance(args[i + 1], str):
-            return Path(args[i + 1])
+            return Path(os.path.expandvars(args[i + 1]))
         if isinstance(item, str) and item.startswith("--project="):
-            return Path(item.split("=", 1)[1])
+            return Path(os.path.expandvars(item.split("=", 1)[1]))
     return None
 
 
@@ -72,6 +80,38 @@ def serena_root_mismatch(root: Path) -> Path | None:
     if configured is None:
         return None
     return configured if _norm(configured) != _norm(root) else None
+
+
+_LS_INLINE = re.compile(r"^language_servers:\s*\[(.*?)\]\s*$", re.MULTILINE)
+_LS_BLOCK = re.compile(r"^language_servers:\s*$", re.MULTILINE)
+_LS_ITEM = re.compile(r"^\s+-\s*([\w-]+)\s*$")
+
+
+def serena_language_servers(root: Path) -> list[str] | None:
+    """The ``language_servers`` list of ``.serena/project.yml`` (inline or
+    block form), or None when the file or the key is absent. One key, read
+    without a YAML parser: the hooks are stdlib-only. [MEASURED 2026-09-06]
+    Serena's first start on this tree wrote ``language_servers: []`` -- a
+    project whose symbol tools are blind -- which is why the card reads it."""
+    try:
+        text = (root / ".serena" / "project.yml").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = _LS_INLINE.search(text)
+    if m:
+        return [t.strip().strip("'\"") for t in m.group(1).split(",") if t.strip().strip("'\"")]
+    m = _LS_BLOCK.search(text)
+    if m is None:
+        return None
+    names: list[str] = []
+    for line in text[m.end():].splitlines()[1:]:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        item = _LS_ITEM.match(line)
+        if item is None:
+            break
+        names.append(item.group(1))
+    return names
 
 
 @dataclass(frozen=True)

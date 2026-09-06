@@ -66,5 +66,18 @@ export function runThemeSpec() {
     bogusBack.themes[0].scene?.environment === undefined && bogusBack.problems.some((p) => p.id === roomed.id));
   check('isSceneEnvironmentId refuses non-strings and unknown ids',
     !isSceneEnvironmentId(undefined) && !isSceneEnvironmentId(3) && !isSceneEnvironmentId('none') && isSceneEnvironmentId('techno-forest'));
+  roomed.scene = { ...roomed.scene!, rendering: 'interactive', exposure: 1.35 };
+  const interactive = importThemes(exportThemes([roomed])).themes[0];
+  check('interactive geometry mode and light survive theme JSON round trip',
+    interactive.scene?.rendering === 'interactive' && interactive.scene?.exposure === 1.35);
+  const malformed = JSON.parse(exportThemes([roomed]));
+  malformed.themes[0].scene.rendering = 'https://example.invalid/model.glb';
+  malformed.themes[0].scene.exposure = 500;
+  const repairedRoom = importThemes(JSON.stringify(malformed)).themes[0];
+  check('unknown render mode cannot select a model URL and excessive light is clamped',
+    repairedRoom.scene?.rendering === undefined && repairedRoom.scene?.exposure === 1.6);
+  malformed.themes[0].scene.exposure = 'nan';
+  check('non-numeric room light falls back to the default',
+    importThemes(JSON.stringify(malformed)).themes[0].scene?.exposure === undefined);
   return results;
 }

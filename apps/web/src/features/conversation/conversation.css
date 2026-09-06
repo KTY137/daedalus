@@ -589,11 +589,10 @@
 .brain-btn:focus-visible:not(:disabled) { color: var(--ink); border-color: var(--accent); outline: none; }
 .brain-btn[aria-expanded='true'] { color: var(--ink); border-color: var(--accent); }
 .brain-btn:disabled { color: var(--ink3); cursor: default; }
+/* A role word, not a heading: sentence case at the row's own size. Two
+   tracked uppercase labels in one 44 px row read as shouting. */
 .brain-btn-role {
   flex: none;
-  font-weight: var(--label-weight);
-  letter-spacing: var(--label-tracking);
-  text-transform: uppercase;
   color: var(--ink3);
 }
 .brain-btn-name { white-space: nowrap; color: inherit; }
@@ -681,9 +680,6 @@
 .effort-role {
   margin-right: var(--u1);
   font-size: var(--fs-xs);
-  font-weight: var(--label-weight);
-  letter-spacing: var(--label-tracking);
-  text-transform: uppercase;
   color: var(--ink3);
 }
 .effort-opt {

@@ -478,3 +478,44 @@ def test_every_release_fence_constant_is_read_at_call_time(monkeypatch):
     assert subject._release_tool_spec("file.move") is None, (
         "the projection still offers a tool the kernel fence now refuses")
 
+
+def test_release_locked_tools_are_reported_unavailable_not_silently_dropped(configured, monkeypatch):
+    """G1-IKARUS-26; the counter-cases are Codex's (room, 2026-09-05 16:49): every tool
+    locked, a mixed policy, and a missing adapter dependency."""
+    import importlib.util
+
+    from daedalus.kernel.policy.computer import RELEASE_DISABLED_TOOLS, enforce_release_tool_fence
+
+    # The locked set is read from the fence itself, not hardcoded: the main tree
+    # lifted the file tools in G1-IKARUS-25 phase 2 while vision.match and
+    # vision.changes stay locked (review session 6e, 2026-09-05 17:20).
+    locked = tuple(sorted(RELEASE_DISABLED_TOOLS))
+    assert locked, "the release fence names at least one locked tool"
+    service, _, policy, path, _, _ = configured
+    service.close()
+    path.write_text(json.dumps(replace(policy, tools=locked).to_dict()), encoding="utf-8")
+    locked_service = subject.ComputerService(service.authority_root)
+    try:
+        caps = locked_service.capabilities()
+        assert caps["enabled"] is False and caps["tools"] == []
+        assert set(caps["unavailable"]) == set(locked)
+        assert all("handle-relative" in reason for reason in caps["unavailable"].values())
+    finally:
+        locked_service.close()
+    path.write_text(json.dumps(replace(policy, tools=locked + ("browser.read",)).to_dict()), encoding="utf-8")
+    mixed_service = subject.ComputerService(service.authority_root)
+    try:
+        caps = mixed_service.capabilities()
+        assert caps["enabled"] is True
+        assert [tool["name"] for tool in caps["tools"]] == ["browser.read"]
+        assert set(caps["unavailable"]) == set(locked)
+        enforce_release_tool_fence("browser.read", {})  # the executable shape is not fenced
+        real_find_spec = importlib.util.find_spec
+        monkeypatch.setattr(importlib.util, "find_spec",
+                            lambda name, *a, **k: None if name == "playwright" else real_find_spec(name, *a, **k))
+        caps = mixed_service.capabilities()
+        assert caps["enabled"] is False and caps["tools"] == []
+        assert "Playwright" in caps["unavailable"]["browser.read"]
+        assert all("handle-relative" in caps["unavailable"][tool] for tool in locked)
+    finally:
+        mixed_service.close()

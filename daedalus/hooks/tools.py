@@ -1,5 +1,8 @@
-"""Tool-event handlers: PreToolUse (Serena routing, Serena wrong-tree write
-guard) and PostToolUse (test-run fingerprint, docs-drift reminder).
+"""Tool-event handlers: PreToolUse (Serena routing, native-burst and symbol-edit
+advisories, Serena wrong-tree write guard) and PostToolUse (Serena usage
+tracking, test-run fingerprint, docs-drift reminder). The Serena text and
+bookkeeping live in ``serena.py`` (owner order 2026-09-06: Serena on every
+prompt).
 
 Serena routing — three modes, ``DAEDALUS_SERENA_HOOK``
 ------------------------------------------------------
@@ -31,6 +34,7 @@ import socket
 import time
 from pathlib import Path
 
+from . import serena
 from ._common import HookResult, sha256_text, update_state
 from ._tree import SERENA_WRITE_TOOLS, serena_root_mismatch, source_fingerprint
 
@@ -46,6 +50,7 @@ TRANSCRIPT_TAIL_BYTES = 2_000_000
 SERENA_CALL = re.compile(r'"name"\s*:\s*"mcp__serena__\w+"')
 ADVISED_CAP = 200
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
+EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit"})
 
 #: Commands that count as a test run. The head of the command (after an
 #: optional ``cd … &&`` / ``;`` and optional ``uv run``) must be one of these
@@ -175,6 +180,17 @@ def _advise(text: str) -> dict:
     }
 
 
+def _whole_code_read(tool_input: dict) -> bool:
+    """A Read of a whole code file -- the call the burst counter counts. A
+    targeted read (offset/limit) is the sanctioned fallback and never counts."""
+    raw = tool_input.get("file_path")
+    if not isinstance(raw, str) or not raw:
+        return False
+    if tool_input.get("offset") is not None or tool_input.get("limit") is not None:
+        return False
+    return Path(raw).suffix.lower() in SOURCE_SUFFIXES
+
+
 def pre_tool(payload: dict, root: Path, sid: str, env: dict | None = None) -> HookResult:
     env = os.environ if env is None else env
     tool_name = str(payload.get("tool_name") or "")
@@ -203,13 +219,18 @@ def pre_tool(payload: dict, root: Path, sid: str, env: dict | None = None) -> Ho
     mode = serena_mode(env)
     if mode == "off":
         return HookResult()
+    counts = False  # toward the native burst (serena.BURST_THRESHOLD)
     if tool_name == "Grep":
         nudge = grep_nudge(tool_input)
+        counts = True
     elif tool_name == "Read":
         nudge = read_nudge(tool_input, str(payload.get("transcript_path") or ""))
+        counts = _whole_code_read(tool_input)
+    elif tool_name in EDIT_TOOLS:
+        nudge = serena.edit_nudge(tool_input, root)
     else:
         return HookResult()
-    if nudge is None:
+    if nudge is None and not counts:
         return HookResult()
     if serena_root_mismatch(root) is not None:
         # Reachability is not correctness: a server indexing another tree answers
@@ -218,23 +239,32 @@ def pre_tool(payload: dict, root: Path, sid: str, env: dict | None = None) -> Ho
     if not serena_is_reachable(env):
         return HookResult(note="serena-unreachable")
 
-    key, text = nudge
-    if mode == "deny":
-        return HookResult(payload=_deny(text), note="serena-deny")
+    if nudge is not None and mode == "deny" and tool_name not in EDIT_TOOLS:
+        # amendment-003 behaviour, Grep/Read only: an edit is never denied here.
+        return HookResult(payload=_deny(nudge[1]), note="serena-deny")
 
     fresh: dict = {}
 
     def mutate(state: dict) -> None:
-        advised = state.setdefault("serena_advised", [])
-        fresh["new"] = key not in advised
-        if fresh["new"]:
-            advised.append(key)
-            del advised[:-ADVISED_CAP]
+        if nudge is not None:
+            advised = state.setdefault("serena_advised", [])
+            fresh["new"] = nudge[0] not in advised
+            if fresh["new"]:
+                advised.append(nudge[0])
+                del advised[:-ADVISED_CAP]
+                serena.burst_reset(state)  # the model was just told
+        if counts and not fresh.get("new"):
+            fresh["burst"] = serena.burst_update(state, serena._now())
 
     update_state(root, sid, mutate)
-    if not fresh.get("new"):
+    if nudge is not None and fresh.get("new"):
+        note = "serena-edit-advise" if tool_name in EDIT_TOOLS else "serena-advise"
+        return HookResult(payload=_advise(nudge[1]), note=note)
+    if fresh.get("burst"):
+        return HookResult(payload=_advise(serena.BURST_TEXT), note="serena-burst-advise")
+    if nudge is not None:
         return HookResult(note="serena-advised-before")
-    return HookResult(payload=_advise(text), note="serena-advise")
+    return HookResult()
 
 
 # --------------------------------------------------------------------------
@@ -248,9 +278,26 @@ def post_tool(payload: dict, root: Path, sid: str) -> HookResult:
     masks its own status (``pytest || true``) reaches here too -- which is why
     the recorded line carries the exact command text, so the reader can judge
     what "last test run" meant."""
-    if str(payload.get("tool_name") or "") not in SHELL_TOOLS:
-        return HookResult()
+    tool_name = str(payload.get("tool_name") or "")
     tool_input = payload.get("tool_input")
+    if tool_name.startswith("mcp__serena__"):
+        seen: dict = {}
+
+        def note_call(state: dict) -> None:
+            seen["short"] = serena.note_serena_call(state, tool_name)
+
+        update_state(root, sid, note_call)
+        return HookResult(note=f"serena-call:{seen.get('short', '?')}")
+    if tool_name == "ToolSearch":
+        seen = {}
+
+        def note_search(state: dict) -> None:
+            seen["hit"] = serena.note_tool_search(state, tool_input)
+
+        update_state(root, sid, note_search)
+        return HookResult(note="serena-loaded" if seen.get("hit") else "")
+    if tool_name not in SHELL_TOOLS:
+        return HookResult()
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if not isinstance(command, str) or not command.strip():
         return HookResult()

@@ -55,7 +55,7 @@
 .ariadne-result {
   padding: var(--u5);
   border: var(--border) solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: calc(var(--radius) + 4px);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   box-shadow: var(--shadow);
 }

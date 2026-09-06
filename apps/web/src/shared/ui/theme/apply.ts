@@ -28,7 +28,7 @@ export const THEME_VARS = [
   '--display-weight', '--display-tracking',
   '--voice-weight', '--label-weight', '--label-tracking', '--datum-weight', '--datum-tracking',
   '--radius', '--radius-sm', '--border', '--unit',
-  '--u1', '--u2', '--u3', '--u4', '--u6', '--u8',
+  '--u1', '--u2', '--u3', '--u4', '--u5', '--u6', '--u7', '--u8',
   '--shadow', '--shadow-pane', '--shadow-drawer', '--shadow-modal', '--blur', '--panel-alpha',
   '--stage-curve', '--stage-glow', '--stage-size-fanin',
   '--stage-parallax', '--stage-depth-fog', '--stage-depth-blur'
@@ -182,7 +182,12 @@ export function applyTheme(theme: ThemeSpec, root: HTMLElement = document.docume
   s.setProperty('--u2', `${f.unit}px`);
   s.setProperty('--u3', `${f.unit * 1.5}px`);
   s.setProperty('--u4', `${f.unit * 2}px`);
+  // --u5 and --u7 were referenced by genesis.css, ariadne.css and ide.css but
+  // never set, so every `gap`/`padding` that used them resolved to 0 and the
+  // Genesis panels touched (owner report 2026-09-06). Half steps of the unit.
+  s.setProperty('--u5', `${f.unit * 2.5}px`);
   s.setProperty('--u6', `${f.unit * 3}px`);
+  s.setProperty('--u7', `${f.unit * 3.5}px`);
   s.setProperty('--u8', `${f.unit * 4}px`);
   s.setProperty('--shadow', shadowFor(f.elevation, theme.base));
   // elevationPane/Drawer/Modal are optional on ThemeForm (see the comment on

@@ -74,23 +74,12 @@
   justify-content: space-between;
   gap: 15px;
 }
-.studio-eyebrow {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--ink3);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-}
 .studio-head h2 {
   font-family: var(--font-display);
   font-weight: 550;
   font-size: 27px;
   line-height: 1.15;
   letter-spacing: -0.045em;
-}
-.studio-head h2 > span {
-  color: var(--accent);
 }
 .studio-close {
   display: grid;
@@ -951,9 +940,9 @@
 }
 .studio-type-preview > small {
   display: block;
-  margin-top: 15px;
-  font-size: 8px;
-  letter-spacing: 0.18em;
+  margin-top: 10px;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
   color: var(--ink3);
 }
 .studio-scene-preview {

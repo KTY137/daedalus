@@ -1,0 +1,12 @@
+[
+ {
+  "call": 0,
+  "sha256": "4cb29cebab470b42152557a7e316fff6c42c9daf36e922e08543575fa0fa7b50",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Navigate to http://127.0.0.1:65094/notes.html in the browser.\",\n    \"Read the page and report the page title, the three items listed under Today, and the sentinel code.\"\n  ]\n}"
+ },
+ {
+  "call": 1,
+  "sha256": "afdcb38fe64ca4dd747da6133b8908eee5512c5499e314354e708e2d73afcd6b",
+  "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.navigate\",\n  \"arguments\": {\n    \"url\": \"http://127.0.0.1:65094/notes.html\"\n  }\n}"
+ }
+]

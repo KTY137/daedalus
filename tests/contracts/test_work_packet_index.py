@@ -194,19 +194,18 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "331 tracked files" in message
+    assert "348 tracked files" in message  # re-measured 2026-09-05 after the eight loop-stage packets and their evidence
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
-    # v0.1.6 ASAE packet set with `tools/index_work_packets.py --render`, then
-    # re-measured the same way when G1-HW-01 added one primary packet document.
+    # v0.1.6 ASAE packet set with `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 328,
+        "assigned_artifacts": 345,
         "legacy_artifacts": 204,
-        "packet_artifacts": 330,
-        "packet_ids": 265,
-        "post_index_artifacts": 126,
+        "packet_artifacts": 347,
+        "packet_ids": 282,
+        "post_index_artifacts": 143,
         "registry_artifacts": 1,
-        "tracked_files": 331,
+        "tracked_files": 348,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -258,9 +257,27 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-ACCEL-01",
         "G1-ARIADNE-02",
             "G1-ARIADNE-03",
+        "G1-ARIADNE-04",
+        "G1-ARIADNE-05",
+        "G1-ARIADNE-06",
+        "G1-ARIADNE-07",
+        "G1-ARIADNE-08",
+        "G1-ARIADNE-09",
+        "G1-EDA-HOST-STATUS-01",
+        "G1-EDA-HOST-STATUS-02",
+        "G1-GENESIS-REHEARSAL-01",
+        "G1-IKARUS-26",
+        "G1-IKARUS-29",
+        "G1-IKARUS-30",
+        "G1-IKARUS-31",
+        "G1-SELF-00",
+        "G1-SELF-01",
+        "G1-TESTS-01",
             "G1-COUNCIL-01",
             "G1-DESKTOP-PRERELEASE-016",
         "G1-ENV-01",
+        "G1-HW-01",
+        "G1-KERNEL-02",
         "G1-EXP-FOURFOLD-HYBRID-01",
         "G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01",
         "G1-EXP-GPU-ENV-01",
@@ -379,9 +396,6 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-WP-INDEX-01",
         "G1-SCC-02",
         "G1-TENSOR-01",
-        # Isolated EXPERIMENT (effect-free KiCad inspection); see
-        # docs/work-packets/G1-HW-01_KICAD_READ_ONLY_INSPECTION.md.
-        "G1-HW-01",
     }
     post_index_packets = {
         packet_id: packet
