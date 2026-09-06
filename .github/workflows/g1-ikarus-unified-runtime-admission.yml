@@ -32,6 +32,7 @@ on:
       - "daedalus/runtimes/provider_executable_object_registry.py"
       - "daedalus/runtimes/provider_runtime_executable_binding.py"
       - "daedalus/runtimes/provider_invocation.py"
+      - "daedalus/runtimes/provider_invocation_authority.py"
       - "daedalus/runtimes/provider_invocation_payload.py"
       - "daedalus/runtimes/provider_invocation_abi.py"
       - "daedalus/runtimes/provider_runtime_invocation_binding.py"
@@ -60,6 +61,7 @@ on:
       - "tests/runtimes/test_provider_runtime_executable_binding.py"
       - "tests/runtimes/test_provider_runtime_executable_binding_review.py"
       - "tests/runtimes/test_provider_invocation_subject.py"
+      - "tests/runtimes/test_provider_invocation_authority.py"
       - "tests/runtimes/test_provider_invocation_payload.py"
       - "tests/runtimes/test_provider_invocation_payload_review.py"
       - "tests/runtimes/test_provider_invocation_abi.py"
@@ -123,6 +125,7 @@ jobs:
           daedalus/runtimes/provider_executable_object_registry.py
           daedalus/runtimes/provider_runtime_executable_binding.py
           daedalus/runtimes/provider_invocation.py
+          daedalus/runtimes/provider_invocation_authority.py
           daedalus/runtimes/provider_invocation_payload.py
           daedalus/runtimes/provider_invocation_abi.py
           daedalus/runtimes/provider_runtime_invocation_binding.py
@@ -148,6 +151,7 @@ jobs:
           tests/runtimes/test_provider_executable_object_registry.py
           tests/runtimes/test_provider_runtime_executable_binding.py
           tests/runtimes/test_provider_invocation_subject.py
+          tests/runtimes/test_provider_invocation_authority.py
           tests/runtimes/test_provider_invocation_payload.py
           tests/runtimes/test_provider_invocation_payload_review.py
           tests/runtimes/test_provider_invocation_abi.py
