@@ -747,6 +747,12 @@ def test_a_failed_tool_step_is_not_progress_against_the_plan(isolated):
     result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose)
     assert result["state"] == "blocked" and result["tool_steps"] == 1
     assert len(prompts) == 2, "no prompt is built after a failed step, so no advanced count can reach a planner"
+    # Odysseus (2026-09-06 09:04): the repair had no discriminating test because the counter
+    # was invisible. The report now carries the final progress view against the plan in force.
+    assert result["plan_progress"] == {"tool_steps_since_plan": 0, "next_step_index": 1,
+                                       "next_step": "Read the fixture file.",
+                                       "open_steps": ["Read the fixture file.", "Read it again to verify."],
+                                       "every_step_has_a_tool_step": False}
 
 
 def test_a_non_boolean_remote_flag_never_reaches_a_remote_planner(monkeypatch):
@@ -783,6 +789,7 @@ def _heartbeat(tmp_path, monkeypatch, payload):
 
 
 def test_watcher_projection_names_whether_this_root_is_ticked(tmp_path, monkeypatch):
+    monkeypatch.setattr(loop, "_pid_alive", lambda pid: True)  # liveness has its own tests below
     root = tmp_path / "authority"
     root.mkdir()
     now = 1_000_000.0
@@ -1023,3 +1030,47 @@ def test_report_carries_the_absence_check_after_a_finish(isolated):
     stalled = loop.run_computer_task(root, "Read fixture", service=Service(max_steps=8), ledger=ledger,
                                      propose=planner(PLAN, PLAN, PLAN, READ, DONE))
     assert stalled["summary_tokens_absent_from_observations"] is None, "no finish, nothing to check"
+
+
+# --------------------------------------------------------------------------
+# Odysseus 2026-09-06 09:04 on lane 11 (findings 1, 4, 5): pinned counter, dead-PID heartbeat,
+# heartbeat without a bound root
+# --------------------------------------------------------------------------
+
+def test_final_plan_progress_is_in_the_report_and_absent_without_a_plan(isolated):
+    root, ledger = isolated
+    done = loop.run_computer_task(root, "Read fixture", service=Service(max_steps=8), ledger=ledger,
+                                  propose=planner(PLAN_TWO, READ, READ, DONE))
+    assert done["plan_progress"]["tool_steps_since_plan"] == 2 and done["plan_progress"]["every_step_has_a_tool_step"] is True
+    plain = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger, propose=planner(READ, DONE))
+    assert plain["plan_progress"] is None
+
+
+def test_a_fresh_heartbeat_whose_process_is_gone_does_not_tick(tmp_path, monkeypatch):
+    root = tmp_path / "authority"; root.mkdir()
+    now = 1_000_000.0
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 5, "pid": 999999, "repo_root": str(root), "current": None})
+    monkeypatch.setattr(loop, "_pid_alive", lambda pid: False)
+    gone = loop.watcher_projection(root, now=now)
+    assert (gone["state"], gone["ticks_this_root"], gone["pid_alive"]) == ("dead_pid", False, False)
+    assert "nicht aktiv (dead_pid)" in loop._watcher_line(gone)
+    monkeypatch.setattr(loop, "_pid_alive", lambda pid: True)
+    alive = loop.watcher_projection(root, now=now)
+    assert (alive["state"], alive["ticks_this_root"], alive["pid_alive"]) == ("alive", True, True)
+
+
+def test_own_process_is_alive_and_a_non_pid_is_unknown():
+    import os
+    assert loop._pid_alive(os.getpid()) is True
+    assert loop._pid_alive(None) is None and loop._pid_alive(-1) is None
+
+
+def test_a_heartbeat_without_a_bound_root_is_named_as_such(tmp_path, monkeypatch):
+    root = tmp_path / "authority"; root.mkdir()
+    now = 1_000_000.0
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 5, "pid": 4242, "repo_root": None, "project": "p", "current": None})
+    monkeypatch.setattr(loop, "_pid_alive", lambda pid: True)
+    unbound = loop.watcher_projection(root, now=now)
+    assert (unbound["state"], unbound["serves_this_root"], unbound["ticks_this_root"]) == ("alive", False, False)
+    line = loop._watcher_line(unbound)
+    assert "ohne Ordnerbindung" in line and "None" not in line

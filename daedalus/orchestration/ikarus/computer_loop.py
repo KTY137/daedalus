@@ -762,6 +762,9 @@ def _computer_events_admitted(
             "authority_root": str(root), "planner_calls": planner_calls, "tool_steps": step,
             "replans": replans, "repair_calls": repair_calls, "plan": plan,
             "proposals": proposals, "planner": planner_facts,
+            # Odysseus 2026-09-06: the count against the plan in force was invisible, so its
+            # repairs had no discriminating test; the final view is retained here.
+            "plan_progress": _plan_progress(plan, tool_steps_since_plan),
             "prompt_chars_max": prompt_chars_max, "planner_context_tokens": planner_window,
             "context_estimate": "chars/4", "prompt_overflow_calls": prompt_overflow_calls,
             "task_success_verified": False, "elapsed_s": max(0.0, clock() - started_at),
@@ -881,6 +884,30 @@ def _remote_planner_warning(provider: str, model: str | None) -> str:
             "für diesen einen Befehl und wird nicht gespeichert.")
 
 
+def _pid_alive(pid: Any) -> bool | None:
+    """Whether a process with this id exists; None when the id is not a usable pid.
+
+    Odysseus (2026-09-06): a fresh heartbeat whose writer died within the stale window
+    read as "aktiv". Existence is checked, not identity: a reused pid still passes."""
+    if type(pid) is not int or pid <= 0:
+        return None
+    if os.name == "nt":
+        import ctypes
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if handle:
+            kernel32.CloseHandle(handle)
+            return True
+        return kernel32.GetLastError() == 5  # ERROR_ACCESS_DENIED: exists, owned by someone else
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def watcher_projection(authority_root: str | Path, *, now: float | None = None) -> dict[str, Any]:
     """Read-only: will a File Bridge watcher tick due tasks for this authority root?
 
@@ -909,10 +936,16 @@ def watcher_projection(authority_root: str | Path, *, now: float | None = None) 
             serves = False
     else:
         serves = False
-    return {"state": status.get("state"), "serves_this_root": serves,
-            "ticks_this_root": bool(serves) and status.get("state") in {"alive", "busy"},
-            "age_s": status.get("age_s"), "pid": status.get("pid"), "watcher_root": served,
-            "restart": restart, "detail": status.get("detail")}
+    state = status.get("state")
+    pid_alive = _pid_alive(status.get("pid")) if state in {"alive", "busy"} else None
+    detail = status.get("detail")
+    if pid_alive is False:
+        # A fresh beat from a process that no longer exists (Odysseus 2026-09-06, finding 4).
+        state, detail = "dead_pid", "heartbeat is fresh but its process is gone"
+    return {"state": state, "serves_this_root": serves,
+            "ticks_this_root": bool(serves) and state in {"alive", "busy"},
+            "age_s": status.get("age_s"), "pid": status.get("pid"), "pid_alive": pid_alive,
+            "watcher_root": served, "restart": restart, "detail": detail}
 
 
 def _watcher_line(projection: Mapping[str, Any]) -> str:
@@ -924,8 +957,13 @@ def _watcher_line(projection: Mapping[str, Any]) -> str:
         return (f"Watcher: aktiv für diesen Ordner (PID {projection.get('pid')}{when}); "
                 "fällige Aufträge werden automatisch ausgeführt.")
     if projection.get("serves_this_root") is False and projection.get("state") in {"alive", "busy"}:
-        return (f"Watcher: läuft für einen anderen Ordner (`{projection.get('watcher_root')}`); Aufträge für diesen "
-                f"Ordner werden nicht automatisch ausgeführt. Start: `{restart}`")
+        if projection.get("watcher_root"):
+            where = f"läuft für einen anderen Ordner (`{projection.get('watcher_root')}`)"
+        else:
+            # --project mode writes no repo_root; such a watcher dispatches no computer task.
+            where = "läuft ohne Ordnerbindung (Projekt-Modus)"
+        return (f"Watcher: {where}; Aufträge für diesen Ordner werden nicht automatisch ausgeführt. "
+                f"Start: `{restart}`")
     return (f"Watcher: nicht aktiv ({projection.get('state')}); Aufträge werden nicht automatisch ausgeführt, "
             f"`/computer run-due` prüft manuell. Start: `{restart}`")
 
