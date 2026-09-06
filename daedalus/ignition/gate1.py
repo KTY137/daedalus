@@ -1673,17 +1673,50 @@ def _replay_blockers(replay: Mapping[str, Any]) -> list[str]:
             + str(previous_bundle)[:12]
             + "); two runs are a replay only under one bundle"
         ]
+    # "TWO COMPLETE RUNS" -- a conjunct of ``replay_demonstrated`` since Codex
+    # round 3, and of NOTHING ELSE until now. G1-RENOVATION-01 measured what
+    # that costs (2026-09-06, three consecutive door runs): run 1 exited 1 on
+    # an evaluator-bundle blocker, run 2 exited **0** with ``blockers: []``
+    # while ``replay_demonstrated`` was false, because run 1 had not completed.
+    # The exit code is the only thing a CI job reads, so an incomplete
+    # predecessor silently produced a "demonstrated Gate-1 replay". It is a
+    # blocker now, which is what makes the door's exit code and its replay
+    # claim say the same thing.
+    if replay.get("previous_run_complete") is None:
+        return [
+            "replay comparison is incomplete: previous_run_complete could not be "
+            "measured, so this run demonstrates no replay"
+        ]
+    if replay.get("previous_run_complete") is False:
+        return [
+            "the previous run did not complete (it ended in blockers or produced no "
+            "evidence packet), so there is no complete run for this one to have "
+            "reproduced; run the slice again to compare two complete runs"
+        ]
     unstable = [name for name in REPLAY_REQUIRED_STABLE if replay.get(name) is False]
-    if not unstable:
-        return []
+    # THE CRITERION CHANGE IS CHECKED BEFORE ``unstable``, not inside it. It was
+    # reported only when some identity field had also moved -- true of the
+    # ordinary case (the suite is seeded into the base revision, so a criterion
+    # change moves it) but not of a predecessor written before the
+    # discrimination block existed: that receipt names no conformance suite at
+    # all, so ``criterion_changed_since_previous`` is true while every
+    # comparison happens to match, and the run came back with no blocker beside
+    # a false ``replay_demonstrated``.
     if replay.get("criterion_changed_since_previous"):
         return [
             "replay comparison spans a criterion change ("
-            + ", ".join(unstable)
-            + " differ); the previous run judged with conformance suite "
+            + (
+                ", ".join(unstable) + " differ"
+                if unstable
+                else "every required comparison matched, but the predecessor was "
+                "judged by another conformance suite"
+            )
+            + "); the previous run judged with conformance suite "
             + str(replay.get("previous_conformance_test_sha256"))[:12]
             + ". Run the slice again to compare two runs of the SAME criterion."
         ]
+    if not unstable:
+        return []
     return [
         "replay is not stable across two runs of the same criterion: "
         + ", ".join(unstable)
@@ -2185,6 +2218,15 @@ def write_receipt(
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "receipt.json"
     body = dict(receipt)
+    # THE RUN'S OWN BLOCKERS, recorded before the replay comparison appends its
+    # derivative ones. ``previous_run_complete`` below has to read THIS list and
+    # not the concatenated one: a replay blocker says the COMPARISON failed, not
+    # that the run did. Reading the concatenation would make the chain unable to
+    # recover -- once one run ends in blockers, run N+1 is blocked because N was,
+    # and run N+2 because N+1 was, forever. (``replay_demonstrated`` already
+    # reads the pre-replay list, because it is derived before the append; this
+    # field is what lets the NEXT run read the same thing.)
+    body["execution_blockers"] = list(body.get("blockers") or [])
     replay = dict(body.get("replay") or {})
     if path.exists():
         try:
@@ -2239,8 +2281,18 @@ def write_receipt(
             # "TWO COMPLETE RUNS", which the comparison did not require: a
             # predecessor that ended in blockers, or produced no packet, is not
             # a run this one can claim to have reproduced (Codex round 3).
+            # ``execution_blockers`` when the predecessor has one (every receipt
+            # written since G1-RENOVATION-02A does), else its concatenated
+            # ``blockers`` -- which is what a receipt written before that field
+            # existed carries, and reading it is the conservative direction:
+            # such a predecessor is called incomplete slightly too often, never
+            # complete when it was not.
             "previous_run_complete": bool(
-                not (previous.get("blockers") or [])
+                not (
+                    previous.get("execution_blockers")
+                    if previous.get("execution_blockers") is not None
+                    else (previous.get("blockers") or [])
+                )
                 and (previous.get("evidence_packet") or {}).get("packet_sha256")
             ),
             # WHAT THE PREVIOUS RUN JUDGED WITH. A criterion change moves the

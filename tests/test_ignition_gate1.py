@@ -689,6 +689,7 @@ def test_a_vacuous_criterion_turns_every_node_into_a_guard(tmp_path):
 COMPLETE_REPLAY = {
     "is_replay": True,
     "same_fixture": True,
+    "previous_run_complete": True,
     "criterion_changed_since_previous": False,
     "mission_id_stable": True,
     "work_item_ids_stable": True,
@@ -741,6 +742,124 @@ def test_a_comparison_that_could_not_be_measured_is_not_a_pass(missing):
     assert len(blockers) == 1
     assert "incomplete" in blockers[0] and missing in blockers[0]
     assert gate1._replay_blockers({"is_replay": True}) != []
+
+
+def test_a_predecessor_that_did_not_complete_is_not_a_replay():
+    """G1-RENOVATION-01 finding F2: ``previous_run_complete`` was a conjunct of
+    ``replay_demonstrated`` and of nothing else.
+
+    MEASURED 2026-09-06, three consecutive ``python -m daedalus.ignition`` runs:
+    run 1 exited 1 with an evaluator-bundle blocker; run 2 exited **0** with
+    ``blockers: []`` while ``replay.replay_demonstrated`` was ``false``, because
+    run 1 had not completed. A CI job gating on the exit code would have read
+    run 2 as a demonstrated Gate-1 replay.
+    """
+
+    blockers = gate1._replay_blockers({**COMPLETE_REPLAY, "previous_run_complete": False})
+    assert len(blockers) == 1
+    assert "previous run did not complete" in blockers[0]
+
+
+def test_a_predecessor_whose_completeness_was_not_measured_is_not_a_pass():
+    """The module's own rule: a field that is not there is not a pass."""
+
+    partial = {k: v for k, v in COMPLETE_REPLAY.items() if k != "previous_run_complete"}
+    blockers = gate1._replay_blockers(partial)
+    assert len(blockers) == 1
+    assert "incomplete" in blockers[0] and "previous_run_complete" in blockers[0]
+
+
+def test_a_criterion_change_is_refused_even_when_every_identity_matched():
+    """The second half of the same hole. ``_replay_blockers`` named a criterion
+    change only inside the ``unstable`` branch, so a predecessor written before
+    the discrimination block existed -- no ``conformance_test_sha256`` at all,
+    therefore ``criterion_changed_since_previous`` true -- came back with no
+    blocker at all while ``replay_demonstrated`` was false."""
+
+    blockers = gate1._replay_blockers({
+        **COMPLETE_REPLAY,
+        "criterion_changed_since_previous": True,
+        "previous_conformance_test_sha256": None,
+    })
+    assert len(blockers) == 1 and "criterion change" in blockers[0]
+
+
+def _exit_code(body, packet=object()):
+    """The exit code ``python -m daedalus.ignition`` computes.
+
+    Spelled here the way ``daedalus/ignition/__main__.py:78`` spells it --
+    ``1 if result.blockers or result.packet is None else 0`` -- over the
+    receipt's own blocker list, which is what ``IgnitionSliceResult.blockers``
+    is read back from (``gate1.py:1342``).
+    """
+
+    return 1 if (body.get("blockers") or packet is None) else 0
+
+
+def _synthetic_receipt(*, blockers, collected_at="2026-09-06T00:00:00Z"):
+    """A receipt body shaped like the ones ``_build_receipt`` produces.
+
+    Only the fields ``write_receipt``'s replay comparison reads are filled in;
+    everything the comparison does not touch is left out on purpose, so a
+    future field this test does not know about cannot make it pass by accident.
+    """
+
+    return {
+        "mission_id": "mission-gate1-voltage-ignition",
+        "work_item_ids": ["wi-000-aaaaaaaaaaaa", "wi-001-bbbbbbbbbbbb"],
+        "mission_sha256": "c" * 64,
+        "collected_at": collected_at,
+        "blockers": list(blockers),
+        "evidence_packet": {"packet_sha256": "d" * 64},
+        "checks": {"pytest": {"report_sha256": "e" * 64}},
+        "fourfold": {"graph_delta_sha256": "f" * 64},
+        "evaluator_bundle": {"digest": "1" * 64},
+        "discrimination": {
+            "before_state": {
+                "conformance_test_sha256": ignition_checks.CONFORMANCE_TEST_SHA256
+            }
+        },
+        "replay": {
+            "base_revision": "a" * 40,
+            "candidate_revision": "b" * 64,
+            "fixture_tree_sha256": "9" * 64,
+        },
+    }
+
+
+def test_exit_zero_implies_replay_demonstrated(tmp_path):
+    """The Gate-1 door's exit code and its replay claim must agree.
+
+    B1's run 1 ended in blockers (evaluator-bundle drift against a stale
+    receipt); run 2 was clean in every way except that its predecessor had not
+    completed -- and it exited 0. This is that sequence, driven through the one
+    function that can make the comparison, ``write_receipt``.
+    """
+
+    receipts = tmp_path / "receipts"
+    _, first = gate1.write_receipt(
+        _synthetic_receipt(blockers=["the previous receipt was produced by a "
+                                     "different evaluator bundle (6f6326038841)"]),
+        receipts,
+    )
+    assert _exit_code(first) == 1
+    assert first["replay"]["replay_demonstrated"] is False
+
+    _, second = gate1.write_receipt(_synthetic_receipt(blockers=[]), receipts)
+    assert second["replay"]["is_replay"] is True
+    assert second["replay"]["previous_run_complete"] is False
+    assert (_exit_code(second) == 0) == (
+        second["replay"]["replay_demonstrated"] is True
+    ), (
+        "exit 0 with replay_demonstrated false is what a CI job reads as a "
+        "demonstrated Gate-1 replay: " + json.dumps(second["blockers"])
+    )
+
+    # ...and the third run, whose predecessor DID complete, is the replay.
+    _, third = gate1.write_receipt(_synthetic_receipt(blockers=[]), receipts)
+    assert third["replay"]["previous_run_complete"] is True
+    assert third["replay"]["replay_demonstrated"] is True
+    assert _exit_code(third) == 0
 
 
 def test_a_previous_receipt_from_another_fixture_is_not_a_replay():
