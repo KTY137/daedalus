@@ -44,7 +44,13 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from daedalus.eval.harness import _repo_chunks, count_tokens
+from daedalus.eval.harness import _repo_chunks
+# count_tokens is reached through the module rather than imported by name:
+# harness does not DEFINE it -- it imports it from daedalus.structcore.tokens
+# inside a try/except with a chars/4 fallback, so a from-import re-exports
+# another module's name. tests/test_deepseek_substitution_guard.py refuses
+# that, and the sibling arms (bm25, separate_indices) already use this form.
+from daedalus.eval import harness as _harness
 
 from ..contracts import ArmBudget
 from ..protocols import ArmOutcome, SealedEvaluator, Task
@@ -101,7 +107,7 @@ class BestOfNArm:
         tokens_used = 0
         for label, text in sampled:
             score = evaluator.score(text, task)
-            tokens_used += count_tokens(text)
+            tokens_used += _harness.count_tokens(text)
             if best_score is None or score > best_score:
                 best_score = score
                 best_candidate = text

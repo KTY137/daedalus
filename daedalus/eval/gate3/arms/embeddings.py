@@ -82,7 +82,13 @@ import math
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
-from daedalus.eval.harness import _bm25_tokenize, _repo_chunks, count_tokens
+from daedalus.eval.harness import _bm25_tokenize, _repo_chunks
+# count_tokens is reached through the module rather than imported by name:
+# harness does not DEFINE it -- it imports it from daedalus.structcore.tokens
+# inside a try/except with a chars/4 fallback, so a from-import re-exports
+# another module's name. tests/test_deepseek_substitution_guard.py refuses
+# that, and the sibling arms (bm25, separate_indices) already use this form.
+from daedalus.eval import harness as _harness
 
 from ..contracts import ArmBudget
 from ..protocols import ArmOutcome, SealedEvaluator, Task
@@ -228,7 +234,7 @@ class EmbeddingsArm:
         for i in order:
             label, text = chunks[i]
             block = _BLOCK_FORMAT.format(label=label, text=text)
-            block_tokens = count_tokens(block)
+            block_tokens = _harness.count_tokens(block)
             if picked and budget.max_tokens is not None \
                     and total + block_tokens > budget.max_tokens:
                 truncated = True
@@ -241,7 +247,7 @@ class EmbeddingsArm:
             for i in picked
         )
         candidate_score = evaluator.score(combined, task)
-        tokens_used = count_tokens(combined) if combined else 0
+        tokens_used = _harness.count_tokens(combined) if combined else 0
         success = candidate_score >= SUCCESS_SCORE
 
         return ArmOutcome(

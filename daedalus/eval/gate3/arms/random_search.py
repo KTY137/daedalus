@@ -37,7 +37,13 @@ from __future__ import annotations
 
 import random
 
-from daedalus.eval.harness import _repo_chunks, count_tokens
+from daedalus.eval.harness import _repo_chunks
+# count_tokens is reached through the module rather than imported by name:
+# harness does not DEFINE it -- it imports it from daedalus.structcore.tokens
+# inside a try/except with a chars/4 fallback, so a from-import re-exports
+# another module's name. tests/test_deepseek_substitution_guard.py refuses
+# that, and the sibling arms (bm25, separate_indices) already use this form.
+from daedalus.eval import harness as _harness
 
 from ..contracts import ArmBudget, FreezeError
 from ..protocols import ArmOutcome, SealedEvaluator, Task
@@ -63,13 +69,13 @@ def _assemble_candidate(chunks: list[tuple[str, str]], order: list[int],
     for i in order:
         label, text = chunks[i]
         block = f"# ===== {label} =====\n{text}\n"
-        t = count_tokens(block)
+        t = _harness.count_tokens(block)
         if max_tokens is not None and picked and total + t > max_tokens:
             break
         picked.append(i)
         total += t
     combined = "".join(f"# ===== {chunks[i][0]} =====\n{chunks[i][1]}\n" for i in picked)
-    return combined, count_tokens(combined)
+    return combined, _harness.count_tokens(combined)
 
 
 class RandomSearchArm:

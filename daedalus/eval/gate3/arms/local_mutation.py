@@ -71,7 +71,13 @@ import random
 import time
 from typing import Sequence
 
-from daedalus.eval.harness import _repo_chunks, count_tokens
+from daedalus.eval.harness import _repo_chunks
+# count_tokens is reached through the module rather than imported by name:
+# harness does not DEFINE it -- it imports it from daedalus.structcore.tokens
+# inside a try/except with a chars/4 fallback, so a from-import re-exports
+# another module's name. tests/test_deepseek_substitution_guard.py refuses
+# that, and the sibling arms (bm25, separate_indices) already use this form.
+from daedalus.eval import harness as _harness
 
 from ..contracts import ArmBudget, FreezeError
 from ..protocols import ArmOutcome, SealedEvaluator, Task
@@ -128,7 +134,7 @@ class LocalMutationArm:
 
         selected = tuple(rng.random() < 0.5 for _ in range(n))
         candidate = render(selected)
-        tokens_spent = count_tokens(candidate) if candidate else 0
+        tokens_spent = _harness.count_tokens(candidate) if candidate else 0
         score = evaluator.score(candidate, task)
         score_history = [score]
         iterations = 0
@@ -143,7 +149,7 @@ class LocalMutationArm:
                 selected[:flip] + (not selected[flip],) + selected[flip + 1:]
             )
             mutated_candidate = render(mutated_selection)
-            tokens_spent += count_tokens(mutated_candidate) if mutated_candidate else 0
+            tokens_spent += _harness.count_tokens(mutated_candidate) if mutated_candidate else 0
             mutated_score = evaluator.score(mutated_candidate, task)
             iterations += 1
             if mutated_score > score:  # strictly better only -- no sideways moves
