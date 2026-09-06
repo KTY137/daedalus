@@ -1,11 +1,18 @@
-# G3-BASE-01 — Frozen baseline harness (Gate-3 prework)
+# G3-BASE-01 - Frozen baseline harness (Gate-3 prework)
 
-Iron Plan: `EXPERIMENT` · Iron Gate: active gate is **1**; this is Gate-3 prework
 Packet ID: `G3-BASE-01`
-Owner: repository owner
-Base revision: `1ba5b66f` (main, 2026-09-06)
-Master plan revision: 13 (`docs/IKARUS_ARIADNE_MASTER_PLAN.md`)
-Classification rationale: see [§0](#0-why-this-is-experiment-and-not-aligned).
+Artifact role: `primary`
+Status: `built; independently reviewed; six contract defects found and fixed; NOT sealed`
+Active gate: `1`
+Classification: `EXPERIMENT`
+Owner: `repository owner`
+Base revision: `1ba5b66f3a95f215f905fe4b46e3db9d3ec26be0`
+Dependencies: `none`
+Master-plan authority: `Revision 13`
+Promotion: not requested; automatic merge, promotion, and Gate transition are
+forbidden. This packet cannot open, enter, or satisfy Gate 3.
+Expiry: `2026-12-06`, or immediately if the task corpus gains non-code-plane
+tasks (which would change the central measured finding below)
 
 ## 0. Why this is EXPERIMENT and not ALIGNED
 
@@ -35,7 +42,7 @@ Three claims this packet is forbidden from making:
 3. that any number it produces supports a comparative claim against AlphaEvolve
    or any other system (plan §11 Gate 5, §4 invariant 9).
 
-## 1. Primary acceptance claim
+## Primary acceptance claim
 
 **One** claim: *the six Gate-3 freeze obligations are represented as typed,
 digest-bound, testable artifacts, and every one of the eleven required baselines
@@ -109,7 +116,7 @@ Binding rules for every arm in this packet:
   product arm is reported at the same prominence, following the existing
   `c_beats_a` tie-inclusive precedent (`harness.py:571-579`).
 
-## 4. Contracts added
+## Contracts and behavior
 
 New package `daedalus/eval/gate3/`. All contracts frozen dataclasses, canonically
 serialized, digest-bound — matching `daedalus/kernel/contracts/genesis.py`.
@@ -129,7 +136,7 @@ serialized, digest-bound — matching `daedalus/kernel/contracts/genesis.py`.
 results marked `sealed=false`, and unsealed results are refused as Gate-3
 evidence by construction.
 
-## 5. Acceptance matrix
+## Acceptance matrix
 
 Deterministic, offline, no model calls unless an arm explicitly declares one.
 
@@ -205,7 +212,7 @@ D8 inherits the existing mean-preserving-swap test precedent
 | E5 | `test_partial_run_is_not_reported_as_complete` | killed run → explicit partial |
 | E6 | `test_no_network_in_deterministic_arms` | offline arms stay offline |
 
-## 6. In-scope and forbidden paths
+## Scope
 
 **In scope (this packet writes only here):**
 
@@ -242,14 +249,14 @@ Default monetary ceiling unchanged. This packet requests **no** cap widening.
 4. Diversity (D7) is underdetermined by the plan. Expect one declared definition
    with its limitations stated.
 
-## 9. Rollback
+## Migration and rollback
 
 Additive-only: a new package plus new tests. Rollback = delete
 `daedalus/eval/gate3/` and `tests/eval/gate3/`. No migration, no schema change,
 no existing caller touched. Branch `packet/g3-base-01` is not merged without
 owner approval (plan §10.9).
 
-## 10. Review questions
+## Evidence, expected failures and review
 
 1. Does any arm obtain a budget advantage — including an internal split (R1)?
 2. Is any denominator chosen after seeing a result (R4)?

@@ -32,7 +32,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Mapping, Sequence
 
 # The four planes of the Project Twin (plan §5). Used by the label-plane census
@@ -108,6 +110,12 @@ class FrozenTaskSet:
                 f"task set {self.name!r} census sums to {total} but has "
                 f"{len(self.task_ids)} tasks -- a lost category corrupts every "
                 "rate computed from it")
+        # Defensive copy behind a read-only proxy. Without it the caller keeps
+        # a live reference to the dict they passed in, and mutating it later
+        # silently changes .digest on an object whose whole purpose is being
+        # frozen. An independent reviewer demonstrated exactly that.
+        object.__setattr__(self, "label_plane_census",
+                           MappingProxyType(dict(self.label_plane_census)))
 
     @property
     def digest(self) -> str:
@@ -278,7 +286,7 @@ class RunEnvironment:
     tokenizer: str
     os_name: str
     cpu: str
-    ram_gb: float
+    ram_gb: float | None
     model_id: str | None = None
     provider: str | None = None
     host: str | None = None
@@ -287,8 +295,21 @@ class RunEnvironment:
         for f_name in ("tokenizer", "os_name", "cpu"):
             if not str(getattr(self, f_name)).strip():
                 raise FreezeError(f"RunEnvironment.{f_name} must be non-empty")
-        if self.ram_gb <= 0:
-            raise FreezeError("RunEnvironment.ram_gb must be positive")
+        # ram_gb is None when it genuinely could not be determined. An earlier
+        # version required a positive float, which left no honest way to say
+        # "unknown" -- a caller was driven to smuggle float("nan") through,
+        # because `nan <= 0` is False in IEEE-754 and the guard let it pass.
+        # A validator that only accepts honest input by accident is not one.
+        if self.ram_gb is not None:
+            if math.isnan(self.ram_gb) or math.isinf(self.ram_gb):
+                raise FreezeError(
+                    "RunEnvironment.ram_gb must be a real number or None "
+                    f"(unknown); got {self.ram_gb!r}. Use None to declare an "
+                    "undetermined value -- never NaN, never a fabricated size.")
+            if self.ram_gb <= 0:
+                raise FreezeError(
+                    "RunEnvironment.ram_gb must be positive or None (unknown); "
+                    f"got {self.ram_gb!r}")
 
     @property
     def digest(self) -> str:
@@ -381,13 +402,45 @@ class RunManifest:
         if not self.plan_digest.strip():
             raise FreezeError("RunManifest.plan_digest must be non-empty")
         require_equal_budgets(self.budgets)
+        # Defensive copy: `budgets` was a live reference to the caller's dict,
+        # so require_equal_budgets could pass at construction and the caller
+        # could then swap in an unequal budget. The runner had to re-check at
+        # run time to defend itself; now the mapping simply cannot change.
+        object.__setattr__(self, "budgets",
+                           MappingProxyType(dict(self.budgets)))
 
     @property
     def sealed(self) -> bool:
-        """True only with an owner seal reference. Everything else in this
-        manifest is builder-supplied; this one field is not, which is what
-        makes the distinction meaningful."""
-        return bool(self.owner_seal_ref and self.owner_seal_ref.strip())
+        """ALWAYS FALSE here. Sealing is not something this package can do.
+
+        This property used to return ``bool(owner_seal_ref)`` -- i.e. any
+        caller could seal a run by passing any non-blank string. An independent
+        reviewer sealed a manifest with the literal text "i am definitely the
+        owner trust me", which is exactly the forgery plan §4 invariant 5 and
+        §11 Gate 3 exist to prevent: "Only after that baseline harness is
+        sealed" has to mean an owner sealed it, not a builder typing a string.
+
+        A real seal requires a one-use, authenticated ``OwnerApproval`` bound to
+        this manifest digest, verified by the kernel (see plan §7.1 and
+        `daedalus/kernel`). That path is NOT wired into this Gate-3 prework
+        packet, so the only honest answer available here is "not sealed".
+
+        Fail-closed on purpose: an unsealed harness is the correct description
+        of reality today. When the kernel binding is built, this becomes a real
+        verification against a real approval -- not a looser string check.
+        """
+        return False
+
+    @property
+    def seal_claim(self) -> str | None:
+        """The unverified seal reference, if a caller recorded one.
+
+        Named ``claim`` and not ``seal`` deliberately: it is an assertion by
+        whoever built the manifest, carrying no authority whatsoever until the
+        kernel verifies it.
+        """
+        ref = (self.owner_seal_ref or "").strip()
+        return ref or None
 
     @property
     def arms(self) -> tuple[str, ...]:
@@ -408,12 +461,15 @@ class RunManifest:
         })
 
     def evidence_status(self) -> str:
-        """One line for any report rendering this run. Never says 'Gate 3'
-        without a seal, because an unsealed harness cannot produce Gate-3
-        baseline evidence (plan §11)."""
-        if self.sealed:
-            return (f"sealed run {self.digest[:12]} @ {self.base_revision[:12]} "
-                    f"(seal {self.owner_seal_ref})")
+        """One line for any report rendering this run. It can never say a run
+        is Gate-3 evidence, because no code path in this package can seal one
+        (see ``sealed``). A recorded seal reference is reported as an
+        UNVERIFIED CLAIM, which is what it is."""
+        claim = self.seal_claim
+        if claim is not None:
+            return (f"UNSEALED run {self.digest[:12]} @ {self.base_revision[:12]} "
+                    f"-- carries an UNVERIFIED seal claim ({claim!r}) that no "
+                    "owner approval backs; NOT Gate-3 baseline evidence")
         return (f"UNSEALED run {self.digest[:12]} @ {self.base_revision[:12]} "
                 "-- prework only, NOT Gate-3 baseline evidence")
 
@@ -444,6 +500,11 @@ class TrialResult:
     calls: int
     success: bool | None = None
     score: float | None = None
+    # The candidate the arm actually produced. Carried here because the
+    # diversity measure compares candidates across an arm's trials, and an
+    # earlier version of run_trial dropped it -- leaving that measure to guess
+    # from a notes convention most arms never populate.
+    candidate: str | None = None
     budget_exceeded: bool = False
     human_interventions: int = 0
     error: str | None = None

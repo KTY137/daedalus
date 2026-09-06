@@ -10,10 +10,18 @@ aggregation, the tokenizer, the regression ratchet and the budget-equality
 primitive already live in ``daedalus.eval.harness`` and are reused from there.
 
 Layout:
-  contracts.py -- the six freeze obligations + RunManifest (the seal)
-  protocols.py -- Task, SealedEvaluator, Arm, run_trial
-  arms/        -- the eleven required baselines, one module each
-  measures.py  -- the nine required measures
+  contracts.py   -- the six freeze obligations + RunManifest
+  protocols.py   -- Task, SealedEvaluator, Arm, run_trial
+  taskset.py     -- build a FrozenTaskSet from the real task corpus
+  evaluator.py   -- EvaluatorVersion + the sealed recall evaluator
+  environment.py -- model/hardware capture
+  runner.py      -- run every arm under one manifest
+  arms/          -- the eleven required baselines, one module each
+  measures.py    -- success rate, best-so-far AUC, wall time, tokens, compute
+  statistics.py  -- variance and uncertainty
+  diversity.py   -- the declared diversity metric
+  regressions.py -- per-task regressions + human intervention
+  summary.py     -- ArmSummary: all nine measures, per arm, never blended
 """
 from __future__ import annotations
 
@@ -32,12 +40,16 @@ from .contracts import (
     require_equal_budgets,
 )
 from .protocols import Arm, ArmOutcome, SealedEvaluator, Task, run_arm_over_tasks, run_trial
+from .summary import ArmSummary, summarize_arm, summarize_arms
 
 __all__ = [
     "PLANES",
     "Arm",
     "ArmBudget",
     "ArmOutcome",
+    "ArmSummary",
+    "summarize_arm",
+    "summarize_arms",
     "EvaluatorVersion",
     "FreezeError",
     "FrozenTaskSet",

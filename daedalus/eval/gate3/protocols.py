@@ -24,11 +24,20 @@ EXPERIMENT (packet G3-BASE-01), Gate-3 prework while the active gate is 1.
 """
 from __future__ import annotations
 
+import copy as _copy
 import time
+import weakref
 from dataclasses import dataclass
-from typing import Callable, Mapping, Protocol, Sequence, runtime_checkable
+from typing import Any, Callable, Mapping, Protocol, Sequence, runtime_checkable
 
 from .contracts import ArmBudget, FreezeError, TrialResult
+
+# Backing state for SealedEvaluator, kept OFF the instance so that ordinary
+# attribute lookup fails and __getattr__ actually fires. Keyed by id(); a
+# weakref.finalize removes the entry when the evaluator is collected, because
+# CPython reuses id() values and a stale entry could otherwise be served to a
+# brand-new evaluator that happened to land at the same address.
+_REGISTRY: dict[int, dict[str, Any]] = {}
 
 
 @dataclass(frozen=True)
@@ -65,9 +74,9 @@ class SealedEvaluator:
     release-blocking defect, and the plan itself says no local mechanism is a
     security boundary:
 
-    * This is NOT a sandbox. Same-process Python offers no hard isolation.
-      Deep introspection (``ev.score.__closure__[0].cell_contents``, ``gc``
-      walking, frame inspection) can still reach the scorer. Nothing here
+    * This is NOT a sandbox. Same-process Python offers no hard isolation. A
+      determined arm can still reach the scorer by walking ``gc.get_objects()``
+      or by importing this module and reading ``_REGISTRY``. Nothing here
       prevents that, and claiming otherwise would be the exact defect this
       package exists to detect.
     * It DOES stop the realistic failure: an arm that accidentally or casually
@@ -78,15 +87,25 @@ class SealedEvaluator:
 
     So: a correctness boundary against accident, not a security boundary
     against an adversary.
+
+    IMPLEMENTATION NOTE, recorded because two earlier attempts were cosmetic:
+    the state lives in a module-level ``WeakValueDictionary``-style registry
+    keyed by ``id(self)``, and the instance has ``__slots__ = ()`` -- it carries
+    NO attributes at all. Both earlier versions stored the scorer (v1) or the
+    scoring closure (v2) in ``__slots__``, where ordinary attribute lookup
+    succeeds and ``__getattr__`` -- which only fires on lookup FAILURE -- never
+    ran. ``ev._fn`` and later ``ev._score_impl.__closure__[3].cell_contents``
+    both returned the raw scorer. An independent reviewer found v2; the smoke
+    test found v1.
     """
 
-    __slots__ = ("_name", "_max_calls", "_score_impl", "_read_calls")
+    __slots__ = ("__weakref__",)
 
     def __init__(self, name: str, score_fn: Callable[[str, Task], float],
                  max_calls: int | None = None) -> None:
-        calls = [0]  # closure cell: no attribute holds the count either
+        calls = [0]
 
-        def _score_impl(candidate: str, task: Task) -> float:
+        def _invoke(candidate: str, task: Task) -> float:
             if max_calls is not None and calls[0] >= max_calls:
                 raise FreezeError(
                     f"evaluator {name!r} call budget exhausted ({max_calls}); "
@@ -95,19 +114,19 @@ class SealedEvaluator:
             calls[0] += 1
             return float(score_fn(candidate, task))
 
-        object.__setattr__(self, "_name", name)
-        object.__setattr__(self, "_max_calls", max_calls)
-        object.__setattr__(self, "_score_impl", _score_impl)
-        object.__setattr__(self, "_read_calls", lambda: calls[0])
+        key = id(self)
+        _REGISTRY[key] = {"name": name, "invoke": _invoke,
+                          "read_calls": lambda: calls[0]}
+        weakref.finalize(self, _REGISTRY.pop, key, None)
 
     def score(self, candidate: str, task: Task) -> float:
         """The ONLY capability an arm has. Counts every call."""
-        return self._score_impl(candidate, task)
+        return _REGISTRY[id(self)]["invoke"](candidate, task)
 
     @property
     def calls(self) -> int:
         """Read-only. An arm may know its own consumption; it may not reset it."""
-        return self._read_calls()
+        return _REGISTRY[id(self)]["read_calls"]()
 
     def __getattr__(self, item: str):
         # Dunder lookups must raise AttributeError, not FreezeError: Python
@@ -130,16 +149,29 @@ class SealedEvaluator:
     def __delattr__(self, key: str) -> None:
         raise FreezeError(f"evaluator is immutable to arms; refused delete of {key!r}")
 
-    def __copy__(self):
-        raise FreezeError(
-            "a SealedEvaluator is not copyable: a copy would carry its own call "
-            "counter, letting an arm reset its evaluator budget by copying. "
-            "Build a fresh one per trial instead (see run_arm_over_tasks).")
+    _NOT_COPYABLE = (
+        "a SealedEvaluator is not copyable: a copy would carry its own call "
+        "counter, letting an arm reset its evaluator budget by copying. "
+        "Build a fresh one per trial instead (see run_arm_over_tasks).")
 
-    __deepcopy__ = __copy__
+    def __copy__(self):
+        raise FreezeError(self._NOT_COPYABLE)
+
+    def __deepcopy__(self, memo):
+        # Distinct signature on purpose: `__deepcopy__ = __copy__` looks tidy
+        # but takes the memo dict as a second positional argument and dies with
+        # a bare TypeError, so the refusal fired by accident under the wrong
+        # exception type. An independent reviewer caught that.
+        raise FreezeError(self._NOT_COPYABLE)
+
+    def __reduce__(self):
+        raise FreezeError(self._NOT_COPYABLE)
 
     def __repr__(self) -> str:  # no internals leaked
-        return f"<SealedEvaluator {self._name!r} calls={self.calls}>"
+        entry = _REGISTRY.get(id(self))
+        name = entry["name"] if entry else "<dead>"
+        calls = entry["read_calls"]() if entry else 0
+        return f"<SealedEvaluator {name!r} calls={calls}>"
 
 
 @runtime_checkable
@@ -242,7 +274,7 @@ def run_trial(arm: Arm, task: Task, budget: ArmBudget,
             wall_seconds=elapsed, tokens_used=outcome.tokens_used, calls=calls,
             budget_exceeded=exceeded, error=outcome.error,
             human_interventions=outcome.human_interventions,
-            notes=dict(outcome.notes),
+            notes=_copy.deepcopy(dict(outcome.notes)),
         )
     if outcome.success is None:
         raise FreezeError(
@@ -252,9 +284,14 @@ def run_trial(arm: Arm, task: Task, budget: ArmBudget,
         arm=arm.name, task_id=task.task_id, seed=seed,
         wall_seconds=elapsed, tokens_used=outcome.tokens_used, calls=calls,
         success=outcome.success, score=outcome.score,
+        # Carried, not dropped. An earlier version discarded the candidate,
+        # which left the diversity measure -- whose whole job is comparing
+        # candidates -- nothing to read; it had to fall back to a notes
+        # convention most arms do not populate.
+        candidate=outcome.candidate,
         budget_exceeded=exceeded,
         human_interventions=outcome.human_interventions,
-        notes=dict(outcome.notes),
+        notes=_copy.deepcopy(dict(outcome.notes)),
     )
 
 
