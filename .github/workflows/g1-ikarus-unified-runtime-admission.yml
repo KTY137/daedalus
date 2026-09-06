@@ -51,6 +51,7 @@ on:
       - "tests/runtimes/test_sealed_broker_wheel_reachability.py"
       - "tests/providers/test_claude_runtime_broker.py"
       - "tests/providers/test_claude_bypass_inventory.py"
+      - "tests/providers/test_claude_provider_exact_boundary.py"
       - "tests/test_claude_bridge_cmd_shim.py"
       - "tests/test_runtime_registry_claude_shim.py"
       - "tests/test_runtime_registry_portable.py"
@@ -132,6 +133,7 @@ jobs:
           tests/runtimes/test_sealed_broker_wheel_reachability.py
           tests/providers/test_claude_runtime_broker.py
           tests/providers/test_claude_bypass_inventory.py
+          tests/providers/test_claude_provider_exact_boundary.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_runtime_registry_claude_shim.py
           tests/test_runtime_registry_portable.py
@@ -168,6 +170,7 @@ jobs:
           tests/runtimes/test_provider_observation_authority_review.py
           tests/providers/test_claude_runtime_broker.py
           tests/providers/test_claude_bypass_inventory.py
+          tests/providers/test_claude_provider_exact_boundary.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_runtime_registry_claude_shim.py
           tests/test_runtime_registry_portable.py

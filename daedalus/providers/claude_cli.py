@@ -338,6 +338,76 @@ def _output_digests(value, payload):
     )
 
 
+def _require_sealed_bundle(
+    *,
+    runtime_authorization: RuntimeBoundEffectAuthorization | None,
+    effect_execution: EffectExecutionRequest | None,
+    workspace_grant: ClaudeWorkspaceGrant | None,
+    invocation_authority: ProviderInvocationObservationAuthority | None,
+    invocation_payload: ProviderInvocationPayload | None,
+    invocation_abi: ProviderInvocationABIContract | None,
+    observation_binding_ledger: ProviderObservationBindingLedger | None,
+    executable_registry: ProviderExecutableObjectRegistry | None,
+    pre_admission: ProviderExecutablePreAdmissionReceipt | None,
+) -> None:
+    """Reject substituted authority members before any property can be read."""
+
+    members = (
+        (
+            "runtime_authorization",
+            runtime_authorization,
+            RuntimeBoundEffectAuthorization,
+        ),
+        ("effect_execution", effect_execution, EffectExecutionRequest),
+        ("workspace_grant", workspace_grant, ClaudeWorkspaceGrant),
+        (
+            "invocation_authority",
+            invocation_authority,
+            ProviderInvocationObservationAuthority,
+        ),
+        ("invocation_payload", invocation_payload, ProviderInvocationPayload),
+        ("invocation_abi", invocation_abi, ProviderInvocationABIContract),
+        (
+            "observation_binding_ledger",
+            observation_binding_ledger,
+            ProviderObservationBindingLedger,
+        ),
+        (
+            "executable_registry",
+            executable_registry,
+            ProviderExecutableObjectRegistry,
+        ),
+        (
+            "pre_admission",
+            pre_admission,
+            ProviderExecutablePreAdmissionReceipt,
+        ),
+    )
+    if runtime_authorization is None or effect_execution is None:
+        raise ClaudeProviderAuthorizationRequired(
+            "Claude live execution requires runtime-bound Effect-Lease authority"
+        )
+    if workspace_grant is None:
+        raise ClaudeProviderAuthorizationRequired(
+            "Claude live execution requires an exact isolated-workspace binding"
+        )
+    if any(value is None for _, value, _ in members[3:]):
+        raise ClaudeProviderAuthorizationRequired(
+            "Claude live execution requires the authenticated invocation ABI, "
+            "payload, executable registry, pre-admission, and binding ledger"
+        )
+    substituted = [
+        name
+        for name, value, exact_type in members
+        if type(value) is not exact_type
+    ]
+    if substituted:
+        raise ClaudeProviderAuthorizationRequired(
+            "Claude live execution requires exact sealed invocation member types: "
+            + ", ".join(substituted)
+        )
+
+
 class ClaudeCLIProvider(Provider):
     """Agentic Claude CLI adapter whose public execution seam is brokered."""
 
@@ -375,29 +445,29 @@ class ClaudeCLIProvider(Provider):
         pre_admission: ProviderExecutablePreAdmissionReceipt | None = None,
     ) -> dict[str, Any]:
         del policy
+        _require_sealed_bundle(
+            runtime_authorization=runtime_authorization,
+            effect_execution=effect_execution,
+            workspace_grant=workspace_grant,
+            invocation_authority=invocation_authority,
+            invocation_payload=invocation_payload,
+            invocation_abi=invocation_abi,
+            observation_binding_ledger=observation_binding_ledger,
+            executable_registry=executable_registry,
+            pre_admission=pre_admission,
+        )
+        assert runtime_authorization is not None
+        assert effect_execution is not None
+        assert workspace_grant is not None
+        assert invocation_authority is not None
+        assert invocation_payload is not None
+        assert invocation_abi is not None
+        assert observation_binding_ledger is not None
+        assert executable_registry is not None
+        assert pre_admission is not None
         explicit_limit_policy = execution_limit_policy is not None
         limit_policy = bounded_execution_limit_policy(execution_limit_policy)
         effective_timeout = _effective_timeout(limit_policy, timeout_s)
-        if runtime_authorization is None or effect_execution is None:
-            raise ClaudeProviderAuthorizationRequired(
-                "Claude live execution requires runtime-bound Effect-Lease authority"
-            )
-        if workspace_grant is None:
-            raise ClaudeProviderAuthorizationRequired(
-                "Claude live execution requires an exact isolated-workspace binding"
-            )
-        if (
-            invocation_authority is None
-            or invocation_payload is None
-            or invocation_abi is None
-            or observation_binding_ledger is None
-            or executable_registry is None
-            or pre_admission is None
-        ):
-            raise ClaudeProviderAuthorizationRequired(
-                "Claude live execution requires the authenticated invocation ABI, "
-                "payload, executable registry, pre-admission, and binding ledger"
-            )
         command_path = claude_command_for_spawn()
         normalized_paths = _validate_execution_shape(
             effect_execution,
