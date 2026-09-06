@@ -3,7 +3,9 @@
 The adapter projects evidence; it does not upgrade its assurance.  Current
 KnowledgeForest snapshots have code, document, and optional type/field layers,
 but no canonical Data Plane and no proof of full plane completeness.  Those
-facts remain visible as ``partial`` and ``absent`` statuses.
+facts remain visible as ``partial`` and ``absent`` statuses.  Cross-plane
+``ForestEdge`` records must also be explicitly directed before the adapter may
+project them as directed verified bindings.
 """
 
 from __future__ import annotations
@@ -95,6 +97,11 @@ def fourfold_from_knowledge_forest(
         if source_plane == target_plane:
             relation_digests[source_plane].append(digest)
         else:
+            if not edge.directed:
+                raise ValueError(
+                    f"legacy undirected cross-plane edge {edge.relation!r} cannot be "
+                    "upgraded to a directed verified binding without losing semantics"
+                )
             if not edge.evidence:
                 raise ValueError(
                     f"legacy cross-plane edge {edge.relation!r} has no retained "
