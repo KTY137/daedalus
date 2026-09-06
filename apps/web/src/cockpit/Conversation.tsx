@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { askIkarus, getConversation, getRuntimeStatus, isBackendDown, newConversation, queueTask, streamIkarus } from '../api';
+import { getConversation, getRuntimeStatus, newConversation, queueTask, streamIkarus } from '../api';
 import type { IkarusAskAction, IkarusAskPayload, RuntimeRow } from '../types';
 import {
   armVariants,
@@ -1001,30 +1001,11 @@ export function Conversation({
             if (last && last.role === 'ikarus') next[next.length - 1] = { ...last, text: last.text + text };
             return next;
           }),
+        // Interruption is terminal inside streamIkarus. The Cockpit therefore
+        // has no blocking replay path that could duplicate a provider call,
+        // spend, or a remotely completed action after an uncertain delivery.
         onFinal: (payload) => settle(payload, threadId),
-        onError: async () => {
-          // The stream died. Fall back to the blocking call rather than leaving
-          // a half-written answer on screen pretending to still be arriving.
-          try {
-            const payload = await askIkarus(project, message, provider, undefined, undefined, threadId || undefined);
-            settle(payload, threadId);
-          } catch (e) {
-            setBusy(false);
-            setTurns((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last && last.role === 'ikarus' && !last.text) next.pop();
-              return next;
-            });
-            setError(
-              isBackendDown(e)
-                ? 'Die Daedalus-API antwortet nicht. Nichts auf diesem Bildschirm wurde von ihr gelesen.'
-                : e instanceof Error
-                  ? e.message
-                  : 'Ikarus hat nicht geantwortet.'
-            );
-          }
-        }
+        onError: () => undefined
       },
       threadId || undefined
     );
