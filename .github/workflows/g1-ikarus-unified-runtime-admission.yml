@@ -21,6 +21,7 @@ on:
       - "apps/web/tests/classic-stream.spec.ts"
       - "apps/web/tests/cockpit-stream.spec.ts"
       - "daedalus/claude_bridge.py"
+      - "daedalus/ikarus_cancellation.py"
       - "daedalus/ikarus_effect_bridge.py"
       - "daedalus/ikarus_oneshot.py"
       - "daedalus/ikarus_tool_scope.py"
@@ -54,6 +55,7 @@ on:
       - "tests/test_claude_bridge_cmd_shim.py"
       - "tests/test_gui_check_budget.py"
       - "tests/test_ikarus_bridge_progress.py"
+      - "tests/test_ikarus_cancellation.py"
       - "tests/test_ikarus_effect_bridge.py"
       - "tests/test_ikarus_oneshot.py"
       - "tests/test_ikarus_tool_scope.py"
@@ -121,6 +123,7 @@ jobs:
       - run: >-
           python -m py_compile
           daedalus/claude_bridge.py
+          daedalus/ikarus_cancellation.py
           daedalus/ikarus_effect_bridge.py
           daedalus/ikarus_oneshot.py
           daedalus/ikarus_tool_scope.py
@@ -154,6 +157,7 @@ jobs:
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
+          tests/test_ikarus_cancellation.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
@@ -191,6 +195,7 @@ jobs:
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
+          tests/test_ikarus_cancellation.py
           tests/test_ikarus_effect_bridge.py
           tests/test_ikarus_oneshot.py
           tests/test_ikarus_tool_scope.py
