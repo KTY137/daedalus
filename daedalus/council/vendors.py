@@ -388,6 +388,32 @@ def council_cwd(repo_root: str | Path | None = None) -> tempfile.TemporaryDirect
     return handle
 
 
+def _resolve_command(argv: Sequence[str], env: Mapping[str, str]) -> list[str]:
+    """Resolve a bare ``argv[0]`` the way a shell would, against ``env``'s PATH.
+
+    ``CreateProcess`` on Windows searches PATH but never ``PATHEXT``, so the
+    npm ``codex.CMD`` shim that ``shutil.which`` finds was ``not_on_path`` for
+    every live council seat (measured 2026-09-05). A command that already
+    carries a directory is passed through untouched; an unresolvable name is
+    left for the spawn to refuse as ``not_on_path`` so the failure class is
+    unchanged.
+    """
+    argv = [str(part) for part in argv]
+    if not argv or os.path.dirname(argv[0]):
+        return argv
+    found = shutil.which(argv[0], path=env.get("PATH"))
+    if found:
+        argv[0] = found
+    return argv
+
+
+def _is_budget_refusal(exc: BaseException) -> bool:
+    """True for the process guard's ``BudgetRefused`` (lazy import: no ledger dependency at import time)."""
+    from daedalus.kernel.policy.ledger import BudgetRefused
+
+    return isinstance(exc, BudgetRefused)
+
+
 def run_managed(
     argv: Sequence[str],
     *,
@@ -410,29 +436,43 @@ def run_managed(
       immediate child only; a hung vendor's grandchildren outlive it.
     """
     started = time.monotonic()
+    argv = _resolve_command(argv, env)
     try:
-        with tempfile.TemporaryDirectory(prefix="dcouncil-io-") as iodir:
-            box = Path(iodir)
-            in_path, out_path, err_path = box / "in", box / "out", box / "err"
-            in_path.write_text(stdin_text, encoding="utf-8")
+        # On Windows, a killed grandchild can retain an inherited stdio handle
+        # for a moment after the direct child has been reaped.  Named files in
+        # a TemporaryDirectory then make its eager rmtree fail with WinError 32,
+        # incorrectly replacing an already-observed timeout with spawn_error.
+        # TemporaryFile uses delete-on-close on Windows (and unlink semantics on
+        # POSIX), so cleanup is deferred safely until the last inherited handle
+        # closes without changing the bounded, file-backed I/O contract.
+        with (
+            tempfile.TemporaryFile(prefix="dcouncil-in-") as fin,
+            tempfile.TemporaryFile(prefix="dcouncil-out-") as fout,
+            tempfile.TemporaryFile(prefix="dcouncil-err-") as ferr,
+        ):
+            fin.write(stdin_text.encode("utf-8"))
+            fin.seek(0)
             timed_out = False
-            with open(in_path, "rb") as fin, open(out_path, "wb") as fout, open(err_path, "wb") as ferr:
-                with ManagedProcess(argv, cwd=cwd, env=env, stdin=fin, stdout=fout, stderr=ferr) as proc:
-                    deadline = started + max(0.0, timeout_s)
-                    while True:
-                        code = proc.poll()
-                        if code is not None:
-                            break
-                        if time.monotonic() >= deadline:
-                            proc.cancel()
-                            timed_out = True
-                            code = proc.returncode
-                            break
-                        time.sleep(0.02)
+            with ManagedProcess(
+                argv, cwd=cwd, env=env, stdin=fin, stdout=fout, stderr=ferr
+            ) as proc:
+                deadline = started + max(0.0, timeout_s)
+                while True:
+                    code = proc.poll()
+                    if code is not None:
+                        break
+                    if time.monotonic() >= deadline:
+                        proc.cancel()
+                        timed_out = True
+                        code = proc.returncode
+                        break
+                    time.sleep(0.02)
+            fout.seek(0)
+            ferr.seek(0)
             return RunResult(
                 returncode=code,
-                stdout=out_path.read_text(encoding="utf-8", errors="replace"),
-                stderr=err_path.read_text(encoding="utf-8", errors="replace"),
+                stdout=fout.read().decode("utf-8", errors="replace"),
+                stderr=ferr.read().decode("utf-8", errors="replace"),
                 timed_out=timed_out,
             )
     except FileNotFoundError as exc:
@@ -667,6 +707,17 @@ class CouncilAdapter:
         try:
             reply = self._dispatch(text, model=model, timeout_s=timeout_s)
         except Exception as exc:  # a vendor must never take the council down
+            if _is_budget_refusal(exc):
+                # The process guard refused the spawn: a missing voice with a
+                # named reason in the bus vocabulary, never a "transport error".
+                return self._reply(
+                    model,
+                    status="unavailable",
+                    reason="budget_exhausted",
+                    stderr=str(exc),
+                    latency_s=time.monotonic() - started,
+                    withheld=withheld,
+                )
             return self._reply(
                 model,
                 status="error",

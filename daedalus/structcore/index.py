@@ -481,7 +481,8 @@ def _parallel_min() -> int:
 
 def _per_file_pass(root: Path, records: list[tuple[str, LanguageSpec, str]],
                    ts_on: bool,
-                   limit_policy: ExecutionLimitPolicy) -> list[FileAnalysis]:
+                   limit_policy: ExecutionLimitPolicy, *,
+                   effect_free: bool = False) -> list[FileAnalysis]:
     """Analyze every record, returning results in EXACTLY the input order.
 
     Two levers, composed: a content-keyed disk cache absorbs unchanged files,
@@ -494,6 +495,17 @@ def _per_file_pass(root: Path, records: list[tuple[str, LanguageSpec, str]],
     every result carries its original index and is written back into a
     preallocated slot -- never appended in completion order.
     """
+    # HTTP GET projections are contractually read-only.  Their cold path must
+    # therefore neither open the persistent SQLite cache nor create a process
+    # pool.  Keeping the switch inside the canonical indexer avoids a second
+    # parser/graph authority while making the absence of those effects a
+    # property of the call rather than ambient environment state.
+    if effect_free:
+        return [
+            analyze_file(rel, text, spec, ts_on)
+            for rel, spec, text in records
+        ]
+
     keys = [file_key(rel, spec.name, text) for rel, spec, text in records]
     out: list[FileAnalysis | None] = [None] * len(records)
 
@@ -555,7 +567,8 @@ def _compute(pending: list[tuple[int, str, str, LanguageSpec]], ts_on: bool,
 def build_index(root, max_files: int = _DEFAULT_MAX_FILES, center=None, ignore=None,
                 documents: bool | None = None, types: bool | None = None,
                 wiki: bool | None = None, *,
-                limit_policy: ExecutionLimitPolicy | None = None) -> dict:
+                limit_policy: ExecutionLimitPolicy | None = None,
+                effect_free: bool = False) -> dict:
     captured_policy = limit_policy or load_from_env()
     effective_max_files = (
         max_files if captured_policy.enforces("work_scope") else None
@@ -639,7 +652,13 @@ def build_index(root, max_files: int = _DEFAULT_MAX_FILES, center=None, ignore=N
             by_dir_tail[tail].append(rel)
 
     ts_on = tree_sitter_available()
-    analyses = _per_file_pass(root, records, ts_on, captured_policy)
+    analyses = _per_file_pass(
+        root,
+        records,
+        ts_on,
+        captured_policy,
+        effect_free=effect_free,
+    )
 
     modules: dict[str, dict] = {}
     all_units: list[CodeUnit] = []
@@ -915,18 +934,23 @@ def build_index(root, max_files: int = _DEFAULT_MAX_FILES, center=None, ignore=N
     resolver_key = _scope_key(
         root, scope, docs_on, types_on, wiki_on,
         limit_identity=limit_identity,
+        effect_free=effect_free,
     )
     _RESOLVER_CACHE[resolver_key] = resolver
     # Preserve the historical no-key lookup for the exact historical default.
     # Policy-aware consumers use the published ``scope_key`` above; this alias
     # exists only for older callers that ask ``resolution_context(root)``.
-    if (captured_policy == ExecutionLimitPolicy()
+    if (not effect_free
+            and captured_policy == ExecutionLimitPolicy()
             and effective_max_files == _DEFAULT_MAX_FILES):
         _RESOLVER_CACHE[
             _scope_key(root, scope, docs_on, types_on, wiki_on)
         ] = resolver
 
-    churn = git_churn(root)
+    # ``git_churn`` shells out to Git.  A read-only HTTP projection may read
+    # repository bytes but may not spawn a process, so it publishes the honest
+    # absence of temporal evidence instead of silently crossing that boundary.
+    churn = {} if effect_free else git_churn(root)
     # HOTSPOTS ARE A CODE-HEALTH RANKING, so documents are not in it. Left in,
     # a 1,800-line handoff scores loc/50 = 36 -- competitive with real rot, with
     # no code in it at all -- and ``spine/picker.hotspot_candidates`` turns a
@@ -1084,6 +1108,7 @@ def build_index(root, max_files: int = _DEFAULT_MAX_FILES, center=None, ignore=N
         "scope_key": _scope_key(
             root, scope, docs_on, types_on, wiki_on,
             limit_identity=limit_identity,
+            effect_free=effect_free,
         ),
         "hotspots": scored[:15],
         # Full ranking (same pass as ``hotspots``) so the map can heat-shade
@@ -1117,7 +1142,8 @@ def _limit_scope_identity(
 
 def _scope_key(resolved: Path, scope, documents: bool = False,
                types: bool = False, wiki=False, *,
-               limit_identity: str | None = None) -> str:
+               limit_identity: str | None = None,
+               effect_free: bool = False) -> str:
     """Cache identity of an index: its root, the scope when one is declared, and
     which optional layers were indexed.
 
@@ -1151,6 +1177,11 @@ def _scope_key(resolved: Path, scope, documents: bool = False,
         # Limits precede optional-layer suffixes so established diagnostics
         # such as ``endswith('+wiki')`` remain truthful.
         base = f"{base}+limits-{limit_identity}"
+    if effect_free:
+        # A no-disk/no-process build has no Git churn evidence and is therefore
+        # a distinct projection.  Never satisfy it from (or publish it under)
+        # the identity of the ordinary cached index.
+        base = f"{base}+effect-free"
     if documents:
         base = f"{base}+docs"
     if types:
@@ -1190,7 +1221,8 @@ def cached_index(repo_root, refresh: bool = False,
                  center=None, ignore=None, documents: bool | None = None,
                  types: bool | None = None,
                  wiki: bool | None = None, *,
-                 limit_policy: ExecutionLimitPolicy | None = None) -> dict:
+                 limit_policy: ExecutionLimitPolicy | None = None,
+                 effect_free: bool = False) -> dict:
     """Process-wide index cache keyed by resolved repo root. build_index is
     expensive on big repos; the first caller warms it and everyone (the web
     endpoints, the Ikarus chat brain) reuses it. ``refresh`` forces a rebuild.
@@ -1236,6 +1268,7 @@ def cached_index(repo_root, refresh: bool = False,
         resolved, scope, docs_on, types_on, wiki_on,
         limit_identity=_limit_scope_identity(
             captured_policy, effective_max_files),
+        effect_free=effect_free,
     )
     if not refresh and key in _INDEX_CACHE:
         return _INDEX_CACHE[key]
@@ -1249,7 +1282,8 @@ def cached_index(repo_root, refresh: bool = False,
                                            center=center, ignore=ignore,
                                            documents=docs_on, types=types_on,
                                            wiki=wiki_on,
-                                           limit_policy=captured_policy)
+                                           limit_policy=captured_policy,
+                                           effect_free=effect_free)
         return _INDEX_CACHE[key]
 
 

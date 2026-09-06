@@ -68,7 +68,8 @@ async function capture<T>(
    * A failed read is evidence in its own right, says the contract above. So is
    * a malformed one, and it is reported the same way instead of thrown.
    */
-  promises?: keyof T & string
+  promises?: keyof T & string,
+  expectedProject?: string
 ): Promise<CapabilityResult<T>> {
   try {
     const data = await work();
@@ -76,6 +77,19 @@ async function capture<T>(
       return {
         status: 'error',
         error: { kind: 'contract', message: `the response carries no "${promises}"` },
+        loadedAt: now()
+      };
+    }
+    if (
+      expectedProject
+      && (data as Record<string, unknown> | null)?.project !== expectedProject
+    ) {
+      return {
+        status: 'error',
+        error: {
+          kind: 'contract',
+          message: `the response does not confirm project "${expectedProject}"`
+        },
         loadedAt: now()
       };
     }
@@ -106,7 +120,9 @@ export async function loadSystemCapabilities(
     loopArchitecture
   ] = await Promise.all([
     capture(() => ports.getDashboard(project), now),
-    capture(() => ports.getControlPlane(project), now),
+    // This is also the confirming read after an ambiguous autonomy write.
+    // Another project's projection must never clear this project's draft.
+    capture(() => ports.getControlPlane(project), now, undefined, project),
     capture(() => ports.getClaudeBootstrap(project), now),
     capture(() => ports.getProviderStatus(), now, 'providers'),
     capture(() => ports.getHierarchy(project), now, 'nodes'),
@@ -129,24 +145,50 @@ export async function loadSystemCapabilities(
 }
 
 export function agentAutonomyPatch(
-  controlPlane: ControlPlanePayload,
   profileName: string,
   mode: string
-): { agents: Record<string, string> } {
+): { agent_updates: Record<string, string> } {
   return {
-    agents: {
-      ...((controlPlane.autonomy.agents as Record<string, string> | undefined) || {}),
-      [profileName]: mode
-    }
+    agent_updates: { [profileName]: mode }
   };
 }
 
-export function updateAgentAutonomy(
+/**
+ * The mutation answered, but its projection did not prove whether the
+ * requested profile value was committed. This is deliberately distinct from
+ * a definite validation refusal: callers must retain the draft and perform a
+ * canonical read before releasing their per-project write lock.
+ */
+export class UnconfirmedAutonomyWriteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnconfirmedAutonomyWriteError';
+  }
+}
+
+export async function updateAgentAutonomy(
   project: string,
-  controlPlane: ControlPlanePayload,
   profileName: string,
   mode: string,
   ports: Pick<SystemCapabilityPorts, 'updateAutonomy'> = systemCapabilityPorts
 ): Promise<ControlPlanePayload> {
-  return ports.updateAutonomy(project, agentAutonomyPatch(controlPlane, profileName, mode));
+  const updated = await ports.updateAutonomy(project, agentAutonomyPatch(profileName, mode));
+  const agents = updated.autonomy?.agents;
+  const updatedProfile = updated.profiles?.find((profile) => profile.name === profileName);
+  const profileOverride = updatedProfile?.autonomy?.read_files?.agent_override;
+  if (
+    updated.project !== project
+    || !updatedProfile
+    || typeof agents !== 'object'
+    || agents === null
+    || Array.isArray(agents)
+    || (agents as Record<string, unknown>)[profileName] !== mode
+    || profileOverride !== mode
+  ) {
+    throw new UnconfirmedAutonomyWriteError(
+      `Das Control-Plane-Backend bestätigte den Autonomie-Modus ${mode} für ${profileName} nicht. `
+      + 'Der Entwurf bleibt erhalten; möglicherweise unterstützt dieses Backend noch keine profilweisen Updates.'
+    );
+  }
+  return updated;
 }

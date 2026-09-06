@@ -19,6 +19,11 @@ const DESKTOP_READY_PATH: &str = "/api/desktop-ready";
 const DESKTOP_SHUTDOWN_PATH: &str = "/api/desktop/shutdown";
 const DESKTOP_NONCE_HEADER: &str = "X-Daedalus-Desktop-Nonce";
 const DESKTOP_STARTUP_NONCE_ENV: &str = "DAEDALUS_DESKTOP_STARTUP_NONCE";
+const DESKTOP_KILLSWITCH_ENV: &str = "DAEDALUS_KILLSWITCH";
+const DESKTOP_INITIAL_ARM_CLAIM_ENV: &str = "DAEDALUS_DESKTOP_INITIAL_ARM_CLAIM";
+const DESKTOP_CONTROL_DIR: &str = "control";
+const DESKTOP_KILLSWITCH_NAME: &str = "killswitch";
+const DESKTOP_INITIAL_ARM_CLAIM_SUFFIX: &str = ".desktop-initial-arm.claim";
 const BACKEND_BUNDLE_ID: &str = env!("DAEDALUS_BACKEND_BUNDLE_ID");
 const BUNDLE_ID_NAME: &str = "BUNDLE_ID";
 const BUNDLE_FILES_NAME: &str = "BUNDLE_FILES";
@@ -1000,6 +1005,8 @@ fn spawn_backend(
     executable: &Path,
     startup_nonce: &str,
     log_path: &Path,
+    killswitch_path: &Path,
+    initial_arm_claim_path: &Path,
 ) -> io::Result<Child> {
     let stdout = fs::OpenOptions::new()
         .create(true)
@@ -1011,6 +1018,11 @@ fn spawn_backend(
     command
         .args(["--host", "127.0.0.1", "--port", "8765"])
         .env(DESKTOP_STARTUP_NONCE_ENV, startup_nonce)
+        // The native host supplies stable app-data paths only. The admitted
+        // Python sidecar owns CREATE_NEW claim publication and the one allowed
+        // first-run arm; Rust never writes a permit or authority marker.
+        .env(DESKTOP_KILLSWITCH_ENV, killswitch_path)
+        .env(DESKTOP_INITIAL_ARM_CLAIM_ENV, initial_arm_claim_path)
         .current_dir(backend_root)
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
@@ -1022,6 +1034,16 @@ fn spawn_backend(
     }
 
     command.spawn()
+}
+
+fn desktop_control_paths(app_data_root: &Path) -> (PathBuf, PathBuf) {
+    let killswitch = app_data_root
+        .join(DESKTOP_CONTROL_DIR)
+        .join(DESKTOP_KILLSWITCH_NAME);
+    let claim = killswitch.with_file_name(format!(
+        "{DESKTOP_KILLSWITCH_NAME}{DESKTOP_INITIAL_ARM_CLAIM_SUFFIX}"
+    ));
+    (killswitch, claim)
 }
 
 fn probe_authenticated_readiness(address: SocketAddr, startup_nonce: &str) -> bool {
@@ -1161,11 +1183,14 @@ fn start_desktop_inner(app: &mut tauri::App) -> Result<(), Box<dyn Error>> {
     let startup_nonce = generate_startup_nonce()?;
     let installed = install_backend(app)?;
     let backend_log = installed.app_data_root.join(BACKEND_LOG_NAME);
+    let (killswitch_path, initial_arm_claim_path) = desktop_control_paths(&installed.app_data_root);
     let mut child = match spawn_backend(
         &installed.backend_root,
         &installed.executable,
         &startup_nonce,
         &backend_log,
+        &killswitch_path,
+        &initial_arm_claim_path,
     ) {
         Ok(child) => child,
         Err(error) => return Err(failed_startup_after_install(&installed, error)),
@@ -1231,7 +1256,7 @@ fn request_backend_shutdown(address: SocketAddr, startup_nonce: &str, timeout: D
         return false;
     }
     let request = format!(
-        "POST {DESKTOP_SHUTDOWN_PATH} HTTP/1.0\r\nHost: 127.0.0.1\r\n{DESKTOP_NONCE_HEADER}: {startup_nonce}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        "POST {DESKTOP_SHUTDOWN_PATH} HTTP/1.0\r\nHost: {address}\r\nOrigin: http://{address}\r\nSec-Fetch-Site: same-origin\r\n{DESKTOP_NONCE_HEADER}: {startup_nonce}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
     );
     if stream.write_all(request.as_bytes()).is_err() {
         return false;
@@ -1283,8 +1308,14 @@ fn stop_backend(app: &tauri::AppHandle) {
 }
 
 pub fn run() {
-    let app = match tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
+    let builder = tauri::Builder::default();
+    // The native dialog plugin brings Windows common-controls entrypoints into
+    // the final desktop binary. Unit tests exercise only the sidecar/lifecycle
+    // helpers and must not link that unused GUI surface into their console
+    // harness, particularly on the supported GNU developer toolchain.
+    #[cfg(not(test))]
+    let builder = builder.plugin(tauri_plugin_dialog::init());
+    let app = match builder
         .setup(start_desktop)
         .build(tauri::generate_context!())
     {
@@ -1367,6 +1398,26 @@ mod tests {
                 .expect("write fake response");
         });
         address
+    }
+
+    #[test]
+    fn desktop_control_paths_are_stable_app_data_siblings() {
+        let app_data = PathBuf::from("operator-app-data");
+        let (killswitch, claim) = desktop_control_paths(&app_data);
+
+        assert_eq!(
+            killswitch,
+            app_data
+                .join(DESKTOP_CONTROL_DIR)
+                .join(DESKTOP_KILLSWITCH_NAME)
+        );
+        assert_eq!(
+            claim,
+            app_data
+                .join(DESKTOP_CONTROL_DIR)
+                .join("killswitch.desktop-initial-arm.claim")
+        );
+        assert_eq!(claim.parent(), killswitch.parent());
     }
 
     #[test]
@@ -1733,14 +1784,15 @@ mod tests {
     fn shutdown_requests_the_nonce_authenticated_runtime_close_route() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake backend");
         let address = listener.local_addr().expect("fake backend address");
+        let expected_prefix = format!(
+            "POST /api/desktop/shutdown HTTP/1.0\r\nHost: {address}\r\nOrigin: http://{address}\r\nSec-Fetch-Site: same-origin\r\nX-Daedalus-Desktop-Nonce: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\r\n"
+        );
         let server = thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("accept shutdown request");
             let mut request = [0_u8; 512];
             let count = stream.read(&mut request).expect("read shutdown request");
             let request = std::str::from_utf8(&request[..count]).expect("request is UTF-8");
-            assert!(request.starts_with(
-                "POST /api/desktop/shutdown HTTP/1.0\r\nHost: 127.0.0.1\r\nX-Daedalus-Desktop-Nonce: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\r\n"
-            ));
+            assert!(request.starts_with(&expected_prefix));
             stream
                 .write_all(b"HTTP/1.0 200 OK\r\nContent-Length: 2\r\n\r\n{}")
                 .expect("write shutdown response");

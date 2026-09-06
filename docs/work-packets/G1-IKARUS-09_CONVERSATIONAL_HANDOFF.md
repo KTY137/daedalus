@@ -89,7 +89,7 @@ authority and do not widen this packet's frontend/intent scope.
 | Valid project lane | unit test | exact declared lane in action envelope |
 | Missing/unknown project lane | unit test | fail-closed `local_only` |
 | Unavailable local bench with non-local declared lane | unit test | proposal/confirmation not falsely refused by local-only probe |
-| Manual and configured automatic dispatch | frontend build/source test | subscribe to existing task id |
+| Explicit manual dispatch | frontend build/source test | `Loslegen` creates one task and subscribes to its id; no browser preference may dispatch |
 | Queue attribution | API/frontend test | exact persisted `conversation_id` + positive `turn_id`, never "latest turn" inference |
 | Later chat turn while task runs | frontend state test or source review | progress remains on originating turn |
 | Task SSE final/error | API client test/source review | EventSource closes exactly once; no reconnect |

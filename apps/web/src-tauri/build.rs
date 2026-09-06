@@ -49,5 +49,23 @@ fn main() {
         "cargo:rustc-env=DAEDALUS_BACKEND_BUNDLE_ID={}",
         backend_bundle_id()
     );
-    tauri_build::build()
+    tauri_build::build();
+
+    // tauri-build scopes its common-controls manifest to application binaries.
+    // The GNU unit-test harness also links Windows GUI symbols but has no
+    // manifest of its own, so it otherwise aborts before the first test with
+    // STATUS_ENTRYPOINT_NOT_FOUND (TaskDialogIndirect). This package exposes
+    // only an rlib; the argument is inert for that archive and reaches the
+    // executable test harness without creating a second cdylib manifest.
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+        && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("gnu")
+    {
+        let output = env::var("OUT_DIR").expect("Cargo must provide OUT_DIR");
+        let resource = Path::new(&output).join("libresource.a");
+        assert!(
+            resource.is_file(),
+            "tauri-build did not create the Windows resource archive"
+        );
+        println!("cargo:rustc-link-arg={}", resource.display());
+    }
 }

@@ -20,6 +20,97 @@ async function stubQuietCockpit(page: import('@playwright/test').Page) {
   }));
 }
 
+async function installControlledConversationEvents(page: Page) {
+  await page.addInitScript(() => {
+    class ControlledConversationEventSource {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = ControlledConversationEventSource.OPEN;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      private readonly listeners = new Map<string, Set<(event: Event) => void>>();
+
+      constructor(url: string | URL) {
+        this.url = String(url);
+        controlledSources.push(this);
+      }
+
+      addEventListener(type: string, listener: EventListenerOrEventListenerObject | null) {
+        if (!listener) return;
+        const callback = typeof listener === 'function'
+          ? listener
+          : (event: Event) => listener.handleEvent(event);
+        const listeners = this.listeners.get(type) || new Set<(event: Event) => void>();
+        listeners.add(callback);
+        this.listeners.set(type, listeners);
+      }
+
+      removeEventListener() { /* the fixture owns its short-lived page */ }
+
+      dispatchEvent(event: Event) {
+        for (const listener of this.listeners.get(event.type) || []) listener(event);
+        if (event.type === 'error') this.onerror?.(event);
+        return true;
+      }
+
+      close() {
+        this.readyState = ControlledConversationEventSource.CLOSED;
+      }
+
+      emit(type: string, data: Record<string, unknown>) {
+        this.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(data) }));
+      }
+    }
+
+    const controlledSources: ControlledConversationEventSource[] = [];
+    Object.defineProperty(window, 'EventSource', {
+      configurable: true,
+      value: ControlledConversationEventSource,
+    });
+    Object.defineProperty(window, '__emitConversationEvent', {
+      configurable: true,
+      value: (requestId: number, type: string, data: Record<string, unknown>) => {
+        const suffix = `/turns/${requestId}/events`;
+        const source = controlledSources.find((candidate) => candidate.url.endsWith(suffix));
+        if (!source) throw new Error(`no controlled EventSource for ${suffix}`);
+        source.emit(type, data);
+      },
+    });
+    Object.defineProperty(window, '__hasConversationEventSource', {
+      configurable: true,
+      value: (requestId: number) => {
+        const suffix = `/turns/${requestId}/events`;
+        return controlledSources.some((candidate) => candidate.url.endsWith(suffix));
+      },
+    });
+  });
+}
+
+async function emitConversationEvent(page: Page, requestId: number, type: string, data: Record<string, unknown>) {
+  await page.evaluate(
+    ({ requestId, type, data }) => (window as unknown as {
+      __emitConversationEvent: (id: number, event: string, payload: Record<string, unknown>) => void;
+    }).__emitConversationEvent(requestId, type, data),
+    { requestId, type, data },
+  );
+}
+
+async function hasConversationEventSource(page: Page, requestId: number) {
+  return page.evaluate(
+    (id) => (window as unknown as {
+      __hasConversationEventSource: (candidate: number) => boolean;
+    }).__hasConversationEventSource(id),
+    requestId,
+  );
+}
+
 async function openProjectDialog(page: Page) {
   await page.locator('.scope-trigger').click();
   await page.locator('.scope-add').click();
@@ -325,36 +416,36 @@ test.describe('IDE and project registration', () => {
     await expect(page.getByRole('link', { name: 'Extern öffnen' })).toHaveAttribute('href', src.toString());
   });
 
-  test('an unreachable IDE starts through the desktop service with the registered project name', async ({ page }) => {
+  test('an unreachable IDE stays read-only when managed start is unavailable', async ({ page }) => {
     await stubQuietCockpit(page);
-    let reachable = false;
-    let startBody: unknown;
+    let startRequests = 0;
     await page.route('**/api/desktop/settings', (route) => route.fulfill({
       json: {
         ok: true,
         generated_at: '',
         project: null,
         warnings: [],
-        desktop: { services: { ide: { available: true, endpoint: 'http://127.0.0.1:3000', reachable, last_error: reachable ? '' : 'connection refused' } } }
+        desktop: { services: { ide: {
+          available: false,
+          endpoint: 'http://127.0.0.1:3000',
+          reachable: false,
+          managed_start_available: false,
+          availability_reason: 'Managed IDE start unavailable.'
+        } } }
       }
     }));
     await page.route('**/api/desktop/services/ide/start', async (route) => {
-      startBody = route.request().postDataJSON();
-      reachable = true;
-      await route.fulfill({
-        json: { ok: true, generated_at: '', project: null, warnings: [], service: { endpoint: 'http://127.0.0.1:3000', reachable: true } }
-      });
+      startRequests += 1;
+      await route.fulfill({ status: 400, json: { ok: false, error: 'managed IDE start unavailable' } });
     });
-    await page.route('http://127.0.0.1:3000/**', (route) => route.fulfill({ contentType: 'text/html', body: '<title>OpenVSCode</title>' }));
 
     await openCockpit(page);
     await page.getByRole('button', { name: 'IDE', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'OpenVSCode Server ist nicht erreichbar' })).toBeVisible();
-    await expect(page.getByText('connection refused')).toBeVisible();
-
-    await page.getByRole('button', { name: 'IDE starten' }).click();
-    await expect(page.getByTitle(`OpenVSCode – ${project.name}`)).toBeVisible();
-    expect(startBody).toEqual({ project: project.name });
+    await expect(page.getByRole('heading', { name: 'IDE-Start nicht verfügbar' })).toBeVisible();
+    await expect(page.getByText(/startet in v0\.1\.6 keinen IDE-Prozess/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'IDE starten' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Status neu prüfen' })).toBeVisible();
+    expect(startRequests).toBe(0);
   });
 
   test('a missing desktop IDE capability does not expose a start action or raw endpoint error', async ({ page }) => {
@@ -369,7 +460,7 @@ test.describe('IDE and project registration', () => {
 
     const notice = page.locator('.ide-notice');
     await expect(page.getByRole('heading', { name: 'IDE-Integration nicht verfügbar' })).toBeVisible();
-    await expect(notice).toContainText('Desktop-IDE-Steuerung');
+    await expect(notice).toContainText('keinen gemessenen Desktop-IDE-Status');
     await expect(notice).not.toContainText('unknown endpoint');
     await expect(page.getByRole('button', { name: 'IDE starten' })).toHaveCount(0);
   });
@@ -436,6 +527,105 @@ test.describe('IDE and project registration', () => {
 
     await confirm.click();
     await expect.poll(() => handoffCalls).toBe(1);
+  });
+
+  test('draft list, detail and action callbacks cannot cross a project generation', async ({ page }) => {
+    const alpha = { name: 'decision-alpha', repo_root: 'C:\\work\\decision-alpha', team: {}, reachable: true };
+    const beta = { name: 'decision-beta', repo_root: 'C:\\work\\decision-beta', team: {}, reachable: true };
+    let releaseDetail!: () => void;
+    let releaseAction!: () => void;
+    let releaseBeta!: () => void;
+    const detailMayFinish = new Promise<void>((resolve) => { releaseDetail = resolve; });
+    const actionMayFinish = new Promise<void>((resolve) => { releaseAction = resolve; });
+    const betaMayFinish = new Promise<void>((resolve) => { releaseBeta = resolve; });
+    let alphaListReads = 0;
+    let betaListReads = 0;
+    let actionCalls = 0;
+    let actionReturned = false;
+
+    await page.route('**/api/projects', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], projects: [alpha, beta] }
+    }));
+    await page.route('**/api/structure**', (route) => {
+      const selected = new URL(route.request().url()).searchParams.get('project') || '';
+      return route.fulfill({
+        json: { ok: true, generated_at: '', project: selected, warnings: [], structure: { graph: { nodes: [], edges: [] } } }
+      });
+    });
+    await page.route('**/api/runtimes/status**', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], runtimes: [] }
+    }));
+    await page.route((url) => url.pathname === '/api/conversations' && url.searchParams.has('project'), (route) =>
+      route.fulfill({ json: { ok: true, generated_at: '', project: null, warnings: [], conversations: [] } })
+    );
+    await page.route((url) => url.pathname === '/api/drafts', async (route) => {
+      const selected = new URL(route.request().url()).searchParams.get('project');
+      if (!selected) {
+        await route.fulfill({ json: {
+          ok: true, generated_at: '', project: null, warnings: [], scope: null, pending_count: 0, drafts: []
+        } });
+        return;
+      }
+      const row = selected === beta.name ? beta : alpha;
+      if (selected === beta.name) {
+        betaListReads += 1;
+        await betaMayFinish;
+      } else {
+        alphaListReads += 1;
+      }
+      await route.fulfill({ json: {
+        ok: true, generated_at: '', project: row.name, warnings: [], scope: row.repo_root, pending_count: 1,
+        drafts: [{
+          id: `draft-${row.name}`, created: '2026-09-05', agent: 'Ikarus',
+          objective: row === alpha ? 'Nur Alpha entscheiden' : 'Nur Beta entscheiden',
+          paths: ['apps/web/src/app/Cockpit.tsx'], status: 'pending', repo_root: row.repo_root
+        }]
+      } });
+    });
+    await page.route((url) => url.pathname === '/api/drafts/draft-decision-alpha', async (route) => {
+      await detailMayFinish;
+      await route.fulfill({ json: {
+        ok: true, generated_at: '', project: alpha.name, warnings: [],
+        draft: {
+          id: 'draft-decision-alpha', created: '2026-09-05', agent: 'Ikarus', objective: 'Nur Alpha entscheiden',
+          paths: [], provider: 'test', persona: '', repo_root: alpha.repo_root, status: 'pending',
+          report: {
+            status: 'needs_review', summary: 'Vertrauliches Alpha-Detail', files_changed: [], tests_run: [], risks: [], todos: [], handoff: {}
+          }
+        }
+      } });
+    });
+    await page.route((url) => url.pathname === '/api/drafts/draft-decision-alpha/apply', async (route) => {
+      actionCalls += 1;
+      await actionMayFinish;
+      await route.fulfill({ json: { ok: true, generated_at: '', project: alpha.name, warnings: [], applied: {} } });
+      actionReturned = true;
+    });
+
+    await openCockpit(page, `/?view=chat&project=${alpha.name}`);
+    await expect(page.getByRole('heading', { name: 'Nur Alpha entscheiden' })).toBeVisible();
+    await page.getByRole('button', { name: 'Warum' }).click();
+    await page.getByRole('button', { name: 'Übergabe bestätigen' }).click();
+    await expect.poll(() => actionCalls).toBe(1);
+
+    await page.locator('.scope-trigger').click();
+    await page.locator(`.scope-menu [data-project-name="${beta.name}"]`).click();
+    await expect(page.locator('.scope-name')).toHaveText(beta.name);
+    await expect(page.getByRole('heading', { name: 'Nur Alpha entscheiden' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Übergabe bestätigen' })).toHaveCount(0);
+    await expect.poll(() => betaListReads).toBe(1);
+
+    releaseDetail();
+    releaseAction();
+    await expect.poll(() => actionReturned).toBe(true);
+    await page.waitForTimeout(150);
+    releaseBeta();
+    await expect(page.getByRole('heading', { name: 'Nur Beta entscheiden' })).toBeVisible();
+    await expect(page.getByText('Vertrauliches Alpha-Detail')).toHaveCount(0);
+    await page.waitForTimeout(100);
+    expect(alphaListReads).toBe(1);
+    expect(betaListReads).toBe(1);
+    expect(actionCalls).toBe(1);
   });
 
   test('tablet status details are collapsible while the conversation stays first', async ({ page }) => {
@@ -570,7 +760,354 @@ test.describe('IDE and project registration', () => {
     expect(turnBody?.context_refs).toEqual([]);
   });
 
-  test('closing observation never repeats a turn POST and cancellation is a separate requested state', async ({ page }) => {
+  test('Genesis releases its synchronous claim when secure request-key generation throws', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(globalThis.crypto, 'randomUUID', {
+        configurable: true,
+        value: () => { throw new Error('fixture WebCrypto failure'); },
+      });
+    });
+    await stubQuietCockpit(page);
+    let genesisPosts = 0;
+    await page.route('**/api/genesis', async (route) => {
+      genesisPosts += 1;
+      await route.fulfill({ status: 503, json: { ok: false, error: 'fixture backend unavailable' } });
+    });
+
+    await openCockpit(page);
+    await page.locator('.viewswitch').getByRole('button', { name: 'Genesis', exact: true }).click();
+    const prompt = page.getByLabel('Produktbeschreibung');
+    const submit = page.getByRole('button', { name: 'Genesis starten' });
+    await prompt.fill('Eine lokale Aufgabenliste.');
+    await submit.click();
+
+    await expect(page.locator('.genesis-error')).toContainText('fixture WebCrypto failure');
+    expect(genesisPosts, 'request-key failure reached the effectful Genesis route').toBe(0);
+    await expect(submit).toBeEnabled();
+
+    // A working generator on the next explicit submit must reach the route;
+    // this proves the failed attempt released the ref claim, not only `pending`.
+    await page.evaluate(() => {
+      Object.defineProperty(globalThis.crypto, 'randomUUID', {
+        configurable: true,
+        value: () => '00000000-0000-4000-8000-000000000001',
+      });
+    });
+    await submit.click();
+    await expect.poll(() => genesisPosts).toBe(1);
+    await expect(page.locator('.genesis-error')).toContainText('fixture backend unavailable');
+    await expect(submit).toBeEnabled();
+  });
+
+  test('stream phases and completion use one concise live region without announcing token updates', async ({ page }) => {
+    await installControlledConversationEvents(page);
+    await stubQuietCockpit(page);
+    await page.route('**/api/runtimes/status', (route) => route.fulfill({
+      json: {
+        ok: true,
+        generated_at: '',
+        project: project.name,
+        warnings: [],
+        runtimes: [{ id: 'ollama_http', label: 'Ollama', available: true }],
+      },
+    }));
+    await page.route('**/api/conversations', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation_id: 'conv_live_region' },
+    }));
+    await page.route('**/api/conversations/*/turns', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 202,
+        json: { ok: true, generated_at: '', project: project.name, warnings: [], created: true, turn_request: {
+          request_id: 45, conversation_id: 'conv_live_region', client_request_id: body.client_request_id,
+          project: project.name, state: 'streaming',
+        } },
+      });
+    });
+
+    await openCockpit(page);
+    await page.getByRole('button', { name: 'Gespräch', exact: true }).click();
+    const surface = page.getByRole('region', { name: 'Gespräch mit Ikarus' });
+    const live = surface.locator('[data-conversation-live]');
+    await expect(live).toHaveCount(1);
+    await expect(surface.locator('[aria-live="polite"]')).toHaveCount(1);
+    await expect(surface.locator('[role="status"]')).toHaveCount(1);
+    await expect(live).toHaveAttribute('role', 'status');
+    await expect(live).toHaveAttribute('aria-atomic', 'true');
+    await expect(surface.locator('.convo-scroll')).toHaveAttribute('aria-live', 'off');
+
+    await page.getByLabel('Nachricht an Ikarus').fill('Erkläre den aktuellen Stand.');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => hasConversationEventSource(page, 45)).toBe(true);
+    await expect(live).toHaveText('Anfrage angenommen.');
+    await expect(surface.locator('.convo-scroll [role="status"]')).toHaveCount(0);
+    await expect(surface.locator('.convo-elapsed')).toHaveAttribute('aria-hidden', 'true');
+
+    await emitConversationEvent(page, 45, 'start', {
+      intent: 'chat', shell: 'voice', provider_used: 'ollama_http',
+    });
+    await expect(live).toHaveText('Ollama ist ausgewählt.');
+    await emitConversationEvent(page, 45, 'delta', { text: 'Hallo' });
+    await expect(surface.locator('.turn.ikarus')).toContainText('Hallo');
+    await expect(live).toHaveText('Ollama antwortet.');
+    const beforeMoreTokens = await live.textContent();
+    await emitConversationEvent(page, 45, 'delta', { text: ' Welt' });
+    await expect(surface.locator('.turn.ikarus')).toContainText('Hallo Welt');
+    await expect(live).toHaveText(beforeMoreTokens || 'Ollama antwortet.');
+
+    await emitConversationEvent(page, 45, 'final', {
+      ok: true, project: project.name, warnings: [], generated_at: '',
+      intent: 'chat', shell: 'voice', provider_used: 'ollama_http',
+      assistant: 'Hallo Welt',
+    });
+    await expect(live).toHaveText('Antwort abgeschlossen.');
+    await expect(page.getByRole('button', { name: 'Senden' })).toBeVisible();
+  });
+
+  test('a terminal error state after restart settles the turn without a named error event', async ({ page }) => {
+    await installControlledConversationEvents(page);
+    await stubQuietCockpit(page);
+    await page.route('**/api/conversations', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation_id: 'conv_restart_error' },
+    }));
+    let turnPosts = 0;
+    await page.route('**/api/conversations/*/turns', async (route) => {
+      turnPosts += 1;
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const requestId = 46 + turnPosts;
+      await route.fulfill({
+        status: 202,
+        json: { ok: true, generated_at: '', project: project.name, warnings: [], created: true, turn_request: {
+          request_id: requestId, conversation_id: 'conv_restart_error', client_request_id: body.client_request_id,
+          project: project.name, state: 'streaming',
+        } },
+      });
+    });
+
+    await openCockpit(page);
+    await page.getByRole('button', { name: 'Gespräch', exact: true }).click();
+    const composer = page.getByLabel('Nachricht an Ikarus');
+    await composer.fill('Erster Versuch');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => hasConversationEventSource(page, 47)).toBe(true);
+
+    // Restart reconciliation may have only this durable terminal snapshot;
+    // deliberately emit no named `error` event and no optional error detail.
+    await emitConversationEvent(page, 47, 'state', {
+      request_id: 47,
+      conversation_id: 'conv_restart_error',
+      project: project.name,
+      state: 'error',
+      error: null,
+    });
+    await expect(page.locator('[data-conversation-live]')).toHaveText('Antwort fehlgeschlagen.');
+    await expect(page.locator('.turn.ikarus').first()).toContainText('Der Turn ist fehlgeschlagen.');
+    await expect(page.locator('.turn.ikarus').first()).toContainText('Der Server hat keinen Fehlergrund übermittelt.');
+    await expect(page.locator('.convo-error')).toContainText('Ikarus-Turn fehlgeschlagen');
+    await expect(page.getByRole('button', { name: 'Senden' })).toBeVisible();
+
+    // Releasing `busy` alone is insufficient: a leaked synchronous send claim
+    // also refuses the successor. A second accepted POST proves both cleared.
+    await composer.fill('Zweiter Versuch');
+    await expect(page.getByRole('button', { name: 'Senden' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => turnPosts).toBe(2);
+    await expect.poll(() => hasConversationEventSource(page, 48)).toBe(true);
+    await emitConversationEvent(page, 48, 'final', {
+      ok: true, project: project.name, warnings: [], generated_at: '',
+      intent: 'chat', shell: 'voice', provider_used: 'deterministic',
+      assistant: 'Wieder erreichbar.',
+    });
+    await expect(page.locator('.turn.ikarus').last()).toContainText('Wieder erreichbar.');
+  });
+
+  test('a streaming turn survives every Cockpit view and queues its proposal only after an explicit click', async ({ page }) => {
+    await installControlledConversationEvents(page);
+    // Negative evidence for the retired browser preference: an existing value
+    // may remain in an old profile, but it must have no authority to dispatch.
+    await page.addInitScript(() => localStorage.setItem('daedalus-autonomy', 'vorschlaege'));
+    await stubQuietCockpit(page);
+    await page.route('**/api/runtimes/status', (route) => route.fulfill({
+      json: {
+        ok: true,
+        generated_at: '',
+        project: project.name,
+        warnings: [],
+        runtimes: [{ id: 'ollama_http', label: 'Ollama', available: true }],
+      },
+    }));
+    await page.route('**/api/conversations', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation_id: 'conv_view_handoff' },
+    }));
+    await page.route('**/api/conversations/*/turns', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 202,
+        json: { ok: true, generated_at: '', project: project.name, warnings: [], created: true, turn_request: {
+          request_id: 46, conversation_id: 'conv_view_handoff', client_request_id: body.client_request_id,
+          project: project.name, state: 'streaming',
+        } },
+      });
+    });
+    let queuePosts = 0;
+    let queuedBody: Record<string, unknown> | undefined;
+    await page.route((url) => url.pathname === '/api/queue', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      queuePosts += 1;
+      queuedBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        json: {
+          ok: true,
+          id: 'task_explicit_click',
+          conversation_link: {
+            linked: true,
+            conversation_id: 'conv_view_handoff',
+            turn_id: 91,
+            dispatch_ref: 'task_explicit_click',
+          },
+        },
+      });
+    });
+
+    await openCockpit(page);
+    const views = page.locator('.viewswitch');
+    await views.getByRole('button', { name: 'Gespräch', exact: true }).click();
+    const talk = page.locator('main.cockpit-body.talk');
+    await expect(talk).toBeVisible();
+    await page.getByLabel('Nachricht an Ikarus').fill('Bleib bei diesem Turn.');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => hasConversationEventSource(page, 46)).toBe(true);
+    await emitConversationEvent(page, 46, 'start', {
+      intent: 'chat', shell: 'voice', provider_used: 'ollama_http',
+    });
+
+    for (const [viewName, chunk] of [
+      ['Karte', 'Karte '],
+      ['IDE', 'IDE '],
+      ['Genesis', 'Genesis'],
+    ] as const) {
+      await views.getByRole('button', { name: viewName, exact: true }).click();
+      await expect(talk).toHaveAttribute('hidden', '');
+      await expect(talk).toHaveAttribute('inert', '');
+      await expect(page.locator('.convo')).toHaveCount(1);
+      await emitConversationEvent(page, 46, 'delta', { text: chunk });
+    }
+    await emitConversationEvent(page, 46, 'final', {
+      ok: true,
+      project: project.name,
+      warnings: [],
+      generated_at: '',
+      intent: 'enqueue',
+      shell: 'voice',
+      provider_used: 'ollama_http',
+      assistant: 'Karte IDE Genesis — fertig.',
+      turn_id: 91,
+      conversation_persisted: true,
+      action: {
+        kind: 'queue_task',
+        args: { project: project.name, objective: 'Parser härten', lane: 'local_only' },
+        // A response flag is descriptive data, never UI-side authority.
+        requires_confirmation: false,
+      },
+    });
+
+    await views.getByRole('button', { name: 'Gespräch', exact: true }).click();
+    await expect(talk).not.toHaveAttribute('hidden', '');
+    await expect(talk).not.toHaveAttribute('inert', '');
+    await expect(page.locator('.turn.ikarus').last()).toContainText('Karte IDE Genesis — fertig.');
+    const approve = page.getByRole('button', { name: 'Loslegen' });
+    await expect(approve).toBeVisible();
+    expect(queuePosts, 'a legacy browser preference dispatched the proposal').toBe(0);
+
+    await approve.click();
+    await expect.poll(() => queuePosts).toBe(1);
+    expect(queuedBody).toEqual(expect.objectContaining({
+      project: project.name,
+      objective: 'Parser härten',
+      lane: 'local_only',
+      conversation_id: 'conv_view_handoff',
+      turn_id: 91,
+    }));
+    await expect(page.locator('.turn.ikarus').last()).toContainText('eingereiht');
+  });
+
+  test('stream auto-follow keeps a bottom reader with the answer and preserves an intentional scroll-up', async ({ page }) => {
+    await installControlledConversationEvents(page);
+    await stubQuietCockpit(page);
+    await page.route('**/api/conversations', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation_id: 'conv_follow' },
+    }));
+    let requestId = 70;
+    await page.route('**/api/conversations/*/turns', async (route) => {
+      requestId += 1;
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 202,
+        json: { ok: true, generated_at: '', project: project.name, warnings: [], created: true, turn_request: {
+          request_id: requestId, conversation_id: 'conv_follow', client_request_id: body.client_request_id,
+          project: project.name, state: 'streaming',
+        } },
+      });
+    });
+
+    await openCockpit(page);
+    await page.getByRole('button', { name: 'Gespräch', exact: true }).click();
+    const composer = page.getByLabel('Nachricht an Ikarus');
+    const scroller = page.locator('.convo-scroll');
+    await scroller.evaluate((element) => {
+      const node = element as HTMLElement;
+      node.style.height = '220px';
+      node.style.maxHeight = '220px';
+      node.style.flex = '0 0 220px';
+    });
+    const bottomGap = () => scroller.evaluate((element) => {
+      const node = element as HTMLElement;
+      return node.scrollHeight - node.scrollTop - node.clientHeight;
+    });
+    const longAnswer = Array.from({ length: 60 }, (_, index) => `Absatz ${index}: beobachtbarer Inhalt.`).join('\n\n');
+
+    await composer.fill('Erster langer Turn');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => hasConversationEventSource(page, 71)).toBe(true);
+    await emitConversationEvent(page, 71, 'delta', { text: longAnswer });
+    await expect(page.locator('.turn.ikarus').last()).toContainText('Absatz 59');
+    await expect.poll(bottomGap).toBeLessThanOrEqual(2);
+    await emitConversationEvent(page, 71, 'delta', { text: '\n\nNachlauf im Stream.' });
+    await expect(page.locator('.turn.ikarus').last()).toContainText('Nachlauf im Stream.');
+    await expect.poll(bottomGap).toBeLessThanOrEqual(2);
+    await emitConversationEvent(page, 71, 'final', {
+      ok: true, project: project.name, warnings: [], generated_at: '',
+      intent: 'chat', shell: 'voice', provider_used: 'ollama_http',
+      assistant: `${longAnswer}\n\nNachlauf im Stream.\n\nFinal bestätigt.`,
+    });
+    await expect(page.locator('.turn.ikarus').last()).toContainText('Final bestätigt.');
+    await expect.poll(bottomGap).toBeLessThanOrEqual(2);
+
+    await composer.fill('Zweiter langer Turn');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => hasConversationEventSource(page, 72)).toBe(true);
+    await emitConversationEvent(page, 72, 'delta', { text: longAnswer });
+    await expect(page.locator('.turn.ikarus').last()).toContainText('Absatz 59');
+    await expect.poll(bottomGap).toBeLessThanOrEqual(2);
+    await scroller.evaluate((element) => {
+      const node = element as HTMLElement;
+      node.scrollTop = 0;
+      node.dispatchEvent(new Event('scroll'));
+    });
+    await expect.poll(() => scroller.evaluate((element) => (element as HTMLElement).scrollTop)).toBe(0);
+
+    await emitConversationEvent(page, 72, 'delta', { text: '\n\nDieser Text kommt unterhalb des Lesers.' });
+    await emitConversationEvent(page, 72, 'final', {
+      ok: true, project: project.name, warnings: [], generated_at: '',
+      intent: 'chat', shell: 'voice', provider_used: 'ollama_http',
+      assistant: `${longAnswer}\n\nDieser Text kommt unterhalb des Lesers.\n\nAbschluss unterhalb.`,
+    });
+    await expect(page.locator('.turn.ikarus').last()).toContainText('Abschluss unterhalb.');
+    await expect.poll(() => scroller.evaluate((element) => (element as HTMLElement).scrollTop)).toBe(0);
+    await expect(page.getByRole('button', { name: 'Neue Antwort ↓' })).toBeVisible();
+  });
+
+  test('the square stop requests canonical cancellation while observation disconnect stays secondary', async ({ page }) => {
     let turnPosts = 0;
     let cancelPosts = 0;
     await stubQuietCockpit(page);
@@ -599,10 +1136,277 @@ test.describe('IDE and project registration', () => {
     await page.getByLabel('Nachricht an Ikarus').fill('Bitte beobachtbar starten.');
     await page.getByRole('button', { name: 'Senden' }).click();
     await expect.poll(() => turnPosts).toBe(1);
-    await page.getByRole('button', { name: 'Beobachtung schließen' }).click();
     await page.getByRole('button', { name: 'Abbruch anfordern' }).click();
     await expect.poll(() => cancelPosts).toBe(1);
     await expect(page.getByText('Abbruch angefordert – Bestätigung steht aus')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Nur Beobachtung trennen' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Nur Beobachtung trennen' }).click();
     expect(turnPosts).toBe(1);
+  });
+
+  test('observation cannot be closed before a canonical request exists', async ({ page }) => {
+    let releaseConversation!: () => void;
+    const conversationGate = new Promise<void>((resolve) => { releaseConversation = resolve; });
+    let conversationPosts = 0;
+    let turnPosts = 0;
+    await stubQuietCockpit(page);
+    await page.route('**/api/conversations', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      conversationPosts += 1;
+      await conversationGate;
+      await route.fulfill({
+        json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation_id: 'conv_slow_create' },
+      });
+    });
+    await page.route('**/api/conversations/*/turns', async (route) => {
+      turnPosts += 1;
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 202,
+        json: { ok: true, generated_at: '', project: project.name, warnings: [], created: true, turn_request: {
+          request_id: 44, conversation_id: 'conv_slow_create', client_request_id: body.client_request_id,
+          project: project.name, state: 'streaming',
+        } },
+      });
+    });
+    await page.route('**/api/conversations/*/turns/*/events', (route) => route.abort('failed'));
+
+    await openCockpit(page);
+    await page.getByRole('button', { name: 'Gespräch', exact: true }).click();
+    await page.getByLabel('Nachricht an Ikarus').fill('Starte genau einmal.');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => conversationPosts).toBe(1);
+
+    const pending = page.getByRole('button', { name: 'Anfrage wird angelegt' });
+    await expect(pending).toBeVisible();
+    await expect(pending).toBeDisabled();
+    await expect(page.locator('.turn.ikarus .thinking')).toContainText('Anfrage wird angelegt');
+    expect(turnPosts).toBe(0);
+
+    releaseConversation();
+    await expect.poll(() => turnPosts).toBe(1);
+    await expect(page.getByRole('button', { name: 'Abbruch anfordern' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Nur Beobachtung trennen' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Nur Beobachtung trennen' }).click();
+    expect(turnPosts).toBe(1);
+  });
+
+  for (const cancelOutcome of ['success', 'error'] as const) {
+    test(`a late ${cancelOutcome} response for cancellation A cannot clear active request B`, async ({ page }) => {
+      let releaseCancel!: () => void;
+      const cancelGate = new Promise<void>((resolve) => { releaseCancel = resolve; });
+      let releaseSecondTurn!: () => void;
+      const secondTurnGate = new Promise<void>((resolve) => { releaseSecondTurn = resolve; });
+      let turnPosts = 0;
+      let cancelPosts = 0;
+
+      await stubQuietCockpit(page);
+      await page.route('**/api/conversations', (route) => route.fulfill({
+        json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation_id: 'conv_cancel_race' },
+      }));
+      await page.route('**/api/conversations/*/turns', async (route) => {
+        turnPosts += 1;
+        const body = route.request().postDataJSON() as Record<string, unknown>;
+        if (turnPosts === 2) await secondTurnGate;
+        await route.fulfill({
+          status: 202,
+          json: { ok: true, generated_at: '', project: project.name, warnings: [], created: true, turn_request: {
+            request_id: 60 + turnPosts, conversation_id: 'conv_cancel_race', client_request_id: body.client_request_id,
+            project: project.name, state: 'streaming',
+          } },
+        });
+      });
+      await page.route('**/api/conversations/*/turns/*/cancel-requests', async (route) => {
+        cancelPosts += 1;
+        await cancelGate;
+        if (cancelOutcome === 'error') {
+          await route.fulfill({
+            status: 500,
+            json: { ok: false, error: 'late cancellation response failed' },
+          });
+          return;
+        }
+        await route.fulfill({
+          json: { ok: true, generated_at: '', project: project.name, warnings: [], cancellation: { status: 'unknown' } },
+        });
+      });
+      await page.route('**/api/conversations/*/turns/*/events', (route) => route.abort('failed'));
+
+      await openCockpit(page);
+      await page.getByRole('button', { name: 'Gespräch', exact: true }).click();
+      const composer = page.getByLabel('Nachricht an Ikarus');
+      const answers = page.locator('.turn.ikarus');
+
+      await composer.fill('Turn A');
+      await page.getByRole('button', { name: 'Senden' }).click();
+      await expect.poll(() => turnPosts).toBe(1);
+      await page.getByRole('button', { name: 'Nur Beobachtung trennen' }).click();
+      await page.getByRole('button', { name: 'Server-Abbruch anfordern' }).click();
+      await expect.poll(() => cancelPosts).toBe(1);
+
+      await composer.fill('Turn B');
+      await page.getByRole('button', { name: 'Senden' }).click();
+      await expect.poll(() => turnPosts).toBe(2);
+
+      // While B has no canonical id yet, A's detached identity must not turn
+      // the composer control into an enabled close button.
+      const pending = page.getByRole('button', { name: 'Anfrage wird angelegt' });
+      await expect(pending).toBeVisible();
+      await expect(pending).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Nur Beobachtung trennen' })).toHaveCount(0);
+
+      releaseSecondTurn();
+      await expect(page.getByRole('button', { name: 'Abbruch anfordern' })).toBeEnabled();
+      await expect(page.getByRole('button', { name: 'Nur Beobachtung trennen' })).toBeEnabled();
+
+      // The late A response is actually consumed (the A ledger changes), but
+      // its conditional clear must retain B's exact active identity.
+      releaseCancel();
+      await expect(answers.first().locator('.ledger-row[data-key="cancel"]'))
+        .toContainText('Abbruchzustand unbekannt');
+      await expect(page.getByRole('button', { name: 'Abbruch anfordern' })).toBeEnabled();
+      expect(turnPosts).toBe(2);
+    });
+  }
+
+  test('a late terminal event from a closed observation cannot stop the next turn', async ({ page }) => {
+    await page.addInitScript(() => {
+      const sources: ControlledEventSource[] = [];
+
+      class ControlledEventSource {
+        static readonly CONNECTING = 0;
+        static readonly OPEN = 1;
+        static readonly CLOSED = 2;
+        readonly CONNECTING = 0;
+        readonly OPEN = 1;
+        readonly CLOSED = 2;
+        readonly url: string;
+        readonly withCredentials = false;
+        readyState = ControlledEventSource.OPEN;
+        onopen: ((event: Event) => void) | null = null;
+        onmessage: ((event: MessageEvent) => void) | null = null;
+        onerror: ((event: Event) => void) | null = null;
+        private readonly listeners = new Map<string, Set<(event: Event) => void>>();
+
+        constructor(url: string | URL) {
+          this.url = String(url);
+          sources.push(this);
+        }
+
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject | null) {
+          if (!listener) return;
+          const callback = typeof listener === 'function'
+            ? listener
+            : (event: Event) => listener.handleEvent(event);
+          const listeners = this.listeners.get(type) || new Set<(event: Event) => void>();
+          listeners.add(callback);
+          this.listeners.set(type, listeners);
+        }
+
+        removeEventListener() { /* test driver retains queued listeners */ }
+
+        dispatchEvent(event: Event) {
+          for (const listener of this.listeners.get(event.type) || []) listener(event);
+          if (event.type === 'error') this.onerror?.(event);
+          return true;
+        }
+
+        close() {
+          // Deliberately retain listeners: this fixture models a callback that
+          // was already queued by the browser when close() won the UI race.
+          this.readyState = ControlledEventSource.CLOSED;
+        }
+
+        emit(type: string, data: Record<string, unknown>) {
+          this.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(data) }));
+        }
+      }
+
+      Object.defineProperty(window, 'EventSource', {
+        configurable: true,
+        value: ControlledEventSource,
+      });
+      Object.defineProperty(window, '__emitConversationEvent', {
+        configurable: true,
+        value: (requestId: number, type: string, data: Record<string, unknown>) => {
+          const suffix = `/turns/${requestId}/events`;
+          const source = sources.find((candidate) => candidate.url.endsWith(suffix));
+          if (!source) throw new Error(`no controlled EventSource for ${suffix}`);
+          source.emit(type, data);
+        },
+      });
+      Object.defineProperty(window, '__hasConversationEventSource', {
+        configurable: true,
+        value: (requestId: number) => {
+          const suffix = `/turns/${requestId}/events`;
+          return sources.some((candidate) => candidate.url.endsWith(suffix));
+        },
+      });
+    });
+
+    let turnPosts = 0;
+    await stubQuietCockpit(page);
+    await page.route('**/api/conversations', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation_id: 'conv_late_terminal' },
+    }));
+    await page.route('**/api/conversations/*/turns', async (route) => {
+      turnPosts += 1;
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const requestId = 50 + turnPosts;
+      await route.fulfill({
+        status: 202,
+        json: { ok: true, generated_at: '', project: project.name, warnings: [], created: true, turn_request: {
+          request_id: requestId, conversation_id: 'conv_late_terminal', client_request_id: body.client_request_id,
+          project: project.name, state: 'streaming',
+        } },
+      });
+    });
+
+    const emit = (requestId: number, type: string, data: Record<string, unknown>) => page.evaluate(
+      ({ requestId, type, data }) => (window as unknown as {
+        __emitConversationEvent: (id: number, event: string, payload: Record<string, unknown>) => void;
+      }).__emitConversationEvent(requestId, type, data),
+      { requestId, type, data },
+    );
+    const hasSource = (requestId: number) => page.evaluate(
+      (id) => (window as unknown as {
+        __hasConversationEventSource: (requestId: number) => boolean;
+      }).__hasConversationEventSource(id),
+      requestId,
+    );
+
+    await openCockpit(page);
+    await page.getByRole('button', { name: 'Gespräch', exact: true }).click();
+    const composer = page.getByLabel('Nachricht an Ikarus');
+
+    await composer.fill('Erster Turn');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => hasSource(51)).toBe(true);
+    await emit(51, 'delta', { text: 'ALT-TEIL' });
+    const answers = page.locator('.turn.ikarus');
+    await expect(answers.first()).toContainText('ALT-TEIL');
+    await page.getByRole('button', { name: 'Nur Beobachtung trennen' }).click();
+
+    await composer.fill('Zweiter Turn');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => hasSource(52)).toBe(true);
+    await expect(page.getByRole('button', { name: 'Abbruch anfordern' })).toBeEnabled();
+
+    // Both terminal shapes may already have been queued when the old source
+    // was closed. Neither may mutate shared state owned by request 52.
+    await emit(51, 'error', { error: 'late old failure' });
+    await emit(51, 'cancelled', { status: 'confirmed' });
+    await expect(page.getByRole('button', { name: 'Abbruch anfordern' })).toBeEnabled();
+    await expect(page.locator('.convo-error')).toHaveCount(0);
+    await expect(answers.first()).toContainText('ALT-TEIL');
+
+    await emit(52, 'final', {
+      ok: true, project: project.name, warnings: [], generated_at: '',
+      intent: 'chat', shell: 'voice', provider_used: 'ollama_http',
+      assistant: 'NEU-FERTIG',
+    });
+    await expect(answers.last()).toContainText('NEU-FERTIG');
+    await expect(page.getByRole('button', { name: 'Senden' })).toBeVisible();
+    expect(turnPosts).toBe(2);
   });
 });

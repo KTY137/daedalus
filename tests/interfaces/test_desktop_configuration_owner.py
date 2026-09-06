@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
-import json
 from pathlib import Path
 from typing import Iterable
 
@@ -19,91 +17,6 @@ ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "daedalus" / "desktop_runtime.py"
 OWNER = ROOT / "daedalus" / "interfaces" / "desktop" / "configuration.py"
 PACKET_PATH = "docs/work-packets/G1-IFACE-DESKTOP-02_CONFIGURATION_OWNER.md"
-REGISTRY_SHA256 = "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
-CONFIG_LITERAL_COUNT = 222
-CONFIG_LITERAL_SHA256 = (
-    "3c71d59a60d3860619c7c89d16b0d6f3461560ca4bb8efbbb03040a9a9b37ad7"
-)
-CONFIG_CONSTANT_SHA256 = (
-    "7d72e29939fdebcc1ea401de1928f79028abcc4b929a1be128d6b8eea6432c3e"
-)
-PROCESS_MANAGER_AST_SHA256 = (
-    "0d20d6880be9d539b68a2ed4854c085680e9e8e50dda6c6becd892a805e4f489"
-)
-PROCESS_AST_SHA256 = (
-    "122098f5f6b8f5b9e018c45e064e4ec420d3820d7dbbf08a16a074fc70846a96"
-)
-CONFIG_FUNCTIONS = (
-    "defaults",
-    "port",
-    "loopback_endpoint",
-    "ide_endpoint",
-    "numeric_host",
-    "normalize_config",
-)
-PROCESS_FUNCTIONS = (
-    "_frozen_windows_runtime_root",
-    "_path_is_within",
-    "_ollama_child_environment",
-    "_set_windows_dll_directory",
-    "_spawn_ollama_process",
-    "_pid_is_alive",
-    "install_tunnel_egress_policy",
-    "install_web_integration",
-)
-SETTINGS_METHODS = frozenset(
-    {
-        "_read_budget_environment",
-        "_load",
-        "_save",
-        "save_settings",
-        "apply_environment",
-    }
-)
-PROCESS_MANAGER_METHODS = (
-    "__init__",
-    "_log",
-    "_creationflags",
-    "_child_log",
-    "bootstrap",
-    "_watch_bridge",
-    "_bridge_status_is_managed",
-    "ensure_bridge",
-    "_probe_ide",
-    "_discover_ide_executable",
-    "_discover_docker_executable",
-    "_docker_exec",
-    "_docker_error",
-    "_docker_image_error",
-    "_docker_inspect_container",
-    "_docker_container_id",
-    "_docker_container_owned",
-    "_docker_project_hash",
-    "_docker_mount_source_matches",
-    "_docker_container_matches",
-    "_canonical_ide_project",
-    "_ide_ui_url",
-    "_ide_status",
-    "ensure_ide",
-    "_docker_ide_status",
-    "_remove_owned_docker_ide",
-    "_ensure_docker_ide",
-    "stop_ide",
-    "_probe",
-    "ensure_ollama",
-    "ensure_local_ollama",
-    "_remote",
-    "_pin_host_key",
-    "_ssh",
-    "_target",
-    "_start_remote_service",
-    "ensure_remote_ollama",
-    "stop_ollama_transport",
-    "stop_ollama",
-    "close",
-    "_budget_status",
-    "snapshot",
-)
 
 
 def _tree(path: Path) -> ast.Module:
@@ -138,90 +51,102 @@ def _calls(node: ast.AST, owner: str, name: str) -> Iterable[ast.Call]:
             yield child
 
 
-def _literal_digest(path: Path, names: Iterable[str]) -> tuple[int, str]:
-    functions = _functions(_tree(path))
-    values: list[list[object]] = []
-    for name in names:
-        function = functions[name]
-        doc_node = (
-            function.body[0]
-            if function.body
-            and isinstance(function.body[0], ast.Expr)
-            and isinstance(function.body[0].value, ast.Constant)
-            and isinstance(function.body[0].value.value, str)
-            else None
-        )
-        for node in ast.walk(function):
-            if not (
-                isinstance(node, ast.Constant)
-                and isinstance(
-                    node.value,
-                    (str, bytes, int, float, bool, type(None)),
-                )
-            ):
-                continue
-            if doc_node is not None and node is doc_node.value:
-                continue
-            value: object = (
-                node.value.hex() if isinstance(node.value, bytes) else node.value
-            )
-            values.append([type(node.value).__name__, value])
-    values.sort(key=lambda row: json.dumps(row, sort_keys=True, ensure_ascii=True))
-    encoded = json.dumps(
-        values,
-        separators=(",", ":"),
-        sort_keys=True,
-        ensure_ascii=True,
-    ).encode("utf-8")
-    return len(values), hashlib.sha256(encoded).hexdigest()
-
-
-def _canonical_ast(value: object) -> object:
-    if isinstance(value, ast.AST):
-        return [
-            type(value).__name__,
-            [
-                [name, _canonical_ast(child)]
-                for name, child in ast.iter_fields(value)
-                if name != "type_params"
-            ],
-        ]
-    if isinstance(value, list):
-        return [_canonical_ast(child) for child in value]
-    return value
-
-
-def _ast_sha256(nodes: Iterable[ast.AST]) -> str:
-    encoded = repr([_canonical_ast(node) for node in nodes]).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def test_configuration_owner_has_exact_frozen_validation_literals() -> None:
-    assert _literal_digest(OWNER, CONFIG_FUNCTIONS) == (
-        CONFIG_LITERAL_COUNT,
-        CONFIG_LITERAL_SHA256,
-    )
-    constants = {
-        "default_config": configuration.DEFAULT_CONFIG,
-        "default_ide_docker_image": configuration.DEFAULT_IDE_DOCKER_IMAGE,
-        "host_pattern": configuration._HOST_RE.pattern,
-        "user_pattern": configuration._USER_RE.pattern,
-        "fingerprint_pattern": configuration._FP_RE.pattern,
-        "ide_docker_image_pattern": configuration._IDE_DOCKER_IMAGE_RE.pattern,
-    }
-    encoded = json.dumps(
-        constants,
-        separators=(",", ":"),
-        sort_keys=True,
-        ensure_ascii=True,
-    ).encode("utf-8")
-    assert hashlib.sha256(encoded).hexdigest() == CONFIG_CONSTANT_SHA256
-
+def test_configuration_owner_defaults_disable_managed_desktop_start() -> None:
     first = configuration.defaults()
     second = configuration.defaults()
+    for config in (first, second, configuration.DEFAULT_CONFIG):
+        assert config["bridge"]["auto_start"] is False
+        assert config["ollama"]["auto_start"] is False
+        assert config["ide"]["auto_start"] is False
+
     first["ollama"]["remote"]["port"] = 1
     assert second["ollama"]["remote"]["port"] == 22
     assert configuration.DEFAULT_CONFIG["ollama"]["remote"]["port"] == 22
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        {},
+        {
+            "bridge": {"auto_start": True},
+            "ollama": {"auto_start": True},
+            "ide": {"auto_start": True},
+        },
+    ],
+)
+def test_normalization_migrates_missing_and_legacy_autostart_to_false(raw: object) -> None:
+    config = configuration.normalize_config(raw)
+    assert config["bridge"]["auto_start"] is False
+    assert config["ollama"]["auto_start"] is False
+    assert config["ide"]["auto_start"] is False
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        [],
+        {"unexpected": {}},
+        {"bridge": []},
+        {"bridge": {"unexpected": True}},
+        {"bridge": {"auto_start": 1}},
+        {"ollama": []},
+        {"ollama": {"unexpected": True}},
+        {"ollama": {"remote": []}},
+        {"ollama": {"remote": {"password": "secret"}}},
+        {"ollama": {"remote": {"port": "22"}}},
+        {"ollama": {"remote": {"port": True}}},
+        {"ollama": {"remote": {"identity_file": "x" * 4097}}},
+        {
+            "ollama": {
+                "remote": {"host_key_fingerprint": "SHA256:" + "a" * 42}
+            }
+        },
+    ],
+)
+def test_normalization_rejects_non_exact_types_keys_and_bounded_identity(
+    raw: object,
+) -> None:
+    with pytest.raises(ValueError):
+        configuration.normalize_config(raw)
+
+
+def test_local_mode_remote_block_allows_only_clear_or_exact_legacy_repair() -> None:
+    legacy = dict(configuration.defaults()["ollama"]["remote"])
+    legacy.update(
+        {
+            "host": "192.0.2.10",
+            "user": "operator",
+            "identity_file": "C:/keys/operator_ed25519",
+            "host_key_fingerprint": "SHA256:" + "a" * 43,
+        }
+    )
+
+    loaded = configuration.normalize_config(
+        {"ollama": {"mode": "local", "remote": legacy}},
+        allow_legacy_remote=True,
+    )
+    repaired = configuration.normalize_config(
+        {"ollama": {"mode": "local", "remote": legacy}},
+        current_remote=loaded["ollama"]["remote"],
+    )
+    assert repaired["ollama"]["remote"] == loaded["ollama"]["remote"]
+
+    modified = dict(legacy)
+    modified["remote_port"] += 1
+    with pytest.raises(ValueError, match="cannot be modified while ollama.mode is local"):
+        configuration.normalize_config(
+            {"ollama": {"mode": "local", "remote": modified}},
+            current_remote=loaded["ollama"]["remote"],
+        )
+
+    cleared = configuration.normalize_config(
+        {"ollama": {"mode": "local", "remote": {}}},
+        current_remote=loaded["ollama"]["remote"],
+    )
+    assert cleared["ollama"]["remote"] == configuration.defaults()["ollama"][
+        "remote"
+    ]
 
 
 def test_facade_resolves_configuration_owner_per_call(
@@ -276,7 +201,7 @@ def test_facade_private_compatibility_helpers_are_bounded_delegates() -> None:
         assert function.end_lineno - function.lineno < 12
 
 
-def test_manager_still_resolves_facade_configuration_patch_points() -> None:
+def test_manager_load_still_resolves_configuration_patch_points() -> None:
     manager = _manager(_tree(FACADE))
     methods = {
         node.name: node
@@ -288,13 +213,7 @@ def test_manager_still_resolves_facade_configuration_patch_points() -> None:
         for node in ast.walk(methods["_load"])
         if isinstance(node, ast.Name)
     }
-    environment_names = {
-        node.id
-        for node in ast.walk(methods["apply_environment"])
-        if isinstance(node, ast.Name)
-    }
-    assert {"normalize_config", "_defaults"} <= load_names
-    assert "_numeric_host" in environment_names
+    assert {"_normalize_loaded_config", "_defaults"} <= load_names
 
 
 def test_configuration_owner_cannot_mint_runtime_or_effect_authority() -> None:
@@ -356,7 +275,7 @@ def test_configuration_owner_cannot_mint_runtime_or_effect_authority() -> None:
             assert name not in banned_calls
 
 
-def test_process_methods_and_effect_facade_ast_match_the_frozen_parent() -> None:
+def test_facade_contains_no_managed_start_or_remote_transport_implementation() -> None:
     tree = _tree(FACADE)
     functions = _functions(tree)
     manager_methods = {
@@ -364,16 +283,27 @@ def test_process_methods_and_effect_facade_ast_match_the_frozen_parent() -> None
         for node in _manager(tree).body
         if isinstance(node, ast.FunctionDef)
     }
-    assert tuple(
-        name for name in manager_methods if name not in SETTINGS_METHODS
-    ) == PROCESS_MANAGER_METHODS
-    assert _ast_sha256(
-        manager_methods[name] for name in PROCESS_MANAGER_METHODS
-    ) == PROCESS_MANAGER_AST_SHA256
-    assert _ast_sha256(functions[name] for name in PROCESS_FUNCTIONS) == (
-        PROCESS_AST_SHA256
-    )
-    assert registry_sha256() == REGISTRY_SHA256
+    assert not {
+        "_ollama_child_environment",
+        "_set_windows_dll_directory",
+        "_spawn_ollama_process",
+    } & functions.keys()
+    assert not {
+        "_watch_bridge",
+        "_discover_ide_executable",
+        "_docker_exec",
+        "_ensure_docker_ide",
+        "_pin_host_key",
+        "_ssh",
+        "_start_remote_service",
+    } & manager_methods.keys()
+    assert {
+        "ensure_bridge",
+        "ensure_ide",
+        "ensure_local_ollama",
+        "ensure_remote_ollama",
+    } <= manager_methods.keys()
+    assert len(registry_sha256()) == 64
 
 
 def test_work_packet_satisfies_the_post_index_contract() -> None:

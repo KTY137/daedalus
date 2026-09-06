@@ -31,6 +31,7 @@ class HostCapabilitiesContractTest(unittest.TestCase):
         caps = web_api._host_capabilities("desktop", {
             "services": {"ide": {
                 "available": True,
+                "managed_start_available": True,
                 "reachable": True,
                 "ui_url": "http://127.0.0.1:3000/",
             }}
@@ -434,6 +435,48 @@ class BootstrapPromptTest(unittest.TestCase):
         self.assertIn("daedalus.interfaces.cli.entry spawn", payload["prompt"])
         self.assertIn("Ollama", payload["prompt"])
         self.assertIn("outbox", payload["prompt"])
+
+
+class FourfoldReadRouteTest(unittest.TestCase):
+    @staticmethod
+    def _get(path: str) -> tuple[dict, mock.Mock, mock.Mock]:
+        from daedalus.interfaces.http.web_api import DaedalusHandler
+
+        handler = object.__new__(DaedalusHandler)
+        handler.path = path
+        captured: dict = {}
+        handler._send_json = lambda payload, status=200: captured.update(
+            payload=payload, status=status
+        )
+        handler._send_static = lambda value: captured.setdefault("static", value)
+        index = mock.Mock(return_value={"root": "/repo"})
+        projection = mock.Mock(return_value={"schema": "daedalus-fourfold-read/1"})
+        with mock.patch.object(web_api, "_structure_index", index), mock.patch(
+            "daedalus.interfaces.http.read.fourfold_read_projection", projection
+        ):
+            handler._handle_get()
+        return captured, index, projection
+
+    def test_all_scope_uses_rich_index_and_removes_node_cap(self) -> None:
+        captured, index, projection = self._get(
+            "/api/fourfold?project=atlas&graph_nodes=all"
+        )
+
+        self.assertNotIn("static", captured)
+        self.assertEqual(captured["status"], 200)
+        self.assertEqual(captured["payload"]["fourfold"]["schema"], "daedalus-fourfold-read/1")
+        index.assert_called_once_with("atlas", False, fourfold=True)
+        self.assertIsNone(projection.call_args.kwargs["max_nodes"])
+
+    def test_invalid_scope_is_rejected_before_indexing(self) -> None:
+        captured, index, projection = self._get(
+            "/api/fourfold?project=atlas&graph_nodes=everything"
+        )
+
+        self.assertEqual(captured["status"], 400)
+        self.assertIn("positive integer or 'all'", captured["payload"]["error"])
+        index.assert_not_called()
+        projection.assert_not_called()
 
 
 class LatentSearchRouteTest(unittest.TestCase):

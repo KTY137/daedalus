@@ -174,3 +174,23 @@ This projection performs no production-code change, effect, provider execution,
 receipt retention, repository mutation, OwnerApproval, PromotionReceipt, merge,
 automatic promotion, or Gate transition. It authorizes no dependent production
 packet and cannot be used as hard evidence.
+
+
+## Loop status 2026-09-05 (STATUS, revision-bound; not a gate decision)
+
+Owner-directed 10-minute loop, deliver in stages, Codex as co-author and
+reviewer. Uncommitted on `codex/ikarus-computer-assistant-20260905`:
+
+- Stage 1 `G1-ARIADNE-03`: the Ariadne frozen evaluator could never nominate
+  on the Windows host (venv launcher stub wrote a warning into the merged gate
+  log). Fixed at the spawn site; unfaked integration test; council-reviewed.
+- Stage 2 `G1-KERNEL-01`: shared `daedalus/kernel/interpreter.py`; Genesis
+  switched by Codex; NUL-stdin containment experiment retained as evidence;
+  three Ariadne-02 review findings closed; council live path now installs the
+  budget net first (an unpriced bypass by this session is disclosed there).
+- Stage 2b `G1-COUNCIL-01`: `cli.council` registered as an effectful door.
+- `docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` drafted
+  (Ikarus persistence, self-Renovation with leakage rule, KiCad and
+  Vivado/Vitis targets); awaiting owner approval; the master plan is untouched.
+
+Gate 1 remains active. Nothing here closes a gate, promotes, or merges.

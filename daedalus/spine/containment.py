@@ -1,4 +1,15 @@
-"""MIC WRITE CONTAINMENT for candidate code (Windows integrity levels).
+"""OS-enforced containment for candidate code.
+
+Windows uses MIC write containment plus a Job Object.  Linux candidate gates
+use the separate rootless-Podman backend in
+``daedalus.spine.linux_containment``.  The two mechanisms deliberately make
+different claims: the Windows path does not claim network or read isolation;
+the Linux OCI path has a read-only image, one host read/write workspace bind,
+an isolated network namespace with no interfaces, private process/IPC
+namespaces and cgroup limits.  Neither path ever falls back to a normal host
+spawn when candidate containment is requested.
+
+The detailed Windows threat model and measurements follow.
 
 DELIBERATELY NOT CALLED A SANDBOX. Cross-vendor review insisted on the name and
 was right: "sandbox" invites a reader to assume confidentiality, network limits
@@ -174,12 +185,14 @@ __all__ = [
     "LOW_APPEND_ACCESS",
     "LOW_INTEGRITY_SID",
     "LowIntegrityLog",
+    "OciContainmentFacts",
     "integrity_label",
     "job_accounting",
     "label_low_integrity",
     "label_low_integrity_file",
     "open_low_append_log",
     "platform_supported",
+    "required_mechanism_label",
     "spawn_contained",
     "unmeasured_vectors",
 ]
@@ -297,8 +310,23 @@ class ContainmentUnavailable(RuntimeError):
     """
 
 
+def required_mechanism_label() -> str:
+    """Human-readable mechanism required by the current candidate gate."""
+    if os.name == "nt":
+        return "MIC write containment"
+    if sys.platform.startswith("linux"):
+        return "rootless OCI containment"
+    return "supported OS candidate containment"
+
+
 def platform_supported() -> bool:
-    """True only where the measured mechanism exists. No optimism."""
+    """Return whether the legacy Windows MIC implementation can be invoked.
+
+    This helper deliberately remains Windows-specific because the callers below
+    use Win32 APIs directly.  Linux candidate support is configuration- and
+    runtime-dependent and is therefore established by the fail-closed Podman
+    preflight in :mod:`daedalus.spine.linux_containment`, not by this boolean.
+    """
     return os.name == "nt"
 
 
@@ -981,8 +1009,125 @@ def _low_integrity_token():
 # the attestation -- what ACTUALLY happened, never what was asked for          #
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
+class OciContainmentFacts:
+    """Pre-start evidence for the restrictive OCI launch.
+
+    The Linux backend creates a stopped container and inspects the resolved
+    Libpod configuration.  Fields such as the runtime chain and output ceiling
+    additionally describe root-owned launcher components verified by the
+    parent.  This is deliberately not described as post-start kernel readback;
+    a live Linux receipt is required for that stronger claim.
+    """
+
+    runtime: str
+    runtime_version: str
+    runtime_chain: tuple[str, ...]
+    runtime_rootless: bool
+    cgroup_version: str
+    subordinate_id_ranges_verified: bool
+    image_reference_digest: str
+    image_digest: str
+    rootfs_read_only: bool
+    network_mode: str
+    workspace_destination: str
+    workspace_source_sha256: str
+    workspace_read_write: bool
+    workspace_private_relabel_option: bool
+    workspace_bind_nonrecursive: bool
+    workspace_propagation: str
+    host_write_mounts: tuple[str, ...]
+    tmpfs_mounts: tuple[str, ...]
+    tmpfs_size_bytes: int
+    tmpfs_mode: str
+    effective_capabilities: tuple[str, ...]
+    bounding_capabilities: tuple[str, ...]
+    no_new_privileges: bool
+    seccomp_profile_sha256: str
+    lsm_profiles: tuple[str, ...]
+    user_namespace: str
+    automatic_host_mounts_disabled: bool
+    oci_hooks_disabled: bool
+    pid_namespace: str
+    ipc_namespace: str
+    ipc_namespace_evidence: str
+    uts_namespace: str
+    pids_limit: int
+    memory_limit_bytes: int
+    cpu_limit: float
+    runtime_timeout_s: int
+    auto_remove: bool
+    output_limit_bytes: int
+    container_log_driver: str
+    systemd_mode: bool
+    init_process: bool
+    sdnotify_mode: str
+    image_volumes_ignored: bool
+    container_user: str
+    environment_names: tuple[str, ...]
+    command_sha256: str
+
+    def summary(self) -> dict:
+        return {
+            "runtime": self.runtime,
+            "runtime_version": self.runtime_version,
+            "runtime_chain": list(self.runtime_chain),
+            "runtime_rootless": bool(self.runtime_rootless),
+            "cgroup_version": self.cgroup_version,
+            "subordinate_id_ranges_verified": bool(
+                self.subordinate_id_ranges_verified
+            ),
+            "image_reference_digest": self.image_reference_digest,
+            "image_digest": self.image_digest,
+            "rootfs_read_only": bool(self.rootfs_read_only),
+            "network_mode": self.network_mode,
+            "workspace_destination": self.workspace_destination,
+            "workspace_source_sha256": self.workspace_source_sha256,
+            "workspace_read_write": bool(self.workspace_read_write),
+            "workspace_private_relabel_option": bool(
+                self.workspace_private_relabel_option
+            ),
+            "workspace_bind_nonrecursive": bool(
+                self.workspace_bind_nonrecursive
+            ),
+            "workspace_propagation": self.workspace_propagation,
+            "host_write_mounts": list(self.host_write_mounts),
+            "tmpfs_mounts": list(self.tmpfs_mounts),
+            "tmpfs_size_bytes": int(self.tmpfs_size_bytes),
+            "tmpfs_mode": self.tmpfs_mode,
+            "effective_capabilities": list(self.effective_capabilities),
+            "bounding_capabilities": list(self.bounding_capabilities),
+            "no_new_privileges": bool(self.no_new_privileges),
+            "seccomp_profile_sha256": self.seccomp_profile_sha256,
+            "lsm_profiles": list(self.lsm_profiles),
+            "user_namespace": self.user_namespace,
+            "automatic_host_mounts_disabled": bool(
+                self.automatic_host_mounts_disabled
+            ),
+            "oci_hooks_disabled": bool(self.oci_hooks_disabled),
+            "pid_namespace": self.pid_namespace,
+            "ipc_namespace": self.ipc_namespace,
+            "ipc_namespace_evidence": self.ipc_namespace_evidence,
+            "uts_namespace": self.uts_namespace,
+            "pids_limit": int(self.pids_limit),
+            "memory_limit_bytes": int(self.memory_limit_bytes),
+            "cpu_limit": float(self.cpu_limit),
+            "runtime_timeout_s": int(self.runtime_timeout_s),
+            "auto_remove": bool(self.auto_remove),
+            "output_limit_bytes": int(self.output_limit_bytes),
+            "container_log_driver": self.container_log_driver,
+            "systemd_mode": bool(self.systemd_mode),
+            "init_process": bool(self.init_process),
+            "sdnotify_mode": self.sdnotify_mode,
+            "image_volumes_ignored": bool(self.image_volumes_ignored),
+            "container_user": self.container_user,
+            "environment_names": list(self.environment_names),
+            "command_sha256": self.command_sha256,
+        }
+
+
+@dataclass(frozen=True)
 class ContainmentAttestation:
-    """The EFFECTIVE containment of one child. Every field is a measurement.
+    """Evidence about the containment path selected for one child.
 
     A caller that records ``requested`` and calls it a security property has
     recorded an intention. The ledger gets this instead, so an attempt whose
@@ -1006,6 +1151,9 @@ class ContainmentAttestation:
     #: code). Never the constants at the top of this file: those are what was
     #: asked for, and this dataclass only carries what was confirmed.
     job_limits: "JobLimits | None" = None
+    #: Linux-only pre-start Libpod facts and verified launcher controls. ``None``
+    #: on Windows, on refusal, and when no candidate containment was requested.
+    oci: "OciContainmentFacts | None" = None
 
     @property
     def low_token_obtained(self) -> bool:
@@ -1033,6 +1181,7 @@ class ContainmentAttestation:
             "reason": self.reason,
             "job_limits": (self.job_limits.summary()
                            if self.job_limits is not None else None),
+            "oci": (self.oci.summary() if self.oci is not None else None),
         }
 
 

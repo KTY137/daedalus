@@ -1,0 +1,24 @@
+{
+  "scene": "graphite",
+  "title": "Graphite Atelier",
+  "blender": "4.5.13 LTS",
+  "objects": 61,
+  "meshes": 42,
+  "vertices_base": 3650,
+  "materials": 6,
+  "cameras": 1,
+  "devices": [
+    "NVIDIA GeForce MX330"
+  ],
+  "resolution": [
+    1600,
+    1000
+  ],
+  "samples_max": 64,
+  "seed": 20260905,
+  "build_seconds": 1.51,
+  "total_seconds": 191.41,
+  "blend": "blend\\graphite.blend",
+  "render": "renders\\graphite.png",
+  "render_completed": true
+}

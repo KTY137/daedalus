@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { SpatialScene } from '@/shared/ui/scene/SpatialScene';
+import { ArrowUpRight, Braces, Compass, Sparkles } from 'lucide-react';
+import { ArrowUp, Square } from 'lucide-react';
 import {
   ApiError,
   cancelConversationTurn,
@@ -15,7 +18,6 @@ import {
 import type { ConversationCancellationStatus, EditorContextReceipt, TaskSnapshot } from '@/shared/api';
 import type { EffortLevel, IkarusAskAction, RuntimeRow } from '@/shared/contracts';
 import { armVariants, bubbleVariants, pressProps, revealVariants, useReducedMotionPref } from '@/shared/ui/motion';
-import { recordAutonomy, type AutonomyLevel } from '@/features/settings/autonomy';
 import { ContextPlan } from '@/features/knowledge/ContextPlan';
 import { shortLabel } from '@/features/twin/graph';
 import { MarkdownMessage } from './MarkdownMessage';
@@ -25,7 +27,11 @@ import { EffortPicker } from './EffortPicker';
 import { Ledger } from './Ledger';
 import { helpText, looksLikeCommand, matchCommands, parseCommand, type CommandAction, type CommandSpec } from './commands';
 import {
+  activityForTurn,
+  cancelledObservation,
+  cancellationLabel,
   citationsFrom,
+  conversationConfirmsProject,
   elapsedLabel,
   ledgerFor,
   openDispatchesFrom,
@@ -37,6 +43,7 @@ import {
   type OpenDispatch,
   type Turn
 } from './model';
+import { createTextBatcher, type TextBatcher } from './streaming';
 
 /**
  * The conversation with Ikarus.
@@ -148,28 +155,12 @@ function editorContextRefFromUrl(): string {
   try { return new URLSearchParams(window.location.search).get('context_ref')?.trim() || ''; } catch { return ''; }
 }
 
-/* Two glyphs, drawn rather than typed, so they take the theme's colour and
-   keep one stroke weight in every theme. */
-function SendGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-      <path d="M8 13V3.6M4.2 7.4 8 3.6l3.8 3.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function StopGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-      <rect x="5" y="5" width="6" height="6" rx="1" fill="currentColor" />
-    </svg>
-  );
-}
-
 /* ---------------------------------------------------------------- props */
 
 export interface ConversationProps {
   project: string;
+  /** Synchronous Cockpit project epoch. */
+  generation: number;
   /** used to turn a cited path into a clickable jump */
   resolveModule: (needle: string) => string | undefined;
   onFocusModule: (module: string) => void;
@@ -181,17 +172,17 @@ export interface ConversationProps {
   provider?: string;
   /** picking a brain from inside the conversation, where the wait happens */
   onProvider?: (id: string) => void;
-  /** how much may happen without a click */
-  autonomy: AutonomyLevel;
   /** something was queued, so the caller can refresh what depends on it */
-  onDispatched?: () => void;
+  onDispatched?: (binding: { project: string; generation: number }) => void;
   compact?: boolean;
   /** a thread chosen in the rail; a new serial makes the same id a fresh request */
-  pickThread?: { id: string; serial: number };
+  pickThread?: { project: string; generation: number; id: string; serial: number };
   /** what this page holds, for the rail: the open thread, how many turns
    *  settled, the runtime names this page has learned, and the dispatches
    *  this thread started that have not reported back */
   onThreadState?: (state: {
+    project: string;
+    generation: number;
     id: string;
     settled: number;
     labels: Record<string, string>;
@@ -203,25 +194,26 @@ export interface ConversationProps {
 
 export function Conversation({
   project,
+  generation,
   resolveModule,
   onFocusModule,
   onGoMap,
   contextModule,
   provider,
   onProvider,
-  autonomy,
   onDispatched,
   compact,
   pickThread,
   onThreadState
 }: ConversationProps) {
+  const initialThreadHint = useRef(project ? loadThreadId(project) : '');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copiedTurn, setCopiedTurn] = useState<string | null>(null);
   const [thread, setThread] = useState('');
-  const [resuming, setResuming] = useState(false);
+  const [resuming, setResuming] = useState(Boolean(initialThreadHint.current));
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
   const [runtimeState, setRuntimeState] = useState<RuntimeState>('laden');
   /** seconds the current turn has been running; a caret is not a progress report */
@@ -239,6 +231,10 @@ export function Conversation({
   /** bumps open the runtime picker (`/modell`) and the context plan (`/plan`) */
   const [brainSignal, setBrainSignal] = useState(0);
   const [planSignal, setPlanSignal] = useState(0);
+  /** The one screen-reader channel for request phases and terminal state.
+   *  The visual clock and streamed transcript stay out of live regions so a
+   *  token burst is never read twice. */
+  const [liveAnnouncement, setLiveAnnouncement] = useState('');
   /** text arrived below the fold while the reader was scrolled up */
   const [unread, setUnread] = useState(false);
   /** how many turns settled on this page — the rail re-reads on it */
@@ -260,6 +256,8 @@ export function Conversation({
   /** The index from which a turn is NEW and may animate in. */
   const freshFrom = useRef(0);
   const stream = useRef<{ close: () => void } | null>(null);
+  /** Transport chunks waiting for the next paint of the current answer. */
+  const deltaBatch = useRef<TextBatcher | null>(null);
   /** Invalidates chat callbacks that outlive their project or thread. */
   const chatScope = useRef(0);
   /** Synchronous claim: React's `busy` state cannot close a same-render double submit. */
@@ -270,25 +268,36 @@ export function Conversation({
   const taskScope = useRef(0);
   /** Invalidates a resume read that lands after the thread or project moved on. */
   const resumeScope = useRef(0);
+  /** Blocks append/mint synchronously until a stored or picked id is verified. */
+  const resumePending = useRef(Boolean(initialThreadHint.current));
   const turnSerial = useRef(0);
   /** Synchronous claim guard: React state alone cannot stop a double-click. */
   const claimedOffers = useRef<Set<string>>(new Set());
-  const autonomyRef = useRef(autonomy);
-  autonomyRef.current = autonomy;
   const projectRef = useRef(project);
   projectRef.current = project;
+  const bindingRef = useRef({ project, generation });
+  bindingRef.current = { project, generation };
   const threadRef = useRef(thread);
   threadRef.current = thread;
 
   /* ---- following the stream without yanking the reader ---- */
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
+    // The empty state is an invitation, not a transcript tail. Treating its
+    // suggestion cards like the latest turn scrolled the heading completely
+    // out of a phone viewport before the reader had interacted once.
+    if (turns.length === 0) {
+      el.scrollTop = 0;
+      pinned.current = true;
+      setUnread(false);
+      return;
+    }
     if (pinned.current) {
       el.scrollTop = el.scrollHeight;
       setUnread(false);
-    } else if (turns.length > 0) {
+    } else {
       setUnread(true);
     }
   }, [turns]);
@@ -336,12 +345,16 @@ export function Conversation({
   const invalidateChat = useCallback(() => {
     chatScope.current += 1;
     chatSendClaim.current = null;
+    deltaBatch.current?.discard();
+    deltaBatch.current = null;
     stream.current?.close();
     stream.current = null;
   }, []);
 
   useEffect(
     () => () => {
+      resumeScope.current += 1;
+      resumePending.current = false;
       invalidateChat();
       closeTaskStreams();
     },
@@ -434,7 +447,7 @@ export function Conversation({
       return;
     }
     const started = Date.now();
-    const timer = window.setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 500);
+    const timer = window.setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [busy]);
 
@@ -451,40 +464,59 @@ export function Conversation({
     claimedOffers.current.clear();
     resumeScope.current += 1;
     const scope = resumeScope.current;
-    const forProject = projectRef.current;
+    const binding = bindingRef.current;
+    const forProject = binding.project;
     setBusy(false);
     setActiveRequest(null);
     setError('');
     setLastProvider('');
     setTurns([]);
-    setThread(id);
+    // Never expose or append through an id before the spine proves its project.
+    threadRef.current = '';
+    setThread('');
     setOpenDispatches([]);
     freshFrom.current = 0;
     if (!id) {
+      resumePending.current = false;
       setResuming(false);
       return;
     }
-    const isCurrent = () => scope === resumeScope.current && projectRef.current === forProject;
+    const isCurrent = () => (
+      scope === resumeScope.current
+      && bindingRef.current.project === binding.project
+      && bindingRef.current.generation === binding.generation
+    );
+    resumePending.current = true;
     setResuming(true);
     getConversation(id)
       .then((payload) => {
         if (!isCurrent()) return;
         const view = payload.conversation;
-        const rows = resumedTurns(view || { conversation_id: id, exists: false, turn_count: 0, turns: [], turns_returned: 0 }, id);
+        if (!conversationConfirmsProject(view, id, forProject)) {
+          saveThreadId(forProject, '');
+          setError('Der gespeicherte Verlauf gehört nicht zu diesem Projekt. Ein neuer Chat beginnt ohne ihn.');
+          return;
+        }
+        const rows = resumedTurns(view, id);
         // Everything already in the store was not just said; it does not arrive.
         freshFrom.current = rows.length;
         const lastIkarus = [...rows].reverse().find((t) => t.role === 'ikarus');
         if (lastIkarus?.origin?.provider_used) setLastProvider(lastIkarus.origin.provider_used);
+        saveThreadId(forProject, id);
+        threadRef.current = id;
+        setThread(id);
         setTurns(rows);
         setOpenDispatches(openDispatchesFrom(view));
       })
       .catch(() => {
-        // A thread that cannot be read is not a thread that never existed, and
-        // the difference is worth one line rather than a silently empty page.
-        if (isCurrent()) setError('Der bisherige Verlauf konnte nicht gelesen werden. Neue Turns laufen trotzdem.');
+        if (!isCurrent()) return;
+        saveThreadId(forProject, '');
+        setError('Der bisherige Verlauf konnte nicht bestätigt werden. Ein neuer Chat beginnt ohne ihn.');
       })
       .finally(() => {
-        if (isCurrent()) setResuming(false);
+        if (!isCurrent()) return;
+        resumePending.current = false;
+        setResuming(false);
       });
   }, [closeTaskStreams, invalidateChat]);
 
@@ -495,11 +527,13 @@ export function Conversation({
     }
     setWaits(loadWaits(project));
     setEffort(loadEffort(project));
-    openThread(loadThreadId(project));
+    const hint = initialThreadHint.current;
+    initialThreadHint.current = '';
+    openThread(hint || loadThreadId(project));
     return () => {
       closeTaskStreams();
     };
-  }, [closeTaskStreams, openThread, project]);
+  }, [closeTaskStreams, generation, openThread, project]);
 
   const runtimeLabels = useMemo(() => {
     const out: Record<string, string> = {};
@@ -508,8 +542,8 @@ export function Conversation({
   }, [runtimes]);
 
   useEffect(() => {
-    onThreadState?.({ id: thread, settled, labels: runtimeLabels, openDispatches });
-  }, [onThreadState, openDispatches, runtimeLabels, settled, thread]);
+    onThreadState?.({ project, generation, id: thread, settled, labels: runtimeLabels, openDispatches });
+  }, [generation, onThreadState, openDispatches, project, runtimeLabels, settled, thread]);
 
   const ensureThread = useCallback(async (scope: number): Promise<string> => {
     if (threadRef.current) return threadRef.current;
@@ -537,7 +571,6 @@ export function Conversation({
   const runAction = useCallback(
     async (
       action: IkarusAskAction,
-      automatic: boolean,
       threadId: string,
       localTurnId: string,
       backendTurnId?: number,
@@ -547,8 +580,13 @@ export function Conversation({
       const lane = action.args?.lane || 'local_only';
       const scope = taskScope.current;
       const requestProject = project;
+      const requestGeneration = generation;
       const actionProject = action.args?.project || requestProject;
-      const isCurrentRequest = () => scope === taskScope.current && projectRef.current === requestProject;
+      const isCurrentRequest = () => (
+        scope === taskScope.current
+        && bindingRef.current.project === requestProject
+        && bindingRef.current.generation === requestGeneration
+      );
       const durableTurnId = positiveTurnId(backendTurnId);
       const hasDurableAttribution = conversationPersisted === true && Boolean(threadId) && durableTurnId !== undefined;
       try {
@@ -585,7 +623,7 @@ export function Conversation({
             summary: null, error: 'Die Queue hat keine Task-ID zurückgegeben.',
             applied: null, applied_reason: null, stalled: false, timed_out: false
           });
-          onDispatched?.();
+          onDispatched?.({ project: requestProject, generation });
           return `eingereiht; Fortschritt nicht adressierbar · Lane ${lane}${attributionNote}`;
         }
 
@@ -610,7 +648,7 @@ export function Conversation({
               if (!isCurrentRequest()) return;
               taskStreams.current.delete(taskId);
               receive(snapshot);
-              onDispatched?.();
+              onDispatched?.({ project: requestProject, generation });
             },
             onError: (streamError) => {
               if (!isCurrentRequest()) return;
@@ -644,20 +682,15 @@ export function Conversation({
           });
         }
         if (!isCurrentRequest()) return null;
-        if (automatic) {
-          recordAutonomy({ what: 'Aufgabe eingereiht', detail: `${objective} · Lane ${lane}`, level: autonomyRef.current });
-        }
-        onDispatched?.();
-        return automatic
-          ? `automatisch eingereiht · Lane ${lane}${attributionNote}`
-          : `eingereiht · Lane ${lane}${attributionNote}`;
+        onDispatched?.({ project: requestProject, generation });
+        return `eingereiht · Lane ${lane}${attributionNote}`;
       } catch (e) {
         if (!isCurrentRequest()) return null;
         return `Einreihung nicht bestätigt: ${e instanceof Error ? e.message : 'unbekannter Fehler'}. `
           + 'Nicht automatisch wiederholt; der Server könnte die Aufgabe bereits angenommen haben.';
       }
     },
-    [onDispatched, project, updateDispatch]
+    [generation, onDispatched, project, updateDispatch]
   );
 
   const answerOffer = useCallback(
@@ -678,7 +711,7 @@ export function Conversation({
         return;
       }
       try {
-        const outcome = await runAction(action, false, thread, localTurnId, turn.backendTurnId, turn.conversationPersisted);
+        const outcome = await runAction(action, thread, localTurnId, turn.backendTurnId, turn.conversationPersisted);
         if (outcome === null) return;
         setTurns((prev) => prev.map((t) => (t.localId === localTurnId ? { ...t, offerOutcome: outcome } : t)));
       } finally {
@@ -693,13 +726,16 @@ export function Conversation({
   const settle = useCallback(
     (
       payload: Parameters<typeof settleTurn>[1],
-      threadId: string,
       localTurnId: string,
       scope: number,
       requestProject: string,
       sendClaim: symbol
     ) => {
-      if (chatSendClaim.current === sendClaim) chatSendClaim.current = null;
+      // A closed observation releases its claim. A terminal callback already
+      // queued by that old EventSource must not settle the old turn or clear
+      // `busy` underneath a newer request.
+      if (chatSendClaim.current !== sendClaim) return;
+      chatSendClaim.current = null;
       if (scope !== chatScope.current || projectRef.current !== requestProject) return;
       stream.current = null;
       const route = payload.provider_used || '';
@@ -714,38 +750,32 @@ export function Conversation({
           return next;
         });
       }
-      const action = payload.action;
-      /* `vorschlaege` and above: a proposed TASK starts without a click. The
-         draft that task produces is a separate decision (Decision.tsx). */
-      const auto = Boolean(action) && autonomyRef.current !== 'aus';
-      const backendTurnId = positiveTurnId(payload.turn_id);
-      const conversationPersisted = payload.conversation_persisted;
-
       setTurns((prev) => prev.map((turn) => (
-        turn.localId === localTurnId && turn.role === 'ikarus' ? settleTurn(turn, payload, seconds, !auto) : turn
+        turn.localId === localTurnId && turn.role === 'ikarus' ? settleTurn(turn, payload, seconds, true) : turn
       )));
+      setLiveAnnouncement('Antwort abgeschlossen.');
       setBusy(false);
       setSettled((n) => n + 1);
-
-      if (action && auto) {
-        void runAction(action, true, threadId, localTurnId, backendTurnId, conversationPersisted).then((outcome) => {
-          if (outcome === null || scope !== chatScope.current || projectRef.current !== requestProject) return;
-          setTurns((prev) => prev.map((t) => (t.localId === localTurnId ? { ...t, offerOutcome: outcome } : t)));
-        });
-      }
     },
-    [runAction]
+    []
   );
 
   /** Close only this browser's observation. The generation request remains
    * server-owned; cancelling it is an explicit, separately recorded POST. */
   const closeObservation = useCallback(() => {
-    stream.current?.close();
+    // `busy` becomes true before thread creation and the idempotent POST have
+    // completed. In that interval there is no observation to close; painting
+    // the turn as halted would lie while the pending creation path continued.
+    if (!stream.current) return;
+    deltaBatch.current?.finish();
+    deltaBatch.current = null;
+    stream.current.close();
     stream.current = null;
     // The claim was taken for the observed request; with the stream closed no
     // callback will release it, and an unreleased claim silently refuses every
     // later send (review 2026-09-02, pre-existing).
     chatSendClaim.current = null;
+    setLiveAnnouncement('Nur die Beobachtung wurde beendet. Der Serverzustand ist nicht bestätigt.');
     setBusy(false);
     setTurns((prev) => {
       const next = [...prev];
@@ -765,6 +795,15 @@ export function Conversation({
   const requestCancellation = useCallback(async () => {
     const target = activeRequest;
     if (!target) return;
+    const clearTargetIfCurrent = () => {
+      setActiveRequest((current) => (
+        current?.conversationId === target.conversationId
+        && current.requestId === target.requestId
+        && current.localTurnId === target.localTurnId
+          ? null
+          : current
+      ));
+    };
     const mark = (status: ConversationCancellationStatus) => {
       setTurns((prev) => prev.map((turn) => (turn.localId === target.localTurnId ? { ...turn, cancellation: status } : turn)));
     };
@@ -772,14 +811,14 @@ export function Conversation({
       const payload = await cancelConversationTurn(target.conversationId, target.requestId, clientId('cancel'));
       const status = payload.cancellation?.status || 'unknown';
       mark(status);
-      if (status === 'already_terminal' || status === 'unknown') setActiveRequest(null);
+      if (status === 'already_terminal' || status === 'unknown') clearTargetIfCurrent();
     } catch (reason) {
       const notSupported = reason instanceof ApiError
         && reason.kind === 'notfound'
         && /unknown endpoint|kennt .* nicht/i.test(reason.message);
       const status: ConversationCancellationStatus = notSupported ? 'not_supported' : 'unknown';
       mark(status);
-      if (status !== 'not_supported') setActiveRequest(null);
+      if (status !== 'not_supported') clearTargetIfCurrent();
     }
   }, [activeRequest]);
 
@@ -793,18 +832,19 @@ export function Conversation({
   // The rail picked a thread — or asked for a new one (empty id). Same id
   // twice is still a request (the serial moved), so re-picking the open
   // thread re-reads it.
-  const handledPick = useRef(0);
+  const handledPick = useRef(pickThread?.serial || 0);
   useEffect(() => {
     if (!pickThread || pickThread.serial === handledPick.current) return;
     handledPick.current = pickThread.serial;
-    if (!project) return;
+    if (!project
+      || pickThread.project !== project
+      || pickThread.generation !== generation) return;
     if (!pickThread.id) {
       newThread();
       return;
     }
-    saveThreadId(project, pickThread.id);
     openThread(pickThread.id);
-  }, [newThread, openThread, pickThread, project]);
+  }, [generation, newThread, openThread, pickThread, project]);
 
   /** A note the surface wrote itself: rendered, stamped OBERFLÄCHE, never sent. */
   const addNote = useCallback((text: string) => {
@@ -815,7 +855,11 @@ export function Conversation({
   /* ---- sending ---- */
 
   const sendMessage = useCallback(async (message: string) => {
-    if (!message || busy || chatSendClaim.current !== null || !project) return;
+    if (!message || busy || resumePending.current || chatSendClaim.current !== null || !project) return;
+    if (pickThread
+      && pickThread.project === project
+      && pickThread.generation === generation
+      && pickThread.serial !== handledPick.current) return;
     const scope = chatScope.current;
     const requestProject = project;
     const sendClaim = Symbol('ikarus-chat-send');
@@ -824,6 +868,10 @@ export function Conversation({
       if (chatSendClaim.current === sendClaim) chatSendClaim.current = null;
     };
     lastSent.current = message;
+    // A detached request may still be cancellable while the composer is idle,
+    // but the moment a successor starts it is no longer the active identity
+    // for this control. The successor installs its own canonical id after POST.
+    setActiveRequest(null);
     setDraft('');
     setError('');
     setBusy(true);
@@ -851,6 +899,7 @@ export function Conversation({
 
     if (!threadId) {
       releaseSendClaim();
+      setLiveAnnouncement('Anfrage nicht gestartet.');
       setBusy(false);
       setTurns((prev) => prev.map((turn) => (
         turn.localId === replyId
@@ -869,6 +918,10 @@ export function Conversation({
     const failCreation = (creationError: Error) => {
       releaseSendClaim();
       if (!isCurrent()) return;
+      deltaBatch.current?.discard();
+      deltaBatch.current = null;
+      setActiveRequest(null);
+      setLiveAnnouncement('Anfrage ohne bestätigten Start beendet.');
       setBusy(false);
       patchReply((turn) => ({
         ...turn,
@@ -899,16 +952,52 @@ export function Conversation({
       if (!request || !Number.isSafeInteger(request.request_id) || request.request_id <= 0) {
         throw new Error('Der Server hat keine gültige Turn-Request-ID geliefert.');
       }
+
+      // Provider transports may emit much smaller chunks than the browser can
+      // paint usefully. Preserve their exact order, but update React at most
+      // once per animation frame and synchronously drain at every terminal
+      // boundary below.
+      const batch = createTextBatcher(
+        (text) => {
+          if (!isCurrent()) return;
+          patchReply((turn) => ({ ...turn, text: turn.text + text }));
+        },
+        (callback) => window.requestAnimationFrame(callback),
+        (handle) => window.cancelAnimationFrame(handle)
+      );
+      deltaBatch.current?.discard();
+      deltaBatch.current = batch;
+      const finishDeltas = () => {
+        batch.finish();
+        if (deltaBatch.current === batch) deltaBatch.current = null;
+      };
+
       setActiveRequest({ conversationId: threadId, requestId: request.request_id, localTurnId: replyId });
       patchReply((turn) => ({ ...turn, requestId: request.request_id, contextRefs }));
 
-      const endUnconfirmed = (text: string, cancellation?: ConversationCancellationStatus) => {
+      const endUnconfirmed = (
+        text: string,
+        cancellation?: ConversationCancellationStatus,
+        announcement?: string
+      ) => {
+        finishDeltas();
+        // `closeObservation` deliberately releases this claim without bumping
+        // the whole thread scope. A terminal event already queued by that old
+        // EventSource may therefore arrive after a new same-project send. Its
+        // bytes were drained above, but it no longer owns shared busy/error or
+        // active-observation state.
+        if (chatSendClaim.current !== sendClaim) return false;
         releaseSendClaim();
-        if (!isCurrent()) return;
+        if (!isCurrent()) return false;
         stream.current = null;
         setActiveRequest((current) => (current?.requestId === request.request_id ? null : current));
+        setLiveAnnouncement(
+          announcement
+          || (cancellation === 'confirmed' ? 'Abbruch bestätigt.' : 'Antwort ohne bestätigten Abschluss beendet.')
+        );
         setBusy(false);
         patchReply((turn) => ({ ...turn, streaming: false, halted: true, cancellation: cancellation ?? turn.cancellation, text: turn.text || text }));
+        return true;
       };
 
       stream.current = observeConversationTurn(threadId, request.request_id, {
@@ -923,18 +1012,20 @@ export function Conversation({
         },
         onDelta: (text) => {
           if (!isCurrent()) return;
-          patchReply((turn) => ({ ...turn, text: turn.text + text }));
+          batch.push(text);
         },
         onFinal: (payload) => {
+          finishDeltas();
           setActiveRequest((current) => (current?.requestId === request.request_id ? null : current));
-          settle(payload, threadId, replyId, scope, requestProject, sendClaim);
+          settle(payload, replyId, scope, requestProject, sendClaim);
         },
         onCancelled: (cancellation) => {
-          endUnconfirmed('Der Server hat den Abbruch bestätigt.', cancellation.status);
+          const terminal = cancelledObservation(cancellation.status);
+          endUnconfirmed(terminal.text, terminal.cancellation);
         },
         onError: (observationError) => {
-          endUnconfirmed('Der Server meldet für diesen Turn keinen bestätigten Abschluss.');
-          if (isCurrent()) setError(`Ikarus-Turn beendet mit unbestätigtem Ergebnis: ${observationError.message}`);
+          const owned = endUnconfirmed('Der Server meldet für diesen Turn keinen bestätigten Abschluss.');
+          if (owned) setError(`Ikarus-Turn beendet mit unbestätigtem Ergebnis: ${observationError.message}`);
         },
         onState: (status) => {
           if (!isCurrent()) return;
@@ -943,10 +1034,27 @@ export function Conversation({
             patchReply((turn) => ({ ...turn, cancellation }));
           }
           if (status.state === 'final' && status.final) {
+            finishDeltas();
             setActiveRequest((current) => (current?.requestId === request.request_id ? null : current));
-            settle(status.final, threadId, replyId, scope, requestProject, sendClaim);
+            settle(status.final, replyId, scope, requestProject, sendClaim);
           } else if (status.state === 'cancelled') {
-            endUnconfirmed('Der Server hat den Abbruch bestätigt.', 'confirmed');
+            const terminal = cancelledObservation(status.cancellation?.status || 'unknown');
+            endUnconfirmed(terminal.text, terminal.cancellation);
+          } else if (status.state === 'error') {
+            // After a backend restart the durable request projection can be
+            // the only terminal frame: there is no guarantee that the named
+            // `error` event from the original worker still exists to replay.
+            // The state is authoritative for termination, while its optional
+            // detail is not invented when the backend retained none.
+            const detail = typeof status.error === 'string' && status.error.trim()
+              ? status.error.trim()
+              : 'Der Server hat keinen Fehlergrund übermittelt.';
+            const owned = endUnconfirmed(
+              `Der Turn ist fehlgeschlagen. ${detail}`,
+              undefined,
+              'Antwort fehlgeschlagen.'
+            );
+            if (owned) setError(`Ikarus-Turn fehlgeschlagen: ${detail}`);
           } else if (status.state === 'unknown') {
             endUnconfirmed('Der Turn-Zustand ist nach der Beobachtung unbekannt.', status.cancellation?.status || 'unknown');
           }
@@ -955,7 +1063,7 @@ export function Conversation({
     } catch (creationError) {
       failCreation(creationError instanceof Error ? creationError : new Error('Der Turn konnte nicht angelegt werden.'));
     }
-  }, [busy, editorAttachment, effort, ensureThread, project, provider, settle]);
+  }, [busy, editorAttachment, effort, ensureThread, generation, pickThread, project, provider, settle]);
 
   /* ---- commands ---- */
 
@@ -1051,15 +1159,57 @@ export function Conversation({
     () => turns.map((t) => ({
       stamp: stampForTurn(t, labelOf),
       ledger: ledgerFor(t, labelOf),
+      activity: activityForTurn(t, labelOf),
       cites: t.role === 'ikarus' && !t.streaming ? citationsFrom(t.text, resolveModule) : ([] as Citation[])
     })),
     [labelOf, resolveModule, turns]
   );
   const showNudge = Boolean(!busy && !provider && lastProvider === 'deterministic' && runtimes.some((r) => r.available));
-  const armed = Boolean(draft.trim()) && !busy && Boolean(project);
+  const hasUnhandledThreadPick = Boolean(
+    pickThread
+    && pickThread.project === project
+    && pickThread.generation === generation
+    && pickThread.serial !== handledPick.current
+  );
+  const armed = Boolean(draft.trim())
+    && !busy
+    && !resuming
+    && !resumePending.current
+    && !hasUnhandledThreadPick
+    && Boolean(project);
   const exchanges = turns.filter((t) => t.role === 'you').length;
   const hasThread = Boolean(thread) || turns.length > 0;
   const lastIkarusId = [...turns].reverse().find((t) => t.role === 'ikarus')?.localId;
+  const activeTurn = activeRequest
+    ? turns.find((turn) => turn.role === 'ikarus' && turn.localId === activeRequest.localTurnId)
+    : undefined;
+  const hasActiveCancellationTarget = activeRequest?.localTurnId === lastIkarusId;
+  const canCloseObservation = busy && Boolean(stream.current);
+  const cancellationStatus = activeTurn?.cancellation;
+  const canRequestCancellation = canCloseObservation && hasActiveCancellationTarget && !cancellationStatus;
+  const stopControlLabel = !canCloseObservation
+    ? 'Anfrage wird angelegt'
+    : !hasActiveCancellationTarget
+      ? 'Kein bestätigtes Abbruchziel'
+      : cancellationStatus
+        ? cancellationLabel(cancellationStatus)
+        : 'Abbruch anfordern';
+  const stopControlTitle = !canCloseObservation
+    ? 'Die kanonische Request-ID wird noch angelegt.'
+    : !hasActiveCancellationTarget
+      ? 'Die Beobachtung läuft, aber ein kanonisches Abbruchziel ist hier nicht mehr bestätigt.'
+      : cancellationStatus
+        ? `${cancellationLabel(cancellationStatus)}. Die Beobachtung bleibt offen.`
+        : 'Fordert den kanonischen Server-Abbruch an; die Beobachtung bleibt bis zur Bestätigung offen.';
+  const activeActivity = [...receipts].reverse().find((receipt) => receipt.activity)?.activity;
+
+  // Only observed phase changes reach assistive technology. Elapsed seconds
+  // and streamed text deliberately do not participate in this dependency.
+  useEffect(() => {
+    if (!busy) return;
+    const next = `${activeActivity?.label || 'Anfrage läuft'}.`;
+    setLiveAnnouncement((current) => (current === next ? current : next));
+  }, [activeActivity?.label, busy]);
 
   const commandMode = !busy && looksLikeCommand(draft) && !cmdDismissed;
   const hasArg = /^\/[a-zäöü]+\s+\S/i.test(draft);
@@ -1116,6 +1266,15 @@ export function Conversation({
       className={['convo', compact ? 'compact' : '', empty ? 'at-rest' : ''].filter(Boolean).join(' ')}
       aria-label="Gespräch mit Ikarus"
     >
+      <span
+        className="visually-hidden"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-conversation-live
+      >
+        {liveAnnouncement}
+      </span>
       {hasThread && (
         <motion.div className="convo-bar" data-motion="bar" variants={reveal} initial="hidden" animate="visible">
           <span className="convo-thread">
@@ -1127,8 +1286,8 @@ export function Conversation({
           </span>
           <span className="convo-bar-rule" aria-hidden="true" />
           {busy && (
-            <span className="convo-elapsed" role="status">
-              antwortet · {elapsedLabel(elapsed)}
+            <span className="convo-elapsed" aria-hidden="true">
+              {activeActivity?.label || 'Anfrage läuft'} · {elapsedLabel(elapsed)}
             </span>
           )}
           <button type="button" onClick={newThread}>
@@ -1138,21 +1297,38 @@ export function Conversation({
       )}
 
       <div className="convo-body">
-        <div className={empty ? 'convo-scroll empty' : 'convo-scroll'} ref={scroller} onScroll={onScroll} role="log" aria-live="polite" aria-busy={busy}>
+        <div className={empty ? 'convo-scroll empty' : 'convo-scroll'} ref={scroller} onScroll={onScroll} role="log" aria-live="off" aria-busy={busy}>
           {resuming && <p className="convo-reading">Verlauf wird gelesen …</p>}
 
           {empty && (
             <div className="convo-open">
+              <SpatialScene compact />
+              <span className="convo-eyebrow"><Sparkles size={14} aria-hidden="true" /> IKARUS</span>
               <h2 className="convo-open-line">
-                Frag Ikarus etwas über <b>{project || 'dieses Projekt'}</b>.
+                Woran arbeiten wir<span>?</span>
               </h2>
               <p className="convo-open-note">
-                Ikarus wählt automatisch ein verfügbares LLM. Gemessene lokale Antworten bleiben klar von Modellantworten getrennt,
-                und jede Antwort trägt ihr Protokoll: Route, Kontext, Prüfung, Auftrag.
+                Frag nach der Architektur von {project || 'deinem Projekt'}, lass dir zeigen, wo sich Refactoring lohnt, oder gib Ikarus eine Aufgabe.
               </p>
               <div className="convo-suggestions" aria-label="Vorschläge">
-                {['Erklär mir die Architektur dieses Projekts.', 'Wo würdest du als Nächstes refactoren?', '/status'].map((suggestion) => (
-                  <button key={suggestion} type="button" onClick={() => setDraft(suggestion)}>{suggestion}</button>
+                {[
+                  { text: 'Erklär mir die Architektur dieses Projekts.', label: 'Architektur verstehen', icon: Braces },
+                  { text: 'Wo würdest du als Nächstes refactoren?', label: 'Potenziale entdecken', icon: Compass },
+                  { text: '/status', label: 'Projektstatus ansehen', icon: Sparkles }
+                ].map(({ text, label, icon: Icon }) => (
+                  <button
+                    key={text}
+                    type="button"
+                    title={text}
+                    onClick={() => {
+                      setDraft(text);
+                      requestAnimationFrame(() => composer.current?.focus());
+                    }}
+                  >
+                    <Icon size={17} aria-hidden="true" />
+                    <span>{label}</span>
+                    <ArrowUpRight size={14} aria-hidden="true" />
+                  </button>
                 ))}
               </div>
             </div>
@@ -1175,7 +1351,12 @@ export function Conversation({
                   {t.role === 'you' ? (
                     <p className="turn-text">{t.text}</p>
                   ) : (
-                    <MarkdownMessage text={t.text} streaming={t.streaming} elapsed={t.streaming ? elapsed : undefined} />
+                    <MarkdownMessage
+                      text={t.text}
+                      streaming={t.streaming}
+                      elapsed={t.streaming && !t.text ? elapsed : undefined}
+                      activity={receipt.activity?.label}
+                    />
                   )}
 
                   {t.role === 'note' && receipt.stamp && (
@@ -1210,7 +1391,9 @@ export function Conversation({
                         </div>
                       )}
 
-                      {(Boolean(t.text && !t.streaming) || activeRequest?.requestId === t.requestId) && (
+                      {(Boolean(t.text && !t.streaming)
+                        || activeRequest?.requestId === t.requestId
+                        || (id === lastIkarusId && canCloseObservation)) && (
                         <div className="turn-actions" aria-label="Antwortaktionen">
                           {t.text && !t.streaming && (
                             <button
@@ -1225,14 +1408,22 @@ export function Conversation({
                               {copiedTurn === id ? 'Kopiert' : 'Antwort kopieren'}
                             </button>
                           )}
-                          {activeRequest?.requestId === t.requestId && t.requestId !== undefined && (
+                          {id === lastIkarusId && canCloseObservation && (
+                            <button
+                              type="button"
+                              onClick={closeObservation}
+                            >
+                              Nur Beobachtung trennen
+                            </button>
+                          )}
+                          {activeRequest?.requestId === t.requestId && t.requestId !== undefined && !busy && (
                             <button
                               type="button"
                               className="turn-cancel"
                               onClick={() => void requestCancellation()}
-                              disabled={t.cancellation === 'requested'}
+                              disabled={Boolean(t.cancellation)}
                             >
-                              {t.cancellation === 'requested' ? 'Abbruch angefordert' : 'Abbruch anfordern'}
+                              {t.cancellation ? cancellationLabel(t.cancellation) : 'Server-Abbruch anfordern'}
                             </button>
                           )}
                         </div>
@@ -1326,12 +1517,14 @@ export function Conversation({
             initial={false}
             animate={armed || busy ? 'armed' : 'idle'}
             whileTap={pressProps(reduced)}
-            onClick={busy ? closeObservation : undefined}
-            disabled={!armed && !busy}
-            aria-label={busy ? 'Beobachtung schließen' : 'Senden'}
-            title={busy ? 'Schließt nur diese Browser-Beobachtung. Ein Server-Abbruch wird separat angefordert.' : undefined}
+            onClick={busy ? () => void requestCancellation() : undefined}
+            disabled={busy ? !canRequestCancellation : !armed}
+            aria-label={busy ? stopControlLabel : 'Senden'}
+            title={busy ? stopControlTitle : undefined}
           >
-            {busy ? <StopGlyph /> : <SendGlyph />}
+            {busy
+              ? <Square size={14} strokeWidth={1.8} aria-hidden="true" />
+              : <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />}
           </motion.button>
         </div>
 

@@ -1,10 +1,16 @@
 {
   "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G1-EXP-TENSOR-GPU-01",
   "id": "G1-EXP-TENSOR-GPU-01",
+  "artifact_role": "primary",
   "title": "Probe CUDA/Tensor-Core execution for Boolean Fourfold relation composition",
   "status": "closed-awaiting-owner-gpu-measurement",
   "date": "2026-09-04",
+  "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
+  "base_revision": "ce8a3b2526bdfb04ae0d0fa31fb9e2c5cc706e92",
+  "dependencies": "G1-TENSOR-01 and the exact Boolean TypedRelationBlock CPU oracle",
   "domain": "tensor-kernel",
   "masterplan": {
     "revision": 11,
@@ -16,6 +22,7 @@
   "pre_head": "ce8a3b2526bdfb04ae0d0fa31fb9e2c5cc706e92",
   "production_commit": "1fcd4945dcce877df58fb8366044bd08ab165079",
   "tested_head": "0942b610f74cbd5f60612a870b86d98e96aaf4b0",
+  "primary_claim": "A bounded optional PyTorch/CUDA probe can compare Boolean relation support with the exact stdlib CSR oracle while withholding GPU, Tensor-Core and performance claims until owner-hardware measurement exists.",
   "hypothesis": "For sufficiently large or dense Boolean relation blocks, an aligned FP16/BF16 CUDA GEMM may reproduce exact Boolean support faster than the stdlib CSR oracle once inputs remain resident on an NVIDIA GPU. One-shot transfer, dense packing and result canonicalization may erase that advantage for sparse or small Fourfold workloads.",
   "hardware_boundary": {
     "target": "CUDA matrix multiplication submitted through PyTorch/cuBLAS",
@@ -73,6 +80,13 @@
       "additional_vram_rule": "the estimate must also fit inside half of currently free device memory"
     }
   },
+  "contracts": "The experiment_contract, hardware_boundary and claims objects are the frozen behavior and authority contract; the CPU oracle decides correctness and GPU execution remains optional and non-authorizing.",
+  "acceptance": [
+    "the optional torch import remains lazy and a host without CUDA emits a non-authorizing blocked result",
+    "every admitted GPU result is checked for exact Boolean support equality against the bounded CPU oracle",
+    "case count, repeats, warmup, reference operations and device memory remain within the frozen bounds",
+    "no GPU speed, Tensor-Core use, benchmark superiority, merge, promotion or gate transition is claimed without independent evidence"
+  ],
   "files": [
     {
       "path": "experiments/tensor_gpu/cuda_boolean_probe.py",
@@ -96,6 +110,7 @@
     "gpu_execution": "not executed by GitHub-hosted CPU runners and not claimed",
     "tensor_core_use": "not profiled and not claimed"
   },
+  "evidence": "The verification and claims objects retain the exact hosted-CPU evidence and explicitly record that GPU execution and Tensor-Core use were not measured.",
   "owner_reproduction": {
     "prerequisite": "a CUDA-enabled PyTorch build matching the installed NVIDIA driver",
     "command": "python experiments/tensor_gpu/cuda_boolean_probe.py --sizes 256 512 1024 --densities 0.005 0.02 --repeats 20 --output runs/tensor_gpu/cuda_boolean_probe.json",
@@ -111,6 +126,8 @@
     "a simpler CPU bitset or Rust sparse kernel yields the same benefit with lower complexity"
   ],
   "next_if_positive": "Retain matrices on-device across a frozen query batch, benchmark against BM25 plus relation dictionaries and a Rust CPU bitset baseline, then consider one removable Rust/CUDA adapter that remains observationally equal to the reference kernel.",
+  "migration": "No production runtime, persisted state or dependency is migrated; this remains an optional isolated probe.",
+  "rollback": "Remove the isolated probe, its focused tests and this packet while retaining the recorded negative or blocked evidence.",
   "claims": {
     "cuda_code_present": true,
     "hosted_cpu_contracts_green": true,

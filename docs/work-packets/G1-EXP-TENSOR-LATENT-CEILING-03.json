@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-03",
+  "artifact_role": "primary",
   "title": "Reject duplicate JSON keys in latent ceiling evidence corpus",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-02",
+  "dependencies": "G1-EXP-TENSOR-LATENT-CEILING-02",
   "campaign_issue": 239,
   "base_revision": "90933e93dc50fc319df3af00e262bc5eb33c870c",
   "authority_refs": [
@@ -33,6 +36,7 @@
     "public_product_surface": false
   },
   "gardener_decision": "Use the standard-library json object_pairs_hook in the existing loader and one tiny duplicate-key guard. Do not introduce a schema library, parser wrapper hierarchy, migration subsystem, alternate corpus representation, or second validation path.",
+  "contracts": "The finding, gardener_decision and authority_boundary objects freeze the behavior and authority contract: duplicate keys refuse before parsing or identity calculation and no second validator is admitted.",
   "acceptance": [
     "the committed prediction-only corpus remains structurally valid and incomplete",
     "a duplicate root key is refused even when the final duplicate occurrence contains the otherwise valid value",
@@ -55,6 +59,7 @@
     "hosted_ci": "No pull-request workflow run exists for the packet head at record time.",
     "claim_boundary": "This is focused exact-blob evidence for the latent-ceiling slice, not a full-repository test, package, platform, promotion, or benchmark claim."
   },
+  "evidence": "The verification object binds the focused result to exact production, test and corpus blobs while retaining hosted CI and broader repository claims as unclaimed.",
   "branch_hygiene": {
     "remote_branch": "exp/tensor-latent-ceiling-01",
     "new_remote_branch_created": false,

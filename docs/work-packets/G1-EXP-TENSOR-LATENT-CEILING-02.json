@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-02",
+  "artifact_role": "primary",
   "title": "Fail-closed latent ceiling corpus wire shape",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-01",
+  "dependencies": "G1-EXP-TENSOR-LATENT-CEILING-01",
   "campaign_issue": 239,
   "base_revision": "6095fc466301451a0dada863f771e97ec9f49efb",
   "authority_refs": [
@@ -32,6 +35,7 @@
     "public_product_surface": false
   },
   "gardener_decision": "Tighten the existing experimental parser in place. Do not add a schema framework, validator registry, migration layer, embedding service, vector store, or second corpus representation.",
+  "contracts": "The finding, gardener_decision and authority_boundary objects freeze the behavior and authority contract: exact root/row fields are required and no second validation or storage path is admitted.",
   "acceptance": [
     "the committed prediction-only corpus remains valid and incomplete",
     "an unknown root field is refused before it can alter corpus identity as semantically ignored metadata",
@@ -49,6 +53,7 @@
     "expected_cli_exit_for_prediction_only_seed": 3,
     "claim": "Only checks that actually execute on the recorded exact head count as green evidence."
   },
+  "evidence": "The verification object defines admissible exact-head evidence and explicitly withholds any green claim before those commands execute.",
   "branch_hygiene": {
     "remote_branch": "exp/tensor-latent-ceiling-01",
     "new_remote_branch_created": false,

@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-04",
+  "artifact_role": "primary",
   "title": "Pin the frozen latent-ceiling denominator before claims",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-03",
+  "dependencies": "G1-EXP-TENSOR-LATENT-CEILING-03",
   "campaign_issue": 239,
   "base_revision": "ddf8ef984a0b9a7cb90a7407ebc8e6043d5f2af9",
   "authority_refs": [
@@ -33,6 +36,7 @@
     "public_product_surface": false
   },
   "gardener_decision": "Add one frozen denominator constant and reuse it at the existing load/evaluate boundaries. Do not add a configuration object, schema migration, corpus registry, validator framework, alternate evidence format, or retrieval backend.",
+  "contracts": "The finding, gardener_decision and authority_boundary objects freeze the behavior and authority contract: only the preregistered 1,383-item denominator can reach a numeric ceiling.",
   "acceptance": [
     "the committed prediction-only corpus remains valid, incomplete, and fixed at 1,383 expected items",
     "a file-backed corpus with expected_total changed to 1 is refused before it can emit a ceiling",
@@ -56,6 +60,7 @@
     "hosted_ci": "No hosted-CI success is claimed by this packet; final exact-head workflow/status state is checked separately after the record commit.",
     "claim_boundary": "This is focused exact-blob evidence for the isolated latent-ceiling slice, not a full-repository test, package, platform, promotion, latent-benefit, or benchmark-green claim."
   },
+  "evidence": "The verification object binds the focused result to exact blobs and preserves hosted CI, package, platform, latent-benefit and benchmark claims as unclaimed.",
   "branch_hygiene": {
     "remote_branch": "exp/tensor-latent-ceiling-01",
     "new_remote_branch_created": false,

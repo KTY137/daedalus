@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ApiError, getDesktopStatus, startDesktopIde } from '@/shared/api';
+import { ApiError, getDesktopStatus } from '@/shared/api';
 import type { DesktopIdeService, DesktopStatusPayload, ProjectRow } from '@/shared/contracts';
 
 function serviceFrom(payload: DesktopStatusPayload): DesktopIdeService | undefined {
@@ -68,7 +68,6 @@ export function ideServiceUrlFor(
 export function IdeWorkspace({ project }: { project?: ProjectRow }) {
   const [service, setService] = useState<DesktopIdeService>();
   const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
   const [desktopApi, setDesktopApi] = useState<'loading' | 'available' | 'unavailable' | 'error'>('loading');
   const mobile = useMobileViewport();
@@ -98,31 +97,6 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
     void refresh();
   }, [refresh]);
 
-  const start = useCallback(async () => {
-    if (desktopApi !== 'available' || service?.available !== true || !project?.name) return;
-    setStarting(true);
-    setError('');
-    try {
-      const started = await startDesktopIde(project.name);
-      const immediate = serviceFrom(started);
-      if (immediate) setService(immediate);
-      const measured = await getDesktopStatus();
-      setService(serviceFrom(measured) || immediate);
-      setDesktopApi('available');
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.kind === 'notfound') {
-        setDesktopApi('unavailable');
-        setError('');
-      } else {
-        setDesktopApi('error');
-        setError(reason instanceof Error ? reason.message : 'OpenVSCode Server konnte nicht gestartet werden.');
-      }
-    } finally {
-      setStarting(false);
-      setLoading(false);
-    }
-  }, [desktopApi, project?.name, service?.available]);
-
   const installed = service?.installed ?? service?.available;
   const reachable = service?.reachable ?? (service?.running === true && Boolean(service?.endpoint));
   const reportedDetail = error || service?.last_error || service?.detail || '';
@@ -131,7 +105,6 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
     () => ideServiceUrlFor(service, project?.repo_root || ''),
     [project?.repo_root, service]
   );
-  const canStart = desktopApi === 'available' && service?.available === true && !reachable;
 
   if (!project) {
     return (
@@ -166,41 +139,41 @@ export function IdeWorkspace({ project }: { project?: ProjectRow }) {
   }
 
   const endpointInvalid = desktopApi === 'available' && reachable && Boolean(service?.endpoint) && !frameUrl;
+  const managedStartUnavailable = service?.managed_start_available === false;
   const title = loading
     ? 'IDE-Status wird geprüft'
     : desktopApi === 'unavailable' || (desktopApi === 'available' && !service)
       ? 'IDE-Integration nicht verfügbar'
-      : missingInstallation
-        ? 'OpenVSCode Server ist nicht installiert'
       : endpointInvalid
         ? 'Der gemeldete IDE-Endpunkt ist nicht lokal'
-        : 'OpenVSCode Server ist nicht erreichbar';
-  const detail = reportedDetail
-    || (loading
-      ? 'Der Desktop-Dienst wird abgefragt.'
-      : desktopApi === 'unavailable' || (desktopApi === 'available' && !service)
-        ? 'Dieses Backend stellt keine Desktop-IDE-Steuerung bereit. Im Browser kann hier keine IDE gestartet werden; öffne Daedalus Desktop mit einem kompatiblen Backend.'
-      : missingInstallation
-        ? 'Die IDE wurde auf diesem Desktop nicht gefunden. Der Startversuch meldet den genauen Installationsfehler.'
-        : endpointInvalid
-          ? 'Aus Sicherheitsgründen bettet Daedalus nur saubere numerische Loopback-Endpunkte ein.'
-          : service?.configured_executable === '' && service?.runtime_downloads === false
-            ? 'Der Dienst ist offline. Es ist keine ausführbare Datei konfiguriert; beim Start wird eine vorhandene openvscode-server-Installation auf PATH geprüft. Automatische Downloads sind deaktiviert.'
-            : 'Der Dienst läuft nicht oder hat noch keinen erreichbaren Loopback-Endpunkt gemeldet.');
+      : managedStartUnavailable
+        ? 'IDE-Start nicht verfügbar'
+        : missingInstallation
+          ? 'OpenVSCode Server ist nicht installiert'
+          : 'OpenVSCode Server ist nicht erreichbar';
+  const detail = loading
+    ? 'Der Desktop-Dienst wird abgefragt.'
+    : desktopApi === 'unavailable' || (desktopApi === 'available' && !service)
+      ? 'Dieses Backend stellt keinen gemessenen Desktop-IDE-Status bereit. Ein extern gestarteter Editor kann erst mit einem kompatiblen Loopback-Status geöffnet werden.'
+    : endpointInvalid
+      ? 'Aus Sicherheitsgründen bettet Daedalus nur saubere numerische Loopback-Endpunkte ein.'
+    : managedStartUnavailable
+      ? 'Daedalus startet in v0.1.6 keinen IDE-Prozess. Ein bereits laufender, gemessener Loopback-Endpunkt bleibt sichtbar und kann extern geöffnet werden.'
+    : reportedDetail
+      || (missingInstallation
+        ? 'Der Desktop-Status meldet auf diesem Rechner keine vorhandene OpenVSCode-Installation.'
+        : service?.configured_executable === '' && service?.runtime_downloads === false
+          ? 'Es ist keine ausführbare Datei konfiguriert. Ein extern gestarteter, erreichbarer Loopback-Dienst kann hier angezeigt werden; automatische Downloads sind deaktiviert.'
+          : 'Der Dienst hat noch keinen erreichbaren Loopback-Endpunkt gemeldet.');
 
   return (
     <main className="cockpit-body ide" aria-label={`IDE für ${project.name}`}>
       <IdeNotice title={title} live>
         <p>{detail}</p>
         <p className="ide-project-path"><span>Ordner</span><code>{project.repo_root}</code></p>
-        {!loading && (canStart || desktopApi === 'available') && (
+        {!loading && desktopApi === 'available' && (
           <div className="ide-actions">
-            {canStart && (
-              <button type="button" onClick={() => void start()} disabled={starting}>
-                {starting ? 'IDE startet …' : 'IDE starten'}
-              </button>
-            )}
-            <button type="button" className="quiet" onClick={() => void refresh()} disabled={starting}>
+            <button type="button" className="quiet" onClick={() => void refresh()} disabled={loading}>
               Status neu prüfen
             </button>
           </div>

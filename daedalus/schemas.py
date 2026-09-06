@@ -8,7 +8,6 @@ no second implementation or mutable singleton state.
 """
 
 from daedalus.kernel.contracts.canonical import (
-    KERNEL_CONTRACT_TYPES,
     KERNEL_CONTRACT_VERSION,
     RUNTIME_CONFORMANCE_CHECKS,
     AttemptContract,
@@ -49,8 +48,26 @@ from daedalus.kernel.contracts.canonical import (
     _sorted_strings,
     _utc_timestamp,
     derive_work_item_id,
-    parse_kernel_contract,
     work_item_identity_sha256,
+)
+from daedalus.kernel.contracts.genesis import (
+    GENESIS_CONTRACT_TYPES,
+    BuildIntentProposal,
+    DeploymentPlan,
+    DeploymentReceipt,
+    DesignContract,
+    GenesisAutonomyPolicy,
+    GenesisRunRecord,
+    GraphProposal,
+    MaterializationPlan,
+    ProductSpec,
+    RoundTripReport,
+    TargetFourfoldSpec,
+    ToolchainManifest,
+)
+from daedalus.kernel.contracts.registry import (
+    KERNEL_CONTRACT_TYPES,
+    parse_kernel_contract,
 )
 from daedalus.orchestration.legacy_reports import AgentTask, RunState
 from daedalus.runtimes.contracts.provider_report import (
@@ -85,6 +102,19 @@ __all__ = [
     "PromotionReceipt",
     "ConformanceCheck",
     "RuntimeConformanceReceipt",
+    "GENESIS_CONTRACT_TYPES",
+    "GenesisAutonomyPolicy",
+    "BuildIntentProposal",
+    "ProductSpec",
+    "DesignContract",
+    "TargetFourfoldSpec",
+    "GraphProposal",
+    "MaterializationPlan",
+    "ToolchainManifest",
+    "RoundTripReport",
+    "DeploymentPlan",
+    "DeploymentReceipt",
+    "GenesisRunRecord",
     "KERNEL_CONTRACT_TYPES",
     "parse_kernel_contract",
     "REPORT_KEYS",

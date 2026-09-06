@@ -715,6 +715,204 @@ def test_live_save_operations_preserve_identity_scope_policy_and_extensions(
     }
 
 
+def test_disjoint_agent_autonomy_updates_merge_atomically(
+    tmp_path: Path,
+    project_registry: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    path = _row(
+        project_registry,
+        repo,
+        extra={
+            "team": {
+                "autonomy": {
+                    "default": "manual",
+                    "agents": {
+                        "alpha": "manual",
+                        "sibling": "manual",
+                        "unchanged": "semi_auto",
+                    },
+                    "unknown_autonomy": {"keep": True},
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(control_plane, "unified_profiles", lambda project: {})
+    first_reads = threading.Barrier(2)
+    start = threading.Barrier(3)
+    real_read_text = Path.read_text
+
+    def synchronized_read(self: Path, *args: Any, **kwargs: Any) -> str:
+        text = real_read_text(self, *args, **kwargs)
+        if self == path:
+            # With the canonical lock the first reader times out here while the
+            # second waits outside the transaction.  An unlocked regression
+            # lets both readers through with the same baseline, after which
+            # the two complete publications deterministically lose one patch.
+            try:
+                first_reads.wait(timeout=0.25)
+            except threading.BrokenBarrierError:
+                pass
+        return text
+
+    monkeypatch.setattr(Path, "read_text", synchronized_read)
+
+    def update(name: str, mode: str) -> None:
+        start.wait(timeout=5)
+        control_plane.save_autonomy("demo", {"agent_updates": {name: mode}})
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(update, "alpha", "autonomous"),
+            pool.submit(update, "sibling", "semi_auto"),
+        ]
+        start.wait(timeout=5)
+        for future in futures:
+            future.result(timeout=10)
+
+    saved = json.loads(real_read_text(path, encoding="utf-8"))
+    assert saved["team"]["autonomy"]["agents"] == {
+        "alpha": "autonomous",
+        "sibling": "semi_auto",
+        "unchanged": "semi_auto",
+    }
+    assert saved["team"]["autonomy"]["unknown_autonomy"] == {"keep": True}
+
+
+def test_http_autonomy_partial_update_returns_canonical_projection(
+    tmp_path: Path,
+    project_registry: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    path = _row(
+        project_registry,
+        repo,
+        extra={
+            "team": {
+                "autonomy": {
+                    "default": "manual",
+                    "agents": {"alpha": "manual", "sibling": "semi_auto"},
+                    "unknown_autonomy": "keep",
+                }
+            }
+        },
+    )
+
+    status, body = _serve_request(
+        "/api/projects/demo/autonomy",
+        {"agent_updates": {"alpha": "autonomous"}},
+    )
+
+    assert status == 200
+    assert body["ok"] is True
+    assert body["project"] == "demo"
+    assert body["autonomy"]["agents"] == {
+        "alpha": "autonomous",
+        "sibling": "semi_auto",
+    }
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert saved["team"]["autonomy"] == {
+        "default": "manual",
+        "agents": {"alpha": "autonomous", "sibling": "semi_auto"},
+        "unknown_autonomy": "keep",
+    }
+
+
+def test_http_invalid_autonomy_partial_update_is_400_and_preserves_row_bytes(
+    tmp_path: Path,
+    project_registry: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    path = _row(
+        project_registry,
+        repo,
+        extra={"team": {"autonomy": {"agents": {"alpha": "manual"}}}},
+    )
+    before = path.read_bytes()
+
+    status, body = _serve_request(
+        "/api/projects/demo/autonomy",
+        {"agent_updates": {"alpha": "automatic"}},
+    )
+
+    assert status == 400
+    assert body["ok"] is False
+    assert "must be one of" in body["error"]
+    assert path.read_bytes() == before
+
+
+def test_autonomy_projection_failure_after_commit_leaves_partial_update_durable(
+    tmp_path: Path,
+    project_registry: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    path = _row(
+        project_registry,
+        repo,
+        extra={
+            "team": {
+                "autonomy": {
+                    "default": "manual",
+                    "agents": {"alpha": "manual", "sibling": "semi_auto"},
+                }
+            }
+        },
+    )
+
+    def fail_projection(project: str) -> dict[str, Any]:
+        raise RuntimeError(f"projection unavailable for {project}")
+
+    monkeypatch.setattr(control_plane, "unified_profiles", fail_projection)
+
+    with pytest.raises(RuntimeError, match="projection unavailable"):
+        control_plane.save_autonomy(
+            "demo", {"agent_updates": {"alpha": "autonomous"}}
+        )
+
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert saved["team"]["autonomy"]["agents"] == {
+        "alpha": "autonomous",
+        "sibling": "semi_auto",
+    }
+
+
+@pytest.mark.parametrize(
+    "patch, message",
+    [
+        ({"agent_updates": []}, "agent_updates must be an object"),
+        ({"agent_updates": {"": "manual"}}, "names must be non-empty"),
+        ({"agent_updates": {"alpha": "automatic"}}, "must be one of"),
+    ],
+)
+def test_invalid_agent_autonomy_update_leaves_project_row_unchanged(
+    tmp_path: Path,
+    project_registry: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    patch: dict[str, Any],
+    message: str,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    path = _row(
+        project_registry,
+        repo,
+        extra={"team": {"autonomy": {"agents": {"alpha": "manual"}}}},
+    )
+    before = path.read_bytes()
+    monkeypatch.setattr(control_plane, "unified_profiles", lambda project: {})
+
+    with pytest.raises(ProjectRowUpdateError, match=message):
+        control_plane.save_autonomy("demo", patch)
+
+    assert path.read_bytes() == before
+
+
 def test_lock_timeout_leaves_project_row_byte_identical(
     tmp_path: Path,
     project_registry: Path,

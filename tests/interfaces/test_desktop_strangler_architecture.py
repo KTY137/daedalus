@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Iterable
@@ -13,7 +11,7 @@ import pytest
 from daedalus import desktop_runtime
 from daedalus.interfaces import desktop
 from daedalus.interfaces.desktop import http, lifecycle, projection
-from daedalus.spine.effect_boundary import ENTRYPOINTS, registry_sha256
+from daedalus.spine.effect_boundary import ENTRYPOINTS
 from tools import index_work_packets
 
 
@@ -26,16 +24,10 @@ IMPLEMENTATIONS = {
     "projection": DESKTOP_ROOT / "projection.py",
 }
 SIDECAR = ROOT / "scripts" / "daedalus_desktop_sidecar.py"
+SIDECAR_OWNER = DESKTOP_ROOT / "sidecar.py"
 PACKET_PATH = (
     "docs/work-packets/G1-IFACE-DESKTOP-01_DESKTOP_RUNTIME_STRANGLER.md"
 )
-REGISTRY_SHA256 = "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
-HTTP_LITERAL_COUNT = 69
-HTTP_LITERAL_SHA256 = (
-    "184e31150480c230aac851e1160871f1f6c0bd1204ffd249d44fefecc96cfb62"
-)
-
-
 def _tree(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
@@ -73,39 +65,7 @@ def _calls(node: ast.AST, owner: str, name: str) -> Iterable[ast.Call]:
             yield child
 
 
-def _literal_digest(path: Path, name: str) -> tuple[int, str]:
-    function = _functions(_tree(path))[name]
-    doc_node = (
-        function.body[0]
-        if function.body
-        and isinstance(function.body[0], ast.Expr)
-        and isinstance(function.body[0].value, ast.Constant)
-        and isinstance(function.body[0].value.value, str)
-        else None
-    )
-    values: list[list[object]] = []
-    for node in ast.walk(function):
-        if not (
-            isinstance(node, ast.Constant)
-            and isinstance(node.value, (str, bytes, int, float, bool, type(None)))
-        ):
-            continue
-        if doc_node is not None and node is doc_node.value:
-            continue
-        value: object = node.value.hex() if isinstance(node.value, bytes) else node.value
-        values.append([type(node.value).__name__, value])
-    values.sort(key=lambda row: json.dumps(row, sort_keys=True, ensure_ascii=True))
-    encoded = json.dumps(
-        values,
-        separators=(",", ":"),
-        sort_keys=True,
-        ensure_ascii=True,
-    ).encode("utf-8")
-    return len(values), hashlib.sha256(encoded).hexdigest()
-
-
-def test_registered_effect_targets_and_digest_are_unchanged() -> None:
-    assert registry_sha256() == REGISTRY_SHA256
+def test_registered_http_and_desktop_effect_targets_are_exact() -> None:
     rows = {
         row.id: row.target
         for row in ENTRYPOINTS
@@ -117,12 +77,26 @@ def test_registered_effect_targets_and_digest_are_unchanged() -> None:
         "cli.web_api": "daedalus.interfaces.http.web_api:main",
         "web.mutations_put": "daedalus.interfaces.http.web_api:DaedalusHandler.do_PUT",
     }
+    desktop_rows = {
+        row.id: row.target for row in ENTRYPOINTS if row.id.startswith("python.desktop_")
+    }
+    assert desktop_rows == {
+        "python.desktop_switch": (
+            "daedalus.interfaces.desktop.effects:DesktopEffectOwner._ensure_switch"
+        ),
+        "python.desktop_settings_persist": (
+            "daedalus.interfaces.desktop.effects:DesktopEffectOwner.save_settings"
+        ),
+        "python.desktop_ollama_adopt": (
+            "daedalus.interfaces.desktop.effects:DesktopEffectOwner.start_ollama"
+        ),
+    }
 
 
 def test_sidecar_keeps_the_desktop_runtime_facade_imports() -> None:
     imports = [
         node
-        for node in ast.walk(_tree(SIDECAR))
+        for node in ast.walk(_tree(SIDECAR_OWNER))
         if isinstance(node, ast.ImportFrom)
         and node.module == "daedalus.desktop_runtime"
     ]
@@ -133,33 +107,47 @@ def test_sidecar_keeps_the_desktop_runtime_facade_imports() -> None:
         "install_web_integration",
     }
 
+    launcher_imports = [
+        node
+        for node in ast.walk(_tree(SIDECAR))
+        if isinstance(node, ast.ImportFrom)
+        and node.module == "daedalus.interfaces.desktop.sidecar"
+    ]
+    assert len(launcher_imports) == 1
+    assert "main" in {alias.name for alias in launcher_imports[0].names}
+    assert "begin_effect" not in SIDECAR.read_text(encoding="utf-8")
 
-def test_facade_retains_process_and_configuration_authority() -> None:
+
+def test_facade_retains_only_configuration_dispatch_and_owned_cleanup() -> None:
     tree = _tree(FACADE)
     functions = _functions(tree)
     methods = _manager_methods(tree)
     assert {
-        "_spawn_ollama_process",
         "install_tunnel_egress_policy",
         "install_web_integration",
         "normalize_config",
     } <= functions.keys()
+    assert "_spawn_ollama_process" not in functions
     assert {
         "ensure_bridge",
         "ensure_ide",
-        "_ensure_docker_ide",
         "ensure_local_ollama",
         "ensure_remote_ollama",
         "stop_ide",
         "stop_ollama",
     } <= methods.keys()
+    assert not {
+        "_watch_bridge",
+        "_ensure_docker_ide",
+        "_docker_exec",
+        "_ssh",
+        "_start_remote_service",
+    } & methods.keys()
 
 
 def test_facade_projection_and_lifecycle_methods_are_bounded_delegates() -> None:
     methods = _manager_methods(_tree(FACADE))
     delegates = {
-        "bootstrap": ("desktop_lifecycle", "bootstrap"),
-        "close": ("desktop_lifecycle", "close"),
         "_bridge_status_is_managed": (
             "desktop_projection",
             "bridge_status_is_managed",
@@ -172,6 +160,20 @@ def test_facade_projection_and_lifecycle_methods_are_bounded_delegates() -> None
         method = methods[method_name]
         assert list(_calls(method, owner, target)), method_name
         assert method.end_lineno - method.lineno < 14, method_name
+
+    for method_name, target in {
+        "bootstrap": "bootstrap",
+        "close": "close",
+        "ensure_bridge": "start_bridge",
+        "ensure_ollama": "start_ollama",
+    }.items():
+        method = methods[method_name]
+        assert any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == target
+            for node in ast.walk(method)
+        ), method_name
 
     installer = _functions(_tree(FACADE))["install_web_integration"]
     assert list(_calls(installer, "desktop_http", "install_web_integration"))
@@ -214,10 +216,20 @@ def test_implementation_owners_do_not_mint_process_http_or_effect_authority() ->
                 assert name not in banned_calls, (label, name)
 
 
-def test_http_routes_json_and_nonce_literals_match_the_frozen_parent() -> None:
-    assert _literal_digest(
-        IMPLEMENTATIONS["http"], "install_web_integration"
-    ) == (HTTP_LITERAL_COUNT, HTTP_LITERAL_SHA256)
+def test_http_routes_dispatch_effects_only_through_manager_owner_facades() -> None:
+    source = IMPLEMENTATIONS["http"].read_text(encoding="utf-8")
+    for operation in (
+        "ensure_bridge",
+        "ensure_ollama",
+        "stop_ollama",
+        "ensure_ide",
+        "stop_ide",
+    ):
+        assert f"manager.{operation}(" in source
+    assert "manager._effect_owner" not in source
+    assert "except DesktopEffectRefused as exc:" in source
+    assert '"error_code": error.error_code' in source
+    assert '"committed": error.committed' in source
 
 
 def test_hierarchical_exports_follow_exact_facade_objects(
@@ -237,8 +249,9 @@ def test_hierarchical_exports_follow_exact_facade_objects(
     assert desktop.normalize_config is replacement
 
 
-def test_facade_injects_legacy_monkeypatch_ports_into_http_owner(
+def test_facade_http_refuses_unavailable_ide_before_project_resolution(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     resolved: list[object] = []
     compared: list[tuple[str, str]] = []
@@ -272,6 +285,7 @@ def test_facade_injects_legacy_monkeypatch_ports_into_http_owner(
 
     class Manager:
         def __init__(self) -> None:
+            self.root = tmp_path
             self.projects: list[object] = []
             self.closed = False
 
@@ -294,8 +308,8 @@ def test_facade_injects_legacy_monkeypatch_ports_into_http_owner(
     start.path = "/api/desktop/services/ide/start"
     start.body = {"project": "registered-name"}
     start._handle_post()
-    assert resolved == ["registered-name"]
-    assert manager.projects == ["C:/registered/project"]
+    assert resolved == []
+    assert manager.projects == [None]
 
     shutdown = web_api.DaedalusHandler()
     shutdown.path = "/api/desktop/shutdown"

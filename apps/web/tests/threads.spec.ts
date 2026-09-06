@@ -23,6 +23,7 @@ const storedView = {
       id: 44,
       user_message: 'status',
       assistant_text: 'Alles ruhig.',
+      project: project.name,
       intent: 'status',
       provider_used: 'deterministic',
       created_ts: '2026-09-02T10:00:00+00:00',
@@ -37,6 +38,7 @@ const storedView = {
       id: 45,
       user_message: 'Und der Parser?',
       assistant_text: 'Der Parser ist **robust**.',
+      project: project.name,
       intent: 'chat',
       provider_used: 'claude_code_cli',
       model_used: 'claude',
@@ -113,6 +115,12 @@ async function stubQuietCockpit(page: Page, options: { list?: 'ok' | 'fail' } = 
   await page.route((url) => /^\/api\/conversations\/conv_1$/.test(url.pathname), (route) => route.fulfill({
     json: { ok: true, generated_at: '', project: project.name, warnings: [], conversation: storedView }
   }));
+}
+
+async function chooseProject(page: Page, name: string) {
+  await page.locator('.scope-trigger').click();
+  await page.locator(`.scope-menu [data-project-name="${name}"]`).click();
+  await expect(page.locator('.scope-name')).toHaveText(name);
 }
 
 test.describe('Verlauf and commands', () => {
@@ -240,6 +248,184 @@ test.describe('Verlauf and commands', () => {
     expect(turnBody).toMatchObject({ message: 'Wie steht es?', effort: 'medium' });
     expect(await page.evaluate(() => localStorage.getItem('daedalus-effort:atlas'))).toBe('medium');
     // While the request is out, the Protokoll already shows the answer row live.
-    await expect(page.locator('.turn.ikarus .ledger-row[data-key="answer"]')).toContainText('Ikarus denkt');
+    await expect(page.locator('.turn.ikarus .ledger-row[data-key="answer"]')).toContainText('Anfrage angenommen');
+  });
+
+  test('a gated thread pick from project A cannot settle or replay under project B', async ({ page }) => {
+    const alpha = { name: 'thread-alpha', repo_root: 'C:\\work\\thread-alpha', team: {}, reachable: true };
+    const beta = { name: 'thread-beta', repo_root: 'C:\\work\\thread-beta', team: {}, reachable: true };
+    let releaseAlpha!: () => void;
+    const alphaMayFinish = new Promise<void>((resolve) => { releaseAlpha = resolve; });
+    let alphaReads = 0;
+
+    await page.addInitScript(() => {
+      localStorage.removeItem('daedalus-thread:thread-alpha');
+      localStorage.setItem('daedalus-thread:thread-beta', 'conv_beta');
+    });
+    await page.route('**/api/projects', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], projects: [alpha, beta] }
+    }));
+    await page.route('**/api/structure**', (route) => {
+      const selected = new URL(route.request().url()).searchParams.get('project') || '';
+      return route.fulfill({
+        json: { ok: true, generated_at: '', project: selected, warnings: [], structure: { graph: { nodes: [], edges: [] } } }
+      });
+    });
+    await page.route('**/api/runtimes/status**', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], runtimes: [] }
+    }));
+    await page.route('**/api/drafts**', (route) => {
+      const selected = new URL(route.request().url()).searchParams.get('project');
+      const row = selected === beta.name ? beta : alpha;
+      return route.fulfill({
+        json: { ok: true, generated_at: '', project: row.name, warnings: [], scope: row.repo_root, pending_count: 0, drafts: [] }
+      });
+    });
+    await page.route((url) => url.pathname === '/api/conversations' && url.searchParams.has('project'), (route) => {
+      const selected = new URL(route.request().url()).searchParams.get('project');
+      const conversations = selected === alpha.name ? [{
+        conversation_id: 'conv_alpha', turn_count: 1, first_message: 'Alpha Frage', last_message: 'Alpha Frage',
+        last_ts: '2026-09-05T10:00:00+00:00'
+      }] : [];
+      return route.fulfill({ json: { ok: true, generated_at: '', project: selected, warnings: [], conversations } });
+    });
+    await page.route((url) => url.pathname === '/api/conversations/conv_alpha', async (route) => {
+      alphaReads += 1;
+      await alphaMayFinish;
+      await route.fulfill({ json: {
+        ok: true, generated_at: '', project: alpha.name, warnings: [],
+        conversation: {
+          conversation_id: 'conv_alpha', exists: true, turn_count: 1, turns_returned: 1,
+          turns: [{ user_message: 'Alpha Frage', assistant_text: 'Nur Alpha', project: alpha.name }]
+        }
+      } });
+    });
+    await page.route((url) => url.pathname === '/api/conversations/conv_beta', (route) => route.fulfill({ json: {
+      ok: true, generated_at: '', project: beta.name, warnings: [],
+      conversation: {
+        conversation_id: 'conv_beta', exists: true, turn_count: 1, turns_returned: 1,
+        turns: [{ user_message: 'Beta Frage', assistant_text: 'Nur Beta', project: beta.name }]
+      }
+    } }));
+
+    await openCockpit(page, `/?view=chat&project=${alpha.name}`);
+    await page.getByRole('navigation', { name: 'Verläufe' }).getByRole('button', { name: /Alpha Frage/ }).click();
+    await expect.poll(() => alphaReads).toBe(1);
+
+    await chooseProject(page, beta.name);
+    await expect(page.locator('.turn.ikarus')).toContainText('Nur Beta');
+    releaseAlpha();
+    await expect(page.getByText('Nur Alpha')).toHaveCount(0);
+    await expect.poll(() => alphaReads).toBe(1);
+    expect(await page.evaluate(() => localStorage.getItem('daedalus-thread:thread-beta'))).toBe('conv_beta');
+  });
+
+  test('a consumed New Chat choice cannot clear the next project thread', async ({ page }) => {
+    const alpha = { name: 'new-alpha', repo_root: 'C:\\work\\new-alpha', team: {}, reachable: true };
+    const beta = { name: 'new-beta', repo_root: 'C:\\work\\new-beta', team: {}, reachable: true };
+    await page.addInitScript(() => {
+      localStorage.setItem('daedalus-thread:new-alpha', 'conv_new_alpha');
+      localStorage.setItem('daedalus-thread:new-beta', 'conv_new_beta');
+    });
+    await page.route('**/api/projects', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], projects: [alpha, beta] }
+    }));
+    await page.route('**/api/structure**', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], structure: { graph: { nodes: [], edges: [] } } }
+    }));
+    await page.route('**/api/runtimes/status**', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], runtimes: [] }
+    }));
+    await page.route('**/api/drafts**', (route) => {
+      const selected = new URL(route.request().url()).searchParams.get('project');
+      const row = selected === beta.name ? beta : alpha;
+      return route.fulfill({
+        json: { ok: true, generated_at: '', project: row.name, warnings: [], scope: row.repo_root, pending_count: 0, drafts: [] }
+      });
+    });
+    await page.route((url) => url.pathname === '/api/conversations' && url.searchParams.has('project'), (route) =>
+      route.fulfill({ json: { ok: true, generated_at: '', project: null, warnings: [], conversations: [] } })
+    );
+    await page.route((url) => /^\/api\/conversations\/conv_new_(alpha|beta)$/.test(url.pathname), (route) => {
+      const selected = url.pathname.endsWith('beta') ? beta : alpha;
+      const id = url.pathname.slice('/api/conversations/'.length);
+      return route.fulfill({ json: {
+        ok: true, generated_at: '', project: selected.name, warnings: [],
+        conversation: {
+          conversation_id: id, exists: true, turn_count: 1, turns_returned: 1,
+          turns: [{ user_message: `${selected.name} Frage`, assistant_text: `${selected.name} Antwort`, project: selected.name }]
+        }
+      } });
+    });
+
+    await openCockpit(page, `/?view=chat&project=${alpha.name}`);
+    await expect(page.locator('.turn.ikarus')).toContainText('new-alpha Antwort');
+    await page.getByRole('navigation', { name: 'Verläufe' }).getByRole('button', { name: 'Neuer Chat' }).click();
+    await expect(page.locator('.convo-open')).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('daedalus-thread:new-alpha'))).toBeNull();
+
+    await chooseProject(page, beta.name);
+    await expect(page.locator('.turn.ikarus')).toContainText('new-beta Antwort');
+    expect(await page.evaluate(() => localStorage.getItem('daedalus-thread:new-beta'))).toBe('conv_new_beta');
+  });
+
+  test('a persisted foreign thread is cleared before display or append', async ({ page }) => {
+    const beta = { name: 'bound-beta', repo_root: 'C:\\work\\bound-beta', team: {}, reachable: true };
+    let minted = 0;
+    let appendedPath = '';
+    await page.addInitScript(() => localStorage.setItem('daedalus-thread:bound-beta', 'conv_foreign'));
+    await page.route('**/api/projects', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], projects: [beta] }
+    }));
+    await page.route('**/api/structure**', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: beta.name, warnings: [], structure: { graph: { nodes: [], edges: [] } } }
+    }));
+    await page.route('**/api/runtimes/status**', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: null, warnings: [], runtimes: [] }
+    }));
+    await page.route('**/api/drafts**', (route) => route.fulfill({
+      json: { ok: true, generated_at: '', project: beta.name, warnings: [], scope: beta.repo_root, pending_count: 0, drafts: [] }
+    }));
+    await page.route((url) => url.pathname === '/api/conversations/conv_foreign', (route) => route.fulfill({ json: {
+      ok: true, generated_at: '', project: 'foreign-alpha', warnings: [],
+      conversation: {
+        conversation_id: 'conv_foreign', exists: true, turn_count: 1, turns_returned: 1,
+        turns: [{ user_message: 'Geheimnis A', assistant_text: 'Antwort A', project: 'foreign-alpha' }]
+      }
+    } }));
+    await page.route((url) => url.pathname === '/api/conversations', (route) => {
+      if (route.request().method() === 'POST') {
+        minted += 1;
+        return route.fulfill({
+          json: { ok: true, generated_at: '', project: beta.name, warnings: [], conversation_id: 'conv_beta_fresh' }
+        });
+      }
+      return route.fulfill({
+        json: { ok: true, generated_at: '', project: beta.name, warnings: [], conversations: [] }
+      });
+    });
+    await page.route('**/api/conversations/*/turns', async (route) => {
+      appendedPath = new URL(route.request().url()).pathname;
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({ status: 202, json: {
+        ok: true, generated_at: '', project: beta.name, warnings: [], created: true,
+        turn_request: {
+          request_id: 81, conversation_id: 'conv_beta_fresh', client_request_id: body.client_request_id,
+          project: beta.name, state: 'streaming'
+        }
+      } });
+    });
+    await page.route('**/api/conversations/*/turns/*/events', (route) => route.abort('failed'));
+
+    await openCockpit(page, `/?view=chat&project=${beta.name}`);
+    await expect(page.getByRole('alert')).toContainText('gehört nicht zu diesem Projekt');
+    await expect(page.getByText('Geheimnis A')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('daedalus-thread:bound-beta'))).toBeNull();
+
+    await page.getByLabel('Nachricht an Ikarus').fill('Frische Beta Frage');
+    await page.getByRole('button', { name: 'Senden' }).click();
+    await expect.poll(() => appendedPath).toBe('/api/conversations/conv_beta_fresh/turns');
+    expect(minted).toBe(1);
+    expect(appendedPath).not.toContain('conv_foreign');
   });
 });

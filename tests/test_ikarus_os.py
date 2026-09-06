@@ -24,6 +24,15 @@ class ClassifyTest(unittest.TestCase):
         # independent capability predicate keeps this ordinary discussion out
         # of the Hand (pinned in test_ikarus_act.py).
         self.assertEqual(ikarus_os.classify("Was machen wir jetzt?"), "enqueue")
+        self.assertEqual(ikarus_os.classify(
+            "Schau dir den aktuellen Projektzustand an. Nenne die drei "
+            "wichtigsten nächsten Schritte und erkläre kurz, warum."), "chat")
+        self.assertEqual(ikarus_os.classify(
+            "Prüf die Tests und repariere den Fehler. Erkläre danach kurz, warum."),
+            "enqueue")
+        self.assertEqual(ikarus_os.classify(
+            "Prüf die Tests und fix den Fehler. Erklär danach warum."),
+            "enqueue")
         self.assertEqual(ikarus_os.classify("design an agent network with UI and QA"), "design")
         self.assertEqual(ikarus_os.classify("hello, who are you?"), "chat")
         self.assertEqual(ikarus_os.classify("how does the machine work?"), "chat")

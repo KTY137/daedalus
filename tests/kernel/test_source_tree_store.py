@@ -12,6 +12,7 @@ from daedalus.kernel import (
     SourceTreeEntry,
     SourceTreeManifest,
     SourceTreeStore,
+    SourceTreeStoreError,
 )
 from daedalus.schemas import ContractProvenance
 
@@ -42,6 +43,30 @@ def _capture(store: SourceTreeStore, source: Path, *, revision: str = REVISION):
         created_at=NOW,
         trace_id="attempt-1",
     )
+
+
+def test_open_existing_is_effect_free_and_refuses_an_absent_store(tmp_path) -> None:
+    root = tmp_path / "cas"
+    provisioned = SourceTreeStore(root)
+    ref = provisioned.put_bytes(b"immutable")
+    before = {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+    opened = SourceTreeStore.open_existing(root)
+
+    assert opened.read_bytes(ref, max_bytes=32) == b"immutable"
+    assert {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file()
+    } == before
+    missing = tmp_path / "missing"
+    with pytest.raises(SourceTreeStoreError, match="existing"):
+        SourceTreeStore.open_existing(missing)
+    assert missing.exists() is False
 
 
 def test_capture_is_deterministic_external_and_materializes_exact_tree(tmp_path) -> None:
@@ -81,6 +106,39 @@ def test_capture_is_deterministic_external_and_materializes_exact_tree(tmp_path)
     assert (destination / "pkg" / "app.py").read_text(encoding="utf-8") == "print('hello')\n"
     assert not (destination / ".git").exists()
     assert not (destination / ".daedalus").exists()
+
+
+def test_materialization_retries_a_transient_atomic_publish_conflict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import daedalus.atomic as atomic_module
+
+    source = _source(tmp_path)
+    store = SourceTreeStore(tmp_path / "cas")
+    stored = _capture(store, source)
+    destination = tmp_path / "attempt-workspace"
+    real_replace = atomic_module.os.replace
+    attempts = 0
+
+    def transient_replace(staging: object, target: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            error = PermissionError("transient Windows directory publish conflict")
+            error.winerror = 5
+            raise error
+        real_replace(staging, target)
+
+    monkeypatch.setattr(atomic_module.os, "replace", transient_replace)
+
+    manifest = store.materialize_tree(stored.ref, destination)
+
+    assert attempts == 2
+    assert manifest == stored.manifest
+    assert (destination / "README.md").read_bytes() == (
+        source / "README.md"
+    ).read_bytes()
 
 
 def test_revision_is_part_of_manifest_identity(tmp_path) -> None:
@@ -208,6 +266,29 @@ def test_manifest_refuses_missing_metadata_exclusions_and_path_collisions() -> N
             ),
             ignored_roots=(".git", ".daedalus"),
             provenance=provenance,
+        )
+
+
+@pytest.mark.parametrize(
+    "path",
+    (".git/HEAD", ".GIT/HEAD", ".daedalus/state.json", ".DAEDALUS/state.json"),
+)
+def test_manifest_refuses_entries_below_ignored_roots_case_insensitively(
+    path: str,
+) -> None:
+    digest = "1" * 64
+    with pytest.raises(ValueError, match="must not live under ignored roots"):
+        SourceTreeManifest(
+            tree_id="ignored-entry",
+            source_revision=REVISION,
+            entries=(SourceTreeEntry(path, digest, 1),),
+            ignored_roots=(".git", ".daedalus"),
+            provenance=ContractProvenance(
+                origin="tests.source-tree.ignored-entry",
+                source_revision=REVISION,
+                created_at=NOW,
+                input_digests=(digest,),
+            ),
         )
 
 

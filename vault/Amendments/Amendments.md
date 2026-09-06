@@ -27,6 +27,16 @@ teilweise vollzogen (Hook-Wiring als Owner-Kommando
 `../../docs/recovery/wire_serena_hook.py`); 002 und 004 offen, K1–K13 aus dem
 Revision-2-Draft müssen gegen den Rev-4-Text rebased werden.
 
+## Nachtrag 2026-09-05 (INHERITED aus dem Plan-Text Revision 12 und `docs/`-Listing, MEASURED nur das Listing)
+
+| Nr. | Titel | Status | Artefakt |
+| --- | --- | --- | --- |
+| 009 | Two-Tier Spend Ceiling | angenommen als Revision 9 (2026-08-30) | `../../docs/AMENDMENT_PROPOSAL_009_TWO_TIER_SPEND_CEILING.md` |
+| 010 | Execution Cap Menu | angenommen als Revision 10 (2026-08-30) | `../../docs/AMENDMENT_PROPOSAL_010_EXECUTION_CAP_MENU.md` |
+| 011 | Owner-directed Genesis | Revision 11 im Plan (2026-08-31); Ledger-Record fehlt, Lücke laut G1-IKARUS-17 bewusst nicht erfunden | `../../docs/work-packets/G1-IKARUS-17_GENERAL_ASSISTANT_AMENDMENT.md` |
+| 012 | General computer assistance | angenommen als Revision 12 (2026-09-05, Owner-Antwort `ja implmenetierer`), Record Sequenz 11 | `../../docs/AMENDMENT_PROPOSAL_012_GENERAL_COMPUTER_ASSISTANT.md` |
+| 013 | Hardware targets and self-renovation | neu im Tree (2026-09-05, andere Session), Status ungeprüft | `../../docs/AMENDMENT_PROPOSAL_013_HARDWARE_TARGETS_AND_SELF_RENOVATION.md` |
+
 ## Protokoll-Merkzettel (Plan §15)
 
 1. Exakten Diff + Begründung + Rollback vorschlagen.

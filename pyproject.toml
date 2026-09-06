@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "daedalus"
-version = "0.1.5"
+version = "0.1.6"
 description = "Portable local+cloud multi-agent routing harness (Adam senior crew + Ikarus local bench)."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,6 +14,18 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
+# Local computer assistance stays optional; importing the core loads none of
+# these native packages. Browser binaries are installed explicitly by setup.
+computer = [
+    "opencv-python-headless==4.11.0.86", "mss==10.2.0", "playwright==1.62.0",
+    "winrt-Windows.Media.Ocr==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Graphics.Imaging==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Globalization==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections==3.2.1; sys_platform == 'win32'",
+]
+computer-vision = ["opencv-python-headless==4.11.0.86"]
 yaml = ["pyyaml>=6"]   # enables YAML config verification in the verifier gate
 math = ["numpy", "scipy", "networkx"] # optional structural graph analysis
 polyglot = [
@@ -30,6 +42,31 @@ root = ["uproot==5.7.5"]
 # adapter pins langsmith tracing off explicitly rather than trusting that no
 # environment variable on the machine turns it on.
 orchestration = ["langgraph>=1.2,<2"]
+# Reproducible native-desktop build tools.  CI installs this exact lock-backed
+# extra without selecting ``gpu``; PyInstaller and its transitive bootloader
+# dependencies must never float between builds of the same commit.
+desktop-build = ["pyinstaller==6.22.1"]
+# Reproducible Python distribution builder used by release acceptance only.
+release-build = ["build==1.6.0", "setuptools==84.0.0"]
+# Exact image encoder used only to regenerate the checked-in Blender-derived
+# WebP environment assets. Verification with ``--check`` remains stdlib-only.
+design-build = ["pillow==10.4.0"]
+# Opt-in CUDA 12 research environment.  This is deliberately not part of the
+# zero-dependency core and does not select a Daedalus runtime backend.  CUDA
+# 12.6 is pinned for the Pascal-class GPU still used by the owner workstation;
+# current CUDA 13 PyTorch wheels require Turing or newer.  Newton brings
+# NVIDIA Warp.  CuPy's `ctk` extra supplies the CUDA components, so a system
+# CUDA Toolkit is not required (an NVIDIA driver still is).
+gpu = [
+    # The local version is intentional: without the explicit cu126 source a
+    # conventional pip resolver must fail instead of silently selecting the
+    # CUDA 13 build that dropped Pascal support.
+    "torch==2.14.0+cu126; sys_platform == 'win32' or sys_platform == 'linux'",
+    "newton==1.5.1; sys_platform == 'win32' or sys_platform == 'linux'",
+    "warp-lang==1.17.0; sys_platform == 'win32' or sys_platform == 'linux'",
+    "cupy-cuda12x[ctk]==14.2.0; sys_platform == 'win32' or sys_platform == 'linux'",
+    "cuda-toolkit[cublas,cudart,cufft,curand,cusolver,cusparse,nvrtc]==12.6.3; sys_platform == 'win32' or sys_platform == 'linux'",
+]
 # Test-time only: nothing under daedalus/ imports these, only tests/.
 # The core stays zero-dependency; this extra is what `python -m pytest tests/`
 # (the runner README.md documents) actually needs.
@@ -74,6 +111,16 @@ test = [
     "pytest-xdist>=3.6",
 ]
 
+# Only torch may resolve from this index.  Keeping it explicit prevents the
+# PyTorch wheel repository from becoming a fallback source for other packages.
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
 [project.scripts]
 daedalus = "daedalus.interfaces.cli.entry:main"
 daedalus-chip = "daedalus.chip_design.cli:main"
@@ -93,4 +140,6 @@ exclude = ["tests*", "tools*"]
     "catalogue/gui/*.json",
     "catalogue/providers/*.json",
     "schemas/*.json",
+    "web_dist/*",
+    "web_dist/**/*",
 ]

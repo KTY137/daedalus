@@ -3,20 +3,34 @@ from __future__ import annotations
 
 import ast
 import json
+from email.message import Message
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
+from threading import Thread
 from typing import Any
+import urllib.error
+import urllib.request
 
 import pytest
 
+from daedalus import progress
 from daedalus.interfaces.http import web_api
 from daedalus.interfaces.http import sse
+from daedalus.orchestration import conversation
+from daedalus.runtimes import computer as computer_runtime
+from daedalus.spine import effect_boundary
+from daedalus.spine import ledger as spine_ledger
 from daedalus.spine.effect_boundary import registry_sha256
 
 
 ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "daedalus" / "interfaces" / "http" / "web_api.py"
 OWNER = ROOT / "daedalus" / "interfaces" / "http" / "sse.py"
-REGISTRY_SHA256 = "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
+REGISTRY_SHA256 = "7a8fc9442be4d1fff8f576fa951036788ef146c779c5c1145bce21f471f3c605"
+BOUND_HOST = "127.0.0.1"
+BOUND_PORT = 8765
+BOUND_ORIGIN = f"http://{BOUND_HOST}:{BOUND_PORT}"
 
 
 class _Wire:
@@ -78,6 +92,36 @@ def _snapshot(
         "reports_total": reports_total,
         "latest_report": latest_report,
     }
+
+
+def _request_headers(
+    *,
+    origins: tuple[str, ...] = (BOUND_ORIGIN,),
+    fetch_sites: tuple[str, ...] = ("same-origin",),
+) -> Message:
+    headers = Message()
+    for origin in origins:
+        headers["Origin"] = origin
+    for fetch_site in fetch_sites:
+        headers["Sec-Fetch-Site"] = fetch_site
+    return headers
+
+
+def _ikarus_handler(
+    headers: Message,
+    *,
+    server_address: tuple[str, int] = (BOUND_HOST, BOUND_PORT),
+) -> tuple[SimpleNamespace, list[tuple[int, Any]]]:
+    responses: list[tuple[int, Any]] = []
+    handler = SimpleNamespace(
+        headers=headers,
+        server=SimpleNamespace(server_address=server_address),
+        close_connection=False,
+    )
+    handler._send_json = lambda payload, status=200: responses.append(
+        (status, payload)
+    )
+    return handler, responses
 
 
 def test_stream_loop_keeps_project_filter_and_additive_field_types() -> None:
@@ -169,6 +213,193 @@ def test_shared_encoder_preserves_legacy_sse_bytes_and_sequence() -> None:
     assert sse.encode_event("state", {"ok": True}, 7) == (
         b'id: 7\nevent: state\ndata: {"ok": true}\n\n'
     )
+
+
+@pytest.mark.parametrize(
+    ("origins", "fetch_sites"),
+    (
+        ((BOUND_ORIGIN, BOUND_ORIGIN), ("same-origin",)),
+        (("http://[::1",), ("same-origin",)),
+        ((f"http://{BOUND_HOST}:{BOUND_PORT + 1}",), ("same-origin",)),
+        ((f"http://localhost:{BOUND_PORT}",), ("same-origin",)),
+        ((f"http://[::ffff:{BOUND_HOST}]:{BOUND_PORT}",), ("same-origin",)),
+        (("https://evil.example",), ("cross-site",)),
+        ((BOUND_ORIGIN,), ()),
+        ((BOUND_ORIGIN,), ("same-origin", "same-origin")),
+        ((BOUND_ORIGIN,), ("same-site",)),
+    ),
+)
+def test_ikarus_stream_rejects_unbound_browser_metadata_before_every_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    origins: tuple[str, ...],
+    fetch_sites: tuple[str, ...],
+) -> None:
+    effect_calls: list[str] = []
+    handler, responses = _ikarus_handler(
+        _request_headers(origins=origins, fetch_sites=fetch_sites)
+    )
+    monkeypatch.setattr(
+        progress, "open_unit", lambda *_args, **_kwargs: effect_calls.append("progress")
+    )
+    monkeypatch.setattr(
+        sse, "_open_stream", lambda *_args, **_kwargs: effect_calls.append("sse")
+    )
+    monkeypatch.setattr(
+        sse.ikarus_os,
+        "ask_stream",
+        lambda *_args, **_kwargs: effect_calls.append("ask_stream"),
+    )
+    monkeypatch.setattr(
+        computer_runtime,
+        "setup_computer",
+        lambda *_args, **_kwargs: effect_calls.append("setup_computer"),
+    )
+    monkeypatch.setattr(
+        conversation,
+        "default_store",
+        lambda: effect_calls.append("conversation_store"),
+    )
+    monkeypatch.setattr(
+        effect_boundary,
+        "begin_effect",
+        lambda *_args, **_kwargs: effect_calls.append("begin_effect"),
+    )
+    monkeypatch.setattr(
+        spine_ledger.SpineLedger,
+        "record_intent",
+        lambda *_args, **_kwargs: effect_calls.append("ledger_intent"),
+    )
+    monkeypatch.setattr(
+        spine_ledger.SpineLedger,
+        "record_fact",
+        lambda *_args, **_kwargs: effect_calls.append("ledger_fact"),
+    )
+
+    sse.handle_ikarus_stream(
+        handler,
+        {
+            "project": ["fixture"],
+            "message": ["/computer setup"],
+            "conversation_id": ["must-not-be-read"],
+        },
+    )
+
+    assert responses[0][0] == 403
+    assert "exact numeric bound Origin" in responses[0][1]["error"]
+    assert handler.close_connection is True
+    assert effect_calls == []
+
+
+@pytest.mark.parametrize(
+    ("server_address", "origins"),
+    (
+        ((BOUND_HOST, BOUND_PORT), ()),
+        ((BOUND_HOST, BOUND_PORT), (BOUND_ORIGIN,)),
+        (("::1", BOUND_PORT), ()),
+        (("::1", BOUND_PORT), (f"http://[::1]:{BOUND_PORT}",)),
+    ),
+)
+def test_exact_same_origin_eventsource_reaches_stream_once(
+    monkeypatch: pytest.MonkeyPatch,
+    server_address: tuple[str, int],
+    origins: tuple[str, ...],
+) -> None:
+    calls: list[Any] = []
+    handler, responses = _ikarus_handler(
+        _request_headers(origins=origins), server_address=server_address
+    )
+    monkeypatch.setattr(
+        progress,
+        "open_unit",
+        lambda *_args, **_kwargs: calls.append("progress") or None,
+    )
+    monkeypatch.setattr(
+        sse,
+        "_open_stream",
+        lambda *_args, **_kwargs: calls.append("sse") or True,
+    )
+    monkeypatch.setattr(
+        sse.ikarus_os,
+        "ask_stream",
+        lambda *_args, **kwargs: calls.append(("ask_stream", kwargs))
+        or [("final", {"ok": True})],
+    )
+    monkeypatch.setattr(
+        sse,
+        "_send_event",
+        lambda _handler, event, payload: calls.append((event, payload)),
+    )
+
+    sse.handle_ikarus_stream(
+        handler,
+        {"project": ["fixture"], "message": ["hello"]},
+    )
+
+    assert responses == []
+    assert calls == [
+        "progress",
+        "sse",
+        (
+            "ask_stream",
+            {
+                "provider": None,
+                "model": None,
+                "effort": None,
+                "conversation_id": None,
+            },
+        ),
+        ("final", {"ok": True}),
+    ]
+    assert handler.close_connection is True
+
+
+def test_live_legacy_get_refuses_cross_origin_then_serves_same_origin_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(progress, "open_unit", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        sse.ikarus_os,
+        "ask_stream",
+        lambda *args, **kwargs: calls.append((args, kwargs))
+        or [("final", {"ok": True})],
+    )
+    server = ThreadingHTTPServer((BOUND_HOST, 0), web_api.DaedalusHandler)
+    server.daedalus_auth_token = ""
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://{BOUND_HOST}:{server.server_address[1]}"
+    route = "/api/ikarus/stream?project=fixture&message=hello"
+    try:
+        rejected = urllib.request.Request(
+            base + route,
+            headers={
+                "Origin": "https://evil.example",
+                "Sec-Fetch-Site": "cross-site",
+            },
+        )
+        with pytest.raises(urllib.error.HTTPError) as refusal:
+            urllib.request.urlopen(rejected, timeout=10)
+        assert refusal.value.code == 403
+        assert calls == []
+
+        accepted = urllib.request.Request(
+            base + route,
+            headers={"Origin": base, "Sec-Fetch-Site": "same-origin"},
+        )
+        with urllib.request.urlopen(accepted, timeout=10) as response:
+            body = response.read()
+        assert response.status == 200
+        assert b"event: final" in body
+        assert json.loads(body.split(b"data: ", 1)[1].splitlines()[0]) == {
+            "ok": True
+        }
+        assert len(calls) == 1
+        assert calls[0][0] == ("fixture", "hello")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
 
 
 def test_disconnect_stops_stream_without_snapshot_replay() -> None:

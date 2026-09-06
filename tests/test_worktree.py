@@ -204,7 +204,10 @@ def test_git_is_told_long_paths_on_windows(temp_git_repo, worktree_root,
         assert cmd[3:] == ["rev-parse", "HEAD"]
     else:
         assert cmd[1:] == ["rev-parse", "HEAD"]
-    assert subprocess.run(["git", "config", "--get", "core.longpaths"],
+    # The command-local override must not write this repository's config. A
+    # user- or system-level Windows preference is outside the test's scope and
+    # must not make the isolation assertion environment-dependent.
+    assert subprocess.run(["git", "config", "--local", "--get", "core.longpaths"],
                           cwd=temp_git_repo, capture_output=True,
                           text=True).stdout.strip() == ""
 

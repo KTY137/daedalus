@@ -1,0 +1,20 @@
+.spatial-scene {
+  position: absolute;
+  right: -130px;
+  top: 4%;
+  width: min(68vw, 900px);
+  height: min(85vh, 900px);
+  pointer-events: none;
+  overflow: hidden;
+  contain: layout paint;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent) 12%, transparent), transparent 66%);
+  transition: opacity var(--dur-slow, 320ms) ease;
+}
+.spatial-scene canvas { display: block; width: 100%; height: 100%; }
+.spatial-scene.compact { position: relative; inset: auto; width: 280px; height: 180px; margin: 0; flex: none; }
+.spatial-scene[data-renderer='ambient'] canvas { visibility: hidden; }
+@media (max-width: 700px) {
+  .spatial-scene { right: -150px; width: 600px; height: 650px; }
+  .spatial-scene.compact { width: 220px; height: 130px; right: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .spatial-scene { transition: none; } }

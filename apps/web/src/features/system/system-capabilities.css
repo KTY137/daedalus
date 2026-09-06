@@ -59,6 +59,8 @@
   font: inherit;
 }
 .system-agent dl { display: grid; gap: 3px; margin: 0; }
+.system-agent-actions { display: grid; gap: var(--u1); }
+.system-agent-actions > .system-small { min-height: 1.45em; }
 .system-agent dl div { display: grid; grid-template-columns: 88px 1fr; gap: var(--u1); }
 .system-agent dt { color: var(--ink3); font-size: var(--fs-xs); }
 .system-agent dd { margin: 0; color: var(--ink2); font-size: var(--fs-xs); overflow-wrap: anywhere; }

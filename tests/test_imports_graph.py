@@ -197,6 +197,14 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
     #: the whole kernel/spine layer. That is the deliberate, visible shrink the
     #: docstring below demands a record of; MEASURED at eb5228ac, 28 induced
     #: edges remain.
+    #:
+    #: UPDATED 2026-09-05 on the Gate-1 general-assistant prerelease worktree,
+    #: based at ``61cd1f3e`` before its release commit exists.  The component
+    #: grew 13 -> 19 and its induced edges 28 -> 46: the canonical Ikarus chat,
+    #: computer loop/schedule and their existing hierarchy/control-plane owners
+    #: now compose with ``core``, ``file_bridge``, ``status`` and the Kairos
+    #: scheduler.  This is a measured debt increase, not a claimed cycle cut;
+    #: pinning all six arrivals keeps a later distillation visible.
     CORE_CYCLE = frozenset({
         "daedalus/build.py",
         "daedalus/build_exec.py",
@@ -204,10 +212,16 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
         "daedalus/doctor.py",
         "daedalus/file_bridge.py",
         "daedalus/health.py",
-        "daedalus/orchestration/ikarus/supervisor.py",
         "daedalus/kairos/gated_writes.py",
         "daedalus/kairos/scheduler.py",
         "daedalus/offload.py",
+        "daedalus/orchestration/control_plane.py",
+        "daedalus/orchestration/hierarchy.py",
+        "daedalus/orchestration/ikarus/chat.py",
+        "daedalus/orchestration/ikarus/computer_loop.py",
+        "daedalus/orchestration/ikarus/computer_schedule.py",
+        "daedalus/orchestration/ikarus/shell.py",
+        "daedalus/orchestration/ikarus/supervisor.py",
         "daedalus/progress.py",
         "daedalus/progress_sources.py",
         "daedalus/status.py",

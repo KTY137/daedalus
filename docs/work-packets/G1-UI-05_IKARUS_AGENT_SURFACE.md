@@ -109,8 +109,12 @@ defaults to `low`, matching the backend's own default.
 
 The turn creation POST, its `client_request_id`, the observation-only SSE
 GET, the cancel POST, the queue POST with exact `conversation_id`/`turn_id`
-attribution, the autonomy rule for automatic dispatch, and all localStorage
-keys and DOM/ARIA contracts named in the design record §8.
+attribution, and the DOM/ARIA contracts named in the design record §8.
+
+v0.1.6 ASAE supersedes only the automatic-dispatch clause above: the
+browser-local autonomy preference and log are no longer read, rendered, or
+allowed to enqueue work. Dispatch now requires the visible `Loslegen` action;
+the canonical per-agent project-autonomy settings remain explicit and separate.
 
 ## Acceptance matrix
 

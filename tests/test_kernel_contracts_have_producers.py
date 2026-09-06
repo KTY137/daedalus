@@ -14,6 +14,7 @@ is a claim that has to be re-justified when it stops being true.
 """
 import ast
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -21,32 +22,65 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from daedalus.kernel.contracts.registry import KERNEL_CONTRACT_TYPES  # noqa: E402
+
 PRODUCTION = ROOT / "daedalus"
+
+EXPECTED_CONTRACT_REGISTRY = {
+    "daedalus.attempt": "AttemptContract",
+    "daedalus.attempt-receipt": "AttemptReceipt",
+    "daedalus.build-intent-proposal": "BuildIntentProposal",
+    "daedalus.campaign": "CampaignContract",
+    "daedalus.campaign-receipt": "CampaignReceipt",
+    "daedalus.deployment-plan": "DeploymentPlan",
+    "daedalus.deployment-receipt": "DeploymentReceipt",
+    "daedalus.design-contract": "DesignContract",
+    "daedalus.evidence": "EvidencePacket",
+    "daedalus.experiment-spec": "ExperimentSpec",
+    "daedalus.genesis-autonomy-policy": "GenesisAutonomyPolicy",
+    "daedalus.genesis-run-record": "GenesisRunRecord",
+    "daedalus.graph-proposal": "GraphProposal",
+    "daedalus.materialization-plan": "MaterializationPlan",
+    "daedalus.mission": "MissionContract",
+    "daedalus.nomination": "NominationReceipt",
+    "daedalus.policy-decision": "PolicyDecision",
+    "daedalus.product-spec": "ProductSpec",
+    "daedalus.promotion": "PromotionReceipt",
+    "daedalus.round-trip-report": "RoundTripReport",
+    "daedalus.runtime-conformance": "RuntimeConformanceReceipt",
+    "daedalus.runtime-manifest": "RuntimeManifest",
+    "daedalus.target-fourfold-spec": "TargetFourfoldSpec",
+    "daedalus.toolchain-manifest": "ToolchainManifest",
+}
 
 #: Adapter classmethods count as producers: they return a constructed contract.
 ADAPTER_METHODS = frozenset(
     {"from_task_spec", "from_attempt_result", "from_runtime_spec"}
 )
 
-CONTRACTS = (
-    "MissionContract",
-    "AttemptContract",
-    "EvidencePacket",
-    "CampaignContract",
-    "PolicyDecision",
-    "RuntimeManifest",
-    "AttemptReceipt",
-    "NominationReceipt",
+# Derive the census subject from the closed parser registry.  A hand-maintained
+# tuple here missed all twelve Genesis contracts even though they were already
+# parseable canonical types, allowing two producer-less release contracts to
+# remain invisible.  Class names are the constructor spellings the AST census
+# below measures; the separate exactness probe retains the wire-type mapping.
+CONTRACTS = tuple(
+    sorted({contract.__name__ for contract in KERNEL_CONTRACT_TYPES.values()})
 )
 
 #: Contracts with no live producer, each with the reason it is still honest.
 #: Remove an entry here only together with the wiring that made it wrong.
 PRODUCERLESS = {
-    # Ariadne campaigns do not run yet. There is no live code that freezes an
-    # ExperimentSpec, so a CampaignContract would have nothing to describe.
-    # This is the honest kind of producer-less: the thing it would record does
-    # not happen, so inventing a producer would invent the campaign too.
-    "CampaignContract": "no evolution campaign runs on the live path yet",
+    "DeploymentPlan": (
+        "Gate-1 Genesis v1 has no public-publishing authority; a later release "
+        "adapter may construct a plan only after exact one-use OwnerApproval"
+    ),
+    "DeploymentReceipt": (
+        "Gate-1 Genesis v1 does not execute DeploymentPlan and therefore cannot "
+        "honestly emit a deployment outcome"
+    ),
+    "PromotionReceipt": (
+        "promotion remains sealed and has no automatic production producer"
+    ),
 }
 
 #: Producer functions that exist but are not yet CALLED on a live path. This is
@@ -74,6 +108,7 @@ def _production_modules():
         yield path
 
 
+@lru_cache(maxsize=1)
 def _producers():
     found = {name: set() for name in CONTRACTS}
     for path in _production_modules():
@@ -96,6 +131,57 @@ def _producers():
             ):
                 found[func.value.id].add(where)
     return found
+
+
+def test_census_subject_is_exactly_the_closed_contract_registry():
+    registered = {
+        wire_type: contract.__name__
+        for wire_type, contract in KERNEL_CONTRACT_TYPES.items()
+    }
+    assert registered == EXPECTED_CONTRACT_REGISTRY
+    assert len(set(registered.values())) == len(registered), (
+        "two wire types unexpectedly share one constructor spelling"
+    )
+    assert set(CONTRACTS) == set(registered.values())
+    assert {
+        "GenesisAutonomyPolicy",
+        "BuildIntentProposal",
+        "ProductSpec",
+        "DesignContract",
+        "TargetFourfoldSpec",
+        "GraphProposal",
+        "MaterializationPlan",
+        "ToolchainManifest",
+        "RoundTripReport",
+        "DeploymentPlan",
+        "DeploymentReceipt",
+        "GenesisRunRecord",
+    } <= set(CONTRACTS), "the complete Genesis contract domain must be censused"
+
+
+def test_genesis_contract_producer_modules_are_exact():
+    admission = {"daedalus/orchestration/genesis/admission.py"}
+    service = {"daedalus/orchestration/genesis/service.py"}
+    expected = {
+        "GenesisAutonomyPolicy": admission,
+        "BuildIntentProposal": admission,
+        "ProductSpec": admission,
+        "DesignContract": admission,
+        "TargetFourfoldSpec": admission,
+        "GraphProposal": admission,
+        "MaterializationPlan": admission,
+        "ToolchainManifest": admission,
+        "RoundTripReport": service,
+        "GenesisRunRecord": service,
+        "DeploymentPlan": set(),
+        "DeploymentReceipt": set(),
+    }
+    producers = _producers()
+    actual = {
+        contract: {site.rsplit(":", 1)[0] for site in producers[contract]}
+        for contract in expected
+    }
+    assert actual == expected
 
 
 def test_every_canonical_contract_has_a_production_producer_or_a_stated_reason():

@@ -15,7 +15,7 @@ MEASURED 2026-07-29, both by running the code rather than reading it:
 * ``runs/council/room.py::_attach`` DOES apply the floor, fail-closed
   (``_floor`` returns "secret floor unavailable" if the import fails).
 * ``runs/ab/run_arm.py::distilled_context`` does NOT. It inlines whole file
-  bodies from ``C:\\Users\\nukei\\Desktop\\PnP_App`` into a ``claude`` prompt.
+  bodies from ``C:\\Users\\example\\Desktop\\PnP_App`` into a ``claude`` prompt.
 * ``~/.claude/skills/room/room.py::_attach`` does NOT, and it is outside this
   repo so no test here can gate it. Receipt in
   ``docs/SPEND_AND_EGRESS_COVERAGE.md``.
@@ -189,7 +189,7 @@ def body_inlining_vendor_paths(
 KNOWN_UNFLOORED_EGRESS = {
     "runs/ab/run_arm.py":
         "distilled_context() (lines 79-85) inlines whole file bodies from "
-        "C:/Users/nukei/Desktop/PnP_App -- a DIFFERENT repo, chosen by "
+        "C:/Users/example/Desktop/PnP_App -- a DIFFERENT repo, chosen by "
         "plan_context, not by a human -- into a `claude` prompt. If the "
         "planner ever selects a .env or a credentialled config it ships "
         "verbatim. CRITICAL; open because the fix is a design decision about "
@@ -198,14 +198,13 @@ KNOWN_UNFLOORED_EGRESS = {
 }
 
 # The textual detector deliberately over-approximates within one registered
-# billable module. This inspected co-location is not an egress path: the read is
-# the CLI's response file after the vendor process has produced it, not input
-# placed into the prompt.
-KNOWN_NON_EGRESS_COLOCATIONS = {
-    "daedalus/orchestration/ikarus/shell.py":
-        "_claude_stream reads the vendor's response message file; prompt input "
-        "is assembled separately and the bytes flow vendor -> disk -> caller",
-}
+# billable module.  This ledger is empty after the 2026-09-05 project-state
+# grounding work: ``ikarus/shell.py`` still reads a vendor response file, but
+# every repository-derived input it can add to a provider prompt now passes the
+# canonical slice/project-state egress policy and secret floor.  Keeping the old
+# false-positive exception would make the ledger confess an unfloored path that
+# the detector now measures as fenced.
+KNOWN_NON_EGRESS_COLOCATIONS = {}
 
 
 def _billable_python_paths() -> set[str]:

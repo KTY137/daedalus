@@ -2262,6 +2262,7 @@ def build_queue(repo_root: str | Path | None = None, *,
                 include_eval: bool = False,
                 include_hotspots: bool = False,
                 include_spectral: bool = False,
+                include_docrefs: bool = True,
                 inventory: Mapping[str, Any] | None = None,
                 map_snapshot: Mapping[str, Any] | None = None,
                 baseline: Mapping[str, Any] | None = None,
@@ -2277,7 +2278,10 @@ def build_queue(repo_root: str | Path | None = None, *,
     leave the loop picking by habit instead of by measurement.
     ``include_spectral`` is MEASURED at ~10s (``reach.analyse`` over this tree)
     and adds only evidence keys -- it cannot change the queue's contents or
-    order.
+    order. ``include_docrefs`` defaults to ON and therefore preserves the
+    canonical queue. Read-only interactive projections may switch it off to
+    avoid a whole-repository prose scan when they need only a quick status
+    snapshot; the disabled source remains explicit in ``sources``.
     """
     root = Path(repo_root).resolve() if repo_root else ROOT
     candidates: list[Candidate] = []
@@ -2380,7 +2384,12 @@ def build_queue(repo_root: str | Path | None = None, *,
     # Never raises (docrefs.scan promises that); a failure here must cost the
     # queue this one source, never the whole queue.
     docref_mode = _picker_source_mode(project_config, "docref")
-    if docref_mode == "disabled":
+    if not include_docrefs:
+        sources["docref"] = {
+            "state": "disabled", "read": False, "candidates": 0,
+            "reason": "disabled by caller (interactive read-only projection)",
+        }
+    elif docref_mode == "disabled":
         sources["docref"] = {
             "state": "disabled", "read": False, "candidates": 0,
             "reason": "disabled by repo-local picker_sources.docref",

@@ -12,6 +12,7 @@ from typing import Any, Iterable
 import pytest
 
 from daedalus import desktop_runtime
+from daedalus.interfaces.desktop import effects as desktop_effects
 from daedalus.interfaces.desktop import settings
 from daedalus.spine.effect_boundary import registry_sha256
 from tools import index_work_packets
@@ -20,18 +21,18 @@ from tools import index_work_packets
 ROOT = Path(__file__).resolve().parents[2]
 FACADE = ROOT / "daedalus" / "desktop_runtime.py"
 OWNER = ROOT / "daedalus" / "interfaces" / "desktop" / "settings.py"
+EFFECT_OWNER = ROOT / "daedalus" / "interfaces" / "desktop" / "effects.py"
 PACKET_PATH = "docs/work-packets/G1-IFACE-DESKTOP-03_SETTINGS_OWNER.md"
-REGISTRY_SHA256 = "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
-SETTINGS_LITERAL_COUNT = 145
+REGISTRY_SHA256 = "7a8fc9442be4d1fff8f576fa951036788ef146c779c5c1145bce21f471f3c605"
+SETTINGS_LITERAL_COUNT = 83
 SETTINGS_LITERAL_SHA256 = (
-    "9cd1426a7902482cd2fc8593eb0c42b69a7a986b72c8de1e97994a704e64251d"
+    "01e109e1237b08acd198bce283c93165df65ff2dfe00a1635e2e30d75ee9b3b1"
 )
 SETTINGS_FUNCTIONS = (
     "read_budget_environment",
     "load",
-    "save",
-    "save_settings",
-    "apply_environment",
+    "prepare_settings",
+    "environment_projection",
 )
 
 
@@ -48,10 +49,17 @@ def _functions(tree: ast.Module) -> dict[str, ast.FunctionDef]:
 
 
 def _manager_methods(tree: ast.Module) -> dict[str, ast.FunctionDef]:
+    return _class_methods(tree, "DesktopRuntimeManager")
+
+
+def _class_methods(
+    tree: ast.Module,
+    class_name: str,
+) -> dict[str, ast.FunctionDef]:
     manager = next(
         node
         for node in tree.body
-        if isinstance(node, ast.ClassDef) and node.name == "DesktopRuntimeManager"
+        if isinstance(node, ast.ClassDef) and node.name == class_name
     )
     return {
         node.name: node
@@ -110,17 +118,70 @@ def _literal_digest(path: Path, names: Iterable[str]) -> tuple[int, str]:
     return len(values), hashlib.sha256(encoded).hexdigest()
 
 
-def _bare_manager() -> desktop_runtime.DesktopRuntimeManager:
+def _bare_manager(root: Path) -> desktop_runtime.DesktopRuntimeManager:
     manager = object.__new__(desktop_runtime.DesktopRuntimeManager)
+    manager.root = root.resolve()
+    manager.config_path = manager.root / "config" / "connections.json"
+    manager.log_path = manager.root / "runs" / "desktop_runtime.log"
     manager._lock = threading.RLock()
     manager.config = desktop_runtime.normalize_config({})
     manager._config_error = ""
     manager._budget_policy_error = ""
+    manager._base_trusted = ""
+    manager._ollama_observation = {}
+    manager._closed = False
+    manager._bridge_stop = threading.Event()
+    manager._ide = None
+    manager._ide_log = None
+    manager._ollama = None
+    manager._ollama_log = None
+    manager._tunnel = None
+    manager._tunnel_log = None
+    manager._effect_owner = desktop_effects.DesktopEffectOwner(
+        manager,
+        error_type=desktop_runtime.DesktopRuntimeError,
+    )
     return manager
 
 
 def _copy_config(manager: desktop_runtime.DesktopRuntimeManager) -> dict[str, Any]:
     return json.loads(json.dumps(manager.config))
+
+
+def _stub_authorization(
+    owner: desktop_effects.DesktopEffectOwner,
+    monkeypatch: pytest.MonkeyPatch,
+    events: list[str] | None = None,
+) -> None:
+    observed = events if events is not None else []
+    granted = object()
+    monkeypatch.setattr(
+        owner,
+        "_ensure_switch",
+        lambda: SimpleNamespace(checkpoint=lambda: None),
+    )
+    monkeypatch.setattr(desktop_effects, "_source_revision", lambda: "a" * 40)
+    monkeypatch.setattr(
+        desktop_effects,
+        "acquire_effect_lease",
+        lambda *args, **kwargs: granted,
+    )
+    monkeypatch.setattr(
+        owner,
+        "_begin_authorized",
+        lambda *args: ("execution", "started"),
+    )
+    monkeypatch.setattr(
+        owner,
+        "_complete_authorized",
+        lambda *args: observed.append("receipt_completed"),
+    )
+
+    def fail(*args: object) -> bool:
+        observed.append("receipt_failed")
+        return True
+
+    monkeypatch.setattr(owner, "_fail_authorized", fail)
 
 
 def test_settings_owner_retains_exact_frozen_contract_literals() -> None:
@@ -134,25 +195,42 @@ def test_facade_methods_are_bounded_per_call_delegates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     methods = _manager_methods(_tree(FACADE))
-    delegates = {
+    preparation_delegates = {
         "_read_budget_environment": "read_budget_environment",
         "_load": "load",
-        "_save": "save",
-        "save_settings": "save_settings",
-        "apply_environment": "apply_environment",
     }
-    for facade_name, owner_name in delegates.items():
+    for facade_name, owner_name in preparation_delegates.items():
         method = methods[facade_name]
         assert list(_calls(method, "desktop_settings", owner_name))
         assert method.end_lineno - method.lineno < 24
+    for facade_name, owner_name in {"save_settings": "save_settings"}.items():
+        method = methods[facade_name]
+        assert any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == owner_name
+            for node in ast.walk(method)
+        )
+        assert not any(
+            list(_calls(method, "desktop_settings", preparation_name))
+            for preparation_name in SETTINGS_FUNCTIONS
+        )
+        assert method.end_lineno - method.lineno < 24
+    effect_methods = _class_methods(_tree(EFFECT_OWNER), "DesktopEffectOwner")
+    assert "apply_environment" not in methods
+    assert "apply_environment" not in effect_methods
+    assert list(
+        _calls(
+            effect_methods["_apply_environment_from"],
+            "desktop_settings",
+            "environment_projection",
+        )
+    )
 
     observed: dict[str, tuple[tuple[object, ...], dict[str, object]]] = {}
     results = {
         "read_budget_environment": ({"budget": True}, {"caps": True}, ""),
         "load": {"loaded": True},
-        "save": None,
-        "save_settings": {"saved": True},
-        "apply_environment": None,
     }
 
     def replacement(name: str):
@@ -162,49 +240,38 @@ def test_facade_methods_are_bounded_per_call_delegates(
 
         return call
 
-    for name in SETTINGS_FUNCTIONS:
+    for name in ("read_budget_environment", "load"):
         monkeypatch.setattr(settings, name, replacement(name))
 
     normalize_port = object()
     defaults_port = object()
-    numeric_host_port = object()
     budget_port = object()
     json_port = object()
-    environment_port = object()
-    os_port = SimpleNamespace(environ=environment_port)
-    policy_port = object()
-    axes_port = object()
-    store_policy_port = object()
 
-    class PatchedDesktopError(RuntimeError):
-        pass
-
-    monkeypatch.setattr(desktop_runtime, "normalize_config", normalize_port)
-    monkeypatch.setattr(desktop_runtime, "_defaults", defaults_port)
-    monkeypatch.setattr(desktop_runtime, "_numeric_host", numeric_host_port)
-    monkeypatch.setattr(desktop_runtime, "budget_kernel", budget_port)
-    monkeypatch.setattr(desktop_runtime, "json", json_port)
-    monkeypatch.setattr(desktop_runtime, "os", os_port)
-    monkeypatch.setattr(desktop_runtime, "ExecutionLimitPolicy", policy_port)
-    monkeypatch.setattr(desktop_runtime, "LimitAxes", axes_port)
-    monkeypatch.setattr(desktop_runtime, "MODE_CUSTOM", "patched-custom")
     monkeypatch.setattr(
         desktop_runtime,
-        "store_limit_policy_in_env",
-        store_policy_port,
+        "_normalize_loaded_config",
+        normalize_port,
     )
-    monkeypatch.setattr(desktop_runtime, "DesktopRuntimeError", PatchedDesktopError)
+    monkeypatch.setattr(desktop_runtime, "_defaults", defaults_port)
+    monkeypatch.setattr(desktop_runtime, "budget_kernel", budget_port)
+    monkeypatch.setattr(desktop_runtime, "json", json_port)
+
+    class EffectOwner:
+        def save_settings(self, raw: object) -> object:
+            observed["effect_save_settings"] = ((raw,), {})
+            return {"saved": True}
 
     manager = object.__new__(desktop_runtime.DesktopRuntimeManager)
+    effect_owner = EffectOwner()
+    manager._require_effect_owner = lambda: effect_owner
     assert desktop_runtime.DesktopRuntimeManager._read_budget_environment() == (
         {"budget": True},
         {"caps": True},
         "",
     )
     assert manager._load() == {"loaded": True}
-    manager._save()
     assert manager.save_settings({"incoming": True}) == {"saved": True}
-    manager.apply_environment()
 
     assert observed["read_budget_environment"][1] == {
         "budget_kernel": budget_port,
@@ -216,44 +283,19 @@ def test_facade_methods_are_bounded_per_call_delegates(
         "defaults": defaults_port,
         "normalize_config": normalize_port,
     }
-    assert observed["save"][1] == {
-        "json_module": json_port,
-        "os_module": os_port,
-        "error_type": PatchedDesktopError,
-    }
-    assert observed["save_settings"][1] == {
-        "json_module": json_port,
-        "normalize_config": normalize_port,
-        "execution_limit_policy": policy_port,
-        "limit_axes": axes_port,
-        "mode_custom": "patched-custom",
-        "error_type": PatchedDesktopError,
-    }
-    assert observed["apply_environment"][1] == {
-        "environ": environment_port,
-        "budget_kernel": budget_port,
-        "env_execution_limit_policy": desktop_runtime.ENV_EXECUTION_LIMIT_POLICY,
-        "execution_limit_policy": policy_port,
-        "store_limit_policy_in_env": store_policy_port,
-        "numeric_host": numeric_host_port,
-        "tunnel_forward_var": desktop_runtime.TUNNEL_FORWARD_VAR,
-        "tunnel_target_var": desktop_runtime.TUNNEL_TARGET_VAR,
-        "remote_ok_var": desktop_runtime.REMOTE_OK_VAR,
-        "trusted_hosts_var": desktop_runtime.TRUSTED_HOSTS_VAR,
-    }
+    assert observed["effect_save_settings"] == (({"incoming": True},), {})
 
 
 def test_settings_owner_has_no_process_server_or_effect_entry_authority() -> None:
     tree = _tree(OWNER)
     functions = _functions(tree)
     assert set(functions) == set(SETTINGS_FUNCTIONS)
-    assert list(_calls(functions["save"], "os_module", "replace"))
-    assert not list(_calls(functions["save"], "os_module", "rename"))
     assert not any(isinstance(node, ast.ClassDef) for node in tree.body)
     banned_imports = {
         "atexit",
         "daedalus.desktop_runtime",
         "http.server",
+        "os",
         "socket",
         "subprocess",
         "threading",
@@ -265,7 +307,15 @@ def test_settings_owner_has_no_process_server_or_effect_entry_authority() -> Non
         "Thread",
         "ThreadingHTTPServer",
         "begin_effect",
+        "fsync",
+        "mkdir",
+        "open",
+        "putenv",
+        "rename",
+        "replace",
         "serve_forever",
+        "unlink",
+        "write",
     }
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -286,36 +336,107 @@ def test_settings_owner_has_no_process_server_or_effect_entry_authority() -> Non
 
 def test_widening_refusal_precedes_every_injected_effect(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    manager = _bare_manager()
+    manager = _bare_manager(tmp_path)
     proposed = _copy_config(manager)
     proposed["budget"]["period_ceiling_usd"] += 1.0
     effects: list[str] = []
 
-    def record(name: str):
-        return lambda *args, **kwargs: effects.append(name)
+    monkeypatch.setattr(
+        manager._effect_owner,
+        "_authorize_settings",
+        lambda *args, **kwargs: effects.append("authorize"),
+    )
 
-    for name in (
-        "stop_ollama",
-        "stop_ide",
-        "_save",
-        "apply_environment",
-        "ensure_bridge",
-        "ensure_ollama",
-        "ensure_ide",
-        "snapshot",
+    with pytest.raises(
+        desktop_effects.DesktopValidationError,
+        match="confirm_widening",
     ):
-        monkeypatch.setattr(manager, name, record(name))
-
-    with pytest.raises(ValueError, match="confirm_widening"):
         manager.save_settings(proposed)
     assert effects == []
 
 
-def test_save_failure_restores_config_after_ordered_route_stops(
-    monkeypatch: pytest.MonkeyPatch,
+def test_settings_effect_owner_is_initialized_and_has_the_only_save_path(
+    tmp_path: Path,
 ) -> None:
-    manager = _bare_manager()
+    manager = _bare_manager(tmp_path)
+    manager_methods = _manager_methods(_tree(FACADE))
+    effect_methods = _class_methods(_tree(EFFECT_OWNER), "DesktopEffectOwner")
+
+    assert isinstance(manager._effect_owner, desktop_effects.DesktopEffectOwner)
+    assert "_save" not in manager_methods
+    assert not hasattr(manager, "_save")
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "_authorize_settings"
+        for node in ast.walk(effect_methods["save_settings"])
+    )
+
+
+def test_settings_authorization_uses_only_exact_repo_relative_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manager = _bare_manager(tmp_path)
+    owner = manager._effect_owner
+    nonce = "f" * 32
+    prepared = _copy_config(manager)
+    expected = (
+        "config",
+        "config/connections.json",
+        f"config/.connections.json.{desktop_effects.os.getpid()}.{nonce}.tmp",
+    )
+    captured: dict[str, object] = {}
+    granted = object()
+
+    monkeypatch.setattr(
+        desktop_effects.uuid,
+        "uuid4",
+        lambda: SimpleNamespace(hex=nonce),
+    )
+    monkeypatch.setattr(
+        owner,
+        "_ensure_switch",
+        lambda: SimpleNamespace(checkpoint=lambda: None),
+    )
+    monkeypatch.setattr(desktop_effects, "_source_revision", lambda: "a" * 40)
+
+    def acquire(root: Path, **kwargs: object) -> object:
+        captured["root"] = root
+        captured.update(kwargs)
+        return granted
+
+    monkeypatch.setattr(desktop_effects, "acquire_effect_lease", acquire)
+
+    def stop_before_publication(*args: object) -> None:
+        raise RuntimeError("stop before publication")
+
+    monkeypatch.setattr(
+        owner,
+        "_begin_authorized",
+        stop_before_publication,
+    )
+
+    with pytest.raises(
+        desktop_effects.DesktopEffectUnavailable,
+        match="settings authorization unavailable.*stop before publication",
+    ):
+        owner._authorize_settings(prepared, prepared)
+    assert captured["root"] == tmp_path.resolve()
+    assert captured["writable_paths"] == expected
+    assert captured["write_policy"].write_allow == expected
+    assert all(not Path(path).is_absolute() for path in expected)
+    assert not manager.config_path.exists()
+
+
+def test_save_failure_restores_config_without_stopping_serving_routes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manager = _bare_manager(tmp_path)
+    owner = manager._effect_owner
     previous = manager.config
     proposed = _copy_config(manager)
     proposed["bridge"]["auto_start"] = False
@@ -325,77 +446,173 @@ def test_save_failure_restores_config_after_ordered_route_stops(
     proposed["ide"]["docker_image"] = "daedalus/openvscode-server:1.109.6"
     calls: list[str] = []
 
-    monkeypatch.setattr(
-        manager,
-        "stop_ollama",
-        lambda: calls.append("stop_ollama"),
-    )
-    monkeypatch.setattr(
-        manager,
-        "stop_ide",
-        lambda: calls.append("stop_ide"),
-    )
+    _stub_authorization(owner, monkeypatch, calls)
+    monkeypatch.setattr(owner, "stop_ollama", lambda: calls.append("stop_ollama"))
+    monkeypatch.setattr(owner, "stop_ide", lambda **kwargs: calls.append("stop_ide"))
 
-    def refuse_save() -> None:
-        calls.append("save")
-        raise desktop_runtime.DesktopRuntimeError("write refused")
+    def refuse_write(*args: object, **kwargs: object) -> None:
+        calls.append("write")
+        raise OSError("write refused")
 
-    monkeypatch.setattr(manager, "_save", refuse_save)
-    monkeypatch.setattr(
-        manager,
-        "apply_environment",
-        lambda: calls.append("environment"),
-    )
-
-    with pytest.raises(desktop_runtime.DesktopRuntimeError, match="write refused"):
+    monkeypatch.setattr(desktop_effects, "REPLACE_RETRY_S", 0.0)
+    if desktop_effects.os.name == "nt":
+        # Windows publishes through the write-through MoveFileExW seam.  A
+        # plain os.replace fault is deliberately irrelevant there because it
+        # cannot establish the durability claimed by a successful receipt.
+        monkeypatch.setattr(
+            desktop_effects,
+            "_move_file_ex_windows_write_through",
+            refuse_write,
+        )
+    else:
+        monkeypatch.setattr(desktop_effects.os, "replace", refuse_write)
+    with pytest.raises(
+        desktop_effects.DesktopEffectUnavailable,
+        match="settings persistence failed.*write refused",
+    ):
         manager.save_settings(proposed)
-    assert calls == ["stop_ollama", "stop_ide", "save"]
+    assert calls == ["write", "receipt_failed"]
     assert manager.config is previous
+    assert not manager.config_path.exists()
 
 
-def test_success_orders_save_environment_autostart_and_snapshot(
+def test_effect_owner_orders_receipt_environment_without_autostart(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    manager = _bare_manager()
+    manager = _bare_manager(tmp_path)
+    owner = manager._effect_owner
     proposed = _copy_config(manager)
     proposed["bridge"]["auto_start"] = True
     proposed["ollama"]["auto_start"] = True
     proposed["ide"]["auto_start"] = True
+    proposed["ollama"]["local_host"] = "http://127.0.0.1:11436"
+    proposed["ide"]["docker_image"] = "daedalus/openvscode-server:1.109.6"
     calls: list[str] = []
 
-    monkeypatch.setattr(manager, "_save", lambda: calls.append("save"))
+    _stub_authorization(owner, monkeypatch, calls)
     monkeypatch.setattr(
-        manager,
-        "apply_environment",
-        lambda: calls.append("environment"),
+        owner,
+        "_apply_environment_from",
+        lambda *_args, **_kwargs: calls.append("environment"),
     )
     monkeypatch.setattr(
-        manager,
-        "ensure_bridge",
-        lambda: calls.append("bridge"),
+        owner,
+        "start_bridge",
+        lambda: calls.append("bridge") or {"running": True, "managed": True},
     )
     monkeypatch.setattr(
-        manager,
-        "ensure_ollama",
-        lambda: calls.append("ollama"),
+        owner,
+        "start_ollama",
+        lambda: calls.append("ollama") or {"reachable": True},
     )
     monkeypatch.setattr(
-        manager,
-        "ensure_ide",
-        lambda: calls.append("ide"),
+        owner,
+        "start_ide",
+        lambda: calls.append("ide") or {"reachable": True},
     )
     monkeypatch.setattr(
-        manager,
-        "snapshot",
+        owner,
+        "_detached_snapshot",
         lambda: calls.append("snapshot") or {"snapshot": True},
     )
 
     assert manager.save_settings(proposed) == {"snapshot": True}
-    assert calls == ["save", "environment", "bridge", "ollama", "ide", "snapshot"]
+    assert calls == [
+        "receipt_completed",
+        "environment",
+        "snapshot",
+    ]
+    assert manager.config["bridge"]["auto_start"] is False
+    assert manager.config["ollama"]["auto_start"] is False
+    assert manager.config["ide"]["auto_start"] is False
+    assert json.loads(manager.config_path.read_text(encoding="utf-8")) == manager.config
 
 
-def test_registry_and_work_packet_contract_are_stable() -> None:
+def test_post_commit_adoption_failures_are_returned_without_rolling_back(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manager = _bare_manager(tmp_path)
+    owner = manager._effect_owner
+    previous = manager.config
+    proposed = _copy_config(manager)
+    proposed["bridge"]["auto_start"] = False
+    proposed["ollama"]["auto_start"] = False
+    proposed["ide"]["auto_start"] = False
+    proposed["ollama"]["local_host"] = "http://127.0.0.1:11436"
+    proposed["ide"]["docker_image"] = "daedalus/openvscode-server:1.109.6"
+    calls: list[str] = []
+
+    _stub_authorization(owner, monkeypatch, calls)
+
+    def fail_environment(*_args: object, **_kwargs: object) -> None:
+        calls.append("environment")
+        raise OSError("environment projection refused")
+
+    monkeypatch.setattr(owner, "_apply_environment_from", fail_environment)
+    monkeypatch.setattr(
+        owner,
+        "_detached_snapshot",
+        lambda: calls.append("snapshot") or {"config": manager.config},
+    )
+
+    result = manager.save_settings(proposed)
+
+    assert manager.config is not previous
+    assert manager.config["ollama"]["local_host"] == "http://127.0.0.1:11436"
+    assert result["startup_error"] == (
+        "environment adoption: OSError: environment projection refused"
+    )
+    assert calls == [
+        "receipt_completed",
+        "environment",
+        "snapshot",
+    ]
+    assert json.loads(manager.config_path.read_text(encoding="utf-8")) == manager.config
+
+
+@pytest.mark.parametrize("new_mode", ["native", "docker"])
+def test_unavailable_ide_cleanup_never_touches_an_unowned_handle(
+    tmp_path: Path,
+    new_mode: str,
+) -> None:
+    manager = _bare_manager(tmp_path)
+    manager.config["ide"]["mode"] = new_mode
+    class FakeProcess:
+        terminated = False
+
+        def poll(self) -> None:
+            return None
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def wait(self, *, timeout: float) -> None:
+            assert timeout == 2
+            assert self.terminated
+
+        def kill(self) -> None:
+            raise AssertionError("graceful owned IDE stop should succeed")
+
+    process = FakeProcess()
+    manager._ide = process
+    with pytest.raises(
+        desktop_effects.DesktopFeatureUnavailable,
+        match="IDE stop is unavailable",
+    ):
+        manager.stop_ide(strict=True)
+    assert process.terminated is False
+    assert manager._ide is process
+    assert not hasattr(manager._effect_owner, "_begin_cleanup")
+    assert not hasattr(manager, "_docker_inspect_container")
+
+
+def test_effect_registry_contract_is_stable() -> None:
     assert registry_sha256() == REGISTRY_SHA256
+
+
+def test_work_packet_contract_is_stable() -> None:
     artifact = index_work_packets._artifact(ROOT, PACKET_PATH, set())
     assert artifact["declared_packet_id"] == "G1-IFACE-DESKTOP-03"
     assert artifact["artifact_role"] == "primary"

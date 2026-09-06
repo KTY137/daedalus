@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hmac
+import re
 from typing import Any, Callable, Pattern
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 from ...kairos import drafts
 from ... import core
@@ -15,6 +17,7 @@ from ...foundation.env import env_status
 from ...structcore.churn import co_change_pairs
 from ...structcore.report import structure_summary
 from ...structcore.topology import spectral_partition
+from ...twin.read_projection import fourfold_read_projection
 from ... import memory as memory_mod
 from .router import parse_request_target
 
@@ -40,9 +43,33 @@ class ReadPorts:
     task_artifacts: RoutePort
     task_snapshot: RoutePort
     resolve_repo_root: RoutePort
+    genesis_preview: RoutePort
+    genesis_preview_capability: RoutePort
+    genesis_source_archive: RoutePort
     conversation_id_re: Pattern[str]
     task_id_re: Pattern[str]
     loop_max_limit: int
+
+
+def _graph_node_limit(
+    query: dict[str, list[str]], *, default: int
+) -> tuple[int | None, bool]:
+    """Read the explicit graph scope without silently treating bad input as a cap."""
+
+    raw = (query.get("graph_nodes") or [""])[0].strip().lower()
+    if not raw:
+        return default, False
+    if raw == "all":
+        return None, True
+    try:
+        limit = int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            "graph_nodes must be a positive integer or 'all'"
+        ) from exc
+    if limit < 1:
+        raise ValueError("graph_nodes must be a positive integer or 'all'")
+    return limit, True
 
 
 def handle_get(handler: Any, *, ports: ReadPorts) -> None:
@@ -62,12 +89,212 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
     _task_artifacts = ports.task_artifacts
     _task_snapshot = ports.task_snapshot
     resolve_repo_root = ports.resolve_repo_root
+    genesis_preview = ports.genesis_preview
+    genesis_preview_capability = ports.genesis_preview_capability
     _CONVERSATION_ID_RE = ports.conversation_id_re
     _TASK_ID_RE = ports.task_id_re
     LOOP_MAX_LIMIT = ports.loop_max_limit
     target = parse_request_target(self.path)
     qs = target.query
     path = target.path
+    if path.startswith("/api/genesis/"):
+        from ipaddress import ip_address
+
+        from ...sensitivity import is_loopback_host
+
+        client_host = str((self.client_address or ("",))[0])
+        server_address = getattr(self.server, "server_address", ("", 0))
+        server_host = str(server_address[0])
+        if not is_loopback_host(client_host) or not is_loopback_host(server_host):
+            self._send_json(
+                {"ok": False, "error": "Genesis preview is loopback-only"},
+                status=403,
+            )
+            return
+        numeric_host = ip_address(server_host.strip().strip("[]"))
+        csp_host = (
+            f"[{numeric_host.compressed}]"
+            if numeric_host.version == 6
+            else numeric_host.compressed
+        )
+        preview_origin = f"http://{csp_host}:{int(server_address[1])}"
+        expected_host = f"{csp_host}:{int(server_address[1])}"
+        host_headers = self.headers.get_all("Host") or []
+        if len(host_headers) != 1 or str(host_headers[0]) != expected_host:
+            self._send_json(
+                {
+                    "ok": False,
+                    "error": "Genesis preview requires its exact numeric bound Host",
+                },
+                status=403,
+            )
+            return
+        fetch_sites = self.headers.get_all("Sec-Fetch-Site") or []
+        if len(fetch_sites) != 1 or str(fetch_sites[0]).casefold() not in {
+            "same-origin",
+            "same-site",
+            "none",
+            "cross-site",
+        }:
+            self._send_json(
+                {
+                    "ok": False,
+                    "error": "Genesis preview requires valid Sec-Fetch-Site metadata",
+                },
+                status=403,
+            )
+            return
+        fetch_site = str(fetch_sites[0]).casefold()
+        parts = path.split("/")
+        if len(parts) == 5 and parts[4] == "source.zip":
+            # Only the cockpit's same-origin fetch may read an entire source
+            # archive. Preview bearer paths never grant this broader read.
+            origins = self.headers.get_all("Origin") or []
+            if fetch_site != "same-origin" or (
+                origins and (len(origins) != 1 or str(origins[0]) != preview_origin)
+            ):
+                self._send_json(
+                    {"ok": False, "error": "Genesis source download requires same-origin metadata"},
+                    status=403,
+                )
+                return
+            run_id = parts[3]
+            if not re.fullmatch(r"genesis-[0-9a-f]{24}", run_id):
+                self._send_json(
+                    {"ok": False, "error": "Genesis source run id is invalid"},
+                    status=404,
+                )
+                return
+            digests = qs.get("candidate_sha256", [])
+            if (
+                set(qs) != {"candidate_sha256"}
+                or len(digests) != 1
+                or not re.fullmatch(r"[0-9a-f]{64}", digests[0])
+                or self.path != f"{path}?candidate_sha256={digests[0]}"
+            ):
+                self._send_json(
+                    {"ok": False, "error": "Genesis source download requires one exact candidate_sha256"},
+                    status=400,
+                )
+                return
+            try:
+                payload = ports.genesis_source_archive(run_id, digests[0])
+            except Exception as exc:
+                from ...orchestration.genesis import GenesisPreviewError
+
+                if not isinstance(exc, GenesisPreviewError):
+                    raise
+                self._send_json({"ok": False, "error": str(exc)}, status=404)
+                return
+            self._send_response_bytes(
+                payload,
+                content_type="application/zip",
+                headers=(
+                    ("Content-Disposition", f'attachment; filename="{run_id}-source.zip"'),
+                    ("Cache-Control", "private, no-store"),
+                    ("Referrer-Policy", "no-referrer"),
+                    ("Cross-Origin-Resource-Policy", "same-origin"),
+                    ("Content-Security-Policy", "default-src 'none'; sandbox"),
+                    ("X-Daedalus-Candidate-Sha256", digests[0]),
+                ),
+            )
+            return
+        if (
+            len(parts) < 5
+            or parts[1:3] != ["api", "genesis"]
+            or unquote(parts[4]) != "preview"
+        ):
+            self._send_json(
+                {"ok": False, "error": f"unknown endpoint {path}"}, status=404
+            )
+            return
+        run_id = unquote(parts[3])
+        if not re.fullmatch(r"genesis-[0-9a-f]{24}", run_id):
+            self._send_json(
+                {"ok": False, "error": "Genesis preview run id is invalid"},
+                status=404,
+            )
+            return
+        canonical_scope = f"/api/genesis/{quote(run_id, safe='')}/preview/"
+        if not path.startswith(canonical_scope):
+            self._send_json(
+                {"ok": False, "error": f"unknown endpoint {path}"}, status=404
+            )
+            return
+        expected_capability = genesis_preview_capability(run_id)
+        capability_segment = f"~cap-{expected_capability}"
+        tail = path[len(canonical_scope):]
+        first_segment, separator, remainder = tail.partition("/")
+        supplied_capability = (
+            first_segment[len("~cap-"):]
+            if first_segment.startswith("~cap-")
+            else None
+        )
+        if supplied_capability is None:
+            # Fetch Metadata is a browser-controlled header. A foreign page's
+            # script/img/frame request must not be allowed to mint the bearer
+            # path. Direct navigation and the same-origin cockpit may mint it.
+            if fetch_site not in {"same-origin", "none"}:
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "cross-origin Genesis preview requests are refused",
+                    },
+                    status=403,
+                )
+                return
+            location = canonical_scope + capability_segment + "/" + tail
+            self._send_response_bytes(
+                b"",
+                status=307,
+                headers=(
+                    ("Location", location),
+                    ("Cache-Control", "private, no-store"),
+                    ("Referrer-Policy", "no-referrer"),
+                ),
+            )
+            return
+        if (
+            not separator
+            or not re.fullmatch(r"[0-9a-f]{64}", supplied_capability)
+            or not hmac.compare_digest(supplied_capability, expected_capability)
+        ):
+            self._send_json(
+                {"ok": False, "error": "Genesis preview capability is invalid"},
+                status=404,
+            )
+            return
+        preview_scope = f"{preview_origin}{canonical_scope}{capability_segment}/"
+        relative_path = "/".join(unquote(part) for part in remainder.split("/"))
+        try:
+            payload, media_type = genesis_preview(run_id, relative_path)
+        except Exception as exc:
+            from ...orchestration.genesis import GenesisPreviewError
+
+            if not isinstance(exc, GenesisPreviewError):
+                raise
+            message = str(exc)
+            invalid = "invalid" in message or "not safe" in message
+            self._send_json(
+                {"ok": False, "error": message}, status=400 if invalid else 404
+            )
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", media_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "private, no-store")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header(
+            "Content-Security-Policy",
+            f"default-src 'none'; script-src {preview_scope}; "
+            f"style-src {preview_scope}; img-src {preview_scope} data:; "
+            "connect-src 'none'; worker-src 'none'; "
+            "object-src 'none'; base-uri 'none'; form-action 'none'; "
+            "frame-ancestors 'self'; sandbox allow-scripts allow-forms",
+        )
+        self.end_headers()
+        self.wfile.write(payload)
+        return
     if path == "/api/host/capabilities":
         self._send_json(core.envelope(
             None, host_capabilities=_host_capabilities()))
@@ -210,6 +437,30 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
         self._handle_events((qs.get("project") or [None])[0])
     elif path == "/api/ikarus/stream":
         self._handle_ikarus_stream(qs)
+    elif path == "/api/fourfold":
+        project = (qs.get("project") or [None])[0]
+        if not project:
+            self._send_json({"ok": False, "error": "project is required"}, status=400)
+            return
+        refresh = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+        try:
+            graph_nodes, _explicit_scope = _graph_node_limit(qs, default=800)
+        except ValueError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=400)
+            return
+        # This is a read projection of the canonical legacy Forest adapter.
+        # The richer index has a distinct cache scope, so opening Fourfold
+        # cannot change the code-only structure baseline.
+        idx = _structure_index(project, refresh, fourfold=True)
+        self._send_json(core.envelope(
+            project,
+            fourfold=fourfold_read_projection(
+                idx,
+                repository_id=project,
+                created_at=core.now_iso(),
+                max_nodes=graph_nodes,
+            ),
+        ))
     elif path == "/api/structure":
         project = (qs.get("project") or [None])[0]
         if not project:
@@ -217,27 +468,13 @@ def handle_get(handler: Any, *, ports: ReadPorts) -> None:
             return
         refresh = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
         idx = _structure_index(project, refresh)
-        graph_nodes_raw = (qs.get("graph_nodes") or [""])[0].strip().lower()
-        graph_nodes: int | None = 2000
+        try:
+            graph_nodes, explicit_scope = _graph_node_limit(qs, default=2000)
+        except ValueError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=400)
+            return
         graph_edges: int | None = 8000
-        if graph_nodes_raw:
-            if graph_nodes_raw == "all":
-                graph_nodes = None
-            else:
-                try:
-                    graph_nodes = int(graph_nodes_raw)
-                except ValueError:
-                    self._send_json(
-                        {"ok": False, "error": "graph_nodes must be a positive integer or 'all'"},
-                        status=400,
-                    )
-                    return
-                if graph_nodes < 1:
-                    self._send_json(
-                        {"ok": False, "error": "graph_nodes must be a positive integer or 'all'"},
-                        status=400,
-                    )
-                    return
+        if explicit_scope:
             # When the owner explicitly chooses a node projection, include
             # every edge whose endpoints are in it. Otherwise an `all`
             # node view could still be an 8000-edge partial graph.

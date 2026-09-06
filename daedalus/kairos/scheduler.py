@@ -201,6 +201,28 @@ class KairosScheduler:
                                   decision.persona, decision.mode, True, decision.reason))
         return out
 
+    def schedule_computer(self, authority_root, due_at: str, objective: str, *, owner_confirmed: bool = False,
+                          repeat_every_s: int | None = None, occurrences: int = 1) -> dict:
+        """Admit an owner-directed deferred computer mission on the same spine."""
+        from ..orchestration.ikarus.computer_schedule import schedule_computer
+        return schedule_computer(authority_root, due_at, objective, owner_confirmed=owner_confirmed,
+                                 repeat_every_s=repeat_every_s, occurrences=occurrences)
+
+    def enqueue_computer(self, authority_root, objective: str, *, owner_confirmed: bool = False) -> dict:
+        """Queue explicit owner work on the same canonical scheduled-task path."""
+        from ..orchestration.ikarus.computer_schedule import enqueue_computer
+        return enqueue_computer(authority_root, objective, owner_confirmed=owner_confirmed)
+
+    def cancel_computer_schedule(self, authority_root, schedule_id: str, *, owner_confirmed: bool = False) -> dict:
+        """Request cooperative cancellation of one canonical task series."""
+        from ..orchestration.ikarus.computer_schedule import cancel_computer_schedule
+        return cancel_computer_schedule(authority_root, schedule_id, owner_confirmed=owner_confirmed)
+
+    def dispatch_due_computer(self, authority_root, *, now=None, cancelled=None) -> list[dict]:
+        """One bounded due mission per existing watcher/manual scheduler tick."""
+        from ..orchestration.ikarus.computer_schedule import dispatch_due_computer
+        return dispatch_due_computer(authority_root, now=now, cancelled=cancelled)
+
     def plan(self, tasks: list[dict], repo_root: str | None = None) -> dict:
         """Dry run: who gets spawned, in how many bounded waves."""
         acc = self.accept(tasks, repo_root=repo_root)

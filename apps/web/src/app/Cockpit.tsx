@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Aperture, ArrowUpRight, Boxes, Code2, MessageCircle, Network, Palette, RefreshCw, Search, Settings2, Sparkles } from 'lucide-react';
+import { SpatialScene } from '@/shared/ui/scene/SpatialScene';
+import { SceneEnvironment } from '@/shared/ui/scene/SceneEnvironment';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  getFourfold,
   getGovernance,
   getHealth,
   getProjects,
@@ -13,7 +17,7 @@ import {
 } from '@/shared/api';
 import { useThemes } from '@/shared/ui/theme/ThemeProvider';
 import { ThemeStudio } from '@/shared/ui/theme/ThemeStudio';
-import type { GovernancePayload, ProjectRow, StructurePayload, TopologyPayload } from '@/shared/contracts';
+import type { FourfoldPayload, GovernancePayload, ProjectRow, StructurePayload, TopologyPayload } from '@/shared/contracts';
 import type { DraftRow } from '@/shared/api';
 import GlassSurface from '@/shared/ui/glass/GlassSurface';
 import {
@@ -25,19 +29,22 @@ import {
   transitionFor,
   useReducedMotionPref
 } from '@/shared/ui/motion';
-import { loadAutonomy, saveAutonomy, type AutonomyLevel } from '@/features/settings/autonomy';
 import { Conversation } from '@/features/conversation/Conversation';
 import { ThreadList } from '@/features/conversation/ThreadList';
 import { WorkRail } from '@/features/mission/WorkRail';
 import { HealthPanel } from '@/features/system/HealthPanel';
 import { PromotionPanel } from '@/features/system/PromotionPanel';
-import { EMPTY_LIVE, markDisconnected, markSeen, reduceLiveEvent } from '@/features/mission/live';
+import { EMPTY_LIVE, markDisconnected, markSeen, reduceLiveEvent, type LiveState } from '@/features/mission/live';
 import type { OpenDispatch } from '@/features/conversation/model';
 import { Settings } from '@/features/settings/Settings';
-import { Decision } from '@/features/mission/Decision';
+import { Decision, type DecisionBinding } from '@/features/mission/Decision';
 import { IdeWorkspace } from '@/features/ide/IdeWorkspace';
+import { GenesisWorkspace } from '@/features/genesis/Genesis';
+import { AriadneWorkbench } from '@/features/ariadne/Ariadne';
 import { ProjectDialog } from '@/features/projects/ProjectDialog';
 import { buildIndex, defaultFocus, neighbourhood, rankModules, searchModules, shortLabel } from '@/features/twin/graph';
+import type { FourfoldScope } from '@/features/twin/FourfoldStage';
+import type { FourfoldLayout } from '@/features/twin/fourfold';
 import { Stage } from '@/features/twin/Stage';
 import { StatusLine } from './StatusLine';
 import './styles/cockpit.css';
@@ -66,7 +73,37 @@ function isTypingTarget(target: EventTarget | null): boolean {
  */
 
 const LAST_FOCUS_KEY = 'daedalus-cockpit-focus';
-type CockpitView = 'map' | 'chat' | 'ide';
+type CockpitView = 'map' | 'chat' | 'ide' | 'genesis' | 'ariadne';
+type GraphMode = 'modules' | 'fourfold';
+
+function sameProjectBinding(left: DecisionBinding, right: DecisionBinding): boolean {
+  return left.project === right.project && left.generation === right.generation;
+}
+
+interface ProjectSnapshot<T> extends DecisionBinding {
+  value: T;
+}
+
+function currentProjectValue<T>(
+  snapshot: ProjectSnapshot<T> | undefined,
+  binding: DecisionBinding
+): T | undefined {
+  return snapshot && sameProjectBinding(snapshot, binding) ? snapshot.value : undefined;
+}
+
+interface CockpitThreadState extends DecisionBinding {
+  id: string;
+  settled: number;
+  labels: Record<string, string>;
+  openDispatches: OpenDispatch[];
+}
+
+// Sigma + Graphology are the only heavy renderer dependencies in the app.
+// Keep them out of the initial cockpit chunk until Fourfold is selected.
+const FourfoldStage = lazy(async () => {
+  const module = await import('@/features/twin/FourfoldStage');
+  return { default: module.FourfoldStage };
+});
 
 export function Cockpit() {
   const { theme } = useThemes();
@@ -74,15 +111,35 @@ export function Cockpit() {
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [project, setProject] = useState('');
-  const [structure, setStructure] = useState<StructurePayload | undefined>();
-  const [structureFor, setStructureFor] = useState('');
-  const [topology, setTopology] = useState<TopologyPayload | undefined>();
+  /** The project boundary closes during render, before effects or GETs run. */
+  const projectBindingRef = useRef<DecisionBinding>({ project, generation: 0 });
+  if (projectBindingRef.current.project !== project) {
+    projectBindingRef.current = {
+      project,
+      generation: projectBindingRef.current.generation + 1
+    };
+  }
+  const projectBinding = projectBindingRef.current;
+  const [structureSnapshot, setStructureSnapshot] = useState<ProjectSnapshot<StructurePayload> | undefined>();
+  const structure = currentProjectValue(structureSnapshot, projectBinding);
+  const structureFor = structure ? projectBinding.project : '';
+  const [graphMode, setGraphMode] = useState<GraphMode>('modules');
+  const [fourfold, setFourfold] = useState<FourfoldPayload | undefined>();
+  const [fourfoldFor, setFourfoldFor] = useState('');
+  const [fourfoldLoadedScope, setFourfoldLoadedScope] = useState<FourfoldScope>('overview');
+  const [fourfoldScope, setFourfoldScope] = useState<FourfoldScope>('overview');
+  const [fourfoldLayout, setFourfoldLayout] = useState<FourfoldLayout>('layers');
+  const [fourfoldLoading, setFourfoldLoading] = useState(false);
+  const [fourfoldError, setFourfoldError] = useState('');
+  const [topologySnapshot, setTopologySnapshot] = useState<ProjectSnapshot<TopologyPayload> | undefined>();
+  const topology = currentProjectValue(topologySnapshot, projectBinding);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [offline, setOffline] = useState(false);
   const [health, setHealth] = useState<HealthPayload | undefined>();
   const [healthError, setHealthError] = useState('');
-  const [governance, setGovernance] = useState<GovernancePayload | undefined>();
+  const [governanceSnapshot, setGovernanceSnapshot] = useState<ProjectSnapshot<GovernancePayload> | undefined>();
+  const governance = currentProjectValue(governanceSnapshot, projectBinding);
   const [focus, setFocus] = useState('');
   const [direction] = useState<'both'>('both');
   /**
@@ -97,10 +154,10 @@ export function Cockpit() {
    */
   const [view, setView] = useState<CockpitView>(() => {
     const fromUrl = new URLSearchParams(location.search).get('view');
-    if (fromUrl === 'chat' || fromUrl === 'map' || fromUrl === 'ide') return fromUrl;
+    if (fromUrl === 'chat' || fromUrl === 'map' || fromUrl === 'ide' || fromUrl === 'genesis' || fromUrl === 'ariadne') return fromUrl;
     try {
       const saved = localStorage.getItem('daedalus-cockpit-view');
-      return saved === 'chat' || saved === 'ide' ? saved : 'map';
+      return saved === 'chat' || saved === 'ide' || saved === 'genesis' || saved === 'ariadne' ? saved : 'map';
     } catch {
       return 'map';
     }
@@ -120,8 +177,6 @@ export function Cockpit() {
       return '';
     }
   });
-  const [autonomy, setAutonomy] = useState<AutonomyLevel>(loadAutonomy);
-  const [autoLog, setAutoLog] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteActive, setPaletteActive] = useState(0);
   const [query, setQuery] = useState('');
@@ -134,12 +189,35 @@ export function Cockpit() {
    * whole `report` payload. The fold now lives in `features/mission/live.ts`
    * so a frame can be fed to it and asserted.
    */
-  const [live, setLive] = useState(EMPTY_LIVE);
-  const [streamLive, setStreamLive] = useState(false);
+  const [liveSnapshot, setLiveSnapshot] = useState<ProjectSnapshot<LiveState>>({
+    ...projectBinding,
+    value: EMPTY_LIVE
+  });
+  const live = currentProjectValue(liveSnapshot, projectBinding) || EMPTY_LIVE;
+  const updateLive = useCallback(
+    (binding: DecisionBinding, reduce: (previous: LiveState) => LiveState) => {
+      if (!sameProjectBinding(projectBindingRef.current, binding)) return;
+      setLiveSnapshot((current) => {
+        // A state updater can itself be deferred. Re-check the synchronous
+        // project epoch here so an updater queued by a closed EventSource can
+        // never become the first snapshot of a later project generation.
+        if (!sameProjectBinding(projectBindingRef.current, binding)) return current;
+        const previous = sameProjectBinding(current, binding) ? current.value : EMPTY_LIVE;
+        const value = reduce(previous);
+        return sameProjectBinding(current, binding) && value === previous
+          ? current
+          : { ...binding, value };
+      });
+    },
+    []
+  );
   const [budget, setBudget] = useState<{ hidden1: number; hidden2: number; ids: string[] }>({ hidden1: 0, hidden2: 0, ids: [] });
   const [paletteScope, setPaletteScope] = useState<'all' | 'hidden'>('all');
   const [draftSignal, setDraftSignal] = useState(0);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingCountState, setPendingCountState] = useState<DecisionBinding & { count: number }>({
+    ...projectBinding,
+    count: 0
+  });
   /** The rail beside the conversation: threads, the work overview, or the map. */
   const [railTab, setRailTab] = useState<'verlauf' | 'arbeit' | 'karte'>('verlauf');
   /**
@@ -150,11 +228,26 @@ export function Cockpit() {
    */
   const railSeenRef = useRef(false);
   /** Every pending draft, handed up by the decision card that already read them. */
-  const [pendingDrafts, setPendingDrafts] = useState<{ rows: DraftRow[]; scoped: boolean }>({ rows: [], scoped: false });
+  const [pendingDrafts, setPendingDrafts] = useState<DecisionBinding & { rows: DraftRow[]; scoped: boolean }>({
+    ...projectBinding,
+    rows: [],
+    scoped: false
+  });
   const onPendingDrafts = useCallback(
-    (rows: DraftRow[], scoped: boolean) => setPendingDrafts({ rows, scoped }),
+    (binding: DecisionBinding, rows: DraftRow[], scoped: boolean) => {
+      if (!sameProjectBinding(projectBindingRef.current, binding)) return;
+      setPendingDrafts({ ...binding, rows, scoped });
+    },
     []
   );
+  const onPendingCount = useCallback((binding: DecisionBinding, count: number) => {
+    if (!sameProjectBinding(projectBindingRef.current, binding)) return;
+    setPendingCountState({ ...binding, count });
+  }, []);
+  const onDecisionChanged = useCallback((binding: DecisionBinding) => {
+    if (!sameProjectBinding(projectBindingRef.current, binding)) return;
+    setDraftSignal((value) => value + 1);
+  }, []);
   /**
    * The draft queue belongs to the project it was read for.
    *
@@ -164,18 +257,16 @@ export function Cockpit() {
    * for the whole of that window — the wrong-project form of the defect the
    * decision card itself was rebuilt for in August.
    */
-  useEffect(() => {
-    setPendingDrafts({ rows: [], scoped: false });
-  }, [project]);
   /** A thread chosen in the rail; the serial makes re-picking the same id a fresh request. */
-  const [threadPick, setThreadPick] = useState<{ id: string; serial: number } | undefined>();
+  const [threadPick, setThreadPick] = useState<(DecisionBinding & { id: string; serial: number }) | undefined>();
   /** What the conversation holds, so the rail can mark it and re-read after a turn. */
-  const [threadState, setThreadState] = useState<{
-    id: string;
-    settled: number;
-    labels: Record<string, string>;
-    openDispatches: OpenDispatch[];
-  }>({ id: '', settled: 0, labels: {}, openDispatches: [] });
+  const [threadState, setThreadState] = useState<CockpitThreadState>({
+    ...projectBinding,
+    id: '',
+    settled: 0,
+    labels: {},
+    openDispatches: []
+  });
   /**
    * The rail is on screen only when the conversation view is open AND the
    * Arbeit tab is the one showing. A ref, because the SSE callback is created
@@ -183,16 +274,19 @@ export function Cockpit() {
    */
   useEffect(() => {
     railSeenRef.current = view === 'chat' && railTab === 'arbeit';
-    if (railSeenRef.current) setLive(markSeen);
-  }, [railTab, view]);
+    if (railSeenRef.current) updateLive(projectBindingRef.current, markSeen);
+  }, [railTab, updateLive, view]);
 
   const onThreadState = useCallback(
-    (state: { id: string; settled: number; labels: Record<string, string>; openDispatches: OpenDispatch[] }) =>
-      setThreadState(state),
+    (state: CockpitThreadState) => {
+      if (!sameProjectBinding(projectBindingRef.current, state)) return;
+      setThreadState(state);
+    },
     []
   );
   const projectsSerial = useRef(0);
   const serial = useRef(0);
+  const fourfoldSerial = useRef(0);
   /** the project the map on screen belongs to, read outside render */
   const loadedFor = useRef('');
 
@@ -234,7 +328,13 @@ export function Cockpit() {
   const loadStructure = useCallback(
     async (name: string, refresh = false) => {
       if (!name) return;
+      const binding = { ...projectBindingRef.current };
+      if (binding.project !== name) return;
       const mine = ++serial.current;
+      const isCurrent = () => (
+        mine === serial.current
+        && sameProjectBinding(projectBindingRef.current, binding)
+      );
       setLoading(true);
       setError('');
       // SWITCHING PROJECTS CLEARS THE MAP FIRST.
@@ -245,24 +345,27 @@ export function Cockpit() {
       // surface, and the one tests/cockpit.spec.ts now fails on. A refresh of
       // the SAME project keeps its map, because there the old picture is still
       // a true picture of the thing being redrawn.
-      if (loadedFor.current && loadedFor.current !== name) {
-        setStructure(undefined);
+      const bindingKey = `${binding.generation}:${binding.project}`;
+      if (loadedFor.current && loadedFor.current !== bindingKey) {
+        setStructureSnapshot(undefined);
         setFocus('');
       }
-      loadedFor.current = name;
+      loadedFor.current = bindingKey;
       try {
         const payload = await getStructure(name, refresh);
-        if (mine !== serial.current) return;
-        setStructure(payload);
-        setStructureFor(name);
+        if (!isCurrent()) return;
+        if (payload.project !== binding.project) {
+          throw new Error(`Die Karte meldet Projekt ${String(payload.project)}, erwartet war ${binding.project}.`);
+        }
+        setStructureSnapshot({ ...binding, value: payload });
         setOffline(false);
       } catch (e) {
-        if (mine !== serial.current) return;
-        setStructure(undefined);
+        if (!isCurrent()) return;
+        setStructureSnapshot(undefined);
         setOffline(isBackendDown(e));
         setError(e instanceof Error ? e.message : 'Die Karte konnte nicht gebaut werden.');
       } finally {
-        if (mine === serial.current) setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
     },
     []
@@ -270,7 +373,64 @@ export function Cockpit() {
 
   useEffect(() => {
     if (project) void loadStructure(project);
-  }, [project, loadStructure]);
+  }, [loadStructure, project, projectBinding.generation]);
+
+  /* ---- Fourfold (the explicit Project-Twin graph) ---- */
+  const loadFourfold = useCallback(
+    async (name: string, scope: FourfoldScope, refresh = false) => {
+      if (!name) return;
+      const mine = ++fourfoldSerial.current;
+      setFourfoldLoading(true);
+      setFourfoldError('');
+      setFourfold(undefined);
+      try {
+        const payload = await getFourfold(name, scope === 'all' ? 'all' : 800, refresh);
+        if (mine !== fourfoldSerial.current) return;
+        setFourfold(payload);
+        setFourfoldFor(name);
+        setFourfoldLoadedScope(scope);
+        setOffline(false);
+      } catch (reason) {
+        if (mine !== fourfoldSerial.current) return;
+        setFourfold(undefined);
+        setOffline(isBackendDown(reason));
+        setFourfoldError(reason instanceof Error ? reason.message : 'Der Fourfold-Graph konnte nicht gebaut werden.');
+      } finally {
+        if (mine === fourfoldSerial.current) setFourfoldLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    fourfoldSerial.current += 1;
+    setFourfold(undefined);
+    setFourfoldFor('');
+    setFourfoldError('');
+    setFourfoldLoading(false);
+  }, [project]);
+
+  // The rich documents/types/wiki scan starts only after the lean structure
+  // read has settled. On large repositories running both concurrently can
+  // double the parser's memory peak for no user-visible benefit.
+  useEffect(() => {
+    const ready = structureFor === project && !loading;
+    const loaded = fourfoldFor === project && fourfoldLoadedScope === fourfoldScope && Boolean(fourfold);
+    if (graphMode !== 'fourfold' || !project || !ready || loaded || fourfoldLoading || fourfoldError) return;
+    void loadFourfold(project, fourfoldScope);
+  }, [
+    fourfold,
+    fourfoldError,
+    fourfoldFor,
+    fourfoldLoadedScope,
+    fourfoldLoading,
+    fourfoldScope,
+    graphMode,
+    loadFourfold,
+    loading,
+    project,
+    structureFor
+  ]);
 
   /**
    * The spectral read of the import graph, fetched AFTER the map so it can
@@ -280,15 +440,22 @@ export function Cockpit() {
    */
   useEffect(() => {
     if (!structureFor) return;
+    const binding = { ...projectBindingRef.current };
     let alive = true;
-    setTopology(undefined);
+    setTopologySnapshot(undefined);
     getTopology(structureFor)
-      .then((p) => alive && setTopology(p))
-      .catch(() => alive && setTopology(undefined));
+      .then((payload) => {
+        if (!alive || !sameProjectBinding(projectBindingRef.current, binding)) return;
+        if (payload.project !== binding.project) return;
+        setTopologySnapshot({ ...binding, value: payload });
+      })
+      .catch(() => {
+        if (alive && sameProjectBinding(projectBindingRef.current, binding)) setTopologySnapshot(undefined);
+      });
     return () => {
       alive = false;
     };
-  }, [structureFor]);
+  }, [projectBinding.generation, structureFor]);
 
   /* ---- health + governance ---- */
   useEffect(() => {
@@ -303,38 +470,48 @@ export function Cockpit() {
 
   useEffect(() => {
     if (!project) return;
+    const binding = { ...projectBindingRef.current };
     let alive = true;
     getGovernance(project)
-      .then((p) => alive && setGovernance(p))
-      .catch(() => alive && setGovernance(undefined));
+      .then((payload) => {
+        if (!alive || !sameProjectBinding(projectBindingRef.current, binding)) return;
+        if (payload.project !== binding.project) return;
+        setGovernanceSnapshot({ ...binding, value: payload });
+      })
+      .catch(() => {
+        if (alive && sameProjectBinding(projectBindingRef.current, binding)) setGovernanceSnapshot(undefined);
+      });
     return () => {
       alive = false;
     };
-  }, [project]);
+  }, [project, projectBinding.generation]);
 
   /* ---- live counters ---- */
   useEffect(() => {
     if (!project) return;
+    const binding = { ...projectBindingRef.current };
+    let alive = true;
+    const isCurrent = () => alive && sameProjectBinding(projectBindingRef.current, binding);
     // Nothing the previous project's bus said is true of this one. The counts,
     // the watcher, the report list and the announcement all start empty, and
     // the surface says "not reported yet" until this project's stream speaks.
-    setLive(EMPTY_LIVE);
+    updateLive(binding, () => EMPTY_LIVE);
     const es = openEventStream(project, (name, data) => {
-      if (name === 'hello' || name === 'heartbeat') setStreamLive(true);
+      if (!isCurrent()) return;
       // A report the reader is already looking at is not news to announce.
-      setLive((prev) => reduceLiveEvent(prev, name, data, railSeenRef.current));
+      updateLive(binding, (previous) => reduceLiveEvent(previous, name, data, railSeenRef.current));
       if (name === 'report') setDraftSignal((n) => n + 1);
     });
     es.addEventListener('error', () => {
-      setStreamLive(false);
-      setLive(markDisconnected);
+      if (!isCurrent()) return;
+      updateLive(binding, markDisconnected);
     });
     return () => {
+      alive = false;
       es.close();
-      setStreamLive(false);
-      setLive(markDisconnected);
+      updateLive(binding, markDisconnected);
     };
-  }, [project]);
+  }, [project, projectBinding.generation, updateLive]);
 
   /* ---- the graph model ---- */
   const index = useMemo(() => buildIndex(structure?.structure?.graph), [structure]);
@@ -364,11 +541,6 @@ export function Cockpit() {
     }
   }, []);
 
-  const chooseAutonomy = useCallback((level: AutonomyLevel) => {
-    setAutonomy(level);
-    saveAutonomy(level);
-  }, []);
-
   const goto = useCallback((next: CockpitView) => {
     setView(next);
     try {
@@ -377,6 +549,24 @@ export function Cockpit() {
       /* storage blocked — the choice still holds for this session */
     }
   }, []);
+
+  const chooseGraphMode = useCallback((next: GraphMode) => {
+    setGraphMode(next);
+    setFourfoldError('');
+  }, []);
+
+  const chooseFourfoldScope = useCallback((next: FourfoldScope) => {
+    fourfoldSerial.current += 1;
+    setFourfoldScope(next);
+    setFourfold(undefined);
+    setFourfoldError('');
+    setFourfoldLoading(false);
+  }, []);
+
+  const refreshMap = useCallback(() => {
+    if (graphMode === 'fourfold') return loadFourfold(project, fourfoldScope, true);
+    return loadStructure(project, true);
+  }, [fourfoldScope, graphMode, loadFourfold, loadStructure, project]);
 
   const chooseFocus = useCallback(
     (module: string) => {
@@ -445,12 +635,14 @@ export function Cockpit() {
       const chord = e.ctrlKey || e.metaKey;
       if (chord && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        if (settingsOpen || studioOpen || healthOpen || promotionOpen) return;
         setPaletteScope('all');
         setPaletteOpen((v) => !v);
         return;
       }
       if (chord && e.key === ',') {
         e.preventDefault();
+        if (paletteOpen || studioOpen || healthOpen || promotionOpen) return;
         setSettingsOpen((v) => !v);
         return;
       }
@@ -466,11 +658,13 @@ export function Cockpit() {
       if (e.key === '1') goto('map');
       else if (e.key === '2') goto('chat');
       else if (e.key === '3') goto('ide');
-      else if (e.key.toLowerCase() === 'r') void loadStructure(project, true);
+      else if (e.key === '4') goto('genesis');
+      else if (e.key === '5') goto('ariadne');
+      else if (e.key.toLowerCase() === 'r') void refreshMap();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [goto, healthOpen, loadStructure, paletteOpen, project, promotionOpen, settingsOpen, studioOpen]);
+  }, [goto, healthOpen, paletteOpen, promotionOpen, refreshMap, settingsOpen, studioOpen]);
 
   const onBudget = useCallback(
     (hidden1: number, hidden2: number, ids: string[]) => setBudget({ hidden1, hidden2, ids }),
@@ -488,8 +682,16 @@ export function Cockpit() {
    * arithmetic as the rail itself: an unscoped draft pile is never counted
    * under this project's name.
    */
+  const currentPendingDrafts = sameProjectBinding(pendingDrafts, projectBinding)
+    ? pendingDrafts
+    : { ...projectBinding, rows: [], scoped: false };
+  const currentThreadState = sameProjectBinding(threadState, projectBinding)
+    ? threadState
+    : { ...projectBinding, id: '', settled: 0, labels: {}, openDispatches: [] };
+  const pendingCount = sameProjectBinding(pendingCountState, projectBinding) ? pendingCountState.count : 0;
+  const currentThreadPick = threadPick && sameProjectBinding(threadPick, projectBinding) ? threadPick : undefined;
   const workWaiting =
-    (pendingDrafts.scoped ? pendingDrafts.rows.length : 0) + (live.quarantined || 0) + (live.unread || 0);
+    (currentPendingDrafts.scoped ? currentPendingDrafts.rows.length : 0) + (live.quarantined || 0) + (live.unread || 0);
   /** What the rail's tab has to announce: things waiting, plus reports that
    *  arrived while the reader was looking somewhere else. */
   const railBadge = workWaiting + live.unseen;
@@ -501,27 +703,28 @@ export function Cockpit() {
     <Conversation
       key={project || '__no_project__'}
       project={project}
+      generation={projectBinding.generation}
       resolveModule={resolveModule}
       onFocusModule={chooseFocus}
       onGoMap={() => goto('map')}
       contextModule={contextModule}
       provider={brain || undefined}
       onProvider={chooseBrain}
-      autonomy={autonomy}
-      onDispatched={() => {
+      onDispatched={(binding) => {
+        if (!sameProjectBinding(projectBindingRef.current, binding)) return;
         setDraftSignal((n) => n + 1);
-        setAutoLog((n) => n + 1);
       }}
-      pickThread={threadPick}
+      pickThread={currentThreadPick}
       onThreadState={onThreadState}
     />
   );
   const decision = (
     <Decision
       project={project}
+      generation={projectBinding.generation}
       signal={draftSignal}
-      onChanged={() => setDraftSignal((n) => n + 1)}
-      onCount={setPendingCount}
+      onChanged={onDecisionChanged}
+      onCount={onPendingCount}
       onPending={onPendingDrafts}
     />
   );
@@ -615,6 +818,7 @@ export function Cockpit() {
             Öffne oben „Projekt hinzufügen“ und registriere den vollständigen lokalen Pfad eines bestehenden
             Checkouts. Der Ordner bleibt an seinem Platz.
           </p>
+          <button type="button" onClick={() => goto('genesis')}>Oder ein neues Produkt mit Genesis bauen</button>
         </>
       ) : loading ? (
         <>
@@ -641,6 +845,64 @@ export function Cockpit() {
     </div>
   );
 
+  const fourfoldReady =
+    fourfoldFor === project && fourfoldLoadedScope === fourfoldScope && Boolean(fourfold);
+  const fourfoldEmpty = (
+    <div className="stage-empty fourfold-load-state">
+      {!project ? (
+        <>
+          <h2>Kein erreichbarer Checkout ausgewählt.</h2>
+          <p>Wähle ein Projekt aus, damit der Fourfold-Graph aus seinem Project Twin gelesen werden kann.</p>
+        </>
+      ) : loading || fourfoldLoading || structureFor !== project ? (
+        <>
+          <h2>Der Fourfold-Graph wird gebaut.</h2>
+          <p>
+            Code, Typen und Wissensquellen werden als getrennte Ebenen gelesen. Fehlende Ebenen bleiben ausdrücklich leer.
+          </p>
+        </>
+      ) : fourfoldError ? (
+        <>
+          <h2>Der Fourfold-Graph konnte nicht gebaut werden.</h2>
+          <p>{fourfoldError}</p>
+          <button type="button" onClick={() => void loadFourfold(project, fourfoldScope, true)}>
+            Noch einmal versuchen
+          </button>
+        </>
+      ) : error ? (
+        <>
+          <h2>Der Projektindex fehlt.</h2>
+          <p>{error}</p>
+          <button type="button" onClick={() => void loadStructure(project, true)}>Index erneut bauen</button>
+        </>
+      ) : (
+        <>
+          <h2>Keine Fourfold-Daten empfangen.</h2>
+          <p>Die API hat für dieses Projekt noch keine lesbare Projektion geliefert.</p>
+        </>
+      )}
+    </div>
+  );
+
+  const graphModeSwitch = (
+    <nav className="graph-mode-switch" aria-label="Graphansicht">
+      <button
+        type="button"
+        aria-pressed={graphMode === 'modules'}
+        onClick={() => chooseGraphMode('modules')}
+      >
+        Modulumfeld
+      </button>
+      <button
+        type="button"
+        aria-pressed={graphMode === 'fourfold'}
+        onClick={() => chooseGraphMode('fourfold')}
+      >
+        Fourfold
+      </button>
+    </nav>
+  );
+
   const chrome =
     theme.composition.chrome === 'masthead' ? (
       <header className="chrome masthead">
@@ -657,14 +919,18 @@ export function Cockpit() {
               setPaletteScope('all');
               setPaletteOpen(true);
             }}
-            onRefresh={() => void loadStructure(project, true)}
-            loading={loading}
+            onRefresh={() => void refreshMap()}
+            loading={loading || fourfoldLoading}
           />
         </div>
         <div className="masthead-rule" />
       </header>
     ) : (
       <header className="chrome bar">
+        <div className="workspace-brand" role="img" aria-label="Daedalus — your ideas, in motion">
+          <span className="workspace-brand-mark"><Aperture size={22} strokeWidth={1.4} aria-hidden="true" /></span>
+          <span>daedalus<span className="workspace-brand-caption">YOUR IDEAS, IN MOTION</span></span>
+        </div>
         <ProjectPicker projects={projects} project={project} onPick={setProject} onRegistered={loadProjects} reduced={reducedMotion} />
         <span className="chrome-divider" aria-hidden="true" />
         <ViewSwitch view={view} onGo={goto} pending={pendingCount} reduced={reducedMotion} />
@@ -676,35 +942,64 @@ export function Cockpit() {
             setPaletteScope('all');
             setPaletteOpen(true);
           }}
-          onRefresh={() => void loadStructure(project, true)}
-          loading={loading}
+          onRefresh={() => void refreshMap()}
+          loading={loading || fourfoldLoading}
         />
       </header>
     );
 
   return (
     <div className="cockpit" data-view={view}>
+      <SceneEnvironment />
+      {view !== 'chat' && <SpatialScene />}
       {chrome}
 
-      {view === 'map' ? (
+      {view === 'map' && (
         <main className="cockpit-body map">
           <div className="cockpit-stage">
-            {nh ? (
-              <Stage
-                neighbourhood={nh}
-                theme={theme}
-                onFocus={chooseFocus}
-                onBudget={onBudget}
-                onShowHidden={showHidden}
-                header={stageHeader}
-              />
+            {graphModeSwitch}
+            {graphMode === 'modules' ? (
+              nh ? (
+                <Stage
+                  neighbourhood={nh}
+                  theme={theme}
+                  onFocus={chooseFocus}
+                  onBudget={onBudget}
+                  onShowHidden={showHidden}
+                  header={stageHeader}
+                />
+              ) : (
+                emptyStage
+              )
+            ) : fourfoldReady && fourfold ? (
+              <Suspense fallback={fourfoldEmpty}>
+                <FourfoldStage
+                  payload={fourfold}
+                  layout={fourfoldLayout}
+                  scope={fourfoldScope}
+                  onLayout={setFourfoldLayout}
+                  onScope={chooseFourfoldScope}
+                />
+              </Suspense>
             ) : (
-              emptyStage
+              fourfoldEmpty
             )}
           </div>
         </main>
-      ) : view === 'chat' ? (
-        <main className="cockpit-body talk">
+      )}
+      {/* Keep the project-bound conversation and its request observation alive
+          while the owner inspects another view. `hidden` removes it visually;
+          `inert` also makes the dormant controls unreachable to keyboard and
+          assistive-technology interaction. The project key above remains the
+          one deliberate remount boundary. */}
+      <main
+        className="cockpit-body talk"
+        hidden={view !== 'chat'}
+        /* React 18 only forwards `inert` as a string; its boolean form is
+           dropped at runtime even though the installed React 19 types accept
+           it. Presence is the HTML contract, so the empty string is exact. */
+        inert={view !== 'chat' ? ('' as unknown as boolean) : undefined}
+      >
           <section className="talk-main">
             {decision}
             {conversation}
@@ -715,18 +1010,17 @@ export function Cockpit() {
                 and neither is a standing panel (owner ruling: Knowledge is an
                 inspector). Verlauf opens first: the first question on this page
                 is "where was I". */}
-            <div className="rail-tabs" role="tablist" aria-label="Neben dem Gespräch">
-              <button type="button" role="tab" aria-selected={railTab === 'verlauf'} className={railTab === 'verlauf' ? 'on' : ''} onClick={() => setRailTab('verlauf')}>
+            <nav className="rail-tabs" aria-label="Neben dem Gespräch">
+              <button type="button" aria-pressed={railTab === 'verlauf'} className={railTab === 'verlauf' ? 'on' : ''} onClick={() => setRailTab('verlauf')}>
                 Verlauf
               </button>
               <button
                 type="button"
-                role="tab"
-                aria-selected={railTab === 'arbeit'}
+                aria-pressed={railTab === 'arbeit'}
                 className={railTab === 'arbeit' ? 'on' : ''}
                 onClick={() => {
                   setRailTab('arbeit');
-                  setLive(markSeen);
+                  updateLive(projectBindingRef.current, markSeen);
                 }}
               >
                 Arbeit
@@ -734,17 +1028,17 @@ export function Cockpit() {
                   <span className={live.unseen > 0 ? 'rail-badge new' : 'rail-badge'}>{railBadge}</span>
                 )}
               </button>
-              <button type="button" role="tab" aria-selected={railTab === 'karte'} className={railTab === 'karte' ? 'on' : ''} onClick={() => setRailTab('karte')}>
+              <button type="button" aria-pressed={railTab === 'karte'} className={railTab === 'karte' ? 'on' : ''} onClick={() => setRailTab('karte')}>
                 Karte
               </button>
-            </div>
+            </nav>
             {railTab === 'arbeit' && (
               <WorkRail
                 project={project}
-                drafts={pendingDrafts.rows}
-                draftsScoped={pendingDrafts.scoped}
-                live={{ ...live, connected: streamLive }}
-                openDispatches={threadState.openDispatches}
+                drafts={currentPendingDrafts.rows}
+                draftsScoped={currentPendingDrafts.scoped}
+                live={live}
+                openDispatches={currentThreadState.openDispatches}
                 onGoDecision={() => setRailTab('verlauf')}
               />
             )}
@@ -752,11 +1046,19 @@ export function Cockpit() {
               <ThreadList
                 key={project}
                 project={project}
-                current={threadState.id}
-                refreshKey={threadState.settled}
-                onPick={(id) => setThreadPick((prev) => ({ id, serial: (prev?.serial || 0) + 1 }))}
-                onNew={() => setThreadPick((prev) => ({ id: '', serial: (prev?.serial || 0) + 1 }))}
-                labelOf={(id) => threadState.labels[id]}
+                current={currentThreadState.id}
+                refreshKey={currentThreadState.settled}
+                onPick={(id) => setThreadPick((previous) => ({
+                  ...projectBinding,
+                  id,
+                  serial: (previous?.serial || 0) + 1
+                }))}
+                onNew={() => setThreadPick((previous) => ({
+                  ...projectBinding,
+                  id: '',
+                  serial: (previous?.serial || 0) + 1
+                }))}
+                labelOf={(id) => currentThreadState.labels[id]}
               />
             )}
             {railTab === 'karte' && nh && (
@@ -775,10 +1077,20 @@ export function Cockpit() {
             )}
             {railTab === 'karte' && <HotList nodes={hottest} focus={focus} onPick={chooseFocus} />}
           </aside>
-        </main>
-      ) : (
+      </main>
+      {view === 'ide' && (
         <IdeWorkspace project={selectedProject} />
       )}
+      {/* Keep the long-running Genesis request and its idempotency key alive
+          while the owner briefly inspects another Cockpit view. */}
+      <GenesisWorkspace hidden={view !== 'genesis'} />
+      {/* Ariadne has the same request-identity boundary: changing the page is
+          not a request cancellation and must not mint a sibling campaign. */}
+      <AriadneWorkbench
+        project={project}
+        sourceRevision={governance?.project === project ? governance.head || '' : ''}
+        hidden={view !== 'ariadne'}
+      />
 
       <footer className="cockpit-foot">
         <StatusLine
@@ -790,7 +1102,7 @@ export function Cockpit() {
           topology={topology}
           inFlight={live.inFlight}
           queued={live.queued}
-          streamLive={streamLive}
+          streamLive={live.connected}
           onOpenHealth={() => setHealthOpen(true)}
           onOpenPromotion={() => setPromotionOpen(true)}
         />
@@ -877,9 +1189,6 @@ export function Cockpit() {
         project={project}
         brain={brain}
         onBrain={chooseBrain}
-        autonomy={autonomy}
-        onAutonomy={chooseAutonomy}
-        logSignal={autoLog}
       />
 
       <AnimatePresence>
@@ -966,7 +1275,7 @@ function KeyList<T>({
 }
 
 /**
- * Three pages, named for what they are. The active tab rides one shared pill
+ * Five pages, named for what they are. The active tab rides one shared pill
  * (`layoutId`) instead of each button drawing its own underline, so choosing
  * a page reads as the SAME control moving rather than as two independent
  * buttons toggling — a state change (`src/shared/ui/motion/variants.ts`'s `move`
@@ -995,6 +1304,7 @@ function ViewSwitch({
   // makes the measured contrast match the rendered one.
   const gespraech = (
     <>
+      <MessageCircle size={16} aria-hidden="true" />
       Gespräch
       {pending > 0 && (
         <span className="viewswitch-badge" title={`${pending} Entscheidung(en) warten`}>
@@ -1008,10 +1318,10 @@ function ViewSwitch({
       <button type="button" className={view === 'map' ? 'on' : ''} aria-current={view === 'map'} title="Karte (1)" onClick={() => onGo('map')}>
         {view === 'map' ? (
           <motion.span layoutId="viewswitch-thumb" className="viewswitch-thumb" transition={thumbTransition}>
-            Karte
+            <Network size={16} aria-hidden="true" /> Karte
           </motion.span>
         ) : (
-          'Karte'
+          <><Network size={16} aria-hidden="true" /> Karte</>
         )}
       </button>
       <button
@@ -1038,10 +1348,40 @@ function ViewSwitch({
       >
         {view === 'ide' ? (
           <motion.span layoutId="viewswitch-thumb" className="viewswitch-thumb" transition={thumbTransition}>
-            IDE
+            <Code2 size={16} aria-hidden="true" /> IDE
           </motion.span>
         ) : (
-          'IDE'
+          <><Code2 size={16} aria-hidden="true" /> IDE</>
+        )}
+      </button>
+      <button
+        type="button"
+        className={view === 'genesis' ? 'on' : ''}
+        aria-current={view === 'genesis'}
+        title="Genesis (4)"
+        onClick={() => onGo('genesis')}
+      >
+        {view === 'genesis' ? (
+          <motion.span layoutId="viewswitch-thumb" className="viewswitch-thumb" transition={thumbTransition}>
+            <Sparkles size={16} aria-hidden="true" /> Genesis
+          </motion.span>
+        ) : (
+          <><Sparkles size={16} aria-hidden="true" /> Genesis</>
+        )}
+      </button>
+      <button
+        type="button"
+        className={view === 'ariadne' ? 'on' : ''}
+        aria-current={view === 'ariadne'}
+        title="Ariadne (5)"
+        onClick={() => onGo('ariadne')}
+      >
+        {view === 'ariadne' ? (
+          <motion.span layoutId="viewswitch-thumb" className="viewswitch-thumb" transition={thumbTransition}>
+            <Boxes size={16} aria-hidden="true" /> Ariadne
+          </motion.span>
+        ) : (
+          <><Boxes size={16} aria-hidden="true" /> Ariadne</>
         )}
       </button>
     </nav>
@@ -1221,23 +1561,23 @@ function ChromeTools({
   return (
     <div className="chrome-tools">
       <button type="button" onClick={onPalette} title="Modul suchen (Strg+K)">
-        Suchen
+        <Search size={17} aria-hidden="true" /><span className="tool-label">Suchen</span>
         <kbd className="chrome-kbd">Strg K</kbd>
       </button>
       <button type="button" onClick={onRefresh} disabled={loading} title="Index neu bauen (R)">
-        {loading ? 'Liest …' : 'Neu lesen'}
+        <RefreshCw size={16} aria-hidden="true" /><span className="tool-label">{loading ? 'Liest …' : 'Neu lesen'}</span>
         {!loading && <kbd className="chrome-kbd">R</kbd>}
       </button>
       <button type="button" onClick={onSettings} title="Brain, Autonomie, Erreichbarkeit (Strg+,)">
-        Einstellungen
+        <Settings2 size={17} aria-hidden="true" /><span className="tool-label">Einstellungen</span>
         <kbd className="chrome-kbd">Strg ,</kbd>
       </button>
-      <button type="button" onClick={onStudio} title="Themes">
-        Themes
+      <button type="button" className="theme-trigger" onClick={onStudio} title="Themes">
+        <Palette size={17} aria-hidden="true" /><span>Themes</span>
       </button>
       <span className="chrome-divider" aria-hidden="true" />
       <a className="chrome-link" href="?surface=classic" title="Kompatibilitätsalias — öffnet dieselbe Cockpit-App">
-        Alte Oberfläche
+        <ArrowUpRight size={15} aria-hidden="true" /><span>Alte Oberfläche</span>
       </a>
     </div>
   );

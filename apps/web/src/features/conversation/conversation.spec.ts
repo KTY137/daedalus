@@ -1,9 +1,13 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { ConversationView } from '@/shared/api';
 import type { IkarusAskPayload } from '@/shared/contracts';
 import { COMMANDS, helpText, looksLikeCommand, matchCommands, parseCommand } from './commands';
 import { MarkdownMessage } from './MarkdownMessage';
 import {
+  activityForTurn,
+  cancelledObservation,
+  conversationConfirmsProject,
   envelopeFrom,
   ledgerFor,
   openDispatchesFrom,
@@ -13,6 +17,7 @@ import {
   stampForTurn,
   type Turn
 } from './model';
+import { createTextBatcher } from './streaming';
 
 export interface ConversationSpecResult {
   name: string;
@@ -46,10 +51,61 @@ export function runConversationSpec(): ConversationSpecResult[] {
   /* ---- ledger: the start frame alone ---- */
   const started: Turn = { role: 'ikarus', text: '', streaming: true, started: { intent: 'chat', shell: 'voice', provider_used: 'claude_code_cli' } };
   const startedRows = ledgerFor(started, labelOf);
-  check('a start frame yields a live route row and a thinking answer row', keys(startedRows) === 'route,answer', keys(startedRows));
-  check('the route names the runtime by label once it can', startedRows[0]?.datum === 'Claude Code · antwortet', startedRows[0]?.datum);
+  check('a start frame yields a live route row and an activity answer row', keys(startedRows) === 'route,answer', keys(startedRows));
+  check('the route names only the runtime selection the start frame proves', startedRows[0]?.datum === 'Claude Code · ausgewählt', startedRows[0]?.datum);
   check('the streaming route is live', startedRows[0]?.tone === 'live');
-  check('the empty stream says Ikarus denkt', startedRows[1]?.datum === 'Ikarus denkt' && startedRows[1]?.tone === 'live');
+  check('the empty stream names the observed route without claiming reasoning', startedRows[1]?.datum === 'Claude Code ist ausgewählt' && startedRows[1]?.tone === 'live');
+
+  /* ---- live cadence: only facts already present on the turn ---- */
+  const creating = activityForTurn({ role: 'ikarus', text: '', streaming: true }, labelOf);
+  const accepted = activityForTurn({ role: 'ikarus', text: '', streaming: true, requestId: 41 }, labelOf);
+  const routed = activityForTurn(started, labelOf);
+  const writing = activityForTurn({ ...started, text: 'Hallo' }, labelOf);
+  const cancelling = activityForTurn({ ...started, cancellation: 'requested' }, labelOf);
+  check('a live turn advances through observed request phases',
+    [creating?.phase, accepted?.phase, routed?.phase, writing?.phase, cancelling?.phase].join(',') === 'creating,accepted,routed,writing,cancelling');
+  check('live phase copy says only what its fields prove',
+    [creating?.label, accepted?.label, routed?.label, writing?.label, cancelling?.label].join('|')
+      === 'Anfrage wird angelegt|Anfrage angenommen|Claude Code ist ausgewählt|Claude Code antwortet|Abbruch angefordert');
+  check('a settled turn has no live activity', activityForTurn({ role: 'ikarus', text: 'fertig' }, labelOf) === undefined);
+
+  const cancelledUnknown = cancelledObservation(undefined);
+  check('a cancelled turn without a cancellation receipt stays explicitly unknown',
+    cancelledUnknown.cancellation === 'unknown'
+      && cancelledUnknown.text === 'Der Turn wurde als abgebrochen gemeldet. Abbruchzustand unbekannt.',
+    `${cancelledUnknown.cancellation}|${cancelledUnknown.text}`);
+  const cancelledConfirmed = cancelledObservation('confirmed');
+  check('only a confirmed cancellation receipt says the server confirmed the cancellation',
+    cancelledConfirmed.cancellation === 'confirmed'
+      && cancelledConfirmed.text === 'Der Server hat den Abbruch bestätigt.',
+    `${cancelledConfirmed.cancellation}|${cancelledConfirmed.text}`);
+
+  /* ---- stream cadence: transport chunks become paint-sized batches ---- */
+  let frameId = 0;
+  const frames = new Map<number, () => void>();
+  const delivered: string[] = [];
+  const batch = createTextBatcher(
+    (text) => delivered.push(text),
+    (callback) => {
+      frameId += 1;
+      frames.set(frameId, callback);
+      return frameId;
+    },
+    (handle) => { frames.delete(handle); }
+  );
+  batch.push('Hal');
+  batch.push('lo');
+  check('many transport deltas schedule one paint', frames.size === 1 && delivered.length === 0, `frames=${frames.size} delivered=${delivered.join('')}`);
+  const firstFrame = frames.entries().next().value as [number, () => void] | undefined;
+  if (firstFrame) {
+    frames.delete(firstFrame[0]);
+    firstFrame[1]();
+  }
+  check('a painted batch preserves byte order', delivered.join('') === 'Hallo', delivered.join(''));
+  batch.push(' Welt');
+  batch.finish();
+  batch.push(' verloren');
+  check('finish drains pending bytes exactly once and refuses late chunks', delivered.join('') === 'Hallo Welt' && frames.size === 0, delivered.join(''));
 
   /* ---- ledger: deterministic status answer ---- */
   const statusFinal: IkarusAskPayload = {
@@ -189,6 +245,43 @@ export function runConversationSpec(): ConversationSpecResult[] {
   check('a resumed answer has no measured wait', resumedRows.find((r) => r.key === 'answer')?.datum === 'GEMESSEN · lokaler Index');
   check('a resumed dispatch reads PRESENT as done, not applied', resumedRows.find((r) => r.key === 'dispatch')?.datum === 'fertig · req_9 · Lane local_only' && resumedRows.find((r) => r.key === 'dispatch')?.detail?.includes('Übergabe: nicht bestätigt') === true);
 
+  const projectBoundView: ConversationView = {
+    conversation_id: 'conv_atlas',
+    exists: true,
+    project_binding: { state: 'bound', project: 'atlas', row_count: 1 },
+    quarantined: false,
+    turn_count: 1,
+    turns: [{ user_message: 'atlas', assistant_text: 'ok', project: 'atlas' }],
+    turns_returned: 1
+  };
+  check('a canonical thread confirms its exact project', conversationConfirmsProject(projectBoundView, 'conv_atlas', 'atlas'));
+  check('a thread id from another project is rejected', !conversationConfirmsProject(projectBoundView, 'conv_atlas', 'beta'));
+  check('a mismatched canonical id is rejected', !conversationConfirmsProject(projectBoundView, 'conv_beta', 'atlas'));
+  check('a legacy view without canonical binding proof fails closed',
+    !conversationConfirmsProject({ ...projectBoundView, project_binding: undefined }, 'conv_atlas', 'atlas'));
+  const sameProjectTail = Array.from({ length: 40 }, (_, index) => ({
+    user_message: `atlas-${index}`,
+    assistant_text: 'ok',
+    project: 'atlas'
+  }));
+  check('more than forty same-project turns trust the unbounded server proof',
+    conversationConfirmsProject({
+      ...projectBoundView,
+      project_binding: { state: 'bound', project: 'atlas', row_count: 61 },
+      turn_count: 60,
+      turns: sameProjectTail,
+      turns_returned: 40
+    }, 'conv_atlas', 'atlas'));
+  check('a mixed old row cannot hide behind a forty-turn same-project tail',
+    !conversationConfirmsProject({
+      ...projectBoundView,
+      project_binding: { state: 'mixed', project: null, row_count: 41 },
+      quarantined: true,
+      turn_count: 0,
+      turns: sameProjectTail,
+      turns_returned: 40
+    }, 'conv_atlas', 'atlas'));
+
   /* ---- open dispatches: what has not reported back ---- */
   const openView = {
     conversation_id: 'conv_1',
@@ -244,6 +337,12 @@ export function runConversationSpec(): ConversationSpecResult[] {
   check('external links never send a referrer', /rel="noreferrer"/.test(html));
   check('GFM tables render as tables', /<table>/.test(html) && /<th>a<\/th>/.test(html));
   check('task items are glyphs, not form controls', !/<input/i.test(html) && /md-task on/.test(html));
+  const activityHtml = renderToStaticMarkup(createElement(MarkdownMessage, {
+    text: '', streaming: true, elapsed: 3, activity: 'Anfrage angenommen'
+  }));
+  check('an empty stream renders its observed activity and elapsed time', activityHtml.includes('Anfrage angenommen · 3 s'));
+  check('the visual empty-stream activity is not a nested live region', !activityHtml.includes('role="status"'));
+  check('the live surface does not claim hidden thinking', !activityHtml.includes('denkt'));
 
   return results;
 }

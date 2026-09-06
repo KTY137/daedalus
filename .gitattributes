@@ -417,3 +417,38 @@ daedalus/runtimes/providers/token_policy.py -text
 # MEASURED 2026-09-02: 8 passed before the repoint, '1 of 206 ... no explicit
 # declaration: daedalus/journal_io.py' after it.
 daedalus/journal_io.py -text
+
+# MEASURED 2026-09-05: the Gate-1 Genesis/general-assistant and Fourfold work
+# grew the evaluator-bundle closure from 205 explicitly covered Daedalus files
+# to 233.  These are the exact 28 new members reported by the dynamic closure
+# guard.  Keep them explicit: a daedalus-wide wildcard would silently change
+# checkout semantics for modules outside the evaluator bundle.
+daedalus/foundation/env.py -text
+daedalus/interfaces/computer_configuration.py -text
+daedalus/kernel/contracts/genesis.py -text
+daedalus/kernel/contracts/registry.py -text
+daedalus/kernel/policy/computer.py -text
+daedalus/orchestration/control_plane.py -text
+daedalus/orchestration/hierarchy.py -text
+daedalus/orchestration/ikarus/__init__.py -text
+daedalus/orchestration/ikarus/act.py -text
+daedalus/orchestration/ikarus/chat.py -text
+daedalus/orchestration/ikarus/computer_context.py -text
+daedalus/orchestration/ikarus/computer_history.py -text
+daedalus/orchestration/ikarus/computer_loop.py -text
+daedalus/orchestration/ikarus/computer_schedule.py -text
+daedalus/orchestration/ikarus/shell.py -text
+daedalus/orchestration/llm_client.py -text
+daedalus/orchestration/runtime_registry.py -text
+daedalus/runtimes/computer.py -text
+daedalus/runtimes/computer_browser.py -text
+daedalus/runtimes/computer_desktop.py -text
+daedalus/runtimes/computer_ocr.py -text
+daedalus/runtimes/computer_vision.py -text
+daedalus/spine/linux_containment.py -text
+daedalus/structcore/report.py -text
+daedalus/twin/relation_blocks.py -text
+daedalus/twin/relation_projection.py -text
+daedalus/twin/semiring.py -text
+daedalus/twin/tensor.py -text
+daedalus/twin/two_category.py -text

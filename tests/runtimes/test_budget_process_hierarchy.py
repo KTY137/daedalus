@@ -200,5 +200,5 @@ def test_cold_owner_import_does_not_load_facade_providers_or_gates() -> None:
 
 def test_structure_packet_keeps_the_effect_registry_digest() -> None:
     assert registry_sha256() == (
-        "44222aa9f9269eb1c9d9f5cf118786cbb1a1d602f6f3ca77aeb00d4f599214c9"
+        "7a8fc9442be4d1fff8f576fa951036788ef146c779c5c1145bce21f471f3c605"
     )

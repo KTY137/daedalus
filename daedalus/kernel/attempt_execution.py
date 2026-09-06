@@ -982,18 +982,15 @@ def _remove_gate_tmpdir(
        stat cache and never refreshes it -- with the victim in the last entry
        position it destroyed the target 3/3.
 
-    THE CONTAINMENT THAT IS NOT WRITTEN DOWN ANYWHERE ELSE, so it is written
-    here: the gate child runs under
-    :class:`daedalus.spine.cancel.ManagedProcess`, i.e. inside a Windows Job
-    Object with ``KILL_ON_JOB_CLOSE``, and ``release()`` runs on the ``with``
-    exit BEFORE this function is reached -- so by the time this deletes, the
-    candidate's test process tree is normally already dead. Cerberus could not
-    demonstrate a live candidate at this point (two job-escape attempts failed
-    on this box). That is a reason to believe the window is small; it is not a
-    reason to leave an unguarded recursive delete behind it, because "the
-    process was probably dead" is not a property this module can check, and a
-    Job Object is not a filesystem guard -- anything the candidate planted
-    while it WAS alive is still on disk when this runs.
+    The gate child is released before this function runs.  On Windows that
+    closes its ``KILL_ON_JOB_CLOSE`` Job Object; on Linux the OCI wrapper first
+    stops/kills and removes the container cgroup.  Cerberus could not
+    demonstrate a live Windows candidate at this point (two job-escape
+    attempts failed on the measured host).  That is a reason to believe the
+    window is small; it is not a reason to leave an unguarded recursive delete
+    behind it, because "the process was probably dead" is not a property this
+    module can check, and neither mechanism sanitises paths the candidate
+    planted while it was alive.
     """
     try:
         cleanup(tmpdir)
@@ -1034,10 +1031,15 @@ def _poll_until_done(proc: Any, ctx: RunnerContext, started: float,
 
 
 def _contained_gate_child(argv: Sequence[str], worktree: Path, out_path: Path,
-                          tmpdir: Path):
-    """Launch the gate at Low integrity. Raises ``ContainmentUnavailable``.
+                          tmpdir: Path, *, timeout_s: float | None):
+    """Launch the gate through the platform's fail-closed candidate boundary.
 
-    Three things are set up, and each is a measured requirement rather than
+    Windows uses Low integrity plus a Job Object. Linux uses a rootless,
+    digest-pinned OCI container whose resolved configuration is inspected
+    before it starts. Unsupported or misconfigured hosts refuse; this helper
+    has no ordinary-process fallback.
+
+    On Windows, three things are set up, and each is a measured requirement rather than
     tidiness:
 
     1. THE WORKTREE IS LABELLED LOW, because a contained child that cannot
@@ -1060,26 +1062,53 @@ def _contained_gate_child(argv: Sequence[str], worktree: Path, out_path: Path,
        its own promotion. The D5 root needs no secret to verify, and after this
        neither does anything the child can see.
     """
-    from daedalus.kernel.promotion_trust_root import scrubbed_child_env
     from daedalus.spine import containment
 
-    containment.label_low_integrity(worktree)
-    worktree_label = containment.integrity_label(worktree)
-    low_temp = tmpdir / "lowtemp"
-    low_temp.mkdir()
-    containment.label_low_integrity(low_temp)
+    if os.name == "nt":
+        from daedalus.kernel.promotion_trust_root import scrubbed_child_env
 
-    log = containment.open_low_append_log(out_path)
-    try:
-        env = scrubbed_child_env()
-        env["TEMP"] = env["TMP"] = str(low_temp)
-        proc = containment.spawn_contained(
-            argv, cwd=worktree, env=env, log=log,
-            worktree_label=worktree_label)
-    except BaseException:
-        log.close()
-        raise
-    return proc, log
+        containment.label_low_integrity(worktree)
+        worktree_label = containment.integrity_label(worktree)
+        low_temp = tmpdir / "lowtemp"
+        low_temp.mkdir()
+        containment.label_low_integrity(low_temp)
+
+        log = containment.open_low_append_log(out_path)
+        try:
+            env = scrubbed_child_env()
+            env["TEMP"] = env["TMP"] = str(low_temp)
+            proc = containment.spawn_contained(
+                argv, cwd=worktree, env=env, log=log,
+                worktree_label=worktree_label)
+        except BaseException:
+            log.close()
+            raise
+        return proc, log
+
+    if sys.platform.startswith("linux"):
+        from daedalus.spine.linux_containment import spawn_oci_contained
+
+        try:
+            output = open(out_path, "xb")
+        except OSError as exc:
+            raise containment.ContainmentUnavailable(
+                f"parent-owned gate output could not be opened: {exc}"
+            ) from exc
+        try:
+            proc = spawn_oci_contained(
+                argv,
+                cwd=worktree,
+                output=output,
+                timeout_s=timeout_s,
+            )
+        except BaseException:
+            output.close()
+            raise
+        return proc, output
+
+    raise containment.ContainmentUnavailable(
+        f"no measured candidate containment backend for {sys.platform}"
+    )
 
 
 def _command_gate(argv: Sequence[str], *,
@@ -1093,10 +1122,11 @@ def _command_gate(argv: Sequence[str], *,
 
     THE GATE IS WHERE CANDIDATE CODE ACTUALLY RUNS. Everything else in this
     module handles the candidate's bytes; this command executes them. So by
-    default the child is launched at LOW INTEGRITY through
-    :mod:`daedalus.spine.containment`, and the kernel -- not our path checks --
-    refuses the writes that a Python guard provably cannot close (the "move-in"
-    attack among them).
+    default the child is launched through the platform containment backend:
+    Windows uses a Low-Integrity token plus a Job Object, while native Linux
+    uses an inspected rootless OCI container plus cgroup limits.  The operating
+    system boundary -- not our path checks -- refuses writes that a Python guard
+    provably cannot close (the "move-in" attack among them).
 
     THERE IS NO ``contained=False``. A caller whose runner cannot produce
     candidate code says so with ``executes_candidate=False``, which is a
@@ -1107,15 +1137,18 @@ def _command_gate(argv: Sequence[str], *,
     reason in the output and in the attestation. It never downgrades to an
     uncontained run that looks like a contained one.
 
-    Both children run inside a Job Object with ``KILL_ON_JOB_CLOSE``, so a
-    cancelled attempt kills the whole process TREE rather than the immediate
-    child -- a leaked test process still writing into a worktree that is about
-    to be removed is a correctness hazard, not untidiness.
+    Cancellation targets the whole tree: Windows uses
+    ``KILL_ON_JOB_CLOSE`` and Linux stops/kills the container cgroup before
+    terminating its local attach process.  A leaked test process still writing
+    into a worktree that is about to be removed is a correctness hazard, not
+    untidiness.
 
     Output goes to a file OUTSIDE the worktree: a pipe would deadlock on a
     chatty run while we are polling the cancel token instead of reading. Under
-    containment that file is the ONE handle inherited by the child, opened
-    append-only on a Low-labelled target and verified on the handle.
+    containment that file stays outside candidate-writable storage.  Windows
+    passes one verified append-only Low-labelled handle; on Linux only the
+    trusted Podman attach client receives the verified parent-owned file and
+    the candidate receives no host file descriptor for it.
 
     That scratch directory is then removed through the GUARDED walker, not
     ``shutil.rmtree`` -- it lives in ``%TEMP%`` under a prefix named in this
@@ -1152,14 +1185,19 @@ def _command_gate(argv: Sequence[str], *,
         try:
             if executes_candidate:
                 try:
-                    proc, log = _contained_gate_child(effective_argv, ctx.worktree,
-                                                      out_path, tmpdir)
+                    proc, log = _contained_gate_child(
+                        effective_argv,
+                        ctx.worktree,
+                        out_path,
+                        tmpdir,
+                        timeout_s=timeout_s,
+                    )
                 except containment.ContainmentUnavailable as e:
                     # HARD REFUSAL. A gate that runs candidate code outside the
                     # boundary makes the boundary decorative, and a green
                     # verdict from it would be worth nothing.
                     refusal = (f"gate refused to execute candidate code "
-                               f"without MIC write containment: {e}")
+                               f"without {containment.required_mechanism_label()}: {e}")
                     attestation = containment.refusal_attestation(str(e))
                 else:
                     attestation = proc.attestation

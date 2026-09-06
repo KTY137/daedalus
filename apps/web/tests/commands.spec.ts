@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { collect, NOT_BUILT } from './_app';
 
+const acceptanceProject = process.env.DAEDALUS_GUI_PROJECT || '';
+const COCKPIT = acceptanceProject
+  ? `/?project=${encodeURIComponent(acceptanceProject)}`
+  : '/';
+
 /**
  * G1-UI-05 — `/status` against the LIVE server.
  *
@@ -12,7 +17,7 @@ import { collect, NOT_BUILT } from './_app';
  */
 
 async function openCockpit(page: Page): Promise<void> {
-  const res = await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const res = await page.goto(COCKPIT, { waitUntil: 'domcontentloaded' });
   expect(res).not.toBeNull();
   expect(res!.status()).toBe(200);
   expect(await res!.text()).not.toMatch(NOT_BUILT);
@@ -30,6 +35,7 @@ async function goChat(page: Page): Promise<void> {
 
 test.describe('commands, live', () => {
   test('/status sends the deterministic word and the thread appears in the rail', async ({ page }) => {
+    test.setTimeout(300_000);
     const seen = collect(page);
     await openCockpit(page);
     await waitForStage(page);

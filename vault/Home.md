@@ -23,14 +23,16 @@ permalink: main/home
 - [[SETUP]] — was der Owner einmalig einrichten muss
 - [[ENVIRONMENT_REPORT]] — was gebaut wurde, mit Quellen
 
-## Status-Snapshot (manuell gepflegt, Stand 2026-08-26)
+## Status-Snapshot (manuell gepflegt, Stand 2026-09-05)
 
 | Feld | Wert | Provenienz |
 | --- | --- | --- |
-| Aktives Gate | **Gate 0 — Canonical Kernel** | MEASURED (Iron-Plan-Hook, sha256 `a47d84ee…26d4`) |
-| Plan-Revision | 1 | MEASURED |
-| Nächster Produktbeweis | Gate 1 Ignition Slice (`Event.voltage -> bias_voltage`) | Plan §10 |
-| Offene Amendment-Vorschläge | 002, 003, 004, 005 | MEASURED (`docs/`-Listing 2026-08-17) |
+| Aktives Gate | **Gate 1 — Renovation, owner-directed Genesis und general computer assistance** | INHERITED (Plan-Text Revision 12, sha256 `12659413…d8fb` laut G1-IKARUS-17) |
+| Plan-Revision | 12 (Version 2.3.0, 2026-09-05) | INHERITED (Plan-Metadaten) |
+| Nächster Produktbeweis | Renovation Ignition Slice bleibt offen; im Assistant-Strang: Zaun-Lift für `file.*` (G1-IKARUS-25) nach bestätigtem Review von G1-IKARUS-24 | Plan §11/§12, [[Sessions/2026-09-05]] |
+| Offene Amendment-Vorschläge | 002, 003, 004 (alt), 013 (neu, ungeprüft) | MEASURED (`docs/`-Listing 2026-09-05) |
+
+Frühere Snapshots: 2026-08-26 (Gate 0 besiegelt, Revision 8) — siehe [[Gates/Gate-Status]].
 
 > [!warning] Kein Dataview nötig
 > Alle Dashboards hier sind bewusst mit Bordmitteln gebaut (Links, Tabellen,

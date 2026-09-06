@@ -1076,6 +1076,16 @@ def convene(question: str, evidence: Evidence,
     participants = tuple(participants)
     if not participants:
         raise ValueError("a council with no participants is not a council")
+    if live:
+        # THE SPEND OPT-IN INSTALLS THE PRICE NET, before the roster is chained
+        # and before any seat can spawn. Measured 2026-09-05: with the daily
+        # ceiling exhausted the CLI council was refused by the guard, while an
+        # in-process convene(live=True) reached both vendors unpriced because
+        # nothing had installed it. A live council that the ledger cannot see
+        # is not a bounded effect (plan invariant 8).
+        from daedalus.budget import process_guard_boundary_decision
+
+        process_guard_boundary_decision()
     if not live:
         # FIRST, above every other check: a refusal that happened after the
         # roster was chained would leave an open council on disk that nobody

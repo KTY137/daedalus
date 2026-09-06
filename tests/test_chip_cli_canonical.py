@@ -461,6 +461,14 @@ def test_stopped_kill_switch_refuses_identical_disjoint_projects_before_spawn(
     permit.parent.mkdir()
     permit.write_text("STOP\n", encoding="ascii")
     monkeypatch.setenv("DAEDALUS_KILLSWITCH", str(permit))
+    vendor = tmp_path / "vendor" / "Vivado" / "bin" / "vivado.bat"
+    vendor.parent.mkdir(parents=True)
+    vendor.write_text("@echo off\n", encoding="ascii")
+    monkeypatch.setattr(
+        chip_cli,
+        "find_trusted_vendor_tool_path",
+        lambda _tool: str(vendor),
+    )
     admission_seen = False
     real_acquire = chip_cli.acquire_chip_eda_lease
 

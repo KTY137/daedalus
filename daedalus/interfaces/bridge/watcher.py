@@ -327,6 +327,7 @@ def watch_loop(
     now_epoch: NowEpochPort,
     now_iso: NowIsoPort,
     sleep: SleepPort,
+    scheduled_tick: Callable[[], Any] | None = None,
 ) -> None:
     """Run the admitted polling loop under one OS-held watcher claim."""
 
@@ -377,6 +378,19 @@ def watch_loop(
                         print(f"{pending_label} {path.name}: {exc}", flush=True)
                     else:
                         handle_poison(path, exc)
+                beat(force=True)
+            if scheduled_tick is not None and not (stop_event is not None and stop_event.is_set()):
+                # Reuse this admitted watcher, rather than start another daemon.
+                # One bounded computer mission may occupy the worker; heartbeat
+                # explicitly reports it as busy until that mission returns.
+                beat(current={"file": "computer schedule", "started_epoch": now_epoch(),
+                              "started_ts": now_iso()}, force=True)
+                try:
+                    reports = scheduled_tick()
+                    if reports:
+                        print(f"COMPUTER SCHEDULE {len(reports)} outcome(s)", flush=True)
+                except Exception as exc:
+                    print(f"COMPUTER SCHEDULE BLOCKED: {type(exc).__name__}: {exc}", flush=True)
                 beat(force=True)
             if stop_event is not None:
                 if stop_event.wait(interval_s):

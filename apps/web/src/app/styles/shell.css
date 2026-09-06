@@ -304,6 +304,9 @@ h1, h2, h3, p, ul, ol, figure { margin: 0; }
      any viewport height and with or without a decision card above it. */
   align-content: stretch;
 }
+/* Author styles can override the browser's default `[hidden]` rule. Keep the
+   persistently mounted conversation out of layout while another view is open. */
+.cockpit-body.talk[hidden] { display: none; }
 :root[data-chat='flow'] .cockpit-body.talk {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--u6);

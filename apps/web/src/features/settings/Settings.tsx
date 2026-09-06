@@ -1,24 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { motion } from 'framer-motion';
-import { getEnvStatus, getRuntimeStatus, testRuntime, type EnvStatusPayload } from '@/shared/api';
+import {
+  ApiError,
+  getDesktopSettingsDocument,
+  getEnvStatus,
+  getRuntimeStatus,
+  putDesktopSettingsDocument,
+  runDesktopServiceAction,
+  testRuntime,
+  type EnvStatusPayload
+} from '@/shared/api';
 import type { RuntimeRow } from '@/shared/contracts';
 import { drawerVariants, useReducedMotionPref } from '@/shared/ui/motion';
+import { useDialogFocus } from '@/shared/ui/useDialogFocus';
 import { SystemCapabilities } from '@/features/system/SystemCapabilities';
 import { ComputeSection } from '@/features/system/ComputeSection';
 import { CatalogueSection } from '@/features/system/CatalogueSection';
 import { trustNotes } from './runtimetrust';
 import { TeamSettings } from './Team';
-import {
-  AUTONOMY_LEVELS,
-  readAutonomyLog,
-  type AutonomyEntry,
-  type AutonomyLevel
-} from './autonomy';
 import './settings.css';
 
 /**
- * Settings: brain, autonomy, managed services/connections, measured runtime
- * reachability, and the local autonomy log.
+ * Settings: brain, managed services/connections, and measured runtime
+ * reachability.
  *
  * Desktop service controls are additive. A source/dev web_api that does not
  * install the Tauri sidecar extension still renders every older section and
@@ -31,9 +35,6 @@ export interface SettingsProps {
   project: string;
   brain: string;
   onBrain: (id: string) => void;
-  autonomy: AutonomyLevel;
-  onAutonomy: (level: AutonomyLevel) => void;
-  logSignal?: number;
 }
 
 interface RemoteOllamaSettings {
@@ -136,6 +137,8 @@ const CAP_GROUPS: Array<{ title: string; axes: CapAxis[] }> = [
   { title: 'Parallelität & Arbeitsumfang', axes: ['concurrency', 'work_scope'] }
 ];
 
+const DESKTOP_SETTINGS_UPDATE_CONTRACT = 'section_updates_v1';
+
 interface DesktopConfig {
   [key: string]: unknown;
   bridge: { auto_start: boolean };
@@ -153,6 +156,8 @@ interface DesktopConfig {
 interface DesktopSnapshot {
   config: DesktopConfig;
   config_path: string;
+  settings_update_contract?: string;
+  config_error?: string;
   startup_error?: string;
   credential_policy: {
     ssh_key_only: boolean;
@@ -160,21 +165,31 @@ interface DesktopSnapshot {
     stores_private_key_bytes: boolean;
     host_key_verification: string;
   };
+  caps?: {
+    ariadne_campaign_live?: boolean;
+    [key: string]: unknown;
+  };
   services: {
     bridge: {
       managed?: boolean;
       state?: string;
       age_s?: number | null;
       detail?: string;
+      managed_start_available?: boolean;
+      availability_reason?: string;
     };
     ollama: {
       mode: string;
       endpoint: string;
       physical_target?: string;
+      observed?: boolean;
       reachable: boolean;
       last_error?: string;
       tunnel_running?: boolean;
       local_process_running?: boolean;
+      managed_start_available?: boolean;
+      remote_ssh_available?: boolean;
+      availability_reason?: string;
       host_key_pinned?: boolean;
     };
   };
@@ -187,21 +202,109 @@ interface DesktopEnvelope {
   service?: Record<string, unknown>;
 }
 
-async function desktopRequest(url: string, init?: RequestInit): Promise<DesktopEnvelope> {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
-    ...init
-  });
-  let payload: DesktopEnvelope = {};
-  try {
-    payload = await response.json();
-  } catch {
-    // The status below still distinguishes an unavailable/old backend.
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function optionalFieldIs(
+  value: Record<string, unknown>,
+  key: string,
+  predicate: (candidate: unknown) => boolean
+): boolean {
+  return value[key] === undefined || predicate(value[key]);
+}
+
+function desktopEnvelopeOf(value: unknown): DesktopEnvelope {
+  if (!isRecord(value)) {
+    throw new Error('Desktop-Backend antwortete in einem ungültigen Format.');
   }
-  if (!response.ok || payload.ok === false) {
-    throw new Error(payload.error || `Desktop-Dienst antwortete mit HTTP ${response.status}.`);
+  return value as DesktopEnvelope;
+}
+
+function desktopWriteOutcomeUncertain(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  return (
+    error.kind === 'network'
+    || error.kind === 'timeout'
+    || (error.kind === 'http' && error.status >= 500)
+  );
+}
+
+function desktopSnapshotOf(value: unknown, missingMessage: string): DesktopSnapshot {
+  if (!isRecord(value)) throw new Error(missingMessage);
+
+  const config = value.config;
+  const credentials = value.credential_policy;
+  const services = value.services;
+  if (!isRecord(config) || !isRecord(credentials) || !isRecord(services)) {
+    throw new Error('Desktop-Backend meldete unvollständige Einstellungen.');
   }
-  return payload;
+
+  const bridge = config.bridge;
+  const ollama = config.ollama;
+  const bridgeService = services.bridge;
+  const ollamaService = services.ollama;
+  if (
+    !isRecord(bridge)
+    || typeof bridge.auto_start !== 'boolean'
+    || !isRecord(ollama)
+    || !['local', 'remote_ssh'].includes(String(ollama.mode))
+    || typeof ollama.auto_start !== 'boolean'
+    || typeof ollama.model !== 'string'
+    || typeof ollama.local_host !== 'string'
+    || !isRecord(ollama.remote)
+    || !isRecord(bridgeService)
+    || !isRecord(ollamaService)
+  ) {
+    throw new Error('Desktop-Backend meldete unvollständige Verbindungsdaten.');
+  }
+
+  const remote = ollama.remote;
+  if (
+    typeof remote.host !== 'string'
+    || typeof remote.user !== 'string'
+    || typeof remote.port !== 'number'
+    || typeof remote.identity_file !== 'string'
+    || typeof remote.host_key_fingerprint !== 'string'
+    || typeof remote.local_port !== 'number'
+    || typeof remote.remote_port !== 'number'
+    || !['systemd', 'windows', 'none'].includes(String(remote.start_method))
+    || typeof remote.trust_remote_host !== 'boolean'
+    || typeof value.config_path !== 'string'
+    || !optionalFieldIs(value, 'settings_update_contract', (candidate) => typeof candidate === 'string')
+    || !optionalFieldIs(value, 'caps', (candidate) => (
+      isRecord(candidate)
+      && optionalFieldIs(candidate, 'ariadne_campaign_live', (flag) => typeof flag === 'boolean')
+    ))
+    || typeof credentials.ssh_key_only !== 'boolean'
+    || typeof credentials.stores_passwords !== 'boolean'
+    || typeof credentials.stores_private_key_bytes !== 'boolean'
+    || typeof credentials.host_key_verification !== 'string'
+    || !optionalFieldIs(bridgeService, 'managed', (candidate) => typeof candidate === 'boolean')
+    || !optionalFieldIs(bridgeService, 'state', (candidate) => typeof candidate === 'string')
+    || !optionalFieldIs(bridgeService, 'age_s', (candidate) => candidate === null || typeof candidate === 'number')
+    || !optionalFieldIs(bridgeService, 'detail', (candidate) => typeof candidate === 'string')
+    || !optionalFieldIs(bridgeService, 'managed_start_available', (candidate) => typeof candidate === 'boolean')
+    || !optionalFieldIs(bridgeService, 'availability_reason', (candidate) => typeof candidate === 'string')
+    || typeof ollamaService.mode !== 'string'
+    || typeof ollamaService.endpoint !== 'string'
+    || typeof ollamaService.reachable !== 'boolean'
+    || !optionalFieldIs(ollamaService, 'physical_target', (candidate) => typeof candidate === 'string')
+    || !optionalFieldIs(ollamaService, 'observed', (candidate) => typeof candidate === 'boolean')
+    || !optionalFieldIs(ollamaService, 'last_error', (candidate) => typeof candidate === 'string')
+    || !optionalFieldIs(ollamaService, 'tunnel_running', (candidate) => typeof candidate === 'boolean')
+    || !optionalFieldIs(ollamaService, 'local_process_running', (candidate) => typeof candidate === 'boolean')
+    || !optionalFieldIs(ollamaService, 'managed_start_available', (candidate) => typeof candidate === 'boolean')
+    || !optionalFieldIs(ollamaService, 'remote_ssh_available', (candidate) => typeof candidate === 'boolean')
+    || !optionalFieldIs(ollamaService, 'availability_reason', (candidate) => typeof candidate === 'string')
+    || !optionalFieldIs(ollamaService, 'host_key_pinned', (candidate) => typeof candidate === 'boolean')
+    || !optionalFieldIs(value, 'config_error', (candidate) => typeof candidate === 'string')
+    || !optionalFieldIs(value, 'startup_error', (candidate) => typeof candidate === 'string')
+  ) {
+    throw new Error('Desktop-Backend meldete ungültige Einstellungsfelder.');
+  }
+
+  return value as unknown as DesktopSnapshot;
 }
 
 function stateOf(r: RuntimeRow): { word: string; tone: 'ok' | 'warn' | 'bad' } {
@@ -224,6 +327,127 @@ function measuredLabel(r: RuntimeRow): string {
 
 function cloneConfig(config: DesktopConfig): DesktopConfig {
   return JSON.parse(JSON.stringify(config)) as DesktopConfig;
+}
+
+function rebaseValue<T>(draft: T, previous: T, next: T): T {
+  return Object.is(draft, previous) ? next : draft;
+}
+
+function rebaseConnectionDraft(
+  draft: DesktopConfig,
+  previous: DesktopConfig,
+  next: DesktopConfig
+): DesktopConfig {
+  const rebased = cloneConfig(next);
+  rebased.bridge = {
+    ...rebased.bridge,
+    auto_start: rebaseValue(draft.bridge.auto_start, previous.bridge.auto_start, next.bridge.auto_start)
+  };
+  rebased.ollama = {
+    ...rebased.ollama,
+    mode: rebaseValue(draft.ollama.mode, previous.ollama.mode, next.ollama.mode),
+    auto_start: rebaseValue(draft.ollama.auto_start, previous.ollama.auto_start, next.ollama.auto_start),
+    model: rebaseValue(draft.ollama.model, previous.ollama.model, next.ollama.model),
+    local_host: rebaseValue(draft.ollama.local_host, previous.ollama.local_host, next.ollama.local_host),
+    remote: {
+      ...rebased.ollama.remote,
+      host: rebaseValue(draft.ollama.remote.host, previous.ollama.remote.host, next.ollama.remote.host),
+      user: rebaseValue(draft.ollama.remote.user, previous.ollama.remote.user, next.ollama.remote.user),
+      port: rebaseValue(draft.ollama.remote.port, previous.ollama.remote.port, next.ollama.remote.port),
+      identity_file: rebaseValue(
+        draft.ollama.remote.identity_file,
+        previous.ollama.remote.identity_file,
+        next.ollama.remote.identity_file
+      ),
+      host_key_fingerprint: rebaseValue(
+        draft.ollama.remote.host_key_fingerprint,
+        previous.ollama.remote.host_key_fingerprint,
+        next.ollama.remote.host_key_fingerprint
+      ),
+      local_port: rebaseValue(
+        draft.ollama.remote.local_port,
+        previous.ollama.remote.local_port,
+        next.ollama.remote.local_port
+      ),
+      remote_port: rebaseValue(
+        draft.ollama.remote.remote_port,
+        previous.ollama.remote.remote_port,
+        next.ollama.remote.remote_port
+      ),
+      start_method: rebaseValue(
+        draft.ollama.remote.start_method,
+        previous.ollama.remote.start_method,
+        next.ollama.remote.start_method
+      ),
+      trust_remote_host: rebaseValue(
+        draft.ollama.remote.trust_remote_host,
+        previous.ollama.remote.trust_remote_host,
+        next.ollama.remote.trust_remote_host
+      )
+    }
+  };
+  return rebased;
+}
+
+function connectionDraftChanged(
+  draft: DesktopConfig | undefined,
+  confirmed: DesktopConfig | undefined
+): boolean {
+  if (!draft || !confirmed) return false;
+  return (
+    JSON.stringify(draft.bridge) !== JSON.stringify(confirmed.bridge)
+    || JSON.stringify(draft.ollama) !== JSON.stringify(confirmed.ollama)
+  );
+}
+
+function normalizedConnectionSections(config: DesktopConfig) {
+  const trim = (value: string) => value.trim();
+  return {
+    bridge: { auto_start: config.bridge.auto_start },
+    ollama: {
+      mode: config.ollama.mode,
+      auto_start: config.ollama.auto_start,
+      model: trim(config.ollama.model),
+      local_host: trim(config.ollama.local_host).replace(/\/+$/, ''),
+      remote: {
+        host: trim(config.ollama.remote.host),
+        user: trim(config.ollama.remote.user),
+        port: config.ollama.remote.port,
+        identity_file: trim(config.ollama.remote.identity_file),
+        host_key_fingerprint: trim(config.ollama.remote.host_key_fingerprint),
+        local_port: config.ollama.remote.local_port,
+        remote_port: config.ollama.remote.remote_port,
+        start_method: config.ollama.remote.start_method,
+        trust_remote_host: config.ollama.remote.trust_remote_host
+      }
+    }
+  };
+}
+
+function connectionIntentConfirmed(
+  submitted: DesktopConfig,
+  confirmed: DesktopConfig
+): boolean {
+  return JSON.stringify(normalizedConnectionSections(submitted))
+    === JSON.stringify(normalizedConnectionSections(confirmed));
+}
+
+function validTcpPort(value: number, minimum = 1): boolean {
+  return Number.isSafeInteger(value) && value >= minimum && value <= 65535;
+}
+
+function connectionValidationError(config: DesktopConfig | undefined): string {
+  if (!config || config.ollama.mode !== 'remote_ssh') return '';
+  if (!validTcpPort(config.ollama.remote.port)) {
+    return 'Der SSH-Port muss eine ganze Zahl zwischen 1 und 65535 sein.';
+  }
+  if (!validTcpPort(config.ollama.remote.local_port, 1024)) {
+    return 'Der lokale Tunnel-Port muss eine ganze Zahl zwischen 1024 und 65535 sein.';
+  }
+  if (!validTcpPort(config.ollama.remote.remote_port)) {
+    return 'Der Remote-Ollama-Port muss eine ganze Zahl zwischen 1 und 65535 sein.';
+  }
+  return '';
 }
 
 function capPolicyOf(config: DesktopConfig): CapPolicy | undefined {
@@ -265,6 +489,42 @@ function editorFromPolicy(policy: CapPolicy): CapEditor {
     configured: { ...policy.caps.configured },
     periodUsdText: String(policy.budget.period_ceiling_usd),
     maxCallsText: String(policy.budget.max_calls)
+  };
+}
+
+function capIntentConfirmed(
+  editor: CapEditor,
+  periodUsd: number,
+  maxCalls: number,
+  confirmed: DesktopConfig
+): boolean {
+  const policy = capPolicyOf(confirmed);
+  return Boolean(
+    policy
+    && policy.caps.mode === editor.mode
+    && CAP_AXIS_ORDER.every((axis) => (
+      policy.caps.configured[axis] === editor.configured[axis]
+    ))
+    && policy.budget.period_ceiling_usd === periodUsd
+    && policy.budget.max_calls === maxCalls
+  );
+}
+
+function rebaseCapEditor(editor: CapEditor, policy: CapPolicy): CapEditor {
+  const previous = editor.baseline;
+  const periodChanged = parsePositiveNumber(editor.periodUsdText) !== previous.budget.period_ceiling_usd;
+  const callsChanged = parsePositiveInteger(editor.maxCallsText) !== previous.budget.max_calls;
+  return {
+    baseline: policy,
+    mode: editor.mode !== previous.caps.mode ? editor.mode : policy.caps.mode,
+    configured: Object.fromEntries(CAP_AXIS_ORDER.map((axis) => [
+      axis,
+      editor.configured[axis] !== previous.caps.configured[axis]
+        ? editor.configured[axis]
+        : policy.caps.configured[axis]
+    ])) as CapConfigured,
+    periodUsdText: periodChanged ? editor.periodUsdText : String(policy.budget.period_ceiling_usd),
+    maxCallsText: callsChanged ? editor.maxCallsText : String(policy.budget.max_calls)
   };
 }
 
@@ -334,18 +594,26 @@ function formatBudgetUsd(value: number): string {
   return `${value.toLocaleString('de-DE', { maximumFractionDigits: 6 })} USD`;
 }
 
-export function Settings({ open, onClose, project, brain, onBrain, autonomy, onAutonomy, logSignal = 0 }: SettingsProps) {
+export function Settings({ open, onClose, project, brain, onBrain }: SettingsProps) {
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
   const [env, setEnv] = useState<EnvStatusPayload | undefined>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [testing, setTesting] = useState('');
+  const [testing, setTesting] = useState<ReadonlySet<string>>(() => new Set());
   const [testResult, setTestResult] = useState<Record<string, string>>({});
-  const [log, setLog] = useState<AutonomyEntry[]>([]);
+  const [brainDraft, setBrainDraft] = useState(brain);
+  const [generalNotice, setGeneralNotice] = useState('');
+  const runtimeLoadRequest = useRef(0);
+  const previousBrain = useRef(brain);
 
   const [desktop, setDesktop] = useState<DesktopSnapshot | undefined>();
+  const desktopRef = useRef<DesktopSnapshot | undefined>(undefined);
   const [desktopDraft, setDesktopDraft] = useState<DesktopConfig | undefined>();
+  const desktopDraftDirtyRef = useRef(false);
+  const desktopOperation = useRef(0);
+  const desktopBusyRef = useRef('');
+  const [desktopLoadError, setDesktopLoadError] = useState('');
   const [desktopError, setDesktopError] = useState('');
   const [desktopNotice, setDesktopNotice] = useState('');
   const [desktopBusy, setDesktopBusy] = useState('');
@@ -354,71 +622,165 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
   const [capError, setCapError] = useState('');
   const [capNotice, setCapNotice] = useState('');
   const [capConfirmed, setCapConfirmed] = useState(false);
+  const settingsRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const desktopDraftDirty = connectionDraftChanged(desktopDraft, desktop?.config);
+  const desktopWritesSupported = desktop?.settings_update_contract === DESKTOP_SETTINGS_UPDATE_CONTRACT;
+  const generalDirty = brainDraft !== brain;
+  const brainDraftVerificationPending = (
+    brainDraft !== brain
+    && brainDraft !== ''
+    && (!loaded || loading)
+  );
+  const brainDraftVerificationFailed = (
+    brainDraft !== brain
+    && brainDraft !== ''
+    && !loading
+    && Boolean(error)
+  );
+  const brainDraftNeedsVerification = brainDraftVerificationPending || brainDraftVerificationFailed;
+  const brainDraftValid = (
+    brainDraft === brain
+    || brainDraft === ''
+    || (
+      loaded
+      && !loading
+      && !error
+      && runtimes.some((runtime) => runtime.available && runtime.id === brainDraft)
+    )
+  );
+  const connectionError = connectionValidationError(desktopDraft);
+
+  const adoptDesktop = useCallback((value: DesktopSnapshot | undefined) => {
+    desktopRef.current = value;
+    setDesktop(value);
+  }, []);
 
   const load = useCallback(async () => {
+    const request = ++runtimeLoadRequest.current;
     setLoading(true);
     setError('');
     try {
       const [rt, e] = await Promise.all([getRuntimeStatus(), getEnvStatus()]);
+      if (request !== runtimeLoadRequest.current) return;
       setRuntimes(rt.runtimes || []);
       setEnv(e.env);
     } catch (e) {
+      if (request !== runtimeLoadRequest.current) return;
       setError(e instanceof Error ? e.message : 'Der Zustand der Laufzeiten konnte nicht gelesen werden.');
     } finally {
-      setLoading(false);
-      setLoaded(true);
+      if (request === runtimeLoadRequest.current) {
+        setLoading(false);
+        setLoaded(true);
+      }
     }
   }, []);
 
-  const loadDesktop = useCallback(async () => {
-    setDesktopError('');
-    setCapError('');
+  const loadDesktop = useCallback(async (
+    options: {
+      preserveDirtyDraft?: boolean;
+      preserveNotice?: boolean;
+      preserveFeedback?: boolean;
+      allowDuringBusy?: boolean;
+      operation?: number;
+    } = {}
+  ): Promise<boolean> => {
+    if (desktopBusyRef.current && !options.allowDuringBusy) return false;
+    const request = options.operation ?? ++desktopOperation.current;
+    if (request !== desktopOperation.current) return false;
+    const mayPreserveDirtyDraft = options.preserveDirtyDraft === true;
+    setDesktopLoadError('');
+    if (!options.preserveFeedback) {
+      setDesktopError('');
+      setCapError('');
+    }
+    if (!options.preserveNotice) setDesktopNotice('');
     setCapNotice('');
     setCapConfirmed(false);
     setDesktopLoading(true);
     try {
-      const payload = await desktopRequest('/api/desktop/settings');
-      if (!payload.desktop) throw new Error('Desktop-Backend meldete keine Einstellungen.');
-      setDesktop(payload.desktop);
-      setDesktopDraft(cloneConfig(payload.desktop.config));
-      const canonicalPolicy = capPolicyOf(payload.desktop.config);
+      const payload = desktopEnvelopeOf(await getDesktopSettingsDocument());
+      if (request !== desktopOperation.current) return false;
+      const rawDesktop: unknown = payload.desktop;
+      if (
+        isRecord(rawDesktop)
+        && typeof rawDesktop.config_error === 'string'
+        && rawDesktop.config_error.trim()
+      ) {
+        throw new Error(`Desktop-Konfiguration ist ungültig: ${rawDesktop.config_error.trim()}`);
+      }
+      const nextDesktop = desktopSnapshotOf(rawDesktop, 'Desktop-Backend meldete keine Einstellungen.');
+      const preserveDirtyDraft = mayPreserveDirtyDraft && desktopDraftDirtyRef.current;
+      const previousConfirmed = desktopRef.current?.config;
+      adoptDesktop(nextDesktop);
+      if (preserveDirtyDraft) {
+        setDesktopDraft((current) => {
+          if (!current || !previousConfirmed) return cloneConfig(nextDesktop.config);
+          return rebaseConnectionDraft(current, previousConfirmed, nextDesktop.config);
+        });
+      } else {
+        setDesktopDraft(cloneConfig(nextDesktop.config));
+      }
+      setCapConfirmed(false);
+      const canonicalPolicy = capPolicyOf(nextDesktop.config);
       if (!canonicalPolicy) {
         setCapEditor((prev) => (prev && capEditorChanged(prev) ? prev : undefined));
         setCapError('Dieses Desktop-Backend meldet keine gültige Ausführungs-Cap-Policy.');
       } else {
         setCapEditor((prev) => (
           prev && capEditorChanged(prev)
-            ? { ...prev, baseline: canonicalPolicy }
+            ? rebaseCapEditor(prev, canonicalPolicy)
             : editorFromPolicy(canonicalPolicy)
         ));
       }
+      return true;
     } catch (e) {
-      setDesktop(undefined);
-      setDesktopDraft(undefined);
-      const message = e instanceof Error
+      if (request !== desktopOperation.current) return false;
+      const preserveDirtyDraft = mayPreserveDirtyDraft && desktopDraftDirtyRef.current;
+      if (!preserveDirtyDraft) {
+        adoptDesktop(undefined);
+        setDesktopDraft(undefined);
+      }
+      const detail = e instanceof Error
         ? e.message
         : 'Desktop-Serviceverwaltung ist in diesem Lauf nicht verfügbar.';
-      setDesktopError(message);
-      setCapError(message);
-      setCapEditor((prev) => (prev && capEditorChanged(prev) ? prev : undefined));
+      setDesktopLoadError(`Desktop-Einstellungen konnten nicht geladen werden: ${detail}`);
+      return false;
     } finally {
-      setDesktopLoading(false);
+      if (request === desktopOperation.current) setDesktopLoading(false);
     }
-  }, []);
+  }, [adoptDesktop]);
+
+  useEffect(() => {
+    desktopDraftDirtyRef.current = desktopDraftDirty;
+  }, [desktopDraftDirty]);
+
+  useEffect(() => {
+    const previous = previousBrain.current;
+    previousBrain.current = brain;
+    setBrainDraft((current) => (current === previous ? brain : current));
+  }, [brain]);
 
   useEffect(() => {
     if (open) {
       void load();
-      void loadDesktop();
+      void loadDesktop({ preserveDirtyDraft: true });
     }
   }, [open, load, loadDesktop]);
 
-  useEffect(() => {
-    setLog(readAutonomyLog());
-  }, [open, logSignal]);
+  const applyGeneral = useCallback(() => {
+    if (!generalDirty || !brainDraftValid) return;
+    if (brainDraft !== brain) onBrain(brainDraft);
+    setGeneralNotice('Brain wurde übernommen.');
+  }, [brain, brainDraft, brainDraftValid, generalDirty, onBrain]);
+
+  const discardGeneral = useCallback(() => {
+    setBrainDraft(brain);
+    setGeneralNotice('Nicht übernommene Auswahl verworfen.');
+  }, [brain]);
 
   const runTest = useCallback(async (id: string) => {
-    setTesting(id);
+    setTesting((prev) => new Set(prev).add(id));
     try {
       const payload = await testRuntime(id);
       setTestResult((prev) => ({
@@ -433,8 +795,18 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
         [id]: `fehlgeschlagen: ${e instanceof Error ? e.message : 'unbekannt'}`
       }));
     } finally {
-      setTesting('');
+      setTesting((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
+  }, []);
+
+  const patchBridge = useCallback((patch: Partial<DesktopConfig['bridge']>) => {
+    setDesktopDraft((prev) => (
+      prev ? { ...prev, bridge: { ...prev.bridge, ...patch } } : prev
+    ));
   }, []);
 
   const patchOllama = useCallback((patch: Partial<DesktopConfig['ollama']>) => {
@@ -458,38 +830,100 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
   }, []);
 
   const saveDesktop = useCallback(async () => {
-    if (!desktopDraft) return;
+    if (
+      !desktop
+      || !desktopDraft
+      || !desktopDraftDirty
+      || !desktopWritesSupported
+      || desktopLoadError
+      || connectionError
+      || desktopLoading
+      || desktopBusyRef.current
+    ) return;
+    const operation = ++desktopOperation.current;
+    desktopBusyRef.current = 'save';
     setDesktopBusy('save');
     setDesktopError('');
     setDesktopNotice('');
     try {
-      const payload = await desktopRequest('/api/desktop/settings', {
-        method: 'PUT',
-        body: JSON.stringify(desktopDraft)
-      });
-      if (!payload.desktop) throw new Error('Desktop-Backend bestätigte die Einstellungen nicht.');
-      setDesktop(payload.desktop);
-      setDesktopDraft(cloneConfig(payload.desktop.config));
-      const canonicalPolicy = capPolicyOf(payload.desktop.config);
+      // The canonical owner merges these sections under its persistence lock.
+      // Never replay an old caps/IDE snapshot from this connection editor.
+      const payload = desktopEnvelopeOf(await putDesktopSettingsDocument({
+        section_updates: {
+          bridge: { ...desktopDraft.bridge },
+          ollama: {
+            ...desktopDraft.ollama,
+            remote: { ...desktopDraft.ollama.remote }
+          }
+        }
+      }));
+      if (operation !== desktopOperation.current) return;
+      const confirmedDesktop = desktopSnapshotOf(
+        payload.desktop,
+        'Desktop-Backend bestätigte die Einstellungen nicht.'
+      );
+      if (confirmedDesktop.settings_update_contract !== DESKTOP_SETTINGS_UPDATE_CONTRACT) {
+        throw new Error('Desktop-Backend bestätigte den Vertrag für atomare Bereichs-Updates nicht.');
+      }
+      if (!connectionIntentConfirmed(desktopDraft, confirmedDesktop.config)) {
+        throw new Error('Desktop-Backend bestätigte die angeforderten Verbindungsänderungen nicht.');
+      }
+      adoptDesktop(confirmedDesktop);
+      setDesktopDraft(cloneConfig(confirmedDesktop.config));
+      const canonicalPolicy = capPolicyOf(confirmedDesktop.config);
       if (canonicalPolicy) {
+        setCapConfirmed(false);
         setCapEditor((prev) => (
           prev && capEditorChanged(prev)
-            ? { ...prev, baseline: canonicalPolicy }
+            ? rebaseCapEditor(prev, canonicalPolicy)
             : editorFromPolicy(canonicalPolicy)
         ));
       }
       setDesktopNotice(
-        payload.desktop.startup_error
-          ? `Gespeichert. Autostart meldet: ${payload.desktop.startup_error}`
+        confirmedDesktop.startup_error
+          ? `Gespeichert. Autostart meldet: ${confirmedDesktop.startup_error}`
           : 'Gespeichert und auf den laufenden Desktop angewendet.'
       );
       void load();
     } catch (e) {
-      setDesktopError(e instanceof Error ? e.message : 'Einstellungen konnten nicht gespeichert werden.');
+      if (operation !== desktopOperation.current) return;
+      const detail = e instanceof Error ? e.message : 'Die Speicheranfrage wurde nicht eindeutig beantwortet.';
+      if (!desktopWriteOutcomeUncertain(e)) {
+        setDesktopError(`Speichern abgelehnt: ${detail}`);
+        return;
+      }
+      const reconciled = await loadDesktop({
+        preserveDirtyDraft: true,
+        preserveNotice: true,
+        preserveFeedback: true,
+        allowDuringBusy: true,
+        operation
+      });
+      if (operation !== desktopOperation.current) return;
+      setDesktopError(
+        reconciled
+          ? `Speicherergebnis nicht eindeutig: ${detail} Der aktuelle Desktop-Stand wurde neu gelesen.`
+          : `Speicherergebnis nicht eindeutig: ${detail} Ein bestätigender Desktop-Stand konnte nicht geladen werden.`
+      );
     } finally {
-      setDesktopBusy('');
+      if (operation === desktopOperation.current) {
+        desktopBusyRef.current = '';
+        setDesktopBusy('');
+      }
     }
-  }, [desktopDraft, load]);
+  }, [adoptDesktop, connectionError, desktop, desktopDraft, desktopDraftDirty, desktopLoadError, desktopLoading, desktopWritesSupported, load, loadDesktop]);
+
+  const discardDesktop = useCallback(() => {
+    if (!desktop) return;
+    const confirmed = cloneConfig(desktop.config);
+    setDesktopDraft((current) => (
+      current
+        ? { ...current, bridge: confirmed.bridge, ollama: confirmed.ollama }
+        : confirmed
+    ));
+    setDesktopError('');
+    setDesktopNotice('Nicht gespeicherte Verbindungsänderungen verworfen.');
+  }, [desktop]);
 
   const editCaps = useCallback((patch: Partial<Omit<CapEditor, 'baseline'>>) => {
     setCapEditor((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -498,8 +932,24 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
     setCapNotice('');
   }, []);
 
+  const discardCaps = useCallback(() => {
+    if (!capEditor) return;
+    setCapEditor(editorFromPolicy(capEditor.baseline));
+    setCapConfirmed(false);
+    setCapError('');
+    setCapNotice('Nicht gespeicherte Cap- und Budgetänderungen verworfen.');
+  }, [capEditor]);
+
   const saveCaps = useCallback(async () => {
-    if (!desktop || !capEditor) return;
+    if (
+      !desktop
+      || !capEditor
+      || !capPolicyOf(desktop.config)
+      || !desktopWritesSupported
+      || desktopLoadError
+      || desktopLoading
+      || desktopBusyRef.current
+    ) return;
     const periodUsd = parsePositiveNumber(capEditor.periodUsdText);
     const maxCalls = parsePositiveInteger(capEditor.maxCallsText);
     if (periodUsd === undefined || maxCalls === undefined || !capEditorChanged(capEditor)) return;
@@ -507,31 +957,46 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
     const widening = wideningReasons(capEditor);
     if (widening.length > 0 && !capConfirmed) return;
 
+    const operation = ++desktopOperation.current;
+    desktopBusyRef.current = 'caps-save';
     setDesktopBusy('caps-save');
     setCapError('');
     setCapNotice('');
     try {
-      const nextConfig = cloneConfig(desktop.config);
-      nextConfig.caps = {
-        mode: capEditor.mode,
-        configured: { ...capEditor.configured },
-        ...(widening.length > 0 ? { confirm_widening: true } : {})
-      };
-      nextConfig.budget = {
-        period_ceiling_usd: periodUsd,
-        max_calls: maxCalls
-      };
-      const payload = await desktopRequest('/api/desktop/settings', {
-        method: 'PUT',
-        body: JSON.stringify(nextConfig)
-      });
-      if (!payload.desktop) throw new Error('Desktop-Backend bestätigte die Ausführungs-Cap-Policy nicht.');
-      const canonicalPolicy = capPolicyOf(payload.desktop.config);
+      // Caps and budget form one consent owner. The backend merges this pair
+      // under the same lock without replaying stale connection/IDE sections.
+      const payload = desktopEnvelopeOf(await putDesktopSettingsDocument({
+        section_updates: {
+          caps: {
+            mode: capEditor.mode,
+            configured: { ...capEditor.configured },
+            ...(widening.length > 0 ? { confirm_widening: true } : {})
+          },
+          budget: {
+            period_ceiling_usd: periodUsd,
+            max_calls: maxCalls
+          }
+        }
+      }));
+      if (operation !== desktopOperation.current) return;
+      const confirmedDesktop = desktopSnapshotOf(
+        payload.desktop,
+        'Desktop-Backend bestätigte die Ausführungs-Cap-Policy nicht.'
+      );
+      if (confirmedDesktop.settings_update_contract !== DESKTOP_SETTINGS_UPDATE_CONTRACT) {
+        throw new Error('Desktop-Backend bestätigte den Vertrag für atomare Bereichs-Updates nicht.');
+      }
+      if (!capIntentConfirmed(capEditor, periodUsd, maxCalls, confirmedDesktop.config)) {
+        throw new Error('Desktop-Backend bestätigte die angeforderten Cap- und Budgetänderungen nicht.');
+      }
+      const canonicalPolicy = capPolicyOf(confirmedDesktop.config);
       if (!canonicalPolicy) throw new Error('Desktop-Backend gab keine gültige Ausführungs-Cap-Policy zurück.');
 
-      setDesktop(payload.desktop);
+      adoptDesktop(confirmedDesktop);
       setDesktopDraft((prev) => {
-        const next = prev ? cloneConfig(prev) : cloneConfig(payload.desktop!.config);
+        const next = prev
+          ? rebaseConnectionDraft(prev, desktop.config, confirmedDesktop.config)
+          : cloneConfig(confirmedDesktop.config);
         next.caps = canonicalPolicy.caps;
         next.budget = canonicalPolicy.budget;
         return next;
@@ -549,43 +1014,131 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
             : `Gespeichert: Individuelle Cap-Policy mit ${disabled.length} deaktivierten ${disabled.length === 1 ? 'Achse' : 'Achsen'}.`
       );
     } catch (e) {
+      if (operation !== desktopOperation.current) return;
+      const detail = e instanceof Error ? e.message : 'Die Speicheranfrage wurde nicht eindeutig beantwortet.';
       setCapConfirmed(false);
-      setCapError(e instanceof Error ? e.message : 'Ausführungs-Cap-Policy konnte nicht gespeichert werden.');
+      if (!desktopWriteOutcomeUncertain(e)) {
+        setCapError(`Speichern abgelehnt: ${detail}`);
+        return;
+      }
+      const reconciled = await loadDesktop({
+        preserveDirtyDraft: true,
+        preserveNotice: true,
+        preserveFeedback: true,
+        allowDuringBusy: true,
+        operation
+      });
+      if (operation !== desktopOperation.current) return;
+      setCapError(
+        reconciled
+          ? `Speicherergebnis nicht eindeutig: ${detail} Der aktuelle Desktop-Stand wurde neu gelesen.`
+          : `Speicherergebnis nicht eindeutig: ${detail} Ein bestätigender Desktop-Stand konnte nicht geladen werden.`
+      );
     } finally {
-      setDesktopBusy('');
+      if (operation === desktopOperation.current) {
+        desktopBusyRef.current = '';
+        setDesktopBusy('');
+      }
     }
-  }, [capConfirmed, capEditor, desktop]);
+  }, [adoptDesktop, capConfirmed, capEditor, desktop, desktopLoadError, desktopLoading, desktopWritesSupported, loadDesktop]);
 
   const serviceAction = useCallback(async (service: 'bridge' | 'ollama', verb: 'start' | 'stop' = 'start') => {
+    if (desktopLoading || desktopBusyRef.current) return;
+    if (desktopLoadError) {
+      setDesktopNotice('');
+      setDesktopError('Der Desktop-Stand ist nicht bestätigt. Bitte die Einstellungen zuerst erneut laden.');
+      return;
+    }
+    if (desktopDraftDirtyRef.current) {
+      setDesktopNotice('');
+      setDesktopError(
+        'Ungespeicherte Verbindungsänderungen: Bitte zuerst speichern, damit die Prüfung keinen veralteten Endpoint übernimmt.'
+      );
+      return;
+    }
     const key = `${service}:${verb}`;
+    const operation = ++desktopOperation.current;
+    desktopBusyRef.current = key;
     setDesktopBusy(key);
     setDesktopError('');
     setDesktopNotice('');
     try {
-      await desktopRequest(`/api/desktop/services/${service}/${verb}`, {
-        method: 'POST',
-        body: '{}'
-      });
-      setDesktopNotice(service === 'bridge' ? 'Bridge läuft.' : verb === 'stop' ? 'Ollama-Tunnel beendet.' : 'Ollama gestartet.');
-      await loadDesktop();
+      await runDesktopServiceAction(service, verb);
+      if (operation !== desktopOperation.current) return;
+      setDesktopNotice(
+        service === 'bridge'
+          ? 'Bridge läuft.'
+          : verb === 'stop'
+            ? 'Ollama-Tunnel beendet.'
+            : 'Das bereits laufende lokale Ollama wurde geprüft und übernommen.'
+      );
+      desktopBusyRef.current = '';
+      setDesktopBusy('');
+      await loadDesktop({ preserveDirtyDraft: true, preserveNotice: true });
       void load();
     } catch (e) {
-      setDesktopError(e instanceof Error ? e.message : 'Dienstaktion fehlgeschlagen.');
+      if (operation !== desktopOperation.current) return;
+      const detail = e instanceof Error ? e.message : 'Die Dienstaktion wurde nicht eindeutig beantwortet.';
+      if (!desktopWriteOutcomeUncertain(e)) {
+        setDesktopError(`Dienstaktion abgelehnt: ${detail}`);
+        return;
+      }
+      const reconciled = await loadDesktop({
+        preserveDirtyDraft: true,
+        preserveNotice: true,
+        preserveFeedback: true,
+        allowDuringBusy: true,
+        operation
+      });
+      if (operation !== desktopOperation.current) return;
+      setDesktopError(
+        reconciled
+          ? `Ergebnis der Dienstaktion nicht eindeutig: ${detail} Der aktuelle Desktop-Stand wurde neu gelesen.`
+          : `Ergebnis der Dienstaktion nicht eindeutig: ${detail} Ein bestätigender Desktop-Stand konnte nicht geladen werden.`
+      );
     } finally {
-      setDesktopBusy('');
+      if (operation === desktopOperation.current) {
+        desktopBusyRef.current = '';
+        setDesktopBusy('');
+      }
     }
-  }, [load, loadDesktop]);
+  }, [desktopLoadError, desktopLoading, load, loadDesktop]);
+
+  const handleBrainRadioKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const radios = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="radio"]:not(:disabled)')
+    );
+    if (radios.length === 0) return;
+    const current = Math.max(0, radios.indexOf(event.target as HTMLButtonElement));
+    let next = current;
+    if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = radios.length - 1;
+    else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (current + 1) % radios.length;
+    else next = (current - 1 + radios.length) % radios.length;
+    event.preventDefault();
+    radios[next].focus();
+    radios[next].click();
+  }, []);
 
   const reachable = runtimes.filter((r) => r.available);
   const reduced = useReducedMotionPref();
   const drawer = useMemo(() => drawerVariants(reduced), [reduced]);
+  useDialogFocus(open, settingsRef, closeRef);
 
   const bridgeState = desktop?.services.bridge;
   const ollamaState = desktop?.services.ollama;
   const remoteMode = desktopDraft?.ollama.mode === 'remote_ssh';
+  const localOllamaAdoptionAvailable = (
+    !remoteMode
+    && ollamaState?.managed_start_available === false
+    && ollamaState.remote_ssh_available === false
+  );
   const capPeriodUsd = capEditor ? parsePositiveNumber(capEditor.periodUsdText) : undefined;
   const capMaxCalls = capEditor ? parsePositiveInteger(capEditor.maxCallsText) : undefined;
   const capDirty = capEditor ? capEditorChanged(capEditor) : false;
+  const capBaselineValid = Boolean(desktop && capPolicyOf(desktop.config));
+  const capPolicyConfirmed = capBaselineValid && !desktopLoadError;
   const capWideningReasons = capEditor ? wideningReasons(capEditor) : [];
   const capEffective = capEditor ? effectiveCaps(capEditor.mode, capEditor.configured) : undefined;
   const disabledCapAxes = capEffective
@@ -594,26 +1147,54 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
   const capSaveDisabled = (
     !desktop
     || !capEditor
+      || !capBaselineValid
+      || !desktopWritesSupported
     || capPeriodUsd === undefined
     || capMaxCalls === undefined
     || !capDirty
     || desktopBusy !== ''
+    || desktopLoading
+    || Boolean(desktopLoadError)
     || (capWideningReasons.length > 0 && !capConfirmed)
   );
+  // React 18 drops `inert={true}` even though the current DOM typings expose
+  // a boolean property. The empty-string presence form reaches the browser and
+  // makes the still-mounted, animated drawer unfocusable while it is closed.
+  const closedDrawerProps = !open ? { inert: '' as unknown as boolean } : {};
 
   return (
-    <motion.aside
+    <>
+      {open && (
+        <div
+          className="settings-scrim"
+          data-dialog-scrim=""
+          aria-hidden="true"
+          onMouseDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            // Closing during mousedown runs the focus-restoration cleanup
+            // before the browser's default pointer focus step. Cancel that
+            // step so it cannot move focus back to the document body.
+            event.preventDefault();
+            onClose();
+          }}
+        />
+      )}
+      <motion.aside
+      ref={settingsRef}
       className={open ? 'settings open' : 'settings'}
       data-motion="drawer"
       variants={drawer}
       initial={false}
       animate={open ? 'open' : 'closed'}
       aria-hidden={!open}
+      {...closedDrawerProps}
+      role="dialog"
+      aria-modal={open ? 'true' : undefined}
       aria-label="Einstellungen"
     >
       <header className="settings-head">
         <h2>Einstellungen</h2>
-        <button type="button" className="settings-close" onClick={onClose} aria-label="Einstellungen schließen">
+        <button ref={closeRef} type="button" className="settings-close" onClick={onClose} aria-label="Einstellungen schließen">
           ✕
         </button>
       </header>
@@ -624,13 +1205,29 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
           <p className="settings-hint">
             Wer antwortet, wenn du Ikarus etwas fragst. Nur erreichbare Laufzeiten stehen zur Wahl.
           </p>
-          <div className="choice-row" role="radiogroup" aria-label="Brain">
+          <div
+            className="choice-row"
+            role="radiogroup"
+            aria-label="Brain"
+            onKeyDown={handleBrainRadioKeyDown}
+          >
             <button
               type="button"
               role="radio"
-              aria-checked={brain === ''}
-              className={brain === '' ? 'on' : ''}
-              onClick={() => onBrain('')}
+              aria-checked={brainDraft === ''}
+              tabIndex={
+                brainDraft === ''
+                || loading
+                || Boolean(error)
+                || !reachable.some((runtime) => runtime.id === brainDraft)
+                  ? 0
+                  : -1
+              }
+              className={brainDraft === '' ? 'on' : ''}
+              onClick={() => {
+                setBrainDraft('');
+                setGeneralNotice('');
+              }}
             >
               Automatisch
             </button>
@@ -639,13 +1236,23 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                 key={r.id}
                 type="button"
                 role="radio"
-                aria-checked={brain === r.id}
-                className={brain === r.id ? 'on' : ''}
-                onClick={() => onBrain(r.id)}
+                aria-checked={brainDraft === r.id}
+                tabIndex={!loading && !error && brainDraft === r.id ? 0 : -1}
+                className={brainDraft === r.id ? 'on' : ''}
+                onClick={() => {
+                  setBrainDraft(r.id);
+                  setGeneralNotice('');
+                }}
+                disabled={loading || Boolean(error)}
               >
                 {r.label || r.id}
               </button>
             ))}
+            {brainDraft && !reachable.some((runtime) => runtime.id === brainDraft) && (
+              <button type="button" role="radio" aria-checked className="on" tabIndex={-1} disabled>
+                {brainDraft} (nicht erreichbar)
+              </button>
+            )}
           </div>
           {!loaded && <p className="settings-hint">Wird geprüft …</p>}
           {loaded && !loading && reachable.length === 0 && (
@@ -653,26 +1260,35 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
               Keine Laufzeit ist erreichbar. Ikarus antwortet dann aus dem lokalen Index — gemessen, aber ohne Modell.
             </p>
           )}
-        </section>
-
-        <section className="settings-section">
-          <div className="settings-title">Ohne Rückfrage</div>
-          <p className="settings-hint">
-            Was Ikarus tun darf, ohne dich zu fragen. Jede automatische Aktion steht unten im Protokoll.
-          </p>
-          <div className="autonomy">
-            {AUTONOMY_LEVELS.map((level) => (
-              <button
-                key={level.id}
-                type="button"
-                className={autonomy === level.id ? 'on' : ''}
-                aria-pressed={autonomy === level.id}
-                onClick={() => onAutonomy(level.id)}
-              >
-                <b>{level.label}</b>
-                <span>{level.note}</span>
+          <div className="settings-save-row general-settings-actions">
+            <span
+              className={`settings-hint ${brainDraftVerificationFailed || (!brainDraftValid && !brainDraftNeedsVerification) ? 'bad' : !generalDirty && generalNotice ? 'ok' : ''}`}
+              role={brainDraftVerificationFailed || (!brainDraftValid && !brainDraftNeedsVerification) ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              {brainDraftVerificationPending
+                ? 'Die Erreichbarkeit des gewählten Brains wird noch bestätigt. Übernehmen ist bis dahin gesperrt.'
+                : brainDraftVerificationFailed
+                  ? 'Die Erreichbarkeit des gewählten Brains konnte nicht bestätigt werden. Prüfe die Laufzeiten erneut; Übernehmen bleibt gesperrt.'
+                : !brainDraftValid
+                  ? 'Der gewählte Brain ist nicht mehr erreichbar. Wähle einen erreichbaren Brain oder Automatisch.'
+                : generalDirty
+                  ? 'Der gewählte Brain ist noch nicht übernommen.'
+                : generalNotice || 'Änderungen gelten erst nach dem Übernehmen.'}
+            </span>
+            <div className="settings-action-buttons">
+              <button type="button" onClick={discardGeneral} disabled={!generalDirty}>
+                Verwerfen
               </button>
-            ))}
+              <button
+                type="button"
+                className="settings-primary"
+                onClick={applyGeneral}
+                disabled={!generalDirty || !brainDraftValid}
+              >
+                Brain übernehmen
+              </button>
+            </div>
           </div>
         </section>
 
@@ -697,15 +1313,33 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
             Bereits ausgestellte Verträge werden nicht nachträglich geändert.
           </p>
 
-          {desktopLoading && !capEditor && (
+          {desktopLoadError && (
+            <div className="cap-load-state">
+              <p className="settings-hint bad" role="alert">{desktopLoadError}</p>
+              <button
+                type="button"
+                className="settings-refresh"
+                onClick={() => void loadDesktop({ preserveDirtyDraft: true })}
+                disabled={desktopLoading || desktopBusy !== ''}
+              >
+                Erneut laden
+              </button>
+            </div>
+          )}
+          {desktopLoading && !capEditor && !desktopLoadError && (
             <p className="settings-hint" role="status">Cap-Policy wird gelesen …</p>
           )}
-          {!desktopLoading && !capEditor && (
+          {!desktopLoading && !capEditor && !desktopLoadError && (
             <div className="cap-load-state">
               <p className="settings-hint bad" role="alert">
                 {capError || 'Die Ausführungs-Cap-Policy ist nicht verfügbar.'}
               </p>
-              <button type="button" className="settings-refresh" onClick={() => void loadDesktop()}>
+              <button
+                type="button"
+                className="settings-refresh"
+                onClick={() => void loadDesktop({ preserveDirtyDraft: true })}
+                disabled={desktopLoading || desktopBusy !== ''}
+              >
                 Erneut laden
               </button>
             </div>
@@ -714,6 +1348,18 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
           {capEditor && capEffective && (
             <div className="cap-card" aria-busy={desktopBusy === 'caps-save'}>
               {desktopLoading && <p className="settings-hint" role="status">Serverstand wird aktualisiert …</p>}
+              {!desktopWritesSupported && (
+                <p className="settings-hint bad" role="alert">
+                  Dieses Desktop-Backend bestätigt keine atomaren Bereichs-Updates. Cap-Änderungen bleiben deshalb
+                  lokal und können erst nach einem Backend-Update übernommen werden.
+                </p>
+              )}
+              {!capPolicyConfirmed && (
+                <p className="settings-hint bad" role="alert">
+                  Server-Policy ist nicht bestätigt. Der angezeigte Entwurf ist nicht der aktuelle effektive
+                  Stand; Laden, prüfen oder verwerfen ist nötig, bevor er gespeichert werden kann.
+                </p>
+              )}
 
               <div className={`cap-policy-status ${disabledCapAxes.length ? 'widened' : ''}`}>
                 <div>
@@ -725,7 +1371,9 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                         : `Individuell · ${disabledCapAxes.length} ${disabledCapAxes.length === 1 ? 'Achse' : 'Achsen'} deaktiviert`}
                   </b>
                   <small>
-                    Effektiver Zustand für neue Reservierungen, Missionen, Attempts, Leases, Provider-Aufrufe und Kampagnen.
+                    {capPolicyConfirmed
+                      ? 'Effektiver Zustand für neue Reservierungen, Missionen, Attempts, Leases, Provider-Aufrufe und Kampagnen.'
+                      : 'Nicht bestätigter Entwurf; der aktuelle effektive Serverstand ist unbekannt.'}
                   </small>
                 </div>
                 <code>{capEditor.mode}</code>
@@ -761,7 +1409,7 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                         value={mode.id}
                         checked={capEditor.mode === mode.id}
                         onChange={() => editCaps({ mode: mode.id })}
-                        disabled={desktopBusy !== ''}
+                        disabled={desktopBusy !== '' || desktopLoading || !capPolicyConfirmed}
                       />
                       <span><b>{mode.label}</b><small>{mode.note}</small></span>
                     </label>
@@ -798,7 +1446,7 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                             <small>{CAP_AXIS_COPY[axis].description}</small>
                           </div>
                           <span className={`cap-effective ${capEffective[axis] ? 'on' : 'off'}`}>
-                            Effektiv: {capEffective[axis] ? 'aktiv' : 'aus'}
+                            {capPolicyConfirmed ? 'Effektiv' : 'Entwurf'}: {capEffective[axis] ? 'aktiv' : 'aus'}
                           </span>
                         </div>
                         <label className="spend-switch cap-axis-switch">
@@ -809,7 +1457,7 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                             onChange={(event) => editCaps({
                               configured: { ...capEditor.configured, [axis]: event.target.checked }
                             })}
-                            disabled={capEditor.mode !== 'custom' || desktopBusy !== ''}
+                            disabled={capEditor.mode !== 'custom' || desktopBusy !== '' || desktopLoading || !capPolicyConfirmed}
                             aria-label={`${CAP_AXIS_COPY[axis].label} begrenzen`}
                           />
                           <span className="spend-switch-track" aria-hidden="true"><span /></span>
@@ -825,10 +1473,16 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                               step="any"
                               inputMode="decimal"
                               value={capEditor.periodUsdText}
+                              aria-invalid={capPeriodUsd === undefined}
+                              aria-describedby={
+                                capPeriodUsd === undefined
+                                  ? 'cap-period-usd-help cap-period-usd-error'
+                                  : 'cap-period-usd-help'
+                              }
                               onChange={(event) => editCaps({ periodUsdText: event.target.value })}
-                              disabled={desktopBusy !== ''}
+                              disabled={desktopBusy !== '' || desktopLoading || !capPolicyConfirmed}
                             />
-                            <small>Bleibt positiv gespeichert, auch wenn diese Achse effektiv aus ist.</small>
+                            <small id="cap-period-usd-help">Bleibt positiv gespeichert, auch wenn diese Achse effektiv aus ist.</small>
                           </label>
                         )}
                         {axis === 'billable_calls' && (
@@ -841,10 +1495,16 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                               step="1"
                               inputMode="numeric"
                               value={capEditor.maxCallsText}
+                              aria-invalid={capMaxCalls === undefined}
+                              aria-describedby={
+                                capMaxCalls === undefined
+                                  ? 'cap-max-calls-help cap-max-calls-error'
+                                  : 'cap-max-calls-help'
+                              }
                               onChange={(event) => editCaps({ maxCallsText: event.target.value })}
-                              disabled={desktopBusy !== ''}
+                              disabled={desktopBusy !== '' || desktopLoading || !capPolicyConfirmed}
                             />
-                            <small>Eine positive ganze Zahl; keine Null oder Großzahl als Unlimited-Sentinel.</small>
+                            <small id="cap-max-calls-help">Eine positive ganze Zahl; keine Null oder Großzahl als Unlimited-Sentinel.</small>
                           </label>
                         )}
                       </div>
@@ -868,7 +1528,7 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                       type="checkbox"
                       checked={capConfirmed}
                       onChange={(event) => setCapConfirmed(event.target.checked)}
-                      disabled={desktopBusy !== ''}
+                      disabled={desktopBusy !== '' || desktopLoading || !capPolicyConfirmed}
                     />
                     <span>
                       <b>Risiko bewusst bestätigen</b>
@@ -882,24 +1542,35 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
               )}
 
               {capPeriodUsd === undefined && (
-                <p className="settings-hint bad" role="alert">Der USD-Fallback muss positiv und endlich sein.</p>
+                <p className="settings-hint bad" id="cap-period-usd-error" role="alert">Der USD-Fallback muss positiv und endlich sein.</p>
               )}
               {capMaxCalls === undefined && (
-                <p className="settings-hint bad" role="alert">Der Aufruf-Fallback muss eine positive ganze Zahl sein.</p>
+                <p className="settings-hint bad" id="cap-max-calls-error" role="alert">Der Aufruf-Fallback muss eine positive ganze Zahl sein.</p>
               )}
               {capError && <p className="settings-hint bad" role="alert">{capError}</p>}
               {capNotice && <p className="settings-hint cap-notice" role="status" aria-live="polite">{capNotice}</p>}
 
               <div className="settings-save-row cap-actions">
                 <span className="settings-hint">Keine Grenze wird automatisch erhöht oder ausgeschaltet.</span>
-                <button
-                  type="button"
-                  className="settings-primary"
-                  onClick={() => void saveCaps()}
-                  disabled={capSaveDisabled}
-                >
-                  {desktopBusy === 'caps-save' ? 'Speichert …' : 'Cap-Policy speichern'}
-                </button>
+                <div className="settings-action-buttons">
+                  <button
+                    type="button"
+                    className="settings-refresh"
+                    onClick={discardCaps}
+                    disabled={!capDirty || desktopBusy !== '' || desktopLoading}
+                  >
+                    Verwerfen
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-primary"
+                    onClick={() => void saveCaps()}
+                    disabled={capSaveDisabled}
+                    aria-label="Cap-Policy speichern"
+                  >
+                    {desktopBusy === 'caps-save' ? 'Speichert …' : 'Cap-Policy speichern'}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -923,27 +1594,49 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
             </div>
           </div>
           <div className="cap-ariadne-notice" role="note">
-            <b>Ariadne ist noch nicht live</b>
-            <p>
-              Auf dem Live-Pfad existiert aktuell kein Evolution-Campaign-Produzent. Diese Policy bereitet
-              Kampagnenkontrollen vor, startet aber keine Kampagne.
-            </p>
+            {desktop?.caps?.ariadne_campaign_live === true ? (
+              <>
+                <b>Ariadne Campaign Workbench ist live</b>
+                <p>
+                  Der Workbench startet den kanonischen, kontrollierten Reparaturpfad. Er kann Kandidaten nur
+                  nominieren; Apply, Merge und Promotion bleiben außerhalb dieses Pfads.
+                </p>
+              </>
+            ) : desktop?.caps?.ariadne_campaign_live === false ? (
+              <>
+                <b>Ariadne-Campaign-Pfad ist nicht verfügbar</b>
+                <p>Dieses Backend meldet keinen aktiven Campaign-Produzenten.</p>
+              </>
+            ) : (
+              <>
+                <b>Ariadne-Campaign-Status ist noch nicht bestätigt</b>
+                <p>Die Desktop-Projektion wurde noch nicht gelesen; der Workbench erfindet daraus keinen Live-Status.</p>
+              </>
+            )}
           </div>
         </section>
 
         <section className="settings-section">
           <div className="settings-title">Dienste & Verbindungen</div>
           <p className="settings-hint">
-            Der Desktop hält Bridge und Ollama selbst am Leben. Remote-Ollama läuft durch einen SSH-Loopback-Tunnel;
-            Port 11434 muss nicht ins LAN oder Internet geöffnet werden.
+            Der Desktop startet in v0.1.6 keine verwalteten Kindprozesse. Eine vorhandene Bridge und lokale
+            Loopback-Dienste werden nur beobachtet oder übernommen; Remote-Ollama über SSH bleibt deaktiviert.
           </p>
 
           {!desktopDraft ? (
-            <p className={`settings-hint ${desktopError ? 'bad' : ''}`}>
-              {desktopError || 'Desktop-Dienste werden gelesen …'}
-            </p>
+            desktopError ? (
+              <p className="settings-hint bad" role="alert">{desktopError}</p>
+            ) : desktopLoadError ? (
+              <p className="settings-hint bad">Kein bestätigter Desktop-Stand. Bitte oben erneut laden.</p>
+            ) : desktopLoading && !desktopLoadError ? (
+              <p className="settings-hint">Desktop-Dienste werden gelesen …</p>
+            ) : null
           ) : (
-            <div className="connection-stack">
+            <fieldset
+              className="connection-stack"
+              disabled={desktopLoading || desktopBusy !== ''}
+              aria-busy={desktopLoading || desktopBusy === 'save'}
+            >
               <div className="service-status">
                 <div>
                   <b>Bridge</b>
@@ -953,24 +1646,27 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                 </div>
                 <button
                   type="button"
-                  onClick={() => void serviceAction('bridge')}
-                  disabled={desktopBusy !== ''}
+                  disabled
+                  aria-label="Starten: Bridge — nicht verfügbar"
                 >
-                  {desktopBusy === 'bridge:start' ? 'Startet …' : 'Starten'}
+                  Nicht verfügbar
                 </button>
               </div>
+              <p className="settings-hint">
+                Der Desktop darf die Bridge in v0.1.6 nicht starten. Starte sie bei Bedarf explizit mit{' '}
+                <code>{'python -m daedalus.file_bridge watch --project <registered-project>'}</code>.
+              </p>
 
               <label className="settings-check">
                 <input
                   type="checkbox"
                   checked={desktopDraft.bridge.auto_start}
-                  onChange={(event) => setDesktopDraft((prev) => (
-                    prev ? { ...prev, bridge: { auto_start: event.target.checked } } : prev
-                  ))}
+                  onChange={(event) => patchBridge({ auto_start: event.target.checked })}
+                  disabled
                 />
                 <span>
-                  <b>Bridge mit Daedalus starten</b>
-                  <small>Dann braucht `python -m daedalus.file_bridge watch …` kein eigenes Terminal mehr.</small>
+                  <b>Bridge automatisch starten — nicht verfügbar</b>
+                  <small>Ein gespeicherter Altwert hat in v0.1.6 keine Startwirkung.</small>
                 </span>
               </label>
 
@@ -986,9 +1682,10 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                   <button
                     type="button"
                     onClick={() => void serviceAction('ollama')}
-                    disabled={desktopBusy !== ''}
+                    disabled={desktopBusy !== '' || !localOllamaAdoptionAvailable}
+                    aria-label="Prüfen und übernehmen: Ollama"
                   >
-                    {desktopBusy === 'ollama:start' ? 'Startet …' : 'Starten'}
+                    {desktopBusy === 'ollama:start' ? 'Prüft …' : 'Prüfen & übernehmen'}
                   </button>
                   {remoteMode && ollamaState?.tunnel_running && (
                     <button
@@ -1002,12 +1699,18 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                 </div>
               </div>
 
+              <p className="settings-hint">
+                Daedalus startet keinen Ollama-Prozess. Die Aktion prüft und übernimmt ausschließlich ein bereits
+                laufendes Ollama am bestätigten numerischen Loopback-Endpunkt.
+              </p>
+
               <label className="settings-field">
                 <span>Ollama-Modell</span>
                 <input
                   value={desktopDraft.ollama.model}
                   onChange={(event) => patchOllama({ model: event.target.value })}
                   placeholder="qwen2.5-coder:7b"
+                  disabled={remoteMode}
                 />
               </label>
 
@@ -1016,10 +1719,15 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                 <select
                   value={desktopDraft.ollama.mode}
                   onChange={(event) => patchOllama({ mode: event.target.value as DesktopConfig['ollama']['mode'] })}
+                  aria-describedby="remote-ssh-unavailable"
                 >
                   <option value="local">auf diesem Rechner</option>
-                  <option value="remote_ssh">remote über SSH-Tunnel</option>
+                  <option value="remote_ssh" disabled>remote über SSH-Tunnel — nicht verfügbar</option>
                 </select>
+                <small id="remote-ssh-unavailable">
+                  Remote über SSH ist in dieser Version nicht verfügbar: Der exakte Peer-/Fingerprint-Nachweis und
+                  die Schlüsselverwahrung sind am Effekt-Gate noch nicht vollständig belegt. Lokales Ollama bleibt verfügbar.
+                </small>
               </label>
 
               <label className="settings-check">
@@ -1027,10 +1735,11 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                   type="checkbox"
                   checked={desktopDraft.ollama.auto_start}
                   onChange={(event) => patchOllama({ auto_start: event.target.checked })}
+                  disabled
                 />
                 <span>
-                  <b>Ollama automatisch starten</b>
-                  <small>Lokal mit `ollama serve`, remote über den unten gewählten festen Startmechanismus.</small>
+                  <b>Ollama automatisch starten — nicht verfügbar</b>
+                  <small>Ein gespeicherter Altwert hat in v0.1.6 keine Startwirkung.</small>
                 </span>
               </label>
 
@@ -1045,7 +1754,11 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                   <small>Nur numerisches Loopback wird akzeptiert.</small>
                 </label>
               ) : (
-                <div className="remote-settings">
+                <fieldset
+                  className="remote-settings"
+                  disabled
+                  aria-label="Remote-SSH-Einstellungen — nicht verfügbar"
+                >
                   <div className="settings-grid two">
                     <label className="settings-field">
                       <span>SSH Host</span>
@@ -1070,30 +1783,33 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                       <span>SSH Port</span>
                       <input
                         type="number"
-                        min={1}
-                        max={65535}
-                        value={desktopDraft.ollama.remote.port}
-                        onChange={(event) => patchRemote({ port: Number(event.target.value) })}
+                      min={1}
+                      max={65535}
+                      value={desktopDraft.ollama.remote.port}
+                      aria-invalid={!validTcpPort(desktopDraft.ollama.remote.port)}
+                      onChange={(event) => patchRemote({ port: Number(event.target.value) })}
                       />
                     </label>
                     <label className="settings-field">
                       <span>Lokaler Tunnel</span>
                       <input
                         type="number"
-                        min={1024}
-                        max={65535}
-                        value={desktopDraft.ollama.remote.local_port}
-                        onChange={(event) => patchRemote({ local_port: Number(event.target.value) })}
+                      min={1024}
+                      max={65535}
+                      value={desktopDraft.ollama.remote.local_port}
+                      aria-invalid={!validTcpPort(desktopDraft.ollama.remote.local_port, 1024)}
+                      onChange={(event) => patchRemote({ local_port: Number(event.target.value) })}
                       />
                     </label>
                     <label className="settings-field">
                       <span>Remote Ollama</span>
                       <input
                         type="number"
-                        min={1}
-                        max={65535}
-                        value={desktopDraft.ollama.remote.remote_port}
-                        onChange={(event) => patchRemote({ remote_port: Number(event.target.value) })}
+                      min={1}
+                      max={65535}
+                      value={desktopDraft.ollama.remote.remote_port}
+                      aria-invalid={!validTcpPort(desktopDraft.ollama.remote.remote_port)}
+                      onChange={(event) => patchRemote({ remote_port: Number(event.target.value) })}
                       />
                     </label>
                   </div>
@@ -1146,7 +1862,7 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                       </small>
                     </span>
                   </label>
-                </div>
+                </fieldset>
               )}
 
               {ollamaState?.physical_target && (
@@ -1157,34 +1873,66 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
               {ollamaState?.last_error && !ollamaState.reachable && (
                 <p className="settings-hint bad">{ollamaState.last_error}</p>
               )}
-              {desktopError && <p className="settings-hint bad">{desktopError}</p>}
-              {desktopNotice && <p className="settings-hint">{desktopNotice}</p>}
+              {!desktopWritesSupported && (
+                <p className="settings-hint bad" role="alert">
+                  Dieses Desktop-Backend bestätigt keine atomaren Bereichs-Updates. Verbindungsänderungen bleiben
+                  deshalb lokal und können erst nach einem Backend-Update übernommen werden.
+                </p>
+              )}
+              {desktopError && <p className="settings-hint bad" role="alert">{desktopError}</p>}
+              {connectionError && <p className="settings-hint bad" role="alert">{connectionError}</p>}
+              {desktopNotice && <p className="settings-hint ok" role="status" aria-live="polite">{desktopNotice}</p>}
+              {desktopLoadError && (
+                <p className="settings-hint bad">
+                  Dieser Entwurf bleibt erhalten, kann aber erst nach einem erfolgreichen Neuladen gespeichert werden.
+                </p>
+              )}
+              {desktopDraftDirty && (
+                <p className="settings-hint" role="status">
+                  Verbindungsänderungen sind noch nicht gespeichert. Die Ollama-Prüfung verwendet erst den bestätigten Stand.
+                </p>
+              )}
 
               <div className="settings-save-row">
                 <span className="settings-hint">
-                  SSH: Key-only · Host-Key {desktop?.credential_policy.host_key_verification || 'strict'}
+                  Verwaltete Starts und Remote-SSH: nicht verfügbar · lokales Ollama bleibt konfigurierbar
                 </span>
-                <button
-                  type="button"
-                  className="settings-primary"
-                  onClick={() => void saveDesktop()}
-                  disabled={desktopBusy !== ''}
-                >
-                  {desktopBusy === 'save' ? 'Speichert …' : 'Verbindungen speichern'}
-                </button>
+                <div className="settings-action-buttons">
+                  <button
+                    type="button"
+                    onClick={discardDesktop}
+                    disabled={!desktopDraftDirty || desktopLoading || desktopBusy !== ''}
+                  >
+                    Verwerfen
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-primary"
+                    onClick={() => void saveDesktop()}
+                    disabled={!desktopDraftDirty || remoteMode || !desktopWritesSupported || desktopLoading || desktopBusy !== '' || Boolean(desktopLoadError) || Boolean(connectionError)}
+                    aria-label="Verbindungen speichern"
+                  >
+                    {desktopBusy === 'save' ? 'Speichert …' : 'Verbindungen speichern'}
+                  </button>
+                </div>
               </div>
-            </div>
+            </fieldset>
           )}
         </section>
 
         <section className="settings-section">
           <div className="settings-title">
             Erreichbarkeit
-            <button type="button" className="settings-refresh" onClick={() => { void load(); void loadDesktop(); }} disabled={loading}>
+            <button
+              type="button"
+              className="settings-refresh"
+              onClick={() => { void load(); void loadDesktop({ preserveDirtyDraft: true }); }}
+              disabled={loading || desktopLoading || desktopBusy !== ''}
+            >
               {loading ? 'Prüft …' : 'Neu prüfen'}
             </button>
           </div>
-          {error && <p className="settings-hint bad">{error}</p>}
+          {error && <p className="settings-hint bad" role="alert">{error}</p>}
           <ul className="reach">
             {runtimes.map((r) => {
               const s = stateOf(r);
@@ -1196,8 +1944,14 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
                     <span className="reach-name">{r.label || r.id}</span>
                     <span className={`reach-state ${s.tone}`}>{s.word}</span>
                     {measured && <span className="reach-age">{measured}</span>}
-                    <button type="button" onClick={() => void runTest(r.id)} disabled={testing === r.id}>
-                      {testing === r.id ? '…' : 'Testen'}
+                    <button
+                      type="button"
+                      onClick={() => void runTest(r.id)}
+                      disabled={testing.has(r.id)}
+                      aria-busy={testing.has(r.id)}
+                      aria-label={`Testen: ${r.label || r.id}`}
+                    >
+                      {testing.has(r.id) ? '…' : 'Testen'}
                     </button>
                   </div>
                   {/* WHERE YOUR SOURCE GOES IF YOU PICK THIS ONE.
@@ -1238,24 +1992,8 @@ export function Settings({ open, onClose, project, brain, onBrain, autonomy, onA
           )}
         </section>
 
-        <section className="settings-section">
-          <div className="settings-title">Protokoll</div>
-          {log.length === 0 ? (
-            <p className="settings-hint">Nichts ist bisher ohne deinen Klick passiert.</p>
-          ) : (
-            <ul className="autolog">
-              {log.slice(0, 12).map((e, i) => (
-                <li key={i}>
-                  <span className="autolog-when">{new Date(e.at).toLocaleString('de-DE')}</span>
-                  <span className="autolog-what">{e.what}</span>
-                  <span className="autolog-detail">{e.detail}</span>
-                  <span className="autolog-level">Stufe {e.level}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       </div>
-    </motion.aside>
+      </motion.aside>
+    </>
   );
 }

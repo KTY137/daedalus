@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-EXP-TENSOR-LATENT-CEILING-05",
+  "artifact_role": "primary",
   "title": "Pin the frozen latent-ceiling source revision before claims",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "parent_packet": "G1-EXP-TENSOR-LATENT-CEILING-04",
+  "dependencies": "G1-EXP-TENSOR-LATENT-CEILING-04",
   "campaign_issue": 239,
   "base_revision": "c714f49527b2273c516d8a8849c54ea671e1c6ff",
   "authority_refs": [
@@ -37,6 +40,7 @@
     "public_product_surface": false
   },
   "gardener_decision": "Reuse the existing frozen-corpus guard path with one revision constant. Do not introduce a corpus registry, revision service, schema framework, migration layer, embedding service, vector store, or second experiment identity model.",
+  "contracts": "The frozen_identity, gardener_decision and authority_boundary objects freeze the behavior and authority contract: both source revision and denominator must match before a numeric ceiling is possible.",
   "acceptance": [
     "the committed prediction-only corpus remains valid, incomplete, and bound to the preregistered source revision",
     "a changed but syntactically valid source revision is refused at the file boundary",
@@ -58,6 +62,7 @@
     "hosted_ci": "unclaimed unless an exact-head workflow run appears after push",
     "claim": "Only checks tied to the recorded exact blobs/head count as green evidence; no full-repository, package, platform, latent-benefit, or benchmark claim follows."
   },
+  "evidence": "The verification object binds the focused result to exact blobs and explicitly withholds broader repository, package, platform, latent-benefit and benchmark claims.",
   "branch_hygiene": {
     "remote_branch": "exp/tensor-latent-ceiling-01",
     "new_remote_branch_created": false,

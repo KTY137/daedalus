@@ -9,6 +9,14 @@ from __future__ import annotations
 from typing import Any
 
 
+_SECTION_UPDATE_KEY = "section_updates"
+_SECTION_UPDATE_SCOPES = (
+    frozenset(("bridge", "ollama")),
+    frozenset(("budget", "caps")),
+)
+_SECTION_UPDATE_NAMES = _SECTION_UPDATE_SCOPES[0] | _SECTION_UPDATE_SCOPES[1]
+
+
 def read_budget_environment(
     *,
     budget_kernel: Any,
@@ -95,30 +103,7 @@ def load(
     return config
 
 
-def save(
-    manager: Any,
-    *,
-    json_module: Any,
-    os_module: Any,
-    error_type: type[Exception],
-) -> None:
-    """Atomically persist the manager's already validated configuration."""
-
-    try:
-        manager.config_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = manager.config_path.with_name(
-            f".{manager.config_path.name}.{os_module.getpid()}.tmp"
-        )
-        tmp.write_text(
-            json_module.dumps(manager.config, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-        os_module.replace(tmp, manager.config_path)
-    except OSError as exc:
-        raise error_type(f"cannot write {manager.config_path}: {exc}") from exc
-
-
-def save_settings(
+def prepare_settings(
     manager: Any,
     raw: Any,
     *,
@@ -127,16 +112,62 @@ def save_settings(
     execution_limit_policy: Any,
     limit_axes: Any,
     mode_custom: str,
-    error_type: type[Exception],
 ) -> dict[str, Any]:
-    """Validate consent, persist, project the environment, then autostart."""
+    """Purely validate a full or owner-scoped update and return a snapshot."""
 
     with manager._lock:
         if not isinstance(raw, dict):
             raise ValueError("settings must be a JSON object")
-        incoming = dict(raw)
-        budget_supplied = "budget" in incoming
-        caps_supplied = "caps" in incoming
+        # Detach the request once, before validation.  ``save_settings`` is a
+        # Python API as well as an HTTP target, so a caller may still own and
+        # mutate the supplied mapping from another thread.  Both the lease
+        # decision and the authorised commit must consume this same immutable-
+        # by-ownership snapshot; otherwise a local route could be authorised
+        # and a concurrently substituted remote route persisted.
+        try:
+            raw = json_module.loads(json_module.dumps(raw))
+        except (TypeError, ValueError, RuntimeError) as exc:
+            raise ValueError("settings must be a JSON-compatible object") from exc
+        if _SECTION_UPDATE_KEY in raw:
+            if set(raw) != {_SECTION_UPDATE_KEY}:
+                raise ValueError(
+                    "section_updates cannot be combined with full settings fields"
+                )
+            updates = raw[_SECTION_UPDATE_KEY]
+            if not isinstance(updates, dict):
+                raise ValueError("section_updates must be a JSON object")
+            if not updates:
+                raise ValueError("section_updates must contain at least one section")
+            unsupported = sorted(
+                str(name) for name in updates if name not in _SECTION_UPDATE_NAMES
+            )
+            if unsupported:
+                raise ValueError(
+                    "unsupported settings section_updates: "
+                    + ", ".join(unsupported)
+                )
+            update_names = set(updates)
+            if not any(
+                update_names <= scope for scope in _SECTION_UPDATE_SCOPES
+            ):
+                raise ValueError(
+                    "section_updates must target only one settings owner"
+                )
+            for name, value in updates.items():
+                if not isinstance(value, dict):
+                    raise ValueError(
+                        f"section_updates.{name} must be a JSON object"
+                    )
+            # Resolve the section-granular write against the newest committed
+            # document while holding the same lock as validation and save.
+            incoming = dict(manager.config)
+            incoming.update({name: dict(value) for name, value in updates.items()})
+            supplied_sections = update_names
+        else:
+            incoming = dict(raw)
+            supplied_sections = set(incoming)
+        budget_supplied = "budget" in supplied_sections
+        caps_supplied = "caps" in supplied_sections
         if manager._budget_policy_error and not (
             budget_supplied and caps_supplied
         ):
@@ -225,131 +256,63 @@ def save_settings(
                 f"widening affecting: {affected}"
             )
 
-        # All validation and widening consent checks happen before any service
-        # stop, file write, environment mutation, or ledger read.
-        old_route = (
-            manager.config["ollama"]["mode"],
-            manager.config["ollama"]["local_host"],
-            json_module.dumps(manager.config["ollama"]["remote"], sort_keys=True),
-        )
-        new_route = (
-            new["ollama"]["mode"],
-            new["ollama"]["local_host"],
-            json_module.dumps(new["ollama"]["remote"], sort_keys=True),
-        )
-        old_ide_route = (
-            manager.config["ide"]["mode"],
-            manager.config["ide"]["endpoint"],
-            manager.config["ide"]["executable"],
-            manager.config["ide"]["docker_image"],
-        )
-        new_ide_route = (
-            new["ide"]["mode"],
-            new["ide"]["endpoint"],
-            new["ide"]["executable"],
-            new["ide"]["docker_image"],
-        )
-        if old_route != new_route:
-            manager.stop_ollama()
-        if old_ide_route != new_ide_route:
-            manager.stop_ide()
-        previous = manager.config
-        manager.config = new
-        try:
-            manager._save()
-        except error_type:
-            manager.config = previous
-            raise
-        manager._config_error = ""
-        manager._budget_policy_error = ""
-        manager.apply_environment()
-    startup_error = ""
-    if new["bridge"]["auto_start"]:
-        manager.ensure_bridge()
-    if new["ollama"]["auto_start"]:
-        try:
-            manager.ensure_ollama()
-        except error_type as exc:
-            startup_error = str(exc)
-            manager._log(f"ollama settings autostart failed: {exc}")
-    if new["ide"]["auto_start"]:
-        try:
-            manager.ensure_ide()
-        except error_type as exc:
-            startup_error = "; ".join(
-                value for value in (startup_error, str(exc)) if value
-            )
-            manager._log(f"IDE settings autostart failed: {exc}")
-    snap = manager.snapshot()
-    if startup_error:
-        snap["startup_error"] = startup_error
-    return snap
+        # The owner receives a detached normalized value.  No writer,
+        # environment mutation, service call, switch or ledger is reachable
+        # from this preparation module.
+        return json_module.loads(json_module.dumps(new))
 
 
-def apply_environment(
+def environment_projection(
     manager: Any,
     *,
-    environ: Any,
     budget_kernel: Any,
     env_execution_limit_policy: str,
     execution_limit_policy: Any,
-    store_limit_policy_in_env: Any,
-    numeric_host: Any,
     tunnel_forward_var: str,
     tunnel_target_var: str,
     remote_ok_var: str,
     trusted_hosts_var: str,
-) -> None:
-    """Project admitted settings into the existing process environment."""
+) -> tuple[dict[str, str], tuple[str, ...]]:
+    """Return process-environment assignments/removals without applying them."""
+
+    assignments: dict[str, str] = {}
+    removals: list[str] = []
 
     if manager._budget_policy_error:
         # A deliberately invalid canonical policy makes every Ledger read fail
         # closed while the settings UI stays available for repair.
-        environ[env_execution_limit_policy] = "{invalid"
+        assignments[env_execution_limit_policy] = "{invalid"
     else:
         budget = manager.config["budget"]
         policy = execution_limit_policy.from_dict(manager.config["caps"])
-        store_limit_policy_in_env(policy)
-        environ.pop(budget_kernel.ENV_PERIOD_CEILING_ENABLED, None)
-        environ[budget_kernel.ENV_CEILING] = format(
+        assignments[env_execution_limit_policy] = policy.to_env_value()
+        removals.append(budget_kernel.ENV_PERIOD_CEILING_ENABLED)
+        assignments[budget_kernel.ENV_CEILING] = format(
             budget["period_ceiling_usd"], ".17g"
         )
-        environ[budget_kernel.ENV_MAX_CALLS] = str(budget["max_calls"])
+        assignments[budget_kernel.ENV_MAX_CALLS] = str(budget["max_calls"])
     ollama = manager.config["ollama"]
-    environ["OLLAMA_MODEL"] = ollama["model"]
+    assignments["OLLAMA_MODEL"] = ollama["model"]
     trusted = [
         value.strip()
         for value in manager._base_trusted.split(",")
         if value.strip()
     ]
-    if ollama["mode"] == "remote_ssh":
-        remote = ollama["remote"]
-        forward = f"http://127.0.0.1:{remote['local_port']}"
-        target = f"http://{remote['host']}:{remote['remote_port']}"
-        environ["OLLAMA_HOST"] = forward
-        environ[tunnel_forward_var] = forward
-        environ[tunnel_target_var] = target
-        # Consent opens this exact transport; the egress wrapper still
-        # classifies it by the physical peer unless that peer is trusted.
-        environ[remote_ok_var] = forward
-        if remote["trust_remote_host"]:
-            resolved_host = numeric_host(remote["host"])
-            if resolved_host:
-                trusted.append(resolved_host)
-    else:
-        environ["OLLAMA_HOST"] = ollama["local_host"]
-        for key in (tunnel_forward_var, tunnel_target_var, remote_ok_var):
-            environ.pop(key, None)
+    # Persisted legacy remote settings remain readable and repairable, but
+    # v0.1.6 never projects them into transport consent, peer trust, or a
+    # tunnel endpoint before exact SSH peer/key-custody contracts exist.
+    assignments["OLLAMA_HOST"] = ollama["local_host"]
+    removals.extend((tunnel_forward_var, tunnel_target_var, remote_ok_var))
     if trusted:
-        environ[trusted_hosts_var] = ",".join(dict.fromkeys(trusted))
+        assignments[trusted_hosts_var] = ",".join(dict.fromkeys(trusted))
     else:
-        environ.pop(trusted_hosts_var, None)
+        removals.append(trusted_hosts_var)
+    return assignments, tuple(dict.fromkeys(removals))
 
 
 __all__ = [
-    "apply_environment",
+    "environment_projection",
     "load",
+    "prepare_settings",
     "read_budget_environment",
-    "save",
-    "save_settings",
 ]

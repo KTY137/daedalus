@@ -327,12 +327,13 @@ def test_cli_emits_the_s09_json_contract(tmp_path, capsys):
     ("subtree", "query", "expected", "exclude"),
     [
         # Current-tree smoke expectation after the owner-retired Iron Plan
-        # guard was removed in 79825b57.  The frozen historical query sets
-        # retain that removed path as negative evidence.
+        # guard was removed in 79825b57.  The 2026-09-05 remeasurement ranks
+        # the subsequently added packet indexer first.  Frozen historical query
+        # sets and both prior current-tree rows remain as negative evidence.
         (
             "tools",
             "iron plan guard verify the plan digest",
-            "docs_reference_check.py",
+            "index_work_packets.py",
             frozenset(),
         ),
         (

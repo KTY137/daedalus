@@ -1,8 +1,9 @@
 """Compile one bounded wiki application into an evidence-bound Fourfold Twin.
 
 The manifest declares a finite source set and semantic claims. Claims are not
-trusted: Python AST, CSV, JSON Schema, and Markdown evidence must reproduce each
-claim before it becomes a verified cross-plane binding.
+trusted: Python AST, bounded declared JavaScript sources, CSV, JSON Schema, and
+Markdown evidence must reproduce each claim before it becomes a verified
+cross-plane binding.
 """
 from __future__ import annotations
 
@@ -98,8 +99,8 @@ def compile_reference_project(
         )
     if len(set(classified)) != len(classified):
         raise ReferenceCompileError("a declared file may belong to only one semantic plane")
-    if any(not p.endswith(".py") for p in code_files):
-        raise ReferenceCompileError("code_files must contain only .py files")
+    if any(not p.endswith((".py", ".js")) for p in code_files):
+        raise ReferenceCompileError("code_files must contain only .py or .js files")
     if any(not p.endswith((".csv", ".json")) for p in data_files):
         raise ReferenceCompileError("data_files must contain only .csv or .json files")
     if any(not p.endswith(".md") for p in knowledge_files):
@@ -181,7 +182,7 @@ def compile_reference_project(
             relation_digests[source_plane].append(canonical_sha(edge.to_dict()))
     plane_files = {
         "code": code_files,
-        "type": code_files,
+        "type": tuple(path for path in code_files if path.endswith(".py")),
         "data": data_files,
         "knowledge": knowledge_files,
     }

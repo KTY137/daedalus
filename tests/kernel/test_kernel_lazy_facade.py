@@ -71,17 +71,18 @@ EXPECTED_OWNER_GROUPS = {
 
 CAMPAIGN_EXPORTS = (
     "CAMPAIGN_RUN_KIND", "CampaignAlreadyTerminal", "CampaignBeginResult",
-    "CampaignLifecycleError", "CampaignPendingReconciliation", "begin_campaign",
+    "CampaignReplayResult", "CampaignLifecycleError",
+    "CampaignPendingReconciliation", "begin_campaign",
     "campaign_contract_for_spec", "complete_campaign", "fail_campaign",
     "load_campaign_contract", "load_campaign_receipt", "load_experiment_spec",
-    "store_contract", "verify_campaign_chain",
+    "lookup_campaign_read_only", "store_contract", "verify_campaign_chain",
 )
 
 PHYSICAL_SUBMODULES = (
     "approvals", "artifacts", "attempt_clock", "attempt_contracts",
     "attempt_ledger", "attempt_spine_reader", "attempt_workspace", "attempts",
-    "authorization", "contracts", "effect_recovery", "effect_replay", "effects",
-    "fourfold_evidence", "offload_lease", "promotion", "promotion_execution",
+    "authorization", "campaigns", "contracts", "effect_recovery", "effect_replay",
+    "effects", "fourfold_evidence", "offload_lease", "promotion", "promotion_execution",
     "promotion_execution_reader", "promotion_fingerprint", "promotion_trust_root",
     "runtime_authorization_issuer", "runtime_conformance", "runtime_effect_replay",
     "runtime_effects", "sandbox", "source_trees",
@@ -192,7 +193,7 @@ def test_independent_submodule_and_web_import_do_not_require_campaigns():
 def test_all_inventory_and_order_are_preserved():
     kernel = importlib.import_module("daedalus.kernel")
     assert kernel.__all__ == EXPECTED_ALL
-    assert len(kernel.__all__) == 96
+    assert len(kernel.__all__) == 98
     assert set(CAMPAIGN_EXPORTS) <= set(dir(kernel))
 
 
@@ -214,13 +215,27 @@ def test_existing_module_attribute_is_lazy_and_exact(name: str):
     assert getattr(kernel, name) is module
 
 
-@pytest.mark.parametrize("name", ("campaigns", *CAMPAIGN_EXPORTS))
-def test_missing_campaign_slice_fails_loudly_and_specifically(name: str):
+@pytest.mark.parametrize("name", CAMPAIGN_EXPORTS)
+def test_campaign_reexport_is_exact_owner_object(name: str):
     kernel = importlib.import_module("daedalus.kernel")
+    module = importlib.import_module("daedalus.kernel.campaigns")
+    assert getattr(kernel, name) is getattr(module, name)
+
+
+def test_missing_campaign_owner_fails_loudly_and_specifically(monkeypatch):
+    kernel = importlib.import_module("daedalus.kernel")
+
+    def missing_owner(module_name: str):
+        raise ModuleNotFoundError(
+            f"No module named {module_name!r}",
+            name=module_name,
+        )
+
+    monkeypatch.setattr(kernel, "_import_module", missing_owner)
     with pytest.raises(ModuleNotFoundError) as caught:
-        getattr(kernel, name)
+        kernel._load_owner("campaigns", "begin_campaign")
     assert caught.value.name == "daedalus.kernel.campaigns"
-    assert f"{name!r}" in str(caught.value)
+    assert "'begin_campaign'" in str(caught.value)
     assert "does not fabricate this slice" in str(caught.value)
 
 
@@ -240,7 +255,7 @@ def test_campaign_dependency_failure_is_not_mislabelled(monkeypatch):
     assert "compatibility name" not in str(caught.value)
 
 
-def test_future_campaign_owner_is_used_without_a_facade_substitute(monkeypatch):
+def test_campaign_owner_is_used_without_a_facade_substitute(monkeypatch):
     kernel = importlib.import_module("daedalus.kernel")
     sentinel = object()
 

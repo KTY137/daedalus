@@ -60,6 +60,15 @@ _IS_WINDOWS = os.name == "nt"
 # loose enough to always pass measures nothing.
 LATCH_SLACK_S = 0.5
 
+# The documented ``python -m`` operator door starts a fresh interpreter and
+# must still publish a stop promptly.  This is deliberately separate from the
+# poll bound above: cold imports and first guard installation are startup work,
+# not watcher latency.  On the 2026-09-05 Windows release host the saturated
+# xdist observation that exposed the conflation was 2.278 s after an already
+# started helper; 5 s keeps a finite end-to-end ceiling without pretending a
+# cold Python process can satisfy the 600 ms disk-observation bound.
+COLD_CLI_STOP_BUDGET_S = 5.0
+
 # The measured bound for CHILD DEATH through the real pytest_gate path.
 # MEASURED on this box over 5 runs: 257, 258, 262, 268, 425 ms (the outlier is
 # the cold first run). 3.0 s is ~7x the worst observation and still tight
@@ -119,20 +128,55 @@ def _report(label: str, seconds: float, budget: float) -> None:
           f"(budget {budget * 1000:.0f} ms)")
 
 
-# A stopper that runs in ANOTHER PROCESS, waits for a rendezvous file, stamps
-# the wall clock, and then engages the switch through the operator CLI. The
-# stamp is taken BEFORE the write, so every measurement here OVER-reports the
-# true latch latency -- the safe direction for a bound.
+def _terminate_and_reap(proc: subprocess.Popen, timeout: float = 5.0) -> None:
+    """Best-effort bounded cleanup for a helper that did not exit itself."""
+    if proc.poll() is not None:
+        proc.wait(timeout=timeout)
+        return
+    try:
+        proc.terminate()
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=timeout)
+        return
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    proc.wait(timeout=timeout)
+
+
+def _wait_stopper_or_fail(proc: subprocess.Popen, timeout: float) -> None:
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        _terminate_and_reap(proc)
+        raise AssertionError("the out-of-process stopper did not exit") from exc
+
+
+# A fully prepared stopper in ANOTHER PROCESS waits for a rendezvous file,
+# stamps the wall clock, and then engages the switch through the operator CLI.
+# Cold process/module/guard startup is intentionally completed before its
+# ``prepared`` acknowledgement; the separate cold-CLI test below owns that
+# end-to-end ceiling. The stamp is still taken BEFORE exact effect admission
+# and the stop write, so every poll observation here OVER-reports the true
+# marker-to-latch latency -- the safe direction for the 600 ms bound.
 _STOPPER_SRC = """
 import os, sys, time
 sys.path.insert(0, {repo!r})
-ready, stamp, path = sys.argv[1], sys.argv[2], sys.argv[3]
+# Import and install once before the prepared barrier. ``_main`` still repeats
+# exact effect admission after the timestamp.
+from daedalus.spine.killswitch import _main
+from daedalus.budget import process_guard_boundary_decision
+from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+process_guard_boundary_decision()
+ready, stamp, path, prepared = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+with open(prepared, "w") as fh:
+    fh.write("ready")
 deadline = time.time() + 60
 while not os.path.exists(ready) and time.time() < deadline:
     time.sleep(0.005)
 with open(stamp, "w") as fh:
     fh.write(repr(time.time()))
-from daedalus.spine.killswitch import _main
 raise SystemExit(_main(["stop", "--path", path, "measured-stop"]))
 """
 
@@ -142,8 +186,29 @@ def _spawn_stopper(tmp_path: Path, switch: KillSwitch,
     script = tmp_path / f"stopper-{uuid.uuid4().hex[:6]}.py"
     script.write_text(_STOPPER_SRC.format(repo=str(REPO_ROOT)), encoding="utf-8")
     stamp = tmp_path / f"stamp-{uuid.uuid4().hex[:6]}.txt"
+    prepared = tmp_path / f"prepared-{uuid.uuid4().hex[:6]}.txt"
     proc = subprocess.Popen(
-        [sys.executable, str(script), str(ready), str(stamp), str(switch.path)])
+        [
+            sys.executable,
+            str(script),
+            str(ready),
+            str(stamp),
+            str(switch.path),
+            str(prepared),
+        ]
+    )
+    try:
+        prepared_ok = _wait_until(
+            lambda: prepared.exists() and prepared.stat().st_size > 0,
+            30.0,
+        )
+    except BaseException:
+        _terminate_and_reap(proc)
+        raise
+    if not prepared_ok:
+        _terminate_and_reap(proc)
+        raise AssertionError(
+            "the out-of-process stopper never completed its cold preparation")
     return proc, stamp
 
 
@@ -151,6 +216,52 @@ def _stamp_value(stamp: Path) -> float:
     assert _wait_until(lambda: stamp.exists() and stamp.stat().st_size > 0, 30.0), (
         "the out-of-process stopper never stamped the clock")
     return float(stamp.read_text(encoding="utf-8").strip())
+
+
+class _HungStopper:
+    def __init__(self) -> None:
+        self.terminated = False
+        self.reaped = False
+
+    def poll(self):
+        return 0 if self.reaped else None
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def kill(self) -> None:
+        self.terminated = True
+
+    def wait(self, timeout=None):
+        if not self.terminated:
+            raise subprocess.TimeoutExpired("stopper", timeout)
+        self.reaped = True
+        return 0
+
+
+def test_stopper_preparation_timeout_reaps_the_unreturned_child(
+    tmp_path, monkeypatch
+):
+    child = _HungStopper()
+    monkeypatch.setattr(subprocess, "Popen", lambda *_a, **_kw: child)
+    monkeypatch.setattr(
+        sys.modules[__name__], "_wait_until", lambda *_a, **_kw: False)
+
+    with pytest.raises(AssertionError, match="cold preparation"):
+        _spawn_stopper(tmp_path, _switch(tmp_path), tmp_path / "never-ready")
+
+    assert child.terminated is True
+    assert child.reaped is True
+
+
+def test_stopper_exit_timeout_terminates_reaps_and_stays_red():
+    child = _HungStopper()
+
+    with pytest.raises(AssertionError, match="did not exit"):
+        _wait_stopper_or_fail(child, timeout=0.01)
+
+    assert child.terminated is True
+    assert child.reaped is True
 
 
 # --------------------------------------------------------------------------- #
@@ -514,14 +625,14 @@ def test_latency_latch_within_one_poll_interval(tmp_path):
             observed = time.time()
         latency = observed - _stamp_value(stamp)
     finally:
-        stopper.wait(timeout=30)
+        _wait_stopper_or_fail(stopper, timeout=30)
     budget = poll_s + LATCH_SLACK_S
     _report("out-of-process stop -> latch", latency, budget)
     assert 0 <= latency < budget, f"latch took {latency:.3f}s (budget {budget}s)"
 
 
 def test_latency_operator_cli_stops_from_another_terminal(tmp_path):
-    """The documented human path, exercised as a human would type it."""
+    """The documented cold human path has a finite start-to-latch bound."""
     switch = _switch(tmp_path)
     switch.arm()
     env = dict(os.environ, PYTHONPATH=str(REPO_ROOT))
@@ -532,11 +643,30 @@ def test_latency_operator_cli_stops_from_another_terminal(tmp_path):
     assert status.returncode == 0, status.stdout + status.stderr
     assert "RUNNING" in status.stdout
 
-    halt = subprocess.run(
-        [sys.executable, "-m", "daedalus.spine.killswitch", "stop",
-         "--path", str(switch.path), "by", "hand"],
-        cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, timeout=60)
-    assert halt.returncode == 0, halt.stdout + halt.stderr
+    halt: subprocess.Popen[str] | None = None
+    try:
+        with switch.watch():
+            started = time.perf_counter()
+            halt = subprocess.Popen(
+                [sys.executable, "-m", "daedalus.spine.killswitch", "stop",
+                 "--path", str(switch.path), "by", "hand"],
+                cwd=str(REPO_ROOT), env=env, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True)
+            assert switch.wait(timeout=30.0) is True, (
+                "the cold operator CLI never latched the watcher")
+            latency = time.perf_counter() - started
+            stdout, stderr = halt.communicate(timeout=60)
+    finally:
+        if halt is not None and halt.poll() is None:
+            halt.kill()
+            halt.wait(timeout=10)
+    assert halt is not None
+    assert halt.returncode == 0, stdout + stderr
+    _report("cold operator CLI process start -> latch", latency,
+            COLD_CLI_STOP_BUDGET_S)
+    assert latency < COLD_CLI_STOP_BUDGET_S, (
+        f"cold CLI stop took {latency:.3f}s "
+        f"(budget {COLD_CLI_STOP_BUDGET_S}s)")
     assert switch.should_stop() is True
 
     after = subprocess.run(
@@ -617,7 +747,7 @@ def test_latency_gate_child_tree_dies(tmp_path):
             verdict = pytest_gate(poll_s=0.1, timeout_s=120)(ctx)
             returned = time.time()
     finally:
-        stopper.wait(timeout=60)
+        _wait_stopper_or_fail(stopper, timeout=60)
 
     assert ready.exists(), "the gate child never reached its running state"
     latency = returned - _stamp_value(stamp)

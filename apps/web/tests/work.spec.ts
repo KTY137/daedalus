@@ -22,6 +22,8 @@ const drafts = [
 const storedView = {
   conversation_id: 'conv_1',
   exists: true,
+  project_binding: { state: 'bound', project: project.name, row_count: 1 },
+  quarantined: false,
   turn_count: 1,
   narrative: '',
   turns: [
@@ -29,6 +31,7 @@ const storedView = {
       id: 44,
       user_message: 'Mach den Parser robuster',
       assistant_text: 'Eingereiht.',
+      project: project.name,
       intent: 'enqueue',
       provider_used: 'deterministic',
       created_ts: '2026-09-03T05:10:00+00:00',
@@ -167,7 +170,7 @@ test.describe('work rail', () => {
     const seen = collect(page);
     await stub(page);
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
 
     const rail = page.locator('.work');
     await expect(rail).toBeVisible();
@@ -200,7 +203,7 @@ test.describe('work rail', () => {
       await route.fulfill({ json: { ok: true, generated_at: '', project: null, warnings: [], artifacts: { found: true, available: false, reason: 'x' } } });
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
 
     // Nothing is fetched until asked: a rail that read every dispatch as it
     // drew would turn a glance into a fan-out.
@@ -236,7 +239,7 @@ test.describe('work rail', () => {
       }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     const detail = page.locator('.work-detail');
@@ -282,7 +285,7 @@ test.describe('work rail', () => {
       });
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
 
     // Closed until asked: the ledger read is bounded but not free.
     expect(reads).toBe(0);
@@ -320,7 +323,7 @@ test.describe('work rail', () => {
       })
     );
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: 'Zuletzt versucht' }).click();
 
     const log = page.locator('.work-log');
@@ -336,7 +339,7 @@ test.describe('work rail', () => {
     // cleared — as "the bus could not be read".
     await stub(page, { taskMissing: true });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     const note = page.locator('.work-row.live .work-detail-note');
@@ -349,7 +352,7 @@ test.describe('work rail', () => {
   test('the recorded timeline is drawn, with the source of every step', async ({ page }) => {
     await stub(page, { task: { ...runningTask, progress } });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     const timeline = page.locator('.timeline');
@@ -409,7 +412,7 @@ test.describe('work rail', () => {
       }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
     await page.getByRole('button', { name: '4 Schritte zeigen' }).click();
 
@@ -435,7 +438,7 @@ test.describe('work rail', () => {
       }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
     await page.getByRole('button', { name: '1 Schritt zeigen' }).click();
 
@@ -462,7 +465,7 @@ test.describe('work rail', () => {
       }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
     await page.getByRole('button', { name: '10 Schritte zeigen' }).click();
 
@@ -488,7 +491,7 @@ test.describe('work rail', () => {
       }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
     await page.getByRole('button', { name: '1 Schritt zeigen' }).click();
 
@@ -516,7 +519,7 @@ test.describe('work rail', () => {
       }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     const applied = page.locator('.work-applied');
@@ -538,7 +541,7 @@ test.describe('work rail', () => {
       task: { ...runningTask, state: 'failed', bridge_status: 'failed', actual_providers: [] }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     await expect(page.locator('.work-no-provider')).toContainText('kein Provider hat den Auftrag angenommen');
@@ -549,7 +552,7 @@ test.describe('work rail', () => {
     // absence that is merely early is not evidence.
     await stub(page, { task: { ...runningTask, state: 'running', actual_providers: [] } });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     await expect(page.locator('.work-task-meta')).toBeVisible();
@@ -570,7 +573,7 @@ test.describe('work rail', () => {
       }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     const meta = page.locator('.work-task-meta');
@@ -584,7 +587,7 @@ test.describe('work rail', () => {
       task: { ...runningTask, requested_lane: 'local_only', lane: 'local_only' }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     await expect(page.locator('.work-task-meta')).toContainText('local_only');
@@ -603,7 +606,7 @@ test.describe('work rail', () => {
       }
     });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
     await page.getByRole('button', { name: /req_open/ }).click();
 
     await expect(page.locator('.work-detail')).toContainText('no events recorded for this unit_id');
@@ -616,14 +619,14 @@ test.describe('work rail', () => {
     // the rail must neither list nor count them.
     await stub(page, { scope: null });
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
 
     const waiting = page.locator('.work-section.wait');
     await expect(waiting).not.toContainText('Parser härten');
     await expect(waiting).not.toContainText('Tests nachziehen');
     await expect(waiting.locator('.work-count')).toHaveCount(0);
     // And the tab must not advertise them either.
-    await expect(page.getByRole('tab', { name: /Arbeit/ }).locator('.rail-badge')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Arbeit/ }).locator('.rail-badge')).toHaveCount(0);
     // "Nothing waits" would be a claim about a pile it could not read.
     await expect(waiting).toContainText('Projekt wird ermittelt');
   });
@@ -639,7 +642,7 @@ test.describe('work rail', () => {
       json: { ok: true, generated_at: '', project: project.name, warnings: [], scope: project.repo_root, pending_count: 0, drafts: [] }
     }));
     await openCockpit(page);
-    await page.getByRole('tab', { name: /Arbeit/ }).click();
+    await page.getByRole('button', { name: /Arbeit/ }).click();
 
     const waiting = page.locator('.work-section.wait');
     await expect(waiting).toContainText('Ereignisstrom noch nicht gemeldet');

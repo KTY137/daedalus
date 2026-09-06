@@ -967,6 +967,17 @@ class Ledger:
         with _BudgetLock(self.lock_path, self.lock_timeout_s):
             return self._state(self._load())
 
+    def state_readonly(self) -> BudgetState:
+        """Observe one atomically published ledger generation without locking.
+
+        This is a display-only projection, never an admission input. Writers
+        publish the complete JSON document with ``os.replace``, so this read
+        sees either the prior or next generation and cannot create the lock
+        file merely because a status endpoint was requested.
+        """
+
+        return self._state(self._load())
+
     # -- writing ----------------------------------------------------------
 
     def _store(self, data: dict[str, Any]) -> None:

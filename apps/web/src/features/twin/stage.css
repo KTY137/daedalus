@@ -386,6 +386,233 @@
   cursor: pointer;
 }
 
+/* ------------------------------------------------------------ graph mode */
+
+.graph-mode-switch {
+  position: absolute;
+  z-index: 12;
+  top: var(--u3);
+  right: var(--u4);
+  display: inline-flex;
+  overflow: hidden;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-pane);
+}
+.graph-mode-switch button {
+  min-height: 44px;
+  padding: 0 var(--u3);
+  border: 0;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.graph-mode-switch button + button { border-left: var(--border) solid var(--line2); }
+.graph-mode-switch button:hover { color: var(--ink); background: var(--surface2); }
+.graph-mode-switch button[aria-pressed='true'] { color: var(--accent-ink); background: var(--accent); }
+
+/* --------------------------------------------------------------- Fourfold */
+
+.fourfold-rail { gap: var(--u3); }
+.fourfold-title { padding-right: var(--u2); }
+.fourfold-title p {
+  margin: var(--u2) 0 0;
+  color: var(--ink2);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.fourfold-census,
+.fourfold-bounded {
+  display: block;
+  margin-top: var(--u2);
+  padding-left: var(--u2);
+  border-left: 2px solid var(--accent);
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+.fourfold-bounded { border-left-color: var(--line); color: var(--ink3); font-weight: normal; }
+
+.fourfold-planes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--u1);
+}
+.fourfold-planes button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  gap: 1px var(--u1);
+  align-items: center;
+  min-height: 54px;
+  padding: var(--u1) var(--u2);
+  border: var(--border) solid var(--line2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fourfold-planes button:hover:not(:disabled) { border-color: var(--line); background: var(--surface2); }
+.fourfold-planes button[aria-pressed='true'] { border-color: var(--plane-color, var(--accent)); color: var(--ink); }
+.fourfold-planes button:disabled { cursor: not-allowed; opacity: 0.52; }
+.fourfold-planes i {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--plane-color);
+  color: white;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+.fourfold-planes span { overflow: hidden; text-overflow: ellipsis; }
+.fourfold-planes b { font-family: var(--font-mono); font-size: var(--fs-xs); }
+.fourfold-planes small { grid-column: 2 / span 2; color: var(--ink3); font-size: 10px; }
+
+.fourfold-search { position: relative; }
+.fourfold-search label {
+  display: block;
+  margin-bottom: var(--u1);
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.fourfold-search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 var(--u2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+.fourfold-search input:focus { border-color: var(--accent); }
+.fourfold-hits {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--u1));
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow: auto;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-pane);
+}
+.fourfold-hits button {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: var(--u2);
+  border: 0;
+  border-bottom: var(--border) solid var(--line2);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.fourfold-hits button:hover { background: var(--surface2); }
+.fourfold-hits small { color: var(--ink3); }
+.fourfold-reading { min-height: 92px; }
+.fourfold-tools { gap: var(--u1); }
+
+.fourfold-field { isolation: isolate; background: var(--room2); }
+.fourfold-canvas { position: absolute; z-index: 2; inset: 0; }
+.fourfold-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.fourfold-guides {
+  position: absolute;
+  z-index: 1;
+  inset: var(--u6);
+  pointer-events: none;
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+}
+.fourfold-guides.layers {
+  display: grid;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  padding-top: var(--u4);
+  padding-bottom: var(--u4);
+}
+.fourfold-guides.layers span {
+  display: flex;
+  align-items: flex-start;
+  padding: var(--u1) var(--u2);
+  border-top: var(--border) solid var(--line2);
+  text-transform: uppercase;
+}
+.fourfold-guides.sphere { display: grid; place-items: center; }
+.fourfold-guides.sphere > i {
+  position: absolute;
+  display: block;
+  aspect-ratio: 1;
+  border: var(--border) solid var(--shell-color);
+  border-radius: 50%;
+  opacity: 0.34;
+}
+.fourfold-guides.sphere > i:nth-child(1) { width: 20%; }
+.fourfold-guides.sphere > i:nth-child(2) { width: 39%; }
+.fourfold-guides.sphere > i:nth-child(3) { width: 58%; }
+.fourfold-guides.sphere > i:nth-child(4) { width: 77%; }
+.fourfold-guides.sphere span {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  padding: 0 4px;
+  background: var(--room2);
+  color: var(--ink3);
+  font-style: normal;
+  transform: translateX(-50%);
+}
+.fourfold-edge-key {
+  position: absolute;
+  z-index: 4;
+  right: var(--u4);
+  bottom: var(--u3);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--u2) var(--u3);
+  max-width: min(680px, calc(100% - var(--u8)));
+  padding: var(--u1) var(--u2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink3);
+  font-size: var(--fs-xs);
+}
+.fourfold-edge-key span { display: inline-flex; align-items: center; gap: var(--u1); }
+.fourfold-edge-key i { width: 22px; height: 1px; background: var(--edge); }
+.fourfold-edge-key i.cross { height: 2px; background: var(--edge-hot); }
+.fourfold-render-empty {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: var(--u1);
+  padding: var(--u6);
+  color: var(--ink2);
+  text-align: center;
+}
+.fourfold-render-empty strong { color: var(--ink); }
+.fourfold-load-state { padding-top: var(--u8); }
+
 /* ---------------------------------------------------------------- narrow */
 
 @media (max-width: 900px) {
@@ -404,4 +631,7 @@
      the name, the counts, what was left out and the controls are not. */
   .stage-legend,
   .stage-reading { display: none; }
+  .graph-mode-switch { top: var(--u2); right: var(--u2); }
+  .fourfold-rail { max-height: 250px; overflow: auto; }
+  .fourfold-guides { inset: var(--u3); }
 }

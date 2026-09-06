@@ -1822,6 +1822,52 @@ class CampaignContract(CanonicalContract):
 
 
 @dataclass(frozen=True)
+class CampaignBudgetEqualityEvidence:
+    """Auditable proof that every campaign arm received the same ceiling.
+
+    Realized usage is deliberately retained per arm rather than required to be
+    numerically identical: a failed evaluator may consume less wall time.  The
+    invariant is equal configured opportunity plus complete, bounded usage
+    accounting.
+    """
+
+    configured_budget_sha256: str
+    trial_keys: tuple[str, ...]
+    trial_budget_sha256s: tuple[str, ...]
+    realized_usage_sha256s: tuple[str, ...]
+    configured_equal: bool
+    realized_usage_recorded: bool
+    within_budget: bool
+
+    def __post_init__(self) -> None:
+        configured = _sha256(
+            self.configured_budget_sha256, "configured_budget_sha256"
+        )
+        object.__setattr__(self, "configured_budget_sha256", configured)
+        keys = tuple(_identifier(value, "trial_key") for value in self.trial_keys)
+        if not keys or len(set(keys)) != len(keys):
+            raise ValueError("budget evidence trial_keys must be non-empty and unique")
+        object.__setattr__(self, "trial_keys", keys)
+        for name in ("trial_budget_sha256s", "realized_usage_sha256s"):
+            values = tuple(_sha256(value, name) for value in getattr(self, name))
+            if len(values) != len(keys):
+                raise ValueError(f"{name} must have one digest per trial")
+            object.__setattr__(self, name, values)
+        if any(value != configured for value in self.trial_budget_sha256s):
+            raise ValueError("budget evidence contains unequal configured budgets")
+        for name in ("configured_equal", "realized_usage_recorded", "within_budget"):
+            if getattr(self, name) is not True:
+                raise ValueError(f"budget evidence {name} must be true")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {f.name: _json_value(getattr(self, f.name)) for f in fields(self)}
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "CampaignBudgetEqualityEvidence":
+        return cls(**_record_payload(cls, payload, "campaign budget equality evidence"))
+
+
+@dataclass(frozen=True)
 class CampaignTrialReceipt:
     """One retained seed outcome inside a canonical CampaignReceipt."""
 
@@ -1855,6 +1901,10 @@ class CampaignTrialReceipt:
     blockers: tuple[str, ...]
     started_at: str
     finished_at: str
+    variant_id: str = "legacy"
+    arm_role: str = "candidate"
+    configured_budget_sha256: str | None = None
+    receipt_profile: str = "fourfold-replay-v1"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -1864,6 +1914,19 @@ class CampaignTrialReceipt:
             raise ValueError("campaign trial seed must be a non-negative integer")
         if self.replay_role not in {"origin", "replay"}:
             raise ValueError("campaign trial replay_role must be origin or replay")
+        object.__setattr__(self, "variant_id", _identifier(self.variant_id, "variant_id"))
+        if self.arm_role not in {"baseline", "candidate"}:
+            raise ValueError("campaign trial arm_role must be baseline or candidate")
+        if self.configured_budget_sha256 is not None:
+            object.__setattr__(
+                self,
+                "configured_budget_sha256",
+                _sha256(self.configured_budget_sha256, "configured_budget_sha256"),
+            )
+        if self.receipt_profile not in {"fourfold-replay-v1", "controlled-repair-v1"}:
+            raise ValueError("campaign trial receipt_profile is not recognized")
+        if self.receipt_profile == "controlled-repair-v1" and self.configured_budget_sha256 is None:
+            raise ValueError("controlled repair trial requires configured budget evidence")
         if self.stage not in {
             "admitted",
             "mission",
@@ -1997,17 +2060,26 @@ class CampaignTrialReceipt:
         if self.status == "passed":
             if self.blockers:
                 raise ValueError("passed campaign trial cannot retain blockers")
-            if (
-                self.stage != "complete"
-                or self.mission_sha256 is None
-                or not self.attempt_ids
-                or self.gate1_receipt_sha256 is None
-                or self.candidate_tree_sha256 is None
-                or self.candidate_source_bundle_sha256 is None
-                or self.candidate_snapshot_sha256 is None
-                or self.graph_delta_sha256 is None
-                or self.evidence_packet_sha256 is None
-            ):
+            controlled_complete = (
+                self.receipt_profile == "controlled-repair-v1"
+                and self.stage == "complete"
+                and bool(self.attempt_ids)
+                and self.candidate_tree_sha256 is not None
+                and self.evidence_packet_sha256 is not None
+            )
+            fourfold_complete = (
+                self.receipt_profile == "fourfold-replay-v1"
+                and self.stage == "complete"
+                and self.mission_sha256 is not None
+                and bool(self.attempt_ids)
+                and self.gate1_receipt_sha256 is not None
+                and self.candidate_tree_sha256 is not None
+                and self.candidate_source_bundle_sha256 is not None
+                and self.candidate_snapshot_sha256 is not None
+                and self.graph_delta_sha256 is not None
+                and self.evidence_packet_sha256 is not None
+            )
+            if not (controlled_complete or fourfold_complete):
                 raise ValueError(
                     "passed campaign trial requires its complete retained evidence chain"
                 )
@@ -2053,6 +2125,9 @@ class CampaignReceipt(CanonicalContract):
     started_at: str
     finished_at: str
     provenance: ContractProvenance
+    selection_mode: str = "replay-consensus"
+    selected_variant_id: str | None = None
+    budget_equality: CampaignBudgetEqualityEvidence | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -2079,8 +2154,8 @@ class CampaignReceipt(CanonicalContract):
         trials = tuple(self.trials)
         if not all(isinstance(item, CampaignTrialReceipt) for item in trials):
             raise ValueError("campaign receipt trials must be typed trial receipts")
-        if len({item.seed for item in trials}) != len(trials):
-            raise ValueError("campaign receipt trial seeds must be unique")
+        if len({(item.variant_id, item.seed) for item in trials}) != len(trials):
+            raise ValueError("campaign receipt trial variant/seed identities must be unique")
         for trial in trials:
             if trial.campaign_id != self.campaign_id:
                 raise ValueError("campaign trial belongs to another campaign")
@@ -2108,6 +2183,16 @@ class CampaignReceipt(CanonicalContract):
             or self.selected_seed < 0
         ):
             raise ValueError("selected_seed must be a non-negative integer or null")
+        if self.selection_mode not in {"replay-consensus", "best-passed-trial"}:
+            raise ValueError("campaign selection_mode is not recognized")
+        if self.selected_variant_id is not None:
+            object.__setattr__(
+                self, "selected_variant_id", _identifier(self.selected_variant_id, "selected_variant_id")
+            )
+        if self.budget_equality is not None and not isinstance(
+            self.budget_equality, CampaignBudgetEqualityEvidence
+        ):
+            raise ValueError("budget_equality must be typed budget evidence")
         for digest_name, locator_name, label in (
             ("candidate_tree_sha256", "candidate_tree_locator", "candidate tree"),
             (
@@ -2131,6 +2216,15 @@ class CampaignReceipt(CanonicalContract):
             raise ValueError("campaign receipt usage must be ResourceUsage")
         if not isinstance(self.overhead_usage, ResourceUsage):
             raise ValueError("campaign receipt overhead_usage must be ResourceUsage")
+        summed_usage = ResourceUsage(
+            input_tokens=sum(trial.usage.input_tokens for trial in trials),
+            output_tokens=sum(trial.usage.output_tokens for trial in trials),
+            cost_microusd=sum(trial.usage.cost_microusd for trial in trials),
+            wall_time_ms=sum(trial.usage.wall_time_ms for trial in trials),
+            est_input_tokens=sum(trial.usage.est_input_tokens for trial in trials),
+        )
+        if self.usage != summed_usage:
+            raise ValueError("campaign aggregate usage must exactly equal summed trial usage")
         object.__setattr__(
             self,
             "negative_outcomes",
@@ -2155,20 +2249,50 @@ class CampaignReceipt(CanonicalContract):
                 raise ValueError("nominated campaign requires retained trials")
             if self.blockers:
                 raise ValueError("nominated campaign cannot retain blockers")
-            if any(trial.status != "passed" for trial in trials):
-                raise ValueError("nominated campaign requires every trial to pass")
-            identities = {trial.candidate_tree_sha256 for trial in trials}
-            if None in identities or len(identities) != 1:
-                raise ValueError("nominated campaign requires one stable candidate identity")
-            if self.candidate_tree_sha256 != next(iter(identities)):
-                raise ValueError("campaign candidate contradicts its trial candidates")
             if self.nomination_receipt_sha256 is None:
                 raise ValueError("nominated campaign requires a nomination receipt")
-            if self.selected_seed not in {trial.seed for trial in trials}:
-                raise ValueError("nominated campaign must select one retained seed")
+            if self.selection_mode == "replay-consensus":
+                if any(trial.status != "passed" for trial in trials):
+                    raise ValueError("replay-consensus nomination requires every trial to pass")
+                identities = {trial.candidate_tree_sha256 for trial in trials}
+                if None in identities or len(identities) != 1:
+                    raise ValueError("replay-consensus nomination requires one stable candidate")
+                if self.candidate_tree_sha256 != next(iter(identities)):
+                    raise ValueError("campaign candidate contradicts its trial candidates")
+                if self.selected_seed not in {trial.seed for trial in trials}:
+                    raise ValueError("nominated campaign must select one retained seed")
+            else:
+                if self.selected_variant_id is None or self.budget_equality is None:
+                    raise ValueError("best-trial nomination requires variant and budget evidence")
+                selected = [
+                    trial for trial in trials
+                    if trial.seed == self.selected_seed
+                    and trial.variant_id == self.selected_variant_id
+                ]
+                if len(selected) != 1 or selected[0].status != "passed":
+                    raise ValueError("selected variant/seed must bind one passed trial")
+                if selected[0].arm_role != "candidate":
+                    raise ValueError("baseline arm cannot be nominated")
+                if self.candidate_tree_sha256 != selected[0].candidate_tree_sha256:
+                    raise ValueError("campaign candidate must equal selected trial candidate")
+                expected_keys = tuple(
+                    f"{trial.variant_id}:{trial.seed}" for trial in trials
+                )
+                if self.budget_equality.trial_keys != expected_keys:
+                    raise ValueError("budget evidence does not bind retained trial order")
+                expected_budget_digests = tuple(
+                    trial.configured_budget_sha256 for trial in trials
+                )
+                if self.budget_equality.trial_budget_sha256s != expected_budget_digests:
+                    raise ValueError("budget evidence does not bind trial configured budgets")
+                expected_usage_digests = tuple(
+                    canonical_sha(_json_value(trial.usage)) for trial in trials
+                )
+                if self.budget_equality.realized_usage_sha256s != expected_usage_digests:
+                    raise ValueError("budget evidence does not bind realized trial usage")
         else:
-            if self.selected_seed is not None:
-                raise ValueError("non-nominated campaign cannot select a seed")
+            if self.selected_seed is not None or self.selected_variant_id is not None:
+                raise ValueError("non-nominated campaign cannot select a trial")
             if self.nomination_receipt_sha256 is not None:
                 raise ValueError("non-nominated campaign cannot carry a nomination")
             if not self.blockers:
@@ -2270,6 +2394,10 @@ class CampaignReceipt(CanonicalContract):
         )
         body["usage"] = ResourceUsage.from_dict(body["usage"])
         body["overhead_usage"] = ResourceUsage.from_dict(body["overhead_usage"])
+        if body.get("budget_equality") is not None:
+            body["budget_equality"] = CampaignBudgetEqualityEvidence.from_dict(
+                body["budget_equality"]
+            )
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
 
@@ -2919,25 +3047,55 @@ class RuntimeConformanceReceipt(CanonicalContract):
         return cls(**body)
 
 
+_KERNEL_CONTRACT_TYPE_TABLE: dict[str, type[CanonicalContract]] = {
+    cls.CONTRACT_TYPE: cls
+    for cls in (
+        MissionContract,
+        AttemptContract,
+        EvidencePacket,
+        ExperimentSpec,
+        CampaignContract,
+        CampaignReceipt,
+        PolicyDecision,
+        RuntimeManifest,
+        AttemptReceipt,
+        NominationReceipt,
+        PromotionReceipt,
+        RuntimeConformanceReceipt,
+    )
+}
+
+# The exported object remains read-only and object-identical through every
+# compatibility facade.  Domain modules may add contract classes exactly once
+# while they import; callers can never mutate this table through the facade.
 KERNEL_CONTRACT_TYPES: Mapping[str, type[CanonicalContract]] = MappingProxyType(
-    {
-        cls.CONTRACT_TYPE: cls
-        for cls in (
-            MissionContract,
-            AttemptContract,
-            EvidencePacket,
-            ExperimentSpec,
-            CampaignContract,
-            CampaignReceipt,
-            PolicyDecision,
-            RuntimeManifest,
-            AttemptReceipt,
-            NominationReceipt,
-            PromotionReceipt,
-            RuntimeConformanceReceipt,
-        )
-    }
+    _KERNEL_CONTRACT_TYPE_TABLE
 )
+
+
+def _register_kernel_contract_types(
+    classes: Sequence[type[CanonicalContract]],
+) -> None:
+    """Register one additive canonical contract domain without replacing types.
+
+    ``canonical`` remains the serialization authority, while a bounded domain
+    module can own its dataclasses without forcing every kernel import to load
+    that domain.  Re-registering the exact class is idempotent; claiming an
+    existing wire type with another class fails closed.
+    """
+
+    for cls in classes:
+        if not isinstance(cls, type) or not issubclass(cls, CanonicalContract):
+            raise TypeError("kernel contract registration requires contract classes")
+        contract_type = _non_empty(
+            getattr(cls, "CONTRACT_TYPE", None), "contract_type", max_length=200
+        )
+        existing = _KERNEL_CONTRACT_TYPE_TABLE.get(contract_type)
+        if existing is not None and existing is not cls:
+            raise ValueError(
+                f"kernel contract_type {contract_type!r} is already registered"
+            )
+        _KERNEL_CONTRACT_TYPE_TABLE[contract_type] = cls
 
 
 def parse_kernel_contract(payload: Mapping[str, Any]) -> CanonicalContract:
@@ -2947,6 +3105,13 @@ def parse_kernel_contract(payload: Mapping[str, Any]) -> CanonicalContract:
         raise ValueError("kernel contract must be an object")
     contract_type = payload.get("contract_type")
     cls = KERNEL_CONTRACT_TYPES.get(str(contract_type))
+    if cls is None:
+        # Genesis is an additive domain and deliberately stays out of the hot
+        # import path for unrelated kernel contracts.  Loading it here is pure:
+        # the module only defines immutable records and registers their types.
+        from . import genesis as _genesis  # noqa: F401
+
+        cls = KERNEL_CONTRACT_TYPES.get(str(contract_type))
     if cls is None:
         raise ValueError(f"unknown kernel contract_type {contract_type!r}")
     return cls.from_dict(payload)

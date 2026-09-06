@@ -15,7 +15,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from ..schemas import _non_empty, _revision, _sha256
+from ..kernel.contracts.base import _non_empty, _revision, _sha256
 from ..spine.envelope import canonical_sha
 from ..structcore.forest import KnowledgeForest
 from .contracts import FOURFOLD_PLANES, FourfoldSnapshot

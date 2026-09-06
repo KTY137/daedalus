@@ -170,7 +170,7 @@ daedalus/file_bridge.py (heartbeat)    JSON        epoch               N/A BY DE
                                                                        has no run to correlate to.
 =====================================  ==========  ==================  =========================================
 
-The scan also flags 26 modules that serialise JSON into ``runs/`` or
+The scan also flags 28 modules that serialise JSON into ``runs/`` or
 ``memory/`` and are NOT run records -- latest-only mirrors, config scaffolds,
 cursors, sealed fixtures. They are listed in :data:`UNCONVERTED_PRODUCERS` with
 the reason, because a detector whose output is not fully accounted for is a
@@ -178,11 +178,13 @@ detector people learn to ignore.
 
 That count said "twelve" until 2026-09-02 and MEASURED 26 when someone finally
 counted the rows it describes; it had been wrong for some time and only one of
-the 26 was added that day. Unlike the CONVERTED count above, no test pins this
-number, which is exactly why it drifted -- an unpinned number in prose is a
-claim nobody re-measures. It is corrected rather than deleted because the ratio
-it reports is the point: most of what this detector finds is deliberately not a
-run record, and a reader who does not know that reads the ledger as a backlog.
+the 26 was added that day. It moved 26 -> 28 on 2026-09-05 when the detector
+first saw the desktop bootstrap owner and the retained shift compatibility
+owner. Unlike the CONVERTED count above, no test pins this number, which is
+exactly why it drifted -- an unpinned number in prose is a claim nobody
+re-measures. It is corrected rather than deleted because the ratio it reports
+is the point: most of what this detector finds is deliberately not a run
+record, and a reader who does not know that reads the ledger as a backlog.
 
 WHICH SPINE DB PATH THIS READS THROUGH
 ---------------------------------------
@@ -679,6 +681,12 @@ UNCONVERTED_PRODUCERS = {
         "a record of an effect, so there is no run for a trace id to name. Written "
         "atomically and appended under a lock because a ticker, a prompt hook and "
         "the agent all touch it concurrently.",
+    "daedalus/shift.py":
+        "OPERATOR STATE, NOT A RUN RECORD. This retained compatibility owner "
+        "persists the same current working-window declaration as the canonical "
+        "CLI surface and can still be executed directly. Its goal, deadline and "
+        "notes describe operator intent rather than a Mission or Attempt event, "
+        "so assigning an ambient execution trace would misstate its lifetime.",
     "daedalus/interfaces/cli/arch_memory.py":
         "DERIVED SUMMARY, NOT A RUN RECORD. runs/arch_memory.json plus a "
         "runs/arch_memory.shown cursor. Regenerated from the tree on commit; "
@@ -724,6 +732,12 @@ UNCONVERTED_PRODUCERS = {
         "config/known_hosts are latest-only desktop settings/trust material; "
         "runs/desktop_runtime.log is an unstructured lifecycle log. None is an "
         "attempt or mission record with a trace to join.",
+    "daedalus/interfaces/desktop/sidecar.py":
+        "BOOTSTRAP CONFIGURATION, NOT A RUN RECORD. The structured document is "
+        "the sidecar-owned projects/daedalus.json self-registration, seeded or "
+        "relocated before the HTTP runtime exists. The other durable bytes in "
+        "this owner are one-shot kill-switch bootstrap claims. Neither record "
+        "belongs to a Mission or Attempt, so neither has a run trace to join.",
     "daedalus/interfaces/bridge/watcher.py":
         "LIVENESS STATE, NOT A RUN RECORD. runs/bridge_heartbeat.json, one "
         "latest-only document keyed by pid + owner_token + process_identity. "

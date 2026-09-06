@@ -940,7 +940,7 @@ def test_a_linked_terminal_report_projects_one_honest_conversation_outcome(
     with conversation_mod.ConversationStore() as store:
         turn = store.append_turn(
             "c1", user_message="do it", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", req.stem, turn_id=turn.id, kind="queue_task")
 
         fb.process_request(req)
@@ -974,7 +974,7 @@ def test_restart_after_conversation_projection_does_not_duplicate_the_event(
     req = bridge.enqueue()
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", req.stem, kind="queue_task")
 
         # Projection happens immediately before the arrival-line seam. The
@@ -996,7 +996,7 @@ def test_projection_failure_keeps_terminal_report_and_retries_without_provider(
     req = bridge.enqueue()
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", req.stem, kind="queue_task")
 
         with monkeypatch.context() as broken:
@@ -1040,7 +1040,7 @@ def test_permanent_projection_failures_keep_their_type_and_are_not_pending(
     key = "task-permanent-error"
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, kind="queue_task")
 
     failing_store = mock.Mock()
@@ -1060,7 +1060,7 @@ def test_sqlite_lock_projection_failure_is_transient_pending(
     key = "task-locked-store"
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, kind="queue_task")
 
     locked = sqlite3.OperationalError("database is locked")
@@ -1082,7 +1082,7 @@ def test_mutated_report_after_projection_is_not_requeued_or_redispatched(
     key = req.stem
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, kind="queue_task")
         fb.process_request(req)
 
@@ -1113,7 +1113,7 @@ def test_watcher_preserves_report_and_evicts_initial_projection_conflict(
     with conversation_mod.ConversationStore() as store:
         seed_turn = store.append_turn(
             "seed", user_message="seed", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("seed", "seed-dispatch", turn_id=seed_turn.id)
         store.record_dispatch_event(
             "seed-dispatch", outcome_state=conversation_mod.PRESENT,
@@ -1121,7 +1121,7 @@ def test_watcher_preserves_report_and_evicts_initial_projection_conflict(
             source_event_id=f"file_bridge.report:{key}")
         turn = store.append_turn(
             "c1", user_message="do it", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, turn_id=turn.id, kind="queue_task")
 
         class _StopWatcher(Exception):
@@ -1167,7 +1167,7 @@ def test_projection_error_cleanup_retry_skips_provider_and_projector(
     with conversation_mod.ConversationStore() as store:
         seed_turn = store.append_turn(
             "seed", user_message="seed", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("seed", "seed-dispatch", turn_id=seed_turn.id)
         store.record_dispatch_event(
             "seed-dispatch", outcome_state=conversation_mod.PRESENT,
@@ -1175,7 +1175,7 @@ def test_projection_error_cleanup_retry_skips_provider_and_projector(
             source_event_id=f"file_bridge.report:{key}")
         turn = store.append_turn(
             "c1", user_message="do it", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, turn_id=turn.id, kind="queue_task")
 
         real_project = fb._project_report_to_conversation
@@ -1225,7 +1225,7 @@ def test_report_that_wins_the_enqueue_link_race_is_reconciled_once(
 
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, kind="queue_task")
         assert store.dispatch_status(key)["latest"].lifecycle == (
             conversation_mod.LIFECYCLE_DISPATCHED)
@@ -1254,7 +1254,7 @@ def test_late_reconcile_failure_requeues_only_projection_not_provider(
 
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, kind="queue_task")
         with monkeypatch.context() as broken:
             broken.setattr(
@@ -1287,7 +1287,7 @@ def test_late_projection_is_not_requeued_without_report_reuse_proof(
     fb._write_journal(key, {"key": key, "steps": {}, "state": "unknown"})
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key)
         with monkeypatch.context() as broken:
             broken.setattr(
@@ -1313,7 +1313,7 @@ def test_queue_response_keeps_successful_link_true_when_projection_is_pending(
         bridge, monkeypatch):
     with conversation_mod.ConversationStore() as store:
         turn = store.append_turn("c1", user_message="do it", intent="enqueue",
-                                 status=conversation_mod.STATUS_PROPOSED)
+                                 status=conversation_mod.STATUS_PROPOSED, project="p")
         body = {
             "project": "p", "objective": "do it", "conversation_id": "c1",
             "turn_id": turn.id,
@@ -1355,7 +1355,7 @@ def test_queue_response_surfaces_permanent_projection_conflict_without_retry(
     with conversation_mod.ConversationStore() as store:
         seed_turn = store.append_turn(
             "seed", user_message="seed", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("seed", "seed-dispatch", turn_id=seed_turn.id)
         # Model a durable first claim whose source identity is later paired
         # with a different report body. This is an integrity disagreement,
@@ -1366,7 +1366,7 @@ def test_queue_response_surfaces_permanent_projection_conflict_without_retry(
             source_event_id=f"file_bridge.report:{key}")
         turn = store.append_turn(
             "c1", user_message="do it", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
 
         body = {
             "project": "p", "objective": "do it", "conversation_id": "c1",
@@ -1447,7 +1447,7 @@ def test_a_linked_failed_report_is_degraded_and_application_stays_unknown(
     monkeypatch.setattr("daedalus.core.process_bridge_payload", fail)
     with conversation_mod.ConversationStore() as store:
         store.append_turn("c1", user_message="do it", intent="enqueue",
-                          status=conversation_mod.STATUS_PROPOSED)
+                          status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", req.stem, kind="queue_task")
         fb.process_request(req)
 
@@ -1608,7 +1608,7 @@ def test_quarantine_projection_conflict_is_visible_and_does_not_spin(
     with conversation_mod.ConversationStore() as store:
         seed_turn = store.append_turn(
             "seed", user_message="seed", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("seed", "seed-dispatch", turn_id=seed_turn.id)
         store.record_dispatch_event(
             "seed-dispatch", outcome_state=conversation_mod.PRESENT,
@@ -1616,7 +1616,7 @@ def test_quarantine_projection_conflict_is_visible_and_does_not_spin(
             source_event_id=f"file_bridge.report:{key}")
         turn = store.append_turn(
             "c1", user_message="do it", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, turn_id=turn.id, kind="queue_task")
 
         result = fb.handle_poison_request(bad, _capture(bad))
@@ -1650,7 +1650,7 @@ def test_transient_quarantine_projection_resumes_exact_report_without_provider(
     with conversation_mod.ConversationStore() as store:
         turn = store.append_turn(
             "c1", user_message="bad imported request", intent="enqueue",
-            status=conversation_mod.STATUS_PROPOSED)
+            status=conversation_mod.STATUS_PROPOSED, project="p")
         store.link_dispatch("c1", key, turn_id=turn.id, kind="queue_task")
 
         with monkeypatch.context() as unavailable:

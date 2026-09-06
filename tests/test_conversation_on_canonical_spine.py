@@ -27,8 +27,11 @@ program can OPEN, and that is a live string constant, never a comment.
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
+import multiprocessing
 import re
+import threading
 from pathlib import Path
 
 import pytest
@@ -96,12 +99,321 @@ def store(tmp_path, monkeypatch):
         yield s
 
 
+def _process_append_turn(db_path: str, conversation_id: str, project: str,
+                         ready, start, outcomes) -> None:
+    """Spawn-safe writer used to prove SQLite, not a process lock, arbitrates."""
+    try:
+        with conv.ConversationStore(db_path) as opened:
+            ready.put(project)
+            if not start.wait(10):
+                outcomes.put((project, "timeout"))
+                return
+            opened.append_turn(
+                conversation_id,
+                user_message=f"hello from {project}",
+                intent="chat",
+                status=conv.STATUS_ANSWERED,
+                project=project,
+            )
+        outcomes.put((project, "created"))
+    except conv.ConversationProjectConflict:
+        outcomes.put((project, "conflict"))
+    except BaseException as exc:  # pragma: no cover - reported to parent
+        outcomes.put((project, f"error:{type(exc).__name__}:{exc}"))
+
+
+def _seed_historical_turn(ledger, conversation_id: str, project, *,
+                          payload_conversation_id: str | None = None,
+                          message: str = "legacy") -> int:
+    """Write a pre-trigger row through the canonical ledger for migration tests."""
+    payload = {
+        "conversation_id": (
+            conversation_id
+            if payload_conversation_id is None
+            else payload_conversation_id
+        ),
+        "user_message": message,
+        "intent": "chat",
+        "status": conv.STATUS_ANSWERED,
+        "assistant_text": "legacy answer",
+        "provider_used": "deterministic",
+        "model_used": None,
+        "source": None,
+        "strategy": None,
+        "proposed_action": None,
+        "envelope": {},
+    }
+    if project is not ...:
+        payload["project"] = project
+    row = ledger.record_fact(
+        conv.KIND_TURN,
+        payload,
+        effect_key=conv.conversation_effect_key(conversation_id),
+        effect_id=conversation_id,
+        result={"status": conv.STATUS_ANSWERED, "intent": "chat"},
+    )
+    return row.id
+
+
+def _append(store: conv.ConversationStore, conversation_id: str, **kwargs):
+    """Keep legacy assertions focused while satisfying the new binding input."""
+    kwargs.setdefault("project", "p")
+    return store.append_turn(conversation_id, **kwargs)
+
+
 # --------------------------------------------------------------------------- #
 # 1 -- round trip through the canonical spine                                  #
 # --------------------------------------------------------------------------- #
 def test_the_facade_writes_where_the_spine_lives(store):
     assert store.path == spine_ledger.default_db_path()
     assert conv.default_db_path() == spine_ledger.default_db_path()
+
+
+def test_project_binding_trigger_and_expression_index_are_persistent(store):
+    with store.spine._lock:
+        rows = store.spine._conn.execute(
+            "SELECT type, name FROM sqlite_master "
+            "WHERE name IN (?, ?) ORDER BY name",
+            (
+                "idx_conversation_project_binding",
+                "trg_conversation_project_binding",
+            ),
+        ).fetchall()
+    assert [(row["type"], row["name"]) for row in rows] == [
+        ("index", "idx_conversation_project_binding"),
+        ("trigger", "trg_conversation_project_binding"),
+    ]
+
+
+def test_first_project_claim_is_atomic_across_processes(tmp_path):
+    db_path = tmp_path / "spine.sqlite3"
+    # Install the persistent guard once, then prove separately opened processes
+    # are serialized by SQLite rather than by ConversationStore's Python lock.
+    with conv.ConversationStore(db_path):
+        pass
+    ctx = multiprocessing.get_context("spawn")
+    ready = ctx.Queue()
+    start = ctx.Event()
+    outcomes = ctx.Queue()
+    workers = [
+        ctx.Process(
+            target=_process_append_turn,
+            args=(str(db_path), "conv_race", project, ready, start, outcomes),
+        )
+        for project in ("A", "B")
+    ]
+    for worker in workers:
+        worker.start()
+    assert {ready.get(timeout=15), ready.get(timeout=15)} == {"A", "B"}
+    start.set()
+    for worker in workers:
+        worker.join(15)
+        assert worker.exitcode == 0
+    results = {project: result for project, result in (
+        outcomes.get(timeout=5), outcomes.get(timeout=5)
+    )}
+    assert sorted(results.values()) == ["conflict", "created"]
+    with conv.ConversationStore(db_path) as reopened:
+        binding = reopened.project_binding("conv_race")
+        assert binding.state == conv.BINDING_BOUND
+        assert binding.project in {"A", "B"}
+        assert binding.row_count == 1
+
+
+def test_same_project_claims_can_commit_concurrently(tmp_path):
+    db_path = tmp_path / "spine.sqlite3"
+    first = conv.ConversationStore(db_path)
+    second = conv.ConversationStore(db_path)
+    barrier = threading.Barrier(2)
+    outcomes: list[str] = []
+
+    def append(opened: conv.ConversationStore, message: str) -> None:
+        barrier.wait(timeout=5)
+        opened.append_turn(
+            "conv_same",
+            user_message=message,
+            intent="chat",
+            status=conv.STATUS_ANSWERED,
+            project="A",
+        )
+        outcomes.append(message)
+
+    threads = [
+        threading.Thread(target=append, args=(first, "one")),
+        threading.Thread(target=append, args=(second, "two")),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(10)
+        assert not thread.is_alive()
+    try:
+        assert sorted(outcomes) == ["one", "two"]
+        assert first.project_binding("conv_same") == conv.ConversationProjectBinding(
+            "conv_same", conv.BINDING_BOUND, "A", 2
+        )
+    finally:
+        first.close()
+        second.close()
+
+
+@pytest.mark.parametrize(
+    ("projects", "payload_conversation_id", "expected_state"),
+    [
+        (("A", "B"), None, conv.BINDING_MIXED),
+        (("A", ...), None, conv.BINDING_UNSCOPED),
+        (("A",), "another-conversation", conv.BINDING_CORRUPT),
+    ],
+)
+def test_historical_invalid_project_bindings_are_quarantined_without_rewrite(
+    tmp_path, projects, payload_conversation_id, expected_state
+):
+    db_path = tmp_path / "spine.sqlite3"
+    ledger = spine_ledger.SpineLedger(db_path)
+    try:
+        ids = [
+            _seed_historical_turn(
+                ledger,
+                "conv_legacy",
+                project,
+                payload_conversation_id=(
+                    payload_conversation_id if index == 0 else None
+                ),
+                message=f"legacy-{index}",
+            )
+            for index, project in enumerate(projects)
+        ]
+        before = [ledger.get(intent_id).payload_sha for intent_id in ids]
+    finally:
+        ledger.close()
+
+    with conv.ConversationStore(db_path) as opened:
+        binding = opened.project_binding("conv_legacy")
+        assert binding.state == expected_state
+        resumed = opened.resume("conv_legacy")
+        assert resumed["quarantined"] is True
+        assert resumed["turn_count"] == 0
+        assert resumed["last_turn"] is None
+        assert resumed["narrative"] == []
+        assert resumed["dispatches"] == []
+        assert resumed["open_dispatches"] == []
+        assert opened.list_conversations("A") == []
+        after = [opened.spine.get(intent_id).payload_sha for intent_id in ids]
+        assert after == before
+        with pytest.raises(conv.ConversationProjectConflict):
+            opened.append_turn(
+                "conv_legacy",
+                user_message="new",
+                intent="chat",
+                status=conv.STATUS_ANSWERED,
+                project="A",
+            )
+
+
+def test_raw_malformed_legacy_json_migrates_to_unchanged_quarantine(
+    tmp_path, monkeypatch
+):
+    from daedalus.interfaces.http import web_api
+    from daedalus.orchestration import conversation_requests
+
+    db_path = tmp_path / "spine.sqlite3"
+    raw_payload = '{"conversation_id":"conv_malformed","project":"A"'
+    raw_digest = hashlib.sha256(raw_payload.encode("ascii")).hexdigest()
+    ledger = spine_ledger.SpineLedger(db_path)
+    try:
+        with ledger._txn() as connection:
+            cursor = connection.execute(
+                "INSERT INTO intents "
+                "(kind, effect_key, payload, payload_sha, created_ts, trace_id) "
+                "VALUES (?, ?, ?, ?, ?, NULL)",
+                (
+                    conv.KIND_TURN,
+                    conv.conversation_effect_key("conv_malformed"),
+                    raw_payload,
+                    raw_digest,
+                    "2026-09-05T00:00:00+00:00",
+                ),
+            )
+            row_id = int(cursor.lastrowid)
+    finally:
+        ledger.close()
+
+    with conv.ConversationStore(db_path) as opened:
+        with opened.spine._lock:
+            index_sql = opened.spine._conn.execute(
+                "SELECT sql FROM sqlite_master "
+                "WHERE type = 'index' AND name = ?",
+                ("idx_conversation_project_binding",),
+            ).fetchone()["sql"]
+            before = opened.spine._conn.execute(
+                "SELECT payload, payload_sha FROM intents WHERE id = ?",
+                (row_id,),
+            ).fetchone()
+        assert "json_valid(payload) = 1" in index_sql
+        assert (before["payload"], before["payload_sha"]) == (
+            raw_payload,
+            raw_digest,
+        )
+
+        binding = opened.project_binding("conv_malformed")
+        assert binding == conv.ConversationProjectBinding(
+            "conv_malformed", conv.BINDING_CORRUPT, None, 1
+        )
+        resumed = opened.resume("conv_malformed")
+        assert resumed["quarantined"] is True
+        assert resumed["turn_count"] == 0
+        assert resumed["narrative"] == []
+        assert resumed["dispatches"] == []
+        assert resumed["open_dispatches"] == []
+        assert opened.list_conversations("A") == []
+
+        monkeypatch.setattr(conv, "default_store", lambda: opened)
+        view = web_api._conversation_view("conv_malformed")
+        assert view is not None
+        assert view["project_binding"]["state"] == conv.BINDING_CORRUPT
+        assert view["quarantined"] is True
+        assert view["turns"] == []
+        assert view["narrative"] == []
+        assert view["dispatches"] == []
+        assert view["open_dispatches"] == []
+
+        with pytest.raises(conv.ConversationProjectConflict):
+            opened.append_turn(
+                "conv_malformed",
+                user_message="new turn",
+                intent="chat",
+                status=conv.STATUS_ANSWERED,
+                project="A",
+            )
+
+        provider_calls: list[int] = []
+        manager = conversation_requests.ConversationRequestManager(
+            opened,
+            stream_factory=lambda *_args, **_kwargs: (
+                provider_calls.append(1) or ()
+            ),
+        )
+        with pytest.raises(
+            conversation_requests.ConflictingConversationProject
+        ):
+            manager.create(
+                conversation_id="conv_malformed",
+                client_request_id="client-malformed",
+                project="A",
+                message="new generation",
+            )
+        assert provider_calls == []
+        assert manager._runtime == {}
+
+        with opened.spine._lock:
+            after = opened.spine._conn.execute(
+                "SELECT payload, payload_sha FROM intents WHERE id = ?",
+                (row_id,),
+            ).fetchone()
+        assert (after["payload"], after["payload_sha"]) == (
+            raw_payload,
+            raw_digest,
+        )
 
 
 def test_a_turn_is_one_canonical_intent_and_comes_back_whole(store):
@@ -140,10 +452,10 @@ def test_nothing_the_chat_writes_is_ever_an_open_intent(store):
     dispatch is ever left to be resolved by a report that (measurably) nothing
     in this tree sends.
     """
-    store.append_turn("c1", user_message="hi", intent="chat",
-                      status=conv.STATUS_ANSWERED)
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="hi", intent="chat",
+            status=conv.STATUS_ANSWERED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "task-1", kind="queue_task")
     store.record_dispatch_event("task-1", outcome_state=conv.PRESENT,
                                 summary="patch produced, not applied")
@@ -156,8 +468,8 @@ def test_nothing_the_chat_writes_is_ever_an_open_intent(store):
 @pytest.mark.parametrize("bad_turn_id", [True, 1.9, 0, -1, "1"])
 def test_dispatch_link_requires_an_exact_positive_integer_turn_id(
         store, bad_turn_id):
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
 
     with pytest.raises(conv.UnknownTurn):
         store.link_dispatch("c1", f"task-{bad_turn_id!r}",
@@ -167,8 +479,8 @@ def test_dispatch_link_requires_an_exact_positive_integer_turn_id(
 def test_a_fact_carries_the_ordinary_two_event_history(store):
     """A reader must not have to special-case this producer: the event history
     is INTENDED then COMPLETED, exactly like every other resolved intent."""
-    turn = store.append_turn("c1", user_message="hi", intent="chat",
-                             status=conv.STATUS_ANSWERED)
+    turn = _append(store, "c1", user_message="hi", intent="chat",
+                   status=conv.STATUS_ANSWERED)
     states = [e.state for e in store.spine.events(turn.id)]
     assert states == [spine_ledger.STATE_INTENDED, spine_ledger.STATE_COMPLETED]
     assert store.spine.get(turn.id).state == spine_ledger.STATE_COMPLETED
@@ -176,12 +488,12 @@ def test_a_fact_carries_the_ordinary_two_event_history(store):
 
 def test_seq_is_derived_gap_free_and_survives_a_tail_read(store):
     for n in range(5):
-        assert store.append_turn("c1", user_message=f"m{n}", intent="chat",
-                                 status=conv.STATUS_ANSWERED).seq == n
+        assert _append(store, "c1", user_message=f"m{n}", intent="chat",
+                       status=conv.STATUS_ANSWERED).seq == n
     # A second conversation must not shift the first one's numbering: the
     # ordinal counts rows under ONE effect key, not rows in the table.
-    assert store.append_turn("c2", user_message="other", intent="chat",
-                             status=conv.STATUS_ANSWERED).seq == 0
+    assert _append(store, "c2", user_message="other", intent="chat",
+                   status=conv.STATUS_ANSWERED).seq == 0
 
     assert [t.seq for t in store.turns("c1")] == [0, 1, 2, 3, 4]
     tail = store.turns("c1", limit=2)
@@ -203,8 +515,8 @@ def test_a_dispatch_takes_more_than_one_honest_report(store):
     report is its OWN fact carrying the dispatch's key -- so the spine's
     once-only resolution rule is never approached, let alone weakened.
     """
-    turn = store.append_turn("c1", user_message="do it", intent="enqueue",
-                             status=conv.STATUS_PROPOSED)
+    turn = _append(store, "c1", user_message="do it", intent="enqueue",
+                   status=conv.STATUS_PROPOSED)
     link = store.link_dispatch("c1", "task-1", turn_id=turn.id,
                                kind="queue_task")
     assert link.turn_id == turn.id
@@ -229,8 +541,8 @@ def test_a_dispatch_takes_more_than_one_honest_report(store):
 
 
 def test_an_unreported_dispatch_shows_as_open_but_only_in_the_display(store):
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "task-1", kind="queue_task")
     (only,) = store.open_dispatches("c1")
     assert only["link"].dispatch_ref == "task-1"
@@ -241,8 +553,8 @@ def test_an_unreported_dispatch_shows_as_open_but_only_in_the_display(store):
 
 
 def test_one_dispatch_ref_links_once(store):
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "task-1")
     with pytest.raises(conv.DuplicateDispatchRef):
         store.link_dispatch("c1", "task-1")
@@ -252,8 +564,8 @@ def test_the_reports_do_not_collide_with_the_dispatch_key(store):
     """Reports share their dispatch's effect_key deliberately. The partial
     unique index must therefore be scoped to ``conversation.dispatch`` -- a
     whole-table one would forbid the second report."""
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "task-1")
     store.record_dispatch_event("task-1", outcome_state=conv.WORKING, summary="a")
     store.record_dispatch_event("task-1", outcome_state=conv.WORKING, summary="b")
@@ -262,8 +574,8 @@ def test_the_reports_do_not_collide_with_the_dispatch_key(store):
 
 
 def test_one_durable_source_event_projects_exactly_once_across_restart(store):
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "task-1")
     fields = {
         "outcome_state": conv.PRESENT,
@@ -285,8 +597,8 @@ def test_one_durable_source_event_projects_exactly_once_across_restart(store):
 
 
 def test_reusing_a_source_event_identity_for_a_different_fact_refuses(store):
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "task-1")
     source_event_id = "file_bridge.report:task-1"
     store.record_dispatch_event(
@@ -304,8 +616,8 @@ def test_reusing_a_source_event_identity_for_a_different_fact_refuses(store):
 
 
 def test_later_model_context_contains_the_latest_linked_outcome_as_information(store):
-    store.append_turn(
-        "c1", user_message="Mach den Parser robuster", intent="enqueue",
+    _append(
+        store, "c1", user_message="Mach den Parser robuster", intent="enqueue",
         status=conv.STATUS_PROPOSED, assistant_text="Ich starte den Auftrag.")
     store.link_dispatch("c1", "task-1", kind="queue_task")
     store.record_dispatch_event(
@@ -327,8 +639,8 @@ def test_later_model_context_contains_the_latest_linked_outcome_as_information(s
 def test_ikarus_voice_context_receives_the_projected_outcome(store, monkeypatch):
     from daedalus.orchestration.ikarus import shell as ikarus_os
 
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "task-1")
     store.record_dispatch_event(
         "task-1", outcome_state=conv.DEGRADED, summary="executor unavailable",
@@ -346,8 +658,8 @@ def test_ikarus_voice_context_receives_the_projected_outcome(store, monkeypatch)
 
 
 def test_model_context_uses_latest_report_without_turning_it_into_authority(store):
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED)
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "task-1")
     store.record_dispatch_event(
         "task-1", outcome_state=conv.PRESENT, summary="patch produced",
@@ -366,12 +678,12 @@ def test_model_context_uses_latest_report_without_turning_it_into_authority(stor
 
 
 def test_slow_old_dispatch_is_kept_when_its_report_is_the_recent_event(store):
-    old = store.append_turn("c1", user_message="old task", intent="enqueue",
-                            status=conv.STATUS_PROPOSED)
+    old = _append(store, "c1", user_message="old task", intent="enqueue",
+                  status=conv.STATUS_PROPOSED)
     store.link_dispatch("c1", "old-task", turn_id=old.id)
     for number in range(3):
-        newer = store.append_turn(
-            "c1", user_message=f"new task {number}", intent="enqueue",
+        newer = _append(
+            store, "c1", user_message=f"new task {number}", intent="enqueue",
             status=conv.STATUS_PROPOSED)
         store.link_dispatch("c1", f"new-task-{number}", turn_id=newer.id)
     # It finishes last, after enough newer dispatches to push its originating
@@ -388,10 +700,10 @@ def test_slow_old_dispatch_is_kept_when_its_report_is_the_recent_event(store):
 
 
 def test_refusals_survived_the_move(store):
-    store.append_turn("c1", user_message="hi", intent="chat",
-                      status=conv.STATUS_ANSWERED)
+    _append(store, "c1", user_message="hi", intent="chat",
+            status=conv.STATUS_ANSWERED)
     with pytest.raises(ValueError):
-        store.append_turn("c1", user_message="hi", intent="chat", status="done")
+        _append(store, "c1", user_message="hi", intent="chat", status="done")
     with pytest.raises(conv.UnknownConversation):
         store.link_dispatch("never-spoken", "task-9")
     with pytest.raises(conv.UnknownTurn):
@@ -404,9 +716,9 @@ def test_refusals_survived_the_move(store):
 
 
 def test_resume_says_planned_not_dispatched(store):
-    store.append_turn("c1", user_message="do it", intent="enqueue",
-                      status=conv.STATUS_PROPOSED,
-                      proposed_action={"kind": "queue_task"})
+    _append(store, "c1", user_message="do it", intent="enqueue",
+            status=conv.STATUS_PROPOSED,
+            proposed_action={"kind": "queue_task"})
     resumed = store.resume("c1")
     assert resumed["exists"] and resumed["turn_count"] == 1
     assert resumed["dispatches"] == []

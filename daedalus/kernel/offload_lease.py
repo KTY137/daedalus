@@ -299,6 +299,7 @@ def chip_eda_lease_id(mission_id: str, attempt_id: str) -> str:
 #: the only third answer.
 ISSUER_CONTRACTS: frozenset[str] = frozenset(
     {
+        "computer.tool_policy",
         "budget.process_guard",
         "provider.egress_policy",
         "provider.write_policy",
@@ -320,6 +321,7 @@ ISSUER_CONTRACTS: frozenset[str] = frozenset(
 #: which is worse than no lease.
 ISSUER_EFFECTS: frozenset[str] = frozenset(
     {
+        Effect.COMPUTER_USE.value,
         Effect.FILESYSTEM_WRITE.value,
         Effect.PROCESS_SPAWN.value,
         Effect.PROCESS_CONTROL.value,
@@ -343,6 +345,7 @@ ISSUER_EFFECTS: frozenset[str] = frozenset(
 #: had already been evaluated. A predicate that cannot answer before the work
 #: starts is not the boundary; it is a crash with a boundary's name on it.
 EFFECT_BOUNDS: Mapping[str, str] = {
+    Effect.COMPUTER_USE.value: "computer.tool_policy",
     # the endpoint list, admitted by `ollama_endpoint_admission` and friends
     Effect.NETWORK_EGRESS.value: "provider.egress_policy",
     Effect.LISTEN_SOCKET.value: "provider.egress_policy",
@@ -493,6 +496,8 @@ LEASE_EXECUTION_RECORD_SCHEMA = "daedalus-effect-lease-execution-record/1"
 
 #: One terminalised execution, replayed out of the ledger.
 LEASE_TERMINAL_RECORD_SCHEMA = "daedalus-effect-lease-terminal-record/1"
+MAX_RETAINED_EFFECT_RECORD_BYTES = 1024 * 1024
+MAX_RETAINED_EFFECT_TERMINAL_RECORDS = 256
 CHIP_EDA_PUBLICATION_RECORD_SCHEMA = "daedalus-chip-eda-publication-record/2"
 CHIP_EDA_PUBLICATION_INDEX_SCHEMA = "daedalus-chip-eda-publication-index/1"
 
@@ -613,12 +618,19 @@ def _record_sha256(body: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_json(subject).encode("ascii")).hexdigest()
 
 
-def _stable_regular_bytes(path: Path, *, label: str) -> bytes:
+def _stable_regular_bytes(
+    path: Path,
+    *,
+    label: str,
+    max_bytes: int | None = None,
+) -> bytes:
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"{label} is not a regular file")
     with path.open("rb") as handle:
         before = os.fstat(handle.fileno())
-        observed = handle.read()
+        if max_bytes is not None and before.st_size > max_bytes:
+            raise ValueError(f"{label} exceeds its {max_bytes}-byte ceiling")
+        observed = handle.read() if max_bytes is None else handle.read(max_bytes + 1)
         after = os.fstat(handle.fileno())
     named = os.stat(path, follow_symlinks=False)
     identities = (
@@ -628,6 +640,8 @@ def _stable_regular_bytes(path: Path, *, label: str) -> bytes:
     )
     if identities[0] != identities[1] or identities[1] != identities[2]:
         raise ValueError(f"{label} changed during verification")
+    if max_bytes is not None and len(observed) > max_bytes:
+        raise ValueError(f"{label} exceeds its {max_bytes}-byte ceiling")
     return observed
 
 
@@ -903,8 +917,9 @@ def record_effect_lease_subject_parts(
         raise ValueError("positions must be a positive integer")
     lease = authorization.lease
     revision = lease.provenance.source_revision
-    if not _REVISION.fullmatch(str(revision)):
-        raise ValueError("the retained lease carries no 40-hex source revision")
+    adapter_source = lease.entrypoint_id == "python.ikarus_computer" and _SHA256.fullmatch(str(revision))
+    if not _REVISION.fullmatch(str(revision)) and not adapter_source:
+        raise ValueError("the retained lease carries no valid source revision")
     body: dict[str, Any] = {
         "schema": LEASE_SUBJECT_RECORD_SCHEMA,
         "source_revision": str(revision),
@@ -933,6 +948,9 @@ def record_effect_lease_subject_parts(
         "control_root_sha256": write_root_identity_sha256(control_root_path),
         "recorded_at": _timestamp(recorded_at or _utc_now()),
     }
+    if adapter_source:
+        body["source_identity_kind"] = "trusted-adapter-sha256"
+        body["repository_revision_applicable"] = False
     if authorization.execution_limit_policy is not None:
         body["execution_limit_policy"] = _limit_policy_evidence(
             authorization.execution_limit_policy
@@ -1061,6 +1079,235 @@ def record_effect_lease_execution(
     return body
 
 
+def _read_retained_effect_record(
+    root: Path,
+    kind: str,
+    digest: str,
+) -> dict[str, Any]:
+    path = root / kind / f"{digest}.json"
+    try:
+        payload = _stable_regular_bytes(
+            path,
+            label=f"{kind} record",
+            max_bytes=MAX_RETAINED_EFFECT_RECORD_BYTES,
+        )
+        record = _strict_canonical_record(payload, label=f"{kind} record")
+    except (OSError, TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            f"retained {kind} evidence is unavailable or invalid"
+        ) from exc
+    if (
+        path.stem != digest
+        or record.get("record_sha256") != digest
+        or _record_sha256(record) != digest
+    ):
+        raise EffectLeaseStateError(f"retained {kind} record identity is invalid")
+    return record
+
+
+def require_retained_effect_lease_start_records(
+    evidence_root: str | Path,
+    *,
+    subject_record_sha256: str,
+    execution_record_sha256: str,
+    entrypoint_id: str,
+    source_revision: str,
+    attempt_id: str,
+    operation_sha256: str,
+    expected_lease_sha256: str,
+    expected_execution_id: str,
+    expected_execution_request_sha256: str,
+) -> dict[str, Any]:
+    """Verify the exact retained subject -> execution chain before commit."""
+
+    values = {
+        "subject_record_sha256": str(subject_record_sha256),
+        "execution_record_sha256": str(execution_record_sha256),
+        "operation_sha256": str(operation_sha256),
+        "expected_lease_sha256": str(expected_lease_sha256),
+        "expected_execution_request_sha256": str(
+            expected_execution_request_sha256
+        ),
+    }
+    invalid = sorted(
+        name for name, value in values.items() if not _SHA256.fullmatch(value)
+    )
+    if invalid:
+        raise EffectLeaseStateError(
+            "retained start binding has invalid digests: " + ", ".join(invalid)
+        )
+    if not _REVISION.fullmatch(str(source_revision)) and not (
+        entrypoint_id == "python.ikarus_computer" and _SHA256.fullmatch(str(source_revision))
+    ):
+        raise EffectLeaseStateError(
+            "retained start binding has invalid source revision"
+        )
+    root = Path(evidence_root)
+    subject = _read_retained_effect_record(
+        root, "lease-subject", values["subject_record_sha256"]
+    )
+    try:
+        lease = EffectLease.from_dict(subject["lease"])
+        request = EffectLeaseRequest.from_dict(subject["request"])
+        policy = PolicyDecision.from_dict(subject["policy_decision"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            "retained lease-subject contract is invalid"
+        ) from exc
+    if (
+        subject.get("schema") != LEASE_SUBJECT_RECORD_SCHEMA
+        or subject.get("entrypoint_id") != entrypoint_id
+        or subject.get("source_revision") != source_revision
+        or subject.get("lease_sha256") != lease.digest
+        or subject.get("lease_id") != lease.lease_id
+        or subject.get("issuer_key_id") != lease.issuer_key_id
+        or subject.get("kill_switch_generation")
+        != lease.kill_switch_generation
+        or lease.digest != values["expected_lease_sha256"]
+        or lease.request_id != request.request_id
+        or lease.request_sha256 != request.digest
+        or lease.policy_decision_id != policy.decision_id
+        or lease.policy_decision_sha256 != policy.digest
+        or lease.entrypoint_id != entrypoint_id
+        or lease.provenance.source_revision != source_revision
+        or request.entrypoint_id != entrypoint_id
+        or request.attempt_id != attempt_id
+        or request.operation_sha256 != values["operation_sha256"]
+        or request.requested_effects != lease.requested_effects
+        or request.effect_scope != lease.effect_scope
+        or request.idempotency_namespace != lease.idempotency_namespace
+        or request.kill_switch_generation != lease.kill_switch_generation
+    ):
+        raise EffectLeaseStateError("retained lease-subject binding is invalid")
+
+    retained_execution = _read_retained_effect_record(
+        root, "lease-execution", values["execution_record_sha256"]
+    )
+    try:
+        execution_payload = dict(retained_execution["execution"])
+        execution = EffectExecutionRequest(**execution_payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            "retained lease-execution contract is invalid"
+        ) from exc
+    if (
+        retained_execution.get("schema") != LEASE_EXECUTION_RECORD_SCHEMA
+        or retained_execution.get("entrypoint_id") != entrypoint_id
+        or retained_execution.get("source_revision") != source_revision
+        or retained_execution.get("lease_sha256") != lease.digest
+        or retained_execution.get("subject_record_sha256")
+        != values["subject_record_sha256"]
+        or retained_execution.get("execution_id") != execution.execution_id
+        or retained_execution.get("execution_request_sha256") != execution.digest
+        or execution.operation_sha256 != values["operation_sha256"]
+        or execution.execution_id != str(expected_execution_id)
+        or execution.digest != values["expected_execution_request_sha256"]
+    ):
+        raise EffectLeaseStateError("retained lease-execution binding is invalid")
+    return {
+        "lease_sha256": lease.digest,
+        "execution_id": execution.execution_id,
+        "execution_request_sha256": execution.digest,
+        "execution": execution_payload,
+        "subject_record": subject,
+        "execution_record": retained_execution,
+    }
+
+
+def require_retained_effect_lease_terminal_record(
+    evidence_root: str | Path,
+    *,
+    subject_record_sha256: str,
+    execution_record_sha256: str,
+    entrypoint_id: str,
+    source_revision: str,
+    attempt_id: str,
+    operation_sha256: str,
+    expected_lease_sha256: str,
+    expected_execution_id: str,
+    expected_execution_request_sha256: str,
+    expected_terminal_state: str,
+    expected_output_digests: Sequence[str],
+) -> dict[str, Any]:
+    """Read and verify one exact retained subject -> execution -> terminal chain.
+
+    This is deliberately a content-addressed evidence check, not a second
+    ledger authority.  It performs no reconciliation and writes nothing.  A
+    caller can bind the subject and execution digests into its own canonical
+    commit before terminalization, then use this projection to ensure a later
+    replay never hides a missing terminal-evidence record.
+    """
+
+    chain = require_retained_effect_lease_start_records(
+        evidence_root,
+        subject_record_sha256=subject_record_sha256,
+        execution_record_sha256=execution_record_sha256,
+        entrypoint_id=entrypoint_id,
+        source_revision=source_revision,
+        attempt_id=attempt_id,
+        operation_sha256=operation_sha256,
+        expected_lease_sha256=expected_lease_sha256,
+        expected_execution_id=expected_execution_id,
+        expected_execution_request_sha256=expected_execution_request_sha256,
+    )
+    state = str(expected_terminal_state)
+    if state not in _TERMINAL_STATES:
+        raise EffectLeaseStateError("retained terminal binding has invalid expected state")
+    try:
+        if isinstance(expected_output_digests, (str, bytes)):
+            raise TypeError("expected outputs must be a sequence of digests")
+        submitted_outputs = tuple(
+            str(value) for value in expected_output_digests
+        )
+        if any(not _SHA256.fullmatch(value) for value in submitted_outputs):
+            raise ValueError("expected output digest is invalid")
+        outputs = tuple(sorted(set(submitted_outputs)))
+    except (TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            "retained terminal binding has invalid expected outputs"
+        ) from exc
+
+    root = Path(evidence_root)
+    execution_payload = chain["execution"]
+    terminal_root = root / "lease-terminal"
+    try:
+        terminal_paths = sorted(terminal_root.glob("*.json"))
+    except OSError as exc:
+        raise EffectLeaseStateError("retained terminal evidence is unavailable") from exc
+    if len(terminal_paths) > MAX_RETAINED_EFFECT_TERMINAL_RECORDS:
+        raise EffectLeaseStateError("retained terminal evidence bound exceeded")
+    matches: list[dict[str, Any]] = []
+    for path in terminal_paths:
+        digest = path.stem
+        if not _SHA256.fullmatch(digest):
+            raise EffectLeaseStateError("retained terminal evidence filename is invalid")
+        terminal = _read_retained_effect_record(root, "lease-terminal", digest)
+        if (
+            terminal.get("schema") == LEASE_TERMINAL_RECORD_SCHEMA
+            and terminal.get("receipt_schema") == EFFECT_LEASE_RECEIPT_SCHEMA
+            and terminal.get("entrypoint_id") == entrypoint_id
+            and terminal.get("source_revision") == source_revision
+            and terminal.get("lease_sha256") == chain["lease_sha256"]
+            and terminal.get("subject_record_sha256")
+            == str(subject_record_sha256)
+            and terminal.get("execution_id") == chain["execution_id"]
+            and terminal.get("execution_request_sha256")
+            == chain["execution_request_sha256"]
+            and terminal.get("execution") == execution_payload
+            and terminal.get("requested_effects")
+            == execution_payload.get("requested_effects")
+            and terminal.get("terminal_state") == state
+            and terminal.get("output_digests") == list(outputs)
+            and _SHA256.fullmatch(str(terminal.get("start_receipt_sha256", "")))
+            and _SHA256.fullmatch(str(terminal.get("receipt_sha256", "")))
+            and isinstance(terminal.get("recorded_at"), str)
+        ):
+            matches.append(terminal)
+    if len(matches) != 1:
+        raise EffectLeaseStateError("bound terminal evidence is missing or ambiguous")
+    return matches[0]
+
+
 def emit_effect_lease_terminal_record(
     subject_record: Mapping[str, Any],
     execution: EffectExecutionRequest,
@@ -1130,6 +1377,7 @@ def emit_effect_lease_terminal_record(
         "start_receipt_sha256": replay.start_receipt.receipt_sha256,
         "receipt_sha256": terminal.receipt_sha256,
         "terminal_state": state,
+        "output_digests": list(terminal.output_digests),
         "requested_effects": list(execution.requested_effects),
         "control_root_sha256": write_root_identity_sha256(control_root_path),
         "recorded_at": terminal.finished_at,
@@ -2480,6 +2728,7 @@ def _acquire_effect_lease_impl(
     egress_admission: EgressAdmissionPort | None = None,
     limit_policy: ExecutionLimitPolicy | None = None,
     operation_sha256: str | None = None,
+    computer_operation: Mapping[str, Any] | None = None,
 ) -> WaveOffloadLease | WaveLeaseDenied:
     """Run the guard contracts ONE registry row declares, then issue or deny.
 
@@ -2781,9 +3030,11 @@ def _acquire_effect_lease_impl(
         # allows. With `containment_evidence=""` against the same pair of roots,
         # `containment.attempt` is False ("the caller named no containment
         # mechanism") while `containment.worktree` is True. The relation is
-        # SUBSUMPTION -- attempt implies worktree -- so for `python.attempt`,
-        # the only row declaring both, this decision adds no refusal the other
-        # cannot already make. It is not deletable: `worktree.reap`,
+        # SUBSUMPTION -- attempt implies worktree -- so for `python.attempt`
+        # and the Gate-1 `python.genesis` / `python.ariadne_campaign` aggregate
+        # doors, the three rows currently declaring both, this decision adds no
+        # refusal the other cannot already make. It is not deletable:
+        # `worktree.reap`,
         # `worktree.create`, `worktree.commit`, `worktree.cleanup` and
         # `python.promote_candidates` declare it ALONE, and there it is the
         # sole containment check.
@@ -2814,6 +3065,20 @@ def _acquire_effect_lease_impl(
                 ledger_path_resolver=intent_ledger_path_resolver,
             )
         )
+
+    if "computer.tool_policy" in declared_contracts:
+        from daedalus.kernel.policy.computer import admit_operation, ComputerRefused
+
+        try:
+            if computer_operation is None or canonical_sha(computer_operation) != operation_sha256:
+                raise ComputerRefused("computer operation must bind the lease operation digest")
+            computer_policy = admit_operation(root, computer_operation)
+            if tuple(tools) != (computer_operation["tool"],):
+                raise ComputerRefused("computer lease must name exactly the admitted tool")
+            guards.append(GuardDecision("computer.tool_policy", True,
+                                        f"policy={computer_policy.digest}; operation={operation_sha256}"))
+        except (ValueError, TypeError, KeyError, OSError) as exc:
+            guards.append(GuardDecision("computer.tool_policy", False, str(exc)))
 
     # -- 3. the request, and the policy digest over what decided ------------ #
     # WHAT THE ROW DID NOT DECLARE IS NOT GRANTED. `_scope_requirements`
@@ -2856,10 +3121,22 @@ def _acquire_effect_lease_impl(
         if spawns
         else ()
     )
+    if Effect.COMPUTER_USE.value in declared_effects:
+        declared_tools = tuple(tools)
     writes = bool(
         declared_effects
         & {Effect.FILESYSTEM_WRITE.value, Effect.REPOSITORY_MUTATION.value}
     )
+    if Effect.COMPUTER_USE.value in declared_effects and computer_operation is not None:
+        # A mediated file mutation still carries a truthful filesystem scope.
+        # These paths are relative to the workspace bound by computer policy,
+        # whose exact identity is in the guard and signed operation.
+        computer_tool = computer_operation.get("tool")
+        if computer_tool in {"file.write", "file.mkdir", "file.move"}:
+            arguments = computer_operation.get("arguments", {})
+            keys = ("source", "destination") if computer_tool == "file.move" else ("path",)
+            declared_paths = tuple(sorted({str(arguments.get(key, ".")) for key in keys}))
+            writes = True
     if not writes:
         declared_paths = ()
 
@@ -3463,6 +3740,8 @@ __all__ = [
     "verify_chip_eda_publication_graph",
     "record_primary_checkout_disjointness",
     "read_issuer_keyring",
+    "require_retained_effect_lease_start_records",
+    "require_retained_effect_lease_terminal_record",
     "resolve_write_policy",
     "wave_containment_roots",
     "write_evidence_root",

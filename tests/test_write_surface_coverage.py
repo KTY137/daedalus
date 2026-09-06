@@ -363,7 +363,6 @@ KERNEL_FILE_SURFACES: dict[str, dict[tuple[str, str, str], int]] = {
         ("ambiguous_os_open_flags", "os.open", "dynamic-flags"): 2,
         ("ambiguous_stdlib_binding", "stream.write", "rebound-or-conflicting-binding"): 2,
         ("filesystem_mutation", "os.link", "link"): 1,
-        ("filesystem_mutation", "os.replace", "replace"): 1,
         ("filesystem_mutation", "shutil.rmtree", "rmtree"): 1,
         ("filesystem_mutation", "tempfile.mkdtemp", "mkdtemp"): 1,
         ("filesystem_mutation", "tempfile.mkstemp", "mkstemp"): 1,

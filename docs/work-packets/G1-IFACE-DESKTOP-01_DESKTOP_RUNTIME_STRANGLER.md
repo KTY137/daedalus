@@ -69,8 +69,10 @@ patch point while the implementation module avoids a reverse import.
 
 ### Frozen behavior
 
-- `scripts.daedalus_desktop_sidecar` continues importing manager, tunnel-policy
-  installer, and web-integration installer from `daedalus.desktop_runtime`.
+- `scripts.daedalus_desktop_sidecar` is the frozen-launcher facade and delegates
+  to the registered `daedalus.interfaces.desktop.sidecar` bootstrap owner. That
+  owner imports the manager, tunnel-policy installer, and web-integration
+  installer from `daedalus.desktop_runtime` only after loading the desktop env.
 - `DesktopRuntimeManager`, configuration normalization, process discovery,
   bridge watcher ownership, IDE native/Docker starts, Ollama local/SSH starts,
   stop implementations, environment mutation, and all subprocess objects stay

@@ -55,6 +55,9 @@ function mergeSpec(base: ThemeSpec, patch: DeepPartial<ThemeSpec>): ThemeSpec {
     type: { ...base.type, ...(patch.type || {}) },
     form: { ...base.form, ...(patch.form || {}) },
     stage: { ...base.stage, ...(patch.stage || {}) },
+    scene: patch.scene
+      ? { ...(base.scene ?? { enabled: true, intensity: 0.7, speed: 0.5 }), ...patch.scene }
+      : base.scene,
     composition: { ...base.composition, ...(patch.composition || {}) }
   };
 }

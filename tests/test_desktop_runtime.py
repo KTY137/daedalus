@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import socket
 import subprocess
 import sys
 import threading
 from types import SimpleNamespace
-from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -16,6 +16,8 @@ from daedalus import desktop_runtime as desktop_runtime_module
 from daedalus import file_bridge
 from daedalus.foundation import projects
 from daedalus import sensitivity
+from daedalus.interfaces.desktop import effects as desktop_effects
+from daedalus.spine.killswitch import ENV_SWITCH_PATH, KillSwitch
 from daedalus.limit_policy import (
     ExecutionLimitPolicy,
     LIMIT_AXES,
@@ -24,12 +26,7 @@ from daedalus.limit_policy import (
     MODE_UNBOUNDED_EXECUTION,
 )
 from daedalus.desktop_runtime import (
-    IDE_DOCKER_CONTAINER,
     IDE_DOCKER_IMAGE,
-    IDE_DOCKER_OWNER_LABEL,
-    IDE_DOCKER_OWNER_VALUE,
-    IDE_DOCKER_PROJECT_LABEL,
-    IDE_DOCKER_WORKSPACE,
     REMOTE_OK_VAR,
     TRUSTED_HOSTS_VAR,
     TUNNEL_FORWARD_VAR,
@@ -54,6 +51,7 @@ _RUNTIME_ENV = (
     budget_kernel.ENV_EXECUTION_LIMIT_POLICY,
     budget_kernel.ENV_MAX_CALLS,
     budget_kernel.ENV_LEDGER,
+    ENV_SWITCH_PATH,
 )
 
 
@@ -61,6 +59,9 @@ _RUNTIME_ENV = (
 def restore_runtime_env(tmp_path):
     before = {key: os.environ.get(key) for key in _RUNTIME_ENV}
     os.environ[budget_kernel.ENV_LEDGER] = str(tmp_path / "desktop-budget.json")
+    permit = tmp_path / "operator-armed-desktop-switch"
+    KillSwitch(permit).arm(note="desktop test operator")
+    os.environ[ENV_SWITCH_PATH] = str(permit)
     os.environ.pop(budget_kernel.ENV_CEILING, None)
     os.environ.pop(budget_kernel.ENV_PERIOD_CEILING_ENABLED, None)
     os.environ.pop(budget_kernel.ENV_EXECUTION_LIMIT_POLICY, None)
@@ -164,142 +165,35 @@ def cap_settings(
 
 
 def quiet_status(manager: DesktopRuntimeManager, monkeypatch) -> None:
-    monkeypatch.setattr(manager, "_probe", lambda timeout=1.5: (False, "offline"))
     monkeypatch.setattr(
         manager,
         "_ide_status",
-        lambda project=None: {"reachable": False, "last_error": "offline"},
+        lambda project=None, **kwargs: {
+            "reachable": False,
+            "last_error": "offline",
+        },
     )
 
 
-def test_ollama_child_environment_removes_only_frozen_runtime_paths(tmp_path):
-    frozen = tmp_path / "backend" / "_internal"
-    nested = frozen / "runtime-bin"
-    sibling = tmp_path / "backend" / "_internal-tools"
-    external = tmp_path / "tools"
-    original_path = os.pathsep.join(
-        (str(frozen), str(nested), str(sibling), str(external), "")
-    )
-    source = {"PATH": original_path, "PRESERVE": "yes"}
-
-    child = desktop_runtime_module._ollama_child_environment(source, frozen)
-
-    assert child["PATH"].split(os.pathsep) == [str(sibling), str(external), ""]
-    assert child["PRESERVE"] == "yes"
-    assert source["PATH"] == original_path
+def test_desktop_runtime_has_no_managed_ollama_environment_builder():
+    assert not hasattr(desktop_runtime_module, "_ollama_child_environment")
 
 
-def test_frozen_ollama_spawn_resets_then_restores_dll_directory(
-    tmp_path, monkeypatch
-):
-    frozen = (tmp_path / "backend" / "_internal").resolve()
-    events = []
-
-    class FakeManagedProcess:
-        def __init__(self, argv, **kwargs):
-            events.append(("spawn", list(argv), kwargs))
-
-    monkeypatch.setattr(desktop_runtime_module, "ManagedProcess", FakeManagedProcess)
-    monkeypatch.setattr(
-        desktop_runtime_module,
-        "_set_windows_dll_directory",
-        lambda path: events.append(("dll", path)),
-    )
-
-    managed = desktop_runtime_module._spawn_ollama_process(
-        [r"C:\Ollama\ollama.exe", "serve"],
-        cwd=tmp_path,
-        env={"PATH": "safe"},
-        stdout=None,
-        stderr=None,
-        frozen_root=frozen,
-    )
-
-    assert isinstance(managed, FakeManagedProcess)
-    assert [event[0] for event in events] == ["dll", "spawn", "dll"]
-    assert events[0] == ("dll", None)
-    assert events[2] == ("dll", str(frozen))
+def test_desktop_runtime_has_no_managed_process_constructor():
+    assert not hasattr(desktop_runtime_module, "ManagedProcess")
 
 
-def test_frozen_ollama_spawn_restores_dll_directory_after_spawn_error(
-    tmp_path, monkeypatch
-):
-    frozen = (tmp_path / "backend" / "_internal").resolve()
-    events = []
-
-    class FailingManagedProcess:
-        def __init__(self, argv, **kwargs):
-            events.append(("spawn", list(argv)))
-            raise OSError("spawn failed")
-
-    monkeypatch.setattr(desktop_runtime_module, "ManagedProcess", FailingManagedProcess)
-    monkeypatch.setattr(
-        desktop_runtime_module,
-        "_set_windows_dll_directory",
-        lambda path: events.append(("dll", path)),
-    )
-
-    with pytest.raises(OSError, match="spawn failed"):
-        desktop_runtime_module._spawn_ollama_process(
-            [r"C:\Ollama\ollama.exe", "serve"],
-            cwd=tmp_path,
-            env={"PATH": "safe"},
-            stdout=None,
-            stderr=None,
-            frozen_root=frozen,
-        )
-
-    assert events == [
-        ("dll", None),
-        ("spawn", [r"C:\Ollama\ollama.exe", "serve"]),
-        ("dll", str(frozen)),
-    ]
+def test_desktop_runtime_has_no_dll_spawn_shim():
+    assert not hasattr(desktop_runtime_module, "_set_windows_dll_directory")
 
 
-def test_frozen_ollama_spawn_closes_child_when_dll_restore_fails(
-    tmp_path, monkeypatch
-):
-    frozen = (tmp_path / "backend" / "_internal").resolve()
-    events = []
-
-    class FakeManagedProcess:
-        def __init__(self, argv, **kwargs):
-            events.append(("spawn", list(argv)))
-
-        def close(self, *, grace_s):
-            events.append(("close", grace_s))
-
-    def set_dll_directory(path):
-        events.append(("dll", path))
-        if path is not None:
-            raise OSError("restore failed")
-
-    monkeypatch.setattr(desktop_runtime_module, "ManagedProcess", FakeManagedProcess)
-    monkeypatch.setattr(
-        desktop_runtime_module, "_set_windows_dll_directory", set_dll_directory
-    )
-
-    with pytest.raises(OSError, match="restore failed"):
-        desktop_runtime_module._spawn_ollama_process(
-            [r"C:\Ollama\ollama.exe", "serve"],
-            cwd=tmp_path,
-            env={"PATH": "safe"},
-            stdout=None,
-            stderr=None,
-            frozen_root=frozen,
-        )
-
-    assert events == [
-        ("dll", None),
-        ("spawn", [r"C:\Ollama\ollama.exe", "serve"]),
-        ("dll", str(frozen)),
-        ("close", 0.0),
-    ]
+def test_desktop_runtime_has_no_ollama_spawn_function():
+    assert not hasattr(desktop_runtime_module, "_spawn_ollama_process")
 
 
-def test_defaults_autostart_bridge_and_local_ollama():
+def test_defaults_disable_all_managed_desktop_autostart():
     cfg = normalize_config({})
-    assert cfg["bridge"]["auto_start"] is True
+    assert cfg["bridge"]["auto_start"] is False
     assert cfg["budget"] == {
         "period_ceiling_usd": budget_kernel.DEFAULT_CEILING_USD,
         "max_calls": budget_kernel.DEFAULT_MAX_CALLS,
@@ -312,8 +206,19 @@ def test_defaults_autostart_bridge_and_local_ollama():
         "executable": "",
         "docker_image": IDE_DOCKER_IMAGE,
     }
-    assert cfg["ollama"]["auto_start"] is True
+    assert cfg["ollama"]["auto_start"] is False
     assert cfg["ollama"]["mode"] == "local"
+
+    migrated = normalize_config(
+        {
+            "bridge": {"auto_start": True},
+            "ollama": {"auto_start": True},
+            "ide": {"auto_start": True},
+        }
+    )
+    assert migrated["bridge"]["auto_start"] is False
+    assert migrated["ollama"]["auto_start"] is False
+    assert migrated["ide"]["auto_start"] is False
 
 
 def test_bridge_pid_liveness_distinguishes_current_from_exited_process():
@@ -369,118 +274,39 @@ def test_persistent_bridge_lock_is_untracked_runtime_state():
     assert result.returncode == 0
 
 
-def test_two_desktop_managers_racing_create_exactly_one_bridge_owner(
-    tmp_path, monkeypatch
-):
-    lock_path = tmp_path / "bridge_watcher.lock"
-    heartbeat: dict[str, object] = {}
-    heartbeat_lock = threading.Lock()
-
-    def heartbeat_status():
-        with heartbeat_lock:
-            return dict(heartbeat) if heartbeat else {"state": "none"}
-
-    def claimed_watch(
-        default_repo_root,
-        interval_s,
-        project=None,
-        *,
-        owner_token=None,
-        process_identity=None,
-        stop_event=None,
-    ):
-        with file_bridge._BridgeWatcherLock(lock_path):
-            with heartbeat_lock:
-                heartbeat.update(
-                    {
-                        "state": "alive",
-                        "pid": os.getpid(),
-                        "owner_token": owner_token,
-                        "process_identity": process_identity,
-                    }
-                )
-            stop_event.wait(5.0)
-
-    monkeypatch.setattr(file_bridge, "heartbeat_status", heartbeat_status)
-    monkeypatch.setattr(file_bridge, "watch", claimed_watch)
-    managers = [DesktopRuntimeManager(tmp_path), DesktopRuntimeManager(tmp_path)]
-    callers_ready = threading.Barrier(2)
-    results: list[dict[str, object] | None] = [None, None]
-
-    def start(index):
-        callers_ready.wait(timeout=5.0)
-        results[index] = managers[index].ensure_bridge()
-
-    callers = [threading.Thread(target=start, args=(index,)) for index in range(2)]
-    try:
-        for caller in callers:
-            caller.start()
-        for caller in callers:
-            caller.join(timeout=5.0)
-
-        assert not any(caller.is_alive() for caller in callers)
-        assert sum(bool(result and result["managed"]) for result in results) == 1
-        assert (
-            sum(
-                bool(manager._bridge and manager._bridge.is_alive())
-                for manager in managers
-            )
-            == 1
-        )
-    finally:
-        for manager in managers:
-            manager.close()
-        for manager in managers:
-            if manager._bridge:
-                manager._bridge.join(timeout=2.0)
-
-
-def test_bridge_start_post_takes_over_a_dead_persisted_heartbeat(
+def test_repeated_bridge_start_requests_refuse_without_starting_a_thread(
     tmp_path, monkeypatch
 ):
     manager = DesktopRuntimeManager(tmp_path)
-    started = threading.Event()
-    release = threading.Event()
-    starts: list[int] = []
-    old_pid = os.getpid() + 100_000
-    owner: dict[str, str] = {}
+    starts: list[object] = []
+    monkeypatch.setattr(
+        file_bridge,
+        "watch",
+        lambda *args, **kwargs: starts.append((args, kwargs)),
+    )
+    try:
+        for _ in range(2):
+            with pytest.raises(
+                desktop_effects.DesktopEffectRefused,
+                match="Managed bridge start is unavailable",
+            ):
+                manager.ensure_bridge()
+        assert starts == []
+        assert not hasattr(manager, "_bridge")
+    finally:
+        manager.close()
 
-    def heartbeat_status():
-        if started.is_set():
-            return {
-                "state": "alive",
-                "pid": os.getpid(),
-                "project": "daedalus",
-                "repo_root": str(tmp_path),
-                "age_s": 0.0,
-                "owner_token": owner["token"],
-                "process_identity": owner["identity"],
-            }
-        return {
-            "state": "alive",
-            "pid": old_pid,
-            "project": "daedalus",
-            "repo_root": str(tmp_path),
-            "age_s": 1.0,
-        }
 
-    def watch_bridge(
-        default_repo_root,
-        interval_s,
-        project=None,
-        *,
-        owner_token=None,
-        process_identity=None,
-        stop_event=None,
-    ):
-        starts.append(threading.get_ident())
-        owner["token"] = owner_token
-        owner["identity"] = process_identity
-        started.set()
-        release.wait(5.0)
-
-    monkeypatch.setattr(file_bridge, "heartbeat_status", heartbeat_status)
-    monkeypatch.setattr(file_bridge, "watch", watch_bridge)
+def test_bridge_start_post_returns_structured_refusal_without_watcher(
+    tmp_path, monkeypatch
+):
+    manager = DesktopRuntimeManager(tmp_path)
+    starts: list[object] = []
+    monkeypatch.setattr(
+        file_bridge,
+        "watch",
+        lambda *args, **kwargs: starts.append((args, kwargs)),
+    )
 
     class BaseHandler:
         path = ""
@@ -495,6 +321,7 @@ def test_bridge_start_post_takes_over_a_dead_persisted_heartbeat(
         DaedalusHandler=BaseHandler,
         _read_body=lambda handler: {},
         core=SimpleNamespace(envelope=lambda project, **payload: payload),
+        runtime_registry=SimpleNamespace(reset_status_cache=lambda: None),
     )
     install_web_integration(web_api, manager)
 
@@ -503,29 +330,23 @@ def test_bridge_start_post_takes_over_a_dead_persisted_heartbeat(
         request.path = "/api/desktop/services/bridge/start"
         request._handle_post()
 
-        service, status = request.sent
-        assert status == 200
-        assert service["service"]["managed"] is True
-        assert service["service"]["state"] == "alive"
-        assert service["service"]["pid"] == os.getpid()
-        assert starts and len(starts) == 1
-
-        first_thread = manager._bridge
-        repeated = manager.ensure_bridge()
-        assert repeated["managed"] is True
-        assert manager._bridge is first_thread
-        assert len(starts) == 1
+        refusal, status = request.sent
+        assert status == 409
+        assert refusal["ok"] is False
+        assert refusal["error_code"] == "desktop_feature_unavailable"
+        assert refusal["committed"] is False
+        assert "Managed bridge start is unavailable" in refusal["error"]
+        assert starts == []
+        assert not hasattr(manager, "_bridge")
     finally:
-        release.set()
         manager.close()
-        if manager._bridge:
-            manager._bridge.join(timeout=2.0)
 
 
-def test_live_external_bridge_owner_is_not_duplicated(tmp_path, monkeypatch):
+def test_live_external_bridge_status_is_observed_but_never_adopted(
+    tmp_path, monkeypatch
+):
     manager = DesktopRuntimeManager(tmp_path)
     external_pid = os.getpid() + 100_000
-    starts: list[str] = []
     monkeypatch.setattr(
         file_bridge,
         "heartbeat_status",
@@ -539,33 +360,23 @@ def test_live_external_bridge_owner_is_not_duplicated(tmp_path, monkeypatch):
             "process_identity": "external-process-identity",
         },
     )
-
-    def occupied_watch(*args, **kwargs):
-        starts.append(kwargs["owner_token"])
-        raise file_bridge.WatcherOwnershipBusy("synthetic external owner")
-
-    monkeypatch.setattr(file_bridge, "watch", occupied_watch)
-
     try:
-        status = manager.ensure_bridge()
+        status = manager.snapshot()["services"]["bridge"]
         assert status["managed"] is False
         assert status["pid"] == external_pid
-        assert manager._bridge is not None and not manager._bridge.is_alive()
-        assert len(starts) == 1
-        assert "external owner" in status["last_error"]
+        assert status["managed_start_available"] is False
+        assert not hasattr(manager, "_bridge")
     finally:
         manager.close()
 
 
-def test_bridge_owner_token_and_process_identity_prevent_pid_reuse_adoption(
+def test_bridge_heartbeat_identity_is_never_adopted_as_owned(
     tmp_path,
 ):
     manager = DesktopRuntimeManager(tmp_path)
-    release = threading.Event()
     manager._bridge_owner_token = "new-owner-token"
     manager._bridge_process_identity = "new-process-identity"
-    manager._bridge = threading.Thread(target=lambda: release.wait(2.0), daemon=True)
-    manager._bridge.start()
+    manager._bridge = SimpleNamespace(is_alive=lambda: True)
     try:
         reused_pid_status = {
             "state": "alive",
@@ -580,14 +391,13 @@ def test_bridge_owner_token_and_process_identity_prevent_pid_reuse_adoption(
                 "owner_token": "new-owner-token",
                 "process_identity": "new-process-identity",
             }
-        ) is True
+        ) is False
     finally:
-        release.set()
+        manager._bridge = None
         manager.close()
-        manager._bridge.join(timeout=2.0)
 
 
-def test_bridge_start_failure_never_reports_managed(tmp_path, monkeypatch):
+def test_bridge_start_refusal_never_reports_managed(tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
     monkeypatch.setattr(
         file_bridge,
@@ -602,11 +412,16 @@ def test_bridge_start_failure_never_reports_managed(tmp_path, monkeypatch):
         ),
     )
     try:
-        status = manager.ensure_bridge()
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Managed bridge start is unavailable",
+        ):
+            manager.ensure_bridge()
+        status = manager.snapshot()["services"]["bridge"]
         assert status["managed"] is False
         assert status["state"] == "none"
-        assert "synthetic boundary refusal" in status["last_error"]
-        assert manager._bridge is not None and not manager._bridge.is_alive()
+        assert status["managed_start_available"] is False
+        assert not hasattr(manager, "_bridge")
     finally:
         manager.close()
 
@@ -776,6 +591,948 @@ def test_budget_snapshot_reports_ledger_error_without_bricking_settings(
         manager.close()
 
 
+def test_legacy_bridge_autostart_is_persisted_as_disabled_without_start(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    proposed = json.loads(json.dumps(manager.config))
+    proposed["bridge"]["auto_start"] = True
+    proposed["ollama"]["model"] = "owner-selected-model"
+    monkeypatch.setattr(
+        manager._effect_owner,
+        "start_bridge",
+        lambda: pytest.fail("settings must not start the bridge"),
+    )
+    try:
+        snapshot = manager.save_settings(proposed)
+        persisted = json.loads(manager.config_path.read_text(encoding="utf-8"))
+
+        assert persisted["ollama"]["model"] == "owner-selected-model"
+        assert persisted["bridge"]["auto_start"] is False
+        assert os.environ["OLLAMA_MODEL"] == "owner-selected-model"
+        assert snapshot["config"]["ollama"]["model"] == "owner-selected-model"
+        assert "startup_error" not in snapshot
+    finally:
+        manager.close()
+
+
+def test_bootstrap_never_calls_managed_start_ports(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    starts: list[str] = []
+    for name in ("start_bridge", "start_ollama", "start_ide"):
+        monkeypatch.setattr(
+            manager._effect_owner,
+            name,
+            lambda *args, _name=name, **kwargs: starts.append(_name),
+        )
+    try:
+        snapshot = manager.bootstrap()
+        assert starts == []
+        assert snapshot["config"]["bridge"]["auto_start"] is False
+        assert snapshot["config"]["ollama"]["auto_start"] is False
+        assert snapshot["config"]["ide"]["auto_start"] is False
+    finally:
+        manager.close()
+
+
+def test_legacy_service_autostarts_are_normalized_without_readiness_calls(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    proposed = json.loads(json.dumps(manager.config))
+    proposed["bridge"]["auto_start"] = True
+    proposed["ollama"]["auto_start"] = True
+    proposed["ide"]["auto_start"] = True
+    proposed["ollama"]["model"] = "persisted-before-readiness"
+    starts: list[str] = []
+    for name in ("start_bridge", "start_ollama", "start_ide"):
+        monkeypatch.setattr(
+            manager._effect_owner,
+            name,
+            lambda *args, _name=name, **kwargs: starts.append(_name),
+        )
+    try:
+        snapshot = manager.save_settings(proposed)
+
+        saved = json.loads(manager.config_path.read_text(encoding="utf-8"))
+        assert saved["ollama"]["model"] == "persisted-before-readiness"
+        assert saved["bridge"]["auto_start"] is False
+        assert saved["ollama"]["auto_start"] is False
+        assert saved["ide"]["auto_start"] is False
+        assert starts == []
+        assert "startup_error" not in snapshot
+    finally:
+        manager.close()
+
+
+def test_source_web_cli_wires_settings_get_put_and_closes_manager(
+        tmp_path, monkeypatch):
+    from daedalus.interfaces.cli import entry as cli_entry
+    from daedalus.interfaces.http import web_api
+
+    manager_type = DesktopRuntimeManager
+    observed = {"responses": [], "lifecycle": []}
+    install_integration = desktop_runtime_module.install_web_integration
+    monkeypatch.chdir(tmp_path)
+
+    def manager_factory(root):
+        observed["lifecycle"].append("manager")
+        observed["root"] = root
+        manager = manager_type(root)
+        quiet_status(manager, monkeypatch)
+        close = manager.close
+
+        def bootstrap():
+            observed["lifecycle"].append("bootstrap")
+
+        def close_manager():
+            observed["lifecycle"].append("close")
+            close()
+
+        manager.bootstrap = bootstrap
+        manager.close = close_manager
+        observed["manager"] = manager
+        return manager
+
+    def install(module, manager):
+        observed["lifecycle"].append("settings_integration")
+        install_integration(module, manager)
+
+    def fake_run(
+        host,
+        port,
+        *,
+        allow_remote_clients=False,
+        on_bound=None,
+        authority_root=None,
+    ):
+        observed["lifecycle"].append("bound")
+        observed["bind"] = (host, port, allow_remote_clients)
+        observed["server_authority_root"] = authority_root
+        assert on_bound is not None
+        on_bound()
+        observed["lifecycle"].append("serve")
+        get = object.__new__(web_api.DaedalusHandler)
+        get.path = "/api/desktop/settings"
+        get._send_json = lambda payload, status=200: observed["responses"].append(
+            ("GET", status, payload)
+        )
+        get._handle_get()
+
+        manager = observed["manager"]
+        proposed = json.loads(json.dumps(manager.config))
+        proposed["bridge"]["auto_start"] = False
+        proposed["ollama"]["auto_start"] = False
+        proposed["ide"]["auto_start"] = False
+        proposed["ollama"]["model"] = "source-web-model"
+        put = object.__new__(web_api.DaedalusHandler)
+        put.path = "/api/desktop/settings"
+        put.body = proposed
+        put._send_json = lambda payload, status=200: observed["responses"].append(
+            ("PUT", status, payload)
+        )
+        put._handle_put()
+        raise RuntimeError("server stopped")
+
+    def fake_main(argv, *, on_bound=None, authority_root=None):
+        observed["lifecycle"].append("main")
+        observed["argv"] = argv
+        observed["main_authority_root"] = authority_root
+        web_api.run(
+            "127.0.0.1",
+            9876,
+            allow_remote_clients=False,
+            on_bound=on_bound,
+            authority_root=authority_root,
+        )
+
+    original_handler = web_api.DaedalusHandler
+    monkeypatch.setattr(web_api, "DaedalusHandler", original_handler)
+    monkeypatch.setattr(web_api, "run", fake_run)
+    monkeypatch.setattr(web_api, "_read_body", lambda handler: handler.body)
+    monkeypatch.setattr(web_api, "main", fake_main)
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "DesktopRuntimeManager",
+        manager_factory,
+    )
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "install_tunnel_egress_policy",
+        lambda: observed["lifecycle"].append("tunnel_policy"),
+    )
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "install_web_integration",
+        install,
+    )
+
+    with pytest.raises(RuntimeError, match="server stopped"):
+        cli_entry._web(["--port", "9876"])
+
+    manager = observed["manager"]
+    assert observed["root"] == tmp_path.resolve()
+    assert observed["main_authority_root"] == tmp_path.resolve()
+    assert observed["server_authority_root"] == tmp_path.resolve()
+    assert observed["argv"] == ["--port", "9876"]
+    assert observed["lifecycle"] == [
+        "manager",
+        "tunnel_policy",
+        "settings_integration",
+        "main",
+        "bound",
+        "bootstrap",
+        "serve",
+        "close",
+    ]
+    assert observed["bind"] == ("127.0.0.1", 9876, False)
+    assert [(method, status) for method, status, _ in observed["responses"]] == [
+        ("GET", 200),
+        ("PUT", 200),
+    ]
+    assert observed["responses"][0][2]["desktop"]["config_path"] == str(
+        tmp_path / "config" / "connections.json"
+    )
+    assert observed["responses"][1][2]["desktop"]["config"]["ollama"][
+        "model"
+    ] == "source-web-model"
+    assert json.loads(manager.config_path.read_text(encoding="utf-8"))[
+        "ollama"
+    ]["model"] == "source-web-model"
+    assert manager._closed is True
+    assert web_api.DaedalusHandler is original_handler
+    assert web_api.run is fake_run
+
+
+def test_source_web_cli_closes_and_restores_handler_when_bootstrap_fails(
+        tmp_path, monkeypatch):
+    from daedalus.interfaces.cli import entry as cli_entry
+    from daedalus.interfaces.http import web_api
+
+    lifecycle = []
+    original_handler = web_api.DaedalusHandler
+    monkeypatch.chdir(tmp_path)
+
+    class Manager:
+        def bootstrap(self):
+            lifecycle.append("bootstrap")
+            raise DesktopRuntimeError("autostart failed")
+
+        def close(self):
+            lifecycle.append("close")
+
+    def install(module, manager):
+        lifecycle.append("settings_integration")
+
+        class ManagedHandler(original_handler):
+            pass
+
+        module.DaedalusHandler = ManagedHandler
+
+    def fake_run(*args, on_bound=None, **kwargs):
+        lifecycle.append("bound")
+        assert on_bound is not None
+        on_bound()
+        pytest.fail("serve must not follow a bootstrap failure")
+
+    def fake_main(argv, *, on_bound=None, authority_root=None):
+        lifecycle.append("main")
+        assert authority_root == tmp_path.resolve()
+        web_api.run(
+            "127.0.0.1",
+            8765,
+            on_bound=on_bound,
+            authority_root=authority_root,
+        )
+
+    monkeypatch.setattr(web_api, "DaedalusHandler", original_handler)
+    monkeypatch.setattr(web_api, "run", fake_run)
+    monkeypatch.setattr(web_api, "main", fake_main)
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "DesktopRuntimeManager",
+        lambda root: Manager(),
+    )
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "install_tunnel_egress_policy",
+        lambda: lifecycle.append("tunnel_policy"),
+    )
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "install_web_integration",
+        install,
+    )
+
+    with pytest.raises(DesktopRuntimeError, match="autostart failed"):
+        cli_entry._web([])
+
+    assert lifecycle == [
+        "tunnel_policy",
+        "settings_integration",
+        "main",
+        "bound",
+        "bootstrap",
+        "close",
+    ]
+    assert web_api.DaedalusHandler is original_handler
+    assert web_api.run is fake_run
+
+
+def test_source_web_cli_refused_bind_never_bootstraps_services(monkeypatch):
+    from daedalus.interfaces.cli import entry as cli_entry
+    from daedalus.interfaces.http import web_api
+
+    lifecycle = []
+
+    class Manager:
+        def bootstrap(self):
+            lifecycle.append("bootstrap")
+
+        def close(self):
+            lifecycle.append("close")
+
+    def manager_factory(root):
+        lifecycle.append("manager")
+        return Manager()
+
+    monkeypatch.delenv(web_api.ALLOW_REMOTE_ENV, raising=False)
+    monkeypatch.delenv(web_api.AUTH_TOKEN_ENV, raising=False)
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "DesktopRuntimeManager",
+        manager_factory,
+    )
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "install_tunnel_egress_policy",
+        lambda: lifecycle.append("tunnel_policy"),
+    )
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "install_web_integration",
+        lambda module, manager: lifecycle.append("settings_integration"),
+    )
+
+    with pytest.raises(SystemExit) as stopped:
+        cli_entry._web(["--host", "0.0.0.0"])
+
+    assert stopped.value.code == 2
+    assert lifecycle == [
+        "manager",
+        "tunnel_policy",
+        "settings_integration",
+        "close",
+    ]
+
+
+def test_packaged_sidecar_bootstraps_after_bound_and_closes_on_failure(
+        tmp_path, monkeypatch):
+    from daedalus import budget
+    from daedalus.foundation import env as foundation_env
+    from daedalus.interfaces.desktop import sidecar as sidecar_owner
+    from daedalus.interfaces.http import web_api
+    from daedalus.spine import effect_boundary
+    from scripts import daedalus_desktop_sidecar as sidecar
+
+    lifecycle = []
+    process_guard_decision = object()
+
+    class Manager:
+        def __init__(self, root):
+            lifecycle.append(("manager", root))
+
+        def bootstrap(self):
+            lifecycle.append("bootstrap")
+
+        def close(self):
+            lifecycle.append("close")
+
+    def fake_main(argv, *, on_bound=None):
+        lifecycle.append(("main", argv))
+        lifecycle.append("bound")
+        assert on_bound is not None
+        on_bound()
+        raise RuntimeError("server stopped")
+
+    def fake_prepare_runtime():
+        lifecycle.append("prepare_runtime")
+        return tmp_path
+
+    monkeypatch.setattr(
+        budget,
+        "process_guard_boundary_decision",
+        lambda: lifecycle.append("process_guard") or process_guard_decision,
+    )
+    monkeypatch.setattr(
+        effect_boundary,
+        "begin_effect",
+        lambda entrypoint_id, effects, decisions: lifecycle.append(
+            ("begin", entrypoint_id, effects, tuple(decisions))
+        ),
+    )
+    monkeypatch.setattr(sidecar_owner, "prepare_runtime", fake_prepare_runtime)
+    monkeypatch.setattr(
+        sidecar_owner.os,
+        "chdir",
+        lambda root: lifecycle.append(("chdir", root)),
+    )
+    monkeypatch.setattr(
+        foundation_env,
+        "load_env",
+        lambda path: lifecycle.append(("load_env", path)),
+    )
+    monkeypatch.setattr(desktop_runtime_module, "DesktopRuntimeManager", Manager)
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "install_tunnel_egress_policy",
+        lambda: lifecycle.append("tunnel_policy"),
+    )
+    monkeypatch.setattr(
+        desktop_runtime_module,
+        "install_web_integration",
+        lambda module, manager: lifecycle.append("settings_integration"),
+    )
+    monkeypatch.setattr(web_api, "main", fake_main)
+
+    with pytest.raises(RuntimeError, match="server stopped"):
+        sidecar.main(["--port", "9876"])
+
+    assert lifecycle == [
+        "process_guard",
+        (
+            "begin",
+            "cli.desktop_sidecar",
+            effect_boundary.REGISTRY_BY_ID["cli.desktop_sidecar"].effects,
+            (process_guard_decision,),
+        ),
+        "prepare_runtime",
+        ("chdir", tmp_path),
+        ("load_env", tmp_path / ".env"),
+        ("manager", tmp_path),
+        "tunnel_policy",
+        "settings_integration",
+        ("main", ["--port", "9876"]),
+        "bound",
+        "bootstrap",
+        "close",
+    ]
+
+
+def test_packaged_sidecar_refusal_precedes_runtime_mutation(monkeypatch):
+    from daedalus import budget
+    from daedalus.interfaces.desktop import sidecar as sidecar_owner
+    from daedalus.spine import effect_boundary
+    from scripts import daedalus_desktop_sidecar as sidecar
+
+    lifecycle = []
+    decision = object()
+    monkeypatch.setattr(
+        budget,
+        "process_guard_boundary_decision",
+        lambda: lifecycle.append("process_guard") or decision,
+    )
+
+    def refuse(*args):
+        lifecycle.append(("begin", args))
+        raise RuntimeError("desktop bootstrap refused")
+
+    monkeypatch.setattr(effect_boundary, "begin_effect", refuse)
+    monkeypatch.setattr(
+        sidecar_owner,
+        "prepare_runtime",
+        lambda: lifecycle.append("prepare_runtime"),
+    )
+
+    with pytest.raises(RuntimeError, match="desktop bootstrap refused"):
+        sidecar.main([])
+
+    assert lifecycle == [
+        "process_guard",
+        (
+            "begin",
+            (
+                "cli.desktop_sidecar",
+                effect_boundary.REGISTRY_BY_ID["cli.desktop_sidecar"].effects,
+                (decision,),
+            ),
+        ),
+    ]
+
+
+def test_web_api_occupied_port_never_calls_bound_lifecycle(monkeypatch):
+    from daedalus.interfaces.http import web_api
+
+    occupied = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        occupied.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    occupied.bind(("127.0.0.1", 0))
+    occupied.listen(1)
+    port = occupied.getsockname()[1]
+    lifecycle = []
+    monkeypatch.setattr(web_api, "load_env", lambda: None)
+    try:
+        with pytest.raises(OSError):
+            web_api.run(
+                "127.0.0.1",
+                port,
+                on_bound=lambda: lifecycle.append("bootstrap"),
+            )
+    finally:
+        occupied.close()
+
+    assert lifecycle == []
+
+
+def test_web_api_closes_bound_socket_when_lifecycle_callback_fails(monkeypatch):
+    from daedalus.interfaces.http import web_api
+
+    lifecycle = []
+
+    class BoundServer:
+        daedalus_auth_token = ""
+        daedalus_desktop_startup_nonce = ""
+
+        def __init__(self, address, handler):
+            lifecycle.append(("bound", address, handler))
+
+        def serve_forever(self):
+            lifecycle.append("serve")
+
+        def server_close(self):
+            lifecycle.append("server_close")
+
+    def fail_bootstrap():
+        lifecycle.append("bootstrap")
+        raise DesktopRuntimeError("autostart failed")
+
+    monkeypatch.setattr(web_api, "ThreadingHTTPServer", BoundServer)
+    monkeypatch.setattr(web_api, "load_env", lambda: None)
+
+    with pytest.raises(DesktopRuntimeError, match="autostart failed"):
+        web_api.run("127.0.0.1", 8765, on_bound=fail_bootstrap)
+
+    assert lifecycle == [
+        ("bound", ("127.0.0.1", 8765), web_api.DaedalusHandler),
+        "bootstrap",
+        "server_close",
+    ]
+
+
+def test_concurrent_settings_puts_serialize_through_confirming_snapshot(
+        tmp_path, monkeypatch):
+    from daedalus.interfaces.http import web_api
+
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    original_handler = web_api.DaedalusHandler
+    first_at_snapshot = threading.Event()
+    release_first = threading.Event()
+    second_started = threading.Event()
+    second_saved = threading.Event()
+    responses = {}
+    errors = []
+    real_authorize = manager._effect_owner._authorize_settings
+
+    def observed_authorize(request, prepared):
+        result = real_authorize(request, prepared)
+        if prepared["ollama"]["model"] == "second-model":
+            second_saved.set()
+        return result
+
+    def controlled_snapshot():
+        if manager.config["ollama"]["model"] == "first-model":
+            first_at_snapshot.set()
+            if not release_first.wait(timeout=3):
+                raise AssertionError("timed out waiting to release first PUT")
+        return {"config": json.loads(json.dumps(manager.config))}
+
+    monkeypatch.setattr(
+        manager._effect_owner,
+        "_authorize_settings",
+        observed_authorize,
+    )
+    monkeypatch.setattr(
+        manager._effect_owner,
+        "_detached_snapshot",
+        controlled_snapshot,
+    )
+    monkeypatch.setattr(web_api, "_read_body", lambda handler: handler.body)
+    install_web_integration(web_api, manager)
+
+    def put(label, model):
+        if label == "second":
+            second_started.set()
+        try:
+            proposed = json.loads(json.dumps(manager.config))
+            proposed["bridge"]["auto_start"] = False
+            proposed["ollama"]["auto_start"] = False
+            proposed["ide"]["auto_start"] = False
+            proposed["ollama"]["model"] = model
+            handler = object.__new__(web_api.DaedalusHandler)
+            handler.path = "/api/desktop/settings"
+            handler.body = proposed
+            handler._send_json = lambda payload, status=200: responses.setdefault(
+                label, (status, payload)
+            )
+            handler._handle_put()
+        except BaseException as exc:  # surfaced after joining the worker
+            errors.append(exc)
+
+    first = threading.Thread(target=put, args=("first", "first-model"))
+    second = threading.Thread(target=put, args=("second", "second-model"))
+    try:
+        first.start()
+        assert first_at_snapshot.wait(timeout=3)
+        second.start()
+        assert second_started.wait(timeout=3)
+        assert not second_saved.wait(timeout=0.2)
+        release_first.set()
+        first.join(timeout=3)
+        second.join(timeout=3)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert responses["first"][0] == 200
+        assert responses["second"][0] == 200
+        assert responses["first"][1]["desktop"]["config"]["ollama"][
+            "model"
+        ] == "first-model"
+        assert responses["second"][1]["desktop"]["config"]["ollama"][
+            "model"
+        ] == "second-model"
+    finally:
+        release_first.set()
+        first.join(timeout=3)
+        if second.ident is not None:
+            second.join(timeout=3)
+        web_api.DaedalusHandler = original_handler
+        manager.close()
+
+
+@pytest.mark.parametrize("section_update", [False, True])
+def test_effect_admission_uses_prospective_local_route_for_settings_payloads(
+        section_update):
+    manager = SimpleNamespace(config=normalize_config(remote_config()))
+    local_ollama = json.loads(json.dumps(normalize_config({})["ollama"]))
+    local_ollama["local_host"] = "http://127.0.0.1:11436"
+    payload = {"ollama": local_ollama}
+    if section_update:
+        payload = {"section_updates": payload}
+
+    assert desktop_effects._prospective_mode(manager, payload) == "local"
+    assert desktop_effects._prospective_endpoints(manager, payload) == (
+        "http://127.0.0.1:11436",
+        manager.config["ide"]["endpoint"],
+    )
+
+
+def test_effect_admission_refuses_remote_section_update_before_operation(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    remote_ollama = normalize_config(remote_config())["ollama"]
+    operation_called = False
+
+    def operation(*args, **kwargs):
+        nonlocal operation_called
+        operation_called = True
+
+    monkeypatch.setattr(desktop_effects, "acquire_effect_lease", operation)
+    try:
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Remote SSH is unavailable",
+        ):
+            manager.save_settings(
+                {"section_updates": {"ollama": remote_ollama}}
+            )
+    finally:
+        manager.close()
+
+    assert operation_called is False
+
+
+def test_desktop_settings_route_atomically_merges_stale_owner_section_updates(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    baseline = json.loads(json.dumps(manager.config))
+    baseline["bridge"]["auto_start"] = False
+    baseline["ollama"]["auto_start"] = False
+    baseline["ide"]["auto_start"] = False
+    manager.save_settings(baseline)
+
+    stale_connection = json.loads(json.dumps(manager.config))
+    stale_caps = json.loads(json.dumps(manager.config))
+    stale_connection["ollama"]["model"] = "connection-client-model"
+    assert stale_caps["budget"]["max_calls"] > 1
+    stale_caps["budget"]["max_calls"] -= 1
+    stale_caps["caps"]["mode"] = MODE_CUSTOM
+    payloads = {
+        "connection": {
+            "section_updates": {
+                "bridge": stale_connection["bridge"],
+                "ollama": stale_connection["ollama"],
+            }
+        },
+        "caps": {
+            "section_updates": {
+                "budget": stale_caps["budget"],
+                "caps": stale_caps["caps"],
+            }
+        },
+    }
+
+    class BaseHandler:
+        path = ""
+        body = None
+
+        def _handle_put(self):
+            self.fell_through = True
+
+    web_api = SimpleNamespace(
+        DaedalusHandler=BaseHandler,
+        _read_body=lambda handler: handler.body,
+        core=SimpleNamespace(envelope=lambda project, **payload: payload),
+        runtime_registry=SimpleNamespace(reset_status_cache=lambda: None),
+    )
+    install_web_integration(web_api, manager)
+
+    first_at_snapshot = threading.Event()
+    release_first = threading.Event()
+    caps_started = threading.Event()
+    caps_saved = threading.Event()
+    responses = {}
+    errors = []
+    real_authorize = manager._effect_owner._authorize_settings
+    real_snapshot = manager._effect_owner._detached_snapshot
+
+    def observed_authorize(request, prepared):
+        result = real_authorize(request, prepared)
+        if (
+            prepared["budget"]["max_calls"]
+            == stale_caps["budget"]["max_calls"]
+        ):
+            caps_saved.set()
+        return result
+
+    def controlled_snapshot():
+        snap = real_snapshot()
+        if manager.config["ollama"]["model"] == "connection-client-model":
+            first_at_snapshot.set()
+            if not release_first.wait(timeout=3):
+                raise AssertionError("timed out waiting to release connection PUT")
+        return snap
+
+    monkeypatch.setattr(
+        manager._effect_owner,
+        "_authorize_settings",
+        observed_authorize,
+    )
+    monkeypatch.setattr(
+        manager._effect_owner,
+        "_detached_snapshot",
+        controlled_snapshot,
+    )
+
+    def put(label):
+        if label == "caps":
+            caps_started.set()
+        try:
+            handler = web_api.DaedalusHandler()
+            handler.path = "/api/desktop/settings"
+            handler.body = payloads[label]
+            handler._send_json = lambda payload, status=200: responses.setdefault(
+                label, (status, payload)
+            )
+            handler._handle_put()
+        except BaseException as exc:  # surfaced after joining the worker
+            errors.append(exc)
+
+    connection = threading.Thread(target=put, args=("connection",))
+    caps = threading.Thread(target=put, args=("caps",))
+    try:
+        connection.start()
+        assert first_at_snapshot.wait(timeout=3)
+        caps.start()
+        assert caps_started.wait(timeout=3)
+        assert not caps_saved.wait(timeout=0.2)
+        release_first.set()
+        connection.join(timeout=3)
+        caps.join(timeout=3)
+
+        assert not connection.is_alive()
+        assert not caps.is_alive()
+        assert errors == []
+        assert responses["connection"][0] == 200
+        assert responses["caps"][0] == 200
+        assert responses["connection"][1]["desktop"][
+            "settings_update_contract"
+        ] == "section_updates_v1"
+        assert responses["caps"][1]["desktop"][
+            "settings_update_contract"
+        ] == "section_updates_v1"
+        final = responses["caps"][1]["desktop"]["config"]
+        assert final["ollama"]["model"] == "connection-client-model"
+        assert final["budget"]["max_calls"] == stale_caps["budget"]["max_calls"]
+        assert final["caps"]["mode"] == MODE_CUSTOM
+        assert json.loads(
+            manager.config_path.read_text(encoding="utf-8")
+        ) == final
+    finally:
+        release_first.set()
+        connection.join(timeout=3)
+        if caps.ident is not None:
+            caps.join(timeout=3)
+        manager.close()
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"section_updates": []}, "section_updates must be a JSON object"),
+        ({"section_updates": {}}, "section_updates must contain at least one"),
+        (
+            {"section_updates": {"ide": {"auto_start": False}}},
+            "unsupported settings section_updates: ide",
+        ),
+        (
+            {
+                "section_updates": {
+                    "ide": {"endpoint": "http://example.com:3000"}
+                }
+            },
+            "unsupported settings section_updates: ide",
+        ),
+        (
+            {"section_updates": {"bridge": False}},
+            "section_updates.bridge must be a JSON object",
+        ),
+        (
+            {"section_updates": {"bridge": {}, "caps": {}}},
+            "section_updates must target only one settings owner",
+        ),
+        (
+            {
+                "section_updates": {
+                    "ollama": {"mode": "remote_ssh"},
+                    "caps": {},
+                }
+            },
+            "section_updates must target only one settings owner",
+        ),
+        (
+            {"section_updates": {"bridge": {}}, "bridge": {}},
+            "section_updates cannot be combined",
+        ),
+    ],
+)
+def test_invalid_section_update_route_leaves_settings_byte_identical(
+        payload, message, tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    baseline = json.loads(json.dumps(manager.config))
+    baseline["bridge"]["auto_start"] = False
+    baseline["ollama"]["auto_start"] = False
+    baseline["ide"]["auto_start"] = False
+    manager.save_settings(baseline)
+    before_config = json.loads(json.dumps(manager.config))
+    before_bytes = manager.config_path.read_bytes()
+
+    class BaseHandler:
+        path = ""
+        body = None
+
+        def _send_json(self, response, status=200):
+            self.sent = (status, response)
+
+        def _handle_put(self):
+            self.fell_through = True
+
+    web_api = SimpleNamespace(
+        DaedalusHandler=BaseHandler,
+        _read_body=lambda handler: handler.body,
+        core=SimpleNamespace(envelope=lambda project, **response: response),
+        runtime_registry=SimpleNamespace(reset_status_cache=lambda: None),
+    )
+    install_web_integration(web_api, manager)
+
+    try:
+        handler = web_api.DaedalusHandler()
+        handler.path = "/api/desktop/settings"
+        handler.body = payload
+        handler._handle_put()
+
+        assert handler.sent[0] == 400
+        assert message in handler.sent[1]["error"]
+        assert manager.config == before_config
+        assert manager.config_path.read_bytes() == before_bytes
+    finally:
+        manager.close()
+
+
+def test_caps_section_update_reuses_canonical_widening_consent_and_persistence(
+        tmp_path, monkeypatch):
+    manager = DesktopRuntimeManager(tmp_path)
+    quiet_status(manager, monkeypatch)
+    baseline = json.loads(json.dumps(manager.config))
+    baseline["bridge"]["auto_start"] = False
+    baseline["ollama"]["auto_start"] = False
+    baseline["ide"]["auto_start"] = False
+    manager.save_settings(baseline)
+    before_bytes = manager.config_path.read_bytes()
+    budget = json.loads(json.dumps(manager.config["budget"]))
+    caps = json.loads(json.dumps(manager.config["caps"]))
+    budget["period_ceiling_usd"] += 1.0
+
+    class BaseHandler:
+        path = ""
+        body = None
+
+        def _send_json(self, response, status=200):
+            self.sent = (status, response)
+
+        def _handle_put(self):
+            self.fell_through = True
+
+    web_api = SimpleNamespace(
+        DaedalusHandler=BaseHandler,
+        _read_body=lambda handler: handler.body,
+        core=SimpleNamespace(envelope=lambda project, **response: response),
+        runtime_registry=SimpleNamespace(reset_status_cache=lambda: None),
+    )
+    install_web_integration(web_api, manager)
+
+    try:
+        rejected = web_api.DaedalusHandler()
+        rejected.path = "/api/desktop/settings"
+        rejected.body = {
+            "section_updates": {"budget": budget, "caps": caps}
+        }
+        rejected._handle_put()
+        assert rejected.sent[0] == 400
+        assert "confirm_widening" in rejected.sent[1]["error"]
+        assert manager.config_path.read_bytes() == before_bytes
+
+        caps["confirm_widening"] = True
+        accepted = web_api.DaedalusHandler()
+        accepted.path = "/api/desktop/settings"
+        accepted.body = {
+            "section_updates": {"budget": budget, "caps": caps}
+        }
+        accepted._handle_put()
+        assert accepted.sent[0] == 200
+        saved = json.loads(manager.config_path.read_text(encoding="utf-8"))
+        assert saved["budget"] == budget
+        assert "confirm_widening" not in saved["caps"]
+        assert accepted.sent[1]["desktop"]["config"] == saved
+    finally:
+        manager.close()
+
+
 def test_desktop_settings_route_requires_transient_budget_widening_confirmation(
         tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
@@ -824,6 +1581,7 @@ def test_desktop_settings_route_requires_transient_budget_widening_confirmation(
         accepted._handle_put()
         assert accepted.sent[1] == 200
         returned = accepted.sent[0]["desktop"]
+        assert returned["settings_update_contract"] == "section_updates_v1"
         assert returned["budget"]["effective_period_ceiling_usd"] is None
         assert "confirm_widening" not in returned["config"]["caps"]
 
@@ -831,6 +1589,10 @@ def test_desktop_settings_route_requires_transient_budget_widening_confirmation(
         fetched.path = "/api/desktop/settings"
         fetched._handle_get()
         assert fetched.sent[1] == 200
+        assert fetched.sent[0]["desktop"]["settings_update_contract"] == (
+            "section_updates_v1"
+        )
+        assert "settings_update_contract" not in manager.snapshot()
         assert "confirm_widening" not in (
             fetched.sent[0]["desktop"]["config"]["caps"]
         )
@@ -1020,23 +1782,13 @@ def test_legacy_and_canonical_confirmation_must_not_conflict(
 
 
 def test_settings_do_not_accept_password_or_private_key_bytes():
-    cfg = normalize_config(
-        remote_config(password="do-not-store", private_key="-----BEGIN PRIVATE KEY-----")
-    )
-    remote = cfg["ollama"]["remote"]
-    assert "password" not in remote
-    assert "private_key" not in remote
-    assert set(remote) == {
-        "host",
-        "user",
-        "port",
-        "identity_file",
-        "host_key_fingerprint",
-        "local_port",
-        "remote_port",
-        "start_method",
-        "trust_remote_host",
-    }
+    with pytest.raises(ValueError, match="password, private_key"):
+        normalize_config(
+            remote_config(
+                password="do-not-store",
+                private_key="-----BEGIN PRIVATE KEY-----",
+            )
+        )
 
 
 def test_remote_mode_rejects_option_injection_and_dns_trust():
@@ -1046,28 +1798,34 @@ def test_remote_mode_rejects_option_injection_and_dns_trust():
         normalize_config(remote_config(host="bench.example", trust_remote_host=True))
 
 
-def test_remote_environment_keeps_transport_and_physical_target_separate(tmp_path, monkeypatch):
+def test_persisted_remote_environment_projects_no_ssh_consent_or_peer_trust(
+    tmp_path, monkeypatch
+):
     monkeypatch.delenv(TRUSTED_HOSTS_VAR, raising=False)
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config(remote_config())
-    manager.apply_environment()
+    manager._effect_owner._apply_environment_from(
+        manager.config,
+        budget_policy_error="",
+    )
     try:
-        assert os.environ["OLLAMA_HOST"] == "http://127.0.0.1:11435"
-        assert os.environ[TUNNEL_FORWARD_VAR] == "http://127.0.0.1:11435"
-        assert os.environ[TUNNEL_TARGET_VAR] == "http://192.168.50.20:11434"
-        assert os.environ[REMOTE_OK_VAR] == "http://127.0.0.1:11435"
+        assert os.environ["OLLAMA_HOST"] == "http://127.0.0.1:11434"
+        assert TUNNEL_FORWARD_VAR not in os.environ
+        assert TUNNEL_TARGET_VAR not in os.environ
+        assert REMOTE_OK_VAR not in os.environ
+        assert "192.168.50.20" not in os.environ.get(TRUSTED_HOSTS_VAR, "")
     finally:
         manager.close()
 
 
-def test_tunnel_forward_is_egress_even_though_socket_is_loopback(monkeypatch):
+def test_removed_tunnel_policy_does_not_reclassify_loopback(monkeypatch):
     install_tunnel_egress_policy()
     monkeypatch.delenv(TRUSTED_HOSTS_VAR, raising=False)
     monkeypatch.setenv(TUNNEL_FORWARD_VAR, "http://127.0.0.1:11435")
     monkeypatch.setenv(TUNNEL_TARGET_VAR, "http://192.168.50.20:11434")
 
     assert sensitivity.is_loopback_host("http://127.0.0.1:11435") is True
-    assert sensitivity.lane_for_host("http://127.0.0.1:11435") == "untrusted"
+    assert sensitivity.lane_for_host("http://127.0.0.1:11435") == "trusted"
     assert sensitivity.lane_for_host("http://127.0.0.1:11434") == "trusted"
 
 
@@ -1079,21 +1837,24 @@ def test_explicit_numeric_remote_trust_survives_tunnel(monkeypatch):
     assert sensitivity.lane_for_host("http://127.0.0.1:11435") == "trusted"
 
 
-def test_ssh_is_strict_key_only(tmp_path, monkeypatch):
+def test_remote_ssh_refuses_without_transport_or_key_access(tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config(remote_config(host_key_fingerprint=""))
-    manager.apply_environment()
-    monkeypatch.setattr("daedalus.desktop_runtime.shutil.which", lambda name: f"/bin/{name}")
     try:
-        args = manager._ssh()
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Remote SSH is unavailable",
+        ):
+            manager.ensure_remote_ollama()
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Remote SSH is unavailable",
+        ):
+            manager.ensure_ollama()
+        assert not hasattr(manager, "_ssh")
+        assert not hasattr(manager, "_tunnel")
     finally:
         manager.close()
-    joined = " ".join(args)
-    assert "BatchMode=yes" in joined
-    assert "PasswordAuthentication=no" in joined
-    assert "KbdInteractiveAuthentication=no" in joined
-    assert "StrictHostKeyChecking=yes" in joined
-    assert "UserKnownHostsFile=" in joined
 
 
 def test_corrupt_settings_fall_back_without_bricking_desktop(tmp_path):
@@ -1125,48 +1886,28 @@ def test_ipv6_loopback_keeps_required_brackets():
     assert cfg["ollama"]["local_host"] == "http://[::1]:11434"
 
 
-def test_local_ollama_uses_resolved_executable_managed_process_and_neutral_cwd(
+def test_local_ollama_adoption_probes_exact_configured_endpoint_without_child(
     tmp_path, monkeypatch
 ):
     manager = DesktopRuntimeManager(tmp_path)
-    executable = (tmp_path / "installed" / "ollama.exe").resolve()
-    probes = iter(((False, "offline"), (True, "")))
-    calls = []
+    endpoint = "http://127.0.0.1:11436"
+    manager.config = normalize_config({"ollama": {"local_host": endpoint}})
+    probes: list[tuple[float, str | None]] = []
 
-    class FakeManagedProcess:
-        def __init__(self, argv, **kwargs):
-            self._returncode = None
-            self.closed = False
-            calls.append((list(argv), kwargs, self))
+    def probe(timeout=1.5, *, endpoint=None, switch=None):
+        assert switch is not None
+        probes.append((timeout, endpoint))
+        return True, ""
 
-        def poll(self):
-            return self._returncode
-
-        def close(self, *, grace_s):
-            self.closed = True
-
-    monkeypatch.setattr(manager, "_probe", lambda timeout=1.5: next(probes))
-    monkeypatch.setattr(
-        desktop_runtime_module.runtime_registry,
-        "resolve_runtime_command",
-        lambda runtime_id: str(executable) if runtime_id == "ollama_cli" else None,
-    )
-    monkeypatch.setattr(desktop_runtime_module, "ManagedProcess", FakeManagedProcess)
-    monkeypatch.setattr(
-        desktop_runtime_module, "_frozen_windows_runtime_root", lambda: None
-    )
+    monkeypatch.setattr(manager, "_probe", probe)
 
     try:
-        result = manager.ensure_local_ollama()
-        expected_cwd = tmp_path.resolve() / "runs" / "services" / "ollama"
-        argv, kwargs, managed = calls[0]
-        assert argv == [str(executable), "serve"]
-        assert Path(argv[0]).is_absolute()
-        assert kwargs["cwd"] == expected_cwd
-        assert expected_cwd.is_dir()
-        assert kwargs["env"] is not os.environ
-        assert manager._ollama is managed
-        assert isinstance(manager._ollama, FakeManagedProcess)
+        result = manager._adopt_local_ollama_owned(
+            endpoint,
+            switch=SimpleNamespace(checkpoint=lambda: None),
+        )
+        assert probes == [(1.5, endpoint)]
+        assert not hasattr(manager, "_ollama")
         assert result == {
             "mode": "local",
             "running": True,
@@ -1176,82 +1917,76 @@ def test_local_ollama_uses_resolved_executable_managed_process_and_neutral_cwd(
     finally:
         manager.close()
 
-    assert managed.closed is True
-
 
 def test_reachable_preexisting_ollama_is_not_owned_or_stopped(tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
-    monkeypatch.setattr(manager, "_probe", lambda timeout=1.5: (True, ""))
+    endpoint = manager.config["ollama"]["local_host"]
     monkeypatch.setattr(
-        desktop_runtime_module.runtime_registry,
-        "resolve_runtime_command",
-        lambda runtime_id: pytest.fail("reachable Ollama must not resolve a new child"),
-    )
-    monkeypatch.setattr(
-        desktop_runtime_module,
-        "_spawn_ollama_process",
-        lambda *args, **kwargs: pytest.fail("reachable Ollama must not be spawned"),
+        manager,
+        "_probe",
+        lambda timeout=1.5, *, endpoint=None, switch=None: (True, ""),
     )
 
     try:
-        result = manager.ensure_local_ollama()
+        result = manager._adopt_local_ollama_owned(
+            endpoint,
+            switch=SimpleNamespace(checkpoint=lambda: None),
+        )
         assert result["reachable"] is True
-        assert manager._ollama is None
-        manager.stop_ollama()
-        assert manager._ollama is None
+        assert not hasattr(manager, "_ollama")
     finally:
         manager.close()
 
 
-def test_stop_ollama_releases_managed_process_after_parent_exit(tmp_path):
+def test_stop_ollama_refuses_external_or_adopted_process_authority(tmp_path):
     manager = DesktopRuntimeManager(tmp_path)
-    calls = []
-
-    class ExitedManagedProcess:
-        def poll(self):
-            return 0
-
-        def close(self, *, grace_s):
-            calls.append(grace_s)
-
-    manager._ollama = ExitedManagedProcess()
     try:
-        manager.stop_ollama()
-        assert calls == [2.0]
-        assert manager._ollama is None
+        with pytest.raises(
+            desktop_effects.DesktopFeatureUnavailable,
+            match="does not own or terminate",
+        ):
+            manager.stop_ollama()
+        assert not hasattr(manager, "_ollama")
     finally:
         manager.close()
 
 
-def test_local_host_route_change_stops_owned_ollama(tmp_path, monkeypatch):
+def test_local_host_route_change_invalidates_observation_without_stop(tmp_path):
     manager = DesktopRuntimeManager(tmp_path)
-    stopped = []
+    manager._ollama_observation = {
+        "observed": True,
+        "endpoint": manager.config["ollama"]["local_host"],
+        "observed_at": "now",
+        "reachable": True,
+        "last_error": "",
+    }
     proposed = json.loads(json.dumps(manager.config))
     proposed["bridge"]["auto_start"] = False
     proposed["ide"]["auto_start"] = False
     proposed["ollama"]["auto_start"] = False
     proposed["ollama"]["local_host"] = "http://127.0.0.1:11436"
-    monkeypatch.setattr(manager, "stop_ollama", lambda: stopped.append(True))
-
     try:
         manager.save_settings(proposed)
-        assert stopped == [True]
+        assert manager._ollama_observation == {
+            "observed": False,
+            "endpoint": "http://127.0.0.1:11436",
+            "observed_at": None,
+            "reachable": False,
+            "last_error": "not probed for the configured endpoint",
+        }
     finally:
         manager.close()
 
 
-def test_manager_close_uses_owned_ollama_stop_path(tmp_path, monkeypatch):
+def test_manager_close_is_effect_free_and_has_no_stop_ports(tmp_path):
     manager = DesktopRuntimeManager(tmp_path)
-    calls = []
-    monkeypatch.setattr(manager, "stop_ide", lambda **kwargs: None)
-    monkeypatch.setattr(manager, "stop_ollama", lambda: calls.append("ollama"))
-
     manager.close()
+    assert manager._closed is True
+    assert not hasattr(manager, "_stop_ollama_owned")
+    assert not hasattr(manager, "_stop_ide_owned")
 
-    assert calls == ["ollama"]
 
-
-def test_web_ollama_stop_route_stops_owned_local_process():
+def test_web_ollama_stop_route_uses_effect_owner_cleanup():
     class BaseHandler:
         path = ""
 
@@ -1264,9 +1999,13 @@ def test_web_ollama_stop_route_stops_owned_local_process():
     class Manager:
         def __init__(self):
             self.stopped = False
+            self._effect_owner = SimpleNamespace(stop_ollama=self.stop_ollama)
 
         def stop_ollama(self):
             self.stopped = True
+            raise desktop_effects.DesktopFeatureUnavailable(
+                "external process is not owned"
+            )
 
         def snapshot(self):
             return {"services": {"ollama": {"reachable": False}}}
@@ -1287,8 +2026,10 @@ def test_web_ollama_stop_route_stops_owned_local_process():
     request._handle_post()
 
     assert manager.stopped is True
-    assert cache_resets == [True]
-    assert request.sent == ({"service": {"reachable": False}}, 200)
+    assert cache_resets == []
+    assert request.sent[1] == 409
+    assert request.sent[0]["error_code"] == "desktop_feature_unavailable"
+    assert request.sent[0]["committed"] is False
 
 
 @pytest.mark.parametrize(
@@ -1312,7 +2053,7 @@ def test_ide_executable_rejects_control_characters():
         normalize_config({"ide": {"executable": "openvscode-server\n--host=evil"}})
 
 
-def test_ide_discovery_prefers_configured_file_then_path(tmp_path, monkeypatch):
+def test_ide_status_does_not_discover_configured_file_or_path(tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
     configured = tmp_path / "tools" / "openvscode-server"
     configured.parent.mkdir()
@@ -1321,178 +2062,86 @@ def test_ide_discovery_prefers_configured_file_then_path(tmp_path, monkeypatch):
         manager.config = normalize_config(
             {"ide": {"mode": "native", "executable": str(configured), "auto_start": False}}
         )
-        monkeypatch.setattr(
-            "daedalus.desktop_runtime.shutil.which",
-            lambda command: pytest.fail("PATH must not be used for an explicit executable"),
-        )
-        assert manager._discover_ide_executable() == str(configured.resolve())
-
-        manager.config = normalize_config({"ide": {"mode": "native", "executable": ""}})
-        monkeypatch.setattr(
-            "daedalus.desktop_runtime.shutil.which",
-            lambda command: "/opt/openvscode-server" if command == "openvscode-server" else None,
-        )
-        assert manager._discover_ide_executable() == "/opt/openvscode-server"
+        status = manager._ide_status()
+        assert status["observed"] is False
+        assert status["installed"] is False
+        assert status["available"] is False
+        assert status["executable"] == ""
+        assert status["configured_executable"] == str(configured)
+        assert not hasattr(manager, "_discover_ide_executable")
     finally:
         manager.close()
 
 
-def test_ide_discovery_does_not_download_missing_server(tmp_path, monkeypatch):
+def test_ide_has_no_discovery_or_download_port(tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
-    monkeypatch.setattr("daedalus.desktop_runtime.shutil.which", lambda command: None)
     try:
-        with pytest.raises(DesktopRuntimeError, match="runtime downloads are disabled"):
-            manager._discover_ide_executable()
+        assert not hasattr(manager, "_discover_ide_executable")
+        assert not hasattr(manager, "_discover_docker_executable")
+        assert manager._ide_status()["runtime_downloads"] is False
     finally:
         manager.close()
 
 
-def test_ide_start_is_loopback_only_and_project_never_enters_command(tmp_path, monkeypatch):
-    class Process:
-        def __init__(self):
-            self.returncode = None
-            self.terminated = False
-
-        def poll(self):
-            return self.returncode
-
-        def terminate(self):
-            self.terminated = True
-            self.returncode = 0
-
-        def wait(self, timeout=None):
-            return self.returncode
-
-        def kill(self):
-            self.returncode = -9
-
-    executable = tmp_path / "openvscode-server"
-    executable.write_text("", encoding="utf-8")
+def test_ide_start_refuses_before_process_or_project_command_use(tmp_path, monkeypatch):
     project = tmp_path / "--project with spaces"
     project.mkdir()
     manager = DesktopRuntimeManager(tmp_path)
-    manager.config = normalize_config(
-        {
-            "ide": {
-                "mode": "native",
-                "endpoint": "http://127.0.0.1:3000",
-                "executable": str(executable),
-            }
-        }
-    )
-    probes = iter(((False, "offline"), (True, ""), (True, "")))
-    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: next(probes))
-    launched = {}
-    proc = Process()
-
-    def popen(args, **kwargs):
-        launched["args"] = args
-        launched["kwargs"] = kwargs
-        return proc
-
-    monkeypatch.setattr("daedalus.desktop_runtime.subprocess.Popen", popen)
     try:
-        status = manager.ensure_ide(project)
-        assert launched["args"] == [
-            str(executable.resolve()),
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "3000",
-            "--without-connection-token",
-        ]
-        assert str(project) not in launched["args"]
-        assert parse_qs(urlsplit(status["ui_url"]).query) == {
-            "folder": [str(project.resolve())]
-        }
-        assert status["reachable"] is True
-        assert status["managed"] is True
-        manager.stop_ide()
-        assert proc.terminated is True
-        assert manager._ide is None
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Managed IDE start is unavailable",
+        ):
+            manager.ensure_ide(project)
+        assert not hasattr(manager, "_ide")
     finally:
         manager.close()
 
 
-def test_ide_project_must_be_an_existing_folder(tmp_path):
+def test_unavailable_ide_url_never_resolves_or_inspects_project(tmp_path):
     manager = DesktopRuntimeManager(tmp_path)
     try:
-        with pytest.raises(DesktopRuntimeError, match="folder does not exist"):
-            manager._ide_ui_url(tmp_path / "missing")
-        with pytest.raises(DesktopRuntimeError, match="local folder path"):
-            manager._ide_ui_url(["--host", "0.0.0.0"])
+        expected = manager.config["ide"]["endpoint"] + "/"
+        assert manager._ide_ui_url(tmp_path / "missing") == expected
+        assert manager._ide_ui_url(["--host", "0.0.0.0"]) == expected
     finally:
         manager.close()
 
 
-def test_snapshot_reports_ide_probe_and_close_stops_managed_process(tmp_path, monkeypatch):
-    class Process:
-        returncode = None
-        terminated = False
-
-        def poll(self):
-            return self.returncode
-
-        def terminate(self):
-            self.terminated = True
-            self.returncode = 0
-
-        def wait(self, timeout=None):
-            return self.returncode
-
-        def kill(self):
-            self.returncode = -9
-
+def test_snapshot_is_detached_unprobed_and_creates_no_budget_lock(
+    tmp_path, monkeypatch
+):
     manager = DesktopRuntimeManager(tmp_path)
-    manager.config = normalize_config({"ide": {"mode": "native"}})
-    proc = Process()
-    manager._ide = proc
-    monkeypatch.setattr(manager, "_probe", lambda timeout=1.5: (False, "ollama offline"))
-    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (True, ""))
+    ledger = Path(os.environ[budget_kernel.ENV_LEDGER])
+    lock = ledger.with_name(ledger.name + ".lock")
     monkeypatch.setattr(
-        "daedalus.desktop_runtime.shutil.which",
-        lambda command: r"C:\tools\openvscode-server.cmd"
-        if command == "openvscode-server"
-        else None,
+        manager,
+        "_probe",
+        lambda *args, **kwargs: pytest.fail("snapshot must not probe Ollama"),
     )
-
-    snapshot = manager.snapshot()
-    assert snapshot["services"]["ide"] == {
-        "endpoint": "http://127.0.0.1:3000",
-        "ui_url": "http://127.0.0.1:3000/",
-        "installed": True,
-        "available": True,
-        "executable": r"C:\tools\openvscode-server.cmd",
-        "reachable": True,
-        "last_error": "",
-        "detail": "",
-        "managed": True,
-        "process_running": True,
-        "configured_executable": "",
-        "runtime_downloads": False,
-    }
-
-    manager.close()
-    assert proc.terminated is True
-    assert manager._ide is None
+    try:
+        assert not lock.exists()
+        snapshot = manager.snapshot()
+        assert not lock.exists()
+        assert snapshot["services"]["ide"]["observed"] is False
+        assert snapshot["services"]["ide"]["reachable"] is False
+        assert snapshot["services"]["ollama"]["observed"] is False
+        snapshot["config"]["ollama"]["model"] = "detached-change"
+        assert manager.config["ollama"]["model"] != "detached-change"
+    finally:
+        manager.close()
 
 
 def test_ide_status_reports_missing_binary_without_start_or_download(tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "native"}})
-    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (False, "offline"))
-    monkeypatch.setattr("daedalus.desktop_runtime.shutil.which", lambda command: None)
-    monkeypatch.setattr(
-        "daedalus.desktop_runtime.subprocess.Popen",
-        lambda *args, **kwargs: pytest.fail("status must not start a process"),
-    )
     try:
         status = manager._ide_status()
         assert status["installed"] is False
         assert status["available"] is False
         assert status["executable"] == ""
-        assert "not on PATH" in status["detail"]
-        assert "runtime downloads are disabled" in status["last_error"]
+        assert status["observed"] is False
+        assert "not probed" in status["last_error"]
         assert status["runtime_downloads"] is False
     finally:
         manager.close()
@@ -1508,14 +2157,15 @@ def test_ide_status_reports_configured_executable_while_service_is_offline(
     manager.config = normalize_config(
         {"ide": {"mode": "native", "executable": str(executable)}}
     )
-    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (False, "offline"))
     try:
         status = manager._ide_status()
-        assert status["installed"] is True
-        assert status["available"] is True
-        assert status["executable"] == str(executable.resolve())
+        assert status["installed"] is False
+        assert status["available"] is False
+        assert status["executable"] == ""
+        assert status["configured_executable"] == str(executable)
+        assert status["observed"] is False
         assert status["reachable"] is False
-        assert status["last_error"] == "offline"
+        assert "not probed" in status["last_error"]
         assert status["detail"] == ""
     finally:
         manager.close()
@@ -1544,175 +2194,68 @@ def test_docker_ide_config_is_strictly_allowlisted_and_pinned():
             normalize_config({"ide": ide})
 
 
-def _owned_docker_container(manager, project, *, running=True, owned=True):
-    labels = {
-        IDE_DOCKER_PROJECT_LABEL: manager._docker_project_hash(project.resolve()),
-    }
-    if owned:
-        labels[IDE_DOCKER_OWNER_LABEL] = IDE_DOCKER_OWNER_VALUE
-    return {
-        "Id": "f" * 64,
-        "Config": {
-            "Image": manager.config["ide"]["docker_image"],
-            "Labels": labels,
-        },
-        "State": {"Running": running},
-        "Mounts": [
-            {
-                "Type": "bind",
-                "Source": str(project.resolve()),
-                "Destination": IDE_DOCKER_WORKSPACE,
-                "RW": True,
-            }
-        ],
-        "HostConfig": {
-            "PortBindings": {
-                "3000/tcp": [{"HostIp": "127.0.0.1", "HostPort": "3000"}]
-            }
-        },
-    }
-
-
-def test_docker_exec_is_argument_only_and_never_uses_shell(tmp_path, monkeypatch):
+def test_docker_exec_boundary_is_absent_in_v016(tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    launched = {}
-    monkeypatch.setattr(
-        "daedalus.desktop_runtime.shutil.which",
-        lambda command: r"C:\Program Files\Docker\docker.exe" if command == "docker" else None,
-    )
-
-    def run(args, **kwargs):
-        launched["args"] = args
-        launched["kwargs"] = kwargs
-        return SimpleNamespace(returncode=0, stdout="[]", stderr="")
-
-    monkeypatch.setattr("daedalus.desktop_runtime.subprocess.run", run)
-    result = manager._docker_exec(["image", "inspect", IDE_DOCKER_IMAGE])
-    assert result.returncode == 0
-    assert launched["args"] == [
-        r"C:\Program Files\Docker\docker.exe",
-        "image",
-        "inspect",
-        IDE_DOCKER_IMAGE,
-    ]
-    assert launched["kwargs"]["shell"] is False
-    manager.close()
+    try:
+        assert not hasattr(manager, "_docker_exec")
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Managed IDE start is unavailable",
+        ):
+            manager.ensure_ide(tmp_path)
+    finally:
+        manager.close()
 
 
-def test_docker_ide_mounts_canonical_project_and_owns_exact_lifecycle(
+def test_docker_ide_start_refuses_without_container_or_process_effect(
     tmp_path, monkeypatch
 ):
     project = tmp_path / "project with spaces"
     project.mkdir()
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    created = False
-    calls = []
-
-    def docker_exec(args, **kwargs):
-        nonlocal created
-        calls.append(list(args))
-        if args[:2] == ["image", "inspect"]:
-            return SimpleNamespace(returncode=0, stdout="[]", stderr="")
-        if args[:2] == ["container", "inspect"]:
-            if not created:
-                return SimpleNamespace(
-                    returncode=1, stdout="", stderr="Error: No such container"
-                )
-            payload = [_owned_docker_container(manager, project)]
-            return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
-        if args and args[0] == "run":
-            created = True
-            return SimpleNamespace(returncode=0, stdout="container-id", stderr="")
-        if args[:3] == ["container", "rm", "--force"]:
-            created = False
-            return SimpleNamespace(returncode=0, stdout=IDE_DOCKER_CONTAINER, stderr="")
-        raise AssertionError(f"unexpected Docker command: {args!r}")
-
-    probes = iter(((False, "offline"), (True, ""), (True, "")))
-    # The fake Docker boundary is complete only when discovery is fake too.
-    # Windows and Linux runners happen to carry a Docker CLI, while the macOS
-    # bundle runner does not; relying on the host executable made the status
-    # half of this otherwise hermetic lifecycle test platform-dependent.
-    monkeypatch.setattr(manager, "_discover_docker_executable", lambda: "docker")
-    monkeypatch.setattr(manager, "_docker_exec", docker_exec)
-    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: next(probes))
-    monkeypatch.setattr(
-        "daedalus.desktop_runtime.subprocess.Popen",
-        lambda *args, **kwargs: pytest.fail("Docker mode must not use Popen"),
-    )
-
-    status = manager.ensure_ide(project / ".")
-    run = next(args for args in calls if args and args[0] == "run")
-    mount = run[run.index("--mount") + 1]
-    assert mount == (
-        f"type=bind,source={project.resolve()},target={IDE_DOCKER_WORKSPACE}"
-    )
-    assert run[run.index("--publish") + 1] == "127.0.0.1:3000:3000"
-    assert run[run.index("--pull") + 1] == "never"
-    assert run[run.index("--name") + 1] == IDE_DOCKER_CONTAINER
-    assert run[-5:] == [
-        IDE_DOCKER_IMAGE,
-        "--port",
-        "3000",
-        "--default-folder",
-        IDE_DOCKER_WORKSPACE,
-    ]
-    assert all(args[0] not in {"pull", "build"} for args in calls)
-    assert parse_qs(urlsplit(status["ui_url"]).query) == {
-        "folder": [IDE_DOCKER_WORKSPACE]
-    }
-    assert status["reachable"] is True
-    assert status["managed"] is True
-    assert status["executable"] == "docker"
-
-    manager.stop_ide()
-    assert ["container", "rm", "--force", "f" * 64] in calls
-    assert created is False
-    manager.close()
+    try:
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Managed IDE start is unavailable",
+        ):
+            manager.ensure_ide(project / ".")
+        assert not hasattr(manager, "_ide")
+        assert not hasattr(manager, "_docker_exec")
+    finally:
+        manager.close()
 
 
-def test_docker_ide_refuses_foreign_container_and_missing_local_image(
+def test_docker_ide_refusal_does_not_inspect_or_mutate_host_containers(
     tmp_path, monkeypatch
 ):
     project = tmp_path / "project"
     project.mkdir()
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    foreign = _owned_docker_container(manager, project, owned=False)
-    monkeypatch.setattr(manager, "_docker_image_error", lambda: "")
-    monkeypatch.setattr(manager, "_docker_inspect_container", lambda: foreign)
-    monkeypatch.setattr(
-        manager,
-        "_docker_exec",
-        lambda *args, **kwargs: pytest.fail("foreign container must never be mutated"),
-    )
-    with pytest.raises(DesktopRuntimeError, match="already in use"):
-        manager.ensure_ide(project)
-    manager.stop_ide()
-
-    monkeypatch.setattr(
-        manager,
-        "_docker_image_error",
-        lambda: "image is not available locally; runtime pull/build is disabled",
-    )
-    with pytest.raises(DesktopRuntimeError, match="runtime pull/build is disabled"):
-        manager.ensure_ide(project)
-    manager.close()
+    try:
+        assert not hasattr(manager, "_docker_inspect_container")
+        assert not hasattr(manager, "_docker_image_error")
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Managed IDE start is unavailable",
+        ):
+            manager.ensure_ide(project)
+    finally:
+        manager.close()
 
 
-def test_docker_ide_status_honestly_reports_missing_docker(tmp_path, monkeypatch):
+def test_docker_ide_status_is_unprobed_and_unavailable(tmp_path, monkeypatch):
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (False, "offline"))
-    monkeypatch.setattr("daedalus.desktop_runtime.shutil.which", lambda command: None)
     status = manager._ide_status()
     assert status["installed"] is False
     assert status["available"] is False
     assert status["managed"] is False
+    assert status["observed"] is False
     assert status["reachable"] is False
-    assert "Docker is not installed" in status["last_error"]
+    assert "not probed" in status["last_error"]
     assert status["runtime_downloads"] is False
     manager.close()
 
@@ -1722,115 +2265,78 @@ def test_docker_status_does_not_adopt_lifecycle_ownership(tmp_path, monkeypatch)
     project.mkdir()
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    container = _owned_docker_container(manager, project)
-    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (True, ""))
-    monkeypatch.setattr(manager, "_docker_image_error", lambda: "")
-    monkeypatch.setattr(manager, "_discover_docker_executable", lambda: "docker")
-    monkeypatch.setattr(manager, "_docker_inspect_container", lambda *args, **kwargs: container)
-
-    status = manager._docker_ide_status(project)
-
-    assert status["reachable"] is True
-    assert status["detail"] == ""
-    assert manager._ide_docker_managed_id is None
+    try:
+        status = manager._ide_status(project)
+        assert status["reachable"] is False
+        assert status["managed"] is False
+        assert status["observed"] is False
+        assert not hasattr(manager, "_ide_docker_managed_id")
+    finally:
+        manager.close()
 
 
-def test_ensure_docker_ide_recovers_matching_orphan_before_adopting_it(
+def test_ensure_docker_ide_never_adopts_matching_orphan(
     tmp_path, monkeypatch
 ):
     project = tmp_path / "project"
     project.mkdir()
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    container = _owned_docker_container(manager, project)
-    calls = []
-    monkeypatch.setattr(manager, "_probe_ide", lambda timeout=1.5: (True, ""))
-    monkeypatch.setattr(manager, "_docker_image_error", lambda: "")
-    monkeypatch.setattr(manager, "_discover_docker_executable", lambda: "docker")
-    monkeypatch.setattr(
-        manager,
-        "_docker_inspect_container",
-        lambda reference=IDE_DOCKER_CONTAINER, **kwargs: container,
-    )
-
-    def docker_exec(args, **kwargs):
-        calls.append(list(args))
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(manager, "_docker_exec", docker_exec)
-    status = manager.ensure_ide(project)
-
-    assert status["reachable"] is True
-    assert manager._ide_docker_managed_id == "f" * 64
-    assert not any(args and args[0] in {"run", "start"} for args in calls)
-    manager.close(strict=True)
-    assert ["container", "rm", "--force", "f" * 64] in calls
+    try:
+        with pytest.raises(
+            desktop_effects.DesktopEffectRefused,
+            match="Managed IDE start is unavailable",
+        ):
+            manager.ensure_ide(project)
+        assert not hasattr(manager, "_ide")
+    finally:
+        manager.close(strict=True)
 
 
-def test_docker_match_requires_exact_canonical_mount_source(tmp_path):
+def test_docker_container_match_authority_is_absent(tmp_path):
     project = tmp_path / "project"
     other = tmp_path / "other"
     project.mkdir()
     other.mkdir()
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    container = _owned_docker_container(manager, project)
-    container["Mounts"][0]["Source"] = str(other.resolve())
+    try:
+        assert not hasattr(manager, "_docker_container_matches")
+        assert not hasattr(manager, "_docker_project_hash")
+    finally:
+        manager.close()
 
-    assert manager._docker_container_matches(container, project.resolve()) is False
 
-
-def test_strict_docker_cleanup_propagates_failure_and_uses_inspected_id(
+def test_strict_ide_cleanup_does_not_inspect_or_remove_docker(
     tmp_path, monkeypatch
 ):
     project = tmp_path / "project"
     project.mkdir()
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    container = _owned_docker_container(manager, project)
-    manager._ide_docker_managed_id = "f" * 64
-    calls = []
-
-    monkeypatch.setattr(
-        manager,
-        "_docker_inspect_container",
-        lambda reference=IDE_DOCKER_CONTAINER, **kwargs: container,
-    )
-
-    def docker_exec(args, **kwargs):
-        calls.append(list(args))
-        return SimpleNamespace(returncode=1, stdout="", stderr="removal failed")
-
-    monkeypatch.setattr(manager, "_docker_exec", docker_exec)
-    with pytest.raises(DesktopRuntimeError, match="cannot remove"):
-        manager.stop_ide(strict=True)
-    assert calls == [["container", "rm", "--force", "f" * 64]]
-    assert manager._ide_docker_managed_id == "f" * 64
+    try:
+        with pytest.raises(desktop_effects.DesktopFeatureUnavailable):
+            manager.stop_ide(strict=True)
+        assert not hasattr(manager, "_docker_inspect_container")
+        assert not hasattr(manager, "_remove_owned_docker_ide")
+    finally:
+        manager.close()
 
 
-def test_strict_docker_cleanup_refuses_replacement_container_id(
+def test_strict_ide_cleanup_has_no_container_identity_state(
     tmp_path, monkeypatch
 ):
     project = tmp_path / "project"
     project.mkdir()
     manager = DesktopRuntimeManager(tmp_path)
     manager.config = normalize_config({"ide": {"mode": "docker"}})
-    replacement = _owned_docker_container(manager, project)
-    replacement["Id"] = "e" * 64
-    manager._ide_docker_managed_id = "f" * 64
-    monkeypatch.setattr(
-        manager,
-        "_docker_inspect_container",
-        lambda reference=IDE_DOCKER_CONTAINER, **kwargs: replacement,
-    )
-    monkeypatch.setattr(
-        manager,
-        "_docker_exec",
-        lambda *args, **kwargs: pytest.fail("replacement container must not be removed"),
-    )
-
-    with pytest.raises(DesktopRuntimeError, match="identity changed"):
-        manager.stop_ide(strict=True)
+    try:
+        assert not hasattr(manager, "_ide_docker_managed_id")
+        with pytest.raises(desktop_effects.DesktopFeatureUnavailable):
+            manager.stop_ide(strict=True)
+        assert not hasattr(manager, "_ide")
+    finally:
+        manager.close()
 
 
 def test_web_integration_resolves_registered_ide_name_before_manager(
@@ -1858,13 +2364,22 @@ def test_web_integration_resolves_registered_ide_name_before_manager(
             self.stopped = False
             self.closed = False
             self.close_error = False
+            self._effect_owner = SimpleNamespace(
+                start_ide=self.ensure_ide,
+                stop_ide=self.stop_ide,
+            )
 
         def ensure_ide(self, project=None):
             self.started.append(project)
-            return {"ui_url": "http://127.0.0.1:3000/"}
+            raise desktop_effects.DesktopFeatureUnavailable(
+                "Managed IDE start is unavailable"
+            )
 
         def stop_ide(self, **kwargs):
             self.stopped = True
+            raise desktop_effects.DesktopFeatureUnavailable(
+                "external IDE is not owned"
+            )
 
         def close(self, **kwargs):
             self.closed = True
@@ -1877,7 +2392,9 @@ def test_web_integration_resolves_registered_ide_name_before_manager(
     manager = Manager()
     web_api = SimpleNamespace(
         DaedalusHandler=BaseHandler,
-        _read_body=lambda handler: handler.body,
+        _read_body=lambda handler: pytest.fail(
+            "unavailable IDE must be refused before body parsing"
+        ),
         core=SimpleNamespace(envelope=lambda project, **payload: payload),
     )
     install_web_integration(web_api, manager)
@@ -1886,31 +2403,17 @@ def test_web_integration_resolves_registered_ide_name_before_manager(
     start.path = "/api/desktop/services/ide/start"
     start.body = {"project": "demo"}
     start._handle_post()
-    assert manager.started == [str(repo.resolve())]
-    assert start.sent == ({"service": {"ui_url": "http://127.0.0.1:3000/"}}, 200)
-
-    for unregistered in (str(repo), "../demo", "missing", "", None, {"name": "demo"}):
-        rejected = web_api.DaedalusHandler()
-        rejected.path = "/api/desktop/services/ide/start"
-        rejected.body = {"project": unregistered}
-        rejected._handle_post()
-        assert rejected.sent[1] == 400
-        assert rejected.sent[0]["ok"] is False
-        assert manager.started == [str(repo.resolve())]
-
-    (registry / "broken.json").write_text("{not-json", encoding="utf-8")
-    unavailable = web_api.DaedalusHandler()
-    unavailable.path = "/api/desktop/services/ide/start"
-    unavailable.body = {"project": "broken"}
-    unavailable._handle_post()
-    assert unavailable.sent[1] == 503
-    assert manager.started == [str(repo.resolve())]
+    assert manager.started == [None]
+    assert start.sent[1] == 409
+    assert start.sent[0]["error_code"] == "desktop_feature_unavailable"
+    assert start.sent[0]["committed"] is False
 
     stop = web_api.DaedalusHandler()
     stop.path = "/api/desktop/services/ide/stop"
     stop._handle_post()
     assert manager.stopped is True
-    assert stop.sent == ({"service": {"reachable": False}}, 200)
+    assert stop.sent[1] == 409
+    assert stop.sent[0]["error_code"] == "desktop_feature_unavailable"
 
     for supplied in ("", "b" * 64):
         rejected = web_api.DaedalusHandler()
@@ -1921,10 +2424,13 @@ def test_web_integration_resolves_registered_ide_name_before_manager(
         )
         rejected._handle_post()
         assert manager.closed is False
-        assert rejected.sent == (
-            {"ok": False, "error": "desktop parent nonce required"},
-            403,
-        )
+        assert rejected.sent[1] == 403
+        assert rejected.sent[0] == {
+            "ok": False,
+            "error": "desktop parent nonce required",
+            "error_code": "desktop_policy_denied",
+            "committed": False,
+        }
 
     shutdown = web_api.DaedalusHandler()
     shutdown.path = "/api/desktop/shutdown"
@@ -1940,4 +2446,12 @@ def test_web_integration_resolves_registered_ide_name_before_manager(
     failed.server = SimpleNamespace(daedalus_desktop_startup_nonce="a" * 64)
     failed.headers = {"X-Daedalus-Desktop-Nonce": "a" * 64}
     failed._handle_post()
-    assert failed.sent == ({"ok": False, "error": "cleanup failed"}, 400)
+    assert failed.sent == (
+        {
+            "ok": False,
+            "error": "cleanup failed",
+            "error_code": "desktop_effect_authorization_unavailable",
+            "committed": False,
+        },
+        503,
+    )

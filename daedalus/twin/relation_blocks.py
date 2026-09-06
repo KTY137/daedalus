@@ -12,7 +12,13 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from typing import Any, Generic, Iterator, Mapping, Sequence, TypeVar
 
-from ..schemas import _identifier, _non_empty, _record_payload, _revision, _sha256
+from ..kernel.contracts.base import (
+    _identifier,
+    _non_empty,
+    _record_payload,
+    _revision,
+    _sha256,
+)
 from ..spine.envelope import canonical_json, canonical_sha
 from .contracts import FOURFOLD_PLANES
 from .semiring import (

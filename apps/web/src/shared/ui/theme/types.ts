@@ -200,6 +200,29 @@ export interface ThemeStage {
   depthBlur?: number;
 }
 
+/**
+ * Rendered rooms the Theme Studio can place behind the workspace. The ids are
+ * the scene ids of docs/design/blender-scenes/scripts/build.py; the registry
+ * with names, notes and render provenance lives in shared/ui/scene/environments.ts.
+ */
+export type SceneEnvironmentId = 'porcelain' | 'graphite' | 'daylight' | 'dusk' | 'studio' | 'techno-forest';
+
+/** Optional ambient scene controls edited by the Theme Studio. */
+export interface ThemeScene {
+  enabled: boolean;
+  /** Scene brightness/visual weight, normalized to 0..1 by the editor. */
+  intensity: number;
+  /** Animation speed, normalized to 0..1 by the editor. */
+  speed: number;
+  /**
+   * A Blender-rendered environment behind the glass. Optional and absent by
+   * default: an existing look keeps its plain room until the owner picks one,
+   * and a stored theme naming an unknown id loses the field visibly
+   * (theme/store.ts reports it) instead of rendering a broken image.
+   */
+  environment?: SceneEnvironmentId;
+}
+
 export interface ThemeComposition {
   chrome: Chrome;
   chat: ChatPlacement;
@@ -220,6 +243,11 @@ export interface ThemeSpec {
   type: ThemeType;
   form: ThemeForm;
   stage: ThemeStage;
+  /**
+   * Ambient 3D scene preferences. Optional so themes saved before the scene
+   * editor existed continue to load with the Studio's documented defaults.
+   */
+  scene?: ThemeScene;
   composition: ThemeComposition;
   /**
    * alert/blocker tone — a gate that is closed ("Promotion gesperrt") is not

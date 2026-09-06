@@ -1,12 +1,12 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 11
-Version: 2.2.0
+Revision: 12
+Version: 2.3.0
 Status: adopted  
-Date: 2026-08-31
+Date: 2026-09-05
 Owner: repository owner  
-Active delivery gate: Gate 1 — Renovation and owner-directed Genesis  
+Active delivery gate: Gate 1 — Renovation, owner-directed Genesis and general computer assistance  
 Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`
 
 This is the sole semantic authority for Daedalus architecture, product order,
@@ -64,7 +64,7 @@ Build a trustworthy system that can understand a software project across code,
 types, data, and knowledge; formulate useful changes; run controlled
 experiments; learn from evidence; and promote only verified improvements.
 
-Daedalus has two product modes:
+Daedalus supports the following product modes:
 
 - **Renovation** — understand, repair, refactor, synchronize, and evolve an
   existing repository.
@@ -73,6 +73,12 @@ Daedalus has two product modes:
   `GenesisAutonomyPolicy`, into a new repository, then prove by round-trip
   distillation that the materialized source satisfies the intended four-plane
   structure.
+- **General computer assistance** — Ikarus executes owner-directed file,
+  application, terminal, browser, document, integration and scheduled tasks
+  through canonical Missions and policy-scoped tools, with persistent goals,
+  product memory, reusable skills and computer vision. Repository and Twin
+  inputs are explicitly inapplicable to non-software tasks; software-producing
+  work retains the Renovation or Genesis requirements.
 
 The user experience is natural-language software construction: Ikarus turns
 intent into an inspectable target Project Twin and bounded mission; Daedalus
@@ -293,6 +299,47 @@ revision, and deployment target matrix. After that approval, the bound
 runners, signing keys, or store accounts terminate publishing as
 `blocked_external`; credentials remain local and outside model context and CAS.
 
+### 7.2 General computer assistance
+
+Ikarus may compile a general computer request into a canonical MissionContract
+and typed WorkItems without a ProductSpec or Project Twin when neither is
+applicable. Missing and inapplicable inputs are distinct. The canonical kernel
+remains the authority for policy, attempts, leases, evidence, cancellation,
+budgets and recovery. No separate assistant scheduler, effect authority or
+event store is introduced.
+
+Execution follows observe, propose, admit, act and verify. Existing runtime
+manifests and policy decisions restrict individual tools, file roots, network
+destinations, applications, desktop sessions and secret use. Reversible work
+inside an owner-authorized task proceeds without repeated confirmation;
+authority widening and irreversible external commitments require explicit
+owner authorization. A natural-language classifier does not grant authority.
+The existing sealed software release and promotion rules remain unchanged.
+
+Desktop control runs through a trusted, policy-scoped adapter. It is not a
+candidate-process sandbox and does not give candidates host control. Desktop
+input is serialized per interactive session. Every action binds a current
+observation, target and expected postcondition. Stale observations, changed
+focus, ambiguous targets, unavailable permissions and unknown outcomes cause
+re-observation or a visible blocked result, never a blind repeat of an effect.
+
+Computer vision includes local OpenCV image processing, template and feature
+matching and change detection, with independently configured OCR and optional
+vision-language inference. DOM and operating-system accessibility data may
+provide stronger target grounding. Image similarity and model interpretation
+are observations, not proof of task success. Coordinates retain monitor,
+window, scale, crop and timestamp provenance. Screen capture, camera access
+and remote image transmission are separate scoped capabilities. Credentials
+and sensitive images must not enter model context or retained artifacts
+without applicable policy authorization.
+
+Long-running and scheduled work resumes through the existing canonical
+contracts and scheduler, with explicit reconciliation of interrupted effects.
+Skills and product memory are versioned, provenance-bearing inputs; they do
+not modify policy or evaluators and remain separate from Ariadne adaptive
+memory. External tools and connectors use adapters behind the same admission
+boundary. Unavailable dependencies and integrations are reported as unavailable.
+
 ## 8. Ariadne and the evolution layer
 
 The orchestration layer executes one bounded software mission. The evolution
@@ -474,7 +521,7 @@ Deliver:
 Exit only when a fault-injection matrix demonstrates fail-closed protected
 effects and fail-open read-only inspection.
 
-### Gate 1 — Renovation and owner-directed Genesis (active)
+### Gate 1 — Renovation, owner-directed Genesis and general computer assistance (active)
 
 Prove one vertical Renovation mission: propagate `Event.voltage -> bias_voltage` across
 Python, Markdown, and CSV. Ikarus produces one MissionContract; the four planes
@@ -494,6 +541,14 @@ activates only after its complete acceptance matrix is green.
 This strand establishes product availability only. It neither closes Gate 1's
 Renovation obligation nor satisfies or waives the Gate-3 scientific baseline
 and Genesis research obligations or Gate-5 public-claim obligations.
+
+Gate 1 also permits the general computer assistance strand of section 7.2.
+Each capability activates only after its bounded Work Packet, independent
+review and acceptance matrix pass. Required evidence includes real adapter
+execution, verified postconditions, policy refusal, stale-target handling,
+cancellation, timeout and crash recovery. General-assistant availability
+neither closes the Renovation gate nor establishes a scientific comparison
+against Hermes or another system.
 
 ### Gate 2 — Forest v2 and corpus seed
 
@@ -637,6 +692,29 @@ making a verified product candidate and preview available. One kernel,
 isolation, the evidence boundary, cancellation and kill paths, sealed one-use
 owner release approval, and the prohibitions on automatic merge and promotion
 remain unchanged.
+
+### Revision 12 — General computer assistance (2026-09-05)
+
+The repository owner approved the exact scope in
+`docs/AMENDMENT_PROPOSAL_012_GENERAL_COMPUTER_ASSISTANT.md` by replying
+`ja implmenetierer` to its approval request on 2026-09-05. Ikarus gains a
+Gate-1 general computer assistance strand through the existing kernel,
+including policy-scoped file, application, terminal, browser, document,
+integration and scheduled tasks, persistent goals, product memory, skills,
+and locally grounded computer vision with OpenCV, separately configured OCR
+and optional vision-language inference.
+
+Non-software tasks need no fictional repository or Project Twin. Software
+construction retains Renovation/Genesis requirements. Each capability still
+requires its own reviewed acceptance matrix, real adapter evidence and scoped
+policy admission. The three public concepts, canonical authority, trust and
+promotion boundaries, and scientific claim requirements remain unchanged.
+
+The accepted record binds the measured revision-11 base and the actual last
+revision-10 ledger record. The missing revision-11 ledger record is retained
+as an explicit historical discontinuity; no approval or historical hash is
+invented. Its evidence is in
+`docs/work-packets/G1-IKARUS-17_GENERAL_ASSISTANT_AMENDMENT.md`.
 
 ## 13. Forbidden default directions
 

@@ -1,9 +1,20 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction
+} from 'react';
+import { ApiError } from '@/shared/api';
 import type { AgentProfile, ControlPlanePayload } from '@/shared/contracts';
 import type { CapabilityResult, SystemCapabilitiesSnapshot } from './contracts';
 import {
   loadSystemCapabilities,
   systemCapabilityPorts,
+  UnconfirmedAutonomyWriteError,
   updateAgentAutonomy,
   type SystemCapabilityPorts
 } from './api';
@@ -20,6 +31,19 @@ export interface SystemCapabilitiesProps {
 
 function errorText(result: CapabilityResult<unknown>): string | undefined {
   return result.status === 'error' ? `${result.error.kind}: ${result.error.message}` : undefined;
+}
+
+function writeOutcomeUncertain(error: unknown): boolean {
+  return (
+    error instanceof UnconfirmedAutonomyWriteError
+    || (
+      error instanceof ApiError && (
+        error.kind === 'network'
+        || error.kind === 'timeout'
+        || (error.kind === 'http' && error.status >= 500)
+      )
+    )
+  );
 }
 
 function RawContract({ label, value }: { label: string; value: unknown }) {
@@ -56,44 +80,177 @@ function CapabilityCard({
 
 function profileMode(profile: AgentProfile): string {
   const policy = profile.autonomy.read_files;
-  const mode = policy && typeof policy.project_default === 'string' ? policy.project_default : '';
-  return mode || 'manual';
+  const override = policy && typeof policy.agent_override === 'string' ? policy.agent_override : '';
+  const projectDefault = policy && typeof policy.project_default === 'string' ? policy.project_default : '';
+  const mode = override || projectDefault;
+  return ['manual', 'semi_auto', 'autonomous'].includes(mode) ? mode : 'manual';
 }
 
 function ControlPlaneCard({
   project,
   result,
   onUpdated,
+  saving,
+  refreshing,
+  deferredSaveError,
+  onSaveStarted,
+  onSaveFinished,
+  onClearDeferredSaveError,
   ports,
-  registry
+  registry,
+  draftModes,
+  setDraftModes
 }: {
   project: string;
   result: CapabilityResult<ControlPlanePayload>;
   onUpdated: (value: ControlPlanePayload) => void;
+  saving: boolean;
+  refreshing: boolean;
+  deferredSaveError: string;
+  onSaveStarted: (project: string) => boolean;
+  onSaveFinished: (project: string, refresh: boolean, deferredError?: string) => Promise<void>;
+  onClearDeferredSaveError: (project: string) => void;
   ports: SystemCapabilityPorts;
   /** `hierarchy.capabilities` — byte-identical to /api/capabilities, and
    *  already in hand, so reading it costs no extra request. */
   registry: CapabilityEntry[] | undefined;
+  draftModes: Record<string, Record<string, string>>;
+  setDraftModes: Dispatch<SetStateAction<Record<string, Record<string, string>>>>;
 }) {
   const profiles = result.status === 'ready' ? result.data.profiles || [] : [];
   const [selected, setSelected] = useState('');
-  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [saveNotice, setSaveNotice] = useState('');
+  const saveRequest = useRef(0);
+  const activeSaveRequest = useRef(0);
+  const mounted = useRef(false);
+  const projectRef = useRef(project);
   const activeName = profiles.some((row) => row.name === selected) ? selected : profiles[0]?.name || '';
   const profile = profiles.find((row) => row.name === activeName);
+  const baselineMode = profile ? profileMode(profile) : '';
+  const draftMode = profile ? draftModes[project]?.[profile.name] ?? baselineMode : '';
+  const modeDirty = Boolean(profile && draftMode !== baselineMode);
 
-  const setMode = useCallback(async (mode: string) => {
-    if (!profile || result.status !== 'ready') return;
-    setSaving(true);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  useLayoutEffect(() => {
+    projectRef.current = project;
+    saveRequest.current += 1;
+    return () => { saveRequest.current += 1; };
+  }, [project, result]);
+
+  useEffect(() => {
+    // A failed read is not evidence that profiles were deleted. Keep every
+    // local draft until a ready control-plane snapshot can reconcile it.
+    if (result.status !== 'ready') return;
     setSaveError('');
+    setDraftModes((current) => {
+      const currentProjectDrafts = current[project];
+      if (!currentProjectDrafts) return current;
+      const nextProjectDrafts = { ...currentProjectDrafts };
+      let changed = false;
+      for (const [name, mode] of Object.entries(currentProjectDrafts)) {
+        const currentProfile = profiles.find((row) => row.name === name);
+        if (!currentProfile || profileMode(currentProfile) === mode) {
+          delete nextProjectDrafts[name];
+          changed = true;
+        }
+      }
+      if (!changed) return current;
+      const next = { ...current };
+      if (Object.keys(nextProjectDrafts).length > 0) next[project] = nextProjectDrafts;
+      else delete next[project];
+      return next;
+    });
+  }, [profiles, project, result.status]);
+
+  const applyMode = useCallback(async () => {
+    if (
+      !profile
+      || result.status !== 'ready'
+      || !modeDirty
+      || saving
+      || refreshing
+      || activeSaveRequest.current !== 0
+    ) return;
+    const requestedProject = project;
+    const requestedProfile = profile.name;
+    const requestedMode = draftMode;
+    if (!onSaveStarted(requestedProject)) return;
+    const request = ++saveRequest.current;
+    activeSaveRequest.current = request;
+    let reloadAfterSettle = false;
+    let deferredError = '';
+    setSaveError('');
+    setSaveNotice('');
     try {
-      onUpdated(await updateAgentAutonomy(project, result.data, profile.name, mode, ports));
+      const updated = await updateAgentAutonomy(
+        requestedProject,
+        requestedProfile,
+        requestedMode,
+        ports
+      );
+      if (request !== saveRequest.current || projectRef.current !== requestedProject) {
+        reloadAfterSettle = true;
+        return;
+      }
+      setDraftModes((current) => {
+        const nextProjectDrafts = { ...(current[requestedProject] || {}) };
+        delete nextProjectDrafts[requestedProfile];
+        const next = { ...current };
+        if (Object.keys(nextProjectDrafts).length > 0) next[requestedProject] = nextProjectDrafts;
+        else delete next[requestedProject];
+        return next;
+      });
+      onUpdated(updated);
+      setSaveNotice('Projekt-Autonomie gespeichert.');
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : String(error));
+      const detail = error instanceof Error ? error.message : String(error);
+      const superseded = request !== saveRequest.current || projectRef.current !== requestedProject;
+      const outcomeUncertain = writeOutcomeUncertain(error);
+      if (superseded || outcomeUncertain) {
+        deferredError = outcomeUncertain
+          ? `Der Ausgang des Autonomie-Speicherns ist unklar; Erfolg und Ablehnung sind beide möglich. ${detail}`
+          : `Autonomie nicht gespeichert: ${detail}`;
+        reloadAfterSettle = true;
+        return;
+      }
+      setSaveError(detail);
     } finally {
-      setSaving(false);
+      if (activeSaveRequest.current !== request) return;
+      try {
+        // The PUT itself cannot be cancelled. The persistent parent retains
+        // this project-scoped lock even if this card unmounts during A→B→A,
+        // and owns the confirming reload for every superseded response.
+        await onSaveFinished(requestedProject, reloadAfterSettle, deferredError || undefined);
+        if (reloadAfterSettle && mounted.current && projectRef.current === requestedProject) {
+          setSaveNotice('Kanonischer Serverstand nach dem Speicherversuch erneut gelesen.');
+        }
+      } finally {
+        if (activeSaveRequest.current === request) {
+          activeSaveRequest.current = 0;
+        }
+      }
     }
-  }, [onUpdated, ports, profile, project, result]);
+  }, [draftMode, modeDirty, onSaveFinished, onSaveStarted, onUpdated, ports, profile, project, refreshing, result, saving]);
+
+  const discardMode = useCallback(() => {
+    if (!profile) return;
+    setDraftModes((current) => {
+      const nextProjectDrafts = { ...(current[project] || {}) };
+      delete nextProjectDrafts[profile.name];
+      const next = { ...current };
+      if (Object.keys(nextProjectDrafts).length > 0) next[project] = nextProjectDrafts;
+      else delete next[project];
+      return next;
+    });
+    setSaveError('');
+    onClearDeferredSaveError(project);
+    setSaveNotice('Nicht gespeicherte Projekt-Autonomie verworfen.');
+  }, [onClearDeferredSaveError, profile, project]);
 
   return (
     <CapabilityCard title="Control Plane & Agenten" result={result}>
@@ -104,7 +261,16 @@ function ControlPlaneCard({
             <div className="system-agent">
               <label>
                 <span>Agentenprofil</span>
-                <select value={profile.name} onChange={(event) => setSelected(event.target.value)}>
+                <select
+                  value={profile.name}
+                  onChange={(event) => {
+                    setSelected(event.target.value);
+                    setSaveError('');
+                    onClearDeferredSaveError(project);
+                    setSaveNotice('');
+                  }}
+                  disabled={saving || refreshing}
+                >
                   {profiles.map((row) => <option key={row.name} value={row.name}>{row.display_name} · {row.name}</option>)}
                 </select>
               </label>
@@ -118,15 +284,46 @@ function ControlPlaneCard({
                 <span>Projekt-Autonomie</span>
                 <select
                   aria-label={`Projekt-Autonomie für ${profile.display_name}`}
-                  value={profileMode(profile)}
-                  onChange={(event) => void setMode(event.target.value)}
-                  disabled={saving}
+                  value={draftMode}
+                  onChange={(event) => {
+                    const mode = event.target.value;
+                    setDraftModes((current) => {
+                      const nextProjectDrafts = { ...(current[project] || {}) };
+                      if (mode === baselineMode) delete nextProjectDrafts[profile.name];
+                      else nextProjectDrafts[profile.name] = mode;
+                      const next = { ...current };
+                      if (Object.keys(nextProjectDrafts).length > 0) next[project] = nextProjectDrafts;
+                      else delete next[project];
+                      return next;
+                    });
+                    setSaveError('');
+                    onClearDeferredSaveError(project);
+                    setSaveNotice('');
+                  }}
+                  disabled={saving || refreshing}
                 >
                   <option value="manual">manual</option>
                   <option value="semi_auto">semi_auto</option>
                   <option value="autonomous">autonomous</option>
                 </select>
               </label>
+              <div className="system-agent-actions">
+                <span className="system-small" role="status" aria-live="polite">
+                  {saving
+                    ? 'Projekt-Autonomie wird gespeichert …'
+                    : refreshing
+                      ? 'Projekt-Autonomie wird neu gelesen …'
+                    : saveNotice || (modeDirty ? 'Projekt-Autonomie ist noch nicht gespeichert.' : '')}
+                </span>
+                <div className="settings-action-buttons">
+                  <button type="button" className="settings-refresh" onClick={discardMode} disabled={!modeDirty || saving || refreshing}>
+                    Verwerfen
+                  </button>
+                  <button type="button" className="settings-primary" onClick={() => void applyMode()} disabled={!modeDirty || saving || refreshing}>
+                    Projekt-Autonomie übernehmen
+                  </button>
+                </div>
+              </div>
               {/* WHAT THIS AGENT MAY DO, and whether anyone classified it.
                   The grants used to print as a flat comma list in which every
                   entry looked alike. Measured here: five of the seven granted
@@ -153,7 +350,16 @@ function ControlPlaneCard({
                   )}
                 </>
               )}
-              {saveError && <p className="system-error" role="status">Autonomie nicht gespeichert: {saveError}</p>}
+              {saveError && (
+                <p className="system-error" role="alert">
+                  Autonomie nicht gespeichert: {saveError}
+                </p>
+              )}
+              {!saveError && deferredSaveError && (
+                <p className="system-error" role="alert">
+                  {deferredSaveError}
+                </p>
+              )}
             </div>
           ) : <p>Keine Agentenprofile gemeldet.</p>}
           <RawContract label="Control Plane" value={result.data} />
@@ -170,21 +376,85 @@ export function SystemCapabilities({
 }: SystemCapabilitiesProps) {
   const [snapshot, setSnapshot] = useState<SystemCapabilitiesSnapshot>();
   const [loading, setLoading] = useState(false);
+  const [autonomySavingProjects, setAutonomySavingProjects] = useState<ReadonlySet<string>>(() => new Set());
+  const [autonomySaveErrors, setAutonomySaveErrors] = useState<Record<string, string>>({});
+  const [autonomyDraftModes, setAutonomyDraftModes] = useState<Record<string, Record<string, string>>>({});
   const serial = useRef(0);
+  const projectRef = useRef(project);
+  const autonomySavingRef = useRef<ReadonlySet<string>>(new Set());
 
-  const reload = useCallback(async () => {
-    if (!project) return;
+  useLayoutEffect(() => {
+    projectRef.current = project;
+  }, [project]);
+
+  const reloadProject = useCallback(async (requestedProject: string, allowDuringSave = false) => {
+    if (!requestedProject || (!allowDuringSave && autonomySavingRef.current.has(requestedProject))) return;
     const mine = ++serial.current;
     setLoading(true);
-    const next = await loadSystemCapabilities(project, ports);
+    const next = await loadSystemCapabilities(requestedProject, ports);
     if (mine === serial.current) {
       setSnapshot(next);
       setLoading(false);
     }
-  }, [ports, project]);
+  }, [ports]);
+
+  const reload = useCallback(
+    () => reloadProject(project),
+    [project, reloadProject]
+  );
+
+  const startAutonomySave = useCallback((requestedProject: string): boolean => {
+    if (autonomySavingRef.current.has(requestedProject)) return false;
+    const next = new Set(autonomySavingRef.current);
+    next.add(requestedProject);
+    autonomySavingRef.current = next;
+    setAutonomySavingProjects(next);
+    setAutonomySaveErrors((current) => {
+      if (!(requestedProject in current)) return current;
+      const errors = { ...current };
+      delete errors[requestedProject];
+      return errors;
+    });
+    return true;
+  }, []);
+
+  const finishAutonomySave = useCallback(async (
+    requestedProject: string,
+    refresh: boolean,
+    deferredError?: string
+  ) => {
+    try {
+      if (deferredError) {
+        setAutonomySaveErrors((current) => ({ ...current, [requestedProject]: deferredError }));
+      }
+      if (refresh && projectRef.current === requestedProject) {
+        await reloadProject(requestedProject, true);
+      }
+    } finally {
+      if (autonomySavingRef.current.has(requestedProject)) {
+        const next = new Set(autonomySavingRef.current);
+        next.delete(requestedProject);
+        autonomySavingRef.current = next;
+        setAutonomySavingProjects(next);
+      }
+    }
+  }, [reloadProject]);
+
+  const clearAutonomySaveError = useCallback((requestedProject: string) => {
+    setAutonomySaveErrors((current) => {
+      if (!(requestedProject in current)) return current;
+      const next = { ...current };
+      delete next[requestedProject];
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    if (!enabled || !project) return;
+    if (!enabled || !project) {
+      serial.current += 1;
+      setLoading(false);
+      return;
+    }
     void reload();
     return () => { serial.current += 1; };
   }, [enabled, project, reload]);
@@ -197,17 +467,24 @@ export function SystemCapabilities({
     : 0;
 
   const updateControlPlane = useCallback((value: ControlPlanePayload) => {
+    // A confirmed PUT is newer than every full reload that was already in
+    // flight. Invalidate those GETs before publishing the mutation response;
+    // otherwise a slow pre-PUT read can overwrite this canonical snapshot.
+    serial.current += 1;
+    setLoading(false);
     setSnapshot((current) => current ? {
       ...current,
       controlPlane: { status: 'ready', data: value, loadedAt: Date.now() }
     } : current);
   }, []);
 
+  const autonomySaving = autonomySavingProjects.has(project);
+
   return (
     <section className="settings-section system-capabilities" aria-labelledby="system-capabilities-title">
       <div className="settings-title" id="system-capabilities-title">
         System & Orchestrierung
-        <button type="button" className="settings-refresh" onClick={() => void reload()} disabled={!project || loading}>
+        <button type="button" className="settings-refresh" onClick={() => void reload()} disabled={!project || loading || autonomySaving}>
           {loading ? 'Lädt …' : 'Neu lesen'}
         </button>
       </div>
@@ -219,6 +496,9 @@ export function SystemCapabilities({
       {loading && !snapshot && <p className="settings-hint" role="status">Acht Quellen werden unabhängig gelesen …</p>}
       {snapshot && snapshot.project !== project && (
         <p className="settings-hint" role="status">Projektwechsel: alter Stand wird nicht als neuer Stand ausgegeben.</p>
+      )}
+      {autonomySaving && snapshot?.project !== project && (
+        <p className="settings-hint" role="status">Projekt-Autonomie wird gespeichert; danach wird der Projektstand neu gelesen.</p>
       )}
       {snapshot && snapshot.project === project && (
         <div className="system-grid" data-testid="system-capabilities">
@@ -306,7 +586,15 @@ export function SystemCapabilities({
             project={project}
             result={snapshot.controlPlane}
             onUpdated={updateControlPlane}
+            saving={autonomySaving}
+            refreshing={loading}
+            deferredSaveError={autonomySaveErrors[project] || ''}
+            onSaveStarted={startAutonomySave}
+            onSaveFinished={finishAutonomySave}
+            onClearDeferredSaveError={clearAutonomySaveError}
             ports={ports}
+            draftModes={autonomyDraftModes}
+            setDraftModes={setAutonomyDraftModes}
             registry={
               snapshot.hierarchy.status === 'ready'
                 ? snapshot.hierarchy.data.capabilities

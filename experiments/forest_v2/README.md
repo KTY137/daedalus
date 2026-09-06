@@ -4584,3 +4584,27 @@ snapshot measures 90.57% at pin
 The executable claim is narrowed to `> 80%`: low annotation coverage and
 type-name resolvability remain visibly decoupled, without relabelling 88.77%
 as "nearly every" or deleting the failed 90% expectation.
+
+## v0.1.6 current-tree remeasurement (2026-09-05, Windows)
+
+The historical and 2026-08-30 rows above remain unchanged.  The two full-suite
+drift detectors were re-measured against pre-fix release commit `b59b2628ad6e`
+with CPython 3.13.14; each probe was built twice and produced identical ranks,
+counts, rates, and content pins.
+
+| probe | current corpus | measured result |
+| --- | --- | --- |
+| `tools`, `iron plan guard verify the plan digest` | 31 indexed files, default `IndexConfig`, no exclusions | `index_work_packets.py` rank 1 (score 7.898669); `docs_reference_check.py` rank 2 (score 6.177769) |
+| s02 `kernel` | 473 parsed files, 6,583 functions | annotation-only 94.32%; full resolver 94.20%; marginal 8 functions / 0.1215 pp; type-name resolution 99.93%; verified internal 90.47%; pin `1a51eb904dc5a61fee33be4ecd7ca0ebe7dee10f0c12f9d95458a0e154c8d68e` |
+
+The BM25 movement is corpus drift: `index_work_packets.py` was added after the
+2026-08-30 row and now matches five query terms (`digest`, `iron`, `plan`,
+`the`, `verify`).  The query, scoring configuration, exclusions, frozen
+2026-08-18 query set, and independent s09 task set were not changed.
+
+The s02 corpus grew by 137 files and 1,298 functions relative to its prior
+pin.  The new measurement also exposes 420 corpus-internal names that are only
+named, not symbol-table verified; the former zero / 100% row is retained above
+instead of being presented as timeless.  The fixture remains over 100x the
+kernel's measured marginal contribution, so the executable comparative claim
+is unchanged.

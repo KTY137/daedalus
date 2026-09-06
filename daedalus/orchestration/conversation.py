@@ -131,14 +131,19 @@ from ..spine.ledger import (
 
 __all__ = [
     "ConversationStore", "Turn", "DispatchLink", "DispatchEvent",
+    "ConversationProjectBinding",
     "ConversationError", "UnknownConversation", "UnknownTurn", "UnknownDispatch",
-    "DuplicateDispatchRef", "ConflictingDispatchEvent", "STATUS_ANSWERED",
+    "DuplicateDispatchRef", "ConflictingDispatchEvent", "ConversationProjectConflict",
+    "STATUS_ANSWERED",
     "STATUS_PROPOSED", "STATUS_ERROR",
     "TURN_STATUSES", "LIFECYCLE_DISPATCHED", "LIFECYCLE_REPORTED",
     "DISPATCH_LIFECYCLE", "OUTCOME_STATES", "WORKING", "PRESENT", "DEGRADED",
     "ABSENT", "UNKNOWN", "new_conversation_id",
-    "KIND_TURN", "KIND_DISPATCH", "KIND_REPORT", "CONVERSATION_KINDS",
-    "conversation_effect_key",
+    "KIND_TURN", "KIND_GENERATION", "KIND_DISPATCH", "KIND_REPORT",
+    "CONVERSATION_KINDS", "PROJECT_BOUND_KINDS",
+    "BINDING_BOUND", "BINDING_MISSING", "BINDING_UNSCOPED",
+    "BINDING_MIXED", "BINDING_CORRUPT", "PROJECT_BINDING_STATES",
+    "conversation_effect_key", "is_project_binding_conflict",
     "default_db_path", "default_store", "recent_turns_context",
 ]
 
@@ -148,9 +153,29 @@ __all__ = [
 #: The three canonical-spine intent kinds this module writes. Nothing else in
 #: the tree writes them, and this module writes nothing else.
 KIND_TURN = "conversation.turn"
+# The request manager writes this fourth conversation-owned kind.  It remains
+# an open intent while a provider is running, but its conversation/project
+# identity participates in the same durable binding as a final turn.
+KIND_GENERATION = "conversation.generation"
 KIND_DISPATCH = "conversation.dispatch"
 KIND_REPORT = "conversation.dispatch.report"
 CONVERSATION_KINDS = (KIND_TURN, KIND_DISPATCH, KIND_REPORT)
+PROJECT_BOUND_KINDS = (KIND_TURN, KIND_GENERATION)
+
+BINDING_BOUND = "bound"
+BINDING_MISSING = "missing"
+BINDING_UNSCOPED = "unscoped"
+BINDING_MIXED = "mixed"
+BINDING_CORRUPT = "corrupt"
+PROJECT_BINDING_STATES = (
+    BINDING_BOUND,
+    BINDING_MISSING,
+    BINDING_UNSCOPED,
+    BINDING_MIXED,
+    BINDING_CORRUPT,
+)
+
+_PROJECT_BINDING_TRIGGER_ERROR = "conversation_project_binding_conflict"
 
 # A turn's own outcome, at the CHAT layer -- distinct from a dispatch's
 # outcome (which reuses daedalus.health's vocabulary; see module docstring).
@@ -198,6 +223,19 @@ class ConflictingDispatchEvent(ConversationError):
     disagreement; appending it would destroy exactly-once projection. Refuse
     both interpretations and leave the first canonical fact untouched.
     """
+
+
+class ConversationProjectConflict(ConversationError):
+    """A conversation is already bound to a different or invalid project.
+
+    The SQLite trigger is the serialization point.  This exception is only a
+    typed projection of that durable refusal, never a check-before-insert
+    substitute for it.
+    """
+
+
+def is_project_binding_conflict(exc: BaseException) -> bool:
+    return _PROJECT_BINDING_TRIGGER_ERROR in str(exc)
 
 
 def _now_iso() -> str:
@@ -290,6 +328,32 @@ class DispatchEvent:
     source_event_id: str | None = None
 
 
+@dataclass(frozen=True)
+class ConversationProjectBinding:
+    """Unbounded, server-owned project identity for one conversation.
+
+    ``row_count`` covers every canonical ``conversation.turn`` and
+    ``conversation.generation`` row that can be attributed to the id.  A
+    bounded transcript tail is therefore never mistaken for binding evidence.
+    """
+
+    conversation_id: str
+    state: str
+    project: str | None
+    row_count: int
+
+    @property
+    def is_bound(self) -> bool:
+        return self.state == BINDING_BOUND and bool(self.project)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "state": self.state,
+            "project": self.project,
+            "row_count": self.row_count,
+        }
+
+
 # --------------------------------------------------------------------------- #
 # the facade                                                                   #
 # --------------------------------------------------------------------------- #
@@ -376,10 +440,83 @@ class ConversationStore:
                     "ON intents(json_extract(payload, '$.source_event_id')) "
                     f"WHERE kind = '{KIND_REPORT}' "
                     "AND json_extract(payload, '$.source_event_id') IS NOT NULL")
+                # One expression index serves both the trigger's cross-kind
+                # lookup and the unbounded binding read below.  It is a
+                # projection over the canonical intents table, not a registry
+                # or a second source of truth.
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS "
+                    "idx_conversation_project_binding "
+                    "ON intents("
+                    " json_extract(payload, '$.conversation_id'),"
+                    " json_extract(payload, '$.project')) "
+                    f"WHERE kind IN ('{KIND_TURN}', '{KIND_GENERATION}') "
+                    "AND json_valid(payload) = 1")
+                # SQLite is the serialization point across threads, processes,
+                # and separately opened SpineLedger instances.  Every canonical
+                # writer already inserts under BEGIN IMMEDIATE; this BEFORE
+                # trigger makes the first committed turn or generation claim
+                # the project and refuses every different/invalid later claim
+                # in that same INSERT transaction.
+                connection.execute(
+                    "CREATE TRIGGER IF NOT EXISTS "
+                    "trg_conversation_project_binding "
+                    "BEFORE INSERT ON intents "
+                    f"WHEN NEW.kind IN ('{KIND_TURN}', '{KIND_GENERATION}') "
+                    "BEGIN "
+                    " SELECT RAISE(ABORT, '"
+                    + _PROJECT_BINDING_TRIGGER_ERROR
+                    + "') WHERE CASE "
+                    "  WHEN json_valid(NEW.payload) <> 1 THEN 1 "
+                    "  WHEN json_type(NEW.payload, '$.conversation_id') IS NOT 'text' THEN 1 "
+                    "  WHEN trim(json_extract(NEW.payload, '$.conversation_id')) = '' THEN 1 "
+                    "  WHEN json_extract(NEW.payload, '$.conversation_id') "
+                    "       IS NOT trim(json_extract(NEW.payload, '$.conversation_id')) THEN 1 "
+                    "  WHEN json_type(NEW.payload, '$.project') IS NOT 'text' THEN 1 "
+                    "  WHEN trim(json_extract(NEW.payload, '$.project')) = '' THEN 1 "
+                    "  WHEN json_extract(NEW.payload, '$.project') "
+                    "       IS NOT trim(json_extract(NEW.payload, '$.project')) THEN 1 "
+                    f"  WHEN NEW.kind = '{KIND_TURN}' AND NEW.effect_key IS NOT "
+                    "       ('conversation:' || json_extract(NEW.payload, '$.conversation_id')) THEN 1 "
+                    "  ELSE 0 END; "
+                    " SELECT RAISE(ABORT, '"
+                    + _PROJECT_BINDING_TRIGGER_ERROR
+                    + "') WHERE EXISTS ("
+                    "  SELECT 1 FROM intents AS prior "
+                    f"  WHERE prior.kind IN ('{KIND_TURN}', '{KIND_GENERATION}') "
+                    "    AND CASE "
+                    f"      WHEN prior.kind = '{KIND_TURN}' AND prior.effect_key = "
+                    "           ('conversation:' || json_extract(NEW.payload, '$.conversation_id')) "
+                    "        THEN 1 "
+                    "      WHEN json_valid(prior.payload) <> 1 THEN 0 "
+                    "      WHEN json_type(prior.payload, '$.conversation_id') = 'text' "
+                    "       AND json_extract(prior.payload, '$.conversation_id') = "
+                    "           json_extract(NEW.payload, '$.conversation_id') THEN 1 "
+                    "      ELSE 0 END = 1 "
+                    "    AND CASE "
+                    # CASE is intentionally lazy: no json_type/json_extract is
+                    # evaluated for a malformed legacy payload.
+                    "      WHEN json_valid(prior.payload) <> 1 THEN 1 "
+                    "      WHEN json_type(prior.payload, '$.conversation_id') IS NOT 'text' THEN 1 "
+                    "      WHEN json_extract(prior.payload, '$.conversation_id') IS NOT "
+                    "           json_extract(NEW.payload, '$.conversation_id') THEN 1 "
+                    "      WHEN json_type(prior.payload, '$.project') IS NOT 'text' THEN 1 "
+                    "      WHEN trim(json_extract(prior.payload, '$.project')) = '' THEN 1 "
+                    "      WHEN json_extract(prior.payload, '$.project') IS NOT "
+                    "           trim(json_extract(prior.payload, '$.project')) THEN 1 "
+                    "      WHEN json_extract(prior.payload, '$.project') IS NOT "
+                    "           json_extract(NEW.payload, '$.project') THEN 1 "
+                    f"      WHEN prior.kind = '{KIND_TURN}' AND prior.effect_key IS NOT "
+                    "           ('conversation:' || json_extract(NEW.payload, '$.conversation_id')) "
+                    "        THEN 1 "
+                    "      ELSE 0 END = 1"
+                    " ); "
+                    "END")
         except (sqlite3.DatabaseError, AttributeError) as exc:
             raise ConversationError(
                 "the canonical event spine cannot enforce conversation event "
-                f"identities: {type(exc).__name__}: {exc}") from exc
+                "and project identities: "
+                f"{type(exc).__name__}: {exc}") from exc
 
     def pragmas(self) -> dict[str, Any]:
         """The canonical ledger's durability settings, verbatim."""
@@ -402,6 +539,10 @@ class ConversationStore:
         """
         key = conversation_effect_key(conversation_id)
         conversation_id = str(conversation_id).strip()
+        project_name = str(project or "").strip()
+        if not project_name:
+            raise ConversationProjectConflict(
+                "conversation turns require a non-empty canonical project binding")
         if status not in TURN_STATUSES:
             raise ValueError(f"status must be one of {TURN_STATUSES!r}, got {status!r}")
         payload = {
@@ -412,15 +553,22 @@ class ConversationStore:
             "assistant_text": assistant_text,
             "provider_used": provider_used,
             "model_used": model_used,
-            "project": project,
+            "project": project_name,
             "source": source,
             "strategy": strategy,
             "proposed_action": _jsonable(proposed_action),
             "envelope": _jsonable(envelope if envelope is not None else {}),
         }
-        recorded = self.spine.record_fact(
-            KIND_TURN, payload, effect_key=key, effect_id=conversation_id,
-            result={"status": status, "intent": payload["intent"]})
+        try:
+            recorded = self.spine.record_fact(
+                KIND_TURN, payload, effect_key=key, effect_id=conversation_id,
+                result={"status": status, "intent": payload["intent"]})
+        except sqlite3.IntegrityError as exc:
+            if not is_project_binding_conflict(exc):
+                raise
+            raise ConversationProjectConflict(
+                f"conversation {conversation_id!r} is already bound to another "
+                "project or has a quarantined project history") from exc
         seq = self.spine.ordinal_by_effect(key, recorded.id, kind=KIND_TURN)
         return _turn_from_intent(recorded, seq)
 
@@ -472,8 +620,126 @@ class ConversationStore:
             key = conversation_effect_key(conversation_id)
         except ValueError:
             return False
-        return bool(self.spine.intents_by_effect_key(
-            key, kind=KIND_TURN, limit=1, newest_first=True))
+        # Existence is structural and must not hydrate the payload. A raw
+        # malformed legacy turn is still attributable through its canonical
+        # effect key and must reach the corrupt/quarantine projection instead
+        # of crashing json.loads before that projection can run.
+        with self.spine._lock:
+            row = self.spine._conn.execute(
+                "SELECT 1 FROM intents WHERE kind = ? AND effect_key = ? LIMIT 1",
+                (KIND_TURN, key),
+            ).fetchone()
+        return row is not None
+
+    def project_binding(self, conversation_id: str) -> ConversationProjectBinding:
+        """Return the one canonical project identity, or a quarantine state.
+
+        This read is deliberately unbounded. A 40-turn UI tail cannot prove
+        that turn 41, or an earlier generation intent, belonged to the same
+        project. Rows are read from the canonical ``intents`` table under the
+        ledger's connection lock; nothing is cached or repaired.
+
+        Historical rows are attributable either by their exact conversation
+        payload or, for turns, by the canonical conversation effect key. The
+        latter makes a damaged payload visible as ``corrupt`` instead of
+        letting it disappear from the audit.
+        """
+        conversation_id = _check_id(conversation_id, "conversation_id")
+        key = conversation_effect_key(conversation_id)
+        with self.spine._lock:
+            rows = self.spine._conn.execute(
+                "SELECT id, kind, effect_key, payload FROM intents "
+                "WHERE kind IN (?, ?) AND CASE "
+                "  WHEN kind = ? AND effect_key = ? THEN 1 "
+                "  WHEN json_valid(payload) <> 1 THEN 0 "
+                "  WHEN json_type(payload, '$.conversation_id') = 'text' "
+                "   AND json_extract(payload, '$.conversation_id') = ? THEN 1 "
+                "  ELSE 0 END = 1 "
+                "ORDER BY id",
+                (KIND_TURN, KIND_GENERATION, KIND_TURN, key, conversation_id),
+            ).fetchall()
+
+        if not rows:
+            return ConversationProjectBinding(
+                conversation_id, BINDING_MISSING, None, 0)
+
+        projects: set[str] = set()
+        unscoped = False
+        corrupt = False
+        for row in rows:
+            try:
+                payload = json.loads(str(row["payload"]))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                corrupt = True
+                continue
+            if not isinstance(payload, dict):
+                corrupt = True
+                continue
+            payload_conversation = payload.get("conversation_id")
+            if (
+                not isinstance(payload_conversation, str)
+                or payload_conversation != conversation_id
+                or payload_conversation != payload_conversation.strip()
+            ):
+                corrupt = True
+            if row["kind"] == KIND_TURN and row["effect_key"] != key:
+                corrupt = True
+
+            project = payload.get("project")
+            if (
+                not isinstance(project, str)
+                or not project.strip()
+                or project != project.strip()
+            ):
+                unscoped = True
+            else:
+                projects.add(project)
+
+        if corrupt:
+            state, project = BINDING_CORRUPT, None
+        elif len(projects) > 1:
+            state, project = BINDING_MIXED, None
+        elif unscoped:
+            state, project = BINDING_UNSCOPED, None
+        elif len(projects) == 1:
+            state, project = BINDING_BOUND, next(iter(projects))
+        else:
+            state, project = BINDING_UNSCOPED, None
+        return ConversationProjectBinding(
+            conversation_id, state, project, len(rows))
+
+    def require_project_binding(
+        self, conversation_id: str, project: str
+    ) -> ConversationProjectBinding:
+        """Require one existing conversation to be bound to exactly ``project``.
+
+        This is the read-only admission check for legacy entrypoints which are
+        not allowed to claim a new conversation. Creation remains the request
+        manager's atomic generation INSERT. Missing and historical invalid
+        states are conflicts, not stateless fallbacks.
+        """
+        raw_conversation_id = str(conversation_id or "")
+        raw_project = str(project or "")
+        try:
+            conversation_id = _check_id(raw_conversation_id, "conversation_id")
+            requested_project = _check_id(raw_project, "project")
+        except ValueError as exc:
+            raise ConversationProjectConflict(str(exc)) from exc
+        if (
+            conversation_id != raw_conversation_id
+            or requested_project != raw_project
+        ):
+            raise ConversationProjectConflict(
+                "conversation_id and project must already be canonical strings"
+            )
+        binding = self.project_binding(conversation_id)
+        if not binding.is_bound or binding.project != requested_project:
+            raise ConversationProjectConflict(
+                f"conversation {conversation_id!r} has no exact canonical "
+                f"binding to project {requested_project!r} "
+                f"(binding state: {binding.state})"
+            )
+        return binding
 
     # -- writes: dispatch attribution ---------------------------------------- #
     def list_conversations(self, project: str, *, limit: int = 20) -> list[dict[str, Any]]:
@@ -483,27 +749,62 @@ class ConversationStore:
         derived from the group of ``conversation.turn`` facts under one
         conversation key and hydrated as exactly two bounded reads (newest and
         oldest turn). Nothing is written, cached or invented -- a project no
-        turn ever named yields an empty list. The spine's payload match is a
-        substring test over canonical JSON, so the hydrated row's own
-        ``project`` field is re-checked before it may stand for the project.
+        completely bound conversation named yields an empty list. Filtering
+        happens only after the unbounded cross-kind binding check; grouping a
+        project-matching subset would make a mixed conversation look valid and
+        would under-count its turns.
         """
         project = str(project or "").strip()
         if not project or int(limit) <= 0:
             return []
-        groups = self.spine.effect_key_groups(
-            KIND_TURN, limit=int(limit), payload_match=("project", project))
+        with self.spine._lock:
+            group_rows = self.spine._conn.execute(
+                "SELECT effect_key, MAX(id) AS newest_id, MIN(id) AS oldest_id, "
+                "COUNT(*) AS n FROM intents "
+                "WHERE kind = ? AND effect_key IS NOT NULL "
+                "GROUP BY effect_key ORDER BY newest_id DESC",
+                (KIND_TURN,),
+            ).fetchall()
+        groups = [{
+            "effect_key": str(row["effect_key"]),
+            "newest_id": int(row["newest_id"]),
+            "oldest_id": int(row["oldest_id"]),
+            "count": int(row["n"]),
+        } for row in group_rows]
         out: list[dict[str, Any]] = []
         for group in groups:
+            effect_key = group["effect_key"]
+            prefix = "conversation:"
+            if not effect_key.startswith(prefix):
+                continue
+            conversation_id = effect_key[len(prefix):]
+            try:
+                binding = self.project_binding(conversation_id)
+            except ValueError:
+                continue
+            if not binding.is_bound or binding.project != project:
+                continue
             newest = self.spine.get(group["newest_id"])
             oldest = self.spine.get(group["oldest_id"])
-            if newest is None or oldest is None or newest.kind != KIND_TURN:
+            if (
+                newest is None
+                or oldest is None
+                or newest.kind != KIND_TURN
+                or oldest.kind != KIND_TURN
+            ):
                 continue
             last = _turn_from_intent(newest, max(0, int(group["count"]) - 1))
             first = _turn_from_intent(oldest, 0)
-            if last.project != project:
+            if (
+                last.conversation_id != conversation_id
+                or first.conversation_id != conversation_id
+                or last.project != project
+                or first.project != project
+            ):
                 continue
             out.append({
                 "conversation_id": last.conversation_id,
+                "project_binding": binding.as_dict(),
                 "turn_count": int(group["count"]),
                 "first_message": first.user_message,
                 "last_message": last.user_message,
@@ -512,6 +813,8 @@ class ConversationStore:
                 "last_provider_used": last.provider_used,
                 "last_status": last.status,
             })
+            if len(out) >= int(limit):
+                break
         return out
 
     def link_dispatch(self, conversation_id: str, dispatch_ref: str, *,
@@ -727,6 +1030,23 @@ class ConversationStore:
         proposed action with no linked dispatch.
         """
         conversation_id = _check_id(conversation_id, "conversation_id")
+        binding = self.project_binding(conversation_id)
+        if not binding.is_bound:
+            # Historical mixed, unscoped, or corrupt records are evidence, not
+            # data to repair silently.  Keep them in the canonical ledger but
+            # reveal no transcript, narrative, or dispatch attribution through
+            # the resumable server projection.
+            return {
+                "conversation_id": conversation_id,
+                "exists": self.conversation_exists(conversation_id),
+                "project_binding": binding.as_dict(),
+                "quarantined": binding.state != BINDING_MISSING,
+                "turn_count": 0,
+                "last_turn": None,
+                "dispatches": [],
+                "open_dispatches": [],
+                "narrative": [],
+            }
         turns = self.turns(conversation_id)
         last = turns[-1] if turns else None
         dispatch_summaries = self._dispatch_summaries(conversation_id)
@@ -737,6 +1057,8 @@ class ConversationStore:
         return {
             "conversation_id": conversation_id,
             "exists": bool(turns),
+            "project_binding": binding.as_dict(),
+            "quarantined": False,
             "turn_count": len(turns),
             "last_turn": last,
             "dispatches": dispatch_summaries,
@@ -873,6 +1195,8 @@ def recent_turns_context(store: "ConversationStore", conversation_id: str,
     the END (most recent content retained) so one long-running conversation
     cannot blow up a prompt budget silently.
     """
+    if not store.project_binding(conversation_id).is_bound:
+        return ""
     turns = store.turns(conversation_id, limit=max_turns)
     if not turns:
         return ""

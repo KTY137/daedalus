@@ -119,7 +119,10 @@ def test_live_true_actually_unlocks_dispatch(tmp_path, spawn_sentinel):
                        council_id="c-live-allowed", store_path=_store(tmp_path),
                        per_call_timeout_s=5.0, wall_clock_s=20.0, live=True)
 
-    binaries = {argv[0] for argv in spawn_sentinel}
+    # The runner resolves a bare command through PATH/PATHEXT before the
+    # spawn (the npm ``codex.CMD`` shim on Windows), so compare the resolved
+    # binary's stem, not the raw argv[0] string.
+    binaries = {Path(argv[0]).stem.lower() for argv in spawn_sentinel}
     assert binaries == {"claude", "codex"}, (
         f"live=True did not reach the shipped transports: {spawn_sentinel}")
     # The council still ran to completion and recorded both seats honestly.
@@ -261,3 +264,50 @@ def test_cli_dry_run_names_the_seats_live_would_call(monkeypatch, capsys):
     assert "DRY RUN -- no model was called" in out
     assert "2 real" in out
     assert "ClaudeAdapter" in out and "CodexAdapter" in out
+
+
+def test_live_true_installs_the_budget_net_before_any_vendor_spawn(tmp_path, spawn_sentinel, monkeypatch):
+    """A live council is priced by the process guard, never outside the ledger.
+
+    Measured 2026-09-05: with the daily ceiling at $5.00/$5.00 the CLI council
+    was refused by the guard (correct), while an in-process ``convene(live=True)``
+    reached both vendors unpriced because nothing installed the net. The live
+    opt-in must install it FIRST, before the roster is chained or dispatched.
+    """
+    import daedalus.budget as budget
+
+    order: list[str] = []
+    real_decision = budget.process_guard_boundary_decision
+
+    def spy():
+        order.append("guard")
+        return real_decision()
+
+    monkeypatch.setattr(budget, "process_guard_boundary_decision", spy)
+
+    def spawn(argv, **kw):
+        order.append("spawn")
+        raise OSError("test sentinel: no vendor process may start here")
+
+    monkeypatch.setattr(V, "ManagedProcess", spawn)
+    participants = S.default_participants(["anthropic", "openai"])
+    S.convene("is this safe?", _evidence(), participants, rounds=1,
+              council_id="c-live-priced", store_path=_store(tmp_path),
+              per_call_timeout_s=5.0, wall_clock_s=20.0, live=True)
+    assert order and order[0] == "guard", order
+    assert order.count("guard") == 1
+    assert "spawn" in order
+
+
+def test_live_false_does_not_touch_the_budget_net(tmp_path, monkeypatch):
+    import daedalus.budget as budget
+
+    calls: list[str] = []
+    monkeypatch.setattr(budget, "process_guard_boundary_decision",
+                        lambda: calls.append("guard"))
+    offline = V.ClaudeAdapter(
+        runner=lambda *a, **k: V.RunResult(returncode=0, stdout="CLAIM: nothing to refute")
+    )
+    S.convene("q", _evidence(), [offline], rounds=1, council_id="c-off",
+              store_path=_store(tmp_path), live=False)
+    assert calls == []

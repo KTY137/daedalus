@@ -1,0 +1,62 @@
+{
+  "agents_sha256": "3ca6b4be45e5e39efcbf38823611dd6dca0ba7afc095a372500f9a4c499c6194",
+  "appended_record_sha256": "6d1c0d6f3a7d5986be1f5d7d13cb6f1a1199e165aae0f0735ae2857f4c9289a7",
+  "base_head": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+  "base_ledger_sha256": "26480bfaf1aa69b67a0ec75da262f66c4f179481c38e27bc54b3dd646a51f102",
+  "base_plan_sha256": "711de9f0bdf0ab15011314528821b75ed5666906f4805ec9ff9c65386ed5a3b2",
+  "checks": {
+    "agents_unchanged": true,
+    "all_historical_record_hashes_valid": true,
+    "all_historical_record_links_valid": true,
+    "all_written_record_hashes_and_links_valid": true,
+    "base_git_blob_identical": true,
+    "changed_ledger_prefix_detected": true,
+    "diff_whitespace_valid_with_markdown_hard_breaks": true,
+    "exact_plan_edit_inverse_matches_base": true,
+    "mutated_new_record_detected": true,
+    "one_record_appended": true,
+    "prior_ledger_bytes_preserved": true,
+    "proposal_base_matches": true,
+    "written_artifact_hashes_reverified": true,
+    "wrong_base_hash_detected": true
+  },
+  "historical_gap": {
+    "historical_approval_independently_verified": false,
+    "missing_result_revision": 11,
+    "preceding_record_result_revision": 10,
+    "retained_base_git_commit": "d9655df2412e9a87762c15ed84b6bcc62f2d9c83"
+  },
+  "independent_review": {
+    "date": "2026-09-05",
+    "disposition": "accepted",
+    "reviewer": "root agent",
+    "scope": [
+      "exact proposed plan diff",
+      "unchanged invariants",
+      "historical gap retained",
+      "one appended record"
+    ]
+  },
+  "measured_at": "2026-09-05T03:02:58+02:00",
+  "new_sequence": 11,
+  "notes": [
+    "Default git diff --check flags the preserved Markdown two-space hard break on changed metadata line 9; core.whitespace=-blank-at-eol reports no errors.",
+    "Retired iron_plan_guard is not present or restored. Hash verification is an evidence procedure, not a security boundary."
+  ],
+  "original_ledger_byte_length": 10344,
+  "original_record_count": 10,
+  "packet": "G1-IKARUS-17",
+  "policy_suite": {
+    "command": "python -m pytest -q tests/test_sensitivity_default_policy_pins.py tests/test_docs_reference_check.py",
+    "duration_seconds": 26.21,
+    "exit_code": 0,
+    "passed": 19,
+    "subtests_passed": 78
+  },
+  "result_ledger_sha256": "1487df90980354360194d7c7901ca0a4f0c3cbbe1b5d754b1dc9352a4a32f56b",
+  "result_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb",
+  "result_revision": 12,
+  "runtime_evidence_claimed": false,
+  "schema": "daedalus-governance-validation/1",
+  "security_boundary_claimed": false
+}

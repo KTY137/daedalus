@@ -1,10 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G1-TENSOR-01",
+  "artifact_role": "primary",
   "title": "Bounded internal sparse tensor contract",
   "gate": 1,
   "classification": "EXPERIMENT",
+  "owner": "repository owner",
   "base_revision": "24c2f1ecbaac0244a121b08f13d0f4ba623f7bf2",
+  "dependencies": "the exact Fourfold/Forest pair and ContractProvenance contracts present at base_revision",
   "branch": "exp/tensor-kernel-contract-01",
   "primary_claim": "A small standard-library-only typed sparse tensor view can represent algorithm-facing coordinates over one exact Fourfold/Forest pair without becoming a fifth semantic plane, graph authority, store, registry, scheduler, evaluator, or promotion surface.",
   "authority": {
@@ -63,6 +66,7 @@
       "max_entries": 1000000
     }
   },
+  "contracts": "The contract and authority objects above are the frozen behavior and authority contract: TensorView is a bounded computational projection over one exact Fourfold/Forest identity, never a fifth plane or second authority.",
   "acceptance": [
     "input axis, label, coordinate, evidence and entry order does not change canonical identity",
     "digest is stable across Python hash seeds",
@@ -83,6 +87,7 @@
     "executed_in_connector_session": [],
     "claim": "Source and focused tests are prepared; no green test or package claim is made until an executor records the commands on the exact head."
   },
+  "evidence": "The requested_verification and verification objects define admissible exact-head evidence and explicitly record that no green test or package claim had yet been earned.",
   "deletion_or_fold_conditions": [
     "Delete this module if equal-budget experiments show no measurable value over direct Fourfold/Forest queries.",
     "Fold it into an existing canonical Twin contract if that contract gains the same sparse computational view without creating a second identity.",
