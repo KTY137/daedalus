@@ -766,6 +766,10 @@ def _computer_events_admitted(
             "context_estimate": "chars/4", "prompt_overflow_calls": prompt_overflow_calls,
             "task_success_verified": False, "elapsed_s": max(0.0, clock() - started_at),
         }
+        # G1-IKARUS-44: computed after the loop ended, over retained observations only; it
+        # changes no state and never enters a prompt.
+        report["summary_tokens_absent_from_observations"] = summary_tokens_absent_from_observations(
+            {"planner_summary": planner_summary, "steps": history})
         final_artifact = store_canonical_json(artifact_root, report)
         report["report_artifact"] = final_artifact.to_dict()
         ledger.mark_completed(intent.id, effect_id=final_artifact.locator, result=report)
@@ -808,6 +812,11 @@ def _chat_report(report: Mapping[str, Any]) -> str:
     planner = report.get("planner")
     if isinstance(planner, dict):
         lines.extend(["", _planner_line(planner)])
+    absence = report.get("summary_tokens_absent_from_observations")
+    if isinstance(absence, dict) and absence.get("absent"):
+        lines.extend(["", "Hinweis: Angaben der Modell-Zusammenfassung, die in keiner Beobachtung vorkommen: "
+                          + ", ".join(f"`{token}`" for token in absence["absent"][:20])
+                          + ". Das ist ein Fabrikationsdetektor ohne Bestätigungskraft; ein Erfolg ist damit nicht belegt."])
     overflow = report.get("prompt_overflow_calls")
     if isinstance(overflow, int) and overflow > 0:
         lines.extend(["", f"Hinweis: {overflow} Planner-Aufruf(e) überschritten das geschätzte Kontextfenster des "
@@ -817,6 +826,43 @@ def _chat_report(report: Mapping[str, Any]) -> str:
     if report.get("mission_id"):
         lines.extend(["", f"Mission: `{report['mission_id']}`"])
     return "\n".join(lines)
+
+
+_ABSENCE_CHECK_VERSION = "v1"
+_ABSENCE_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9:_./-]{3,}")
+
+
+def summary_tokens_absent_from_observations(report: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Digit-bearing tokens of the planner's finish summary that appear in no retained observation.
+
+    A fabrication detector with no confirming power (Momus, 2026-09-06, G1-IKARUS-44): a
+    token absent from every observation was not read from one; a token present proves
+    close to nothing. The corpus is ``steps[].outcome`` only, never the objective, plan,
+    proposals, owner context or tool arguments, so a planner cannot ground its own
+    invention through the request. The tokenizer is the specification and is versioned;
+    change it only with a new version. Never an evaluator, never a gate, never quoted as
+    task success: ``task_success_verified`` stays false regardless."""
+    summary = report.get("planner_summary")
+    if not isinstance(summary, str):
+        return None
+    corpus: list[tuple[int, str]] = []
+    for entry in sorted(report.get("steps", []), key=lambda item: int(item.get("step", 0))):
+        corpus.append((int(entry.get("step", 0)),
+                       json.dumps(entry.get("outcome"), ensure_ascii=False, sort_keys=True, default=str).casefold()))
+    tokens: list[str] = []
+    for match in _ABSENCE_TOKEN.finditer(summary):
+        token = match.group(0).rstrip(".,;:")
+        if len(token) >= 4 and any(ch.isdigit() for ch in token) and token not in tokens:
+            tokens.append(token)
+    absent: list[str] = []
+    grounded: dict[str, list[int]] = {}
+    for token in tokens:
+        steps = [step for step, text in corpus if token.casefold() in text]
+        if steps:
+            grounded[token] = steps
+        else:
+            absent.append(token)
+    return {"version": _ABSENCE_CHECK_VERSION, "checked": len(tokens), "absent": absent, "grounded_in": grounded}
 
 
 def _planner_line(planner: Mapping[str, Any]) -> str:

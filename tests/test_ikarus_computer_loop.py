@@ -968,3 +968,58 @@ def test_status_names_the_planner_and_the_planner_command(monkeypatch):
     reply = list(loop.conversation_events("fixture", "/computer status"))[-1][1]["assistant"]
     assert "Planner: codex_cli (gpt-6-astra) · Kontext hat den Rechner verlassen: ja" in reply
     assert "/computer planner" in reply
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-44: digit-bearing tokens of a finish summary that appear in no retained
+# observation (Momus 2026-09-06 design B: a fabrication detector with no confirming power)
+# --------------------------------------------------------------------------
+
+EVIDENCE = Path(__file__).resolve().parents[1] / "docs" / "evidence" / "G1-IKARUS-32_PLANNER_PROGRESS_LIVE"
+
+
+def _measure_09_report():
+    return json.loads((EVIDENCE / "computer-loop-measure-09_browser_bounded_codex-planner.json").read_text(encoding="utf-8"))["report"]
+
+
+def test_absence_check_is_silent_on_the_retained_codex_finish_and_loud_on_a_fabricated_one():
+    """Pre-registered falsifier: no discrimination on measure-09 means the check does not ship."""
+    report = _measure_09_report()
+    clean = loop.summary_tokens_absent_from_observations(report)
+    assert clean["version"] == "v1" and clean["checked"] == 2 and clean["absent"] == []  # 15:00 and the sentinel
+    assert clean["grounded_in"]["TANGERINE-4471"] == [1, 2], "grounded in both browser observations"
+    fabricated = dict(report, planner_summary=report["planner_summary"]
+                      .replace("TANGERINE-4471", "TANGERINE-4472").replace("15:00", "16:30")
+                      + " Source: http://127.0.0.1:9/invented.html")
+    loud = loop.summary_tokens_absent_from_observations(fabricated)
+    assert {"TANGERINE-4472", "16:30"} <= set(loud["absent"])
+    assert any("invented" in token for token in loud["absent"])
+
+
+def test_absence_check_uses_only_observations_never_the_objective_plan_or_arguments():
+    report = {"planner_summary": "Order 8842 confirmed at 09:15.",
+              "objective": "Confirm order 8842 at 09:15",
+              "plan": {"steps": ["confirm order 8842"]},
+              "steps": [{"step": 1, "tool": "browser.read", "outcome": {"ok": True, "result": {"text": "no numbers here"}}}]}
+    out = loop.summary_tokens_absent_from_observations(report)
+    assert set(out["absent"]) == {"8842", "09:15"}
+    assert loop.summary_tokens_absent_from_observations({"planner_summary": None, "steps": []}) is None
+
+
+def test_chat_line_appears_only_when_a_token_is_absent():
+    absent = {"version": "v1", "checked": 2, "absent": ["8842"], "grounded_in": {"09:15": [1]}}
+    text = loop._chat_report({"summary": "s", "steps": [], "summary_tokens_absent_from_observations": absent})
+    assert "8842" in text and "in keiner Beobachtung" in text
+    silent = loop._chat_report({"summary": "s", "steps": [], "summary_tokens_absent_from_observations": {**absent, "absent": []}})
+    assert "in keiner Beobachtung" not in silent
+
+
+def test_report_carries_the_absence_check_after_a_finish(isolated):
+    root, ledger = isolated
+    finish = {"type": "finish", "summary": "The fixture says 4711."}
+    result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger, propose=planner(READ, finish))
+    assert result["state"] == "completed"
+    assert result["summary_tokens_absent_from_observations"]["absent"] == ["4711"]
+    stalled = loop.run_computer_task(root, "Read fixture", service=Service(max_steps=8), ledger=ledger,
+                                     propose=planner(PLAN, PLAN, PLAN, READ, DONE))
+    assert stalled["summary_tokens_absent_from_observations"] is None, "no finish, nothing to check"
