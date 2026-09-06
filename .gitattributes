@@ -417,3 +417,13 @@ daedalus/runtimes/providers/token_policy.py -text
 # MEASURED 2026-09-02: 8 passed before the repoint, '1 of 206 ... no explicit
 # declaration: daedalus/journal_io.py' after it.
 daedalus/journal_io.py -text
+
+# Gate-1 closure members introduced by the canonical Tensor/Fourfold projection
+# line and named by the activated Gate-1 CI guard on 2026-09-06. Keep the list
+# explicit: the guard protects against future closure growth without widening
+# the repository-wide EOL policy through a wildcard.
+daedalus/twin/relation_blocks.py -text
+daedalus/twin/relation_projection.py -text
+daedalus/twin/semiring.py -text
+daedalus/twin/tensor.py -text
+daedalus/twin/two_category.py -text

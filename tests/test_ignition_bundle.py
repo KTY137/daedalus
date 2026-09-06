@@ -143,16 +143,18 @@ def test_a_changed_evaluator_changes_the_digest(tmp_path):
 
 
 def test_the_digest_does_not_move_with_line_endings(tmp_path):
-    """Checkout stability, measured. The first version hashed raw bytes and
-    reported every evaluator as uncommitted on a clean Windows checkout, because
-    autocrlf gives the working file CRLF while the blob is LF. git's own content
-    digest is what makes the bundle identity the same on any machine."""
+    """Checkout stability under the condition this test claims to model:
+    ``core.autocrlf=true`` normalizes an LF commit and a CRLF working copy to
+    the same Git content identity, while the raw running bytes remain distinct.
+    Configure that condition in the throwaway repository rather than inheriting
+    an operator-specific global Git setting."""
 
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "core.autocrlf", "true"], check=True)
     module = repo / "judge.py"
     module.write_bytes(b"def verdict():\n    return True\n")
     subprocess.run(["git", "-C", str(repo), "add", "judge.py"], check=True)
@@ -301,15 +303,14 @@ def test_an_untracked_evaluator_is_not_reported_as_committed(tmp_path):
 # import_closure: pytest loads it by directory position, not by an import
 # statement any evaluator module writes, so it was invisible by construction.
 def test_pytest_plugins_are_measured_on_this_host():
-    """Not mocked: the real query, on the real host, must come back as a
-    measurement (a list, however short) rather than an error -- the floor
-    this repo's own dependencies guarantee (anyio, hypothesis and
-    pytest-asyncio are all installed, MEASURED 2026-08-24)."""
+    """The real query on the real host must produce a measurement rather than
+    an error. An empty list is a valid measurement on a minimal CI environment;
+    requiring an arbitrary third-party plugin would make the test depend on an
+    unrelated package installation rather than on the bundle contract."""
 
     plugins, error = ignition_bundle._pytest_plugins()
     assert error is None
     assert plugins is not None
-    assert len(plugins) >= 1
     assert all({"name", "version"} <= set(row) for row in plugins)
 
 
