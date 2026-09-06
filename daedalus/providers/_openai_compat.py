@@ -8,10 +8,11 @@ so a single tiny client serves both. We deliberately avoid ``requests`` /
 from __future__ import annotations
 
 import json
+import queue
 import threading
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 
@@ -46,10 +47,11 @@ def _poll_interval(value: float | None) -> float:
 def _budget_explicit_bridge() -> Callable[[], None]:
     """Carry the process-budget interposer's explicit-reservation mark.
 
-    ``run_cancellable`` moves the blocking syscall to a worker thread. The
-    budget guard stores its "already reserved" depth in ``threading.local``;
-    without this bridge, a call made inside an explicit reservation would look
-    unreserved on the worker and be charged a second time.
+    ``run_cancellable`` and cancellable streaming move the blocking syscall to
+    a worker thread. The budget guard stores its "already reserved" depth in
+    ``threading.local``; without this bridge, a call made inside an explicit
+    reservation would look unreserved on the worker and be charged a second
+    time.
     """
     try:
         from ..budget import _enter_explicit, _inside_explicit
@@ -253,6 +255,27 @@ def chat_completion(
         raise ProviderHTTPError(f"unexpected response shape: {payload}") from exc
 
 
+def _stream_deltas(resp: Any) -> Iterator[str]:
+    """Decode OpenAI-compatible SSE frames from one already-open response."""
+    for raw in resp:
+        line = raw.decode("utf-8", errors="replace").strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[5:].strip()
+        if not payload or payload == "[DONE]":
+            if payload == "[DONE]":
+                break
+            continue
+        try:
+            obj = json.loads(payload)
+        except json.JSONDecodeError:
+            continue  # tolerate keep-alive / partial frames
+        for choice in obj.get("choices") or []:
+            piece = (choice.get("delta") or {}).get("content")
+            if piece:
+                yield piece
+
+
 def chat_stream(
     *,
     base_url: str,
@@ -263,14 +286,27 @@ def chat_stream(
     timeout_s: int = 300,
     temperature: float = 0.2,
     extra: dict[str, Any] | None = None,
+    cancelled: Callable[[], bool] | None = None,
+    poll_interval_s: float | None = None,
 ):
-    """Yield assistant text deltas from an OpenAI-compatible ``/chat/completions``
-    with ``stream: true``.
+    """Yield assistant text deltas from ``/chat/completions`` with ``stream:true``.
 
-    This stream remains deliberately outside the blocking cancellation helper:
-    honest mid-stream cancellation needs ownership of the response/socket or a
-    producer queue. Advertising a probe that only works before the first token
-    would create a false Stop contract.
+    With no cancellation probe this preserves the historical direct blocking
+    transport: ``urlopen`` and response iteration stay on the caller thread.
+
+    With a probe, the worker owns the response/socket and the caller owns only a
+    bounded queue of decoded deltas. Cancellation is checked before opening the
+    connection and between queue reads. Once a response exists, cancellation
+    closes it as well as returning control, so a blocked response iterator is
+    not deliberately left consuming the stream. If cancellation happens while
+    ``urlopen`` itself is still blocked, Python's stdlib exposes no portable
+    handle to close yet; the daemon worker may finish that connection attempt in
+    the background, but its result is discarded and is never replayed. This is
+    therefore a transport cancellation primitive, not evidence that a remote
+    provider has already stopped billing.
+
+    ``poll_interval_s`` only bounds cancellation-observation latency. It never
+    replaces or shortens ``timeout_s``.
 
     Note: ``keep_alive`` is NOT accepted here — Ollama's OpenAI-compat shim
     silently drops it (measured). Pin residency with
@@ -295,30 +331,88 @@ def chat_stream(
     request = urllib.request.Request(
         url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST"
     )
+
+    if cancelled is None:
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_s) as resp:
+                yield from _stream_deltas(resp)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:500]
+            raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
+        return
+
+    interval = _poll_interval(poll_interval_s)
+    if cancelled():
+        raise ProviderCancelled("cancelled before chat stream opened a connection")
+
+    events: queue.Queue[tuple[str, Any]] = queue.Queue()
+    stop_requested = threading.Event()
+    response_lock = threading.Lock()
+    response_box: dict[str, Any] = {}
+    adopt_budget_mark = _budget_explicit_bridge()
+
+    def _close_active_response() -> None:
+        with response_lock:
+            response = response_box.get("response")
+        if response is not None:
+            try:
+                response.close()
+            except Exception:  # noqa: BLE001 - cancellation remains terminal
+                pass
+
+    def _produce() -> None:
+        adopt_budget_mark()
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_s) as resp:
+                with response_lock:
+                    response_box["response"] = resp
+                if stop_requested.is_set():
+                    return
+                for piece in _stream_deltas(resp):
+                    if stop_requested.is_set():
+                        return
+                    events.put(("delta", piece))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:500]
+            events.put(("error", ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}")))
+        except urllib.error.URLError as exc:
+            events.put(("error", ProviderHTTPError(f"cannot reach {url}: {exc.reason}")))
+        except BaseException as exc:  # noqa: BLE001 - preserve legacy stream failures
+            events.put(("error", exc))
+        finally:
+            with response_lock:
+                response_box.pop("response", None)
+            events.put(("done", None))
+
+    threading.Thread(
+        target=_produce,
+        name="daedalus-chat-stream",
+        daemon=True,
+    ).start()
+
     try:
-        with urllib.request.urlopen(request, timeout=timeout_s) as resp:
-            for raw in resp:
-                line = raw.decode("utf-8", errors="replace").strip()
-                if not line.startswith("data:"):
-                    continue
-                payload = line[5:].strip()
-                if not payload or payload == "[DONE]":
-                    if payload == "[DONE]":
-                        break
-                    continue
-                try:
-                    obj = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue  # tolerate keep-alive / partial frames
-                for choice in obj.get("choices") or []:
-                    piece = (choice.get("delta") or {}).get("content")
-                    if piece:
-                        yield piece
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
+        while True:
+            if cancelled():
+                stop_requested.set()
+                _close_active_response()
+                raise ProviderCancelled("cancelled while chat stream was in flight")
+            try:
+                kind, value = events.get(timeout=interval)
+            except queue.Empty:
+                continue
+            if kind == "delta":
+                yield value
+            elif kind == "error":
+                raise value
+            elif kind == "done":
+                return
+            else:  # pragma: no cover - private producer emits a closed vocabulary
+                raise RuntimeError(f"unknown provider stream event: {kind}")
+    finally:
+        stop_requested.set()
+        _close_active_response()
 
 
 def server_reachable(base_url: str, timeout_s: float = 2.0, path: str = "") -> bool:

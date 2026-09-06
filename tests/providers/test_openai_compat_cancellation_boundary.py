@@ -168,3 +168,161 @@ def test_cancellable_worker_inherits_explicit_budget_marker(monkeypatch: pytest.
     ) == "ok"
     assert len(adopted_on) == 1
     assert adopted_on[0] != caller_thread
+
+
+class _StaticStreamResponse:
+    def __init__(self, *lines: bytes) -> None:
+        self._lines = lines
+        self.closed = threading.Event()
+
+    def __enter__(self) -> "_StaticStreamResponse":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.close()
+
+    def __iter__(self):
+        return iter(self._lines)
+
+    def close(self) -> None:
+        self.closed.set()
+
+
+def _stream(**kwargs: Any):
+    return compat.chat_stream(
+        base_url="http://provider.invalid",
+        model="m",
+        system="system",
+        user="user",
+        timeout_s=17,
+        **kwargs,
+    )
+
+
+def test_chat_stream_without_probe_stays_on_the_direct_caller_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caller_thread = threading.get_ident()
+    opened_on: list[int] = []
+    response = _StaticStreamResponse(
+        b'data: {"choices":[{"delta":{"content":"hello"}}]}\n',
+        b"data: [DONE]\n",
+    )
+
+    def fake_urlopen(request: Any, *, timeout: float | None = None) -> _StaticStreamResponse:
+        assert request.full_url == "http://provider.invalid/chat/completions"
+        assert timeout == 17
+        opened_on.append(threading.get_ident())
+        return response
+
+    monkeypatch.setattr(compat.urllib.request, "urlopen", fake_urlopen)
+
+    assert list(_stream()) == ["hello"]
+    assert opened_on == [caller_thread]
+    assert response.closed.is_set()
+
+
+def test_pre_cancelled_chat_stream_never_opens_a_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden_urlopen(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("pre-cancelled stream must not open a connection")
+
+    monkeypatch.setattr(compat.urllib.request, "urlopen", forbidden_urlopen)
+
+    with pytest.raises(compat.ProviderCancelled, match="before chat stream opened"):
+        next(_stream(cancelled=lambda: True, poll_interval_s=0.01))
+
+
+def test_chat_stream_cancellation_closes_response_before_blocked_worker_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    blocked = threading.Event()
+    release = threading.Event()
+    cancelled = threading.Event()
+
+    class BlockingResponse:
+        def __init__(self) -> None:
+            self._first = True
+            self.closed = threading.Event()
+
+        def __enter__(self) -> "BlockingResponse":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+            self.close()
+
+        def __iter__(self) -> "BlockingResponse":
+            return self
+
+        def __next__(self) -> bytes:
+            if self._first:
+                self._first = False
+                return b'data: {"choices":[{"delta":{"content":"first"}}]}\n'
+            blocked.set()
+            release.wait(5.0)
+            raise StopIteration
+
+        def close(self) -> None:
+            self.closed.set()
+
+    response = BlockingResponse()
+    monkeypatch.setattr(
+        compat.urllib.request,
+        "urlopen",
+        lambda request, *, timeout=None: response,
+    )
+
+    stream = _stream(cancelled=cancelled.is_set, poll_interval_s=0.01)
+    assert next(stream) == "first"
+    assert blocked.wait(1.0)
+    cancelled.set()
+    began = time.monotonic()
+    try:
+        with pytest.raises(compat.ProviderCancelled, match="chat stream was in flight"):
+            next(stream)
+        assert time.monotonic() - began < 1.5
+        assert response.closed.wait(0.2)
+        # The fake worker is intentionally still blocked: returning control did
+        # not depend on it completing, and no replay path was introduced.
+        assert not release.is_set()
+    finally:
+        release.set()
+
+
+def test_cancellable_chat_stream_preserves_transport_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def offline(*args: Any, **kwargs: Any) -> Any:
+        raise compat.urllib.error.URLError("offline")
+
+    monkeypatch.setattr(compat.urllib.request, "urlopen", offline)
+
+    with pytest.raises(compat.ProviderHTTPError, match="cannot reach .*offline"):
+        list(_stream(cancelled=lambda: False, poll_interval_s=0.01))
+
+
+def test_cancellable_chat_stream_worker_inherits_explicit_budget_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from daedalus import budget
+
+    adopted_on: list[int] = []
+    caller_thread = threading.get_ident()
+    response = _StaticStreamResponse(b"data: [DONE]\n")
+
+    monkeypatch.setattr(budget, "_inside_explicit", lambda: True)
+    monkeypatch.setattr(
+        budget,
+        "_enter_explicit",
+        lambda: adopted_on.append(threading.get_ident()),
+    )
+    monkeypatch.setattr(
+        compat.urllib.request,
+        "urlopen",
+        lambda request, *, timeout=None: response,
+    )
+
+    assert list(_stream(cancelled=lambda: False, poll_interval_s=0.01)) == []
+    assert len(adopted_on) == 1
+    assert adopted_on[0] != caller_thread
