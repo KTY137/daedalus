@@ -13,6 +13,7 @@ on:
     paths:
       - "daedalus/ignition/**"
       - "daedalus/kernel/fourfold_evidence.py"
+      - "daedalus/mapping/switches.py"
       - "daedalus/structcore/ignore.py"
       - "tools/gate_host_preflight.py"
       - "tests/fixtures/ignition/**"
@@ -21,6 +22,7 @@ on:
       - "tests/test_ignition_bundle.py"
       - "tests/test_ignition_bundle_gitattributes.py"
       - "tests/test_gate_host_preflight_coverage.py"
+      - "tests/test_mapping_switches_indirect_probe.py"
       - "tests/test_structcore_center_directive.py"
       - "docs/work-packets/G1-WP-01_VOLTAGE_IGNITION.md"
       - "docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md"
@@ -67,6 +69,7 @@ jobs:
           tests/test_ignition_bundle.py
           tests/test_ignition_bundle_gitattributes.py
           tests/test_gate_host_preflight_coverage.py
+          tests/test_mapping_switches_indirect_probe.py
           tests/test_structcore_center_directive.py
           tests/kernel/test_fourfold_evidence.py
           tests/kernel/test_fourfold_approval_integration.py
