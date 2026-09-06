@@ -96,8 +96,12 @@ or store.
   meaning from Forest weights or evidence packaging.
 
 The separate canonical multi-relation compiler may use Boolean, natural, or
-evidence-dag observers only under the explicit scalar-admission contract above.
-It does not broaden the strict adapter or authorize weighted/cost projection.
+`evidence-dag` observers only under the explicit scalar-admission contract
+above. It likewise refuses retained hyperedges and undirected `ForestEdge`
+records whenever discover-all or an explicitly selected relation would require
+lossy pairwise/directional flattening. An explicitly unrelated selection may
+prune such source evidence without materializing it. The compiler does not
+broaden the strict adapter or authorize weighted/cost projection.
 
 The adapter reuses canonical Fourfold plane/node tuples where possible and skips
 Forest relation hashing when the authoritative retained relation set is empty.
