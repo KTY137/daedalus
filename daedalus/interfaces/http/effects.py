@@ -319,7 +319,7 @@ def preflight_post(handler: Any) -> bool:
             else "Ariadne campaigns are loopback-only"
         )
         return _send_boundary_refusal(
-            handler, refusal, status=403
+            handler, refusal, status=403, drain_body=True
         )
 
     if path == "/api/genesis":

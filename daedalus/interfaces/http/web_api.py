@@ -1294,13 +1294,23 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             self._deny()
             return
         try:
-            from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
-
-            begin_effect(
-                "web.mutations_put",
-                REGISTRY_BY_ID["web.mutations_put"].effects,
-                (self._bind_decision(),),
+            from daedalus.spine.effect_boundary import (
+                EffectStartRefused,
+                REGISTRY_BY_ID,
+                begin_effect,
             )
+
+            try:
+                begin_effect(
+                    "web.mutations_put",
+                    REGISTRY_BY_ID["web.mutations_put"].effects,
+                    (self._bind_decision(),),
+                )
+            except EffectStartRefused as exc:
+                http_effects._send_boundary_refusal(
+                    self, str(exc), status=500, drain_body=True
+                )
+                return
             self._handle_put()
         except ProjectRowNotFound as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=404)
@@ -1318,13 +1328,28 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         try:
             if not http_effects.preflight_post(self):
                 return
-            from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
-
-            begin_effect(
-                "web.mutations",
-                REGISTRY_BY_ID["web.mutations"].effects,
-                (self._bind_decision(),),
+            from daedalus.spine.effect_boundary import (
+                EffectStartRefused,
+                REGISTRY_BY_ID,
+                begin_effect,
             )
+
+            try:
+                begin_effect(
+                    "web.mutations",
+                    REGISTRY_BY_ID["web.mutations"].effects,
+                    (self._bind_decision(),),
+                )
+            except EffectStartRefused as exc:
+                http_effects._send_boundary_refusal(
+                    self,
+                    str(exc),
+                    status=500,
+                    drain_body=not hasattr(
+                        self, http_effects._PREPARED_POST_BODY_ATTR
+                    ),
+                )
+                return
             self._handle_post()
         except editor_context.UnknownEditorSession as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=404)

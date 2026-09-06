@@ -413,7 +413,7 @@ def test_post_ariadne_rejects_duplicate_origin_before_effect(
     assert begin_calls == []
 
 
-def test_post_ariadne_refuses_non_loopback_server_before_body_and_effect(
+def test_post_ariadne_refuses_non_loopback_server_before_parse_and_effect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     begin_calls: list[object] = []
@@ -444,7 +444,9 @@ def test_post_ariadne_refuses_non_loopback_server_before_body_and_effect(
     assert status == 403
     assert "loopback-only" in payload["error"]
     assert begin_calls == []
-    assert request.rfile.tell() == 0
+    # The exact bounded bytes are discarded, not parsed, so Win32 cannot turn
+    # the already-decided JSON refusal into a connection reset on close.
+    assert request.rfile.tell() == len(body)
 
 
 @pytest.mark.parametrize(

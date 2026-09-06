@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 
+from daedalus.interfaces.http import effects as http_effects
 from daedalus.interfaces.http import web_api
 from daedalus.spine import effect_boundary
 
@@ -151,6 +152,100 @@ def test_repeated_unauthorized_posts_return_401_instead_of_windows_reset() -> No
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+@pytest.mark.parametrize(
+    ("request_method", "path"),
+    (
+        ("do_PUT", "/api/projects/demo/team"),
+        ("do_POST", "/api/projects"),
+    ),
+)
+def test_effect_start_refusal_drains_unread_bounded_mutation_body(
+    monkeypatch: pytest.MonkeyPatch,
+    request_method: str,
+    path: str,
+) -> None:
+    raw = b'{"mutation":"denied"}'
+    handler = _Handler()
+    handler.path = path
+    handler.headers = Message()
+    handler.headers["Content-Type"] = "application/json"
+    handler.headers["Content-Length"] = str(len(raw))
+    handler.rfile = BytesIO(raw)
+
+    def refused(*_args: object, **_kwargs: object) -> None:
+        raise effect_boundary.EffectStartRefused("injected refusal")
+
+    monkeypatch.setattr(effect_boundary, "begin_effect", refused)
+    handler._handle_put = lambda: pytest.fail("refused PUT reached its handler")
+    handler._handle_post = lambda: pytest.fail("refused POST reached its handler")
+
+    getattr(handler, request_method)()
+
+    assert handler.rfile.tell() == len(raw)
+    assert handler.responses == [500]
+    assert handler.close_connection is True
+
+
+def test_non_loopback_preflight_drains_unread_bounded_genesis_body() -> None:
+    raw = b'{"prompt":"idea","request_key":"remote"}'
+    handler = _Handler()
+    handler.path = "/api/genesis"
+    handler.headers = Message()
+    handler.headers["Content-Type"] = "application/json"
+    handler.headers["Content-Length"] = str(len(raw))
+    handler.rfile = BytesIO(raw)
+    handler.client_address = ("127.0.0.1", 50000)
+    handler.server = type(
+        "Server", (), {"server_address": ("0.0.0.0", 8765)}
+    )()
+
+    assert http_effects.preflight_post(handler) is False
+    assert handler.rfile.tell() == len(raw)
+    assert handler.responses == [403]
+    assert handler.close_connection is True
+
+
+def test_prepared_sensitive_body_is_not_drained_twice_on_effect_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = b'{"prompt":"idea","request_key":"local"}'
+
+    class OneReadBody:
+        calls = 0
+
+        def read(self, length: int) -> bytes:
+            self.calls += 1
+            if self.calls != 1:
+                raise AssertionError("prepared body was read twice")
+            assert length == len(raw)
+            return raw
+
+    handler = _Handler()
+    handler.path = "/api/genesis"
+    handler.headers = Message()
+    handler.headers["Content-Type"] = "application/json"
+    handler.headers["Content-Length"] = str(len(raw))
+    handler.rfile = OneReadBody()
+    handler.client_address = ("127.0.0.1", 50000)
+    handler.server = type(
+        "Server", (), {"server_address": ("127.0.0.1", 8765)}
+    )()
+
+    def refused(*_args: object, **_kwargs: object) -> None:
+        raise effect_boundary.EffectStartRefused("injected refusal")
+
+    monkeypatch.setattr(effect_boundary, "begin_effect", refused)
+    handler._handle_post = lambda: pytest.fail(
+        "refused Genesis reached its handler"
+    )
+
+    handler.do_POST()
+
+    assert handler.rfile.calls == 1
+    assert handler.responses == [500]
+    assert handler.close_connection is True
 
 
 @pytest.mark.parametrize("failure_phase", ("headers", "body"))

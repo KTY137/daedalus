@@ -35,6 +35,8 @@ WIRE_LITERAL_CONTRACTS = {
     # The shared early-refusal path now drains only a small, unambiguous body,
     # or an already-available bounded prefix after writing the refusal, so
     # Windows cannot replace the intended 4xx JSON with a TCP reset.
+    # Non-loopback bind refusal uses that same transport-safe path before the
+    # sensitive body parser runs, preserving its observable 403 JSON on Win32.
     # Re-pinned again after legacy ask/SSE began refusing a non-exact canonical
     # conversation project binding before assistant, progress, or SSE effects.
     # The legacy effectful GET requires one Sec-Fetch-Site: same-origin value
@@ -62,8 +64,8 @@ WIRE_LITERAL_CONTRACTS = {
             "handle_put",
             "handle_post",
         ),
-        587,
-        "52ef53f8c3e9d74e0f175847a7f97901b756184957b29e9b45fe14464c815acc",
+        588,
+        "d91a5262e3b825f71c5150e4d3660e38e800d87822d2ff2c340a424ea221eeb3",
     ),
     "sse": (
         (
