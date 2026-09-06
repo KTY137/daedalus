@@ -15,6 +15,7 @@ language-model work.
 """
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, field
@@ -158,6 +159,10 @@ class IkarusLLMClient:
     Transport is intentionally injected/owned elsewhere. That keeps the one
     existing effect boundary authoritative while still centralising model
     choice, timeout and retry policy here.
+
+    Readiness is an observation, not a capability. Automatic selection only
+    consumes a well-formed, recent observation; a stale/malformed probe cannot
+    keep a dead runtime selected merely because it once said ``available``.
     """
 
     def __init__(self, *, environ: Mapping[str, str] | None = None,
@@ -176,6 +181,21 @@ class IkarusLLMClient:
         retries = _bounded_int(self.environ.get("DAEDALUS_IKARUS_RETRIES"), 0, 0, 2)
         return 1 + retries
 
+    @property
+    def readiness_ttl_s(self) -> float:
+        """Maximum age of runtime evidence that may drive automatic Voice choice.
+
+        The cockpit's runtime cache is an observability/performance control and
+        can be tuned independently. Voice selection is an execution decision, so
+        it owns a small freshness ceiling instead of inheriting an arbitrarily
+        long dashboard cache TTL. Thirty seconds matches the registry default;
+        the bounded override exists for slow installations without allowing an
+        hours-old positive probe to masquerade as current readiness.
+        """
+        return _bounded_float(
+            self.environ.get("DAEDALUS_IKARUS_READINESS_TTL_S"), 30.0, 1.0, 120.0
+        )
+
     def _order(self) -> tuple[str, ...]:
         configured = self.environ.get("DAEDALUS_IKARUS_PROVIDER_ORDER", "")
         if not configured.strip():
@@ -183,20 +203,85 @@ class IkarusLLMClient:
         values = tuple(normalize_provider(v) for v in configured.split(",") if v.strip())
         return tuple(v for v in values if v not in ("auto", "deterministic")) or _DEFAULT_ORDER
 
+    def _normalise_probe_row(
+        self, provider: str, runtime_id: str, row: object
+    ) -> Mapping[str, Any]:
+        """Validate observational runtime evidence before it influences routing.
+
+        ``bool("false")`` is True in Python, so truthiness is not a safe runtime
+        boundary. The registry contract emits a real boolean; anything else is
+        malformed and therefore unavailable. Cached observations additionally
+        carry ``measured_age_s``. When present, a negative, non-finite or expired
+        age is rejected rather than silently treated as a fresh positive probe.
+        """
+        if not isinstance(row, MappingABC):
+            return {
+                "available": False,
+                "last_error": (
+                    f"{provider}: malformed runtime observation (expected mapping, "
+                    f"got {type(row).__name__})"
+                ),
+            }
+        observed_id = row.get("id")
+        if observed_id not in (None, runtime_id):
+            return {
+                "available": False,
+                "last_error": (
+                    f"{provider}: runtime observation identity mismatch "
+                    f"({observed_id!r} != {runtime_id!r})"
+                ),
+            }
+        available = row.get("available")
+        if type(available) is not bool:
+            return {
+                "available": False,
+                "last_error": (
+                    f"{provider}: malformed runtime observation ('available' must "
+                    "be a boolean)"
+                ),
+            }
+        if "measured_age_s" in row:
+            try:
+                age = float(row.get("measured_age_s"))
+            except (TypeError, ValueError):
+                age = math.nan
+            if not math.isfinite(age) or age < 0:
+                return {
+                    "available": False,
+                    "last_error": (
+                        f"{provider}: malformed runtime observation "
+                        "('measured_age_s' must be finite and non-negative)"
+                    ),
+                }
+            if age >= self.readiness_ttl_s:
+                return {
+                    "available": False,
+                    "last_error": (
+                        f"{provider}: stale runtime observation ({age:.3f}s old; "
+                        f"Voice limit {self.readiness_ttl_s:.3f}s)"
+                    ),
+                }
+        return row
+
     def _probe(self, provider: str) -> Mapping[str, Any]:
         if provider == "deepseek":
             return {"available": bool(str(self.environ.get("DEEPSEEK_API_KEY", "")).strip())}
         runtime_id = _RUNTIME_STATUS_ID.get(provider)
         if runtime_id is None:
             return {"available": False, "last_error": "not a wired Ikarus voice runtime"}
-        if self._status_probe is not None:
-            return self._status_probe(runtime_id)
         try:
-            from .runtime_registry import cached_runtime_status
+            if self._status_probe is not None:
+                row = self._status_probe(runtime_id)
+            else:
+                from .runtime_registry import cached_runtime_status
 
-            return cached_runtime_status(runtime_id)
+                # Voice owns the freshness of the evidence it acts on. Do not
+                # inherit a dashboard cache TTL that an operator may have made
+                # deliberately long for cheap observability.
+                row = cached_runtime_status(runtime_id, ttl_s=self.readiness_ttl_s)
         except Exception as exc:  # a failed probe is not an available model
-            return {"available": False, "last_error": str(exc)}
+            row = {"available": False, "last_error": str(exc)}
+        return self._normalise_probe_row(provider, runtime_id, row)
 
     @staticmethod
     def _probe_failure(provider: str, row: Mapping[str, Any]) -> str:
@@ -228,7 +313,7 @@ class IkarusLLMClient:
                                     f"unknown Ikarus LLM provider {requested_norm!r}")
             if requested_norm == "claude_code_cli":
                 row = self._probe(requested_norm)
-                if not bool(row.get("available")):
+                if row.get("available") is not True:
                     return LLMSelection(
                         None, requested_norm, False, self.timeout_s, self.max_attempts,
                         "explicit provider is unavailable ("
@@ -264,7 +349,7 @@ class IkarusLLMClient:
                 failures.append(f"{env_default}: unknown configured provider")
             else:
                 row = self._probe(env_default)
-                if bool(row.get("available")):
+                if row.get("available") is True:
                     return LLMSelection(env_default, requested_norm, True,
                                         self.timeout_s, self.max_attempts,
                                         "configured provider is available")
@@ -274,7 +359,7 @@ class IkarusLLMClient:
             if candidate == env_default:
                 continue
             row = self._probe(candidate)
-            if bool(row.get("available")):
+            if row.get("available") is True:
                 reason = "first available provider in automatic preference order"
                 if failures:
                     reason += "; earlier preference unavailable: " + failures[0]
