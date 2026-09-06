@@ -61,8 +61,13 @@ export default defineConfig({
   //   retries: 0  -- a test that passes on the second try has not passed; a
   //                  green built out of retries is the failure mode this whole
   //                  harness exists to prevent.
+  //   maxFailures: 1 -- after the first observed product failure the verdict is
+  //                  already red. Continuing serially through more 240-300s
+  //                  cold-index waits cannot turn it green; it only hides the
+  //                  first actionable failure behind the outer suite timeout.
   workers: 1,
   retries: 0,
+  maxFailures: 1,
   fullyParallel: false,
   forbidOnly: true,
 
