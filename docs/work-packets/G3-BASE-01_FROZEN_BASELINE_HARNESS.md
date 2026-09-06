@@ -268,3 +268,88 @@ owner approval (plan §10.9).
    `RunManifest` and an owner seal?
 7. Does anything here import `experiments/forest_v2/` or create a second
    evaluation authority?
+
+## Measured findings (2026-09-06, base revision `1ba5b66f`)
+
+These are measurements, not status claims. Each is reproducible with the command
+given. `[MEASURED]` means it was executed at this revision.
+
+### F1 — The task corpus cannot support a cross-plane comparison today
+
+`[MEASURED]` via `daedalus.eval.gate3.taskset` over `harness.all_tasks()`:
+
+| quantity | value |
+| --- | ---: |
+| tasks in corpus | 27 (10 hand-authored + 17 minted) |
+| primary tier (enter the frozen set) | 10 |
+| quarantine tier (excluded, reported) | 17 |
+| census, all 27 | code=27, type=0, data=0, knowledge=0 |
+| planes present | `("code",)` |
+| `require_cross_plane()` | **REFUSES** |
+
+Every task targets a `.py` or `.tsx` file with identifier-shaped gold labels.
+This is exactly the shape that produced the s08 false verdict: a label set
+entirely in one plane, against which any cross-plane arm loses structurally
+rather than empirically. Rule R3 fires and no number is produced.
+
+**Consequence for Gate 3:** the cross-plane baselines cannot be honestly run
+until the corpus gains type-, data- and knowledge-plane tasks. That is corpus
+work, not harness work, and no amount of further harness code removes it. It
+confirms this packet's own §8 expected-failure #1, written before the run.
+
+### F2 — Every token count in this repository is currently a heuristic
+
+`[MEASURED]` `harness.tokenizer_name()` returns `chars/4 (heuristic)` on this
+host: `tiktoken` is not installed, so `daedalus.eval.harness` is running its
+documented degrade path (`harness.py:52-59`).
+
+Gate 3 requires frozen **budgets** and a **tokens** measure. A budget denominated
+in a chars/4 approximation is not comparable to one denominated in a real
+tokenizer, so this must be resolved (or explicitly declared in the frozen spec)
+before any budget-equal claim is made. `measures.token_usage` already records
+the tokenizer identity with every count so the two can never be silently mixed.
+
+### F3 — Real provider token usage is discarded before it reaches the harness
+
+`[MEASURED]` by reading `daedalus/eval/tier2.py` and its `_openai_compat`
+helper: the chat path returns only the message string and drops the provider's
+`usage` block. The single-LLM-loop arm therefore reports
+`notes["tokens_estimated"] = True` and counts locally rather than presenting an
+estimate as measured usage. Wiring real usage through is a separate change to
+`tier2.py`, outside this packet's scope.
+
+### F4 — Sealing has no mechanism, and this package must not pretend otherwise
+
+`RunManifest.sealed` is hard-wired `False`. Gate 3's first sentence requires a
+**sealed** harness before any baseline evidence counts, and sealing means an
+authenticated one-use `OwnerApproval` (plan §7.1) bound to the manifest digest
+and verified by the kernel. That binding does not exist here. Building a
+looser check would have re-created the forgery an independent reviewer already
+demonstrated. Wiring it is a prerequisite for Gate 3 and belongs to a packet
+that may touch `daedalus/kernel`.
+
+### F5 — Scope extension, recorded rather than done quietly
+
+This packet's §"Scope" forbids touching anything outside `daedalus/eval/gate3`,
+`tests/eval/gate3` and this document. Adding 24 modules necessarily moved two
+repository-wide census pins, so the following files were edited outside the
+declared scope:
+
+- `tests/contracts/test_import_scc_hierarchy.py` — `CENSUS_MODULES` 483 → 507,
+  `CENSUS_EDGES` 1926 → 1988. The non-trivial-component count stayed at **14**:
+  an earlier draft did add a 15th (a real import cycle via the package
+  `__init__`), which this test caught and which was fixed rather than re-pinned.
+- `tests/contracts/test_work_packet_index.py` — tracked files 427 → 428,
+  packet ids 361 → 362, and `G3-BASE-01` added to the expected primary set.
+- `docs/work-packets/index.json` — regenerated with `tools/index_work_packets.py
+  --render`.
+
+### F6 — What is NOT proven
+
+- No baseline has been run against the real corpus; only fixture repositories.
+- No arm has been compared against another. The harness can run a comparison;
+  nobody has.
+- `single_llm_loop` has never executed against a live provider.
+- The five retrieval/search arms that need non-code planes (`separate_indices`
+  in cross-plane mode, and any four-plane comparison) are blocked by F1.
+- Nothing here is Gate-3 baseline evidence, and cannot be until F4 is resolved.
