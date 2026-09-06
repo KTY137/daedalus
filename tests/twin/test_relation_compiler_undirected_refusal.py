@@ -123,7 +123,53 @@ def _cross_plane_fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
             "source_revision": REVISION,
         },
     )
-    return forest, _snapshot_with_complete_planes(forest, {"code", "type"})
+    planes = (
+        PlaneSnapshot(
+            plane="code",
+            source_revision=REVISION,
+            status="complete",
+            node_ids=("src/a.py",),
+            evidence_sha256s=(forest.content_sha256,),
+        ),
+        PlaneSnapshot(
+            plane="type",
+            source_revision=REVISION,
+            status="complete",
+            node_ids=("type:A",),
+            evidence_sha256s=(forest.content_sha256,),
+        ),
+        PlaneSnapshot(
+            plane="data",
+            source_revision=REVISION,
+            status="absent",
+            reason="test fixture has no data-plane nodes",
+        ),
+        PlaneSnapshot(
+            plane="knowledge",
+            source_revision=REVISION,
+            status="absent",
+            reason="test fixture has no knowledge-plane nodes",
+        ),
+    )
+    provenance = ContractProvenance(
+        origin="test.relation-compiler-undirected-refusal-cross-plane.snapshot",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        input_digests=(
+            forest.content_sha256,
+            *(plane.digest for plane in planes),
+        ),
+        trace_id="relation-compiler-undirected-refusal-cross-plane-manual",
+    )
+    snapshot = FourfoldSnapshot(
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        source_forest_sha256=forest.content_sha256,
+        planes=planes,
+        bindings=(),
+        provenance=provenance,
+    )
+    return forest, snapshot
 
 
 def test_discover_all_refuses_undirected_forest_edge_before_evidence_materialization(
