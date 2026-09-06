@@ -441,7 +441,7 @@ CENSUS_MODULES = 483  # re-measured 2026-09-05 after the stage-14 lanes (pcb_des
 # their integrations contribute a measured net +169 resolved imports.  The
 # equality below pins the complete graph's edge census; no tolerance was added
 # for the large staged change.
-# 1923 -> 1926 on final integrated head 7e52deaac4ca, measured against the
+# 1923 -> 1926 was measured on integrated head 7e52deaac4ca against the
 # pin-setting 1fac260a880d graph as +18 resolved edges and -15.  The complete
 # movement, rather than only its net +3, is:
 #
@@ -461,7 +461,11 @@ CENSUS_MODULES = 483  # re-measured 2026-09-05 after the stage-14 lanes (pcb_des
 # two deleted Twin modules, so the 483-module total is unchanged.  None of the
 # 33 moved edges enters a non-trivial component: count 14, maximum 19, exact
 # membership assertions and CURRENT_COMPONENTS_SHA256 remain unchanged.
-CENSUS_EDGES = 1926  # re-measured 2026-09-06 with the final module census above
+# GPU-44 final head 96efc51b559a adds four contract/value lines to
+# twin.relation_compiler but no Import node. A fresh graph measurement confirms
+# the entire tuple unchanged: 483 modules, 1926 edges, 14 components, maximum
+# 19, and the exact component digest above.
+CENSUS_EDGES = 1926  # re-confirmed 2026-09-06 on final GPU-44 integration head
 
 
 def _module_name(path: str) -> str:

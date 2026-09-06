@@ -4612,14 +4612,14 @@ is unchanged.
 ## Final integrated-kernel remeasurement (2026-09-06, Windows)
 
 The historical rows above remain revision-bound evidence.  On exact integrated
-head `7e52deaac4ca21064136d630fb108aa901d874bf`, the repository venv's CPython
+head `96efc51b559a521bf9b580c686b71704ebdc0279`, the repository venv's CPython
 3.12.13 ran the complete `probe_external_corpora.py` declaration twice.  The
 kernel row was identical across both runs apart from its root and wall-clock
 fields:
 
 | probe | final integrated corpus | measured result |
 | --- | --- | --- |
-| s02 `kernel` | 483 parsed files, 6,728 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; type-name resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `653bfb18c4a04cf9e111b9f902ae7799000cfac0e230c7cc1db08e66de1b48c8` |
+| s02 `kernel` | 483 parsed files, 6,728 functions | annotation-only 94.37%; full resolver 94.25%; marginal 8 functions / 0.1189 pp; 44,796 type-name sites, resolution 99.93%; verified internal 4,016 / 4,435 (90.55%); pin `d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930` |
 
 Relative to the exact v0.1.6 measurement source `b59b2628ad6e`, this is a net
 +10 files and +145 functions.  A direct source census decomposes that movement:
@@ -4632,3 +4632,13 @@ the new content pin records the integrated source rather than disguising that
 movement as a resolver improvement.  The fixture's 15.7895 pp contribution
 still exceeds the kernel's 0.1189 pp by more than two orders of magnitude, so
 the executable comparative claim remains unchanged.
+
+The GPU-44 merge changes four lines in `twin/relation_compiler.py` relative to
+first parent `e90002d37897`: it retains `forest_hyperedge_count`, validates and
+serializes it, and supplies the actual forest count.  It adds no function or
+import, but the field annotation contributes one resolved builtin type-name
+site (44,795 -> 44,796).  Consequently every displayed rate and count above
+except that raw site total is unchanged from the first-parent measurement,
+while the content-exact corpus digest correctly moves from
+`653bfb18c4a04cf9e111b9f902ae7799000cfac0e230c7cc1db08e66de1b48c8` to
+`d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930`.

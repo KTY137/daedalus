@@ -62,12 +62,12 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     """If this fails the kernel package moved; re-measure the write-up."""
     entry = row("kernel")
     assert entry["present"] is True
-    # Re-measured twice on final integrated Gate-1 head 7e52deaac4ca with
-    # CPython 3.12.13.  The digest binds the exact 483-file source corpus;
+    # Re-measured twice on final integrated Gate-1/GPU-44 head 96efc51b559a
+    # with CPython 3.12.13.  The digest binds the exact 483-file source corpus;
     # these figures are drift detectors, not claimed cross-version constants.
     assert entry["corpus_pin"] == {
         "files": 483,
-        "sha256": "653bfb18c4a04cf9e111b9f902ae7799000cfac0e230c7cc1db08e66de1b48c8",
+        "sha256": "d7f7f5b43f837b6822fab51eb3e86fed244e9d650ef807a7609fbdc6ae7b2930",
     }
     assert entry["functions"] == 6728
     assert entry["annotation_only_pct"] == 94.37  # the control
@@ -76,6 +76,9 @@ def test_kernel_row_is_the_retracted_headline_restated() -> None:
     assert entry["marginal_pp"] == 0.1189
     # Keep the newly visible repo-unverified bucket as negative evidence rather
     # than preserving the historical 100% result after the corpus moved.
+    # GPU-44's ``forest_hyperedge_count: int`` is the one additional builtin
+    # type-name site over the pre-merge 44,795-site measurement.
+    assert entry["type_name_sites"] == 44796
     assert entry["internal_named_only"] == 419
     assert entry["verified_share_of_internal_pct"] == 90.55
 
