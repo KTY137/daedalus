@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { NOT_BUILT } from './_app';
 
@@ -35,6 +36,14 @@ function blockUnexpectedReplay(counter: { calls: number }) {
     });
   };
 }
+
+test('shipping cockpit has no dormant blocking replay closure', () => {
+  const source = readFileSync(new URL('../src/cockpit/Conversation.tsx', import.meta.url), 'utf8');
+
+  expect(source, 'the shipping Cockpit reintroduced the blocking Ikarus adapter').not.toMatch(/\baskIkarus\s*\(/);
+  expect(source, 'the shipping Cockpit reintroduced the old backend-down replay branch').not.toMatch(/\bisBackendDown\s*\(/);
+  expect(source, 'the shipping Cockpit stopped using the terminal streaming adapter').toMatch(/\bstreamIkarus\s*\(/);
+});
 
 test('shipping cockpit keeps an interrupted stream terminal and never replays it with POST', async ({ page }) => {
   const replay = { calls: 0 };
