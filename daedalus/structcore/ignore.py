@@ -61,9 +61,21 @@ class _Rule:
     anchored: bool    # 'a/b' is repo-root-relative; 'b' matches at any depth
 
 
+#: The project-scope declaration inside ``.daedalusignore``. It is a DIRECTIVE,
+#: not a pattern: ``center: daedalus, tools`` names the roots that are this
+#: project, where every other line names something that is not. Before this was
+#: recognised the line fell through to ``_parse_line`` and became an anchored
+#: ignore pattern -- one that matched no path, so the declaration was inert and
+#: the stray rule sat in a last-match-wins list waiting for a path shaped like
+#: it.
+_CENTER_DIRECTIVE = "center:"
+
+
 def _parse_line(raw: str) -> _Rule | None:
     line = raw.rstrip("\n").rstrip()
     if not line or line.lstrip().startswith("#"):
+        return None
+    if line.lstrip().lower().startswith(_CENTER_DIRECTIVE):
         return None
     negated = line.startswith("!")
     if negated:
@@ -141,6 +153,36 @@ def load_ignore_rules(root) -> IgnoreRules:
         return IgnoreRules(rules=[], source="", fingerprint="")
     rules = [r for r in (_parse_line(ln) for ln in text.splitlines()) if r is not None]
     return IgnoreRules(rules=rules, source=str(path), fingerprint=_fingerprint(text))
+
+
+def load_declared_center(root) -> tuple[str, ...]:
+    """The ``center:`` roots declared in ``<root>/.daedalusignore``.
+
+    The weakest tier of the precedence the file's own comment states:
+
+        explicit argument  >  DAEDALUS_CENTER  >  center: in .daedalusignore
+
+    Multiple directives accumulate, and each may list several roots separated
+    by commas or whitespace, so the two shapes people actually write --
+    ``center: a, b`` and one line each -- both mean the same thing. A missing
+    or unreadable file declares nothing, which leaves the whole repository in
+    the core exactly as an unconfigured repo expects.
+    """
+    path = Path(root) / IGNORE_FILENAME
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ()
+    roots: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if not line.lower().startswith(_CENTER_DIRECTIVE):
+            continue
+        body = line[len(_CENTER_DIRECTIVE):]
+        roots.extend(part for part in body.replace(",", " ").split() if part)
+    return _norm_center(roots)
 
 
 def env_extra_patterns() -> list[str]:
@@ -293,7 +335,8 @@ def project_scope(root, center=None, extra_ignore=None) -> ProjectScope:
     which is the only way a shared repo file and a per-project override can
     coexist.
     """
-    chosen = _norm_center(center) if center else env_center()
+    chosen = _norm_center(center) if center else (
+        env_center() or load_declared_center(root))
     rules = effective_rules(root)
     extra = expand_presets(extra_ignore)
     if extra:
