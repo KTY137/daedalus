@@ -354,6 +354,41 @@ export function openEventStream(
   return es;
 }
 
+export interface IkarusCancellationReceipt {
+  request_id: string;
+  active: boolean;
+  newly_cancelled: boolean;
+  /** Exact owner release observed within the backend's bounded stop window. */
+  request_finished: boolean;
+}
+
+export interface IkarusCancellationPayload extends ApiEnvelope {
+  cancellation: IkarusCancellationReceipt;
+}
+
+export interface IkarusStreamHandle {
+  requestId: string;
+  /** Observation-only close, used after a terminal frame. */
+  close: () => void;
+  /** Request backend cancellation, then close browser observation. */
+  cancel: () => Promise<IkarusCancellationPayload>;
+}
+
+function newIkarusRequestId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `ikarus:${uuid}`;
+  // Correlation identity, not an auth token. A duplicate is still rejected by
+  // the server's exact live-owner registry.
+  return `ikarus:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 14)}`;
+}
+
+export function cancelIkarus(requestId: string) {
+  return request<IkarusCancellationPayload>('/api/ikarus/cancel', {
+    method: 'POST',
+    body: JSON.stringify({ request_id: requestId })
+  }, 3_000);
+}
+
 /**
  * Streaming twin of `askIkarus` — renders text as it is produced instead of
  * blocking on the whole reply. Same routing and the same `final` envelope, so
@@ -378,14 +413,15 @@ export function streamIkarus(
   model: string | undefined,
   effort: EffortLevel | undefined,
   handlers: {
-    onStart?: (data: { intent?: string; provider_used?: string }) => void;
+    onStart?: (data: { intent?: string; provider_used?: string; request_id?: string }) => void;
     onDelta: (text: string) => void;
     onFinal: (payload: IkarusAskPayload) => void;
     onError: (err: Error) => void;
   },
   conversationId?: string
-): { close: () => void } {
-  const qs = new URLSearchParams({ project, message });
+): IkarusStreamHandle {
+  const requestId = newIkarusRequestId();
+  const qs = new URLSearchParams({ project, message, request_id: requestId });
   if (provider) qs.set('provider', provider);
   if (model && model.trim()) qs.set('model', model.trim());
   if (effort) qs.set('effort', effort);
@@ -398,6 +434,7 @@ export function streamIkarus(
   // One-shot guard: `final` and `error` can both fire, and a closed EventSource
   // must not be closed (or reported) twice.
   let done = false;
+  let cancelPromise: Promise<IkarusCancellationPayload> | null = null;
   let streamedText = '';
   let observedProvider = provider || '';
   const settle = (fn?: () => void) => {
@@ -422,7 +459,7 @@ export function streamIkarus(
 
   es.addEventListener('start', (event) => {
     try {
-      const data = JSON.parse((event as MessageEvent).data) as { intent?: string; provider_used?: string };
+      const data = JSON.parse((event as MessageEvent).data) as { intent?: string; provider_used?: string; request_id?: string };
       if (typeof data.provider_used === 'string') observedProvider = data.provider_used;
       handlers.onStart?.(data);
     } catch { /* a malformed start frame is not worth failing the turn over */ }
@@ -459,7 +496,17 @@ export function streamIkarus(
     'Der Antwortstream endete ohne eine vollständige Antwort. Die Anfrage wurde nicht automatisch wiederholt.'
   )));
 
-  return { close: () => settle() };
+  return {
+    requestId,
+    close: () => settle(),
+    cancel: () => {
+      // Start the mutation before closing EventSource. Closing observation
+      // is not itself a backend stop signal. Repeated calls share one POST.
+      if (!cancelPromise) cancelPromise = cancelIkarus(requestId);
+      settle();
+      return cancelPromise;
+    }
+  };
 }
 
 export function updateAutonomy(project: string, patch: Record<string, unknown>) {

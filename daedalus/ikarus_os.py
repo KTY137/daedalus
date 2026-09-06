@@ -90,9 +90,10 @@ from pathlib import Path
 
 from . import core, ikarus_act
 from .ikarus_act import ActDecision
-from .projects import resolve_repo_root
-from .providers._openai_compat import chat_completion
+from .ikarus_cancellation import CancellationSignal
 from .llm_client import IkarusLLMClient
+from .projects import resolve_repo_root
+from .providers._openai_compat import ProviderCancelled, chat_completion
 
 SYSTEM = (
     "You are Ikarus, the assistant inside the Daedalus Agent OS — a local, "
@@ -1352,7 +1353,8 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
 # --------------------------------------------------------------------------- #
 def ask_stream(project: str, message: str, provider: str | None = None,
                model: str | None = None, effort: str | None = None,
-               conversation_id: str | None = None):
+               conversation_id: str | None = None, *,
+               cancellation: CancellationSignal | None = None):
     """Streaming twin of :func:`ask`, including its ``conversation_id`` opt-in.
 
     A thin tap around :func:`_ask_stream_inner`: every event is passed through
@@ -1361,8 +1363,9 @@ def ask_stream(project: str, message: str, provider: str | None = None,
     turn is persisted exactly like the blocking :func:`ask` does — one
     persistence code path for both entry points, via :func:`_persist_turn`.
     """
-    for event, payload in _ask_stream_inner(project, message, provider, model, effort,
-                                            conversation_id=conversation_id):
+    for event, payload in _ask_stream_inner(
+            project, message, provider, model, effort,
+            conversation_id=conversation_id, cancellation=cancellation):
         if event == "final" and conversation_id:
             _persist_turn(conversation_id, project, message, provider, payload)
         yield event, payload
@@ -1397,9 +1400,41 @@ def _reconcile_final(started: str, envelope: dict) -> dict:
     return envelope
 
 
+def _cancelled_stream_final(
+    project: str,
+    provider: str,
+    model_used: str | None,
+    ctx: _Ctx,
+    chunks: list[str],
+    cancellation: CancellationSignal | None,
+) -> dict:
+    """One known-stop final: terminal, non-replayed, and honest about evidence.
+
+    This says only that the canonical live request signal was cancelled. Owner
+    release is proven later by ``CancellationRegistry.cancel_and_wait`` and OS
+    child termination needs its own subprocess receipt; neither is invented here.
+    """
+    block = _ctx_envelope_block(ctx)
+    extra = {"context": block} if block else {}
+    request_id = cancellation.request_id if cancellation is not None else None
+    return core.envelope(
+        project,
+        intent="chat",
+        shell=SHELL_VOICE,
+        assistant=("".join(chunks).strip() or
+                   "Stopped by request. The turn was not automatically retried."),
+        provider_used=provider,
+        model_used=model_used,
+        cancelled=True,
+        cancellation_request_id=request_id,
+        **extra,
+    )
+
+
 def _ask_stream_inner(project: str, message: str, provider: str | None = None,
                       model: str | None = None, effort: str | None = None, *,
-                      conversation_id: str | None = None):
+                      conversation_id: str | None = None,
+                      cancellation: CancellationSignal | None = None):
     """Streaming twin of :func:`_ask_inner`. Yields ``(event, payload)`` tuples:
 
       ``("start", {...})``  once, before any text
@@ -1436,6 +1471,12 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
     start+final instead of raised, because a generator that raises on its first
     ``next()`` is not something the SSE surface can render.
     """
+    # Exact type at the outer runtime boundary: a duck-typed cancellation
+    # object is executable code (its `cancelled` attribute can run anything).
+    # Reject it before provider selection, context construction, or effects.
+    if cancellation is not None and type(cancellation) is not CancellationSignal:
+        raise TypeError("cancellation must be an exact CancellationSignal")
+
     from .budget import process_guard_boundary_decision
     from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
@@ -1500,7 +1541,9 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
 
         model_used = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
         ctx = _project_context(project, message, lane=_local_lane())
-        streamer = _ollama_stream(message, model_used, effort, _merge_model_context(history, ctx.text), timeout_s=selection.timeout_s)
+        streamer = _ollama_stream(
+            message, model_used, effort, _merge_model_context(history, ctx.text),
+            timeout_s=selection.timeout_s, cancellation=cancellation)
     elif p in _CLAUDE:
         model_used = model or "claude"
         ctx = _project_context(project, message, lane="trusted")
@@ -1510,7 +1553,9 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
 
         model_used = model or os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL)
         ctx = _project_context(project, message, lane="untrusted")
-        streamer = _deepseek_stream(message, model_used, effort, _merge_model_context(history, ctx.text), timeout_s=selection.timeout_s)
+        streamer = _deepseek_stream(
+            message, model_used, effort, _merge_model_context(history, ctx.text),
+            timeout_s=selection.timeout_s, cancellation=cancellation)
     # Codex CLI has no verified streaming JSON frame format (unlike Claude's,
     # confirmed against 2.1.201 -- see _claude_stream's comment), so an
     # unverified parser here risks yielding garbled deltas. It deliberately
@@ -1526,6 +1571,12 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
                     "provider_used": p or "unavailable",
                     "model_used": model_used,
                     "auto_selected": selection.auto_selected}
+
+    if cancellation is not None and cancellation.cancelled():
+        yield "final", _reconcile_final(
+            route, _cancelled_stream_final(
+                project, p or "unavailable", model_used, ctx, [], cancellation))
+        return
 
     if streamer is None:
         # Codex currently has no verified token-frame parser; use the same
@@ -1543,6 +1594,13 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             if piece:
                 chunks.append(piece)
                 yield "delta", {"text": piece}
+    except ProviderCancelled:
+        # A known stop is neither a provider failure nor an uncertain stream.
+        # Never replay it through the blocking path.
+        yield "final", _reconcile_final(
+            route, _cancelled_stream_final(
+                project, p, model_used, ctx, chunks, cancellation))
+        return
     except ProviderStartRefused as exc:
         # The transport boundary refused on the generator's FIRST step, before
         # any request object existed — so no delta was ever produced and there
@@ -1555,6 +1613,12 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         # The request may already have reached the provider.  Preserve an
         # interrupted outcome below instead of issuing an invisible second call.
         failed = True
+
+    if cancellation is not None and cancellation.cancelled():
+        yield "final", _reconcile_final(
+            route, _cancelled_stream_final(
+                project, p, model_used, ctx, chunks, cancellation))
+        return
 
     text = "".join(chunks).strip()
     if failed and text:
@@ -1587,7 +1651,9 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
         provider_used=p, model_used=model_used, **extra))
 
 
-def _ollama_stream(message: str, model: str, effort: str | None, context: str = "", *, timeout_s: float = 150.0):
+def _ollama_stream(message: str, model: str, effort: str | None, context: str = "", *,
+                   timeout_s: float = 150.0,
+                   cancellation: CancellationSignal | None = None):
     """Yield Ollama deltas from one guarded native ``/api/chat`` transport.
 
     ``keep_alive`` is part of this same request.  Closing the generator closes
@@ -1598,6 +1664,8 @@ def _ollama_stream(message: str, model: str, effort: str | None, context: str = 
     from .providers.ollama import DEFAULT_HOST, keep_alive_value
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+    if cancellation is not None and cancellation.cancelled():
+        raise ProviderCancelled("cancelled before Ikarus opened the Ollama stream")
     _provider_start("ollama", endpoint=host, model=model)
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
     yield from native_chat_stream(
@@ -1606,10 +1674,13 @@ def _ollama_stream(message: str, model: str, effort: str | None, context: str = 
                   {"role": "user", "content": _with_context(message, context)}],
         keep_alive=keep_alive_value(), num_predict=_effort_cap(effort),
         temperature=0.3, timeout_s=timeout_s,
+        cancelled=(cancellation.cancelled if cancellation is not None else None),
     )
 
 
-def _deepseek_stream(message: str, model: str, effort: str | None, context: str = "", *, timeout_s: float = 150.0):
+def _deepseek_stream(message: str, model: str, effort: str | None, context: str = "", *,
+                     timeout_s: float = 150.0,
+                     cancellation: CancellationSignal | None = None):
     """Yield text deltas from the DeepSeek API. Same OpenAI-compatible
     streaming client Ollama's stream uses (``chat_stream``); only
     base_url/api_key differ -- no new HTTP client."""
@@ -1618,12 +1689,15 @@ def _deepseek_stream(message: str, model: str, effort: str | None, context: str 
 
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
+    if cancellation is not None and cancellation.cancelled():
+        raise ProviderCancelled("cancelled before Ikarus opened the DeepSeek stream")
     _provider_start("deepseek", endpoint=base_url, model=model)
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
     yield from chat_stream(
         base_url=base_url, model=model, system=system, user=_with_context(message, context),
         api_key=api_key, temperature=0.3, timeout_s=timeout_s,
         extra={"max_tokens": _effort_cap(effort)},
+        cancelled=(cancellation.cancelled if cancellation is not None else None),
     )
 
 

@@ -20,6 +20,7 @@ STOP_SEAM_PATHS = (
     "daedalus/providers/_ollama_native.py",
     "tests/test_ikarus_cancellation.py",
     "tests/test_ikarus_stream.py",
+    "tests/test_ikarus_http_cancellation.py",
     "tests/test_ikarus_stop_gate_paths.py",
 )
 
@@ -39,15 +40,24 @@ def test_backend_stream_surface_is_compiled_in_focused_jobs() -> None:
     compile_start = text.index("python -m py_compile")
     compile_end = text.index("- run: python -m json.tool", compile_start)
     compile_block = text[compile_start:compile_end]
-    assert "daedalus/web_api.py" in compile_block
-    assert "daedalus/ikarus_cancellation.py" in compile_block
-    assert "tests/test_ikarus_cancellation.py" in compile_block
-    assert "tests/test_ikarus_stop_gate_paths.py" in compile_block
+    for path in (
+        "daedalus/web_api.py",
+        "daedalus/ikarus_cancellation.py",
+        "tests/test_ikarus_cancellation.py",
+        "tests/test_ikarus_http_cancellation.py",
+        "tests/test_ikarus_stop_gate_paths.py",
+    ):
+        assert path in compile_block
 
 
-def test_gate_path_contract_test_runs_in_focused_matrix() -> None:
+def test_stop_contract_tests_run_in_focused_matrix() -> None:
     text = _workflow_text()
     pytest_start = text.index("python -m pytest -q -p no:cacheprovider")
     pytest_block = text[pytest_start:]
-    assert "tests/test_ikarus_cancellation.py" in pytest_block
-    assert "tests/test_ikarus_stop_gate_paths.py" in pytest_block
+    for path in (
+        "tests/test_ikarus_cancellation.py",
+        "tests/test_ikarus_stream.py",
+        "tests/test_ikarus_http_cancellation.py",
+        "tests/test_ikarus_stop_gate_paths.py",
+    ):
+        assert path in pytest_block

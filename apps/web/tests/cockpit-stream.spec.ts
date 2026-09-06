@@ -89,3 +89,80 @@ test('shipping cockpit keeps an interrupted stream terminal and never replays it
   await page.waitForTimeout(750);
   expect(replay.calls, 'an interrupted SSE turn was replayed through /api/ikarus/ask').toBe(0);
 });
+
+
+test('shipping Stop cancels the exact SSE request and only claims completion from evidence', async ({ page }) => {
+  const replay = { calls: 0 };
+  let cancelBody: { request_id?: string } | undefined;
+
+  await page.addInitScript(() => {
+    (window as unknown as { __ikarusSseUrls: string[] }).__ikarusSseUrls = [];
+    class HeldEventSource {
+      url: string;
+      onerror: ((event: Event) => unknown) | null = null;
+      constructor(url: string | URL) {
+        this.url = String(url);
+        (window as unknown as { __ikarusSseUrls: string[] }).__ikarusSseUrls.push(this.url);
+      }
+      addEventListener() { /* intentionally held open until the UI cancels */ }
+      close() { /* observation closed; the POST is the backend stop */ }
+    }
+    Object.defineProperty(window, 'EventSource', { value: HeldEventSource, configurable: true });
+  });
+
+  await page.route('**/api/ikarus/ask', blockUnexpectedReplay(replay));
+  await page.route('**/api/conversations', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, conversation_id: 'conv_20260906T230000Z_stopbeef' })
+    });
+  });
+  await page.route('**/api/runtimes/status', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, runtimes: [] }) });
+  });
+  await page.route('**/api/ikarus/cancel', async (route) => {
+    cancelBody = route.request().postDataJSON() as { request_id?: string };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        generated_at: '2026-09-06T21:00:00Z',
+        project: null,
+        warnings: [],
+        cancellation: {
+          request_id: cancelBody.request_id,
+          active: true,
+          newly_cancelled: true,
+          request_finished: true
+        }
+      })
+    });
+  });
+
+  await openCockpit(page);
+  await page.getByLabel('Nachricht an Ikarus').fill('keep working until I stop you');
+  await page.getByRole('button', { name: 'Senden' }).click();
+  const stop = page.getByRole('button', { name: 'Antwort stoppen' });
+  await expect(stop).toBeVisible({ timeout: 10_000 });
+  await stop.click();
+
+  await expect.poll(() => cancelBody?.request_id || '').not.toBe('');
+  const streamUrl = await page.evaluate(() => {
+    const urls = (window as unknown as { __ikarusSseUrls: string[] }).__ikarusSseUrls;
+    return [...urls].reverse().find((url) => url.includes('/api/ikarus/stream?')) || '';
+  });
+  const streamedRequestId = new URL(streamUrl, 'http://localhost').searchParams.get('request_id');
+  expect(streamedRequestId).toBeTruthy();
+  expect(cancelBody?.request_id).toBe(streamedRequestId);
+
+  await expect(page.getByText('ABGEBROCHEN', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('STOP ANGEFORDERT', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('STOP UNBESTÄTIGT', { exact: true })).toHaveCount(0);
+  expect(replay.calls, 'Stop must never replay the turn through /api/ikarus/ask').toBe(0);
+});

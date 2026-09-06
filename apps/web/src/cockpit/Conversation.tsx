@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { getConversation, getRuntimeStatus, newConversation, queueTask, streamIkarus } from '../api';
+import { getConversation, getRuntimeStatus, newConversation, queueTask, streamIkarus, type IkarusStreamHandle } from '../api';
 import type { IkarusAskAction, IkarusAskPayload, RuntimeRow } from '../types';
 import {
   armVariants,
@@ -56,8 +56,12 @@ export interface Turn {
    * cause, as the citations below.
    */
   origin?: TurnOrigin;
-  /** the reader stopped this turn before the backend reported anything */
+  /** the reader requested stop before the backend reported a terminal frame */
   halted?: boolean;
+  /** Stop-request evidence: requested != exact-owner release. */
+  stopState?: 'requested' | 'finished' | 'unproven';
+  /** Correlates an asynchronous stop receipt to this exact visible turn. */
+  stopRequestId?: string;
   /**
    * How long this answer took, measured in this browser. Absent means NOT
    * MEASURED — a resumed turn carries no duration, because the store does not
@@ -656,7 +660,7 @@ export function Conversation({
    * read starts at rest. Only turns appended after that arrive.
    */
   const freshFrom = useRef(0);
-  const stream = useRef<{ close: () => void } | null>(null);
+  const stream = useRef<IkarusStreamHandle | null>(null);
   const autonomyRef = useRef(autonomy);
   autonomyRef.current = autonomy;
   /* `settle` must not be rebuilt every time the project string changes — it is
@@ -696,7 +700,11 @@ export function Conversation({
     if (!busy) composer.current?.focus();
   }, [busy, project]);
 
-  useEffect(() => () => stream.current?.close(), []);
+  useEffect(() => () => {
+    const active = stream.current;
+    stream.current = null;
+    if (active) void active.cancel().catch(() => undefined);
+  }, []);
 
   /**
    * WHO CAN ANSWER — and this request is itself slow enough to fail.
@@ -928,9 +936,11 @@ export function Conversation({
    * does. `settle()` in api.ts guarantees exactly one close.
    */
   const stop = useCallback(() => {
-    stream.current?.close();
+    const active = stream.current;
     stream.current = null;
     setBusy(false);
+    if (!active) return;
+
     setTurns((prev) => {
       const next = [...prev];
       const last = next[next.length - 1];
@@ -939,10 +949,29 @@ export function Conversation({
           ...last,
           streaming: false,
           halted: true,
-          text: last.text || 'Abgebrochen, bevor eine Antwort kam.'
+          stopState: 'requested',
+          stopRequestId: active.requestId,
+          text: last.text || 'Stop angefordert, bevor eine Antwort kam.'
         };
       }
       return next;
+    });
+
+    void active.cancel().then((payload) => {
+      const finished = Boolean(payload.cancellation?.active && payload.cancellation?.request_finished);
+      setTurns((prev) => prev.map((turn) =>
+        turn.stopRequestId === active.requestId
+          ? { ...turn, stopState: finished ? 'finished' : 'unproven' }
+          : turn
+      ));
+    }).catch(() => {
+      // Transport failure is not evidence that backend cancellation failed OR
+      // succeeded. Keep that uncertainty visible instead of saying stopped.
+      setTurns((prev) => prev.map((turn) =>
+        turn.stopRequestId === active.requestId
+          ? { ...turn, stopState: 'unproven' }
+          : turn
+      ));
     });
   }, []);
 
@@ -1004,7 +1033,10 @@ export function Conversation({
         // Interruption is terminal inside streamIkarus. The Cockpit therefore
         // has no blocking replay path that could duplicate a provider call,
         // spend, or a remotely completed action after an uncertain delivery.
-        onFinal: (payload) => settle(payload, threadId),
+        onFinal: (payload) => {
+          stream.current = null;
+          settle(payload, threadId);
+        },
         onError: () => undefined
       },
       threadId || undefined
@@ -1038,7 +1070,14 @@ export function Conversation({
       turns.map((t) => {
         if (t.role !== 'ikarus') return { stamp: undefined, cites: [] as Citation[] };
         const stamp: Stamp | undefined = t.halted
-          ? { word: 'ABGEBROCHEN', kind: 'failed' }
+          ? {
+              word: t.stopState === 'finished'
+                ? 'ABGEBROCHEN'
+                : t.stopState === 'unproven'
+                  ? 'STOP UNBESTÄTIGT'
+                  : 'STOP ANGEFORDERT',
+              kind: 'failed'
+            }
           : t.origin
             ? stampFor(t.origin, labelOf)
             : undefined;

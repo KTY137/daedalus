@@ -11,9 +11,10 @@ import unittest
 from unittest import mock
 
 from daedalus import ikarus_os
+from daedalus.ikarus_cancellation import CancellationSignal
 from daedalus.providers import _ollama_native as native_mod
 from daedalus.providers import ollama as ollama_mod
-from daedalus.providers._openai_compat import ProviderHTTPError, chat_stream
+from daedalus.providers._openai_compat import ProviderCancelled, ProviderHTTPError, chat_stream
 
 
 def _sse(chunks):
@@ -361,3 +362,63 @@ class NonStreamingUnchangedTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IkarusCancellationWiringTest(unittest.TestCase):
+    PROJECT = "sunny_garden"
+
+    def test_exact_signal_reaches_native_ollama_transport(self):
+        signal = CancellationSignal("request-ollama-probe-001")
+        with mock.patch.object(ikarus_os, "_provider_start"), \
+             mock.patch("daedalus.providers._ollama_native.native_chat_stream",
+                        return_value=iter([])) as transport:
+            list(ikarus_os._ollama_stream(
+                "hello", "m7", "low", cancellation=signal))
+        probe = transport.call_args.kwargs["cancelled"]
+        self.assertFalse(probe())
+        signal.cancel()
+        self.assertTrue(probe())
+
+    def test_precancel_refuses_before_ollama_effect_start(self):
+        signal = CancellationSignal("request-ollama-precancel-001")
+        signal.cancel()
+        with mock.patch.object(ikarus_os, "_provider_start") as start, \
+             mock.patch("daedalus.providers._ollama_native.native_chat_stream") as transport:
+            events = list(ikarus_os.ask_stream(
+                self.PROJECT, "hello there", provider="ollama", cancellation=signal))
+        start.assert_not_called()
+        transport.assert_not_called()
+        final = events[-1][1]
+        self.assertTrue(final["cancelled"])
+        self.assertEqual(final["cancellation_request_id"], signal.request_id)
+        self.assertNotIn("stream_interrupted", final)
+
+    def test_provider_cancel_is_terminal_and_never_blocking_replayed(self):
+        signal = CancellationSignal("request-midstream-cancel-001")
+
+        def cancelled_stream():
+            yield "partial"
+            signal.cancel()
+            raise ProviderCancelled("stop")
+
+        with mock.patch.object(ikarus_os, "_ollama_stream",
+                               return_value=cancelled_stream()), \
+             mock.patch.object(ikarus_os, "_chat") as blocking:
+            events = list(ikarus_os.ask_stream(
+                self.PROJECT, "hello there", provider="ollama", cancellation=signal))
+        blocking.assert_not_called()
+        final = events[-1][1]
+        self.assertEqual(final["assistant"], "partial")
+        self.assertTrue(final["cancelled"])
+        self.assertEqual(final["cancellation_request_id"], signal.request_id)
+        self.assertNotIn("stream_interrupted", final)
+
+    def test_duck_typed_signal_is_refused_before_provider_selection(self):
+        class DuckSignal:
+            def cancelled(self):
+                raise AssertionError("duck callback executed")
+
+        with self.assertRaisesRegex(TypeError, "exact CancellationSignal"):
+            list(ikarus_os.ask_stream(
+                self.PROJECT, "hello there", provider="ollama",
+                cancellation=DuckSignal()))

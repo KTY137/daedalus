@@ -7,6 +7,7 @@ import json
 import mimetypes
 import os
 import re
+import secrets
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -21,6 +22,7 @@ from . import (
     control_plane,
     core,
     hierarchy,
+    ikarus_cancellation,
     ikarus_chat,
     runtime_registry,
 )
@@ -1074,38 +1076,18 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             return
 
     def _handle_ikarus_stream(self, qs: dict) -> None:
-        """Server-Sent Events: one Ikarus chat turn, streamed token-by-token so
-        the cockpit renders text as it is produced instead of blocking on the
-        whole reply (the CLI cold start + full inference used to land at once).
+        """Serve one cancellable Ikarus turn over one-shot SSE.
 
-        GET because EventSource only speaks GET. Same framing as /api/events,
-        but this is a ONE-SHOT stream, not an open-ended feed, so it differs in
-        one deliberate way: it sends ``Connection: close`` and drops the socket
-        after ``final``. Without that the keep-alive socket lingers and the
-        client hangs waiting for a turn that already ended.
+        ``request_id`` is the correlation identity shared by the browser,
+        process-local cancellation registry, Ikarus router and provider probe.
+        Older callers that omit it receive a server-minted id in ``start``;
+        shipping Cockpit callers mint it first so their Stop mutation can name
+        the exact live owner. A duplicate active id fails before SSE headers.
 
-        CLIENT CONTRACT: an EventSource AUTO-RECONNECTS when the server closes,
-        which here would re-run the whole chat turn (and re-spend). The consumer
-        MUST call ``es.close()`` when it receives ``final`` (or ``error``).
-
-        Additive — POST /api/ikarus/ask is unchanged and still the right call
-        for non-streaming clients.
-
-        Two more additive, opt-in wires, both able to fail silently into the
-        plain unwired stream rather than take the chat down:
-
-          ``conversation_id`` (query param) is passed straight through to
-          ``ikarus_os.ask_stream`` -- see daedalus/conversation.py. Omitted,
-          this endpoint is byte-for-byte what it was before that module
-          landed.
-
-          A ``daedalus.progress`` unit is opened for this turn and the
-          stream is tee'd through ``progress_sources.watch_stream`` so a
-          SEPARATE caller can poll ``GET /api/progress/<id>`` and see
-          claimed/generating/done for THIS generation while it runs -- the
-          id rides on the ``start`` event as ``progress_unit_id``. Best-
-          effort: if opening a unit fails, the stream runs exactly as it did
-          before this existed.
+        Disconnect is not terminal evidence, but it is a stop signal: once a
+        write proves the client is gone, the exact signal is cancelled and the
+        generator is closed before owner release. Normal completion releases the
+        same signal without fabricating cancellation.
         """
         project = (qs.get("project") or [""])[0]
         message = (qs.get("message") or [""])[0].strip()
@@ -1116,63 +1098,91 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         model = (qs.get("model") or [""])[0] or None
         effort = (qs.get("effort") or [""])[0] or None
         conversation_id = (qs.get("conversation_id") or [""])[0] or None
+        request_id = ((qs.get("request_id") or [""])[0].strip()
+                      or f"ikarus:{secrets.token_hex(16)}")
 
-        unit_id: str | None = None
+        registry = ikarus_cancellation.default_registry()
         try:
-            from . import progress as progress_mod
-
-            unit_id = progress_mod.open_unit(
-                source="web_api.ikarus_stream",
-                detail={"project": project, "message_chars": len(message)})
-        except Exception:
-            unit_id = None  # progress tracking is best-effort; the chat is not
-
-        self.close_connection = True  # one-shot: do not hold the socket open
+            registry.validate_request_id(request_id)
+        except ikarus_cancellation.CancellationRegistrationError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=400)
+            return
         try:
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "close")
-            self.send_header("X-Accel-Buffering", "no")
-            self.end_headers()
-        except OSError:
+            cancellation = registry.open(request_id)
+        except ikarus_cancellation.CancellationRegistrationError as exc:
+            self._send_json({"ok": False, "error": str(exc)}, status=409)
             return
 
-        def emit(event: str, data: Any) -> None:
-            msg = f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
-            self.wfile.write(msg.encode("utf-8"))
-            self.wfile.flush()
-
+        stream = None
         try:
-            stream = ikarus_os.ask_stream(
-                project, message, provider=provider, model=model, effort=effort,
-                conversation_id=conversation_id,
-            )
-            if unit_id:
-                from . import progress_sources
-
-                # Transparent tee (see that function's own docstring): every
-                # item passes through UNCHANGED, in the same order; recording
-                # is a side effect only, and a bug in it cannot alter what
-                # this loop sees, only what a separate GET /api/progress/<id>
-                # caller can observe about it meanwhile.
-                stream = progress_sources.watch_stream(
-                    unit_id, stream, source="web_api.ikarus_stream")
-            for event, payload in stream:
-                if event == "start" and unit_id:
-                    payload = {**payload, "progress_unit_id": unit_id}
-                emit(event, payload)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            return  # client navigated away mid-stream
-        except Exception as exc:
-            # Fail closed into a well-formed chat envelope: the UI shows a reply,
-            # never a broken stream.
+            unit_id: str | None = None
             try:
-                emit("final", core.envelope(project, intent="error",
-                                            assistant=f"I hit a snag: {exc}",
-                                            provider_used="deterministic"))
-            except (BrokenPipeError, ConnectionResetError, OSError):
+                from . import progress as progress_mod
+
+                unit_id = progress_mod.open_unit(
+                    source="web_api.ikarus_stream",
+                    detail={"project": project, "message_chars": len(message),
+                            "request_id": request_id})
+            except Exception:
+                unit_id = None  # progress tracking is best-effort; chat is not
+
+            self.close_connection = True
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "close")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+            except OSError:
                 return
+
+            def emit(event: str, data: Any) -> None:
+                msg = f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+                self.wfile.write(msg.encode("utf-8"))
+                self.wfile.flush()
+
+            try:
+                stream = ikarus_os.ask_stream(
+                    project, message, provider=provider, model=model, effort=effort,
+                    conversation_id=conversation_id, cancellation=cancellation,
+                )
+                if unit_id:
+                    from . import progress_sources
+
+                    stream = progress_sources.watch_stream(
+                        unit_id, stream, source="web_api.ikarus_stream")
+                for event, payload in stream:
+                    if event == "start":
+                        payload = {**payload, "request_id": request_id}
+                        if unit_id:
+                            payload["progress_unit_id"] = unit_id
+                    emit(event, payload)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                # This is evidence only that the observer disappeared. Request
+                # stop, then let provider/owner evidence say what actually ended.
+                cancellation.cancel()
+                return
+            except Exception as exc:
+                try:
+                    emit("final", core.envelope(
+                        project, intent="error",
+                        assistant=f"I hit a snag: {exc}",
+                        provider_used="deterministic",
+                        cancellation_request_id=request_id,
+                    ))
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    cancellation.cancel()
+                    return
+        finally:
+            if stream is not None:
+                try:
+                    close = getattr(stream, "close", None)
+                    if callable(close):
+                        close()
+                except Exception:
+                    pass
+            registry.release(cancellation)
 
     def _handle_task_events(self, task_id: str) -> None:
         """Server-Sent Events: progress of ONE task, addressed by the id
@@ -1762,6 +1772,23 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             from . import conversation as conv
 
             self._send_json(core.envelope(None, conversation_id=conv.new_conversation_id()))
+            return
+        if path == "/api/ikarus/cancel":
+            request_id = str(body.get("request_id") or "").strip()
+            if not request_id:
+                self._send_json({"ok": False, "error": "request_id is required"}, status=400)
+                return
+            try:
+                # 250 ms is an observation budget, not a work deadline. The
+                # receipt stays request_finished=false when owner release is not
+                # observed in that window instead of rounding "requested" up to
+                # "stopped".
+                receipt = ikarus_cancellation.default_registry().cancel_and_wait(
+                    request_id, timeout_s=0.25)
+            except (ikarus_cancellation.CancellationRegistrationError, ValueError) as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            self._send_json(core.envelope(None, cancellation=receipt.to_dict()))
             return
         if path == "/api/ikarus/chat":
             project = str(body.get("project") or "")

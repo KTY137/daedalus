@@ -199,6 +199,10 @@ export interface IkarusAskPayload {
   delivery_mode: IkarusDeliveryMode;
   /** True means the text may be partial and no action affordance is safe. */
   stream_interrupted: boolean;
+  /** Known cancellation is distinct from an uncertain transport failure. */
+  cancelled?: boolean;
+  /** Opaque correlation id for the exact live cancellation owner. */
+  cancellation_request_id?: string;
 }
 
 /* ---- Live event stream (SSE): GET /api/events?project=<name> ---- */
