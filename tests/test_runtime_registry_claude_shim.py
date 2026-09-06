@@ -7,6 +7,7 @@ import pytest
 
 import daedalus.orchestration.runtime_registry as registry
 import daedalus.providers as providers
+import daedalus.providers.claude_cli as claude_provider
 
 
 def test_shared_claude_spawn_admission_accepts_native_and_posix() -> None:
@@ -88,42 +89,28 @@ def test_codex_batch_probe_policy_is_not_changed_by_claude_guard(
     run.assert_called_once()
 
 
-def test_claude_provider_probe_reuses_canonical_runtime_readiness() -> None:
-    row = {
-        "id": "claude_code_cli",
-        "available": True,
-        "last_error": "",
-        "measured_at": "2026-09-06T00:00:00Z",
-        "measured_age_s": 0.0,
-    }
-    with (
-        mock.patch.object(registry, "cached_runtime_status", return_value=row) as readiness,
-        mock.patch.object(providers, "get_provider") as provider_factory,
-    ):
+def test_claude_provider_probe_reuses_canonical_executable_admission() -> None:
+    with mock.patch.object(
+        claude_provider,
+        "claude_command_for_spawn",
+        return_value=r"C:\tools\claude.exe",
+    ) as admission:
         available, error = providers._availability_probe("claude_cli")
 
     assert available is True
     assert error == ""
-    readiness.assert_called_once_with("claude_code_cli")
-    provider_factory.assert_not_called()
+    admission.assert_called_once_with()
 
 
 def test_claude_provider_probe_preserves_runtime_admission_refusal() -> None:
     refusal = "Claude execution refused: Windows .cmd/.bat launchers reparse argv"
-    row = {
-        "id": "claude_code_cli",
-        "available": False,
-        "last_error": refusal,
-        "measured_at": "2026-09-06T00:00:00Z",
-        "measured_age_s": 0.0,
-    }
-    with (
-        mock.patch.object(registry, "cached_runtime_status", return_value=row) as readiness,
-        mock.patch.object(providers, "get_provider") as provider_factory,
-    ):
+    with mock.patch.object(
+        claude_provider,
+        "claude_command_for_spawn",
+        side_effect=RuntimeError(refusal),
+    ) as admission:
         available, error = providers._availability_probe("claude_cli")
 
     assert available is False
     assert error == refusal
-    readiness.assert_called_once_with("claude_code_cli")
-    provider_factory.assert_not_called()
+    admission.assert_called_once_with()

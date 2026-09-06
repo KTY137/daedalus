@@ -25,10 +25,7 @@ from typing import Any, Mapping
 from ..kernel.effects import EffectExecutionRequest
 from ..kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from ..limit_policy import ExecutionLimitPolicy
-from ..orchestration.runtime_registry import (
-    cached_runtime_status,
-    claude_command_for_spawn,
-)
+from ..orchestration.runtime_registry import claude_command_for_spawn
 from ..primary_tree import assert_write_allowed
 from ..runtimes.broker import RuntimeInvocationResult, run_runtime_provider
 from ..runtimes.contracts.claude import (
@@ -353,7 +350,8 @@ class ClaudeCLIProvider(Provider):
     )
 
     def available(self) -> bool:
-        return bool(cached_runtime_status(RUNTIME_ID).get("available"))
+        claude_command_for_spawn()
+        return True
 
     def run(
         self,
