@@ -23,6 +23,7 @@ on:
       - "daedalus/llm_client.py"
       - "daedalus/progress_sources.py"
       - "daedalus/runtime_registry.py"
+      - "daedalus/providers/__init__.py"
       - "daedalus/providers/_ollama_native.py"
       - "daedalus/providers/claude_cli.py"
       - "daedalus/providers/claude_sealed_operation.py"
@@ -110,6 +111,7 @@ jobs:
           daedalus/llm_client.py
           daedalus/progress_sources.py
           daedalus/runtime_registry.py
+          daedalus/providers/__init__.py
           daedalus/providers/_ollama_native.py
           daedalus/providers/claude_cli.py
           daedalus/providers/claude_sealed_operation.py
