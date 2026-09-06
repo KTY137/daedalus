@@ -117,6 +117,37 @@ def test_post_without_probe_keeps_the_direct_blocking_path(monkeypatch: pytest.M
     assert send_calls == [None]
 
 
+def test_chat_completion_without_probe_keeps_legacy_post_call_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str | None, float | None]] = []
+
+    # Intentionally accepts only the historic four positional arguments. Any
+    # accidental cancellation keyword on the opt-out path makes this fail.
+    def legacy_post(
+        base_url: str,
+        body: dict[str, Any],
+        api_key: str | None,
+        timeout_s: float | None,
+    ) -> dict[str, Any]:
+        assert body["model"] == "m"
+        calls.append((base_url, api_key, timeout_s))
+        return {"choices": [{"message": {"content": "unchanged"}}]}
+
+    monkeypatch.setattr(compat, "_post", legacy_post)
+
+    assert compat.chat_completion(
+        base_url="http://provider.invalid",
+        model="m",
+        system="system",
+        user="user",
+        api_key="key",
+        timeout_s=None,
+        force_json=False,
+    ) == "unchanged"
+    assert calls == [("http://provider.invalid", "key", None)]
+
+
 def test_cancellable_worker_inherits_explicit_budget_marker(monkeypatch: pytest.MonkeyPatch) -> None:
     from daedalus import budget
 
