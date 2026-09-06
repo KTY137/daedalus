@@ -41,6 +41,7 @@ on:
       - "tests/providers/test_claude_bypass_inventory.py"
       - "tests/providers/test_claude_sealed_cutover.py"
       - "tests/providers/test_claude_sealed_output_evidence.py"
+      - "tests/providers/test_claude_provider_exact_boundary.py"
       - "tests/test_claude_bridge_cmd_shim.py"
       - "tests/test_gui_check_budget.py"
       - "tests/test_ikarus_bridge_progress.py"
@@ -134,6 +135,7 @@ jobs:
           tests/providers/test_claude_bypass_inventory.py
           tests/providers/test_claude_sealed_cutover.py
           tests/providers/test_claude_sealed_output_evidence.py
+          tests/providers/test_claude_provider_exact_boundary.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
@@ -166,6 +168,7 @@ jobs:
           tests/providers/test_claude_bypass_inventory.py
           tests/providers/test_claude_sealed_cutover.py
           tests/providers/test_claude_sealed_output_evidence.py
+          tests/providers/test_claude_provider_exact_boundary.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
