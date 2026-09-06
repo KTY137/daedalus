@@ -47,6 +47,7 @@ test('classic composer only arms for sendable text and ignores IME confirmation 
   const composer = page.getByLabel('Ask Ikarus');
   const send = page.getByRole('button', { name: 'Send' });
 
+  await expect(composer).toHaveValue('');
   await expect(send).toBeDisabled();
   await composer.fill('   ');
   await expect(send).toBeDisabled();
