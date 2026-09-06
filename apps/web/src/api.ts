@@ -365,8 +365,11 @@ export function openEventStream(
  * and **re-runs the entire chat turn — re-spending tokens and money, forever**.
  * So every terminal path here closes exactly once, via `settle()`.
  *
- * Falls back to nothing on its own: if the stream dies before `final`, the
- * caller is told via `onError` and should retry with the blocking `askIkarus`.
+ * Once EventSource has been attempted, an uncertain transport outcome is
+ * terminal. Replaying with `askIkarus` could duplicate provider spend or an
+ * action that completed remotely but whose final frame was lost. Instead this
+ * adapter turns interruption into an explicit `stream_interrupted` final and
+ * preserves any partial text already observed.
  */
 export function streamIkarus(
   project: string,
@@ -395,23 +398,43 @@ export function streamIkarus(
   // One-shot guard: `final` and `error` can both fire, and a closed EventSource
   // must not be closed (or reported) twice.
   let done = false;
+  let streamedText = '';
+  let observedProvider = provider || '';
   const settle = (fn?: () => void) => {
     if (done) return;
     done = true;
     es.close();
     fn?.();
   };
+  const interruptedFinal = (fallback: string): IkarusAskPayload => {
+    const selectedModel = model?.trim();
+    return {
+      ok: false,
+      project,
+      intent: 'error',
+      assistant: streamedText || fallback,
+      provider_used: observedProvider,
+      ...(selectedModel ? { model_used: selectedModel } : {}),
+      delivery_mode: 'stream',
+      stream_interrupted: true
+    };
+  };
 
   es.addEventListener('start', (event) => {
     try {
-      handlers.onStart?.(JSON.parse((event as MessageEvent).data));
+      const data = JSON.parse((event as MessageEvent).data) as { intent?: string; provider_used?: string };
+      if (typeof data.provider_used === 'string') observedProvider = data.provider_used;
+      handlers.onStart?.(data);
     } catch { /* a malformed start frame is not worth failing the turn over */ }
   });
 
   es.addEventListener('delta', (event) => {
     try {
       const { text } = JSON.parse((event as MessageEvent).data);
-      if (typeof text === 'string' && text) handlers.onDelta(text);
+      if (typeof text === 'string' && text) {
+        streamedText += text;
+        handlers.onDelta(text);
+      }
     } catch { /* skip an unparseable delta rather than kill the stream */ }
   });
 
@@ -420,16 +443,21 @@ export function streamIkarus(
     try {
       payload = JSON.parse((event as MessageEvent).data);
     } catch {
-      settle(() => handlers.onError(new Error('malformed final frame')));
+      settle(() => handlers.onFinal(interruptedFinal(
+        'Der Antwortstream endete mit einem ungültigen Abschluss. Die Anfrage wurde nicht automatisch wiederholt.'
+      )));
       return;
     }
     settle(() => handlers.onFinal(payload as IkarusAskPayload));
   });
 
   // Fires on network failure AND on the normal server-side close. If `final`
-  // already arrived we are settled and this is the expected teardown, so the
-  // guard makes it a no-op rather than a spurious error.
-  es.onerror = () => settle(() => handlers.onError(new Error('ikarus stream interrupted')));
+  // already arrived we are settled and this is the expected teardown. Before
+  // final, the delivery outcome is unknown, so it becomes an interrupted final
+  // rather than an invitation to replay the turn with a POST.
+  es.onerror = () => settle(() => handlers.onFinal(interruptedFinal(
+    'Der Antwortstream endete ohne eine vollständige Antwort. Die Anfrage wurde nicht automatisch wiederholt.'
+  )));
 
   return { close: () => settle() };
 }
