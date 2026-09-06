@@ -880,3 +880,91 @@ def test_a_remote_planner_has_no_estimated_window(isolated, monkeypatch):
     result = loop.run_computer_task(root, "Read fixture", service=RemoteService(), ledger=ledger, propose=planner(READ, DONE))
     assert result["planner_context_tokens"] is None and result["prompt_overflow_calls"] is None
     assert "Planner-Aufruf(e)" not in loop._chat_report(result)
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-43: a remote planner is an explicit owner choice; no observation reaches any
+# planner prompt past the secret floor (forward plan A4 #10, owner 2026-09-06 08:42)
+# --------------------------------------------------------------------------
+
+PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\nfixture sensitive material\n-----END PRIVATE KEY-----"
+
+
+def test_an_observation_that_trips_the_secret_floor_never_reaches_a_planner_prompt(isolated):
+    """The step is executed and retained as evidence, but the mission ends before the next
+    planner call: no prompt containing the observation is built or sent, local or remote."""
+    root, ledger = isolated
+    service = Service(result={"ok": True, "state": "verified", "result": {"text": "config:\n" + PRIVATE_KEY}, "evidence": {}})
+    propose, prompts = _capturing_planner(READ, READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=service, ledger=ledger, propose=propose, mission_id="floor-obs")
+    assert result["state"] == "blocked", result["summary"]
+    assert "secret floor" in result["summary"] and "step 1" in result["summary"]
+    assert len(prompts) == 1 and "PRIVATE KEY" not in json.dumps(prompts)
+    assert result["tool_steps"] == 1 and result["steps"][0]["withheld_from_planner"] is True
+    assert result["planner_calls"] == 1
+    assert not ledger.open_intents()
+
+
+def test_the_whole_prompt_is_floored_before_every_planner_call(isolated, monkeypatch):
+    root, ledger = isolated
+    seen = []
+    def floor(path, text=""):
+        seen.append(path)
+        return "fixture rule" if path == "computer-prompt.json" and "Read fixture" in text else None
+    monkeypatch.setattr(loop, "secret_floor_rule", floor)
+    propose, prompts = _capturing_planner(READ, DONE)
+    result = loop.run_computer_task(root, "Read fixture", service=Service(), ledger=ledger, propose=propose)
+    assert result["state"] == "blocked" and "prompt" in result["summary"] and "secret floor" in result["summary"]
+    assert prompts == [] and result["planner_calls"] == 0
+    assert "computer-prompt.json" in seen
+
+
+def _planner_command_fixture(monkeypatch, *, provider="ollama_http", model=None, remote=False):
+    from daedalus.runtimes import computer
+    from daedalus.interfaces import computer_configuration
+    configuration = {"schema": "daedalus-computer-policy/1", "workspace": "W", "tools": ["browser.read"], "origins": [],
+                     "applications": {}, "planner_provider": provider, "planner_model": model,
+                     "allow_remote_context": remote, "max_steps": 16, "timeout_s": 300, "max_file_bytes": 1048576}
+    monkeypatch.setattr(computer, "computer_status", lambda root: {
+        "enabled": True, "workspace": "W", "tools": [{"name": "browser.read"}], "policy_sha256": "e" * 64,
+        "configuration": configuration})
+    calls = []
+    def configure(root, policy, *, owner_confirmed, expected_policy_sha256):
+        calls.append((policy, owner_confirmed, expected_policy_sha256))
+        return {"ok": True, "changed": True, "policy_sha256": "f" * 64, "policy": policy}
+    monkeypatch.setattr(computer_configuration, "configure_computer", configure)
+    return calls
+
+
+def test_choosing_a_remote_planner_requires_a_transient_confirmation_with_the_warning(monkeypatch):
+    calls = _planner_command_fixture(monkeypatch)
+    asked = list(loop.conversation_events("fixture", "/computer planner codex_cli"))[-1][1]
+    assert calls == [], "no policy change before the owner confirms"
+    assert asked["computer"]["planner_change"] == "confirmation_required"
+    assert "verlassen" in asked["assistant"] and "/computer planner codex_cli confirm-remote" in asked["assistant"]
+    confirmed = list(loop.conversation_events("fixture", "/computer planner codex_cli confirm-remote"))[-1][1]
+    assert len(calls) == 1
+    policy, owner_confirmed, expected = calls[0]
+    assert (policy["planner_provider"], policy["planner_model"], policy["allow_remote_context"]) == ("codex_cli", None, True)
+    assert owner_confirmed is True and expected == "e" * 64
+    assert policy["tools"] == ["browser.read"], "the rest of the policy is carried over unchanged"
+    assert "Planner: codex_cli" in confirmed["assistant"] and "Kontext hat den Rechner verlassen: ja" in confirmed["assistant"]
+    assert confirmed["computer"]["planner_change"] == "applied"
+
+
+def test_choosing_the_local_planner_narrows_without_confirmation_and_names_the_model(monkeypatch):
+    calls = _planner_command_fixture(monkeypatch, provider="codex_cli", remote=True)
+    reply = list(loop.conversation_events("fixture", "/computer planner ollama_http qwen2.5-coder:7b"))[-1][1]
+    assert len(calls) == 1
+    policy = calls[0][0]
+    assert (policy["planner_provider"], policy["planner_model"], policy["allow_remote_context"]) == ("ollama_http", "qwen2.5-coder:7b", False)
+    assert "verlassen: nein" in reply["assistant"]
+    refused = list(loop.conversation_events("fixture", "/computer planner gpt-magic"))[-1][1]
+    assert refused["computer"]["state"] == "blocked" and len(calls) == 1
+
+
+def test_status_names_the_planner_and_the_planner_command(monkeypatch):
+    _planner_command_fixture(monkeypatch, provider="codex_cli", model="gpt-6-astra", remote=True)
+    reply = list(loop.conversation_events("fixture", "/computer status"))[-1][1]["assistant"]
+    assert "Planner: codex_cli (gpt-6-astra) · Kontext hat den Rechner verlassen: ja" in reply
+    assert "/computer planner" in reply

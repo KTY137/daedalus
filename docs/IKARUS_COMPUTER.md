@@ -71,6 +71,16 @@ Werkzeug oder eine unklare Wirkung wird nicht automatisch wiederholt.
 
 Der Bericht jeder Mission nennt den Planner, der die Schritte vorgeschlagen hat, und ob die Beobachtungen den Rechner verlassen haben (`Planner: … · Kontext hat den Rechner verlassen: ja|nein`); dieselben Angaben stehen in `/computer task` und `/computer tasks`. Ein entfernter Planner (`planner_provider` mit `allow_remote_context: true`) ist eine ausdrückliche Owner-Konfiguration; die Zeile macht sie nachträglich sichtbar und ersetzt keine Freigabe.
 
+Der Planner wird mit `/computer planner <ollama_http|codex_cli|claude_code_cli|deepseek> [Modell]`
+gewählt. Ein entfernter Anbieter wird erst nach einer sichtbaren Warnung und der
+ausdrücklichen Wiederholung mit `confirm-remote` gespeichert; die Bestätigung gilt
+nur für diesen Befehl. Beobachtungstexte verlassen dann den Rechner. Unabhängig vom
+Planner prüft die Secret-Floor jede Beobachtung und jeden Prompt: bei einem Treffer
+endet die Mission als `blocked`, bevor ein Planner die Beobachtung sieht; die
+Beobachtung selbst bleibt lokal als Evidenz erhalten. Das lokale Modell braucht keine
+Bestätigung. Gemessen am 2026-09-06: Codex als Planner beendete die Messmission als
+erste mit `finish`, das lokale 7B-Modell liest, schließt aber nicht ab.
+
 ```text
 /computer queue Öffne die freigegebene Statusseite und lies den aktuellen Status.
 /computer every 30m 4 Öffne die freigegebene Statusseite und lies den aktuellen Status.

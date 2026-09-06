@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 350,
+    "assigned_artifacts": 351,
     "legacy_artifacts": 204,
-    "packet_artifacts": 352,
-    "packet_ids": 287,
-    "post_index_artifacts": 148,
+    "packet_artifacts": 353,
+    "packet_ids": 288,
+    "post_index_artifacts": 149,
     "registry_artifacts": 1,
-    "tracked_files": 353,
+    "tracked_files": 354,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -4038,6 +4038,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-43_REMOTE_PLANNER_OWNER_CHOICE.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "c48ceb70deae2de8fcb23d2679f2432ed8600f9e",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-33` (planner facts and the egress line), `G1-IKARUS-19` (`configure_computer` compare-and-replace), forward plan A4 line 10 (`docs/superpowers/plans/2026-09-06-daedalus-forward-plan.md`), owner decision sheet `docs/decisions-pending/OWNER_DECISIONS_20260906.md` line 10",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-43",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-43_REMOTE_PLANNER_OWNER_CHOICE.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -6306,6 +6322,20 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-42",
       "path": "docs/work-packets/G1-IKARUS-42_PROMPT_SIZE_AND_CONTEXT_WINDOW_TRUTH.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-43",
+      "path": "docs/work-packets/G1-IKARUS-43_REMOTE_PLANNER_OWNER_CHOICE.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
