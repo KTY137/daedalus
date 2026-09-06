@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 352,
+    "assigned_artifacts": 353,
     "legacy_artifacts": 204,
-    "packet_artifacts": 354,
-    "packet_ids": 289,
-    "post_index_artifacts": 150,
+    "packet_artifacts": 355,
+    "packet_ids": 290,
+    "post_index_artifacts": 151,
     "registry_artifacts": 1,
-    "tracked_files": 355,
+    "tracked_files": 356,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -4070,6 +4070,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-45_BOUNDED_PROMPT_VIEW.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "4a77970f05eea30d55450249d4a40688fb60db99",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-42` (measure-11c: one ordinary page read overflows the local window, `prompt_chars`/`planner_context_tokens` in every artifact), `G1-IKARUS-26`/`29` (the stall rules the view must not undercut), Momus design critique of 2026-09-06 04:10 (design A rejected as first specified; the constraints below are his conditions for building it after a measured overflow)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-45",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-45_BOUNDED_PROMPT_VIEW.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -6366,6 +6382,20 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-44",
       "path": "docs/work-packets/G1-IKARUS-44_SUMMARY_TOKENS_ABSENT_FROM_OBSERVATIONS.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-45",
+      "path": "docs/work-packets/G1-IKARUS-45_BOUNDED_PROMPT_VIEW.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
