@@ -114,32 +114,31 @@ def _validate_arguments(tool: str, args: dict) -> None:
 
 def _release_unavailable_reason(policy: ComputerPolicy, tool: str) -> str:
     """Return the same static prerequisite refusal used by projection/execution."""
-    reason = ""
     if tool in _release_policy.RELEASE_OBSERVATION_ONLY_TOOLS:
         if "desktop.observe" not in policy.tools:
-            reason = "Observation-only release mode requires desktop.observe"
-        elif os.name != "nt":
-            reason = "Windows desktop observation required"
-        elif importlib.util.find_spec("mss") is None:
-            reason = "Install daedalus[computer] for capture"
+            return "Observation-only release mode requires desktop.observe"
+        if os.name != "nt":
+            return "Windows desktop observation required"
+        if importlib.util.find_spec("mss") is None:
+            return "Install daedalus[computer] for capture"
     if tool in VISION_TOOLS and importlib.util.find_spec("cv2") is None:
-        reason = "Install daedalus[computer] for OpenCV"
+        return "Install daedalus[computer] for OpenCV"
     if tool == "vision.ocr":
         from .computer_ocr import WindowsOCR
         ocr = WindowsOCR.availability()
         if not ocr["available"]:
-            reason = ocr["reason"]
+            return ocr["reason"]
     if tool in DESKTOP_TOOLS and os.name != "nt":
-        reason = "Windows adapter required"
-    elif tool.startswith("desktop.") and importlib.util.find_spec("mss") is None:
-        reason = "Install daedalus[computer] for capture"
+        return "Windows adapter required"
+    if tool.startswith("desktop.") and importlib.util.find_spec("mss") is None:
+        return "Install daedalus[computer] for capture"
     if tool in BROWSER_TOOLS and importlib.util.find_spec("playwright") is None:
-        reason = "Install daedalus[computer] and Playwright Chromium"
+        return "Install daedalus[computer] and Playwright Chromium"
     if tool in FILE_TOOLS and os.name != "nt":
         # Only Windows can pin the open directory chain against a concurrent
         # move (delete-share denial); POSIX effects stay unavailable (G1-IKARUS-24).
-        reason = "Windows host required for file tools in this release"
-    return reason
+        return "Windows host required for file tools in this release"
+    return ""
 
 
 class ComputerService:

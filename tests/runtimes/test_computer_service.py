@@ -486,6 +486,15 @@ def test_release_locked_tools_are_reported_unavailable_not_silently_dropped(conf
 
     from daedalus.kernel.policy.computer import RELEASE_DISABLED_TOOLS, enforce_release_tool_fence
 
+    real_find_spec = importlib.util.find_spec
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name, *a, **k: object()
+        if name == "playwright"
+        else real_find_spec(name, *a, **k),
+    )
+
     # The locked set is read from the fence itself, not hardcoded: the main tree
     # lifted the file tools in G1-IKARUS-25 phase 2 while vision.match and
     # vision.changes stay locked (review session 6e, 2026-09-05 17:20).
@@ -510,7 +519,6 @@ def test_release_locked_tools_are_reported_unavailable_not_silently_dropped(conf
         assert [tool["name"] for tool in caps["tools"]] == ["browser.read"]
         assert set(caps["unavailable"]) == set(locked)
         enforce_release_tool_fence("browser.read", {})  # the executable shape is not fenced
-        real_find_spec = importlib.util.find_spec
         monkeypatch.setattr(importlib.util, "find_spec",
                             lambda name, *a, **k: None if name == "playwright" else real_find_spec(name, *a, **k))
         caps = mixed_service.capabilities()
