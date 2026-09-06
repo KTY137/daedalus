@@ -1,0 +1,88 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-42",
+  "title": "Fail closed on verified-binding inclusion policy in the canonical relation compiler",
+  "classification": "implementation",
+  "domain": "tensor-kernel",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "e5a8ad05ed86ae4ffba785c965d1690403f5d5ae",
+  "owner": {
+    "path": "daedalus/twin/relation_compiler.py",
+    "symbol": "compile_relation_blocks",
+    "parallel_compiler_added": false,
+    "new_cache_or_index": false,
+    "new_backend_or_registry": false,
+    "new_public_api": false
+  },
+  "implementation": {
+    "commit": "eb513b913499e126efe971b7e8d4912a43362c80",
+    "production_blob": "0f38235f35e7e20fbd3c6d6c9e23e4e39a3cb92a",
+    "summary": "The include_verified_bindings evidence-selection policy now requires an exact bool before observer resolution, Forest hashing, endpoint traversal, or evidence materialization. Python truthiness aliases such as 0, 1, None, and the string false are rejected instead of silently changing whether verified Fourfold bindings contribute facts. Explicit False remains supported and suppresses binding materialization with a zero verified_binding_count receipt; True preserves the existing behavior.",
+    "preserved_contracts": [
+      "KnowledgeForest and FourfoldSnapshot remain the only semantic authorities consumed by the compiler.",
+      "True preserves verified-binding inclusion and source-count receipt semantics.",
+      "False explicitly suppresses verified-binding facts and reports verified_binding_count as zero.",
+      "Forest relation compilation, selected-signature pruning, and discover-all behavior remain unchanged.",
+      "No second compiler, validator subsystem, cache, index, backend, registry, or public API was introduced."
+    ]
+  },
+  "focused_tests": {
+    "commit": "eb513b913499e126efe971b7e8d4912a43362c80",
+    "path": "tests/twin/test_relation_compiler_selected_pruning.py",
+    "blob": "77d029eb1e8dd135eea44309119c0e2c4428c7b1",
+    "coverage": [
+      "0, 1, None, and the string false fail closed before Forest evidence materialization.",
+      "Explicit False does not materialize verified-binding facts.",
+      "Explicit False preserves selected Forest facts and reports verified_binding_count as zero.",
+      "Existing selected-signature pruning and discover-all regression coverage remains in the same canonical test owner."
+    ]
+  },
+  "verification": {
+    "verified_head": "eb513b913499e126efe971b7e8d4912a43362c80",
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "workflow_run_id": 34026465065,
+    "workflow_conclusion": "success",
+    "base_main": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "pr_merge_preview": "d52ca4527762c699e939f901bc0b3791cb39a81f",
+    "contract_matrix": "success for Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "representative_contract_arm": "CPython 3.12.14 / PYTHONHASHSEED=0: 383 passed, 2 skipped in 6.60s",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "evidence_scope": "PR merge-preview integration evidence; not a raw-head checkout or complete-suite execution claim"
+  },
+  "diagnostic_evidence": {
+    "cpu_bitset_and_typed_block_profiles_executed": true,
+    "authority": "diagnostic-only",
+    "claim": "none",
+    "performance_claim": false
+  },
+  "claim_boundaries": {
+    "correctness": "Focused exact-boolean evidence-policy contract and the existing integrated Fourfold/Tensor contract surface were verified in hosted PR integration.",
+    "performance": "none",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "archive_legacy_20260830_written": false,
+    "archive_legacy_20260830_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "unique_evidence_deleted": false,
+    "prior_gpu_evidence_retained_in_history": true
+  }
+}
