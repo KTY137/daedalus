@@ -1,0 +1,135 @@
+{
+  "id": "G1-GARDEN-MAP-08",
+  "title": "Re-verify indirect environment-reader blindness on the current canonical gardening tree",
+  "status": "closed-research",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "c0d45c167d7ce05019c65b2f8f689a73d99da814",
+  "source": {
+    "branch": "packet/g1-map-02",
+    "head_at_assessment": "ce4bcfd4829b981cd57618201e6a73d70824fc64",
+    "selected_commit": "8bb907a633c59d4760fa396983472ac89f937b37",
+    "selected_production_blob": {
+      "path": "daedalus/mapping/switches.py",
+      "sha": "f2259586e6f6ae6135dd87832e32beb4cee07d4e"
+    },
+    "selected_test_blob": {
+      "path": "tests/test_mapping_switches_indirect.py",
+      "sha": "09c10c464f5cc36110d554a6240b893183330c23"
+    },
+    "wholesale_merge": false,
+    "ref_retained": true,
+    "archive_target_used": false
+  },
+  "current_tree_before_probe": {
+    "switch_inventory_blob": "3db6c5d99e5cd592650e1aa13a1e0a5db7cfd5e5",
+    "budget_owner_blob": {
+      "path": "daedalus/kernel/policy/ledger.py",
+      "sha": "deb348a59c9f594294d4946a0185b63b353e377e"
+    },
+    "observed_shape": "Ledger.ceiling_usd selects ENV_CEILING at a call to _env_float, while the current switch scanner recognizes direct os.environ reads but has no structural call-site attribution for helpers that read an environment name through one of their own parameters."
+  },
+  "probe": {
+    "commit": "bc3694c644c4c4e3670000e6111fb2fb01ff5007",
+    "tree": "5c29c7dfbfe551876ba3a783e8e04a111b3c29ca",
+    "test_path": "tests/test_mapping_switches_indirect_probe.py",
+    "test_blob": "6d8c28f57456c5b2211a026def8fcdbea3af7314",
+    "workflow": ".github/workflows/gate1-ignition.yml",
+    "temporary_workflow_blob": "29ce414d2a58099523aeff817a58770c1f10123d",
+    "pre_probe_workflow_blob": "e188b5459a812082b0c389b3ea6b5965884942aa",
+    "cases": [
+      "a deterministic temporary module passes SAMPLE_LIMIT through _env_int(name, default) whose body calls os.environ.get(name)",
+      "the real repository must recognize DAEDALUS_BUDGET_USD and DAEDALUS_BUDGET_MAX_CALLS as reads rather than documented-only configuration"
+    ],
+    "production_code_changed": false,
+    "new_workflow_added": false
+  },
+  "verification": {
+    "gate1": {
+      "run_id": 34008177514,
+      "event": "pull_request",
+      "head_sha": "bc3694c644c4c4e3670000e6111fb2fb01ff5007",
+      "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "merge_preview_sha": "a350c9535d7e347eaac8f4e50f6e00aae266e359",
+      "conclusion": "failure",
+      "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+      "matrix_result": "all four matrix jobs executed the focused probe and failed; isolated-wheel succeeded",
+      "representative_job": {
+        "job_id": 101419106866,
+        "python": "CPython 3.12.14",
+        "hash_seed": "123456",
+        "result": "2 failed, 210 passed, 13 warnings in 133.93s",
+        "failures": [
+          "SAMPLE_LIMIT was absent from report.env_switches for the helper-call fixture",
+          "DAEDALUS_BUDGET_USD and DAEDALUS_BUDGET_MAX_CALLS were both absent from the real repository read-name set"
+        ]
+      },
+      "interpretation": "intentional red current-tree decision evidence: the legacy defect still exists on the canonical gardening line; this is not an infrastructure/no-runner failure and not a general Gate-1 regression claim",
+      "claim_type": "PR merge-preview integration evidence, not raw-head checkout evidence"
+    },
+    "fourfold_tensor": {
+      "run_id": 34008177452,
+      "event": "pull_request",
+      "head_sha": "bc3694c644c4c4e3670000e6111fb2fb01ff5007",
+      "conclusion": "success",
+      "contract_matrix": "successful",
+      "public_api": "successful",
+      "isolated_wheel": "successful",
+      "repository_collection": "successful",
+      "full_repository_suite": "manual-only/skipped",
+      "claim_type": "PR integration/collection evidence only"
+    },
+    "claim_boundary": {
+      "gate1_green_claim": false,
+      "raw_head_checkout_green_claim": false,
+      "full_repository_test_suite_claim": false,
+      "performance_claim": false,
+      "tensor_vs_forest_claim": false,
+      "crewai_claim": false,
+      "alphaevolve_claim": false
+    }
+  },
+  "decision": {
+    "current_canonical_defect_reproduced": true,
+    "production_transplant_in_this_packet": false,
+    "reason": "First bind the old branch finding to the current canonical revision. The hosted probe reproduced the exact helper-indirection blind spot and its budget-policy consequence, so a later production packet may now be minimal and evidence-scoped instead of importing the legacy mapping stack wholesale.",
+    "bounded_future_change": [
+      "extend only the existing daedalus.mapping.switches owner",
+      "structurally identify a local helper only when one of its own parameters is actually handed to os.environ/os.getenv",
+      "resolve the call-site argument through the existing constant/import resolver and attribute only resolvable env-shaped names",
+      "leave unresolved arguments unknown rather than guessing",
+      "pin local/imported constants, a non-env-reader decoy, unresolved arguments, call-site attribution, and the two canonical budget switches",
+      "reuse the existing Gate-1 workflow rather than creating another mapping workflow"
+    ]
+  },
+  "cleanup": {
+    "temporary_probe_removed_from_live_tree": true,
+    "workflow_restored_to_pre_probe_blob": "e188b5459a812082b0c389b3ea6b5965884942aa",
+    "production_tree_unchanged_by_packet": true,
+    "probe_commit_and_blobs_retained_as_git_evidence": true
+  },
+  "gardener": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "archive_write": false,
+    "branch_deleted": false,
+    "unique_evidence_deleted": false,
+    "parallel_abstraction_added": false,
+    "source_branch_preserved": true
+  },
+  "authority": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "automatic_merge": false,
+    "gate_transition": false
+  },
+  "next": "Implement the now-current-revision-proven helper-indirection fix in-place in daedalus/mapping/switches.py on this same canonical gardening branch, with a compact focused regression and the existing Gate-1 workflow. Do not wholesale-merge packet/g1-map-02 and do not move it into archive/legacy-20260830."
+}
