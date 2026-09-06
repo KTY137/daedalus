@@ -61,12 +61,23 @@ export default defineConfig({
   //   retries: 0  -- a test that passes on the second try has not passed; a
   //                  green built out of retries is the failure mode this whole
   //                  harness exists to prevent.
+  //   maxFailures: 1 -- after the first observed product failure the verdict is
+  //                  already red. Continuing serially through more 240-300s
+  //                  cold-index waits cannot turn it green; it only hides the
+  //                  first actionable failure behind the outer suite timeout.
   workers: 1,
   retries: 0,
+  maxFailures: 1,
   fullyParallel: false,
   forbidOnly: true,
 
-  timeout: 60_000,
+  // The cockpit suite deliberately exercises a cold structure scan with a
+  // 240s wait and project-switch scans with 300s test budgets. A 60s GLOBAL
+  // timeout made those assertions unreachable: Playwright killed the test
+  // before the product-specific wait could produce a verdict. Keep this finite
+  // and above the largest declared per-test wait; tools/gui_check.py still owns
+  // the outer suite budget through DAEDALUS_GUI_SUITE_TIMEOUT_S.
+  timeout: 360_000,
   expect: { timeout: 15_000 },
 
   reporter: [

@@ -197,3 +197,12 @@ def test_server_output_is_file_backed_instead_of_an_undrained_pipe(
     finally:
         if output_file is not None:
             output_file.close()
+
+
+def test_playwright_budget_reaches_declared_cold_scan_waits_and_fails_fast():
+    config = (
+        gui_check.ROOT / "apps" / "web" / "playwright.config.ts"
+    ).read_text(encoding="utf-8")
+
+    assert "timeout: 360_000" in config
+    assert "maxFailures: 1" in config
