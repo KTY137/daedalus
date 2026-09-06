@@ -767,3 +767,68 @@ def test_directive_states_the_real_threshold():
                         progress=loop._plan_progress({"steps": ["s"]}, 0))
     assert "three in a row end the task as stalled" in text
     assert "ends the task as stalled" not in text.replace("three in a row end the task as stalled", "")
+
+
+# --------------------------------------------------------------------------
+# G1-IKARUS-35: scheduled autonomy says whether a watcher will ever tick this root
+# --------------------------------------------------------------------------
+
+def _heartbeat(tmp_path, monkeypatch, payload):
+    import daedalus.file_bridge as fb
+    path = tmp_path / "bridge_heartbeat.json"
+    if payload is not None:
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(fb, "HEARTBEAT_PATH", path)
+    return path
+
+
+def test_watcher_projection_names_whether_this_root_is_ticked(tmp_path, monkeypatch):
+    root = tmp_path / "authority"
+    root.mkdir()
+    now = 1_000_000.0
+    _heartbeat(tmp_path, monkeypatch, None)
+    none = loop.watcher_projection(root, now=now)
+    assert (none["state"], none["ticks_this_root"], none["serves_this_root"]) == ("none", False, None)
+    assert none["restart"] == f'python -m daedalus.file_bridge watch --repo-root "{root.resolve()}"'
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 5, "pid": 4242, "repo_root": str(root), "current": None})
+    mine = loop.watcher_projection(root, now=now)
+    assert (mine["state"], mine["ticks_this_root"], mine["serves_this_root"], mine["pid"]) == ("alive", True, True, 4242)
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 5, "pid": 1, "repo_root": str(tmp_path / "elsewhere"), "current": None})
+    other = loop.watcher_projection(root, now=now)
+    assert (other["state"], other["ticks_this_root"], other["serves_this_root"]) == ("alive", False, False)
+    _heartbeat(tmp_path, monkeypatch, {"epoch": now - 3600, "pid": 4242, "repo_root": str(root), "current": None})
+    stale = loop.watcher_projection(root, now=now)
+    assert (stale["state"], stale["ticks_this_root"]) == ("stale", False)
+
+
+def test_watcher_projection_is_a_fail_open_read(tmp_path, monkeypatch):
+    import daedalus.file_bridge as fb
+    def boom(now=None):
+        raise OSError("heartbeat unreadable")
+    monkeypatch.setattr(fb, "heartbeat_status", boom)
+    out = loop.watcher_projection(tmp_path, now=1.0)
+    assert (out["state"], out["ticks_this_root"]) == ("unknown", False)
+    assert "OSError" in out["detail"]
+
+
+def test_scheduled_and_queue_replies_state_the_watcher(monkeypatch):
+    from daedalus.orchestration.ikarus import computer_schedule
+    from daedalus.kairos import scheduler as kairos
+    monkeypatch.setattr(computer_schedule, "list_scheduled_computer", lambda root: [{"schedule_id": "s1", "state": "scheduled"}])
+    monkeypatch.setattr(loop, "watcher_projection", lambda root, now=None: {
+        "state": "none", "serves_this_root": None, "ticks_this_root": False, "age_s": None, "pid": None,
+        "watcher_root": None, "restart": "python -m daedalus.file_bridge watch --repo-root \"X\""})
+    events = list(loop.conversation_events("fixture", "/computer scheduled"))
+    final = events[-1][1]
+    assert "Watcher: nicht aktiv" in final["assistant"]
+    assert "werden nicht automatisch ausgef" in final["assistant"]
+    assert 'file_bridge watch --repo-root "X"' in final["assistant"]
+    assert final["computer"]["watcher"]["ticks_this_root"] is False
+    monkeypatch.setattr(kairos.KairosScheduler, "enqueue_computer",
+                        lambda self, root, objective, owner_confirmed=False: {"schedule_id": "q1", "state": "scheduled"})
+    monkeypatch.setattr(loop, "watcher_projection", lambda root, now=None: {
+        "state": "alive", "serves_this_root": True, "ticks_this_root": True, "age_s": 4.0, "pid": 77,
+        "watcher_root": "X", "restart": "python -m daedalus.file_bridge watch --repo-root \"X\""})
+    queued = list(loop.conversation_events("fixture", "/computer queue read the page"))[-1][1]
+    assert "Watcher: aktiv" in queued["assistant"] and "PID 77" in queued["assistant"]
+    assert queued["computer"]["watcher"]["ticks_this_root"] is True

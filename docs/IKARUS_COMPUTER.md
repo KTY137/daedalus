@@ -51,7 +51,10 @@ Beispiele:
 ```
 
 Das Datum ist ein Beispiel und muss in der Zukunft liegen. Automatische Termine
-brauchen den laufenden File-Bridge-Watcher derselben Installation. `run-due`
+brauchen den laufenden File-Bridge-Watcher derselben Installation für genau
+diesen Ordner (`python -m daedalus.file_bridge watch --repo-root <Ordner>`);
+jede Antwort auf `schedule`, `queue`, `every`, `scheduled` und `run-due` sagt,
+ob ein solcher Watcher gerade läuft, und nennt sonst den Startbefehl. `run-due`
 prüft manuell; pro Durchlauf wird höchstens ein fälliger Auftrag ausgeführt.
 Einzelne Termine verfallen 24 Stunden nach Fälligkeit. Geänderte
 Policy, Abbruch oder unklare Ausführung führen zur Sperre; unterbrochene Effekte
