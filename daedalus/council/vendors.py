@@ -773,6 +773,31 @@ class _CliAdapter(CouncilAdapter):
         super().__init__(**kw)
         self.vendor = self.profile.vendor
         self._runner = runner or run_managed
+        # A bounded caller may own a narrower ledger than the process-wide
+        # council default.  The seat still performs exactly one canonical
+        # reservation; only its ledger and provenance label are rebound.
+        self._budget_ledger: Any | None = None
+        self._budget_label = ""
+        self._last_budget_error: BaseException | None = None
+
+    def bind_budget_ledger(self, ledger: Any, *, label: str) -> None:
+        """Route this seat's single reservation to a caller-owned ledger.
+
+        This does not disable or replace the council budget guard.  It lets a
+        bounded campaign avoid stacking a second reservation around the same
+        vendor effect while retaining the adapter's reported-cost settlement.
+        """
+
+        if ledger is None:
+            raise ValueError("a bound council budget ledger cannot be None")
+        self._budget_ledger = ledger
+        self._budget_label = str(label or "").strip()
+
+    @property
+    def last_budget_error(self) -> BaseException | None:
+        """Typed refusal from the most recent reservation, if any."""
+
+        return self._last_budget_error
 
     def argv(self, model: str) -> list[str]:
         argv = [self.profile.command, *self.profile.args]
@@ -785,7 +810,7 @@ class _CliAdapter(CouncilAdapter):
     budget_vendor = ""
 
     def _dispatch(self, text: str, *, model: str, timeout_s: float) -> dict[str, Any]:
-        from daedalus.budget import guard
+        from daedalus.budget import BudgetError, guard
 
         if not self.budget_vendor:
             # An unpriced seat would be booked at the $5.00 unknown-call worst
@@ -799,23 +824,38 @@ class _CliAdapter(CouncilAdapter):
         # executable is missing must be released, not charged. ``guard`` stands
         # the interposer down for the spawn, so nothing is reserved twice, and
         # its exit settles at the estimate whenever nothing below settled first.
-        with guard(self.budget_vendor or None, model if model != "unknown" else None,
-                   label=f"council seat {self.vendor}: {argv[0]}") as reservation:
-            with council_cwd(self.repo_root) as cwd:
-                result = self._runner(
-                    argv,
-                    stdin_text=text,
-                    timeout_s=timeout_s,
-                    cwd=cwd,
-                    env=council_env(),
-                )
-            reply = self._interpret(result)
-            if result.spawn_error and result.spawn_error.startswith("not_on_path"):
-                reservation.release("council seat executable not found; nothing was spawned")
-            else:
-                reported = (reply.get("usage") or {}).get("total_cost_usd")
-                if isinstance(reported, (int, float)) and reported >= 0:
-                    reservation.settle(float(reported))
+        self._last_budget_error = None
+        try:
+            with guard(
+                self.budget_vendor or None,
+                model if model != "unknown" else None,
+                label=(
+                    self._budget_label
+                    or f"council seat {self.vendor}: {argv[0]}"
+                ),
+                led=self._budget_ledger,
+            ) as reservation:
+                with council_cwd(self.repo_root) as cwd:
+                    result = self._runner(
+                        argv,
+                        stdin_text=text,
+                        timeout_s=timeout_s,
+                        cwd=cwd,
+                        env=council_env(),
+                    )
+                reply = self._interpret(result)
+                if result.spawn_error and result.spawn_error.startswith("not_on_path"):
+                    reservation.release("council seat executable not found; nothing was spawned")
+                else:
+                    reported = (reply.get("usage") or {}).get("total_cost_usd")
+                    if isinstance(reported, (int, float)) and reported >= 0:
+                        reservation.settle(float(reported))
+        except BudgetError as exc:
+            # ``CouncilAdapter.ask`` intentionally converts transport failures
+            # into a no-voice record.  Retain the typed refusal as an ephemeral
+            # side channel so a bounded caller can classify it accurately.
+            self._last_budget_error = exc
+            raise
         return reply
 
     def _interpret(self, result: RunResult) -> dict[str, Any]:

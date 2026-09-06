@@ -724,7 +724,23 @@ def _bind_budgeted_ask(
             outcome.halted = True
             raise
 
-    if callable(original_runner):
+    bind_budget_ledger = getattr(adapter, "bind_budget_ledger", None)
+    adapter_owns_reservation = callable(original_runner) and callable(
+        bind_budget_ledger
+    )
+    if adapter_owns_reservation:
+        # CLI Council seats own reported-cost settlement.  Bind that one
+        # canonical reservation to the campaign ledger instead of stacking a
+        # second guard around the runner (which double-books every seat).
+        bind_budget_ledger(ledger, label=label)
+
+        def guarded_runner(*args: Any, **kwargs: Any):
+            checkpoint()
+            outcome.started = True
+            return original_runner(*args, **kwargs)
+
+        adapter._runner = guarded_runner  # type: ignore[attr-defined]
+    elif callable(original_runner):
         def guarded_runner(*args: Any, **kwargs: Any):
             checkpoint()
             try:
@@ -747,6 +763,9 @@ def _bind_budgeted_ask(
         kwargs["timeout_s"] = effect_timeout_s
         if callable(original_runner):
             reply = original_ask(*args, **kwargs)
+            adapter_budget_error = getattr(adapter, "last_budget_error", None)
+            if isinstance(adapter_budget_error, BudgetError):
+                outcome.error = adapter_budget_error
             outcome.completed = True
             return reply
         try:
