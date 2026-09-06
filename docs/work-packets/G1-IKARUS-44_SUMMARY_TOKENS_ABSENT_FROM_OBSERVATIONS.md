@@ -30,9 +30,9 @@ Decision rule, fixed at reservation: the check ships only if it is silent on the
 
 ## Scope
 
-In scope: `daedalus/orchestration/ikarus/computer_loop.py` (`_ABSENCE_CHECK_VERSION`, `_ABSENCE_TOKEN`, `summary_tokens_absent_from_observations`, one report field, one conditional chat sentence), four tests in `tests/test_ikarus_computer_loop.py`, this packet.
+In scope: `daedalus/orchestration/ikarus/computer_loop.py` (`_ABSENCE_CHECK_VERSION`, `_ABSENCE_TOKEN`, `summary_tokens_absent_from_observations`, one report field, one conditional chat sentence), four tests in `tests/test_ikarus_computer_loop.py`, this packet; second commit: `computer_history.py` projects this field and the G1-IKARUS-42 prompt-size facts into the `/computer task` and `tasks` views unchanged (one test in `tests/test_ikarus_computer_history.py`).
 
-Out of scope and untouched: the prompt (nothing of this reaches a planner), the stall rules, states, `task_success_verified`, the history projection (the field lives in the retained report and can be projected later), any evaluator or EvidencePacket.
+Out of scope and untouched: the prompt (nothing of this reaches a planner), the stall rules, states, `task_success_verified`, any evaluator or EvidencePacket.
 
 ## Contracts and behavior
 

@@ -82,7 +82,12 @@ def _project(root: Path, row: Any) -> dict:
         result.update(state=stored.get("state"), summary=str(stored.get("summary", ""))[:2000],
                       tool_steps=len(stored.get("steps", [])), elapsed_s=stored.get("elapsed_s"),
                       planner_calls=stored.get("planner_calls"), plan=stored.get("plan"),
-                      planner=stored.get("planner"), report_artifact=report["report_artifact"])
+                      planner=stored.get("planner"), report_artifact=report["report_artifact"],
+                      # G1-IKARUS-42/44: retained facts the Cockpit reads through this view
+                      prompt_chars_max=stored.get("prompt_chars_max"),
+                      planner_context_tokens=stored.get("planner_context_tokens"),
+                      prompt_overflow_calls=stored.get("prompt_overflow_calls"),
+                      summary_tokens_absent_from_observations=stored.get("summary_tokens_absent_from_observations"))
     if secret_floor_rule("computer-history.json", json.dumps(result, ensure_ascii=False)):
         raise ComputerRefused("task display withheld by secret floor")
     return result
