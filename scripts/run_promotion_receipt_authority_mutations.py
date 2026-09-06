@@ -1,3 +1,23 @@
+"""Mutation campaign for the single promotion-receipt authority.
+
+Six mutants, each a way a second promotion authority could creep back into the
+kernel, each expected to be KILLED by ``tests/kernel/test_promotion_receipt_authority.py``.
+The script edits production files on disk and restores their bytes afterwards,
+so run it in an isolated checkout (a scratch ``git worktree``), never in a tree
+other people are editing.
+
+Retargeted 2026-09-05: the original (2026-08) pointed at ``daedalus/kernel/contracts.py``
+and at a ``PromotionReceipt`` defined in ``daedalus/schemas.py``. Both moved:
+``daedalus/kernel/contracts`` is a package, ``OwnerApproval`` lives in
+``contracts/security.py``, the canonical ``PromotionReceipt`` and its
+``CONTRACT_TYPE`` in ``contracts/canonical.py``, and ``daedalus/schemas.py`` only
+re-exports. The script therefore aborted before its first mutation (wiki lane
+finding B1, ``runs/wiki_findings_20260905.md``). Markers are checked for
+uniqueness before every edit so a further move fails loudly instead of mutating
+the wrong line, and they follow the file's own line endings: a fresh Windows
+checkout carries CRLF (``core.autocrlf``), the pinned files LF, and a marker
+written for one silently matched nothing in the other (measured 2026-09-05).
+"""
 from __future__ import annotations
 
 import subprocess
@@ -11,7 +31,7 @@ FOCUSED = "tests/kernel/test_promotion_receipt_authority.py"
 
 def _pytest() -> int:
     return subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", FOCUSED],
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", FOCUSED],
         cwd=ROOT,
         check=False,
     ).returncode
@@ -20,100 +40,104 @@ def _pytest() -> int:
 def _require_killed(name: str) -> None:
     if _pytest() == 0:
         raise SystemExit(f"mutation survived: {name}")
+    print(f"killed: {name}", flush=True)
+
+
+def _newline(source: str) -> str:
+    return "\r\n" if "\r\n" in source else "\n"
+
+
+def _unique(source: str, marker: str, name: str) -> None:
+    if source.count(marker) != 1:
+        raise SystemExit(f"{name} mutation marker is not unique (count={source.count(marker)})")
+
+
+def _write(path: Path, text: str) -> None:
+    # newline="" keeps the file's own line endings instead of re-translating them.
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(text)
 
 
 def main() -> int:
     if _pytest() != 0:
         raise SystemExit("focused baseline failed before mutation campaign")
 
-    contracts = ROOT / "daedalus" / "kernel" / "contracts.py"
-    schemas = ROOT / "daedalus" / "schemas.py"
+    security = ROOT / "daedalus" / "kernel" / "contracts" / "security.py"
+    canonical = ROOT / "daedalus" / "kernel" / "contracts" / "canonical.py"
     kernel_init = ROOT / "daedalus" / "kernel" / "__init__.py"
     competing_module = ROOT / "daedalus" / "kernel" / "promotion_receipts.py"
+    if competing_module.exists():
+        raise SystemExit("a competing module already exists; refusing to run the campaign")
     originals = {
-        contracts: contracts.read_bytes(),
-        schemas: schemas.read_bytes(),
+        security: security.read_bytes(),
+        canonical: canonical.read_bytes(),
         kernel_init: kernel_init.read_bytes(),
     }
 
     try:
-        source = originals[contracts].decode("utf-8")
-        owner_marker = "@dataclass(frozen=True)\nclass OwnerApproval"
-        if source.count(owner_marker) != 1:
-            raise SystemExit("duplicate-authority mutation marker is not unique")
-        contracts.write_text(
-            source.replace(
-                owner_marker,
-                "class PromotionReceipt:\n    pass\n\n\n" + owner_marker,
-                1,
-            ),
-            encoding="utf-8",
-        )
+        # 1. A second class named PromotionReceipt in another contracts module.
+        source = originals[security].decode("utf-8")
+        nl = _newline(source)
+        owner_marker = f"@dataclass(frozen=True){nl}class OwnerApproval"
+        _unique(source, owner_marker, "duplicate-authority")
+        _write(security, source.replace(
+            owner_marker,
+            f"class PromotionReceipt:{nl}    pass{nl}{nl}{nl}" + owner_marker,
+            1,
+        ))
         _require_killed("duplicate-promotion-receipt-class")
-        contracts.write_bytes(originals[contracts])
+        security.write_bytes(originals[security])
 
-        contracts.write_text(
-            source.replace(
-                owner_marker,
-                "from daedalus.schemas import PromotionReceipt as CanonicalPromotionReceipt\n\n"
-                "class AlternatePromotionReceipt(CanonicalPromotionReceipt):\n"
-                "    pass\n\n\n"
-                + owner_marker,
-                1,
-            ),
-            encoding="utf-8",
-        )
+        # 2. A hidden subclass of the canonical receipt (same package, no import cycle).
+        _write(security, source.replace(
+            owner_marker,
+            f"from daedalus.kernel.contracts.canonical import PromotionReceipt as CanonicalPromotionReceipt{nl}{nl}"
+            f"class AlternatePromotionReceipt(CanonicalPromotionReceipt):{nl}"
+            f"    pass{nl}{nl}{nl}"
+            + owner_marker,
+            1,
+        ))
         _require_killed("hidden-promotion-receipt-subclass")
-        contracts.write_bytes(originals[contracts])
+        security.write_bytes(originals[security])
 
+        # 3. OwnerApproval claiming the promotion contract type.
         owner_contract = 'CONTRACT_TYPE: ClassVar[str] = "daedalus.owner-approval"'
-        if source.count(owner_contract) != 1:
-            raise SystemExit("owner contract-type mutation marker is not unique")
-        contracts.write_text(
-            source.replace(
-                owner_contract,
-                'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion"',
-                1,
-            ),
-            encoding="utf-8",
-        )
+        _unique(source, owner_contract, "owner contract-type")
+        _write(security, source.replace(
+            owner_contract,
+            'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion"',
+            1,
+        ))
         _require_killed("duplicate-canonical-promotion-contract-owner")
-        contracts.write_bytes(originals[contracts])
+        security.write_bytes(originals[security])
 
-        source = originals[schemas].decode("utf-8")
+        # 4. The canonical receipt renamed to a competing contract type.
+        source = originals[canonical].decode("utf-8")
         contract_marker = 'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion"'
-        if source.count(contract_marker) != 1:
-            raise SystemExit("contract-type mutation marker is not unique")
-        schemas.write_text(
-            source.replace(
-                contract_marker,
-                'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion-receipt"',
-                1,
-            ),
-            encoding="utf-8",
-        )
+        _unique(source, contract_marker, "contract-type")
+        _write(canonical, source.replace(
+            contract_marker,
+            'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion-receipt"',
+            1,
+        ))
         _require_killed("competing-promotion-contract-type")
-        schemas.write_bytes(originals[schemas])
+        canonical.write_bytes(originals[canonical])
 
-        competing_module.write_text(
-            'class PromotionExecutionReceipt:\n    """Competing authority mutant."""\n',
-            encoding="utf-8",
-        )
+        # 5. The retired promotion_receipts module resurrected.
+        _write(competing_module,
+               'class PromotionExecutionReceipt:\n    """Competing authority mutant."""\n')
         _require_killed("obsolete-promotion-receipts-module")
         competing_module.unlink()
 
+        # 6. The kernel facade claiming authority in its own docstring.
         source = originals[kernel_init].decode("utf-8")
         authority_marker = "not a second contract authority"
-        if source.count(authority_marker) != 1:
-            raise SystemExit("kernel-authority mutation marker is not unique")
-        kernel_init.write_text(
-            source.replace(
-                authority_marker,
-                "an alternate contract authority",
-                1,
-            ),
-            encoding="utf-8",
-        )
+        _unique(source, authority_marker, "kernel-authority")
+        _write(kernel_init, source.replace(
+            authority_marker,
+            "an alternate contract authority",
+            1,
+        ))
         _require_killed("kernel-contract-authority-drift")
         kernel_init.write_bytes(originals[kernel_init])
     finally:
