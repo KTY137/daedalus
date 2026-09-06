@@ -65,6 +65,10 @@ def test_inflight_cancellation_retains_unknown_and_never_reenters_adapter(isolat
     requested = []
     calls = []
     service.set_cancellation_probe(lambda: bool(requested))
+    # The test supplies the adapter below; optional Playwright installation is
+    # not part of this cancellation/lease contract.
+    monkeypatch.setattr(computer, "_release_unavailable_reason",
+                        lambda _policy, _tool: "")
 
     def adapter(tool, arguments):
         calls.append(tool)
@@ -239,6 +243,7 @@ def test_cross_root_same_mission_id_cannot_replay_old_content(history_state):
 
 def test_real_browser_navigation_observes_cancellation_and_cannot_repeat(isolated_computer):
     """Real isolated Chromium/loopback HTTP; no external page or desktop input."""
+    pytest.importorskip("playwright.sync_api")
     base_service = isolated_computer
     cancelled = threading.Event()
     requests = []
@@ -268,6 +273,8 @@ def test_real_browser_navigation_observes_cancellation_and_cannot_repeat(isolate
     service.set_cancellation_probe(cancelled.is_set)
     try:
         first = service.execute("browser.navigate", {"url": url}, mission_id="native-cancel", attempt_id="one")
+        if "initialization unavailable" in json.dumps(first):
+            pytest.skip("Playwright Chromium distribution unavailable")
         assert requests == ["/fixture"], first
         assert first["state"] == "reconciliation_required", first
         with closing(sqlite3.connect(str(service.control / "effect-leases.sqlite3"))) as database:
@@ -285,6 +292,7 @@ def test_real_browser_navigation_observes_cancellation_and_cannot_repeat(isolate
 
 def test_finite_recurrence_runs_real_browser_once_per_distinct_mission(isolated_computer, monkeypatch):
     """Real policy/mission/lease/browser evidence with a deterministic planner."""
+    pytest.importorskip("playwright.sync_api")
     base_service = isolated_computer
     requests = []
 
@@ -329,6 +337,8 @@ def test_finite_recurrence_runs_real_browser_once_per_distinct_mission(isolated_
         computer_schedule.schedule_computer(root, due.isoformat(), "Observe local fixture twice",
                                            owner_confirmed=True, repeat_every_s=60, occurrences=2)
         first = computer_schedule.dispatch_due_computer(root, now=due)
+        if "initialization unavailable" in json.dumps(first):
+            pytest.skip("Playwright Chromium distribution unavailable")
         assert first[0]["state"] == "completed", first
         assert first[0]["continuation"]["state"] == "scheduled", first
         assert requests == ["/recurring"]
