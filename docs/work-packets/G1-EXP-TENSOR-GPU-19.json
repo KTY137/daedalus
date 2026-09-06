@@ -1,0 +1,155 @@
+{
+  "packet_id": "G1-EXP-TENSOR-GPU-19",
+  "title": "Replace per-entry CSR row-state validation with matched-count row spans",
+  "status": "closed-experiment",
+  "date_europe_berlin": "2026-09-05",
+  "authority": {
+    "masterplan_revision": 11,
+    "masterplan_version": "2.2.0",
+    "masterplan_status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "semantic_authority": "Forest/Fourfold and the adopted masterplan remain authoritative; TypedRelationBlock remains a regenerable typed computational view."
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "branch_policy": {
+    "new_remote_branch_created": false,
+    "archive_legacy_20260830_used_as_work_target": false,
+    "archive_legacy_20260830_expected_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "scope": {
+    "pre_head": "b85e563236c309de5cf3f916423f2f8a334cbdc8",
+    "implementation_commit": "e89d518e833573692b2828ebc2bed2f0cbffed37",
+    "code_test_head": "99f68a2c8cfe849b7e2ff6a269b3e62724e31531",
+    "production_path": "daedalus/twin/relation_blocks.py",
+    "production_blob": "7d29c5cb97421fc9d01ec82c55af0f9854edafeb",
+    "test_path": "tests/twin/test_relation_block_validation_fusion.py",
+    "test_blob": "9900bb78d99328f758e2d924b8c3f4a9871dc365",
+    "diff_from_pre_head": {
+      "commits": 2,
+      "files": 2,
+      "additions": 56,
+      "deletions": 19
+    }
+  },
+  "change": {
+    "summary": "For the canonical common case where CSR column/value counts and the terminal row offset already agree, validate column type/range/strict row ordering by walking each row's exact offset span. Keep a count-mismatch fallback that scans column type/range before the existing common-entry-count refusal.",
+    "removed_hot_path_behavior": "Per stored entry, advance a row-boundary state machine with a while-loop before checking row-local strict ordering.",
+    "new_abstraction": false,
+    "new_backend": false,
+    "new_cache": false,
+    "new_registry": false,
+    "trusted_constructor": false,
+    "workflow_changed": false
+  },
+  "semantic_guards": {
+    "scalar_admission_precedes_structural_validation": true,
+    "row_offset_error_precedence": [
+      "type",
+      "boundary/start",
+      "monotonicity"
+    ],
+    "column_error_precedence": [
+      "type",
+      "range",
+      "common entry count",
+      "strict ordering inside each row"
+    ],
+    "empty_rows_regression_pinned": true,
+    "canonical_object_json_digest_parity_pinned": true,
+    "hash_seed_contract_surface_retained": true
+  },
+  "verification": {
+    "code_test_workflow_run": 33943496367,
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "event_head_sha": "99f68a2c8cfe849b7e2ff6a269b3e62724e31531",
+    "tested_pull_request_merge_sha": "3ab0c19cff6dd64eaddbeea49f2d098a25c4fea5",
+    "base_main_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "conclusion": "success",
+    "contract_matrix": {
+      "python_3_12_hash_0": "success",
+      "python_3_12_hash_123456": "success",
+      "python_3_10_hash_0": "success",
+      "python_3_10_hash_123456": "success"
+    },
+    "designated_python_3_12_hash_0": {
+      "passed": 342,
+      "skipped": 2,
+      "elapsed_seconds": 6.29,
+      "packed_cpu_diagnostic": "success",
+      "typed_block_validation_profile_v5": "success",
+      "residency_diagnostic": "success",
+      "fanout_diagnostic": "success",
+      "public_api_verification": "success"
+    },
+    "isolated_wheel_imports": "success",
+    "repository_collection": "success",
+    "complete_repository_test_suite": "manual-only/skipped"
+  },
+  "retained_artifacts": [
+    {
+      "kind": "packed-cpu-baseline",
+      "artifact_id": 9962582429,
+      "zip_sha256": "b61fdf56382c8980de7b9bf49df803f60987cbcfff87e4d0f88b4317bdee464a",
+      "retention_days": 7
+    },
+    {
+      "kind": "typed-block-validation-profile-v5",
+      "artifact_id": 9962582856,
+      "zip_sha256": "36ffdb8e7c1c087b13a6875fb36254388a3b2b8fdb56e1935d288e5473f69b4d",
+      "retention_days": 7
+    },
+    {
+      "kind": "packed-cpu-residency",
+      "artifact_id": 9962584070,
+      "zip_sha256": "21417a3d0ebe51bf2ed52a0c84e6bb47a12ba41079368d1d664fadb541c089b8",
+      "retention_days": 7
+    },
+    {
+      "kind": "packed-cpu-fanout",
+      "artifact_id": 9962585404,
+      "zip_sha256": "f87b922d9a322e5fa32e2e923e8e7e80be1ab4019d3493efc03c6f038b1a6ac0",
+      "retention_days": 7
+    }
+  ],
+  "post_change_diagnostic": {
+    "authority": "diagnostic-only",
+    "case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264,
+      "canonical_digest": "6db1c26e097bcb2f9c5b7f35fa69d5051d1de4502e196c858272d480627c21fa"
+    },
+    "unprofiled_constructor_ms": {
+      "median": 8.240797,
+      "min": 8.165566,
+      "max": 8.284729,
+      "samples": 5
+    },
+    "support_decode_ms_median": 1.583022,
+    "cprofile": {
+      "typed_block_post_init_self_ms_median": 15.601854,
+      "typed_block_post_init_cumulative_ms_median": 21.972392,
+      "stored_scalar_calls": 43264,
+      "stored_scalar_cumulative_ms_median": 6.341303,
+      "profiled_constructor_wall_ms_median": 22.05181,
+      "profiler_slowdown_ratio": 2.675931709032512
+    },
+    "interpretation": "Post-change hosted diagnostic only. There is no same-run pre-change A/B in this packet; cProfile attribution includes observer overhead and is not a wall-time decomposition."
+  },
+  "claim_boundary": {
+    "general_cpu_speedup_claim": false,
+    "cuda_or_tensor_core_speedup_claim": false,
+    "memory_win_claim": false,
+    "tensor_over_forest_claim": false,
+    "crewai_or_alphaevolve_win_claim": false,
+    "reason": "Correctness and post-change diagnostics are reproducible, but this packet does not retain a controlled same-run pre-change A/B baseline."
+  },
+  "promotion": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "next_decision": "Do not add another profiler/backend/cache. Any performance claim for this validation change requires a controlled A/B reference without creating a parallel product abstraction; otherwise move to the next prioritized bounded Fourfold/Tensor gardening issue."
+}

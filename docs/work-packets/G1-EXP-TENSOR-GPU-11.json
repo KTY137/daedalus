@@ -1,0 +1,172 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-11",
+  "title": "Profile canonical TypedRelationBlock validation cost without adding a trusted constructor",
+  "date": "2026-09-04",
+  "status": "closed-measurement",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "blob_sha": "b16cd697b5f263be81cc0889f0d803ad696a8b84",
+    "authority": "sole semantic authority"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "8bd9de1e0fa4c7cef67aea216c3bec3eee837b80",
+  "implementation_commit": "762da6470dd5d2cecff8ee142d01ee8aeb4f0c38",
+  "focused_test_commit": "10b3b74aa53cfefe53408bfdf38a4f0f1a11dd0b",
+  "code_test_workflow_head": "7b20b779cd699365dd0156cf0e75758bcad96c12",
+  "files": {
+    "experiments/tensor_gpu/typed_block_validation_profile.py": "cc31afbc1fdc0da99a4e65c97a9a15930117b1b6",
+    "tests/twin/test_tensor_typed_block_validation_profile.py": "2b5cee54d2dd10185ae45d1a077441a0c955828e",
+    ".github/workflows/fourfold-v2.yml": "93a461c1d7f81336b03a0a40249f4001a268eebf"
+  },
+  "question": "GPU-10 showed canonical TypedRelationBlock construction dominating packed Boolean materialization. Which existing canonical validation frames account for that cost before any production fast path is considered?",
+  "change": {
+    "contained_probe": "Add one deterministic cProfile diagnostic that executes the unchanged canonical TypedRelationBlock constructor and attributes existing validation frames.",
+    "unprofiled_baseline": "Retain separate unprofiled constructor samples because cProfile observer overhead changes absolute timings.",
+    "reuse": "Reuse the existing ProbeCase fixture, packed Boolean primitives, canonical block factory, sampling helper, Fourfold subject, and existing Fourfold/Tensor workflow.",
+    "workflow": "Extend the existing Python 3.12/hash-0 diagnostic lane and retain the JSON artifact for 7 days; no workflow family is added."
+  },
+  "gardener_boundary": {
+    "production_runtime_changed": false,
+    "trusted_constructor_added": false,
+    "alternate_relation_type_added": false,
+    "cache_added": false,
+    "backend_added": false,
+    "registry_added": false,
+    "store_added": false,
+    "scheduler_added": false,
+    "semantic_plane_added": false,
+    "runtime_dependency_added": false,
+    "new_workflow_family_added": false
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33917175465,
+    "tested_head": "7b20b779cd699365dd0156cf0e75758bcad96c12",
+    "status": "completed",
+    "conclusion": "success",
+    "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 succeeded",
+    "profile_lane": "Python 3.12/hash-0 emitted and retained the validation profile successfully",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only",
+    "full_repository_execution": "manual-only and skipped",
+    "nvidia_gpu_executed": false
+  },
+  "artifact": {
+    "id": 9953606732,
+    "name": "tensor-typed-block-validation-profile-60c1c7223a165e3258d41774bc682ce28eea2fbd",
+    "archive_sha256": "aed417f12dec3c4642979c99c505cffa6ba06c693d183e82223f6c28d8c7bb88",
+    "retention_days": 7,
+    "report": "typed_block_validation_profile_ci.json",
+    "note": "The artifact name contains GitHub's pull-request synthetic merge SHA; the workflow run itself records tested head 7b20b779cd699365dd0156cf0e75758bcad96c12."
+  },
+  "frozen_diagnostic": {
+    "runtime": "CPython 3.12.14 on Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "measurement_caveat": "cProfile self/cumulative timings include observer overhead and are non-additive; unprofiled construction medians are the wall-time baseline.",
+    "cases": [
+      {
+        "size": 64,
+        "requested_density": 0.01,
+        "output_entries": 64,
+        "unprofiled_construct_ms_median": 0.081392,
+        "typed_block_post_init_cumulative_ms_median_profiled": 0.231289,
+        "builtin_any_calls": 68,
+        "builtin_any_cumulative_ms_median_profiled": 0.100595,
+        "validation_generator_calls": 325,
+        "validation_generators_cumulative_ms_median_profiled": 0.051419,
+        "stored_scalar_calls": 64,
+        "stored_scalar_cumulative_ms_median_profiled": 0.010212
+      },
+      {
+        "size": 64,
+        "requested_density": 0.05,
+        "output_entries": 576,
+        "unprofiled_construct_ms_median": 0.230998,
+        "typed_block_post_init_cumulative_ms_median_profiled": 0.792175,
+        "builtin_any_calls": 68,
+        "builtin_any_cumulative_ms_median_profiled": 0.494878,
+        "validation_generator_calls": 1861,
+        "validation_generators_cumulative_ms_median_profiled": 0.314787,
+        "stored_scalar_calls": 576,
+        "stored_scalar_cumulative_ms_median_profiled": 0.084129
+      },
+      {
+        "size": 128,
+        "requested_density": 0.01,
+        "output_entries": 128,
+        "unprofiled_construct_ms_median": 0.143166,
+        "typed_block_post_init_cumulative_ms_median_profiled": 0.391070,
+        "builtin_any_calls": 132,
+        "builtin_any_cumulative_ms_median_profiled": 0.188894,
+        "validation_generator_calls": 645,
+        "validation_generators_cumulative_ms_median_profiled": 0.092496,
+        "stored_scalar_calls": 128,
+        "stored_scalar_cumulative_ms_median_profiled": 0.019132
+      },
+      {
+        "size": 128,
+        "requested_density": 0.05,
+        "output_entries": 4608,
+        "unprofiled_construct_ms_median": 1.459561,
+        "typed_block_post_init_cumulative_ms_median_profiled": 5.129617,
+        "builtin_any_calls": 132,
+        "builtin_any_cumulative_ms_median_profiled": 3.364103,
+        "validation_generator_calls": 14085,
+        "validation_generators_cumulative_ms_median_profiled": 2.178786,
+        "stored_scalar_calls": 4608,
+        "stored_scalar_cumulative_ms_median_profiled": 0.670635
+      },
+      {
+        "size": 256,
+        "requested_density": 0.01,
+        "output_entries": 2304,
+        "unprofiled_construct_ms_median": 0.857834,
+        "typed_block_post_init_cumulative_ms_median_profiled": 2.878432,
+        "builtin_any_calls": 260,
+        "builtin_any_cumulative_ms_median_profiled": 1.836238,
+        "validation_generator_calls": 7429,
+        "validation_generators_cumulative_ms_median_profiled": 1.149820,
+        "stored_scalar_calls": 2304,
+        "stored_scalar_cumulative_ms_median_profiled": 0.336510
+      },
+      {
+        "size": 256,
+        "requested_density": 0.05,
+        "output_entries": 43264,
+        "unprofiled_construct_ms_median": 12.517520,
+        "typed_block_post_init_cumulative_ms_median_profiled": 45.741211,
+        "builtin_any_calls": 260,
+        "builtin_any_cumulative_ms_median_profiled": 30.820779,
+        "validation_generator_calls": 130309,
+        "validation_generators_cumulative_ms_median_profiled": 20.125544,
+        "stored_scalar_calls": 43264,
+        "stored_scalar_cumulative_ms_median_profiled": 6.144333
+      }
+    ]
+  },
+  "finding": {
+    "summary": "The dominant profiled construction work is the repeated generic any/generator validation surface inside TypedRelationBlock.__post_init__, not bounded-sequence admission, semiring resolution, or identifier admission.",
+    "largest_case": "At 256/0.05 and 43,264 output entries, unprofiled canonical construction was 12.517520 ms median. Under cProfile, __post_init__ accumulated 45.741211 ms; builtin any accumulated 30.820779 ms across 260 calls and nested validation generators accumulated 20.125544 ms across 130,309 calls. These cumulative figures overlap and must not be summed.",
+    "structural_signal": "builtin any call count is row-count plus four in the 64/128/256 cases, matching four whole-array validation predicates plus one strict-order predicate per row; generator work grows with rows and stored entries.",
+    "negative_result": "The evidence does not justify a trusted constructor, cache, alternate relation representation, or another arithmetic backend."
+  },
+  "next_implication": "A subsequent bounded packet may test one fused canonical CSR validation pass inside TypedRelationBlock.__post_init__ that preserves every current fail-closed invariant while reducing repeated whole-array/per-row scans. It must prove invalid-input parity and canonical digest parity before any timing claim.",
+  "claim_boundary": {
+    "general_cpu_speedup": false,
+    "cuda_or_tensor_core_speedup": false,
+    "memory_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "gate_transition": false,
+    "merge": false
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-05",
+  "title": "Separate CUDA output allocation from the timed resident GEMM kernel",
+  "status": "closed",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "dfe9c3fe9a88a679f04157e2978eb34a040a330a",
+  "implementation_commit": "7972d87b639970781ca296755b850c3efd29e7f8",
+  "exact_code_test_head": "8d0583a95b03695f2a777ca79e097d3bdb09f7b5",
+  "finding": "The CUDA value labelled resident kernel time still created a fresh GEMM output tensor on every warmup and measured repetition through torch.matmul. Output allocation/allocator behavior therefore remained entangled with the repeated compute boundary, while the one-shot decomposition exposed no allocation term. That made the CUDA resident-kernel comparison less strict than the corrected packed-CPU timing boundary from G1-EXP-TENSOR-GPU-04.",
+  "change": [
+    "allocate the padded CUDA output tensor exactly once after both dense inputs are resident",
+    "record output_allocate_ms separately from sparse-to-dense packing, GEMM kernel timing, and readback/canonicalization",
+    "execute every warmup and timed 2-D GEMM through torch.mm(..., out=product) so the caller-owned output buffer is reused",
+    "include output allocation in one_shot_end_to_end_ms but exclude it from cpu_over_resident_gpu_kernel",
+    "retain the existing VRAM admission estimate, which already accounts for one resident GEMM output matrix",
+    "add a CPU-only fake-torch regression proving the resident helper forwards the exact caller-owned output buffer",
+    "mechanically refuse regrowth of torch.matmul allocation inside the probe's repeated resident path"
+  ],
+  "scope": {
+    "changed": [
+      "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "tests/twin/test_tensor_gpu_probe.py"
+    ],
+    "changes_production_runtime": false,
+    "adds_runtime_dependency": false,
+    "adds_backend_to_daedalus_twin": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler": false,
+    "adds_semantic_plane": false,
+    "automatic_promotion": false
+  },
+  "delta_to_exact_code_test_head": {
+    "commits": 2,
+    "files": 2,
+    "additions": 42,
+    "deletions": 4
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "blob": "f706c02402bdf3ae755d9b2caf66b9182fc1139a"
+    },
+    {
+      "path": "tests/twin/test_tensor_gpu_probe.py",
+      "blob": "08c47bcbe3829ef8aa6ba80a9655f3d57c4df7e1"
+    }
+  ],
+  "timing_contract": {
+    "pack_to_device_ms": "build the two dense CUDA input matrices from canonical CSR support",
+    "output_allocate_ms": "allocate the reusable padded GEMM output tensor once",
+    "kernel_ms": "CUDA-event time for torch.mm with an already allocated out= buffer; no output allocation in the repeated resident path",
+    "readback_and_canonicalize_ms": "threshold Boolean support, copy it to CPU and rebuild the canonical TypedRelationBlock",
+    "one_shot_end_to_end_ms": "pack_to_device + output_allocate + median kernel + readback_and_canonicalize",
+    "resident_kernel_ratio": "CPU CSR oracle divided by median preallocated CUDA kernel only",
+    "one_shot_ratio": "CPU CSR oracle divided by the complete one-shot decomposition above"
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33887348669,
+    "head_sha": "8d0583a95b03695f2a777ca79e097d3bdb09f7b5",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 all succeeded",
+    "designated_bitset_calibration": "Python 3.12/hash-0 executed successfully",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a complete repository execution claim",
+    "full_suite": "manual-only job skipped",
+    "gpu_execution": "not executed on the hosted CPU runners and not claimed",
+    "tensor_core_use": "not profiled and not claimed",
+    "superseded_run": "33887302294 on implementation-only head 7972d87b... was cancelled after the test commit superseded it and is not green evidence"
+  },
+  "claim_boundary": {
+    "cuda_code_present": true,
+    "hosted_cpu_contracts_green": true,
+    "gpu_run_completed": false,
+    "tensor_core_usage_proven": false,
+    "latency_speedup": false,
+    "memory_speedup": false,
+    "tensor_beats_packed_cpu": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "next_if_gpu_available": "Run the existing CUDA probe on the owner NVIDIA host and compare corrected cpu_over_resident_gpu_kernel and cpu_over_gpu_one_shot against the packed-CPU baseline on exactly the same ProbeCase subjects. A kernel-only win without a one-shot crossover does not license a production CUDA backend.",
+  "tracking": {
+    "issue": 239,
+    "pull_request": 314
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "note": "Only the existing exp/tensor-kernel-contract-01 line was advanced. No ref was created, deleted, renamed, force-updated or moved into the archive evidence/history anchor."
+  }
+}

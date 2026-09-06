@@ -82,7 +82,7 @@ jobs:
             daedalus/shift_ticker.py \
             experiments/fourfold_hybrid_retrieval/*.py \
             experiments/tensor_embedding/arm_o_latent_ceiling.py \
-            experiments/tensor_gpu/cuda_boolean_probe.py
+            experiments/tensor_gpu/*.py
       - name: Run integrated contract surface
         env:
           PYTHONHASHSEED: ${{ matrix.hash-seed }}
@@ -93,6 +93,45 @@ jobs:
             tests/test_tensor_latent_ceiling.py \
             tests/test_arch_memory.py \
             tests/test_shift.py
+      - name: Emit bounded packed CPU bitset Tensor baseline
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python experiments/tensor_gpu/cpu_bitset_baseline.py \
+            --sizes 64 128 256 \
+            --densities 0.01 0.05 \
+            --repeats 5 \
+            --warmup 2 \
+            --output runs/tensor_gpu/cpu_bitset_ci.json
+      - name: Retain bounded packed CPU bitset diagnostic
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensor-cpu-bitset-baseline-${{ github.sha }}
+          path: runs/tensor_gpu/cpu_bitset_ci.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Emit canonical TypedRelationBlock validation profile
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        env:
+          PYTHONHASHSEED: "0"
+        run: |
+          python experiments/tensor_gpu/typed_block_validation_profile.py \
+            --sizes 64 128 256 \
+            --densities 0.01 0.05 \
+            --repeats 5 \
+            --warmup 2 \
+            --profile-repeats 3 \
+            --output runs/tensor_gpu/typed_block_validation_profile_ci.json
+      - name: Retain canonical TypedRelationBlock validation profile
+        if: matrix.python-version == '3.12' && matrix.hash-seed == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tensor-typed-block-validation-profile-${{ github.sha }}
+          path: runs/tensor_gpu/typed_block_validation_profile_ci.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Verify public package API
         run: |
           python - <<'PY'

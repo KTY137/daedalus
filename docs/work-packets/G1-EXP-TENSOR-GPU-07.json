@@ -1,0 +1,188 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-07",
+  "title": "Pair CSR and packed-bitset timing policy and retain the crossover diagnostic",
+  "status": "closed",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "58c148b89c27f636069723ab46765f0df97e175d",
+  "code_commit": "30adc33f52abc04907b4eeb50b088a39fc6b30b2",
+  "test_commit": "f40fe4b8d88a6e81192f08a5b4674230cd67cfed",
+  "tested_head": "ebb8a61d794c857a60202b4f1f479c15d0be4098",
+  "finding": "The packed-bitset arm used warmup plus repeated median timing, while the stdlib CSR oracle was timed exactly once. Ratios therefore mixed a sampled hot-path denominator with a single potentially cold/noisy reference observation. In addition, the calibration was printed to transient job logs only, so the exact numeric diagnostic was harder to retain and re-check than the surrounding contract evidence.",
+  "change": [
+    "add one local repeated-measurement helper and reuse the existing MAX_REPEATS/MAX_WARMUP bounds",
+    "apply the same warmup and repeat counts to the stdlib TypedRelationBlock.matmul Boolean reference and the resident packed-bitset kernel in the same process",
+    "bump the diagnostic wire schema from daedalus-tensor-cpu-bitset-baseline/1 to /2 rather than silently changing its timing meaning",
+    "report median/min/max/sample count for the CSR reference and packed-bitset kernel",
+    "rename diagnostic ratios so they explicitly compare a full CSR operation to either the resident bitset kernel or the bitset one-shot path",
+    "retain the exact bounded Python 3.12/hash-0 JSON diagnostic as a seven-day GitHub Actions artifact inside the existing Fourfold/Tensor workflow"
+  ],
+  "gardener": {
+    "new_backend": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_workflow_family": false,
+    "new_semantic_authority": false,
+    "shared_existing_bounds": true,
+    "reason_for_artifact_step": "retain the already-running bounded calibration as replayable evidence instead of adding another benchmark harness"
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "blob": "eb9aff1382dc006753dc93c34406673b35488033"
+    },
+    {
+      "path": "tests/twin/test_tensor_cpu_bitset_baseline.py",
+      "blob": "5741f410c066dfabbe8bcb19deff3447725733dc"
+    },
+    {
+      "path": ".github/workflows/fourfold-v2.yml",
+      "blob": "37daca6c49af34cd063be6338805fe913d409e25"
+    }
+  ],
+  "delta": {
+    "commits": 3,
+    "files": 3,
+    "additions": 125,
+    "deletions": 32,
+    "net": 93
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33898788237,
+    "head_sha": "ebb8a61d794c857a60202b4f1f479c15d0be4098",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "python_312_hash_0": "integrated contracts, equal-sample CPU calibration, diagnostic artifact upload and public API smoke succeeded",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "full_suite": "manual-only and not claimed",
+    "gpu_execution": "not executed and not claimed"
+  },
+  "diagnostic_artifact": {
+    "artifact_id": 9946805053,
+    "name": "tensor-cpu-bitset-baseline-e416f4fd9d2e36fa99b2a87c2c6632c5dd8a473b",
+    "artifact_sha256": "d9ac144c4ccc91958a6768fcd358bee7d180322518b20737d490e9929aca5c86",
+    "workflow_head_sha": "ebb8a61d794c857a60202b4f1f479c15d0be4098",
+    "runtime": {
+      "python": "3.12.14",
+      "implementation": "CPython",
+      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+      "int_bits_per_digit": 30,
+      "int_bytes_per_digit": 4
+    },
+    "cases": [
+      {
+        "size": 64,
+        "requested_density": 0.01,
+        "actual_density": 0.015625,
+        "csr_ms_median": 0.177734,
+        "bitset_kernel_ms_median": 0.015102,
+        "bitset_one_shot_ms": 0.200737,
+        "csr_over_resident_bitset": 11.768904780823732,
+        "csr_over_bitset_one_shot": 0.885407274194593,
+        "support_equal": true
+      },
+      {
+        "size": 64,
+        "requested_density": 0.05,
+        "actual_density": 0.046875,
+        "csr_ms_median": 0.714273,
+        "bitset_kernel_ms_median": 0.042384,
+        "bitset_one_shot_ms": 0.508877,
+        "csr_over_resident_bitset": 16.852420724801814,
+        "csr_over_bitset_one_shot": 1.4036260235774067,
+        "support_equal": true
+      },
+      {
+        "size": 128,
+        "requested_density": 0.01,
+        "actual_density": 0.0078125,
+        "csr_ms_median": 0.320998,
+        "bitset_kernel_ms_median": 0.031097,
+        "bitset_one_shot_ms": 0.320026,
+        "csr_over_resident_bitset": 10.322474836800978,
+        "csr_over_bitset_one_shot": 1.0030372532231757,
+        "support_equal": true
+      },
+      {
+        "size": 128,
+        "requested_density": 0.05,
+        "actual_density": 0.046875,
+        "csr_ms_median": 5.012969,
+        "bitset_kernel_ms_median": 0.171735,
+        "bitset_one_shot_ms": 2.8613669999999995,
+        "csr_over_resident_bitset": 29.190141788220224,
+        "csr_over_bitset_one_shot": 1.7519489810289979,
+        "support_equal": true
+      },
+      {
+        "size": 256,
+        "requested_density": 0.01,
+        "actual_density": 0.01171875,
+        "csr_ms_median": 2.809411,
+        "bitset_kernel_ms_median": 0.179838,
+        "bitset_one_shot_ms": 2.01637,
+        "csr_over_resident_bitset": 15.621898597626753,
+        "csr_over_bitset_one_shot": 1.3933013286252025,
+        "support_equal": true
+      },
+      {
+        "size": 256,
+        "requested_density": 0.05,
+        "actual_density": 0.05078125,
+        "csr_ms_median": 45.271562,
+        "bitset_kernel_ms_median": 0.696536,
+        "bitset_one_shot_ms": 22.798462,
+        "csr_over_resident_bitset": 64.99529385415829,
+        "csr_over_bitset_one_shot": 1.985728774160292,
+        "support_equal": true,
+        "canonicalize_ms": 21.179875
+      }
+    ]
+  },
+  "interpretation": [
+    "All six frozen cases reproduced exact Boolean support and matching canonical digests against the stdlib CSR oracle.",
+    "The resident packed-bitset kernel was much cheaper than the full reference operation in this synthetic runner matrix, but that is diagnostic evidence rather than a general backend superiority claim.",
+    "The one-shot crossover is workload dependent: the smallest sparse 64-node case loses after packing/canonicalization, the 128-node sparse case is effectively break-even, and the denser/larger retained cases have ratios above one on this runner.",
+    "At 256 nodes and roughly 5 percent density, canonical reconstruction consumed 21.179875 ms of the 22.798462 ms one-shot path. The next optimization question is therefore output representation/reuse, not another arithmetic kernel layer.",
+    "CUDA still has to beat the packed-bitset baseline under the same exact case and must account for transfer, allocation and readback; no GPU result exists yet."
+  ],
+  "claims": {
+    "synthetic_cpu_crossover_measured": true,
+    "production_speedup_claim": false,
+    "general_tensor_speedup_claim": false,
+    "cuda_speedup": false,
+    "tensor_core_use": false,
+    "memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "next": "Before adding another execution backend, test whether retaining packed rows and/or returning a lightweight support view can remove the measured one-shot canonicalization cost without creating a second authoritative relation representation. Then run the existing CUDA arm on owner NVIDIA hardware against the same frozen cases.",
+  "tracking": {
+    "issue": 239,
+    "pull_request": 314
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "archive_observed_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "visible_remote_branches": 18,
+    "note": "Only exp/tensor-kernel-contract-01 was advanced. No branch was created, deleted, renamed, force-moved or repurposed as an archive target."
+  }
+}

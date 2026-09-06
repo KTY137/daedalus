@@ -1,0 +1,102 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-37",
+  "title": "Reject lossy indexed row projection in the canonical TypedRelationBlock owner",
+  "classification": "implementation",
+  "domain": "tensor-kernel",
+  "status": "closed",
+  "date_europe_berlin": "2026-09-06",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "base_head": "872a537d2e9490dc86cfd7379a9567e00bc7ce2d",
+  "finding": {
+    "owner": "TypedRelationBlock._from_indexed",
+    "problem": "An indexed entry with a negative or too-large row index could remain unconsumed while canonical CSR rows were materialized, silently dropping the entry instead of refusing a lossy projection. Python bool/float row aliases could also compare equal to integer row positions.",
+    "risk": "Internal Fourfold/Tensor projection callers rely on this owner as a fail-closed canonical boundary after verified labels are mapped to indices. Silent omission is incompatible with exact, revision-bound projection semantics."
+  },
+  "implementation": {
+    "commit": "e5443f4b2e1fb763138e20ebae3a70aacb62eebf",
+    "tree": "5adba26994d835cc73d65f6193fb3ab2f34efc62",
+    "production_path": "daedalus/twin/relation_blocks.py",
+    "production_before_blob": "1eb82f5a3ecf0ef163935919460e84e1f6319737",
+    "production_after_blob": "a0d4785eb3ffdf25a9d9c778e0211ff6c8ccc8e5",
+    "test_path": "tests/twin/test_relation_block_validation_fusion.py",
+    "test_before_blob": "7eb04dd5ebcdda2aaa37b999baf8fab145a1e6b9",
+    "test_after_blob": "4d4860ed6253628d026397ce9cba1761b2796f8a",
+    "change": "Validate every indexed row key as an exact int within the existing row-axis bounds before sorting and CSR materialization, then continue through the existing constructor and validation path.",
+    "focused_regressions": [
+      "row index -1 refuses instead of disappearing",
+      "row index equal to row_count refuses instead of disappearing",
+      "bool, float and string row aliases refuse as non-exact integers"
+    ]
+  },
+  "gardener_constraints": {
+    "parallel_abstraction_added": false,
+    "new_backend_added": false,
+    "new_cache_added": false,
+    "new_registry_added": false,
+    "new_public_api_added": false,
+    "existing_canonical_owner_reused": true
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "implementation_run_id": 34013124183,
+    "event": "pull_request",
+    "head_sha": "e5443f4b2e1fb763138e20ebae3a70aacb62eebf",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "merge_preview_sha": "bce9bc21b60fd426c3f84e8c8b0eaeb54d3a7422",
+    "contract_matrix": "success",
+    "matrix": [
+      "Python 3.10 / PYTHONHASHSEED=0",
+      "Python 3.10 / PYTHONHASHSEED=123456",
+      "Python 3.12 / PYTHONHASHSEED=0",
+      "Python 3.12 / PYTHONHASHSEED=123456"
+    ],
+    "designated_runtime": "CPython 3.12.14 / PYTHONHASHSEED=0",
+    "designated_result": "368 passed, 2 skipped",
+    "public_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success",
+    "full_repository_suite": "manual-only/skipped"
+  },
+  "retained_diagnostics": [
+    {
+      "artifact_id": 9983080210,
+      "name": "tensor-cpu-bitset-baseline-bce9bc21b60fd426c3f84e8c8b0eaeb54d3a7422",
+      "sha256": "3f72df68d456d790cef138833c29119e662fa5538ad8c19650735615fdc9739b",
+      "expires_at": "2026-09-13T05:06:12Z",
+      "authority": "diagnostic-only",
+      "claim": "none"
+    },
+    {
+      "artifact_id": 9983080476,
+      "name": "tensor-typed-block-validation-profile-bce9bc21b60fd426c3f84e8c8b0eaeb54d3a7422",
+      "sha256": "4af1d127ab36e39f18c0ccf79a86d5b3f58a0d8399c6baea1ed5b0fcfb95b0a5",
+      "expires_at": "2026-09-13T05:06:13Z",
+      "authority": "diagnostic-only",
+      "claim": "none"
+    }
+  ],
+  "claim_boundaries": {
+    "correctness": "Bounded fail-closed regression and PR-integration evidence for the indexed row-admission defect only.",
+    "performance": "none; no controlled GPU-37 production pre/post A/B was run",
+    "tensor_vs_forest": "none",
+    "crewai": "none",
+    "alphaevolve": "none",
+    "full_suite_green": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "canonical_branch_only": true,
+    "force_update": false,
+    "archive_legacy_20260830_written": false,
+    "unique_evidence_deleted": false
+  }
+}

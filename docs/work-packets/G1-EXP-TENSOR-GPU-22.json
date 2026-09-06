@@ -1,0 +1,82 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-22",
+  "title": "Prove and prune a one-shot batched scalar-admission candidate",
+  "status": "closed-experiment",
+  "date": "2026-09-05",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority": "sole semantic authority"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "1c327316c5f7e6f95de9b7383bc6067b7eb8bf55",
+  "experiment_head": "a5db37a871056855482d1e45afe0d86404a4f1d5",
+  "experiment_commit": "a5db37a871056855482d1e45afe0d86404a4f1d5",
+  "experiment_blobs": {
+    "experiments/tensor_gpu/scalar_admission_ab.py": "dd90eae5f33c143744472236a5080ea3c9ab5e4f",
+    "tests/twin/test_tensor_scalar_admission_ab.py": "2e4ec0fee00433a9ee353761ccccc972ac9285cf"
+  },
+  "experiment_diff": {
+    "files_changed": 2,
+    "additions": 247,
+    "deletions": 0
+  },
+  "production_runtime_changed": false,
+  "workflow_changed": false,
+  "new_backend": false,
+  "new_cache": false,
+  "new_relation_type": false,
+  "new_remote_branch": false,
+  "research_question": "Can the current per-entry persisted-scalar contract be represented by one sequence-level admission owner while preserving accepted values, tropical normalization, tuple reuse, and first-error semantics across Boolean, Natural, Tropical, EvidenceDag, unsupported names, and list materialization?",
+  "result": {
+    "semantic_candidate": "supported by focused exact-head tests",
+    "production_decision": "not implemented in this packet",
+    "reason": "Semantic parity is a prerequisite but not sufficient evidence for a production optimization. The temporary mirror is removed after verification so the branch does not retain a second scalar-admission authority. A future production change requires a controlled retained timing/effect-size result rather than an unretained pytest micro-timing.",
+    "one_shot_surface_pruned": true,
+    "live_parallel_scalar_contract_after_close": false
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33954679362,
+    "head_sha": "a5db37a871056855482d1e45afe0d86404a4f1d5",
+    "conclusion": "success",
+    "executed_steps_observed": true,
+    "designated_python_3_12_hash_0": {
+      "job_id": 101275714885,
+      "compile_integrated_modules": "success",
+      "integrated_contract_surface": "success",
+      "packed_cpu_baseline": "success",
+      "typed_block_profile": "success",
+      "residency_diagnostic": "success",
+      "fanout_diagnostic": "success",
+      "public_api": "success"
+    },
+    "isolated_wheel_imports": "success",
+    "repository_collection": "success",
+    "complete_suite": "manual-only/skipped"
+  },
+  "evidence_retention": {
+    "temporary_experiment_commit_retained_in_history": true,
+    "temporary_experiment_blobs_retained_by_sha": true,
+    "temporary_live_files_removed_on_close": true,
+    "performance_samples_retained_as_artifact": false,
+    "performance_claim_allowed": false
+  },
+  "claim_boundaries": [
+    "GPU-22 establishes focused semantic-candidate evidence only; it does not establish a production scalar-admission optimization.",
+    "The bounded pytest micro-timing is not retained and is not used for a speedup claim.",
+    "No constructor-wide or general CPU speedup is claimed.",
+    "No CUDA, Tensor Core, GPU, or memory-performance win is claimed.",
+    "No Tensor-vs-Forest, CrewAI, or AlphaEvolve benchmark win is claimed.",
+    "Repository collection success is not represented as a complete-suite test pass."
+  ],
+  "promotion_state": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merged": false,
+    "gate_transition": false
+  }
+}

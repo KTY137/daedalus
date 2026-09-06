@@ -1,0 +1,143 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-17",
+  "title": "Prune retired zero-only constructor profiler metrics",
+  "date": "2026-09-05",
+  "status": "closed-experiment",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "blob_sha": "b16cd697b5f263be81cc0889f0d803ad696a8b84",
+    "authority": "sole semantic authority"
+  },
+  "main_revision": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "750970569996831c007513318dceb69e0a0cea79",
+  "implementation_commit": "c5e1a280f32b40356fbe20d52177a5b411780ba4",
+  "test_commit": "8570ea93c1c7ade62f4b5cdc979d5f6b328d046f",
+  "exact_tested_head": "8570ea93c1c7ade62f4b5cdc979d5f6b328d046f",
+  "files": {
+    "experiments/tensor_gpu/typed_block_validation_profile.py": "600b8009c525f41528031e04b081f9585d6b33fd",
+    "tests/twin/test_tensor_typed_block_validation_profile.py": "915eddd19d29af3c834adf1c0eae9f833b227175",
+    "daedalus/twin/relation_blocks.py": "e48c26180597de7ff94da3b8b10cef57b15b2424",
+    ".github/workflows/fourfold-v2.yml": "93a461c1d7f81336b03a0a40249f4001a268eebf"
+  },
+  "diff": {
+    "commits": 2,
+    "files": 2,
+    "additions": 26,
+    "deletions": 56,
+    "net_lines": -30,
+    "production_runtime_lines_changed": 0
+  },
+  "question": "After GPU-12 fused away the generic any/generator structural scans and GPU-16 narrowed profiling to constructor-native attribution, should their permanently zero profiler metrics and helper machinery remain on the active diagnostic surface?",
+  "baseline_evidence": {
+    "source_packet": "G1-EXP-TENSOR-GPU-16",
+    "artifact_id": 9960001158,
+    "archive_sha256": "f9ebd462d05ceb15145acbe6dbe054de08d2454c678455daae826c4d33e542c1",
+    "observation": "Across all six frozen Boolean profile cases, constructor_validation_generators.calls and builtin_any.calls were both zero after the GPU-12 fused validation change.",
+    "claim": "historical attribution only; not a performance comparison"
+  },
+  "change": {
+    "schema": "Bump daedalus-tensor-typed-block-validation-profile/4 to /5 because two retired metrics are intentionally removed from the report contract.",
+    "remove_retired_metrics": "Delete constructor_validation_generators and builtin_any from the active metric surface after frozen evidence shows both remain zero across the complete bounded case matrix.",
+    "remove_dead_helpers": "Delete _nested_codes, _builtin_metrics, and the now-unused CodeType import instead of retaining machinery for metrics that no longer identify an active cost.",
+    "retain_active_attribution": "Keep bitset factory, canonical TypedRelationBlock.__post_init__, constructor-native _stored, bounded sequence admission, semiring resolution, and identifier admission attribution.",
+    "regression": "Pin schema /5, the six active metrics, absence of the retired helpers and prior standalone scalar timer, support/digest parity, bounds, and constructor-native call counts."
+  },
+  "gardener_boundary": {
+    "production_runtime_changed": false,
+    "new_probe_file_added": false,
+    "parallel_benchmark_harness_added": false,
+    "obsolete_profiler_surface_removed": true,
+    "net_lines_removed": 30,
+    "trusted_constructor_added": false,
+    "alternate_relation_type_added": false,
+    "cache_added": false,
+    "backend_added": false,
+    "registry_added": false,
+    "store_added": false,
+    "scheduler_added": false,
+    "semantic_plane_added": false,
+    "runtime_dependency_added": false,
+    "workflow_changed": false,
+    "new_workflow_family_added": false,
+    "public_api_added": false
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33938055745,
+    "tested_head": "8570ea93c1c7ade62f4b5cdc979d5f6b328d046f",
+    "status": "completed",
+    "conclusion": "success",
+    "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 integrated contract jobs succeeded",
+    "designated_python_312_hash0": "Integrated contract surface, packed CPU baseline, TypedRelationBlock materialization profile /5, residency diagnostic, fanout diagnostic, artifact uploads, and public package API verification succeeded",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only",
+    "full_repository_execution": "manual-only and skipped",
+    "nvidia_gpu_executed": false
+  },
+  "artifacts": {
+    "packed_cpu_baseline": {
+      "id": 9960835714,
+      "archive_sha256": "6dea59f42647eafa231c7c75a476286865a6d69c0077627ebed0c5602b7b209d",
+      "retention_days": 7
+    },
+    "typed_block_validation_profile": {
+      "id": 9960836042,
+      "archive_sha256": "636f46d916dbe7183a941058219f430e86dc145cbae1717effcc79b0a7681956",
+      "schema": "daedalus-tensor-typed-block-validation-profile/5",
+      "active_metrics": [
+        "bitset_block_factory",
+        "typed_block_post_init",
+        "stored_scalar_admission",
+        "bounded_sequence_admission",
+        "semiring_resolution",
+        "identifier_admission"
+      ],
+      "retention_days": 7
+    },
+    "packed_residency": {
+      "id": 9960837431,
+      "archive_sha256": "f01cc3940eff23aa0329c884d7aed4d3e6673dbd5137c2f997cba4117649c3f5",
+      "retention_days": 7
+    },
+    "packed_fanout": {
+      "id": 9960838909,
+      "archive_sha256": "75ce6a9f0db868b843e884d965db747a2c81d98dd3e1e5caca904a5c3992a6d8",
+      "retention_days": 7
+    },
+    "note": "Workflow artifact names contain GitHub's pull-request synthetic merge SHA; workflow metadata binds all artifacts to exact head 8570ea93c1c7ade62f4b5cdc979d5f6b328d046f."
+  },
+  "finding": {
+    "summary": "The two profiler metrics introduced to diagnose GPU-11-era generic validation scans have completed their purpose. Post-GPU-12 frozen evidence keeps both at zero across the bounded matrix, so retaining their recursive code-discovery and builtin-string matching adds diagnostic bloat without explaining an active cost.",
+    "negative_result": "This packet deliberately makes no production constructor optimization and provides no new speedup number. Removing zero-only metrics does not justify a trusted constructor, alternate relation type, cache, backend, or validation bypass.",
+    "next_implication": "Further Tensor work should use the smaller /5 active profile to isolate one concrete in-path constructor cost before changing production relation materialization."
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "archive_branch_used_as_work_target": false,
+    "archive_anchor_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "claim_boundary": {
+    "general_cpu_speedup": false,
+    "cross_run_speedup_claim": false,
+    "cuda_or_tensor_core_speedup": false,
+    "memory_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "gate_transition": false,
+    "merge": false
+  }
+}

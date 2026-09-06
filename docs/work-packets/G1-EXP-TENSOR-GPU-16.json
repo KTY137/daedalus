@@ -1,0 +1,127 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-16",
+  "title": "Remove duplicate scalar-admission timing and keep constructor-native attribution",
+  "date": "2026-09-05",
+  "status": "closed-experiment",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "blob_sha": "b16cd697b5f263be81cc0889f0d803ad696a8b84",
+    "authority": "sole semantic authority"
+  },
+  "main_revision": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "7ad3aa3d16d228f0fb5304e997baa2c8d7bf787e",
+  "implementation_commit": "5dbc2bb1a1ef406fb36c8ff8627a9577a31faf81",
+  "test_commit": "4f57b52e2f426d7b94fa319fd0f8a093e8016df9",
+  "exact_tested_head": "4f57b52e2f426d7b94fa319fd0f8a093e8016df9",
+  "files": {
+    "experiments/tensor_gpu/typed_block_validation_profile.py": "377606d4c82bfa24271bcf877b9575e03682293e",
+    "tests/twin/test_tensor_typed_block_validation_profile.py": "4917e8b09628626ca7c15407f7ff74023816170f",
+    "daedalus/twin/relation_blocks.py": "e48c26180597de7ff94da3b8b10cef57b15b2424",
+    ".github/workflows/fourfold-v2.yml": "93a461c1d7f81336b03a0a40249f4001a268eebf"
+  },
+  "diff": {
+    "commits": 2,
+    "files": 2,
+    "additions": 35,
+    "deletions": 63,
+    "net_lines": -28,
+    "production_runtime_lines_changed": 0
+  },
+  "question": "After GPU-15 made packed-support decoding secondary to canonical block construction, can the standalone _stored scalar wall-time microbenchmark be removed so the profiler has one canonical constructor path while retaining exact constructor-native scalar attribution?",
+  "change": {
+    "schema": "Bump the diagnostic report from daedalus-tensor-typed-block-validation-profile/3 to /4 because the report surface intentionally removes standalone scalar timing fields.",
+    "remove_duplicate_path": "Delete _scalar_admission and its independent warmup/repeat timing loop instead of maintaining a second scalar-validation execution surface beside TypedRelationBlock construction.",
+    "retain_native_attribution": "Keep cProfile attribution of daedalus.twin.relation_blocks._stored only when it is invoked by the real canonical TypedRelationBlock constructor.",
+    "retain_decode_pairing": "Keep the unchanged packed-support decoder and canonical constructor on the same bounded warmup/repeat policy; support and canonical digest parity remain enforced.",
+    "regression": "Pin schema /4, absence of scalar_admission report fields and helper, constructor-native _stored call attribution, existing support decoder reuse, bounds, and fail-closed profile argument admission."
+  },
+  "gardener_boundary": {
+    "production_runtime_changed": false,
+    "new_probe_file_added": false,
+    "parallel_benchmark_harness_added": false,
+    "duplicate_probe_path_removed": true,
+    "net_lines_removed": 28,
+    "trusted_constructor_added": false,
+    "alternate_relation_type_added": false,
+    "cache_added": false,
+    "backend_added": false,
+    "registry_added": false,
+    "store_added": false,
+    "scheduler_added": false,
+    "semantic_plane_added": false,
+    "runtime_dependency_added": false,
+    "workflow_changed": false,
+    "new_workflow_family_added": false,
+    "public_api_added": false
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33935451417,
+    "tested_head": "4f57b52e2f426d7b94fa319fd0f8a093e8016df9",
+    "status": "completed",
+    "conclusion": "success",
+    "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 integrated contract jobs succeeded",
+    "designated_python_312_hash0": "Integrated contract surface, packed CPU baseline, TypedRelationBlock materialization profile /4, residency diagnostic, fanout diagnostic, artifact uploads, and public package API verification succeeded",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only",
+    "full_repository_execution": "manual-only and skipped",
+    "nvidia_gpu_executed": false
+  },
+  "artifacts": {
+    "packed_cpu_baseline": {
+      "id": 9960000818,
+      "archive_sha256": "bb2d51890fc72ea903261f4cfa6b6059bf5467145f17fb6c1faf8c07c7779b20",
+      "retention_days": 7
+    },
+    "typed_block_validation_profile": {
+      "id": 9960001158,
+      "archive_sha256": "f9ebd462d05ceb15145acbe6dbe054de08d2454c678455daae826c4d33e542c1",
+      "retention_days": 7
+    },
+    "packed_residency": {
+      "id": 9960002536,
+      "archive_sha256": "2fd8cee09a80d60a6882f1a7fecbf45c12246d7dc2b12c0e5e37bb76e2ffdb32",
+      "retention_days": 7
+    },
+    "packed_fanout": {
+      "id": 9960003957,
+      "archive_sha256": "459ebc7c557392cf08dd5f6924736aa9553aeaa8ed6a9ede437a9d337dc5cd54",
+      "retention_days": 7
+    },
+    "note": "Artifact names contain GitHub's pull-request synthetic merge SHA; workflow metadata binds all four artifacts to exact head 4f57b52e2f426d7b94fa319fd0f8a093e8016df9."
+  },
+  "finding": {
+    "summary": "The standalone scalar-admission wall-time probe is redundant after its GPU-13 attribution purpose has been served: the real canonical constructor already executes _stored once per persisted scalar, and cProfile records that exact path. Removing the duplicate loop reduces the diagnostic surface by 28 net lines and avoids future drift without weakening correctness checks.",
+    "negative_result": "This packet intentionally makes no constructor optimization and provides no new speedup number. It does not justify a trusted constructor, alternate relation type, cache, backend, or bypass of fail-closed canonical materialization.",
+    "next_implication": "Further Tensor work should use the now narrower /4 constructor-native profile to identify a concrete in-path cost before changing production relation materialization."
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "archive_branch_used_as_work_target": false,
+    "archive_anchor_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "claim_boundary": {
+    "general_cpu_speedup": false,
+    "cross_run_speedup_claim": false,
+    "cuda_or_tensor_core_speedup": false,
+    "memory_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "gate_transition": false,
+    "merge": false
+  }
+}

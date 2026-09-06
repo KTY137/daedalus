@@ -1,0 +1,126 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-27",
+  "title": "Remove the impossible None branch from CSR row-offset monotonic validation",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-05",
+  "authority": {
+    "masterplan": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "semantic_authority": "masterplan-only"
+  },
+  "scope": {
+    "issue": 239,
+    "pull_request": 314,
+    "branch": "exp/tensor-kernel-contract-01",
+    "pre_head": "89c2e3e8e97ff0746988b9d811e19afe2f646969",
+    "implementation_head": "408fb038bef7639cc069395f01528ed78768ff7d",
+    "files": [
+      "daedalus/twin/relation_blocks.py",
+      "tests/twin/test_relation_block_validation_fusion.py"
+    ]
+  },
+  "gardener_decision": {
+    "problem": "CSR row-offset monotonic validation still carried an Optional previous-offset state and None guard for every offset even though canonical CSR row offsets start at zero and never decrease.",
+    "change": "Use the local integer sentinel -1 and compare previous_offset > item directly, deleting the impossible previous_offset-is-not-None branch without adding another validator.",
+    "why_not_another_abstraction": "The change stays inside the existing TypedRelationBlock constructor and introduces no helper, validator, cache, registry, backend, relation type, profiler schema, workflow path, or benchmark harness.",
+    "semantic_boundary": "Offset element type refusal, row-boundary/start-zero precedence, monotonicity refusal, common entry-count validation, and strict row ordering remain externally unchanged. A -1 first-offset regression proves the local sentinel cannot become accepted persisted canonical input."
+  },
+  "implementation": {
+    "commit": "408fb038bef7639cc069395f01528ed78768ff7d",
+    "tree": "6f688df1eb23650dc8ec48b5794efe60864d3a8e",
+    "production_blob": "47c21b5523fe2e96f9c7539cbcf6be2b24a2cb95",
+    "focused_test_blob": "1a13a12b949275e1241a6e503c41ba2042f52e04",
+    "old_production_blob": "abccfb6a329fc6c938814fc16f3adcf921c58f56",
+    "old_test_blob": "7974554b360e98ae88a73c1670230b687a332548",
+    "diff": {
+      "files": 2,
+      "additions": 8,
+      "deletions": 2
+    },
+    "new_remote_branch_created": false,
+    "force_update": false
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33968010913,
+    "run_head_sha": "408fb038bef7639cc069395f01528ed78768ff7d",
+    "event": "pull_request",
+    "conclusion": "success",
+    "checkout_subject": {
+      "kind": "GitHub pull-request merge preview",
+      "merge_preview_sha": "05d1083eef8249684765ed60a1af265de97f0c72",
+      "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+      "head_sha": "408fb038bef7639cc069395f01528ed78768ff7d",
+      "note": "GitHub run metadata is bound to the implementation head, while actions/checkout tested the generated PR merge preview. This is integration evidence, not a claim that the runner checked out the raw head commit directly."
+    },
+    "contract_matrix": {
+      "python_3_10_hash_0": "success",
+      "python_3_10_hash_123456": "success",
+      "python_3_12_hash_0": "success",
+      "python_3_12_hash_123456": "success",
+      "designated_python_3_12_hash_0": "358 passed, 2 skipped"
+    },
+    "isolated_wheel_imports": "success",
+    "repository_collection": "success",
+    "complete_repository_suite": "manual-only/skipped",
+    "public_api_verification": "success"
+  },
+  "retained_diagnostics": {
+    "expires_2026_09_12": true,
+    "baseline": {
+      "artifact_id": 9970046271,
+      "sha256": "acba95f50bdf76a24e95041dbf0eb110dbb653c4bdacb53418392635845565c2"
+    },
+    "typed_relation_block_profile_v8": {
+      "artifact_id": 9970046549,
+      "sha256": "ecce0de384ed02047545b56120893303ed2c237fc440e46756a5a648ecf37217"
+    },
+    "residency": {
+      "artifact_id": 9970047565,
+      "sha256": "0264110b1b4cb0f9974be861ec27d47912df2eef23e7e656e30e529defad6d2e"
+    },
+    "fanout": {
+      "artifact_id": 9970048475,
+      "sha256": "f1abd6f49f6c805183feacd2c55a818c271bb2f7dfda9152f45bc31ed778fa5a"
+    },
+    "artifact_naming_note": "Because the workflow is a pull_request run, upload-artifact names contain the generated merge-preview SHA; GitHub workflow metadata binds the artifacts to head_sha 408fb038bef7639cc069395f01528ed78768ff7d."
+  },
+  "post_change_diagnostic": {
+    "schema": "daedalus-tensor-typed-block-validation-profile/8",
+    "runtime": "CPython 3.12.14 on GitHub-hosted Ubuntu 24.04 merge preview",
+    "largest_case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264,
+      "unprofiled_constructor_median_ms": 2.938931,
+      "unprofiled_support_decode_median_ms": 1.534551,
+      "typed_block_post_init_cprofile_cumulative_ms_median": 5.805424,
+      "typed_block_post_init_cprofile_self_ms_median": 5.344993,
+      "stored_sequence_cprofile_cumulative_ms_median": 0.444028
+    },
+    "claim": "diagnostic-only",
+    "claim_boundary": "GPU-27 contains no controlled same-process pre/post constructor A/B. Cross-run differences against GPU-26 are not treated as a speedup. cProfile includes observer overhead. No general CPU, GPU, CUDA, Tensor-Core, memory, Tensor-vs-Forest, CrewAI, or AlphaEvolve superiority claim is made."
+  },
+  "branch_hygiene": {
+    "canonical_branch_used": "exp/tensor-kernel-contract-01",
+    "new_remote_branch_created": false,
+    "archive_legacy_20260830_observed_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_used_as_work_or_storage_target": false,
+    "branch_deleted_for_cosmetic_count_reduction": false,
+    "unique_evidence_deleted": false
+  },
+  "promotion": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "closure": {
+    "record_role": "This record closes the bounded implementation packet. The commit that introduces this record is the packet's final branch head and should be independently rechecked by the same Fourfold/Tensor workflow; that follow-up run is recorded on PR #314 and issue #239 rather than recursively rewriting this file.",
+    "next_narrow_step": "Use retained profile-v8 attribution or a higher-priority bounded Fourfold/Tensor issue to choose the next packet. Do not reintroduce an Optional offset sentinel or a second CSR validator."
+  }
+}

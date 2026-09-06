@@ -1,0 +1,132 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-06",
+  "title": "Consolidate the shared Boolean CPU/CUDA probe contract",
+  "status": "closed",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT_GARDENING",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "0492680991f6024310fa8e78ff7a09c7bcd296b5",
+  "exact_tested_head": "24e1a1bcdae60c5e8db4c977314db07512fe2782",
+  "finding": "The packed CPU arm loaded the entire CUDA experiment with runpy only to reuse ProbeCase, deterministic fixture construction, bounds, the VRAM estimate, reference-operation counting, support comparison, ratios and report persistence. Those responsibilities therefore lived inside one physical backend script while a second physical backend depended on executing that script as a pseudo-library. Tests repeated the same runpy coupling. This was a parallel ownership seam and made CPU/CUDA comparisons vulnerable to accidental fixture drift.",
+  "gardener_decision": "Move only the exact backend-neutral Boolean probe contract into one small sibling module. Keep CUDA execution in cuda_boolean_probe.py and packed CPU execution in cpu_bitset_baseline.py. Delete duplicated helpers and runpy coupling rather than adding a probe framework, backend registry, scheduler, store or second Tensor authority.",
+  "changes": [
+    "add experiments/tensor_gpu/boolean_probe_contract.py as the sole owner of ProbeCase, shared bounds, deterministic fixture identity, explicit CUDA memory estimate, exact reference-operation count, support equality, diagnostic ratio and atomic report persistence",
+    "make both CUDA and packed-CPU arms import that exact shared contract while retaining direct-script execution",
+    "remove the duplicated ProbeCase/fixture/memory/comparison/report implementation from the CUDA arm",
+    "remove runpy and duplicated comparison helpers from the packed-CPU arm",
+    "make focused tests assert object identity for the shared contract and mechanically refuse runpy coupling",
+    "compile every experiment/tensor_gpu Python module through the existing Fourfold/Tensor workflow instead of maintaining another explicit file list"
+  ],
+  "authority_boundary": {
+    "forest_fourfold_authority_changed": false,
+    "typed_relation_block_oracle_changed": false,
+    "semantic_algebra_changed": false,
+    "production_backend_added": false,
+    "runtime_dependency_added": false,
+    "store_or_registry_added": false,
+    "scheduler_added": false,
+    "automatic_promotion": false,
+    "owner_approval": false,
+    "gate_transition": false
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/boolean_probe_contract.py",
+      "blob": "d7fcace9c70104494bdf38d0003f9da5bc36eab7"
+    },
+    {
+      "path": "experiments/tensor_gpu/cuda_boolean_probe.py",
+      "blob": "61f1ddca6e9ca9b3405636a0f39b4cb63ca54ba9"
+    },
+    {
+      "path": "experiments/tensor_gpu/cpu_bitset_baseline.py",
+      "blob": "29eac4f36c308bcdc2aecc281f3c83b2959517ac"
+    },
+    {
+      "path": "tests/twin/test_tensor_gpu_probe.py",
+      "blob": "5b25ab55107066c7ba8d74640cdf10fc9c3b83a5"
+    },
+    {
+      "path": "tests/twin/test_tensor_cpu_bitset_baseline.py",
+      "blob": "8d4392a661a53566dccd28261ae42bb229f3fce1"
+    },
+    {
+      "path": ".github/workflows/fourfold-v2.yml",
+      "blob": "4f1256646d8143eb191db379545c99187595f70f"
+    }
+  ],
+  "commits": [
+    "e004c311aa4c62dea549c5145d0d4604dc05c8e1",
+    "4ece68aa9870ff8cf51c0c703b2844b0a8467874",
+    "b8a05db549c1690d8bb137b8dd459e42cf3796f2",
+    "b6f33996f7a40c699fa25e82e2811ae28b4aef9a",
+    "2dadbeffbc2cc3e3fdc6dd88c59704efa7688d6a",
+    "24e1a1bcdae60c5e8db4c977314db07512fe2782"
+  ],
+  "delta_from_pre_head": {
+    "commits": 6,
+    "files": 6,
+    "additions": 380,
+    "deletions": 285,
+    "net_lines": 95,
+    "note": "Net lines increase because one explicit shared contract and identity regressions replace hidden dynamic coupling; the CUDA physical arm itself loses 176 net lines and the same shared responsibilities are no longer owned twice."
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33893269741,
+    "head_sha": "24e1a1bcdae60c5e8db4c977314db07512fe2782",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456: success",
+    "compile_integrated_modules": "success; includes experiments/tensor_gpu/*.py",
+    "packed_cpu_calibration": "success on Python 3.12 / hash 0 only; diagnostic timing, no speed claim",
+    "public_package_api": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "full_suite": "skipped because this was a pull_request run and the full-suite job is workflow_dispatch/manual-only",
+    "gpu_execution": "not executed by this hosted workflow and not claimed"
+  },
+  "acceptance": [
+    "CUDA and packed-CPU arms use the identical ProbeCase class and deterministic fixture function",
+    "no physical arm imports or executes the other physical arm through runpy",
+    "CUDA PyTorch import remains lazy and optional",
+    "packed CPU Boolean composition remains exactly equal to the stdlib TypedRelationBlock Boolean oracle on focused cases",
+    "CUDA memory accounting and OOM refusal remain bound to the shared exact ProbeCase",
+    "the existing workflow compiles the shared contract and both physical arms",
+    "no product authority, promotion authority or benchmark claim is introduced"
+  ],
+  "claims": {
+    "hosted_contracts_green": true,
+    "hosted_wheel_green": true,
+    "repository_collection_green": true,
+    "full_repository_suite_green": false,
+    "gpu_run_completed": false,
+    "tensor_core_usage_proven": false,
+    "cpu_bitset_speedup": false,
+    "cuda_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 314
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "modified_remote_branch": "exp/tensor-kernel-contract-01",
+    "archive_branch": "archive/legacy-20260830",
+    "archive_observed_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_branch_written": false,
+    "branch_created_deleted_renamed_or_force_moved": false
+  },
+  "next": "Use the now-identical fixture contract for the first fair same-subject CPU-CSR vs packed-CPU vs owner-GPU CUDA measurement. Do not add another backend abstraction unless that measurement demonstrates a workload-specific crossover."
+}

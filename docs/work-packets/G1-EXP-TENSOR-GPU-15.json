@@ -1,0 +1,152 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-15",
+  "title": "Reduce packed-support decode overhead with one adaptive byte-table path",
+  "date": "2026-09-05",
+  "status": "closed-experiment",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "blob_sha": "b16cd697b5f263be81cc0889f0d803ad696a8b84",
+    "authority": "sole semantic authority"
+  },
+  "main_revision": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "1bde5dae8128fa9944998bf847ae10f3ec06692d",
+  "implementation_commit": "50f9f1c9170286062a5c703f054a94de4bff99f7",
+  "exact_tested_head": "50f9f1c9170286062a5c703f054a94de4bff99f7",
+  "files": {
+    "experiments/tensor_gpu/cpu_bitset_baseline.py": "56ca336450ba48db94c111810d8d02731ae0d6fb",
+    "experiments/tensor_gpu/typed_block_validation_profile.py": "07b2b5638ca946f2eb62d36a489a10bd47985605",
+    "tests/twin/test_tensor_cpu_bitset_baseline.py": "37df4b08f8b84fc21189644be6c9f61b9d7ac508",
+    "daedalus/twin/relation_blocks.py": "e48c26180597de7ff94da3b8b10cef57b15b2424",
+    ".github/workflows/fourfold-v2.yml": "93a461c1d7f81336b03a0a40249f4001a268eebf"
+  },
+  "diff": {
+    "commits": 1,
+    "files": 1,
+    "additions": 31,
+    "deletions": 13,
+    "production_runtime_lines_changed": 0
+  },
+  "question": "Can the existing packed Boolean support decoder perform less Python-level work per set bit while retaining exact sorted canonical CSR support, bounded refusal semantics, and the existing TypedRelationBlock authority boundary?",
+  "change": {
+    "reuse": "Change the existing experiments.tensor_gpu.cpu_bitset_baseline._csr_support_from_masks helper in place; do not add another materialization module or benchmark harness.",
+    "sparse_path": "Retain the existing lowest-set-bit walk for sparse output rows.",
+    "dense_path": "For denser rows, scan a fixed-width little-endian int.to_bytes view and reuse one immutable 256-entry byte-to-bit-offset lookup table, preserving strictly increasing canonical column order.",
+    "crossover": "Choose the byte path when mask.bit_count() exceeds half of the encoded row byte width; this decision depends only on admitted row geometry and observed support density.",
+    "entry_bound": "Use mask.bit_count() to preflight cumulative MAX_BLOCK_ENTRIES before decoding a row and retain the existing refusal message.",
+    "semantic_control": "The unchanged CSR BooleanSemiring oracle, TypedRelationBlock output, subject, axes, support and canonical digest remain the correctness controls."
+  },
+  "gardener_boundary": {
+    "production_runtime_changed": false,
+    "new_probe_file_added": false,
+    "parallel_benchmark_harness_added": false,
+    "trusted_constructor_added": false,
+    "alternate_relation_type_added": false,
+    "cache_added": false,
+    "backend_added": false,
+    "registry_added": false,
+    "store_added": false,
+    "scheduler_added": false,
+    "semantic_plane_added": false,
+    "runtime_dependency_added": false,
+    "workflow_changed": false,
+    "new_workflow_family_added": false,
+    "public_api_added": false
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33931815545,
+    "tested_head": "50f9f1c9170286062a5c703f054a94de4bff99f7",
+    "status": "completed",
+    "conclusion": "success",
+    "matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 integrated contract jobs succeeded",
+    "designated_python_312_hash0": "339 passed, 2 skipped; packed CPU baseline, TypedRelationBlock materialization profile /3, residency diagnostic, fanout diagnostic, artifact uploads, and public package API verification succeeded",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only",
+    "full_repository_execution": "manual-only and skipped",
+    "nvidia_gpu_executed": false,
+    "runner": "CPython 3.12.14 on GitHub-hosted Ubuntu 24.04 Azure runner"
+  },
+  "artifacts": {
+    "packed_cpu_baseline": {
+      "id": 9958800920,
+      "archive_sha256": "8787a0fc44901754938b7e475c33c3db5a0d30a4b1b3259115601e9a470ee0d3",
+      "retention_days": 7
+    },
+    "typed_block_validation_profile": {
+      "id": 9958801375,
+      "archive_sha256": "f3635886131114b055882116b22811d07ad4355e48bc3101c0ad5f4ce432005e",
+      "retention_days": 7
+    },
+    "packed_residency": {
+      "id": 9958803236,
+      "archive_sha256": "5860fbcfb8f963b50e54b1e8820f652fe91cae7b55978d40cfefd8cf678e1218",
+      "retention_days": 7
+    },
+    "packed_fanout": {
+      "id": 9958805084,
+      "archive_sha256": "6feab0639de14abd352dfc7d3ab36dd9c2cd8618f7e6c02cb1c5e385c3a2346a",
+      "retention_days": 7
+    },
+    "note": "Artifact names contain GitHub's pull-request synthetic merge SHA; artifact workflow metadata binds all four artifacts to head 50f9f1c9170286062a5c703f054a94de4bff99f7."
+  },
+  "frozen_current_run_diagnostic": {
+    "runtime": "CPython 3.12.14 on GitHub-hosted Linux runner",
+    "claim": "none",
+    "support_and_digest_equal_to_csr_oracle": true,
+    "profile_cases": [
+      {"size": 64, "requested_density": 0.01, "output_entries": 64, "support_decode_ms_median": 0.022472, "canonical_construct_ms_median": 0.028954, "support_decode_to_constructor_ratio": 0.776128},
+      {"size": 64, "requested_density": 0.05, "output_entries": 576, "support_decode_ms_median": 0.066263, "canonical_construct_ms_median": 0.146894, "support_decode_to_constructor_ratio": 0.451094},
+      {"size": 128, "requested_density": 0.01, "output_entries": 128, "support_decode_ms_median": 0.044944, "canonical_construct_ms_median": 0.047188, "support_decode_to_constructor_ratio": 0.952446},
+      {"size": 128, "requested_density": 0.05, "output_entries": 4608, "support_decode_ms_median": 0.277769, "canonical_construct_ms_median": 1.090627, "support_decode_to_constructor_ratio": 0.254687},
+      {"size": 256, "requested_density": 0.01, "output_entries": 2304, "support_decode_ms_median": 0.467153, "canonical_construct_ms_median": 0.544587, "support_decode_to_constructor_ratio": 0.857812},
+      {"size": 256, "requested_density": 0.05, "output_entries": 43264, "support_decode_ms_median": 1.649411, "canonical_construct_ms_median": 9.594229, "support_decode_to_constructor_ratio": 0.171917}
+    ],
+    "baseline_largest_case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264,
+      "support_decode_ms": 1.538784,
+      "block_construct_ms": 9.585744,
+      "resident_kernel_ms_median": 0.726187,
+      "one_shot_end_to_end_ms": 12.756377,
+      "csr_reference_ms_median": 43.288922,
+      "boolean_support_equal": true,
+      "digest_equal": true
+    },
+    "measurement_caveat": "These are one hosted-run diagnostics. GPU-14 numbers came from a different hosted run, so before/after wall-time deltas across packets are not a controlled A/B benchmark and do not mint a speedup claim."
+  },
+  "finding": {
+    "summary": "The existing decoder can reduce per-entry Python work on dense rows without changing the semantic surface. In this run the 43,264-entry profile case spends 1.649411 ms in support decode versus 9.594229 ms in canonical construction, while all six cases preserve exact support and digest.",
+    "negative_result": "The experiment does not justify a new decoder subsystem, cache, trusted constructor, backend, or broad performance claim. Sparse rows still use the simpler original bit walk.",
+    "next_implication": "After this bounded decoder change, canonical TypedRelationBlock construction again dominates the dense-output materialization boundary in this run. A later packet may investigate that existing boundary, but this packet performs no further abstraction or promotion."
+  },
+  "branch_hygiene": {
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "archive_branch_used_as_work_target": false,
+    "archive_anchor_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398"
+  },
+  "claim_boundary": {
+    "general_cpu_speedup": false,
+    "cross_run_speedup_claim": false,
+    "cuda_or_tensor_core_speedup": false,
+    "memory_superiority": false,
+    "tensor_vs_forest_superiority": false,
+    "crewai_superiority": false,
+    "alphaevolve_superiority": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "gate_transition": false,
+    "merge": false
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-33",
+  "title": "Bound duplicate Fourfold cross-plane label admission before production change",
+  "classification": "RESEARCH",
+  "status": "closed-research",
+  "domain": "tensor-kernel/fourfold-projection",
+  "date_europe_berlin": "2026-09-05",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "scope": {
+    "pre_head": "8906f46bbddd9566b61095d7910375fb5c19c601",
+    "experiment_head": "ee2293ce089b87ecec1b27d0bf9e4c78f5b632b2",
+    "prune_head_before_record": "15d8dd6c1c0a0a93d234d79af175c20d7fa62582",
+    "branch": "exp/tensor-kernel-contract-01",
+    "production_changed": false,
+    "production_adapter": "daedalus/twin/relation_projection.py",
+    "canonical_block_owner": "daedalus/twin/relation_blocks.py::TypedRelationBlock._from_indexed",
+    "temporary_probe": {
+      "path": "experiments/tensor_gpu/fourfold_projection_index_probe.py",
+      "blob": "8b8a93cf4eacad2d383137d4fa0498cf9bcaa24b",
+      "add_commit": "adba06c12e6156d4d6bf310ffd9c1b6dcfe17f2f",
+      "delete_commit": "a69a04deaf050e8564436fc9e198415c9f40bd0f"
+    },
+    "temporary_test": {
+      "path": "tests/twin/test_fourfold_projection_index_probe.py",
+      "blob": "a05198e2feb5b4897cc813311102e2843c875f2a",
+      "add_commit": "45ced6b5154f41240e9e24489e72fd8595c02eb8",
+      "delete_commit": "eafd0c2afb8ed2325946ea5f99f4b5b4024f8faa"
+    },
+    "temporary_workflow_blob": "79f5d1e37585a64c252bc7b862465b41169f59b3",
+    "workflow_pre_and_post_blob": "ca0c1b5df2c73a851b4dcaacb767c3ddd82411f3",
+    "workflow_probe_commit": "ee2293ce089b87ecec1b27d0bf9e4c78f5b632b2",
+    "workflow_restored_commit": "15d8dd6c1c0a0a93d234d79af175c20d7fa62582",
+    "intermediate_restore_correction_commit": "a02b236a3091b69ae44478286dbd5228da116108"
+  },
+  "research_question": {
+    "observation": "Cross-plane Fourfold bindings are already revision-checked and endpoint-membership-checked by FourfoldSnapshot, but boolean_relation_block_from_fourfold converts their verified labels to coordinates and TypedRelationBlock.from_coordinates performs label admission and label-position lookup again before delegating to the existing indexed block owner.",
+    "candidate": "For the complete cross-plane valid path only, map already-verified binding endpoints to local axis indices and delegate directly to the existing TypedRelationBlock._from_indexed owner, retaining the exact Forest/Fourfold subject checks, complete-plane requirement, Boolean semantics, and final canonical TypedRelationBlock validation.",
+    "parallel_abstraction_added": false,
+    "trusted_constructor_added": false,
+    "second_validator_added": false
+  },
+  "bounded_probe": {
+    "runtime": "CPython 3.12.14 on GitHub-hosted Ubuntu 24.04 / Linux Azure",
+    "measurement": "11 paired same-process AB/BA observations after 3 warmups for each of six deterministic valid complete cross-plane fixtures",
+    "sizes": [64, 128, 256],
+    "requested_densities": [0.01, 0.05],
+    "semantic_check": "Before timing, candidate == baseline, canonical digest equality, and canonical JSON equality were required; every timed candidate result was also required to retain the baseline digest.",
+    "cases": [
+      {"size": 64, "density": 0.01, "bindings": 64, "baseline_median_ms": 1.728747, "candidate_median_ms": 1.520516, "candidate_to_baseline_ratio": 0.8795480194614943},
+      {"size": 64, "density": 0.05, "bindings": 192, "baseline_median_ms": 3.916643, "candidate_median_ms": 3.320827, "candidate_to_baseline_ratio": 0.847875846739159},
+      {"size": 128, "density": 0.01, "bindings": 128, "baseline_median_ms": 3.277948, "candidate_median_ms": 2.871686, "candidate_to_baseline_ratio": 0.8760620973853155},
+      {"size": 128, "density": 0.05, "bindings": 768, "baseline_median_ms": 14.54948, "candidate_median_ms": 12.138726, "candidate_to_baseline_ratio": 0.8343065181710961},
+      {"size": 256, "density": 0.01, "bindings": 768, "baseline_median_ms": 15.489079, "candidate_median_ms": 13.105286, "candidate_to_baseline_ratio": 0.846098467184524},
+      {"size": 256, "density": 0.05, "bindings": 3328, "baseline_median_ms": 61.214306, "candidate_median_ms": 50.703729, "candidate_to_baseline_ratio": 0.8282986823374262}
+    ],
+    "interpretation": "All six bounded valid fixture shapes retained byte/canonical identity and had a lower candidate median in this one hosted process. This is decision evidence for the local cross-plane projection path only, not a production or repository-wide speedup claim; error-path equivalence outside the retained top-level checks was not established by this probe."
+  },
+  "hosted_evidence": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33986040759,
+    "event": "pull_request",
+    "metadata_head_sha": "ee2293ce089b87ecec1b27d0bf9e4c78f5b632b2",
+    "base_sha": "61cd1f3e8eca1d02cd9ddeb734f4c112c69c29a0",
+    "merge_preview_sha": "beb9ba740a9c14085e7318d9a9b8e0ae0429d129",
+    "conclusion": "success",
+    "real_hosted_steps": true,
+    "checkout_semantics": "GitHub pull-request merge preview; not a raw-head checkout claim",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 succeeded",
+    "designated_python_3_12_hash_0": "365 passed, 2 skipped",
+    "one_shot_projection_probe": "success",
+    "repository_collection": "success",
+    "isolated_wheel": "success",
+    "public_api": "success",
+    "full_repository_suite": "manual-only/skipped",
+    "baseline_artifact": {
+      "id": 9975182104,
+      "sha256": "695b4f241c0da8448345add13b6fb699217b0b2b108574158b0aff4c0782b061",
+      "expires_at": "2026-09-12T19:06:01Z"
+    },
+    "typed_block_profile_artifact": {
+      "id": 9975182530,
+      "sha256": "9e19e4de52a76aec558b788f3b2af005806d3867ef20662abd61694d91fb9bd2",
+      "expires_at": "2026-09-12T19:06:03Z"
+    }
+  },
+  "gardening": {
+    "temporary_probe_pruned": true,
+    "temporary_test_pruned": true,
+    "temporary_workflow_step_pruned": true,
+    "workflow_restored_to_exact_pre_probe_blob": true,
+    "live_production_diff_from_gpu32": false,
+    "live_experiment_surface_added": false,
+    "evidence_preserved_in_commits_and_workflow_logs": true,
+    "archive_legacy_used": false,
+    "new_remote_branch_created": false,
+    "force_update_used": false,
+    "unique_evidence_deleted": false
+  },
+  "claim_boundaries": {
+    "performance_claim": false,
+    "production_speedup_claim": false,
+    "constructor_speedup_claim": false,
+    "cpu_gpu_tensor_core_claim": false,
+    "tensor_vs_forest_claim": false,
+    "crewai_alphaevolve_claim": false,
+    "full_suite_green_claim": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "decision": "The bounded valid-path evidence is strong enough to license one later minimal in-place production experiment in relation_projection.py that removes only duplicate cross-plane label admission by reusing the existing indexed block owner. Any such packet must preserve exact Forest/Fourfold binding checks, complete endpoint semantics, canonical block identity, failure behavior for invalid top-level subjects, and must not expose a trusted constructor or second validation authority.",
+  "next_bounded_packet": "Implement only the licensed cross-plane indexed projection in place, add focused regression coverage for canonical equality and retained refusals, and reject the change if exact-head integration or bounded before/after evidence does not support it. Do not alter same-plane Forest relation projection in the same packet."
+}

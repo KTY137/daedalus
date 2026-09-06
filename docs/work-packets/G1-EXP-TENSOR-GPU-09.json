@@ -1,0 +1,205 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-09",
+  "title": "Measure bounded revision-frozen packed-prefix fanout reuse",
+  "status": "closed-negative-to-weak-evidence",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority_path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "authority_blob": "b16cd697b5f263be81cc0889f0d803ad696a8b84"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "45daf70f329c34e9ef27069716b9f013d8b806e9",
+  "implementation_commit": "50edc3b4dcb50ee697eaf4bd7a3c5b0e4dc73eec",
+  "test_commit": "9950218db8d7f5da9d796bfb2deeff9825a1b92d",
+  "tested_head": "00c4d048243f15b833136f6c0712af7179d47c09",
+  "hypothesis": "For several exact Boolean queries sharing one revision-bound relation prefix, retaining the packed prefix once may avoid enough repeated prefix composition to justify a bounded regenerable physical view. If final TypedRelationBlock materialization dominates, the end-to-end benefit should remain weak and must not justify a cache service.",
+  "finding": {
+    "classification": "weak-mixed; does not justify a production cache",
+    "summary": "Across six frozen synthetic cases with four query tails, the shared-prefix one-shot was only about 1-2 percent faster in five cases and about 1.3 percent slower in one case. Query-batch-only timing improved more, but final canonical materialization dominated the workload. The narrower retained-prefix idea is therefore evidence for avoiding a new cache/backend abstraction, not for promoting one.",
+    "next_architectural_implication": "Keep the experiment contained. Investigate the final packed-support to canonical CSR/TypedRelationBlock materialization boundary before adding a cache service, another arithmetic backend, or GPU residency policy."
+  },
+  "scope": {
+    "added": [
+      "experiments/tensor_gpu/cpu_bitset_fanout_probe.py",
+      "tests/twin/test_tensor_cpu_bitset_fanout_probe.py",
+      "docs/work-packets/G1-EXP-TENSOR-GPU-09.json"
+    ],
+    "updated": [
+      ".github/workflows/fourfold-v2.yml"
+    ],
+    "changes_production_runtime": false,
+    "adds_product_cache": false,
+    "adds_backend": false,
+    "adds_registry": false,
+    "adds_store": false,
+    "adds_scheduler": false,
+    "adds_semantic_plane": false,
+    "adds_runtime_dependency": false
+  },
+  "reuse_boundary": {
+    "shared_contract": "experiments/tensor_gpu/boolean_probe_contract.py",
+    "shared_fixture": "experiments.tensor_gpu.cpu_bitset_residency_probe.build_boolean_chain",
+    "shared_csr_oracle_preflight": "experiments.tensor_gpu.cpu_bitset_residency_probe._preflight_csr_chain",
+    "shared_bitset_primitives": "experiments/tensor_gpu/cpu_bitset_baseline.py",
+    "authority": "Forest/Fourfold",
+    "semantic_oracle": "TypedRelationBlock.matmul(..., BooleanSemiring())"
+  },
+  "experiment_contract": {
+    "semantic_scope": "Boolean relation support only",
+    "relation_count": 3,
+    "prefix_relation_count": 2,
+    "query_count": 4,
+    "sizes": [64, 128, 256],
+    "requested_densities": [0.01, 0.05],
+    "repeats": 5,
+    "warmup": 2,
+    "max_resident_mib": 64,
+    "max_fanout_queries": 16,
+    "absolute_max_resident_mib": 256,
+    "invalidation": [
+      "exact Fourfold subject identity mismatch",
+      "typed prefix/tail axis mismatch",
+      "non-Boolean tail"
+    ],
+    "memory_measurement": "observed CPython tuple and integer object storage via sys.getsizeof",
+    "control": "pack exact inputs once, then recompute the shared packed prefix independently for every query",
+    "resident_arm": "pack exact inputs once, build the prefix once, enforce the explicit storage budget, reuse it across query tails, and materialize only final TypedRelationBlock outputs",
+    "correctness": "resident outputs must match both the recomputed packed control and the stdlib CSR oracle in exact support and canonical digest when the reference operation budget permits"
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cpu_bitset_fanout_probe.py",
+      "blob": "399f46627913557fc61f51e6acd0d786567bdb9e"
+    },
+    {
+      "path": "tests/twin/test_tensor_cpu_bitset_fanout_probe.py",
+      "blob": "3ef5b32b8df5d0634748c7063939ccfa6ded6d12"
+    },
+    {
+      "path": ".github/workflows/fourfold-v2.yml",
+      "blob": "6901bdede6329bbddd015c9ee5619f613f9d3692"
+    }
+  ],
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33909364646,
+    "head_sha": "00c4d048243f15b833136f6c0712af7179d47c09",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "designated_contract_job": {
+      "python": "3.12.14",
+      "hash_seed": "0",
+      "result": "321 passed, 2 skipped in 6.33s",
+      "fanout_diagnostic": "success",
+      "fanout_artifact_upload": "success"
+    },
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "full_repository_execution": "skipped; manual-only",
+    "gpu_execution": "not executed",
+    "tensor_core_usage": "not profiled or claimed"
+  },
+  "artifact": {
+    "id": 9950752626,
+    "name": "tensor-cpu-bitset-fanout-9578e0eb6b81f0d1c991ec04be88c420eec8cad5",
+    "output_path": "runs/tensor_gpu/cpu_bitset_fanout_ci.json",
+    "retention_days": 7,
+    "archive_sha256": "e8c25a06f880bfa17bc351e51268ca28ca25c92f7f6e39107d5cc60b83215c4a",
+    "note": "The artifact name contains the GitHub pull-request merge checkout SHA; the workflow run itself is bound to branch head 00c4d048243f15b833136f6c0712af7179d47c09."
+  },
+  "frozen_diagnostic": [
+    {
+      "size": 64,
+      "requested_density": 0.01,
+      "retained_prefix_bytes": 2496,
+      "control_one_shot_ms": 0.718147,
+      "shared_prefix_one_shot_ms": 0.708929,
+      "recompute_one_shot_over_shared_prefix_one_shot": 1.0130027125424408,
+      "recompute_batch_over_resident_query_batch": 1.1662521431020687,
+      "correctness": "exact"
+    },
+    {
+      "size": 64,
+      "requested_density": 0.05,
+      "retained_prefix_bytes": 2736,
+      "control_one_shot_ms": 4.173315,
+      "shared_prefix_one_shot_ms": 4.103975,
+      "recompute_one_shot_over_shared_prefix_one_shot": 1.0168958144238207,
+      "recompute_batch_over_resident_query_batch": 1.041364528792337,
+      "correctness": "exact"
+    },
+    {
+      "size": 128,
+      "requested_density": 0.01,
+      "retained_prefix_bytes": 5496,
+      "control_one_shot_ms": 1.241208,
+      "shared_prefix_one_shot_ms": 1.257418,
+      "recompute_one_shot_over_shared_prefix_one_shot": 0.9871085032980284,
+      "recompute_batch_over_resident_query_batch": 1.1416283571255748,
+      "correctness": "exact",
+      "negative_case": true
+    },
+    {
+      "size": 128,
+      "requested_density": 0.05,
+      "retained_prefix_bytes": 6696,
+      "control_one_shot_ms": 35.242934,
+      "shared_prefix_one_shot_ms": 34.886235,
+      "recompute_one_shot_over_shared_prefix_one_shot": 1.010224634443929,
+      "recompute_batch_over_resident_query_batch": 1.0178703284870227,
+      "correctness": "exact"
+    },
+    {
+      "size": 256,
+      "requested_density": 0.01,
+      "retained_prefix_bytes": 16448,
+      "control_one_shot_ms": 18.466432,
+      "shared_prefix_one_shot_ms": 18.08096,
+      "recompute_one_shot_over_shared_prefix_one_shot": 1.0213192219882132,
+      "recompute_batch_over_resident_query_batch": 1.0430357894483986,
+      "correctness": "exact"
+    },
+    {
+      "size": 256,
+      "requested_density": 0.05,
+      "retained_prefix_bytes": 17448,
+      "control_one_shot_ms": 167.169179,
+      "shared_prefix_one_shot_ms": 165.310113,
+      "recompute_one_shot_over_shared_prefix_one_shot": 1.0112459302474737,
+      "recompute_batch_over_resident_query_batch": 1.0170346922633164,
+      "correctness": "exact"
+    }
+  ],
+  "claim_boundary": {
+    "general_speedup": false,
+    "production_cache_justified": false,
+    "cpu_bitset_superiority": false,
+    "cuda_speedup": false,
+    "tensor_core_usage_proven": false,
+    "memory_win": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 314
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "note": "Only the existing exp/tensor-kernel-contract-01 line was advanced. No branch was created, deleted, renamed, force-moved, or used as an archive sink."
+  }
+}

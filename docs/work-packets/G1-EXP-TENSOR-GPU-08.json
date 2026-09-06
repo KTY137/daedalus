@@ -1,0 +1,194 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-EXP-TENSOR-GPU-08",
+  "title": "Measure packed Boolean intermediate residency before adding another arithmetic backend",
+  "status": "closed-contained-experiment",
+  "date": "2026-09-04",
+  "classification": "EXPERIMENT",
+  "domain": "tensor-kernel",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "57b10637b6c822082869e7ea674ad92c041116fc",
+  "implementation_commit": "28be2ab40f00f096332235d53de264ee8b07369b",
+  "test_commit": "5148356c794f864fc570ce89082c2912b94ec626",
+  "tested_head": "d990da6d371a3d4bba2a016d0f6e9e7a62e75e22",
+  "finding": "GPU-07 showed that canonical TypedRelationBlock reconstruction can dominate a packed Boolean one-shot. This packet tests the smaller hypothesis that exact intermediate support should remain in a regenerable packed physical form across a bounded composition chain and cross the canonical boundary only once at the final output.",
+  "hypothesis": "For a revision-bound Boolean relation chain, packing exact inputs once and retaining intermediate rows as Python integer bitsets will avoid enough repeated canonical materialization cost to beat the otherwise identical bitset chain that reconstructs a TypedRelationBlock after every contraction. This is a physical-execution hypothesis only and does not promote bitsets into Project-Twin authority.",
+  "authority_boundary": {
+    "semantic_authority": "Fourfold/Forest artifacts remain authoritative",
+    "executable_oracle": "TypedRelationBlock.matmul(..., BooleanSemiring())",
+    "resident_representation": "regenerable tuple[int] row masks inside a contained experiment",
+    "production_cache": false,
+    "production_backend": false,
+    "new_semantic_plane": false,
+    "new_store": false,
+    "new_registry": false,
+    "new_scheduler": false,
+    "new_tensor_type": false
+  },
+  "implementation": {
+    "probe": "experiments/tensor_gpu/cpu_bitset_residency_probe.py",
+    "reused_contract": "experiments/tensor_gpu/boolean_probe_contract.py",
+    "reused_primitives": "experiments/tensor_gpu/cpu_bitset_baseline.py",
+    "chain_fixture": "starts from build_boolean_case and reuses the existing right-relation sparse support for bounded typed tail relations; no second random/synthetic fixture generator",
+    "resident_path": "pack every canonical input once, validate packed adjacency once, compose masks through every stage, materialize exactly one final TypedRelationBlock",
+    "materialized_control": "use the same packed primitives but reconstruct and repack a canonical TypedRelationBlock at every intermediate stage",
+    "csr_control": "compose the same chain with the stdlib TypedRelationBlock Boolean oracle",
+    "ci_chain_relations": 3,
+    "ci_avoided_intermediate_materializations": 1,
+    "max_chain_relations": 6
+  },
+  "bounds": {
+    "max_cases": 32,
+    "max_repeats": 100,
+    "max_warmup": 50,
+    "max_reference_operations_per_case": 5000000,
+    "ci_sizes": [64, 128, 256],
+    "ci_requested_densities": [0.01, 0.05],
+    "ci_repeats": 5,
+    "ci_warmup": 2,
+    "ci_chain_relations": 3
+  },
+  "files": [
+    {
+      "path": "experiments/tensor_gpu/cpu_bitset_residency_probe.py",
+      "blob": "92b3cd9cf350966667df0ed9396ef4945e752ee8"
+    },
+    {
+      "path": "tests/twin/test_tensor_cpu_bitset_residency_probe.py",
+      "blob": "264d3fac75b3463fcc2e1493ed04a531c7d553e6"
+    },
+    {
+      "path": ".github/workflows/fourfold-v2.yml",
+      "blob": "0a520f4aa3043deb282382d2a8eff93274bdcd3b"
+    }
+  ],
+  "diff_from_pre_head": {
+    "commits": 3,
+    "files": 3,
+    "additions": 629,
+    "deletions": 0,
+    "note": "The added experiment deliberately reuses the existing shared fixture, bitset arithmetic, sampling helper and canonical reconstruction rather than creating another backend or benchmark framework."
+  },
+  "verification": {
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "run_id": 33903805027,
+    "head_sha": "d990da6d371a3d4bba2a016d0f6e9e7a62e75e22",
+    "status": "completed",
+    "conclusion": "success",
+    "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456",
+    "integrated_contracts": "success",
+    "isolated_wheel": "success",
+    "repository_collection": "success; collection-only, not a full-suite execution claim",
+    "full_suite": "skipped; manual-only",
+    "gpu_execution": "not executed and not claimed",
+    "diagnostic_artifact": {
+      "artifact_id": 9948664852,
+      "artifact_name": "tensor-cpu-bitset-residency-93059152a40dc96483ae9bb56b32592915520a35",
+      "archive_sha256": "51b97662280207a1c196f1a789e584228886e863dfe4b4a77b9467c555f00064",
+      "report_sha256": "b88fe933e7c18f6a02cf66c2d98b410811ea55b626188ce8897fb8441f6d4c34",
+      "expires_at": "2026-09-11T18:03:49Z",
+      "workflow_head_sha": "d990da6d371a3d4bba2a016d0f6e9e7a62e75e22"
+    }
+  },
+  "diagnostic": {
+    "environment_scope": "GitHub-hosted Azure/Linux CPython 3.12 hash seed 0; synthetic deterministic Boolean Fourfold fixture; diagnostic only",
+    "all_six_cases_exact": true,
+    "all_six_cases": [
+      {
+        "size": 64,
+        "requested_density": 0.01,
+        "csr_chain_ms": 0.366506,
+        "materialized_bitset_chain_ms": 0.351577,
+        "resident_one_shot_ms": 0.212468,
+        "materialized_over_resident_one_shot": 1.6547291827475197,
+        "csr_over_resident_one_shot": 1.7249938814315569
+      },
+      {
+        "size": 64,
+        "requested_density": 0.05,
+        "csr_chain_ms": 2.657278,
+        "materialized_bitset_chain_ms": 1.608778,
+        "resident_one_shot_ms": 1.1279590000000002,
+        "materialized_over_resident_one_shot": 1.4262734727060113,
+        "csr_over_resident_one_shot": 2.355828536320912
+      },
+      {
+        "size": 128,
+        "requested_density": 0.01,
+        "csr_chain_ms": 0.646839,
+        "materialized_bitset_chain_ms": 0.623907,
+        "resident_one_shot_ms": 0.37245799999999996,
+        "materialized_over_resident_one_shot": 1.6751069919292916,
+        "csr_over_resident_one_shot": 1.7366763500851106
+      },
+      {
+        "size": 128,
+        "requested_density": 0.05,
+        "csr_chain_ms": 29.246699,
+        "materialized_bitset_chain_ms": 12.020707,
+        "resident_one_shot_ms": 8.98972,
+        "materialized_over_resident_one_shot": 1.337161446630151,
+        "csr_over_resident_one_shot": 3.2533492700551294
+      },
+      {
+        "size": 256,
+        "requested_density": 0.01,
+        "csr_chain_ms": 10.643142,
+        "materialized_bitset_chain_ms": 6.655415,
+        "resident_one_shot_ms": 4.763747,
+        "materialized_over_resident_one_shot": 1.397096655216996,
+        "csr_over_resident_one_shot": 2.234195476795892
+      },
+      {
+        "size": 256,
+        "requested_density": 0.05,
+        "csr_chain_ms": 390.697366,
+        "materialized_bitset_chain_ms": 68.69103,
+        "resident_one_shot_ms": 43.284233,
+        "materialized_over_resident_one_shot": 1.5869757932409243,
+        "csr_over_resident_one_shot": 9.026320646596648
+      }
+    ],
+    "interpretation": "On this frozen diagnostic, avoiding one intermediate canonical materialization improved the complete packed-bitset chain in every tested case by about 1.34x to 1.68x. Final canonicalization is still the dominant resident one-shot cost in the larger cases (for 256/~5%, 31.976 ms of 43.284 ms), so the evidence supports testing a revision-bound regenerable physical view across bounded query batches before adding another arithmetic backend. It does not establish a general production speedup."
+  },
+  "kill_or_redesign": [
+    "resident support differs from the exact stdlib CSR oracle or canonical digest",
+    "resident support cannot remain revision-bound and typed without becoming a second authority",
+    "real Project-Twin workloads do not reuse intermediates enough to amortize canonical boundaries",
+    "memory growth or invalidation cost erases the measured materialization advantage",
+    "a simpler canonical CSR construction change removes the same bottleneck",
+    "CUDA or a Rust/CPU sparse path beats the resident bitset path under equal complete one-shot semantics with lower complexity"
+  ],
+  "next_if_positive": "Do not add a cache service yet. First measure a bounded revision-frozen batch that consumes the same packed intermediate more than once and account for residency memory, invalidation and final evidence materialization. Only then compare the winning CPU physical path with the existing CUDA arm on identical subjects.",
+  "claims": {
+    "contained_residency_hypothesis_supported_on_ci_fixture": true,
+    "general_cpu_bitset_speedup": false,
+    "production_resident_view_approved": false,
+    "cuda_speedup": false,
+    "tensor_core_usage_proven": false,
+    "memory_speedup": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "tracking": {
+    "issue": 239,
+    "pull_request": 314
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "archive_observed_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "note": "Only the existing exp/tensor-kernel-contract-01 line was advanced. No ref was created, deleted, renamed, force-updated, or moved into the archive anchor."
+  }
+}

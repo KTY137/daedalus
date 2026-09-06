@@ -1,0 +1,148 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-24",
+  "title": "Consolidate persisted scalar admission into one sequence owner",
+  "status": "closed-implementation",
+  "date_europe_berlin": "2026-09-05",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority": "sole semantic authority"
+  },
+  "campaign_issue": 239,
+  "pull_request": 314,
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "844ffe6e0d8c680a51918b942162baa1c5f5a9ac",
+  "research_basis": {
+    "gpu23_work_packet": "docs/work-packets/G1-EXP-TENSOR-GPU-23.json",
+    "gpu23_exact_experiment_head": "c737eeff7b0002112c137ec737f81512faad7228",
+    "gpu23_scalar_ab_artifact_id": 9966693366,
+    "gpu23_scalar_ab_sha256": "671491a21be9885e36d19b5864e1d4c3bb3fa7a96a09a0b901bcc02363273ecc",
+    "decision": "GPU-23 retained a bounded paired same-process effect-size gate showing that the already semantically proved sequence-level admission candidate had the lower scalar-admission microstage median in all six Boolean fixtures. That evidence nominated exactly one minimal in-place production consolidation trial, without establishing constructor-wide acceleration."
+  },
+  "implementation": {
+    "commit": "0c362c3ef8c38379e73c03ec181a44a162076383",
+    "tree": "0de014e8b38864a7ec8940bcbc27ba72516ab2fc",
+    "stats": {
+      "files_changed": 4,
+      "additions": 227,
+      "deletions": 75
+    },
+    "blobs": {
+      "daedalus/twin/relation_blocks.py": "7f846d57d3b33206d4dbfe35a07fa2a1a503c45f",
+      "experiments/tensor_gpu/typed_block_validation_profile.py": "9d05e0213514b431977d511cef73c77623282e63",
+      "tests/twin/test_tensor_typed_block_validation_profile.py": "aa9d1a300ec24aa8368086e3ffd5a1b339506378",
+      "tests/twin/test_relation_scalar_sequence_admission.py": "dd63691dc5b6227efacdd476faf50bcf47c942b9"
+    },
+    "production_change": "Delete the per-entry relation_blocks._stored helper and make relation_blocks._stored_values the single persisted-scalar admission owner for one bounded relation-block value sequence. TypedRelationBlock.__post_init__ resolves the persisted semiring once, admits the bounded value sequence once, and then performs the existing CSR validation path.",
+    "gardening": "The old per-entry helper is deleted rather than retained beside the sequence owner. No cache, registry, trusted constructor, backend, relation type, alternate validator, workflow path, or second benchmark harness was added.",
+    "canonicalization_contract": {
+      "boolean": "exact bool, semiring zero refused, existing tuple retained",
+      "natural": "exact non-negative bounded int, semiring zero refused, existing tuple retained",
+      "tropical": "numeric finite non-negative cost, float canonicalization retained, -0.0 canonicalized to +0.0",
+      "evidence_dag": "EvidenceValue with non-empty alternatives, existing tuple retained",
+      "unsupported_semiring": "same explicit refusal remains before scalar admission"
+    }
+  },
+  "focused_semantic_evidence": {
+    "single_owner": "Regression instrumentation pins exactly one _stored_values call for a canonical constructor and pins that relation_blocks._stored no longer exists.",
+    "first_error_precedence": "Focused cases pin the first invalid/zero scalar for Boolean, Natural, Tropical and EvidenceDag, including Natural bounded bit length.",
+    "canonical_digest": "Tropical negative zero is normalized to positive zero with identical canonical JSON and digest; existing tuple identity is retained for non-normalizing semirings.",
+    "hash_seed_matrix": [
+      "CPython 3.10 / PYTHONHASHSEED=0",
+      "CPython 3.10 / PYTHONHASHSEED=123456",
+      "CPython 3.12 / PYTHONHASHSEED=0",
+      "CPython 3.12 / PYTHONHASHSEED=123456"
+    ]
+  },
+  "verification": {
+    "code_test_head": "0c362c3ef8c38379e73c03ec181a44a162076383",
+    "workflow_run": 33959966328,
+    "workflow": "Fourfold, Tensor and integration contracts",
+    "conclusion": "success",
+    "contract_matrix": "success",
+    "designated_python_312_hash_0": {
+      "integrated_contract_surface_passed": 355,
+      "integrated_contract_surface_skipped": 2,
+      "compile": "success",
+      "packed_cpu_diagnostic": "success",
+      "typed_block_profile_v8": "success",
+      "residency_diagnostic": "success",
+      "fanout_diagnostic": "success",
+      "public_api": "success"
+    },
+    "isolated_wheel_imports": "success",
+    "complete_repository_collection": "success",
+    "complete_repository_suite": "manual-only-skipped",
+    "artifacts": {
+      "cpu_bitset_baseline": {
+        "id": 9967612818,
+        "sha256": "af88cebdf875ca27081431179a5d18ce8614f696f6335cc7720fdf6214e35d00",
+        "expires_at": "2026-09-12T10:11:36Z"
+      },
+      "typed_block_validation_profile_v8": {
+        "id": 9967613044,
+        "sha256": "f46a833a374da0a75258ab1856bf3893158aa1dcd0ee7d219827b0b55f57003a",
+        "expires_at": "2026-09-12T10:11:37Z"
+      },
+      "cpu_bitset_residency": {
+        "id": 9967614206,
+        "sha256": "ea74d89bd0993356bc1041895e39febb8e930900ffaa0e815b27432d0558a388",
+        "expires_at": "2026-09-12T10:11:42Z"
+      },
+      "cpu_bitset_fanout": {
+        "id": 9967615387,
+        "sha256": "ce8a8474c7d998ac5169eedb22feee4a9551b039561625d4da5f9bb9d333f55a",
+        "expires_at": "2026-09-12T10:11:47Z"
+      }
+    }
+  },
+  "post_change_diagnostic": {
+    "schema": "daedalus-tensor-typed-block-validation-profile/8",
+    "authority": "diagnostic-only",
+    "claim": "none",
+    "largest_case": {
+      "size": 256,
+      "requested_density": 0.05,
+      "output_entries": 43264,
+      "unprofiled_constructor_median_ms": 4.591905,
+      "support_decode_median_ms": 1.61732,
+      "stored_sequence_profile_calls": 1,
+      "stored_sequence_cprofile_cumulative_median_ms": 3.452718,
+      "post_init_cprofile_cumulative_median_ms": 10.605866
+    },
+    "interpretation": "The production constructor now has one sequence-admission call rather than one helper call per stored entry. The timing values are post-change diagnostics only; cProfile contains observer overhead, and there is no same-run pre/post constructor A/B in GPU-24."
+  },
+  "claim_boundary": {
+    "allowed": "GPU-24 establishes a single persisted-scalar admission owner with focused semantic, hash-seed, integrated-contract, wheel, collection and retained post-change diagnostic evidence.",
+    "not_claimed": [
+      "constructor-wide speedup",
+      "general CPU speedup",
+      "CUDA or Tensor-Core win",
+      "GPU or memory win",
+      "Tensor-vs-Forest superiority",
+      "CrewAI superiority",
+      "AlphaEvolve superiority",
+      "complete repository suite pass",
+      "promotion or gate closure"
+    ]
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "force_update": false,
+    "work_line": "exp/tensor-kernel-contract-01",
+    "archive_legacy_20260830_observed_sha": "6d70b6d3788ca327ac778bbbcd06be04a4d6a398",
+    "archive_used_as_work_or_storage_target": false,
+    "branch_deleted_for_count_reduction": false
+  },
+  "promotion": {
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review_transition": false,
+    "merge": false,
+    "gate_transition": false
+  },
+  "next_narrow_step": "If still before 2026-09-29, use the retained v8 constructor attribution to select one active end-to-end materialization cost or return to a higher-priority bounded Fourfold/Tensor issue; do not restore the deleted per-entry helper or add a parallel admission authority."
+}

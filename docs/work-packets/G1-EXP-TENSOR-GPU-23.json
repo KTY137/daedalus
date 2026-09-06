@@ -1,0 +1,103 @@
+{
+  "work_packet": "G1-EXP-TENSOR-GPU-23",
+  "title": "Retain a paired scalar-admission effect-size gate, then prune the one-shot harness",
+  "status": "closed-experiment",
+  "date_europe_berlin": "2026-09-05",
+  "masterplan": {
+    "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "active_delivery_gate": "Gate 1 — Renovation and owner-directed Genesis",
+    "authority": "sole semantic authority"
+  },
+  "campaign_issue": 239,
+  "pull_request": 314,
+  "branch": "exp/tensor-kernel-contract-01",
+  "pre_head": "c5c1cd68c6d6e4d8fdb324bdc103395d5c725d94",
+  "research_question": "Does the GPU-22 sequence-level persisted-scalar candidate have a reproducible same-process effect size large enough to justify a later minimal production trial, without keeping a second scalar-admission authority alive?",
+  "scope": {
+    "production_runtime_changed": false,
+    "fourfold_truth_changed": false,
+    "new_backend": false,
+    "new_cache": false,
+    "new_relation_type": false,
+    "new_remote_branch": false,
+    "owner_approval": false,
+    "promotion": false,
+    "gate_transition": false
+  },
+  "experiment": {
+    "candidate_semantic_evidence": {
+      "gpu22_experiment_head": "a5db37a871056855482d1e45afe0d86404a4f1d5",
+      "gpu22_candidate_blob": "dd90eae5f33c143744472236a5080ea3c9ab5e4f"
+    },
+    "commits": {
+      "add_paired_probe": "20fde2d678a3020a57d667ba000c219681b9fbd1",
+      "pin_probe_contracts": "b4e03c3e64bd4c84d1efc00b4ba0c61f072b69d0",
+      "retain_artifact_temporarily": "c737eeff7b0002112c137ec737f81512faad7228"
+    },
+    "temporary_blobs": {
+      "experiments/tensor_gpu/scalar_admission_ab.py": "3275b5937131428decfbbd248840a7313727e2e8",
+      "tests/twin/test_tensor_scalar_admission_ab.py": "70099223dfe2da444a655d9a61d960df848aec8c",
+      ".github/workflows/fourfold-v2.yml": "8c1d08efd602ddcc5d6225cc9b4d7b43de84ec5b"
+    },
+    "measurement_contract": "Derive Boolean output entry counts from the existing packed-CPU fixture family, compare the current per-entry relation_blocks._stored control with the already semantically proved sequence-level candidate, and collect seven paired alternating AB/BA samples after three warmups in one CPython 3.12 process.",
+    "exact_head_run": {
+      "head": "c737eeff7b0002112c137ec737f81512faad7228",
+      "workflow_run": 33957018441,
+      "workflow": "Fourfold, Tensor and integration contracts",
+      "conclusion": "success",
+      "scalar_artifact": {
+        "id": 9966693366,
+        "sha256": "671491a21be9885e36d19b5864e1d4c3bb3fa7a96a09a0b901bcc02363273ecc",
+        "expires_at": "2026-09-12T09:05:53Z",
+        "schema": "daedalus-tensor-scalar-admission-ab/2"
+      },
+      "same_head_constructor_profile": {
+        "artifact_id": 9966693055,
+        "sha256": "5c248e4cc78dcabcaec1ee916f8c203877f2423edc35c3b2c9d08af25ab963a6",
+        "largest_case_entries": 43264,
+        "unprofiled_constructor_median_ms": 6.916792,
+        "profiled_stored_calls": 43264,
+        "profiled_stored_cumulative_median_ms": 4.777207,
+        "interpretation": "cProfile attribution contains observer overhead and is not additive wall-time evidence."
+      }
+    },
+    "paired_results": [
+      {"size": 64, "density": 0.01, "entries": 64, "control_median_ms": 0.004868, "candidate_median_ms": 0.003996, "candidate_to_control_ratio": 0.8208709942481512},
+      {"size": 64, "density": 0.05, "entries": 576, "control_median_ms": 0.044716, "candidate_median_ms": 0.035863, "candidate_to_control_ratio": 0.8020171750603811},
+      {"size": 128, "density": 0.01, "entries": 128, "control_median_ms": 0.009324, "candidate_median_ms": 0.007351, "candidate_to_control_ratio": 0.7883955383955383},
+      {"size": 128, "density": 0.05, "entries": 4608, "control_median_ms": 0.374733, "candidate_median_ms": 0.310479, "candidate_to_control_ratio": 0.8285339161482976},
+      {"size": 256, "density": 0.01, "entries": 2304, "control_median_ms": 0.184182, "candidate_median_ms": 0.150993, "candidate_to_control_ratio": 0.8198032381014431},
+      {"size": 256, "density": 0.05, "entries": 43264, "control_median_ms": 3.489186, "candidate_median_ms": 2.78767, "candidate_to_control_ratio": 0.7989456566660533}
+    ],
+    "result": "The sequence-level candidate had the lower paired median in all six bounded Boolean cases. Observed candidate/control ratios ranged from about 0.788 to 0.829 for this scalar-admission microstage. This is sufficient to nominate a later minimal in-place production trial, not to claim constructor-wide or CPU-wide acceleration."
+  },
+  "gardening_close": {
+    "restore_workflow_commit": "97d1b9847aa16f31a58519f55b888d5e9adc52c9",
+    "remove_test_commit": "5aeb37819c4b983e464ea775bce3420b8e7402c1",
+    "remove_probe_commit": "cbd2761675b0562bb1aef90fe340b05832451249",
+    "workflow_blob_restored": "93a461c1d7f81336b03a0a40249f4001a268eebf",
+    "net_live_diff_before_this_record": {
+      "commits_ahead": 6,
+      "files_changed": 0
+    },
+    "reason": "The retained exact-head artifact preserves the decision evidence, so the temporary probe, test mirror, and upload step do not remain as a second live scalar-admission or benchmark surface."
+  },
+  "claim_boundary": {
+    "allowed": "A bounded CPython 3.12 same-process microstage result supports nominating one minimal production consolidation trial.",
+    "not_claimed": [
+      "constructor-wide speedup",
+      "general CPU speedup",
+      "CUDA or Tensor-Core win",
+      "GPU or memory win",
+      "Tensor-vs-Forest superiority",
+      "CrewAI superiority",
+      "AlphaEvolve superiority",
+      "complete repository suite pass",
+      "promotion or gate closure"
+    ]
+  },
+  "next_narrow_step": "If still before 2026-09-29, replace the per-entry _stored dispatch with one in-place sequence-level admission owner inside TypedRelationBlock, delete the old helper rather than retaining both abstractions, preserve exact first-error/canonicalization semantics, and require same-head semantic plus constructor evidence before keeping the production change."
+}
