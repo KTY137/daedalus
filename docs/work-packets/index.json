@@ -9,13 +9,13 @@
     "master_plan_sha256": "126594137ebf1854458e625b64831c431c64b4a9f3dd8ca2b03c7867e0e8d8fb"
   },
   "counts": {
-    "assigned_artifacts": 351,
+    "assigned_artifacts": 352,
     "legacy_artifacts": 204,
-    "packet_artifacts": 353,
-    "packet_ids": 288,
-    "post_index_artifacts": 149,
+    "packet_artifacts": 354,
+    "packet_ids": 289,
+    "post_index_artifacts": 150,
     "registry_artifacts": 1,
-    "tracked_files": 354,
+    "tracked_files": 355,
     "unassigned_artifacts": 2
   },
   "legacy_baseline": {
@@ -4054,6 +4054,22 @@
     },
     {
       "artifacts": [
+        "docs/work-packets/G1-IKARUS-44_SUMMARY_TOKENS_ABSENT_FROM_OBSERVATIONS.md"
+      ],
+      "metadata": {
+        "active_gate": 1,
+        "base_revision": "d4e4b83437b1d4437004692fb41c11eb701ef141",
+        "classification": "ALIGNED",
+        "dependencies": "`G1-IKARUS-32` (the retained measure-09 report is the pre-registered falsifier), Momus design critique of 2026-09-06 04:10 (design B: proceed with changes; renamed, observations-only corpus, versioned tokenizer, chat line only on a hit, offline power test as the decision rule)",
+        "owner": "repository owner"
+      },
+      "metadata_conflicts": {},
+      "origin": "post_index",
+      "packet_id": "G1-IKARUS-44",
+      "primary_artifact": "docs/work-packets/G1-IKARUS-44_SUMMARY_TOKENS_ABSENT_FROM_OBSERVATIONS.md"
+    },
+    {
+      "artifacts": [
         "docs/work-packets/G1-IKARUS-COMPUTER-01.md"
       ],
       "metadata": {
@@ -6336,6 +6352,20 @@
       "format": "markdown",
       "packet_id": "G1-IKARUS-43",
       "path": "docs/work-packets/G1-IKARUS-43_REMOTE_PLANNER_OWNER_CHOICE.md",
+      "sections": [
+        "primary_acceptance_claim",
+        "scope",
+        "contracts_and_behavior",
+        "acceptance_matrix",
+        "migration_and_rollback",
+        "evidence_expected_failures_and_review"
+      ]
+    },
+    {
+      "artifact_role": "primary",
+      "format": "markdown",
+      "packet_id": "G1-IKARUS-44",
+      "path": "docs/work-packets/G1-IKARUS-44_SUMMARY_TOKENS_ABSENT_FROM_OBSERVATIONS.md",
       "sections": [
         "primary_acceptance_claim",
         "scope",
