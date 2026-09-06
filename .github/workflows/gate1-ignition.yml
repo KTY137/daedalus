@@ -13,11 +13,13 @@ on:
     paths:
       - "daedalus/ignition/**"
       - "daedalus/kernel/fourfold_evidence.py"
+      - "tools/gate_host_preflight.py"
       - "tests/fixtures/ignition/**"
       - "tests/ignition/**"
       - "tests/test_ignition_gate1.py"
       - "tests/test_ignition_bundle.py"
       - "tests/test_ignition_bundle_gitattributes.py"
+      - "tests/test_gate_host_preflight_coverage.py"
       - "docs/work-packets/G1-WP-01_VOLTAGE_IGNITION.md"
       - "docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md"
       - "docs/work-packets/G1-ISO-02_EVALUATOR_CHILD_BOUNDS.md"
@@ -62,6 +64,7 @@ jobs:
           tests/test_ignition_gate1.py
           tests/test_ignition_bundle.py
           tests/test_ignition_bundle_gitattributes.py
+          tests/test_gate_host_preflight_coverage.py
           tests/kernel/test_fourfold_evidence.py
           tests/kernel/test_fourfold_approval_integration.py
           tests/kernel/test_owner_approval.py
