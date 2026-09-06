@@ -50,7 +50,15 @@ in isolation before any change:
    inside `Popen.__init__` and never existed. Every later seat was then
    refused as `budget_exhausted`, which the render did not explain.
 
-## Changes
+## Scope
+
+In scope are the existing council seat dispatch and result projection,
+never-spawned process accounting, the council's timeout defaults, their focused
+tests, and the retained live-seat evidence listed below. Out of scope are
+changes to spend ceilings, historical ledger entries, provider authority,
+promotion, the master plan, and its amendment chain.
+
+## Contracts and behavior
 
 - `daedalus/runtimes/execution/budget_process.py`: a spawn that raises
   `FileNotFoundError` from `Popen.__init__` or `subprocess.run` is released
