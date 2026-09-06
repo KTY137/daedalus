@@ -4,7 +4,12 @@ import hashlib
 
 import pytest
 
-from daedalus.structcore.forest import ForestEdge, ForestNode, KnowledgeForest
+from daedalus.structcore.forest import (
+    ForestEdge,
+    ForestHyperedge,
+    ForestNode,
+    KnowledgeForest,
+)
 from daedalus.twin import relation_compiler
 from daedalus.twin.contracts import FourfoldSnapshot
 from daedalus.twin.legacy_forest import fourfold_from_knowledge_forest
@@ -54,6 +59,32 @@ def _fixture() -> tuple[KnowledgeForest, FourfoldSnapshot]:
         source_revision=REVISION,
         created_at=CREATED_AT,
         trace_id="relation-compiler-selected-pruning",
+    )
+    return forest, snapshot
+
+
+def _fixture_with_hyperedge() -> tuple[KnowledgeForest, FourfoldSnapshot]:
+    forest, _ = _fixture()
+    forest = KnowledgeForest(
+        root=forest.root,
+        nodes=forest.nodes,
+        edges=forest.edges,
+        hyperedges=(
+            ForestHyperedge(
+                id="clone_exact:fixture",
+                relation="clone_exact",
+                members=("src/api.py", "src/worker.py"),
+                evidence=(_digest("clone_exact:fixture"),),
+            ),
+        ),
+        provenance=forest.provenance,
+    )
+    snapshot = fourfold_from_knowledge_forest(
+        forest,
+        repository_id="KTY137/daedalus",
+        source_revision=REVISION,
+        created_at=CREATED_AT,
+        trace_id="relation-compiler-selected-pruning-hyperedge",
     )
     return forest, snapshot
 
@@ -216,3 +247,42 @@ def test_discover_all_keeps_existing_forest_materialization_behavior(
     }
     assert compiled.forest_edge_count == len(forest.edges)
     assert compiled.verified_binding_count == len(snapshot.bindings)
+
+
+def test_discover_all_refuses_retained_hyperedge_instead_of_lossy_omission() -> None:
+    forest, snapshot = _fixture_with_hyperedge()
+
+    with pytest.raises(ValueError, match="cannot flatten a retained ForestHyperedge"):
+        compile_relation_blocks(forest, snapshot, BooleanSemiring())
+
+
+def test_explicit_matching_relation_refuses_retained_hyperedge() -> None:
+    forest, snapshot = _fixture_with_hyperedge()
+    selected = RelationSignature("code", "clone_exact", "code")
+
+    with pytest.raises(ValueError, match="cannot flatten a retained ForestHyperedge"):
+        compile_relation_blocks(
+            forest,
+            snapshot,
+            BooleanSemiring(),
+            signatures=(selected,),
+        )
+
+
+def test_explicit_unrelated_relation_can_skip_retained_hyperedge() -> None:
+    forest, snapshot = _fixture_with_hyperedge()
+    selected = RelationSignature("code", "imports", "code")
+
+    compiled = compile_relation_blocks(
+        forest,
+        snapshot,
+        BooleanSemiring(),
+        signatures=(selected,),
+    )
+
+    assert tuple(compiled.block_map) == (relation_block_name(selected),)
+    assert tuple(compiled.block_map[relation_block_name(selected)].iter_entries()) == (
+        ("src/api.py", "src/worker.py", True),
+    )
+    assert compiled.semantic_fact_count == 1
+    assert compiled.forest_edge_count == len(forest.edges)
