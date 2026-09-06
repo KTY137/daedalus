@@ -21,6 +21,52 @@ import { GIBBERISH, TROUBLE, collect, dockSpaces, failJson, newLines, openApp, o
 const READS_AS_EMPTY = /no runtimes|none detected|nothing (yet|here|to)|no results|empty|0 of 0|keine laufzeit(?:en)? (?:ist erreichbar|gemeldet)/i;
 const RUNTIME_EMPTY_STATE = /keine laufzeit ist erreichbar|keine laufzeiten gemeldet/i;
 
+const SAMPLE_RUNTIME = {
+  id: 'claude_code_cli',
+  label: 'Claude Code CLI',
+  mode: 'cli',
+  available: true,
+  auth_status: 'authenticated',
+  command_path: '/test/claude',
+  version: 'test-1.0',
+  models: [],
+  selected_model: '',
+  model_present: false,
+  last_error: '',
+  notes: 'controlled runtime fixture',
+  measured_at: '2026-09-06T06:00:00Z',
+  measured_age_s: 0,
+};
+
+const SAMPLE_PROVIDER = {
+  name: 'claude_cli',
+  display_name: 'Claude CLI',
+  local: false,
+  trusted_with_ip: false,
+  can_write: true,
+  agentic: true,
+  requires_key: false,
+  env_keys: [],
+  implemented: true,
+  configured: true,
+  available: true,
+  last_error: '',
+};
+
+function okJson(body: Record<string, unknown>) {
+  return {
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      generated_at: '2026-09-06T06:00:00Z',
+      project: null,
+      warnings: [],
+      ...body,
+    }),
+  };
+}
+
 test('a source that FAILED is visible, and does not read as "nothing here"', async ({ page }) => {
   // --- control: what a healthy cockpit says -------------------------------
   const healthySignals = collect(page);
@@ -72,6 +118,62 @@ test('a source that FAILED is visible, and does not read as "nothing here"', asy
     const heading = await openSpace(page, somewhere);
     expect(heading, `the cockpit became unnavigable after one source failed (${somewhere} opened nothing)`).not.toEqual('');
   }
+});
+
+test('classic runtime failure revokes a stale Ikarus brain instead of reusing cached availability', async ({ page }) => {
+  let failRuntime = false;
+
+  await page.route('**/api/runtimes/status*', (route) => {
+    if (failRuntime) return route.fulfill(failJson('runtimes status is down'));
+    return route.fulfill(okJson({ runtimes: [SAMPLE_RUNTIME] }));
+  });
+  await page.route('**/api/providers/status*', (route) => route.fulfill(okJson({ providers: [SAMPLE_PROVIDER] })));
+  // The health glance is intentionally expensive in production. Keep this
+  // regression focused on the runtime source rather than paying that probe.
+  await page.route('**/api/health*', (route) => route.fulfill(okJson({
+    health: {
+      schema: 1,
+      generated_at: '2026-09-06T06:00:00Z',
+      states: ['working', 'present', 'degraded', 'absent', 'unknown'],
+      counts: { working: 0, present: 0, degraded: 0, absent: 0, unknown: 0 },
+      verdict: 0,
+      not_proven: [],
+      subsystems: [],
+    },
+  })));
+
+  const seen = collect(page);
+  await openApp(page);
+  await settle(page, seen);
+
+  const brain = page.getByLabel('Ikarus brain / provider');
+  await expect(brain.locator('option[value="claude_code_cli"]')).toBeEnabled({ timeout: 20_000 });
+  await brain.selectOption('claude_code_cli');
+  await expect(brain).toHaveValue('claude_code_cli');
+
+  // Wait for the initial aggregate refresh to finish before requesting a new
+  // sample through the same user-facing Refresh affordance.
+  const refresh = page.getByRole('button', { name: 'Refresh' });
+  await expect(refresh).toBeEnabled({ timeout: 60_000 });
+  failRuntime = true;
+  await refresh.click();
+
+  // The runtime-specific catch commits immediately; it does not wait for the
+  // other refresh tasks. Stale positive evidence must therefore stop being
+  // action authority as soon as this source fails.
+  await expect(page.getByText(/Runtime inventory could not be read/i)).toBeVisible({ timeout: 20_000 });
+  await expect(brain).toHaveValue('deterministic');
+  await expect(brain.locator('option[value="claude_code_cli"]')).toBeDisabled();
+  await expect(page.getByText(/No runtimes detected yet/i)).toHaveCount(0);
+
+  await page.getByRole('navigation').getByRole('button', { name: 'Connections', exact: true }).click();
+  const sheet = page.getByRole('dialog');
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText(/runtimes status is down/i)).toBeVisible();
+  await expect(sheet.getByText(/Cached runtime rows below are stale evidence and cannot select an Ikarus brain/i)).toBeVisible();
+  await expect(sheet.getByText('unknown', { exact: true })).toBeVisible();
+  await expect(sheet.getByText('Claude Code CLI', { exact: true })).toBeVisible();
+  expect(seen.pageErrors, `classic runtime failure threw while revoking a stale brain: ${seen.pageErrors.join(' || ')}`).toEqual([]);
 });
 
 test('runtime settings distinguish a failed status read from a measured empty inventory', async ({ page }) => {

@@ -309,16 +309,32 @@ interface BrainOption {
  * as it being logged in / keyed, and picking a lane that then silently
  * degrades to a different brain is the exact footgun this closes.
  *
+ * Runtime rows are cached evidence. If their source cannot be read, they stay
+ * visible for diagnosis but are not action authority: every runtime-derived
+ * option becomes disabled until a fresh inventory read succeeds.
+ *
  * Also surfaces DeepSeek, which has NO runtime-registry row (registry is
  * CLI-first) but IS a real chat brain once `daedalus/ikarus_os.py` wires it —
  * without this it would be reachable on the backend yet unpickable in the UI.
  */
-function brainOptions(runtimes: RuntimeRow[], providerStatus: ProviderStatusRow[]): BrainOption[] {
+function brainOptions(
+  runtimes: RuntimeRow[],
+  providerStatus: ProviderStatusRow[],
+  runtimeError = ''
+): BrainOption[] {
   const readiness = (name: string) => providerStatus.find((p) => p.name === name);
 
   const fromRuntimes: BrainOption[] = runtimes
     .filter((r) => r.available)
     .map((r) => {
+      if (runtimeError) {
+        return {
+          id: r.id,
+          label: r.label,
+          disabled: true,
+          reason: 'Runtime inventory unread; cached availability is stale.'
+        };
+      }
       const row = readiness(RUNTIME_TO_PROVIDER[r.id] || r.id);
       if (!row) return { id: r.id, label: r.label, disabled: false, reason: '' };
       const disabled = !row.configured || !row.available;
@@ -372,7 +388,19 @@ function statLine(payload: IkarusAskPayload): string | undefined {
  * while the network-designer capability (`chatIkarus` + apply) stays intact and
  * is reused for the `design` intent's Apply affordance.
  */
-function IkarusPanel({ project, runtimes, providerStatus, onApplied }: { project: string; runtimes: RuntimeRow[]; providerStatus: ProviderStatusRow[]; onApplied: () => void }) {
+function IkarusPanel({
+  project,
+  runtimes,
+  runtimeError,
+  providerStatus,
+  onApplied
+}: {
+  project: string;
+  runtimes: RuntimeRow[];
+  runtimeError: string;
+  providerStatus: ProviderStatusRow[];
+  onApplied: () => void;
+}) {
   const [messages, setMessages] = useState<ChatMsg[]>(loadTranscript);
   const [input, setInput] = useState('Build a clean app-project agent network with Claude, Codex, Ikarus, QA, UI, API and memory roles.');
   const [provider, setProvider] = useState('deterministic');
@@ -397,6 +425,16 @@ function IkarusPanel({ project, runtimes, providerStatus, onApplied }: { project
   useEffect(() => { try { localStorage.setItem(LS_MODEL, model); } catch { /* noop */ } }, [model]);
   // …and the transcript itself, so a reload/discard no longer destroys the chat.
   useEffect(() => { saveTranscript(messages); }, [messages]);
+
+  // A cached runtime row is evidence, not permission. If the inventory source
+  // becomes unreadable after a runtime brain was selected, fail closed to the
+  // deterministic brain immediately instead of sending a new turn through a
+  // stale positive availability claim. Provider-only brains such as DeepSeek
+  // remain governed by their own provider-status source.
+  useEffect(() => {
+    if (!runtimeError || provider === 'deterministic') return;
+    if (runtimes.some((runtime) => runtime.id === provider)) setProvider('deterministic');
+  }, [provider, runtimeError, runtimes]);
 
   const push = useCallback((msg: Omit<ChatMsg, 'id'>) => {
     // Allocate outside the updater for the same reason openBubble does: React
@@ -601,7 +639,10 @@ function IkarusPanel({ project, runtimes, providerStatus, onApplied }: { project
   const providerModels = runtimes.find((r) => r.id === provider)?.models || [];
   // Readiness-gated picker options — see brainOptions() for why this is not
   // just `runtimes.filter(available)`.
-  const brains = useMemo(() => brainOptions(runtimes, providerStatus), [runtimes, providerStatus]);
+  const brains = useMemo(
+    () => brainOptions(runtimes, providerStatus, runtimeError),
+    [runtimes, providerStatus, runtimeError]
+  );
 
   return (
     <section className="spine glass">
@@ -923,11 +964,15 @@ function InboxTray({ drafts, onChange }: { drafts: DraftRow[]; onChange: () => v
 
 function RuntimeCenter({
   runtimes,
+  runtimeError,
+  runtimeLoadedAt,
   providers,
   providerError,
   providerLoadedAt
 }: {
   runtimes: RuntimeRow[];
+  runtimeError: string;
+  runtimeLoadedAt: number | null;
   providers: ProviderStatusRow[];
   providerError: string;
   providerLoadedAt: number | null;
@@ -991,6 +1036,24 @@ function RuntimeCenter({
         </p>
       </div>
       <div className="section-title"><h3>Runtime adapters</h3><p>Executable paths and manual connection probes.</p></div>
+      {runtimeError && (
+        <div className="provider-sample-error" role="status">
+          <StateBadge state="unknown" compact />
+          <span>{runtimeError} Cached runtime rows below are stale evidence and cannot select an Ikarus brain.</span>
+        </div>
+      )}
+      {!runtimeError && runtimes.length === 0 && (
+        <div className="provider-sample-error" role="status">
+          <span>The latest successful runtime inventory read returned zero adapters.</span>
+        </div>
+      )}
+      <p className="provider-sampled">
+        {runtimeLoadedAt
+          ? `runtime inventory sampled ${new Date(runtimeLoadedAt).toLocaleTimeString()}`
+          : runtimeError
+            ? 'runtime inventory not successfully sampled in this session'
+            : 'runtime inventory not sampled in this session'}
+      </p>
       <div className="runtime-table">
         {runtimes.map((runtime) => (
           <div className="runtime-row" key={runtime.id}>
@@ -1000,7 +1063,9 @@ function RuntimeCenter({
               <p>{runtime.notes}</p>
             </div>
             <div className="runtime-detail">
-              <span className={runtime.available ? 'ok' : 'warn'}>{runtime.available ? 'available' : 'unavailable'}</span>
+              <span className={runtimeError ? 'warn' : runtime.available ? 'ok' : 'warn'}>
+                {runtimeError ? 'unknown' : runtime.available ? 'available' : 'unavailable'}
+              </span>
               <code>{runtime.command_path || runtime.endpoint || 'no path'}</code>
               <small>{runtime.version || runtime.last_error || runtime.selected_model}</small>
             </div>
@@ -1051,6 +1116,8 @@ export default function App() {
   const [hierarchy, setHierarchy] = useState<HierarchyPayload | undefined>();
   const [control, setControl] = useState<ControlPlanePayload | undefined>();
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
+  const [runtimeStatusError, setRuntimeStatusError] = useState('');
+  const [runtimeStatusLoadedAt, setRuntimeStatusLoadedAt] = useState<number | null>(null);
   const [envStatus, setEnvStatus] = useState<EnvStatusPayload | undefined>();
   const [providerStatus, setProviderStatus] = useState<ProviderStatusRow[]>([]);
   const [providerStatusError, setProviderStatusError] = useState('');
@@ -1132,7 +1199,16 @@ export default function App() {
           ));
         }),
         getRuntimeStatus().then((payload) => {
-          if (serial === refreshSerial.current) setRuntimes(payload.runtimes);
+          if (serial === refreshSerial.current) {
+            setRuntimes(payload.runtimes);
+            setRuntimeStatusLoadedAt(Date.now());
+            setRuntimeStatusError('');
+          }
+        }).catch((err) => {
+          if (serial === refreshSerial.current) {
+            setRuntimeStatusError(err instanceof Error ? err.message : String(err));
+          }
+          throw err;
         }),
         getEnvStatus().then((payload) => {
           if (serial === refreshSerial.current) setEnvStatus(payload.env);
@@ -1580,6 +1656,8 @@ export default function App() {
       return (
         <RuntimeCenter
           runtimes={runtimes}
+          runtimeError={runtimeStatusError}
+          runtimeLoadedAt={runtimeStatusLoadedAt}
           providers={providerStatus}
           providerError={providerStatusError}
           providerLoadedAt={providerStatusLoadedAt}
@@ -1764,7 +1842,13 @@ export default function App() {
                 onOpenProviders={() => openSheet('providers')}
                 refreshing={refreshing}
               />
-              <IkarusPanel project={project} runtimes={runtimes} providerStatus={providerStatus} onApplied={() => refresh(project)} />
+              <IkarusPanel
+                project={project}
+                runtimes={runtimes}
+                runtimeError={runtimeStatusError}
+                providerStatus={providerStatus}
+                onApplied={() => refresh(project)}
+              />
             </>
           )}
           {space === 'graph' && (
@@ -1839,21 +1923,34 @@ export default function App() {
               on PATH and answering a probe is not a billable call succeeding, so
               the honest ceiling for a lane is `present`. */}
           <RailCard title="Connections" icon={<KeyRound size={15} />} badge={<span className="pill">BYOK</span>}>
+            {runtimeStatusError && (
+              <div className="conn" title={runtimeStatusError}>
+                <div className="l">
+                  <span className="sub">Runtime inventory could not be read. Cached runtime rows are UNKNOWN and cannot select an Ikarus brain.</span>
+                </div>
+                <StateBadge state="unknown" compact />
+              </div>
+            )}
             {providerStatusError && (
               <div className="conn">
                 <div className="l"><span className="sub">Provider sample failed. Cached rows are UNKNOWN.</span></div>
                 <StateBadge state="unknown" compact />
               </div>
             )}
-            {runtimes.length === 0 && !providerStatusError && <div className="conn"><div className="l"><span className="sub">No runtimes detected yet.</span></div></div>}
+            {runtimes.length === 0 && !runtimeStatusError && (
+              <div className="conn"><div className="l"><span className="sub">Latest successful runtime read reported zero adapters.</span></div></div>
+            )}
             {runtimes.map((r) => {
               const row = providerStatus.find((p) => p.name === (RUNTIME_TO_PROVIDER[r.id] || r.id));
-              const item = providerStatusError ? {
+              const sourceError = runtimeStatusError || providerStatusError;
+              const item = sourceError ? {
                 name: r.label,
                 state: 'unknown' as const,
-                headline: 'the provider availability sample failed; cached reachability is not a live claim',
-                remedy: providerStatusError,
-                derivedFrom: 'GET /api/providers/status'
+                headline: runtimeStatusError
+                  ? 'the runtime inventory could not be read; cached availability is not a live claim'
+                  : 'the provider availability sample failed; cached reachability is not a live claim',
+                remedy: sourceError,
+                derivedFrom: runtimeStatusError ? 'GET /api/runtimes/status' : 'GET /api/providers/status'
               } : assessProvider({
                 label: r.label,
                 configured: row ? row.configured : undefined,
