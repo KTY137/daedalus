@@ -48,6 +48,7 @@ on:
       - "tests/providers/test_claude_sealed_output_evidence.py"
       - "tests/providers/test_claude_provider_exact_boundary.py"
       - "tests/providers/test_openai_compat_cancellation_boundary.py"
+      - "tests/providers/test_ollama_native_stream_cancellation.py"
       - "tests/test_claude_bridge_cmd_shim.py"
       - "tests/test_gui_check_budget.py"
       - "tests/test_ikarus_bridge_progress.py"
@@ -145,6 +146,7 @@ jobs:
           tests/providers/test_claude_sealed_output_evidence.py
           tests/providers/test_claude_provider_exact_boundary.py
           tests/providers/test_openai_compat_cancellation_boundary.py
+          tests/providers/test_ollama_native_stream_cancellation.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
@@ -180,6 +182,7 @@ jobs:
           tests/providers/test_claude_sealed_output_evidence.py
           tests/providers/test_claude_provider_exact_boundary.py
           tests/providers/test_openai_compat_cancellation_boundary.py
+          tests/providers/test_ollama_native_stream_cancellation.py
           tests/test_claude_bridge_cmd_shim.py
           tests/test_gui_check_budget.py
           tests/test_ikarus_bridge_progress.py
