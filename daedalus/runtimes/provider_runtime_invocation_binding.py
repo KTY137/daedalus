@@ -136,6 +136,10 @@ def bind_provider_runtime_invocation(
         executable_registry,
         pre_admission,
     )
+    if type(entrypoint_id) is not str:
+        raise ProviderRuntimeInvocationBindingShapeError(
+            "entrypoint_id must be exact str"
+        )
     if type(at) is not datetime or at.tzinfo is None or at.utcoffset() is None:
         raise ProviderRuntimeInvocationBindingShapeError(
             "at must be an exact timezone-aware datetime"
