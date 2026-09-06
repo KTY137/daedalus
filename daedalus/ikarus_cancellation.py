@@ -48,11 +48,12 @@ class CancelReceipt:
 class CancellationSignal:
     """Thread-safe stop signal passed directly to provider cancellation probes."""
 
-    __slots__ = ("request_id", "_event")
+    __slots__ = ("request_id", "_event", "_lock")
 
     def __init__(self, request_id: str) -> None:
         self.request_id = request_id
         self._event = threading.Event()
+        self._lock = threading.Lock()
 
     def cancelled(self) -> bool:
         """Return whether cancellation has been requested."""
@@ -60,9 +61,14 @@ class CancellationSignal:
 
     def cancel(self) -> bool:
         """Request cancellation and return True only for the first transition."""
-        was_set = self._event.is_set()
-        self._event.set()
-        return not was_set
+        # Event.set() is thread-safe, but is_set()+set is not one atomic
+        # transition. The receipt's newly_cancelled bit is evidence, so exactly
+        # one racing caller is allowed to observe that transition as new.
+        with self._lock:
+            if self._event.is_set():
+                return False
+            self._event.set()
+            return True
 
 
 class CancellationRegistry:
