@@ -261,7 +261,6 @@ daedalus/providers/personas.py -text
 daedalus/router.py -text
 daedalus/runtimes/broker.py -text
 daedalus/runtimes/profiles.py -text
-daedalus/runtimes/provider/observation.py -text
 daedalus/runtimes/trust.py -text
 daedalus/runtimes/trust_store.py -text
 daedalus/schemas.py -text
@@ -426,11 +425,12 @@ daedalus/runtimes/providers/token_policy.py -text
 # declaration: daedalus/journal_io.py' after it.
 daedalus/journal_io.py -text
 
-# MEASURED 2026-09-05: the Gate-1 Genesis/general-assistant and Fourfold work
-# grew the evaluator-bundle closure from 205 explicitly covered Daedalus files
-# to 233.  These are the exact 28 new members reported by the dynamic closure
-# guard.  Keep them explicit: a daedalus-wide wildcard would silently change
-# checkout semantics for modules outside the evaluator bundle.
+# The Gate-1 Genesis/general-assistant and Fourfold work grew the evaluator
+# bundle after the 2026-09-05 measurement. Later packets extended the explicit
+# set again, so the dynamic closure guard, rather than a stale cardinality in
+# this comment, owns the current census. Keep the entries explicit: a
+# daedalus-wide wildcard would silently change checkout semantics for modules
+# outside the evaluator bundle.
 daedalus/foundation/env.py -text
 daedalus/interfaces/computer_configuration.py -text
 daedalus/kernel/contracts/genesis.py -text
@@ -441,7 +441,6 @@ daedalus/orchestration/hierarchy.py -text
 daedalus/orchestration/ikarus/__init__.py -text
 daedalus/orchestration/ikarus/act.py -text
 daedalus/orchestration/ikarus/chat.py -text
-daedalus/orchestration/ikarus/computer_history.py -text
 daedalus/orchestration/ikarus/computer_context.py -text
 daedalus/orchestration/ikarus/computer_history.py -text
 daedalus/orchestration/ikarus/computer_loop.py -text

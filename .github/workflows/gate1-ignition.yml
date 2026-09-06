@@ -1,19 +1,38 @@
 name: Gate 1 Ignition Slice
 
+# This workflow used to reference branch names that no longer existed on origin,
+# which made its acceptance matrix effectively manual-only. The canonical form
+# follows the real integration boundary: PRs targeting main and pushes to main.
+# The test list names the current Gate-1 slice rather than the 2026-08-17
+# rehearsal, and .gitattributes is included because evaluator-bundle closure
+# stability depends on its explicit per-file declarations.
 on:
   pull_request:
     branches:
-      - g0/sealed-promotion-runtime-sandbox
+      - main
     paths:
       - "daedalus/ignition/**"
       - "daedalus/kernel/fourfold_evidence.py"
+      - "daedalus/mapping/switches.py"
+      - "daedalus/structcore/ignore.py"
+      - "tools/gate_host_preflight.py"
       - "tests/fixtures/ignition/**"
       - "tests/ignition/**"
+      - "tests/test_ignition_gate1.py"
+      - "tests/test_ignition_bundle.py"
+      - "tests/test_ignition_bundle_gitattributes.py"
+      - "tests/test_gate_host_preflight_coverage.py"
+      - "tests/test_mapping_switches.py"
+      - "tests/test_mapping_switches_indirect.py"
+      - "tests/test_structcore_center_directive.py"
       - "docs/work-packets/G1-WP-01_VOLTAGE_IGNITION.md"
+      - "docs/work-packets/G1-ISO-01_BEHAVIOR_PROBE_OUT_OF_PROCESS.md"
+      - "docs/work-packets/G1-ISO-02_EVALUATOR_CHILD_BOUNDS.md"
+      - ".gitattributes"
       - ".github/workflows/gate1-ignition.yml"
   push:
     branches:
-      - g1/ignition-slice
+      - main
   workflow_dispatch:
 
 permissions:
@@ -40,9 +59,20 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e . pytest
+      # This suite is intentionally self-contained: it must not require an
+      # operator-local killswitch permit or a pre-existing spine database.
+      # Linux here also gives the evaluator-child environment allowlist a POSIX
+      # measurement instead of assuming the Windows development result transfers.
       - run: >-
           python -m pytest -q
-          tests/ignition/test_voltage_ignition.py
+          tests/ignition/
+          tests/test_ignition_gate1.py
+          tests/test_ignition_bundle.py
+          tests/test_ignition_bundle_gitattributes.py
+          tests/test_gate_host_preflight_coverage.py
+          tests/test_mapping_switches.py
+          tests/test_mapping_switches_indirect.py
+          tests/test_structcore_center_directive.py
           tests/kernel/test_fourfold_evidence.py
           tests/kernel/test_fourfold_approval_integration.py
           tests/kernel/test_owner_approval.py

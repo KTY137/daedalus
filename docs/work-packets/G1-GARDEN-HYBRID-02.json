@@ -1,0 +1,116 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "id": "G1-GARDEN-HYBRID-02",
+  "title": "Retire superseded contained hybrid retrieval implementation while preserving exact evidence",
+  "status": "closed",
+  "date": "2026-09-04",
+  "classification": "ALIGNED_GARDENING",
+  "domain": "fourfold-tensor-retrieval",
+  "masterplan": {
+    "revision": 11,
+    "version": "2.2.0",
+    "status": "adopted",
+    "gate": "Gate 1 — Renovation and owner-directed Genesis"
+  },
+  "branch": "g1/gardener-post-release-containment-03",
+  "pre_head": "f817f4fc61b9ed99fad8d5ee99c6f12355cdd7c6",
+  "exact_tested_head": "e587dee5c07c02f9b39cf1bee2196269189e542c",
+  "finding": "After the packaged duplicate hybrid stack was pruned in G1-GARDEN-HYBRID-01, the already-merged PR #311 experiment still left a second live RelationStep/PathExpression/ContractionPlan planner, relation compiler, retriever, dedicated test and workflow in the current tree. The merged PR, exact commits and Git blobs already preserve the implementation as evidence, so retaining the executable experiment in-tree created unnecessary parallel abstraction and CI surface rather than unique evidence.",
+  "gardener_decision": "Keep one concise evidence tombstone and the original machine-readable experiment packet in the live tree; remove the superseded executable experiment, its dedicated focused test and dedicated workflow. Do not move any of it into archive/legacy-20260830 and do not delete the PR, commits or blob evidence.",
+  "retained_evidence": {
+    "pull_request": 311,
+    "experiment_head": "f02b5e140308000676febf919bc92fd461d92716",
+    "merge_commit": "521f95702e82265486f8a7a342092c0bc9276e82",
+    "hosted_experiment_run": 33748541975,
+    "original_work_packet": "docs/work-packets/G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01.json",
+    "original_blobs": {
+      "experiments/fourfold_hybrid_retrieval/README.md": "3529e98ae54241b16b51500b600d2bbb3a1cc686",
+      "experiments/fourfold_hybrid_retrieval/__init__.py": "2bf6f03fa2b1fc5e9c8f750fc85246e6e3711e09",
+      "experiments/fourfold_hybrid_retrieval/planner.py": "3bf58f112011bc05e652ff4962d91b0b37dc4bca",
+      "experiments/fourfold_hybrid_retrieval/relations.py": "cc08a2f9624e5904155c7b7ac9ea67cdc8b2e36a",
+      "experiments/fourfold_hybrid_retrieval/retrieval.py": "c0ec989166c29a466ffca809c2d4b9fee1e013ac",
+      "tests/twin/test_fourfold_hybrid_retrieval_experiment.py": "88dcbdc69a0586cc955e2ca02747d5442019d5d3",
+      ".github/workflows/fourfold-hybrid-retrieval.yml": "e487cc6fe03c3b882315bb417aeed0ef5bd15edf"
+    }
+  },
+  "scope": {
+    "retained": [
+      "experiments/fourfold_hybrid_retrieval/README.md",
+      "docs/work-packets/G1-EXP-FOURFOLD-HYBRID-RETRIEVAL-01.json"
+    ],
+    "removed": [
+      "experiments/fourfold_hybrid_retrieval/__init__.py",
+      "experiments/fourfold_hybrid_retrieval/planner.py",
+      "experiments/fourfold_hybrid_retrieval/relations.py",
+      "experiments/fourfold_hybrid_retrieval/retrieval.py",
+      "tests/twin/test_fourfold_hybrid_retrieval_experiment.py",
+      ".github/workflows/fourfold-hybrid-retrieval.yml"
+    ],
+    "updated": [
+      "experiments/fourfold_hybrid_retrieval/README.md",
+      "tests/twin/test_hybrid_retrieval_gardening.py",
+      ".github/workflows/fourfold-v2.yml"
+    ],
+    "changes_fourfold_or_forest_authority": false,
+    "changes_tensor_semantics": false,
+    "adds_store_or_registry": false,
+    "adds_scheduler": false,
+    "adds_semantic_plane": false,
+    "adds_runtime_dependency": false,
+    "automatic_promotion": false
+  },
+  "delta_before_record": {
+    "commits": 9,
+    "files": 9,
+    "additions": 76,
+    "deletions": 2050,
+    "net_lines": -1974
+  },
+  "verification": {
+    "intermediate_red": {
+      "head": "44af29e82c2bc38a87ffabb46bf04c3f5e145760",
+      "run_id": 33870771804,
+      "classification": "real integration failure, retained as negative evidence",
+      "finding": "The canonical Fourfold/Tensor workflow still attempted to py_compile experiments/fourfold_hybrid_retrieval/*.py after those files were retired, so contract matrix jobs failed at Compile integrated modules before tests. Isolated wheel had already succeeded."
+    },
+    "repair": "Remove the retired experiment path triggers and py_compile glob from the existing canonical Fourfold/Tensor workflow; do not introduce a replacement workflow.",
+    "exact_green": {
+      "head": "e587dee5c07c02f9b39cf1bee2196269189e542c",
+      "run_id": 33871024066,
+      "status": "completed",
+      "conclusion": "success",
+      "contract_matrix": "Python 3.10/3.12 x PYTHONHASHSEED 0/123456 completed under the integrated workflow",
+      "module_compile": "success",
+      "integrated_contract_surface": "success",
+      "public_package_api": "success",
+      "isolated_wheel": "success",
+      "repository_collection": "success; collection-only",
+      "full_repository_execution": "not run; full-suite job remains workflow_dispatch/manual-only"
+    }
+  },
+  "retained_architectural_result": "Fourfold/Forest remain semantic authority; typed relation semantics provide query meaning; BM25, exact lookup and relation indices remain physical access paths; retrieval output remains proposal-only. The superseded experiment does not need a live second planner/retriever implementation to preserve this result.",
+  "claims": {
+    "benchmark_superiority": false,
+    "tensor_beats_forest": false,
+    "beats_crewai": false,
+    "beats_alphaevolve": false,
+    "owner_approval": false,
+    "promotion_receipt": false,
+    "ready_for_review": false,
+    "automatic_merge": false,
+    "gate_transition": false,
+    "full_suite_green": false
+  },
+  "tracking": {
+    "campaign_issue": 239,
+    "pull_request": 313
+  },
+  "branch_hygiene": {
+    "new_remote_branch": false,
+    "branch_deleted": false,
+    "force_update": false,
+    "archive_branch_written": false,
+    "archive_branch": "archive/legacy-20260830",
+    "evidence_preservation": "PR #311, its merged commit graph and the exact original blobs remain reachable; no unique evidence is moved or deleted from Git history."
+  }
+}
