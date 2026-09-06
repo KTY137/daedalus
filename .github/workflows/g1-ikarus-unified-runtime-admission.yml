@@ -13,10 +13,12 @@ on:
     paths:
       - "apps/web/playwright.config.ts"
       - "apps/web/src/App.tsx"
+      - "apps/web/src/api.ts"
       - "apps/web/src/components/glass/Composer.tsx"
       - "apps/web/src/types.ts"
       - "apps/web/tests/_app.ts"
       - "apps/web/tests/classic-stream.spec.ts"
+      - "apps/web/tests/cockpit-stream.spec.ts"
       - "daedalus/claude_bridge.py"
       - "daedalus/ikarus_effect_bridge.py"
       - "daedalus/ikarus_oneshot.py"
@@ -161,7 +163,7 @@ jobs:
           tests/runtimes/test_provider_invocation_abi.py
           tests/runtimes/test_provider_invocation_abi_review.py
           tests/runtimes/test_provider_runtime_invocation_binding.py
-          tests/runtimes/test_provider_runtime_invocation_binding_review.py
+          tests/runtimes/sealed_broker.py
           tests/runtimes/test_sealed_runtime_provider.py
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.19-provenance.json
       - run: python -m json.tool docs/research/hermes-agent-v2026.8.27-delta-provenance.json
