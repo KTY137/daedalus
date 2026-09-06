@@ -273,8 +273,9 @@ def compile_relation_blocks(
     in the Forest or in verified cross-plane bindings is compiled. Every
     selected relation requires ``complete`` Fourfold endpoint planes so sparse
     zeroes cannot silently encode unknown partial or absent facts. Retained
-    Forest hyperedges are never flattened into pairwise facts; discover-all and
-    an explicitly selected conflicting relation fail closed instead.
+    Forest hyperedges and undirected Forest edges are never flattened into
+    pairwise/directional facts; discover-all and an explicitly selected
+    conflicting relation fail closed instead.
 
     Forest edges and matching verified bindings are deduplicated by semantic
     endpoint/relation identity. The evidence observer retains their canonical
@@ -354,9 +355,7 @@ def compile_relation_blocks(
             )
 
     discovered: set[RelationSignature] = set()
-    edge_records: list[
-        tuple[ForestEdge, RelationSignature, RelationSignature | None]
-    ] = []
+    edge_records: list[tuple[ForestEdge, RelationSignature]] = []
     for edge in forest.edges:
         source_plane = node_plane.get(edge.source)
         target_plane = node_plane.get(edge.target)
@@ -370,17 +369,25 @@ def compile_relation_blocks(
             edge.relation,
             target_plane,
         )
-        reverse: RelationSignature | None = None
-        if not edge.directed and edge.source != edge.target:
-            reverse = RelationSignature(
+        if not edge.directed:
+            reverse_signature = RelationSignature(
                 target_plane,
                 edge.relation,
                 source_plane,
             )
-        edge_records.append((edge, signature, reverse))
+            conflicts = (
+                requested_set is None
+                or signature in requested_set
+                or reverse_signature in requested_set
+            )
+            if conflicts:
+                raise ValueError(
+                    f"cannot flatten undirected ForestEdge {edge.relation!r} "
+                    "into directed relation blocks without losing semantics"
+                )
+            continue
+        edge_records.append((edge, signature))
         discovered.add(signature)
-        if reverse is not None:
-            discovered.add(reverse)
 
     binding_records: list[tuple[CrossPlaneBinding, RelationSignature]] = []
     if include_verified_bindings:
@@ -406,29 +413,18 @@ def compile_relation_blocks(
         RelationSignature,
         dict[tuple[str, str], set[tuple[str, ...]]],
     ] = {}
-    for edge, signature, reverse in edge_records:
-        include_forward = signature in selected_set
-        include_reverse = reverse is not None and reverse in selected_set
-        if not include_forward and not include_reverse:
+    for edge, signature in edge_records:
+        if signature not in selected_set:
             continue
 
         atoms = _forest_edge_atoms(edge) if retain_evidence else None
-        if include_forward:
-            _record_fact(
-                facts,
-                signature=signature,
-                source=edge.source,
-                target=edge.target,
-                evidence_atoms=atoms,
-            )
-        if include_reverse and reverse is not None:
-            _record_fact(
-                facts,
-                signature=reverse,
-                source=edge.target,
-                target=edge.source,
-                evidence_atoms=atoms,
-            )
+        _record_fact(
+            facts,
+            signature=signature,
+            source=edge.source,
+            target=edge.target,
+            evidence_atoms=atoms,
+        )
 
     for binding, signature in binding_records:
         if signature not in selected_set:
