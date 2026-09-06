@@ -224,8 +224,10 @@ def compile_relation_blocks(
     """Compile selected relations under one explicit observer semiring.
 
     ``signatures`` may predeclare empty blocks, which is useful for frozen query
-    plans. When omitted, every relation signature observed in the Forest or in
-    verified cross-plane bindings is compiled.
+    plans. When omitted, every representable binary relation signature observed
+    in the Forest or in verified cross-plane bindings is compiled. Retained
+    Forest hyperedges are never flattened into pairwise facts; discover-all and
+    an explicitly selected conflicting relation fail closed instead.
 
     Forest edges and matching verified bindings are deduplicated by semantic
     endpoint/relation identity. Their evidence bundles remain alternative
@@ -274,6 +276,34 @@ def compile_relation_blocks(
     requested_set = (
         None if requested_signatures is None else frozenset(requested_signatures)
     )
+
+    for hyperedge in forest.hyperedges:
+        member_planes: set[str] = set()
+        for member in hyperedge.members:
+            plane = node_plane.get(member)
+            if plane is None:
+                raise ValueError(
+                    f"Forest hyperedge {hyperedge.id!r} references an endpoint "
+                    "outside the Fourfold snapshot"
+                )
+            member_planes.add(plane)
+        if not member_planes:
+            raise ValueError(
+                f"Forest hyperedge {hyperedge.id!r} must retain at least one member"
+            )
+        conflicts = requested_set is None
+        if requested_set is not None:
+            conflicts = any(
+                signature.relation == hyperedge.relation
+                and signature.source_plane in member_planes
+                and signature.target_plane in member_planes
+                for signature in requested_set
+            )
+        if conflicts:
+            raise ValueError(
+                f"cannot flatten a retained ForestHyperedge {hyperedge.id!r} "
+                "into pairwise relation blocks without losing semantics"
+            )
 
     facts: dict[
         RelationSignature,
