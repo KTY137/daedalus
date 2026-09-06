@@ -11,7 +11,9 @@ on:
       - g1/ikarus-effect-bridge-06
       - main
     paths:
+      - "apps/web/playwright.config.ts"
       - "apps/web/src/App.tsx"
+      - "apps/web/src/components/glass/Composer.tsx"
       - "apps/web/src/types.ts"
       - "apps/web/tests/_app.ts"
       - "apps/web/tests/classic-stream.spec.ts"
@@ -96,7 +98,7 @@ jobs:
     timeout-minutes: 25
     env:
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
-      PYTHONHASHSEED: "0"
+      PYTHONHASHSEED: 0
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -208,7 +210,7 @@ jobs:
     timeout-minutes: 25
     env:
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
-      PYTHONHASHSEED: "0"
+      PYTHONHASHSEED: 0
       DAEDALUS_GUI_SUITE_TIMEOUT_S: "1200"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
