@@ -1,0 +1,50 @@
+[
+ {
+  "call": 1,
+  "step": 1,
+  "sha256": "af4262e5b04b7aa0e5586d0c7e3e731c6726c2bbc76b8159d642f86a83f54ff0",
+  "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.navigate\",\n  \"arguments\": {\n    \"url\": \"http://127.0.0.1:57660/notes.html\"\n  }\n}"
+ },
+ {
+  "call": 2,
+  "step": 2,
+  "sha256": "f7ec0f47691e187da2d443972f944953494b0d4bf914b05167cefdd619a95b4a",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\n    \"Read the current page content.\"\n  ]\n}"
+ },
+ {
+  "call": 3,
+  "step": 2,
+  "sha256": "424244c7713f3ce8d492de8c622033893e6927d328c37d06add61dfbf9d71659",
+  "response": "{\"type\":\"tool\",\"tool\":\"browser.read\",\"arguments\":{}}"
+ },
+ {
+  "call": 4,
+  "step": 3,
+  "sha256": "f9fe34dfa878ec0a30f01fbe488d290e75debcb9f69685bc8460ee82c256ceb6",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current page content.\"]\n}"
+ },
+ {
+  "call": 5,
+  "step": 3,
+  "sha256": "07c49097420cac9624c9183fc5ca4164d27950da865063f9503af556843c9237",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current page content.\"]\n}"
+ },
+ {
+  "call": 6,
+  "step": 3,
+  "sha256": "05c0c20429b5ac7de66d0f02350bc034debfd2be6008f63cd77ba3a16bf0bdfc",
+  "response": "{\n  \"type\": \"tool\",\n  \"tool\": \"browser.read\",\n  \"arguments\": {}\n}"
+ },
+ {
+  "call": 7,
+  "step": 4,
+  "sha256": "e3cd19a35e8ff4bc5fb450a2e6a090b3b58095c5758babb859c9c13adb739a07",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current page content.\"]\n}"
+ },
+ {
+  "call": 8,
+  "step": 4,
+  "sha256": "2a1c5849a6d50b89ee140f3eeede6032d47d693f1c38087ab08578970e3b63d3",
+  "response": "{\n  \"type\": \"plan\",\n  \"steps\": [\"Read the current page content.\"]\n}"
+ }
+]
