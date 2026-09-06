@@ -27,25 +27,43 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Normalize patch against canonical import layout
+      - name: Normalize patch against canonical source layout
         run: |
           python - <<'PY'
           from pathlib import Path
           path = Path('.github/ikarus_stop_patch.py')
           text = path.read_text(encoding='utf-8')
-          old = '''replace_once(
+
+          old_import = '''replace_once(
               "daedalus/web_api.py",
               "from . import core, ikarus_chat, ikarus_os\\n",
               "from . import core, ikarus_cancellation, ikarus_chat, ikarus_os\\n",
           )'''
-          new = '''replace_once(
+          new_import = '''replace_once(
               "daedalus/web_api.py",
               "    hierarchy,\\n    ikarus_chat,\\n    runtime_registry,\\n",
               "    hierarchy,\\n    ikarus_cancellation,\\n    ikarus_chat,\\n    runtime_registry,\\n",
           )'''
-          if old not in text:
+          if old_import not in text:
               raise SystemExit('expected web_api import patch stanza missing')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          text = text.replace(old_import, new_import, 1)
+
+          old_helper = '''    count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{path}: expected exactly one match, found {count}: {old[:100]!r}")
+              write(path, text.replace(old, new, 1))'''
+          new_helper = '''    count = text.count(old)
+              if (count == 2 and path == "daedalus/ikarus_os.py" and
+                      old.startswith("    from .budget import process_guard_boundary_decision")):
+                  index = text.rfind(old)
+                  write(path, text[:index] + new + text[index + len(old):])
+                  return
+              if count != 1:
+                  raise RuntimeError(f"{path}: expected exactly one match, found {count}: {old[:100]!r}")
+              write(path, text.replace(old, new, 1))'''
+          if old_helper not in text:
+              raise SystemExit('expected replace_once helper body missing')
+          path.write_text(text.replace(old_helper, new_helper, 1), encoding='utf-8')
           PY
       - name: Apply exact canonical stop patch
         id: patch
