@@ -194,19 +194,19 @@ def test_committed_registry_validates_and_matches_the_tracked_index() -> None:
     # in the packet that moves them. The invariants that must not weaken are
     # the frozen legacy baseline below and the post-index metadata completeness
     # asserted in test_post_index_packet_contracts_are_unique_complete_and_revision_bound.
-    assert "426 tracked files" in message  # re-measured 2026-09-06 after G1-EXP-TENSOR-GPU-45/46
+    assert "427 tracked files" in message  # re-measured 2026-09-06 after G1-EXP-TENSOR-GPU-47
     # A MOVING CENSUS, not an invariant: re-measure it in the packet that adds
     # or retires an artifact. These values were re-derived from the staged
     # complete 2026-09-06 post-index artifact set with
     # `tools/index_work_packets.py --render`.
     assert payload["counts"] == {
-        "assigned_artifacts": 423,
+        "assigned_artifacts": 424,
         "legacy_artifacts": 204,
-        "packet_artifacts": 425,
-        "packet_ids": 360,
-        "post_index_artifacts": 221,
+        "packet_artifacts": 426,
+        "packet_ids": 361,
+        "post_index_artifacts": 222,
         "registry_artifacts": 1,
-        "tracked_files": 426,
+        "tracked_files": 427,
         "unassigned_artifacts": 2,
     }
     assert len(payload["legacy_baseline"]["paths"]) == 204
@@ -340,6 +340,7 @@ def test_post_index_packet_contracts_are_unique_complete_and_revision_bound() ->
         "G1-EXP-TENSOR-GPU-44",
         "G1-EXP-TENSOR-GPU-45",
         "G1-EXP-TENSOR-GPU-46",
+        "G1-EXP-TENSOR-GPU-47",
         "G1-EXP-TENSOR-LATENT-CEILING-01",
         "G1-EXP-TENSOR-LATENT-CEILING-02",
         "G1-EXP-TENSOR-LATENT-CEILING-03",
