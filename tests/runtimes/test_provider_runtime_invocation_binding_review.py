@@ -90,3 +90,26 @@ def test_runtime_invocation_binding_cannot_read_or_export_ledger_keyrings() -> N
         if isinstance(node, ast.Return) and isinstance(node.value, ast.Name)
     }
     assert not any("key" in name.lower() for name in returned_names)
+
+
+def test_runtime_invocation_binding_validates_all_trust_inputs_before_ledger_use() -> None:
+    source = SOURCE.read_text(encoding="utf-8")
+    helper_start = source.index("def _require_exact_boundary_types(")
+    helper_end = source.index("\ndef _require_same", helper_start)
+    helper = source[helper_start:helper_end]
+    for type_name in (
+        "RuntimeBoundEffectAuthorization",
+        "EffectExecutionRequest",
+        "ProviderInvocationObservationAuthority",
+        "ProviderInvocationPayload",
+        "ProviderInvocationABIContract",
+        "ProviderObservationBindingLedger",
+        "ProviderExecutableObjectRegistry",
+        "ProviderExecutablePreAdmissionReceipt",
+    ):
+        assert type_name in helper
+
+    boundary = source[source.index("def bind_provider_runtime_invocation(") :]
+    assert boundary.index("_require_exact_boundary_types(") < boundary.index(
+        "ProviderObservationBindingLedger.verify_invocation_abi_contract("
+    )
