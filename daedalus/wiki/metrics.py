@@ -67,6 +67,8 @@ import posixpath
 import re
 import sys
 
+from . import treewalk
+
 METRICS_VERSION = 1
 
 # Close to ``verify`` and ``plan``, deliberately not identical: ``plan`` also
@@ -103,45 +105,41 @@ UNREAD_SUFFIXES = {
 Triple = tuple[str, str, str]
 
 
-def _nested_checkout(directory: pathlib.Path) -> bool:
-    """Is this subdirectory its own Git checkout?
-
-    A marker rule, not a name list: a clone carries a ``.git`` DIRECTORY, a
-    worktree a ``.git`` FILE, and either way the tree below belongs to another
-    repository and is not this project's structure. Same shape as ``plan``'s
-    ``_venv_roots``, which knows a venv by ``pyvenv.cfg`` rather than by its
-    name. Measured on agent_env: worktree copies under ``.claude/worktrees``
-    supplied 1144 of 2303 Python files, so the walk read this repository
-    several times over and called the result its health. (Ruling 2026-08-25.)
-    """
-    return (directory / ".git").exists()
-
-
-def _walk(root: pathlib.Path) -> tuple[dict[str, list[pathlib.Path]], list[str]]:
-    """One pruned pass over the tree by suffix, plus the checkouts left out.
+def _walk(root: pathlib.Path
+          ) -> tuple[dict[str, list[pathlib.Path]], dict[str, list[str]]]:
+    """One pruned pass over the tree by suffix, plus what was left out, by kind.
 
     ``rglob`` would descend into ``.venv`` before filtering; on a real tree that
     is the whole cost. Names are sorted so two runs on the same tree produce the
     same graph -- first definition wins when a symbol name repeats. ``root``
     itself is never marker-tested: it is allowed to be a checkout, that is the
     point of it.
+
+    What is foreign is decided by ``treewalk`` -- a marker rule, not a name
+    list: a nested checkout by its own ``.git`` (worktree copies under
+    ``.claude/worktrees`` supplied 1144 of 2303 Python files on agent_env,
+    ruling 2026-08-25), a venv by ``pyvenv.cfg``, a frozen application bundle
+    by ``_internal/base_library.zip`` (two PyInstaller copies of ``daedalus``
+    under ``apps/web/src-tauri`` were walked as project structure, measured
+    2026-09-05). Each is reported in ``could_not_measure`` by kind.
     """
     found: dict[str, list[pathlib.Path]] = collections.defaultdict(list)
-    nested: list[str] = []
+    left_out: dict[str, list[str]] = {kind: [] for kind in treewalk.FOREIGN_KINDS}
     for dirpath, dirnames, filenames in os.walk(root):
         here = pathlib.Path(dirpath)
         keep = []
         for name in sorted(dirnames):
             if name in SKIP_DIRS:
                 continue
-            if _nested_checkout(here / name):
-                nested.append((here / name).relative_to(root).as_posix())
+            kind = treewalk.foreign_kind(here / name)
+            if kind is not None:
+                left_out[kind].append((here / name).relative_to(root).as_posix())
                 continue
             keep.append(name)
         dirnames[:] = keep
         for name in sorted(filenames):
             found[pathlib.PurePath(name).suffix.lower()].append(here / name)
-    return found, nested
+    return found, left_out
 
 
 def _read(path: pathlib.Path, blind: collections.Counter, kind: str) -> str | None:
@@ -291,7 +289,7 @@ def _extract(root: pathlib.Path) -> tuple[list[Triple], list[str], set[str]]:
         # real but empty tree prints -- the instrument has to say which it saw
         return [], [f"root is not a directory: {root.as_posix()} -- nothing was "
                     f"walked, so this is not a measurement of an empty tree"], ambiguous
-    files, nested = _walk(root)
+    files, left_out = _walk(root)
 
     py_files = files.get(".py", [])
     md_files = files.get(".md", [])
@@ -305,11 +303,15 @@ def _extract(root: pathlib.Path) -> tuple[list[Triple], list[str], set[str]]:
         if count:
             could_not_measure.append(
                 f"{count} file(s) in tree not extracted at all -- {label}")
-    if nested:
-        shown = ", ".join(nested[:3]) + (", ..." if len(nested) > 3 else "")
-        could_not_measure.append(
-            f"{len(nested)} nested git checkout(s) not walked -- own .git marker, "
-            f"so another repository, not this project's structure: {shown}")
+    labels = {"nested_checkout": "nested git checkout(s)",
+              "venv": "virtual environment(s)",
+              "frozen_bundle": "frozen application bundle(s)"}
+    for kind, label in labels.items():
+        dirs = left_out.get(kind, [])
+        if dirs:
+            shown = ", ".join(dirs[:3]) + (", ..." if len(dirs) > 3 else "")
+            could_not_measure.append(
+                f"{len(dirs)} {label} not walked -- {treewalk.FOREIGN_KINDS[kind]}: {shown}")
     if not py_files:
         could_not_measure.append("no Python file found: the code plane is empty, "
                                  "so no cross-plane edge can exist by construction")

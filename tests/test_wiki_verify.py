@@ -659,3 +659,69 @@ def test_a_nested_checkout_does_not_supply_evidence_or_demand_pages(
         "the fixture's nested module was never countable; this probe proves "
         "nothing"
     )
+
+
+def test_a_frozen_bundle_does_not_supply_evidence_or_demand_pages(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A frozen application bundle below root is a copy, not a fourth evidence tree.
+
+    Same shape as the nested-checkout rule above, different marker: PyInstaller
+    leaves ``_internal/base_library.zip`` in a one-dir bundle. MEASURED
+    2026-09-05 on this repository: ``source_modules`` was 6133 with two such
+    bundles under ``apps/web/src-tauri`` against roughly 720 real modules, so
+    ``module_coverage`` read 22% for a wiki that linked 98% of ``daedalus/``.
+    """
+    wiki = tmp_path / "docs" / "wiki"
+    wiki.mkdir(parents=True)
+    (wiki / "index.md").write_text("# index" + chr(10), encoding="utf-8")
+    bundle = tmp_path / "apps" / "desktop" / "backend"
+    (bundle / "_internal" / "pkg").mkdir(parents=True)
+    (bundle / "_internal" / "base_library.zip").write_bytes(b"PK")
+    (bundle / "_internal" / "pkg" / "frozen_widget.py").write_text(
+        "class FrozenWidget:" + chr(10) + "    pass" + chr(10), encoding="utf-8")
+
+    excluded = wiki_verify.exclusions(tmp_path, wiki)
+    assert bundle.resolve() in excluded, [str(p) for p in excluded]
+    report = wiki_verify.verify(tmp_path, wiki)
+    uncovered = {f["detail"] for f in report["findings"].get("uncovered_module", [])}
+    assert not any("frozen_widget" in m for m in uncovered), (
+        "the frozen bundle was counted as material the wiki must cover: "
+        f"{sorted(uncovered)}")
+
+    # positive control: without the marker the module is ordinary, uncovered source
+    (bundle / "_internal" / "base_library.zip").unlink()
+    report = wiki_verify.verify(tmp_path, wiki)
+    uncovered = {f["detail"] for f in report["findings"].get("uncovered_module", [])}
+    assert any("frozen_widget" in m for m in uncovered), (
+        "the fixture's bundle module was never countable; this probe proves "
+        "the exclusion above was caused by the marker file")
+
+
+@pytest.mark.parametrize("artefact_dir", ["build", "dist", "artifacts", "htmlcov"])
+def test_an_artefact_tree_does_not_supply_evidence_or_demand_pages(
+    tmp_path: pathlib.Path, artefact_dir: str,
+) -> None:
+    """Generated output is not source. ``plan`` and ``metrics`` already skipped
+    these names; ``verify`` did not, and the divergence was measured on
+    2026-09-05: of 4661 ``source_modules`` after the bundle rule, 3084 were six
+    wheel-build and smoke-install copies of ``daedalus`` under the gitignored
+    ``build/``. The positive control puts the same module under an ordinary
+    directory and shows it is then counted."""
+    wiki = tmp_path / "docs" / "wiki"
+    wiki.mkdir(parents=True)
+    (wiki / "index.md").write_text("# index" + chr(10), encoding="utf-8")
+    module = "class BuiltWidget:" + chr(10) + "    pass" + chr(10)
+    (tmp_path / artefact_dir / "lib" / "pkg").mkdir(parents=True)
+    (tmp_path / artefact_dir / "lib" / "pkg" / "built_widget.py").write_text(module, encoding="utf-8")
+
+    report = wiki_verify.verify(tmp_path, wiki)
+    uncovered = {f["detail"] for f in report["findings"].get("uncovered_module", [])}
+    assert not any("built_widget" in m for m in uncovered), sorted(uncovered)
+
+    (tmp_path / "src" / "pkg").mkdir(parents=True)
+    (tmp_path / "src" / "pkg" / "built_widget.py").write_text(module, encoding="utf-8")
+    report = wiki_verify.verify(tmp_path, wiki)
+    uncovered = {f["detail"] for f in report["findings"].get("uncovered_module", [])}
+    assert any(m == "src/pkg/built_widget.py" for m in uncovered), (
+        "the fixture module was never countable; the exclusion above was vacuous")

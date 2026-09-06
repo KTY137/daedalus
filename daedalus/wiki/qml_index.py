@@ -82,6 +82,7 @@ from collections.abc import Iterable
 # this module at its top level -- the hook inside ``tree_vocabulary`` imports it
 # on call -- so this direction stays acyclic. Do not move that hook up here.
 from .verify import SKIP_DIRS
+from . import treewalk
 
 MAX_BYTES = 400_000
 # Above this longest-line length a file is a minified bundle, not source. The
@@ -226,7 +227,10 @@ def scan(root: pathlib.Path,
         # wiki-editor-test-verify). One pruned pass over both suffixes here
         # replaces two unpruned ones. `os.walk` also does not follow symlinks,
         # so a junction loop cannot hang the scan.
-        dirnames[:] = [d for d in sorted(dirnames) if d not in SKIP_DIRS]
+        # ... and pruned by the same structural rules every wiki instrument
+        # uses (nested checkout, venv, frozen bundle): see `treewalk`.
+        dirnames[:] = [d for d in sorted(dirnames)
+                       if d not in SKIP_DIRS and treewalk.foreign_kind(here / d) is None]
         for name in sorted(filenames):
             if not name.lower().endswith((".qml", ".js")):
                 continue

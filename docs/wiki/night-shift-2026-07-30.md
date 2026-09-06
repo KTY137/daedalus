@@ -2,7 +2,7 @@
 title: Night shift 2026-07-30
 type: finding
 status: verified
-updated: 2026-07-30
+updated: 2026-09-05
 ---
 
 # Night shift 2026-07-30
@@ -100,5 +100,5 @@ found false so nobody re-schedules them.
 
 Full detail: [docs/research/NIGHT_SHIFT_2026-07-30.md](../research/NIGHT_SHIFT_2026-07-30.md)
 
-[[Feature backlog]] — the harvest from 29–30 July.
-[[Graph delta as fitness]] — the concurrent measurement that ran the same night.
+[Feature backlog](feature-backlog.md) — the harvest from 29–30 July.
+[Graph delta as fitness](graph-delta-as-fitness.md) — the concurrent measurement that ran the same night.

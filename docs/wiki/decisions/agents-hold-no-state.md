@@ -2,7 +2,7 @@
 title: Agents hold no state
 type: adr
 status: proposed
-updated: 2026-07-30
+updated: 2026-09-05
 ---
 
 # Agents hold no state
@@ -17,4 +17,4 @@ correctable by a human.
 Consequence: this wiki is load-bearing rather than decorative, and the
 knowledge-management thesis and the code-evolution thesis become one thesis.
 
-Related: [[Knowledge layer]], [[Graph delta as fitness]].
+Related: [Knowledge layer](../architecture/knowledge-layer.md), [Graph delta as fitness](../graph-delta-as-fitness.md).
