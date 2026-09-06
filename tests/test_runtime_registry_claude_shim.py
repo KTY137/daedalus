@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 
+import daedalus.providers as providers
 import daedalus.runtime_registry as registry
 
 
@@ -59,6 +60,47 @@ def test_claude_windows_batch_shim_is_not_reported_ready(monkeypatch) -> None:
     assert ".cmd/.bat launchers reparse argv" in row["last_error"]
     admission.assert_called_once_with(resolved, platform_name="nt")
     run.assert_not_called()
+
+
+def test_claude_provider_probe_reuses_canonical_runtime_readiness() -> None:
+    row = {
+        "id": "claude_code_cli",
+        "available": True,
+        "last_error": "",
+        "measured_at": "2026-09-06T00:00:00Z",
+        "measured_age_s": 0.0,
+    }
+    with (
+        mock.patch.object(registry, "cached_runtime_status", return_value=row) as readiness,
+        mock.patch.object(providers, "get_provider") as provider_factory,
+    ):
+        available, error = providers._availability_probe("claude_cli")
+
+    assert available is True
+    assert error == ""
+    readiness.assert_called_once_with("claude_code_cli")
+    provider_factory.assert_not_called()
+
+
+def test_claude_provider_probe_preserves_runtime_admission_refusal() -> None:
+    refusal = "Claude execution refused: Windows .cmd/.bat launchers reparse argv"
+    row = {
+        "id": "claude_code_cli",
+        "available": False,
+        "last_error": refusal,
+        "measured_at": "2026-09-06T00:00:00Z",
+        "measured_age_s": 0.0,
+    }
+    with (
+        mock.patch.object(registry, "cached_runtime_status", return_value=row) as readiness,
+        mock.patch.object(providers, "get_provider") as provider_factory,
+    ):
+        available, error = providers._availability_probe("claude_cli")
+
+    assert available is False
+    assert error == refusal
+    readiness.assert_called_once_with("claude_code_cli")
+    provider_factory.assert_not_called()
 
 
 def test_claude_windows_native_executable_is_probed(monkeypatch) -> None:
